@@ -9,11 +9,11 @@ export function iceConfiguration(input: unknown): RTCConfiguration {
   const data = object(input),
     servers = data['iceServers'];
   if (!Array.isArray(servers) || servers.length !== 1)
-    throw new Error('TURN próprio indisponível.');
+    throw new Error("App's own TURN server unavailable.");
   const server = object(servers[0]),
     urls = server['urls'];
   if (!Array.isArray(urls) || !urls.length || urls.length > 4)
-    throw new Error('TURN inválido.');
+    throw new Error('Invalid TURN.');
   const checked: unknown[] = urls;
   if (
     checked.some(
@@ -22,12 +22,12 @@ export function iceConfiguration(input: unknown): RTCConfiguration {
         !/^turns?:[a-zA-Z0-9.-]+:\d{2,5}\?transport=(?:udp|tcp)$/u.test(url),
     )
   )
-    throw new Error('Endpoint fora do TURN rejeitado.');
+    throw new Error('Non-TURN endpoint rejected.');
   if (
     typeof server['username'] !== 'string' ||
     typeof server['credential'] !== 'string'
   )
-    throw new Error('Credencial TURN ausente.');
+    throw new Error('TURN credential missing.');
   return {
     iceServers: [
       {
@@ -102,7 +102,7 @@ export class VoiceConnection {
       typeof RTCPeerConnection === 'undefined'
     )
       throw new Error(
-        'Este navegador não permite chamadas de voz. Abra em HTTPS e permita o microfone.',
+        'This browser cannot make voice calls. Open over HTTPS and allow microphone access.',
       );
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -114,18 +114,18 @@ export class VoiceConnection {
     });
     if (g !== this.generation) {
       for (const track of stream.getTracks()) track.stop();
-      throw new Error('Chamada cancelada.');
+      throw new Error('Call cancelled.');
     }
     this.microphone = stream;
     for (const track of stream.getTracks())
       track.addEventListener(
         'ended',
-        () => this.failed(t('O sistema interrompeu o microfone.')),
+        () => this.failed(t('The system interrupted the microphone.')),
         { signal: this.abort.signal },
       );
   }
   create(configuration: RTCConfiguration): void {
-    if (!this.microphone) throw new Error('Microfone não autorizado.');
+    if (!this.microphone) throw new Error('Microphone not authorized.');
     this.pc = new RTCPeerConnection({
       ...configuration,
       iceTransportPolicy: 'relay',
@@ -137,7 +137,7 @@ export class VoiceConnection {
       'track',
       (event) => {
         if (event.track.kind !== 'audio') {
-          this.failed(t('Mídia não permitida.'));
+          this.failed(t('Media not allowed.'));
           return;
         }
         this.audio.srcObject = new MediaStream([event.track]);
@@ -173,7 +173,7 @@ export class VoiceConnection {
         .catch(() => {
           if (g === this.generation)
             this.failed(
-              t('O caminho de mídia não confirmou TURN nos dois extremos.'),
+              t('The media path did not confirm TURN at both endpoints.'),
             );
         });
     } else if (state === 'failed' || state === 'disconnected')
@@ -181,7 +181,7 @@ export class VoiceConnection {
   }
   async verifyRelay(): Promise<void> {
     if (!this.pc || this.pc.getConfiguration().iceTransportPolicy !== 'relay')
-      throw new Error('Política relay ausente.');
+      throw new Error('Relay policy missing.');
     const stats = await this.pc.getStats();
     const pairs: Record<string, unknown>[] = [];
     stats.forEach((stat: Record<string, unknown>) => {
@@ -193,7 +193,7 @@ export class VoiceConnection {
         pairs.push(object(pair));
       }
     });
-    if (!pairs.length) throw new Error('Caminho selecionado ausente.');
+    if (!pairs.length) throw new Error('Selected path missing.');
     for (const pair of pairs) {
       const local: unknown = stats.get(String(pair['localCandidateId']));
       const remote: unknown = stats.get(String(pair['remoteCandidateId']));
@@ -201,7 +201,7 @@ export class VoiceConnection {
         object(local)['candidateType'] !== 'relay' ||
         object(remote)['candidateType'] !== 'relay'
       )
-        throw new Error('Conexão direta rejeitada.');
+        throw new Error('Direct connection rejected.');
     }
   }
   async offer(restart = false): Promise<string> {
@@ -223,7 +223,7 @@ export class VoiceConnection {
     });
   }
   private require(): RTCPeerConnection {
-    if (!this.pc) throw new Error('Conexão encerrada.');
+    if (!this.pc) throw new Error('Connection ended.');
     return this.pc;
   }
   private async gather(pc: RTCPeerConnection): Promise<string> {
@@ -234,26 +234,26 @@ export class VoiceConnection {
     // Wait for a relay in the new local description before accepting completion.
     while (pc.iceGatheringState !== 'complete' || !hasLocalRelay(pc)) {
       if (g !== this.generation || Date.now() > until)
-        throw new Error('TURN não respondeu a tempo.');
+        throw new Error('TURN did not respond in time.');
       // Some unreachable interfaces keep gathering alive after a working TURN
       // allocation exists. Share only the bounded relay snapshot, without trickle.
       if (Date.now() - started >= 2000 && hasLocalRelay(pc)) break;
       await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
-    if (g !== this.generation) throw new Error('Chamada encerrada.');
+    if (g !== this.generation) throw new Error('Call ended.');
     return relaySdp(pc.localDescription?.sdp);
   }
   async inspectAudio() {
     const pc = this.require(),
       microphone = this.microphone,
       g = this.generation;
-    if (!microphone) throw new Error('Microfone não autorizado.');
+    if (!microphone) throw new Error('Microphone not authorized.');
     return inspectCallAudio({
       pc,
       microphone,
       audio: this.audio,
       guard: () => {
-        if (g !== this.generation) throw new Error('Chamada encerrada.');
+        if (g !== this.generation) throw new Error('Call ended.');
       },
     });
   }
@@ -285,7 +285,7 @@ export class VoiceConnection {
     this.muted = true;
     for (const track of this.microphone?.getAudioTracks() ?? []) track.stop();
     await detachCapture(pc);
-    if (g !== this.generation) throw new Error('Chamada encerrada.');
+    if (g !== this.generation) throw new Error('Call ended.');
   }
   mute(): void {
     if (this.captureStopped) return;

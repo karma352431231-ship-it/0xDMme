@@ -31,7 +31,7 @@ const statements = {
 
 export function statementVersion(value: unknown): 2 {
   if (value !== 2)
-    throw new AccountError(400, 'Versão da declaração assinada inválida.');
+    throw new AccountError(400, 'Invalid signed statement version.');
   return value;
 }
 

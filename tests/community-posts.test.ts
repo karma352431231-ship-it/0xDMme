@@ -53,7 +53,7 @@ await test('posts validam texto, tags em lista sem repetição, até cinco, e or
       AccountError,
     );
   assert.throws(
-    () => postContent({ title: '', text: 'Texto', tags: [], media: '/a.png' }),
+    () => postContent({ title: '', text: 'Text', tags: [], media: '/a.png' }),
     AccountError,
   );
 });

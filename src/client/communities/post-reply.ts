@@ -16,14 +16,14 @@ export function postReply(
   toggle.append(
     communityIcon('comment'),
     el('span', String(parent.replies)),
-    el('span', t('Responder'), 'post-action-caption'),
+    el('span', t('Reply'), 'post-action-caption'),
   );
-  toggle.setAttribute('aria-label', t('Responder à postagem'));
+  toggle.setAttribute('aria-label', t('Reply to post'));
   toggle.setAttribute('aria-haspopup', 'dialog');
   toolbar.append(toggle);
   if (!access || parent.status !== 'visible') {
     toggle.disabled = true;
-    toggle.title = t('Respostas indisponíveis para sua participação.');
+    toggle.title = t('Replies unavailable for your membership.');
     return () => undefined;
   }
   toggle.setAttribute('aria-expanded', 'false');
@@ -33,7 +33,7 @@ export function postReply(
     if (composer?.active) return;
     void access.run(async () => {
       if (!(await access.canReply()))
-        throw new Error('Respostas indisponíveis para sua participação.');
+        throw new Error('Replies unavailable for your membership.');
       if (disposed || !access.valid()) return;
       composer = new ReplyComposer(parent, access, toggle);
       composer.open(toolbar);

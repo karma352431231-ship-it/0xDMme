@@ -489,7 +489,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
         unauthorized,
       );
       await assert.rejects(
-        service.rename(loggedIn.sessionToken, { name: 'Expirada' }),
+        service.rename(loggedIn.sessionToken, { name: 'Expired' }),
         unauthorized,
       );
     },

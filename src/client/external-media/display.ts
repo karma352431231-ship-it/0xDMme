@@ -36,7 +36,7 @@ export function externalMediaGate(
     try {
       if (!(await options.consent.authorize(options.kind, signal))) {
         notice.textContent = t(
-          'Mídia externa mantida como link. Altere a permissão no Perfil.',
+          'External media kept as a link. Change permission in Profile.',
         );
         return;
       }
@@ -49,7 +49,7 @@ export function externalMediaGate(
       notice.textContent =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Mídia externa indisponível.');
+          : t('External media unavailable.');
     } finally {
       button.disabled = false;
     }

@@ -96,7 +96,7 @@ export class AttachmentUi {
               showToast(
                 error instanceof Error
                   ? translatedError(error.message)
-                  : t('Arquivo inválido.'),
+                  : t('Invalid file.'),
               );
               return null;
             },
@@ -132,7 +132,7 @@ export class AttachmentUi {
         id = this.previewId();
       // Recorded audio lives only in this page's memory until Enviar.
       label.className = 'voice-preview-note';
-      label.textContent = t('Não enviado · some se a página recarregar');
+      label.textContent = t('Not sent · disappears if the page reloads');
       area.replaceChildren(
         this.playback.element({
           id,
@@ -170,7 +170,7 @@ export class AttachmentUi {
       new Blob([value.bytes], { type: value.type }),
     );
     image.src = this.previewUrl;
-    image.alt = t('Prévia local da imagem original');
+    image.alt = t('Local preview of the original image');
     return image;
   }
   render<V extends MediaView>(input: {
@@ -205,7 +205,7 @@ export class AttachmentUi {
   }
   private enqueue(work: () => Promise<void>): Promise<void> {
     if (this.queued >= 18)
-      return Promise.reject(new Error('Mídias em processamento. Aguarde.'));
+      return Promise.reject(new Error('Processing media. Please wait.'));
     this.queued++;
     const result = this.queue.then(work);
     this.queue = result.catch(() => {});

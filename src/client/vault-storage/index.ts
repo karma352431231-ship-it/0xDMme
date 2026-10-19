@@ -25,7 +25,7 @@ function readCheckpoint(value: unknown): VaultCheckpoint {
   const sequence = integer(data['sequence']);
   const head = data['head'] === null ? null : fingerprint(data['head']);
   if ((sequence === 0) !== (head === null))
-    throw new Error('Checkpoint inválido.');
+    throw new Error('Invalid checkpoint.');
   return { sequence, head, used: integer(data['used'], vaultQuota) };
 }
 export function rememberLocator(value: VaultLocator | null): Promise<void> {
@@ -81,7 +81,7 @@ function transaction<T>(
       database?.close();
       reject(
         new Error(
-          'Cópia local não confirmada. Verifique espaço e armazenamento do navegador.',
+          'Local copy not confirmed. Check browser storage and available space.',
         ),
       );
     }
@@ -160,7 +160,7 @@ export function draft(accountId: string): Promise<VaultDraft | null> {
           bytes.length !== commit.block.bytes ||
           bytes.length > blockLimit
         )
-          throw new Error('Rascunho inválido.');
+          throw new Error('Invalid draft.');
         done({ commit, bytes });
       } catch {
         request.transaction?.abort();

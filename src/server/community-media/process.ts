@@ -159,14 +159,14 @@ function runLocalMediaProcess(
         reject(
           new AccountError(
             503,
-            'Processador indisponível ou interrompido. Retome o envio.',
+            'Processor unavailable or interrupted. Resume the upload.',
           ),
         );
       else if (code !== 0 || overflow)
         reject(
           new AccountError(
             422,
-            'Não foi possível preparar a mídia dentro dos limites. Confira o arquivo.',
+            'Could not prepare media within the limits. Check the file.',
           ),
         );
       else resolve(output);

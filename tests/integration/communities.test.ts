@@ -653,7 +653,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         change(mod, 'sanction', {
           record: crypto.randomUUID(),
           target: ownerProfile.id,
-          reason: 'Teste',
+          reason: 'Test',
           days: null,
         }),
         bad(403),
@@ -662,7 +662,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         change(owner, 'sanction', {
           record: crypto.randomUUID(),
           target: modProfile.id,
-          reason: 'Teste',
+          reason: 'Test',
           days: 1,
         }),
         bad(403),

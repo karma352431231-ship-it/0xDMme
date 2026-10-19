@@ -60,13 +60,13 @@ export class ReplyComposer {
     if (!this.access.valid() || this.access.media.signal.aborted) return;
     const heading = el('header', '', 'post-composer-heading'),
       copy = el('div', '', 'post-composer-heading-copy');
-    copy.append(el('h2', t('Responder')), el('p', t('Continue a conversa.')));
+    copy.append(el('h2', t('Reply')), el('p', t('Continue the conversation.')));
     heading.append(copy);
-    button(heading, t('Fechar'), () => {
+    button(heading, t('Close'), () => {
       this.requestClose();
       return Promise.resolve();
     });
-    this.dialog.setAttribute('aria-label', t('Responder à postagem'));
+    this.dialog.setAttribute('aria-label', t('Reply to post'));
     this.feedback.setAttribute('role', 'status');
     this.dialog.append(heading, this.context(), this.draft, this.feedback);
     const signal = AbortSignal.any([
@@ -83,12 +83,11 @@ export class ReplyComposer {
       },
     );
     const text = this.draft.querySelector('textarea');
-    if (text) text.placeholder = t('Escreva sua resposta…');
+    if (text) text.placeholder = t('Write your reply…');
     const footer = el('footer', '', 'post-composer-footer');
     this.draft.append(footer);
-    button(footer, t('Publicar resposta'), () =>
-      this.publish(content),
-    ).className = 'post-composer-publish';
+    button(footer, t('Publish reply'), () => this.publish(content)).className =
+      'post-composer-publish';
     this.dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
       this.requestClose();
@@ -118,7 +117,7 @@ export class ReplyComposer {
   }
   private context(): HTMLElement {
     const context = el('section', '', 'reply-parent-preview');
-    context.setAttribute('aria-label', t('Postagem que você está respondendo'));
+    context.setAttribute('aria-label', t('The post you are replying to'));
     const avatar = postHeader(
       context,
       this.parent,
@@ -175,7 +174,7 @@ export class ReplyComposer {
       await this.access.run(async () => {
         try {
           if (!(await this.access.canReply()))
-            throw new Error('Respostas indisponíveis para sua participação.');
+            throw new Error('Replies unavailable for your membership.');
           const state = await submitPostReply(
             this.parent,
             { id: this.id, content },
@@ -191,7 +190,7 @@ export class ReplyComposer {
           this.feedback.textContent =
             error instanceof Error
               ? translatedError(error.message)
-              : t('Não foi possível publicar a resposta.');
+              : t('Could not publish the reply.');
           throw error;
         }
       });
@@ -210,7 +209,7 @@ export class ReplyComposer {
     }
     confirmComposerDiscard(this.dialog, {
       draft: this.draft,
-      label: t('Descartar resposta?'),
+      label: t('Discard reply?'),
       close: () => this.close(),
     });
   }

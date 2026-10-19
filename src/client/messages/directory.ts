@@ -90,7 +90,7 @@ function updateEmpty(
   const text =
     options.empty ??
     t(
-      'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.',
+      'Your conversations appear here after adding a contact or joining a group.',
     );
   const projection = JSON.stringify([text, options.emptyMood]);
   if (state.empty && state.emptyProjection === projection) return;

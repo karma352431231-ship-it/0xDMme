@@ -12,7 +12,7 @@ export function messageRelation(input: unknown): MessageRelation {
   const d = object(input);
   keys(d, ['id', 'hash', 'author', 'type']);
   if (d['type'] !== 'edit' && d['type'] !== 'reaction')
-    throw new AccountError(400, 'Relação de mensagem inválida.');
+    throw new AccountError(400, 'Invalid message relationship.');
   return {
     id: uuid(d['id']),
     hash: fingerprint(d['hash']),
@@ -43,7 +43,7 @@ export function dailyPreferences(input: unknown): DailyPreferences {
   keys(d, ['online', 'lastSeen', 'readReceipts']);
   for (const k of Object.keys(privateDefaults))
     if (typeof d[k] !== 'boolean')
-      throw new AccountError(400, 'Preferência inválida.');
+      throw new AccountError(400, 'Invalid preference.');
   return {
     online: d['online'] as boolean,
     // Kept in the wire format for old clients; last access is no longer shared.
@@ -60,7 +60,7 @@ export function conversationSettings(input: unknown): ConversationSettings {
   const d = object(input);
   keys(d, ['mutedUntil', 'archived', 'pinned']);
   if (typeof d['archived'] !== 'boolean' || typeof d['pinned'] !== 'boolean')
-    throw new AccountError(400, 'Configuração inválida.');
+    throw new AccountError(400, 'Invalid configuration.');
   return {
     mutedUntil: integer(d['mutedUntil'], Number.MAX_SAFE_INTEGER),
     archived: d['archived'],
@@ -91,7 +91,7 @@ export function pushRegistration(input: unknown): PushRegistration {
   keys(d, ['endpoint', 'keys']);
   keys(k, ['p256dh', 'auth']);
   if (typeof d['endpoint'] !== 'string' || d['endpoint'].length > 2048)
-    throw new AccountError(400, 'Endpoint inválido.');
+    throw new AccountError(400, 'Invalid endpoint.');
   const u = pushEndpoint(d['endpoint']);
   if (
     typeof k['p256dh'] !== 'string' ||
@@ -99,7 +99,7 @@ export function pushRegistration(input: unknown): PushRegistration {
     typeof k['auth'] !== 'string' ||
     !/^[A-Za-z0-9_-]{22}$/u.test(k['auth'])
   )
-    throw new AccountError(400, 'Chaves de inscrição inválidas.');
+    throw new AccountError(400, 'Invalid subscription keys.');
   return { endpoint: u.href, keys: { p256dh: k['p256dh'], auth: k['auth'] } };
 }
 function pushEndpoint(value: string): URL {
@@ -107,7 +107,7 @@ function pushEndpoint(value: string): URL {
   try {
     u = new URL(value);
   } catch {
-    throw new AccountError(400, 'Endpoint inválido.');
+    throw new AccountError(400, 'Invalid endpoint.');
   }
   if (
     !pushVendor(u.hostname) ||
@@ -117,7 +117,7 @@ function pushEndpoint(value: string): URL {
     u.password ||
     u.hash
   )
-    throw new AccountError(400, 'Serviço push não suportado.');
+    throw new AccountError(400, 'Push service not supported.');
   return u;
 }
 function pushVendor(hostname: string): boolean {
@@ -130,7 +130,7 @@ function pushVendor(hostname: string): boolean {
 }
 export const genericNotification = {
   title: '0xDMme',
-  body: 'Há nova atividade. Abra o app para sincronizar.',
+  body: 'New activity. Open the app to sync.',
 } as const;
 
 export interface PushPreferences {
@@ -151,7 +151,7 @@ export function pushPreferences(input: unknown): PushPreferences {
     typeof d['calls'] !== 'boolean' ||
     typeof d['showCalls'] !== 'boolean'
   )
-    throw new AccountError(400, 'Preferências push inválidas.');
+    throw new AccountError(400, 'Invalid push preferences.');
   return {
     messages: d['messages'],
     calls: d['calls'],

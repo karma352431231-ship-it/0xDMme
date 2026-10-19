@@ -93,6 +93,6 @@ await test('pesquisa consulta somente endpoints públicos sem cookie e respeita 
   );
   await assert.rejects(
     searchMentions('ana', new AbortController().signal),
-    /inválidas/u,
+    /[Ii]nvalid/u,
   );
 });

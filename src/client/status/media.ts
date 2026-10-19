@@ -27,7 +27,7 @@ export async function sealStatusPhoto(
   caption: string,
 ): Promise<StatusPhoto> {
   if (!selection.image || selection.voice)
-    throw new Error('Escolha uma foto para o status.');
+    throw new Error('Choose a status photo.');
   const main = await sealFile(selection.bytes),
     files = [main];
   const thumbnail = selection.thumbnail
@@ -57,11 +57,11 @@ export async function uploadStatusPhoto(
     refs: contentRefs(photo.content),
   });
   if (!Array.isArray(state) || state.length !== photo.files.length)
-    throw new Error('Reservas de fotos divergentes.');
+    throw new Error('Photo reservations do not match.');
   for (const file of photo.files) {
     const row = object(state.find((r) => object(r)['id'] === file.file.ref.id));
     if (typeof row['ready'] !== 'boolean' || !Array.isArray(row['received']))
-      throw new Error('Estado de upload inválido.');
+      throw new Error('Invalid upload state.');
     if (row['ready']) continue;
     for (let index = 0; index < file.file.ref.parts.length; index++) {
       if (row['received'].includes(index)) continue;
@@ -81,7 +81,7 @@ export async function uploadStatusPhoto(
       }),
     );
     if (result['status'] !== 'ready')
-      throw new Error('Foto ainda não preservada.');
+      throw new Error('Photo not yet preserved.');
   }
 }
 export async function downloadStatusPhoto(input: {
@@ -104,7 +104,7 @@ export async function downloadStatusPhoto(input: {
       const part = input.file.ref.parts[index]!,
         value = base64(raw['ciphertext'], partLimit);
       if (value.length !== part.bytes || (await bytesHash(value)) !== part.hash)
-        throw new Error('Foto incompleta ou adulterada.');
+        throw new Error('Photo incomplete or tampered with.');
       input.guard();
       bytes.set(value, index * partLimit);
     }

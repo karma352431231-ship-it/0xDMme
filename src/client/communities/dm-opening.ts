@@ -14,7 +14,7 @@ export async function openDmConversation(
   usable: () => boolean,
 ): Promise<SocialRelation> {
   const value = await source.state(peer);
-  if (!usable()) throw new DOMException('DM encerrada.', 'AbortError');
+  if (!usable()) throw new DOMException('DM ended.', 'AbortError');
   if (
     value &&
     (value.state === 'approved' ||

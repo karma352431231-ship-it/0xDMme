@@ -204,7 +204,7 @@ await test('conteúdo inválido volta a oferecer as configurações; cofre incom
     sync.refreshes++;
     return Promise.resolve();
   };
-  await assert.rejects(record.load(account), /ainda está carregando/u);
+  await assert.rejects(record.load(account), /still loading/u);
   assert.equal(sync.refreshes - before, 6);
 });
 
@@ -308,7 +308,7 @@ await test('language follows the account and an explicit change waits for the va
   await settle();
   assert.equal(await languageRecord.load(account.accountId), 'en');
   controller.setSession(null);
-  await assert.rejects(controller.saveLanguage('zh-CN'), /Abra sua conta/u);
+  await assert.rejects(controller.saveLanguage('zh-CN'), /Open your account/u);
 });
 
 await test('changing account while adopting its language cannot apply the old settings', async () => {
@@ -392,7 +392,10 @@ await test('changing account during a language write prevents a stale successful
     await save(input);
     controller.setSession(null);
   };
-  await assert.rejects(controller.saveLanguage('zh-CN'), /A conta mudou/u);
+  await assert.rejects(
+    controller.saveLanguage('zh-CN'),
+    /The account changed/u,
+  );
 });
 
 await test('outro aparelho aplica a cópia da conta e só grava quando algo muda', async () => {

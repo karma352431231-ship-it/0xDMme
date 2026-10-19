@@ -175,7 +175,7 @@ function assertCachedGroupRow(
     packet.relation ?? null,
   ];
   if (canonical(stored) !== canonical(expected))
-    throw new Error('Conteúdo local diverge da mensagem de grupo.');
+    throw new Error('Local content differs from the group message.');
 }
 
 interface GroupRowContext extends GroupReadContext {
@@ -247,7 +247,7 @@ async function preservedView(
   if (stored === null) return null;
   const previous = groupView(stored);
   if (previous.id !== item.id || previous.hash !== item.hash)
-    throw new Error('Conteúdo local diverge do cofre remoto.');
+    throw new Error('Local content differs from the remote vault.');
   return { ...previous, localOnly: true };
 }
 async function checkGroupIndex(
@@ -261,9 +261,9 @@ async function checkGroupIndex(
     packet.groupId !== c.group.state.groupId ||
     (await digest(canonical(packet))) !== item.hash
   )
-    throw new Error('Mensagem divergente do índice de grupo.');
+    throw new Error('Message differs from group index.');
   if (!groupCanRead(c.group.state, c.authority.session.accountId, packet.epoch))
-    throw new Error('Mensagem fora do seu período de participação.');
+    throw new Error('Message outside your membership period.');
 }
 async function decryptGroupText(
   c: GroupRowContext,
@@ -280,11 +280,11 @@ async function decryptGroupText(
     !origin ||
     (await groupEventHash(period)) !== packet.head
   )
-    throw new Error('Mensagem sem participação ou origem verificada.');
+    throw new Error('Message has no verified membership or origin.');
   const archive = bundle.archives.find(
     (a) => a.accountId === c.authority.session.accountId,
   );
-  if (!archive) throw new Error('Mensagem sem recuperação para sua conta.');
+  if (!archive) throw new Error('Message has no recovery for your account.');
   let secret = c.recovery.get(archive.keyId);
   if (!secret) {
     const key = recoveryKey(await c.api('recovery-key', { id: archive.keyId }));
@@ -306,7 +306,7 @@ async function preserveProfile(
 ): Promise<void> {
   const period = await c.cache.event(packet.head);
   if (!period || !groupManager(period, packet.sender))
-    throw new Error('Nome de grupo sem administrador autorizado.');
+    throw new Error('Group name has no authorized administrator.');
   const title = groupTitle(JSON.parse(text) as unknown),
     previous = await c.cache.get('profile');
   if (
@@ -332,7 +332,7 @@ export function groupView(input: unknown): GroupView {
     typeof d['own'] !== 'boolean' ||
     !Array.isArray(d['unavailableMedia'])
   )
-    throw new Error('Histórico local de grupo inválido.');
+    throw new Error('Invalid local group history.');
   return {
     id: uuid(d['id']),
     groupId: uuid(d['groupId']),
@@ -360,13 +360,13 @@ function parseGroupPage(input: unknown): {
     !Array.isArray(d['keys']) ||
     d['keys'].length > 16
   )
-    throw new Error('Página de mensagens de grupo inválida.');
+    throw new Error('Invalid group message page.');
   const items: unknown[] = d['items'],
     keys: unknown[] = d['keys'];
   const checked = items.map((value) => {
     const row = object(value);
     if (!Array.isArray(row['unavailableMedia']))
-      throw new Error('Estado da mídia inválido.');
+      throw new Error('Invalid media state.');
     return {
       id: uuid(row['id']),
       ...(row['sender'] === undefined ? {} : { sender: uuid(row['sender']) }),
@@ -387,6 +387,6 @@ function parseGroupPage(input: unknown): {
         index > 0 && r.sequence <= (checked[index - 1]?.sequence ?? 0),
     )
   )
-    throw new Error('Ordem de grupo inválida.');
+    throw new Error('Invalid group order.');
   return { items: checked, keys: keys.map(groupKeys) };
 }

@@ -112,7 +112,10 @@ await test('fotos privadas usam somente cartão recebido na conta atual; ausênc
     { ...row, id: crypto.randomUUID() },
   ]) {
     store(`profile:${id}`, divergent);
-    await assert.rejects(knownPeerProfile(authority, peer), /divergente/u);
+    await assert.rejects(
+      knownPeerProfile(authority, peer),
+      /differ|not match/u,
+    );
   }
 });
 

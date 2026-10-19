@@ -59,7 +59,7 @@ export class ProbeZkVerifier {
       throw new Error('Contexto de autorização inválido.');
     this.#active += 1;
     try {
-      if (!(await verifyProof(proof))) throw new Error('Prova inválida.');
+      if (!(await verifyProof(proof))) throw new Error('Invalid proof.');
       // Reavaliar depois do await torna a admissão atômica neste processo.
       if (this.#spent.has(proof.nullifier) || this.#spent.size >= 32)
         throw new Error('Prova repetida ou limite do ensaio.');

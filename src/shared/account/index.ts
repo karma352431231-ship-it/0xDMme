@@ -13,7 +13,7 @@ export class AccountError extends Error {
 
 export function object(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new AccountError(400, 'Dados inválidos.');
+    throw new AccountError(400, 'Invalid data.');
   return value as Record<string, unknown>;
 }
 
@@ -22,12 +22,12 @@ export function keys(value: Record<string, unknown>, expected: string[]): void {
     Object.keys(value).length !== expected.length ||
     expected.some((key) => !Object.hasOwn(value, key))
   )
-    throw new AccountError(400, 'Campos inválidos.');
+    throw new AccountError(400, 'Invalid fields.');
 }
 
 export function boundedText(value: unknown, maximum: number): string {
   if (typeof value !== 'string' || value.length > maximum || value.length === 0)
-    throw new AccountError(400, 'Texto inválido.');
+    throw new AccountError(400, 'Invalid text.');
   return value;
 }
 
@@ -38,15 +38,15 @@ export function uuid(value: unknown): string {
       result,
     )
   )
-    throw new AccountError(400, 'Identificador inválido.');
+    throw new AccountError(400, 'Invalid identifier.');
   return result;
 }
 
 export function displayName(value: unknown): string {
-  if (typeof value !== 'string') throw new AccountError(400, 'Nome inválido.');
+  if (typeof value !== 'string') throw new AccountError(400, 'Invalid name.');
   const name = value.normalize('NFC').trim();
   if (name.length > 80 || /[\p{Cc}\p{Cf}]/u.test(name))
-    throw new AccountError(400, 'Nome inválido.');
+    throw new AccountError(400, 'Invalid name.');
   return name;
 }
 
@@ -81,7 +81,7 @@ export function accountSession(value: unknown): AccountSession {
     data['deviceState'] !== 'pending' ||
     data['historyAuthorized'] !== false
   )
-    throw new AccountError(400, 'Sessão inválida.');
+    throw new AccountError(400, 'Invalid session.');
   const network = ecosystem(data['ecosystem']);
   const address = canonicalAddress(network, data['address']);
   const csrf = boundedText(data['csrf'], 64);
@@ -91,7 +91,7 @@ export function accountSession(value: unknown): AccountSession {
     !Number.isSafeInteger(data['profileRevision']) ||
     data['profileRevision'] < 0
   )
-    throw new AccountError(400, 'Sessão inválida.');
+    throw new AccountError(400, 'Invalid session.');
   return {
     accountId: uuid(data['accountId']),
     ecosystem: network,
@@ -110,7 +110,7 @@ export function requireWalletSession(session: AccountSession): void {
   if (session.walletConfirmed !== true)
     throw new AccountError(
       403,
-      'Confirme a wallet nesta sessão para executar esta ação.',
+      'Confirm your wallet in this session to perform this action.',
     );
 }
 
@@ -120,7 +120,7 @@ export function base64(
 ): Uint8Array<ArrayBuffer> {
   const encoded = boundedText(value, Math.ceil(maximum / 3) * 4);
   if (encoded.length % 4 !== 0 || /[^A-Za-z0-9+/=]/u.test(encoded))
-    throw new AccountError(400, 'Codificação inválida.');
+    throw new AccountError(400, 'Invalid encoding.');
   let bytes: Uint8Array<ArrayBuffer>;
   try {
     const decoded = atob(encoded);
@@ -128,10 +128,10 @@ export function base64(
     for (let index = 0; index < decoded.length; index++)
       bytes[index] = decoded.charCodeAt(index);
   } catch {
-    throw new AccountError(400, 'Codificação inválida.');
+    throw new AccountError(400, 'Invalid encoding.');
   }
   if (bytes.length > maximum || encode(bytes) !== encoded)
-    throw new AccountError(400, 'Codificação inválida.');
+    throw new AccountError(400, 'Invalid encoding.');
   return bytes;
 }
 
@@ -152,12 +152,12 @@ export function profileEnvelope(value: unknown): EncryptedProfile {
     !Number.isSafeInteger(data['revision']) ||
     data['revision'] < 1
   )
-    throw new AccountError(400, 'Versão inválida.');
+    throw new AccountError(400, 'Invalid version.');
   if (
     base64(data['iv'], 12).length !== 12 ||
     base64(data['ciphertext'], encryptedProfileLimit).length < 16
   )
-    throw new AccountError(400, 'Perfil cifrado inválido.');
+    throw new AccountError(400, 'Invalid encrypted profile.');
   return {
     version: 1,
     revision: data['revision'],

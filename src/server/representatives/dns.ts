@@ -9,10 +9,7 @@ export class DnsDomainResolver implements DomainResolver {
   private active = 0;
   async matches(domain: string, record: string): Promise<boolean> {
     if (this.active >= 2)
-      throw new AccountError(
-        429,
-        'Verificação de domínio ocupada. Tente novamente.',
-      );
+      throw new AccountError(429, 'Domain verification busy. Try again.');
     const name = `_0xdmme.${domainName(domain)}`;
     const resolver = new Resolver({ timeout: 2000, tries: 1 });
     this.active++;
@@ -33,7 +30,7 @@ export class DnsDomainResolver implements DomainResolver {
         ['ENODATA', 'ENOTFOUND'].includes(String(error.code))
       )
         return false;
-      throw new AccountError(503, 'Não foi possível confirmar o DNS agora.');
+      throw new AccountError(503, 'Could not confirm DNS now.');
     } finally {
       clearTimeout(timer);
       this.active--;

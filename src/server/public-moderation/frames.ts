@@ -121,7 +121,7 @@ async function expectedFrames(
   } catch {
     child.kill('SIGKILL');
     await closed;
-    throw new AccountError(503, 'Inspeção da mídia indisponível.');
+    throw new AccountError(503, 'Media inspection unavailable.');
   }
 }
 function readFrameCount(output: string, maximum: number): number {
@@ -164,7 +164,7 @@ export async function classifyPreparedFrames(options: {
   } catch {
     child.kill('SIGKILL');
     await closed;
-    throw new AccountError(503, 'Análise da mídia indisponível.');
+    throw new AccountError(503, 'Media analysis unavailable.');
   }
 }
 async function scanFrames(

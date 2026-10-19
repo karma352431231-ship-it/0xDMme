@@ -31,7 +31,7 @@ export class SocialMatrixStore {
     if (unique.length > 2)
       throw new AccountError(
         400,
-        'Transporte de DM exige contexto individual.',
+        'DM transport requires an individual context.',
       );
     const result = new Map<string, DirectoryEvent>();
     for (const profile of unique) {
@@ -50,7 +50,7 @@ export class SocialMatrixStore {
         input.binding.deviceId !== device ||
         input.binding.directory !== (await eventHash(event))
       )
-        throw new AccountError(403, 'Vínculo Matrix de outra DM.');
+        throw new AccountError(403, 'Matrix binding belongs to another DM.');
       const previous = await context.client.query<{ binding: MatrixBinding }>(
         'SELECT binding FROM hash_talk.social_matrix_devices WHERE profile_id=$1 AND device_id=$2',
         [context.actor.id, device],
@@ -60,7 +60,7 @@ export class SocialMatrixStore {
         canonical(previous.rows[0].binding.public) !==
           canonical(input.binding.public)
       )
-        throw new AccountError(409, 'Chaves do aparelho de DMs mudaram.');
+        throw new AccountError(409, 'DM device keys changed.');
       const serialized = JSON.stringify(input.binding);
       await context.client.query(
         'INSERT INTO hash_talk.social_matrix_devices(profile_id,device_id,binding,charge) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(profile_id,device_id) DO UPDATE SET binding=excluded.binding,charge=excluded.charge WHERE hash_talk.social_matrix_devices.binding<>excluded.binding',
@@ -82,7 +82,7 @@ export class SocialMatrixStore {
       }
       const count = await this.count(context, device);
       if (count > 100)
-        throw new AccountError(413, 'Lote de chaves de DMs excedido.');
+        throw new AccountError(413, 'DM key batch exceeds the limit.');
       await this.social.limits(context);
       return {
         response: { one_time_key_counts: { signed_curve25519: count } },
@@ -103,7 +103,7 @@ export class SocialMatrixStore {
       [context.actor.id, input.device, input.id],
     );
     if (old.rows[0] && canonical(old.rows[0].body) !== canonical(input.body))
-      throw new AccountError(409, 'Chave de sessão de DM substituída.');
+      throw new AccountError(409, 'DM session key replaced.');
     const serialized = JSON.stringify(input.body);
     await context.client.query(
       'INSERT INTO hash_talk.social_matrix_keys(profile_id,device_id,id,fallback,body,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT DO NOTHING',
@@ -168,12 +168,12 @@ export class SocialMatrixStore {
             .get(request.account)
             ?.devices.some((d) => d.id === request.device)
         )
-          throw new AccountError(403, 'Aparelho de DM indisponível.');
+          throw new AccountError(403, 'DM device unavailable.');
       if (
         new Set(requests.map((r) => `${r.account}:${r.device}`)).size !==
         requests.length
       )
-        throw new AccountError(400, 'Aparelho repetido no lote.');
+        throw new AccountError(400, 'Device repeated in the batch.');
       const rows = await context.client.query<{
         account: string;
         device: string;
@@ -251,7 +251,7 @@ export class SocialMatrixStore {
         [context.actor.id, device, input.id, JSON.stringify(rows)],
       );
       if (existing.rowCount)
-        throw new AccountError(409, 'Retry de envelope divergente.');
+        throw new AccountError(409, 'Envelope retry does not match.');
       await context.client.query(
         'INSERT INTO hash_talk.social_matrix_envelopes(sender,sender_device,txn,recipient,device_id,hash,body,charge) SELECT $1,$2,$3,r.recipient,r.device_id,r.hash,r.body,r.charge FROM jsonb_to_recordset($4::jsonb) r(recipient uuid,device_id uuid,hash text,body jsonb,charge integer) ON CONFLICT DO NOTHING',
         [context.actor.id, device, input.id, JSON.stringify(rows)],
@@ -271,13 +271,16 @@ export class SocialMatrixStore {
       !directory?.devices.some((d) => d.id === envelope.device) ||
       envelope.content['sender_key'] !== senderKey
     )
-      throw new AccountError(403, 'Envelope de outro aparelho/contexto.');
+      throw new AccountError(
+        403,
+        'Envelope belongs to another device/context.',
+      );
     const curve = binding?.public.keys[`curve25519:${envelope.device}`];
     if (
       !curve ||
       !Object.hasOwn(envelope.content['ciphertext'] as object, curve)
     )
-      throw new AccountError(403, 'Destino criptográfico divergente.');
+      throw new AccountError(403, 'Cryptographic destination does not match.');
   }
   async inbox(authority: ContactAuthority) {
     return this.social.withActor(authority, async (context) => {

@@ -36,7 +36,7 @@ export function groupLink(value: unknown): GroupLink {
     !authorityRevision ||
     base64(d['signature'], 64).length !== 64
   )
-    throw new AccountError(400, 'Link de grupo inválido.');
+    throw new AccountError(400, 'Invalid group link.');
   return {
     version: 1,
     id: uuid(d['id']),
@@ -68,7 +68,7 @@ export async function verifyGroupLink(
     directory.revision !== link.authorityRevision ||
     (await eventHash(directory)) !== link.directory
   )
-    throw new AccountError(403, 'Link sem autoridade de aparelho verificada.');
+    throw new AccountError(403, 'Link lacks verified device authority.');
   await verify(signer.signing, link.signature, groupLinkProof(link));
 }
 export function groupInvitationUrl(
@@ -87,9 +87,9 @@ export function readGroupInvitation(value: string): {
     url.origin !== new URL('https://0xdmme.app').origin &&
     url.origin !== globalThis.location?.origin
   )
-    throw new AccountError(400, 'Convite de outro site.');
+    throw new AccountError(400, 'Invitation belongs to another site.');
   const parts = url.hash.slice('#grupo='.length).split('.');
   if (!url.hash.startsWith('#grupo=') || parts.length !== 2)
-    throw new AccountError(400, 'Link de grupo inválido.');
+    throw new AccountError(400, 'Invalid group link.');
   return { groupId: uuid(parts[0]), token: fingerprint(parts[1]) };
 }

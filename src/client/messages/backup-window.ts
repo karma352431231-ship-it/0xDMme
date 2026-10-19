@@ -13,13 +13,13 @@ export function readBackupWindow(value: unknown, ids: readonly string[]) {
     !Array.isArray(recovery) ||
     recovery.length > 32
   )
-    throw new Error('Lote de backup inválido.');
+    throw new Error('Invalid backup batch.');
   const keys = new Map<string, RecoveryKey>(),
     packets = new Map<string, unknown>(),
     unavailable = new Map<string, number>();
   for (const value of recovery) {
     const key = recoveryKey(value);
-    if (keys.has(key.id)) throw new Error('Chave duplicada.');
+    if (keys.has(key.id)) throw new Error('Duplicate key.');
     keys.set(key.id, key);
   }
   for (let i = 0; i < raw.length; i++) {
@@ -32,12 +32,12 @@ export function readBackupWindow(value: unknown, ids: readonly string[]) {
 
 function readRow(value: unknown, id: string): Record<string, unknown> {
   const row = object(value);
-  if (row['id'] !== id) throw new Error('Ordem do backup divergente.');
+  if (row['id'] !== id) throw new Error('Backup order does not match.');
   if (
     row['unavailable'] !== undefined &&
     (![410, 423].includes(Number(row['unavailable'])) ||
       row['packet'] !== undefined)
   )
-    throw new Error('Falha de backup inválida.');
+    throw new Error('Invalid backup failure.');
   return row;
 }

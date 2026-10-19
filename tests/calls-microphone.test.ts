@@ -58,7 +58,7 @@ await test('cancelar durante a permissão do microfone interrompe o áudio conce
   resolve({
     getTracks: () => [{ stop: () => stopped++ }],
   } as unknown as MediaStream);
-  await assert.rejects(acquiring, /cancelada/u);
+  await assert.rejects(acquiring, /cancelled/u);
   assert.equal(stopped, 1);
   assert.equal(connections, 0);
   assert.equal(rtc.state, 'idle');

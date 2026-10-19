@@ -15,29 +15,27 @@ export function moderationNotification(
 ): ModerationNotification | null {
   const reasons: Partial<Record<PublicModerationNotice['status'], string>> = {
     rejected: t(
-      'A análise automática indicou conteúdo explícito, proibido pela política pública. Você pode contestar a análise no Perfil.',
+      'Automated analysis detected explicit content, which is prohibited by the public content policy. You can appeal in Profile.',
     ),
     held: t(
-      'A análise ficou incerta. O conteúdo fica fora do público até uma aprovação. Você pode contestar no Perfil.',
+      'The analysis was uncertain. The content will not be public until approved. You can appeal in Profile.',
     ),
     failed: t(
-      'Não foi possível concluir a análise com segurança. O conteúdo fica fora do público enquanto não houver aprovação.',
+      'Could not safely complete analysis. Content will not be public until approved.',
     ),
     discarding: t(
-      'O prazo de sete dias terminou sem aprovação. O arquivo está sendo descartado.',
+      'The seven-day deadline passed without approval. The file is being discarded.',
     ),
-    expired: t(
-      'O arquivo foi descartado ao terminar o prazo de sete dias sem aprovação.',
-    ),
+    expired: t('The file was discarded after seven days without approval.'),
   };
   const reason = reasons[notice.status];
   if (!reason) return null;
   const titles = {
-    'post-media': t('Sua postagem ou resposta foi retirada do público'),
-    avatar: t('Sua foto de perfil ficou fora do público'),
-    'profile-banner': t('Seu banner ficou fora do público'),
-    'community-photo': t('A foto da comunidade ficou fora do público'),
-    'community-banner': t('O banner da comunidade ficou fora do público'),
+    'post-media': t('Your post or reply was removed from public view'),
+    avatar: t('Your profile photo was withheld from public view'),
+    'profile-banner': t('Your banner was withheld from public view'),
+    'community-photo': t('The community photo was withheld from public view'),
+    'community-banner': t('The community banner was withheld from public view'),
   };
   return {
     id: `${notice.id}:${notice.status}`,
@@ -45,7 +43,7 @@ export function moderationNotification(
     read: false,
     title: titles[notice.kind],
     reason: notice.decision
-      ? t('{0} Revisão: {1}', [reason, notice.decision])
+      ? t('{0} Revision: {1}', [reason, notice.decision])
       : reason,
   };
 }
@@ -97,7 +95,7 @@ export class ModerationNotifications {
     });
     if (old !== this.generation) return [];
     if (!Array.isArray(data) || data.length > 32)
-      throw new Error('Avisos de análise inválidos.');
+      throw new Error('Invalid analysis notices.');
     return data.map(publicModerationNotice).flatMap((notice) => {
       const item = moderationNotification(notice);
       return item ? [{ ...item, read: this.readIds.has(item.id) }] : [];

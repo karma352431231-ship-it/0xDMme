@@ -56,8 +56,11 @@ await test('destinatário recebe depois de ficar offline, dentro da sessão em m
 
 await test('chave esperada errada impede envio, sem fallback', async (t) => {
   const { alice } = await pair(t);
-  await assert.rejects(alice.confirmPeer('chave falsa'), /não confere/);
-  await assert.rejects(alice.send('Não pode sair'), /Confirme a chave/);
+  await assert.rejects(alice.confirmPeer('chave falsa'), /does not match/);
+  await assert.rejects(
+    alice.send('Não pode sair'),
+    /Confirm the other client's key/,
+  );
 });
 
 await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async (t) => {
@@ -76,7 +79,7 @@ await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async
       ciphertext: ciphertext.slice(0, 30) + replacement + ciphertext.slice(31),
     },
   };
-  await assert.rejects(bob.decrypt(damaged), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(damaged), /Message rejected/);
   assert.equal(await bob.decrypt(event), 'Texto sintético íntegro');
 });
 
@@ -88,7 +91,7 @@ await test('atribuir autoria falsa ao pacote não o transforma em mensagem autor
   await bob.receive();
   await assert.rejects(
     bob.decrypt({ ...event, sender: '@intruso:probe.invalid' }),
-    /não autorizado/,
+    /not authorized|unauthorized/,
   );
 });
 
@@ -122,7 +125,7 @@ await test('outro cliente com chaves novas não lê os pacotes armazenados para 
   );
   t.after(() => outsider.close());
   await outsider.confirmPeer(alice.fingerprint);
-  await assert.rejects(outsider.receive(), /Pacote de chave não autorizado/);
+  await assert.rejects(outsider.receive(), /Key package unauthorized/);
   await assert.rejects(outsider.decrypt(event), (error: unknown) => {
     assert.ok(error instanceof Error);
     assert.ok(error.cause instanceof MegolmDecryptionError);
@@ -154,9 +157,9 @@ await test('revogação rotaciona a sessão: Bob mantém passado e não abre nov
   const afterState = JSON.parse(relay.inspect()) as { to_device: unknown };
   assert.deepEqual(afterState.to_device, beforeState.to_device);
   await bob.receive();
-  await assert.rejects(bob.decrypt(after), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(after), /Message rejected/);
   assert.equal(await bob.decrypt(before), 'Antes da revogação');
-  await assert.rejects(alice.confirmPeer(bob.fingerprint), /revogado/);
+  await assert.rejects(alice.confirmPeer(bob.fingerprint), /revoked/);
 });
 
 await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão antiga', async (t) => {
@@ -171,7 +174,7 @@ await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão
   await revocation;
   const event = await delivery;
   await bob.receive();
-  await assert.rejects(bob.decrypt(event), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(event), /Message rejected/);
 });
 
 await test('repetir um ciphertext com novo identificador não produz uma segunda mensagem', async (t) => {
@@ -183,7 +186,7 @@ await test('repetir um ciphertext com novo identificador não produz uma segunda
   assert.equal(await bob.decrypt(event), 'Mensagem única');
   await assert.rejects(
     bob.decrypt({ ...event, event_id: '$replay-synthetic' }),
-    /Mensagem rejeitada/,
+    /Message rejected/,
   );
 });
 
@@ -211,7 +214,7 @@ await test('diretório hostil não substitui a chave de criptografia com assinat
   await assert.rejects(observer.confirmPeer(bob.fingerprint));
   await assert.rejects(
     observer.send('Texto não pode sair com chave adulterada'),
-    /Confirme a chave/,
+    /Confirm the other client's key/,
   );
   await alice.confirmPeer(bob.fingerprint);
 });

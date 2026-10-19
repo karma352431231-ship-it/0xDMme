@@ -27,7 +27,7 @@ await test('@ normaliza caixa sem aceitar acentos, homógrafos Unicode ou nomes 
   ])
     assert.throws(() => claimableHandle(value), AccountError);
   for (const value of ['Admin', 'suporte', '0xDMme', 'a_d_m_i_n', '0xdmme_app'])
-    assert.throws(() => claimableHandle(value), /reservado/);
+    assert.throws(() => claimableHandle(value), /reserved/);
 });
 await test('contrato público recusa campos privados ou avatar sem proteção', () => {
   const profile = { id: crypto.randomUUID(), handle: 'joao', avatar: null };

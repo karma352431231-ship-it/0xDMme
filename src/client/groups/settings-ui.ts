@@ -30,7 +30,7 @@ export function groupMemberActions(
     actions = document.createElement('div');
   menu.className = 'group-member-menu';
   trigger.innerHTML = chatIcon('more');
-  trigger.setAttribute('aria-label', t('Administrar {0}', [name]));
+  trigger.setAttribute('aria-label', t('Manage {0}', [name]));
   actions.className = 'group-member-actions';
   actions.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('button'))
@@ -53,7 +53,7 @@ export function updateGroupSettingsIdentity(
     avatar = host?.querySelector<HTMLElement>('[data-group-settings-avatar]');
   if (title) title.textContent = group.title;
   if (count)
-    count.textContent = t('{0} participantes', [group.state.members.length]);
+    count.textContent = t('{0} participants', [group.state.members.length]);
   if (avatar)
     paintAvatar(avatar, { label: group.title, seed: group.state.groupId });
 }

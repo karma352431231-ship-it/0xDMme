@@ -30,10 +30,10 @@ export function composerCommunityIdentity(
     el(
       'small',
       group.archived
-        ? t('Comunidade arquivada')
+        ? t('Archived community')
         : t('{0} {1}', [
             group.followers.toLocaleString(currentLanguage()),
-            group.followers === 1 ? t('seguidor') : t('seguidores'),
+            group.followers === 1 ? t('follower') : t('followers'),
           ]),
     ),
   );

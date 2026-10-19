@@ -18,7 +18,7 @@ export async function writeCommunityName(
     )
       throw new AccountError(
         409,
-        'Já existe uma comunidade com esse nome. Escolha outro.',
+        'A community with this name already exists. Choose another.',
       );
     throw error;
   }

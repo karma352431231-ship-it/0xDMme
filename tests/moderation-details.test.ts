@@ -20,7 +20,7 @@ const detail = {
   post: {
     id: crypto.randomUUID(),
     community: crypto.randomUUID(),
-    communityName: 'Comunidade',
+    communityName: 'Community',
     title: '',
     text: '',
     reply: true,

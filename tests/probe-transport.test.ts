@@ -13,7 +13,7 @@ await test('corpo grande é interrompido antes de alimentar JSON/motor criptogr�
       canceled = true;
     },
   });
-  await assert.rejects(boundedResponse(new Response(stream)), /excede/);
+  await assert.rejects(boundedResponse(new Response(stream)), /exceed/);
   assert.equal(canceled, true);
 });
 
@@ -21,7 +21,7 @@ await test('UTF-8 malformado e status de erro não são apresentados como sucess
   await assert.rejects(boundedResponse(new Response(new Uint8Array([0xff]))));
   await assert.rejects(
     boundedResponse(new Response('{}', { status: 403 })),
-    /rejeitada/,
+    /rejected/,
   );
   assert.equal(
     await boundedResponse(new Response('{"texto":"ação"}')),

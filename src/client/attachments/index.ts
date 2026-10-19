@@ -152,16 +152,16 @@ export async function uploadAttachments(input: {
       refs,
     });
   if (!Array.isArray(raw) || raw.length !== refs.length)
-    throw new Error('Reservas de anexos divergentes.');
+    throw new Error('Attachment reservations do not match.');
   for (const ref of refs) {
     const row = object(raw.find((r) => object(r)['id'] === ref.id));
     if (typeof row['ready'] !== 'boolean' || !Array.isArray(row['received']))
-      throw new Error('Estado de transferência inválido.');
+      throw new Error('Invalid transfer state.');
     if (row['ready']) continue;
     await uploadParts({ ...input, ref, received: row['received'] });
     const result = object(await input.api('attachment-finish', { id: ref.id }));
     if (result['status'] !== 'ready')
-      throw new Error('Preservação do anexo não confirmada.');
+      throw new Error('Attachment preservation not confirmed.');
   }
 }
 async function uploadParts(input: {
@@ -180,7 +180,7 @@ async function uploadParts(input: {
     );
     if (!bytes)
       throw new Error(
-        'Parte local ausente ou corrompida; o envio não foi confirmado.',
+        'Local part missing or corrupted; sending was not confirmed.',
       );
     const result = object(
       await input.api('attachment-part', {
@@ -190,7 +190,7 @@ async function uploadParts(input: {
       }),
     );
     if (result['status'] !== 'stored')
-      throw new Error('Gravação de parte não confirmada.');
+      throw new Error('Part storage not confirmed.');
     window.dispatchEvent(
       new CustomEvent('0xdmme-attachment-progress', {
         detail: { done: index + 1, total: input.ref.parts.length },
@@ -227,12 +227,12 @@ async function fetchPart(
 ): Promise<Uint8Array<ArrayBuffer>> {
   const key = name(input.message, input.file.ref.id, index),
     part = input.file.ref.parts[index];
-  if (!part) throw new Error('Referência incompleta.');
+  if (!part) throw new Error('Reference incomplete.');
   const cached = await storedPart(input.account, key, part);
   if (cached) return cached;
   if (!input.api)
     throw new Error(
-      'Anexo ainda não foi baixado neste aparelho. Conecte e toque para baixar.',
+      'This attachment has not been downloaded on this device. Connect and tap to download.',
     );
   const raw = object(
     await input.api('attachment-get', {
@@ -244,7 +244,7 @@ async function fetchPart(
   );
   const bytes = Uint8Array.from(base64(raw['ciphertext'], partLimit));
   if (bytes.length !== part.bytes || (await bytesHash(bytes)) !== part.hash)
-    throw new Error('Parte recebida adulterada.');
+    throw new Error('Received part tampered with.');
   input.guard();
   await localPutWithin({
     scope: input.account,
@@ -330,7 +330,7 @@ export async function retainAttachment(
     return;
   }
   throw new Error(
-    'Cache ocupado por envios pendentes. Conclua ou cancele antes de baixar outros anexos.',
+    'Cache occupied by pending sends. Complete or cancel them before downloading other attachments.',
   );
 }
 
@@ -359,9 +359,7 @@ async function restageFile(
       ref.parts[index]!,
     );
     if (!bytes)
-      throw new Error(
-        'Parte do rascunho ausente. O reenvio não foi confirmado.',
-      );
+      throw new Error('Draft part missing. Resending was not confirmed.');
     await localPutWithin({
       scope: input.account,
       name: name(input.message, ref.id, index),

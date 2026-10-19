@@ -270,5 +270,5 @@ await test('descobre outra wallet EIP-6963 e MetaMask Solana anunciada após a p
   off();
   assert.ok(await sol.sign('Login', account.address));
   alter = true;
-  await assert.rejects(sol.sign('Login', account.address), /alterou/u);
+  await assert.rejects(sol.sign('Login', account.address), /changed/u);
 });

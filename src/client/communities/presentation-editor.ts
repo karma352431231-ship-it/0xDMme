@@ -49,7 +49,7 @@ export function communityPresentationEditor(
     mountImageSlot(section, {
       slot: 'banner',
       current: banner,
-      pickLabel: t('Trocar banner'),
+      pickLabel: t('Change banner'),
       access: { signal: access.signal, run: prepare },
       change: (value) => {
         banner = value;
@@ -59,7 +59,7 @@ export function communityPresentationEditor(
     mountImageSlot(section, {
       slot: 'photo',
       current: photo,
-      pickLabel: t('Trocar foto'),
+      pickLabel: t('Change photo'),
       access: { signal: access.signal, run: prepare },
       change: (value) => {
         photo = value;
@@ -67,16 +67,16 @@ export function communityPresentationEditor(
       },
     }),
   ];
-  const name = field(section, t('Nome'), {
+  const name = field(section, t('Name'), {
       maximum: 100,
       value: state.community.name,
     }),
-    description = field(section, t('Descrição'), {
+    description = field(section, t('Description'), {
       maximum: 1000,
       multiline: true,
       value: state.community.description,
     }),
-    rules = field(section, t('Regras'), {
+    rules = field(section, t('Rules'), {
       maximum: 4000,
       multiline: true,
       value: state.community.rules,
@@ -87,7 +87,7 @@ export function communityPresentationEditor(
   section.append(el('p', t('community.publication.preview')));
   const wire = (value: PendingPublicAvatar | null) =>
     value ? { type: value.type, bytes: encode(value.bytes) } : null;
-  const confirm = el('button', t('Confirmar alterações'), 'primary');
+  const confirm = el('button', t('Confirm changes'), 'primary');
   confirm.type = 'button';
   confirm.addEventListener('click', () => {
     void access.run(async () => {

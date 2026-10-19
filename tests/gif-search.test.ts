@@ -38,7 +38,7 @@ await test('recusar o aviso KLIPY impede inclusive busca e prévias de terceiros
   );
   await assert.rejects(
     search.page({ query: 'sintético', page: 1 }),
-    /Permita GIFs/u,
+    /Allow external GIFs/u,
   );
   assert.equal(requests, 0);
 });

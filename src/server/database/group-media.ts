@@ -33,7 +33,7 @@ interface MediaRow {
   writer: string | null;
 }
 function unavailable(): never {
-  throw new AccountError(404, 'Mídia do grupo indisponível.');
+  throw new AccountError(404, 'Group media unavailable.');
 }
 export class GroupMediaStore {
   private readonly pool: pg.Pool;
@@ -70,7 +70,7 @@ export class GroupMediaStore {
       [groupId],
     );
     if (!result.rows[0] || result.rows[0].clearing)
-      throw new AccountError(409, 'Limpeza do cofre em andamento.');
+      throw new AccountError(409, 'Vault cleanup in progress.');
   }
   async reserve(
     authority: ContactAuthority,
@@ -87,7 +87,7 @@ export class GroupMediaStore {
             [input.message],
           );
           if (accepted.rowCount)
-            throw new AccountError(409, 'Mensagem já aceita ou apagada.');
+            throw new AccountError(409, 'Message already accepted or deleted.');
           for (const ref of input.refs) {
             const row = await this.row(client, ref.id);
             if (row) {
@@ -99,7 +99,7 @@ export class GroupMediaStore {
               [input.groupId, input.message, input.refs.map((r) => r.id)],
             );
             if (extra.rowCount)
-              throw new AccountError(409, 'Referências do envio divergentes.');
+              throw new AccountError(409, 'Send references do not match.');
             const body = JSON.stringify(ref),
               overhead = Buffer.byteLength(body) + 512;
             await client.query(
@@ -147,7 +147,7 @@ export class GroupMediaStore {
       row.status === 'deleting' ||
       canonical(row.descriptor) !== canonical(ref)
     )
-      throw new AccountError(409, 'Reserva de mídia divergente.');
+      throw new AccountError(409, 'Media reservation does not match.');
   }
   private async owned(
     client: pg.PoolClient,
@@ -167,7 +167,7 @@ export class GroupMediaStore {
     if (row.epoch !== state.epoch)
       throw new AccountError(
         409,
-        'Participação mudou durante o upload. Cancele e cifre novamente.',
+        'Membership changed during upload. Cancel and encrypt again.',
       );
     return row;
   }
@@ -181,9 +181,9 @@ export class GroupMediaStore {
       async (client, state) => {
         const row = await this.owned(client, authority, input, state);
         if (input.index !== null && !row.descriptor.parts[input.index])
-          throw new AccountError(400, 'Parte inexistente.');
+          throw new AccountError(400, 'Part does not exist.');
         if (row.status === 'writing')
-          throw new AccountError(409, 'Mídia ocupada.');
+          throw new AccountError(409, 'Media busy.');
         if (
           row.status === 'ready' ||
           row.status === 'accepted' ||
@@ -194,7 +194,7 @@ export class GroupMediaStore {
           input.index === null &&
           row.received.length !== row.descriptor.parts.length
         )
-          throw new AccountError(409, 'Mídia incompleta.');
+          throw new AccountError(409, 'Media incomplete.');
         const writer = randomUUID();
         await client.query(
           "UPDATE hash_talk.group_media SET status='writing',writer=$2 WHERE id=$1",
@@ -214,7 +214,7 @@ export class GroupMediaStore {
       async (client, state) => {
         const row = await this.owned(client, authority, input, state);
         if (row.writer !== input.writer)
-          throw new AccountError(409, 'Escrita interrompida.');
+          throw new AccountError(409, 'Write interrupted.');
         const received =
           input.index === null
             ? row.received
@@ -246,13 +246,14 @@ export class GroupMediaStore {
         'SELECT 1 FROM hash_talk.group_packets WHERE id=$1',
         [input.message],
       );
-      if (accepted.rowCount) throw new AccountError(409, 'Envio já aceito.');
+      if (accepted.rowCount)
+        throw new AccountError(409, 'Send already accepted.');
       const writing = await client.query(
         "SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND message_id=$2 AND sender=$3 AND status='writing'",
         [input.groupId, input.message, authority.session.accountId],
       );
       if (writing.rowCount)
-        throw new AccountError(409, 'Aguarde a transferência ativa terminar.');
+        throw new AccountError(409, 'Wait for the active transfer to finish.');
       await client.query(
         "UPDATE hash_talk.group_media SET status='deleting' WHERE group_id=$1 AND message_id=$2 AND sender=$3 AND status NOT IN ('accepted','deleting')",
         [input.groupId, input.message, authority.session.accountId],
@@ -273,7 +274,7 @@ export class GroupMediaStore {
         row.sender !== packet.sender ||
         canonical(row.descriptor) !== canonical(ref)
       )
-        throw new AccountError(409, 'Mídia não está integralmente preservada.');
+        throw new AccountError(409, 'Media not fully preserved.');
       await client.query(
         "UPDATE hash_talk.group_media SET status='accepted',accepted_at=clock_timestamp() WHERE id=$1",
         [ref.id],
@@ -303,7 +304,7 @@ export class GroupMediaStore {
         );
         if (!message.rowCount) unavailable();
         if (!row.descriptor.parts[input.index])
-          throw new AccountError(400, 'Parte inexistente.');
+          throw new AccountError(400, 'Part does not exist.');
         return row.descriptor;
       },
     );

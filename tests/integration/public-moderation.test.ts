@@ -103,7 +103,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
       const before = await usage();
       await assert.rejects(
         enqueue(new PublicModerationStore(pool, before + 1_023)),
-        /Capacidade global/,
+        /Global capacity/,
       );
       assert.equal(await usage(), before);
       const id = await enqueue();
@@ -139,7 +139,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           evaluation(job),
           bind,
         ),
-        /substituída/,
+        /superseded|replaced/,
       );
       await assert.rejects(
         db.publicModeration.finish(job, evaluation(job), (client) =>
@@ -164,7 +164,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
       );
       await assert.rejects(
         db.publicModeration.finish(job, evaluation(job, 'reject'), bind),
-        /substituída/,
+        /superseded|replaced/,
       );
       await pool.query(
         "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
@@ -189,7 +189,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
             reason: 'Não sou autor',
           }),
         ),
-        /indisponível/,
+        /[Uu]navailable/,
       );
       const request = {
         owner,
@@ -214,7 +214,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
             reason: 'Trocar contestação',
           }),
         ),
-        /já foi registrada/,
+        /already been recorded/,
       );
       await assert.rejects(
         db.publicModeration.operatorReview(
@@ -226,7 +226,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           },
           bind,
         ),
-        /proibição global/,
+        /global ban/,
       );
       const decision = {
         id,
@@ -250,7 +250,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           { ...decision, verdict: 'reject' },
           bind,
         ),
-        /já foi decidida/,
+        /already been decided/,
       );
       const foreign = await transaction((client) =>
         db.publicModeration.notices(client, other),
@@ -310,7 +310,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
         assert.equal(await db.publicModeration.recover(), 1);
         await assert.rejects(
           db.publicModeration.finish(job, evaluation(job), bind),
-          /substituída/,
+          /superseded|replaced/,
         );
       }
       const third = await db.publicModeration.claim(model);

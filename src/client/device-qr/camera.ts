@@ -25,7 +25,7 @@ export class QrCamera {
     if (!navigator.mediaDevices?.getUserMedia) {
       this.options.failed(
         t(
-          'Câmera indisponível. Use HTTPS e permita a câmera, ou copie o código.',
+          'Camera unavailable. Use HTTPS and allow camera access, or copy the code.',
         ),
       );
       return;
@@ -35,16 +35,14 @@ export class QrCamera {
     this.options.state(true);
     this.deadline = setTimeout(() => {
       this.fail(
-        t(
-          'O prazo para abrir a câmera terminou. Tente novamente ou copie o código.',
-        ),
+        t('The camera-opening deadline passed. Try again or copy the code.'),
       );
     }, 10_000);
     void this.open(kind, generation).catch(() => {
       if (this.active && generation === this.generation)
         this.fail(
           t(
-            'Não foi possível ler pela câmera. Confira a permissão ou copie o código.',
+            'Could not scan with the camera. Check permission or copy the code.',
           ),
         );
     });
@@ -68,9 +66,7 @@ export class QrCamera {
         'ended',
         () => {
           if (this.active && generation === this.generation)
-            this.fail(
-              t('A câmera foi encerrada. Tente novamente ou copie o código.'),
-            );
+            this.fail(t('The camera was stopped. Try again or copy the code.'));
         },
         { once: true },
       ),
@@ -83,7 +79,7 @@ export class QrCamera {
     if (!this.active || generation !== this.generation) return;
     clearTimeout(this.deadline);
     this.deadline = setTimeout(
-      () => this.fail(t('Leitura encerrada após um minuto. Tente novamente.')),
+      () => this.fail(t('Reading stopped after one minute. Try again.')),
       60_000,
     );
     this.tick(kind, generation);
@@ -102,7 +98,7 @@ export class QrCamera {
     } catch {
       this.fail(
         t(
-          'Não foi possível ler este QR Code. Use o QR desta etapa ou copie o código.',
+          'Could not read this QR code. Use the QR code for this step or copy the code.',
         ),
       );
     }
@@ -118,7 +114,7 @@ export class QrCamera {
     this.canvas.width = Math.max(1, Math.floor(video.videoWidth * scale));
     this.canvas.height = Math.max(1, Math.floor(video.videoHeight * scale));
     const context = this.canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) throw new Error('Leitor indisponível.');
+    if (!context) throw new Error('Reader unavailable.');
     context.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
     return decodeQrFrame(
       context.getImageData(0, 0, this.canvas.width, this.canvas.height),

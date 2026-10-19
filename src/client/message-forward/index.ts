@@ -54,7 +54,7 @@ class ForwardContactPicker {
       void this.loadMore();
     });
     cancel.type = 'button';
-    cancel.textContent = t('Cancelar');
+    cancel.textContent = t('Cancel');
     cancel.addEventListener('click', () => this.finish(null));
     this.status.setAttribute('role', 'status');
     this.dialog.append(

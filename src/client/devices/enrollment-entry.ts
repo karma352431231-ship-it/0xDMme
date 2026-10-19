@@ -27,7 +27,7 @@ export function startEnrollmentEntry(access: EnrollmentAccess): void {
       code = enrollmentPayload(readEnrollment(incoming, location.origin));
     } catch {
       window.alert(
-        t('Este link de vinculação é inválido. Gere outro QR Code.'),
+        t('This linking link is invalid. Generate another QR code.'),
       );
       return;
     }
@@ -57,9 +57,9 @@ function showConfirmation(access: EnrollmentAccess, code: string): void {
     const success = state.authorized && !state.waiting;
     confirm.hidden = success;
     if (state.failed) confirm.disabled = false;
-    close.textContent = success ? t('Concluído') : t('Fechar');
+    close.textContent = success ? t('Done') : t('Close');
     if (success)
-      dialog.querySelector('h2')!.textContent = t('Conectado com sucesso');
+      dialog.querySelector('h2')!.textContent = t('Successfully connected');
   };
   confirm.addEventListener('click', () => {
     confirm.disabled = true;
@@ -71,7 +71,7 @@ function showConfirmation(access: EnrollmentAccess, code: string): void {
         status.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível conectar este aparelho.');
+            : t('Could not connect this device.');
         confirm.disabled = false;
       });
   });
@@ -112,7 +112,7 @@ export function mountEnrollmentLogin(
       );
     } catch {
       panel.querySelector('[role="status"]')!.textContent = t(
-        'Código inválido. Copie um código ou link válido do aparelho conectado.',
+        'Invalid code. Copy a valid code or link from the connected device.',
       );
     }
   });

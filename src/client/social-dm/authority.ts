@@ -52,7 +52,7 @@ export async function readSocialDirectory(
     );
     const profile = raw.profile;
     if (peer !== null && profile !== peer)
-      throw new Error('Diretório de outro perfil público.');
+      throw new Error('Directory belongs to another public profile.');
     events.push(...raw.events);
     result = {
       profile,
@@ -61,9 +61,9 @@ export async function readSocialDirectory(
       active: raw.active,
     };
     if (raw.next === null) break;
-    if (page === 15) throw new Error('Diretório de DMs excedido.');
+    if (page === 15) throw new Error('DM directory exceeds the limit.');
   }
-  if (!result) throw new Error('Diretório de DMs ausente.');
+  if (!result) throw new Error('DM directory missing.');
   await pinSocialDirectory(result);
   return result;
 }
@@ -74,7 +74,7 @@ function directoryPage(input: unknown) {
     raw['events'].length > 8 ||
     (raw['next'] !== null && !raw['events'].length)
   )
-    throw new Error('Página do diretório de DMs inválida.');
+    throw new Error('Invalid DM directory page.');
   return {
     profile: uuid(raw['profile']),
     events: raw['events'].map(socialDirectory),
@@ -85,13 +85,13 @@ function directoryPage(input: unknown) {
 }
 function activeAliases(input: unknown): string[] {
   if (!Array.isArray(input) || input.length > 32)
-    throw new Error('Aparelhos de DMs inválidos.');
+    throw new Error('Invalid DM devices.');
   return input.map(uuid);
 }
 async function pinSocialDirectory(result: SocialDirectoryPage): Promise<void> {
   const old = await readCheckpoint(result.profile);
   if (old.events.length > result.events.length)
-    throw new Error('Diretório de DMs retrocedeu.');
+    throw new Error('DM directory rolled back.');
   await pinSocialHistory(result.profile, result.events);
 }
 /** Historical prefixes may be older than the current checkpoint, but never change its root or chain. */
@@ -102,7 +102,7 @@ export async function pinSocialHistory(
   const current = await verifyHistory(events, profile),
     old = await readCheckpoint(profile);
   if (!current) {
-    if (old.events.length) throw new Error('Diretório de DMs desapareceu.');
+    if (old.events.length) throw new Error('DM directory disappeared.');
     return;
   }
   const trustedRoot = await digest(canonical(current.root)),
@@ -113,7 +113,7 @@ export async function pinSocialHistory(
       canonical(events.slice(0, through)) !==
         canonical(old.events.slice(0, through)))
   )
-    throw new Error('Identidade histórica das DMs diverge da cópia confiável.');
+    throw new Error('Historical DM identity differs from the trusted copy.');
   if (events.length > old.events.length)
     await saveCheckpoint(profile, { events, trustedRoot });
 }
@@ -215,7 +215,7 @@ export async function socialAuthority(input: {
     events,
     key: async (epoch) => {
       const value = ring.keys[epoch - 1];
-      if (!value) throw new Error('Época das DMs indisponível.');
+      if (!value) throw new Error('DM key epoch unavailable.');
       return aesKey(value);
     },
     sign: (proof) => sign(identity.signing, proof),

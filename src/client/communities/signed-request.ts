@@ -15,7 +15,7 @@ export async function signedCommunityRequest(options: {
 }): Promise<unknown> {
   const { operation, payload, authority, valid } = options;
   function assertCurrent(): void {
-    if (!valid()) throw new Error('Sessão alterada.');
+    if (!valid()) throw new Error('Session changed.');
   }
   assertCurrent();
   const proof = { directory: authority.directory, payload };

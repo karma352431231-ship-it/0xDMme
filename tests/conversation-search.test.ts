@@ -17,10 +17,10 @@ await test('filtros separam arquivadas, favoritos, grupos e não lidas; fixadas 
   const entries: ConversationEntry[] = [
     {
       id: 'ordinary',
-      title: 'Contato',
+      title: 'Contact',
       detail: '',
       kind: 'contact',
-      searchText: 'Contato',
+      searchText: 'Contact',
       selected: false,
       open: () => undefined,
     },
@@ -38,10 +38,10 @@ await test('filtros separam arquivadas, favoritos, grupos e não lidas; fixadas 
     },
     {
       id: 'archive',
-      title: 'Arquivada',
+      title: 'Archived',
       detail: '',
       kind: 'contact',
-      searchText: 'Arquivada',
+      searchText: 'Archived',
       selected: false,
       archived: true,
       favorite: true,
@@ -99,13 +99,13 @@ await test('toque prolongado abre menu uma vez e consome o clique; rolagem, canc
 await test('atualizar contadores preserva menu; contato removido, identidade ou ações alteradas invalidam as opções antigas', () => {
   const entry: ConversationEntry = {
     id: 'wallet',
-    title: 'Contato',
+    title: 'Contact',
     detail: '',
     kind: 'contact',
     searchText: '',
     selected: false,
     open: () => undefined,
-    actions: [{ id: 'pin', label: 'Fixar', perform: () => undefined }],
+    actions: [{ id: 'pin', label: 'Pin', perform: () => undefined }],
   };
   assert.equal(
     keepConversationMenu(entry, [{ ...entry, unread: 5, selected: true }]),
@@ -120,7 +120,7 @@ await test('atualizar contadores preserva menu; contato removido, identidade ou 
     keepConversationMenu(entry, [
       {
         ...entry,
-        actions: [{ id: 'pin', label: 'Desafixar', perform: () => undefined }],
+        actions: [{ id: 'pin', label: 'Unpin', perform: () => undefined }],
       },
     ]),
     false,
@@ -261,25 +261,25 @@ await test('pesquisa não publica conteúdo após mudança de sessão e recusa c
     groups: ['a'],
     after: null,
     guard: () => {
-      if (changed) throw new Error('Sessão alterada');
+      if (changed) throw new Error('Session changed');
     },
     read: () => {
       changed = true;
       return Promise.resolve({ views: [view(1, 'Palavra')], before: null });
     },
   };
-  await assert.rejects(searchGroupCopies(context), /Sessão alterada/u);
+  await assert.rejects(searchGroupCopies(context), /Session changed/u);
   changed = false;
   await assert.rejects(
     searchGroupCopies({
       ...context,
       after: '{"group":"another","before":null}',
     }),
-    /Grupo da busca mudou/u,
+    /Search group changed/u,
   );
   await assert.rejects(
     searchGroupCopies({ ...context, after: '{"group":"a","before":-1}' }),
-    /Página de busca inválida/u,
+    /Invalid search page/u,
   );
 });
 
@@ -301,7 +301,7 @@ await test('fila de status mostra só contatos com status ativo, sem removidos n
       status: true,
       hidden: true,
     },
-    { ...base, id: 'grupo', title: 'Grupo', kind: 'group', status: true },
+    { ...base, id: 'group', title: 'Grupo', kind: 'group', status: true },
   ];
   assert.deepEqual(
     statusAuthors(entries).map((entry) => entry.id),

@@ -125,7 +125,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
   assert.equal(winner.phase, 'connecting');
   assert.throws(
     () => f.state.accept(f.endpoint(f.otherDevice, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   assert.equal(f.sync(f.otherDevice), null);
   f.state.answer(f.endpoint(f.callee, false), {
@@ -142,7 +142,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
         sequence: 1,
         body,
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.sync(f.caller, { media: 'connected', ack: 1 });
   f.sync(f.callee, { media: 'connected', ack: 1 });
@@ -192,10 +192,10 @@ await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revel
           gate.peerDirectory!,
           { ...gate, ...patch },
         ),
-      /Chamada indisponível/u,
+      /Call unavailable/u,
     );
   const call = f.start();
-  assert.throws(() => f.start(), /Chamada indisponível/u);
+  assert.throws(() => f.start(), /Call unavailable/u);
   f.offer(call.id);
   assert.equal(
     f.sync(f.caller, {}, { ...gate, enabled: false, receiving: false })?.id,
@@ -302,7 +302,7 @@ await test('aparelhos inscritos podem acordar durante o convite, recebem oferta 
   );
   assert.throws(
     () => f.state.accept(f.endpoint(recipient, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
 });
 await test('convite para aparelho fechado não sobrevive a cancelamento, perda da lease ou 60 segundos', (t) => {
@@ -349,7 +349,7 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
   f.sync(outsider);
   assert.throws(
     () => f.state.accept(f.endpoint(outsider, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   assert.throws(
     () =>
@@ -358,16 +358,16 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
         sequence: 2,
         packets: [],
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.offer(call.id);
-  assert.throws(() => f.offer(call.id), /indisponível/u);
+  assert.throws(() => f.offer(call.id), /[Uu]navailable/u);
   const a = authority(),
     channel = crypto.randomUUID();
   f.state.endpoint(a, { channel, sequence: 1, at: f.now() }, true);
   assert.throws(
     () => f.state.endpoint(a, { channel, sequence: 1, at: f.now() }, false),
-    /repetido/u,
+    /[Dd]uplicate|repeated/u,
   );
   assert.throws(
     () =>
@@ -376,7 +376,7 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
         { channel, sequence: 2, at: f.now() - 10_001 },
         false,
       ),
-    /horário/u,
+    /time/u,
   );
   f.state.close();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
@@ -396,7 +396,10 @@ await test('fechar mídia é terminal no heartbeat; contador transitório impede
   f.state.endpoint(a, request, true);
   f.advance(leaseMs);
   f.state.clean();
-  assert.throws(() => f.state.endpoint(a, request, true), /repetido/u);
+  assert.throws(
+    () => f.state.endpoint(a, request, true),
+    /[Dd]uplicate|repeated/u,
+  );
 });
 await test('endpoint admission exceeds 1024 global and 64 account channels while retaining expiry', (t) => {
   t.mock.method(process, 'availableMemory', () => 1_073_741_824);
@@ -552,12 +555,12 @@ await test('negotiated encrypted invitation permits one early accept and preserv
   }));
   assert.throws(
     () => f.state.invite(caller, call.id, packets.slice(0, 1)),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.invite(caller, call.id, packets);
   assert.throws(
     () => f.state.invite(caller, call.id, packets),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   const incoming = f.state.synchronize(
     f.endpoint(f.callee, false, true),
@@ -575,7 +578,7 @@ await test('negotiated encrypted invitation permits one early accept and preserv
   );
   assert.throws(
     () => f.state.accept(f.endpoint(f.otherDevice, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   const winner = f.state.accept(f.endpoint(f.callee, false, true), call.id);
   assert.equal(winner.phase, 'connecting');
@@ -607,7 +610,7 @@ await test('negotiated encrypted invitation permits one early accept and preserv
         sequence: 2,
         packets,
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.offer(f.endpoint(f.caller, false, true), {
     id: call.id,
@@ -627,7 +630,7 @@ await test('legacy callers cannot publish invitations; unaccepted invitations ex
   }));
   assert.throws(
     () => f.state.invite(f.endpoint(f.caller, false), call.id, packets),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.invite(f.endpoint(f.caller, false, true), call.id, packets);
   f.advance(leaseMs + 1);

@@ -50,7 +50,7 @@ function applyEdit(views: Map<string, GroupView>, edit: GroupView): void {
     root.groupId !== edit.groupId ||
     relation.type !== 'edit'
   )
-    throw new Error('Edição divergente da mensagem original do grupo.');
+    throw new Error('Edit does not match the original group message.');
   if ((root.editedSequence ?? 0) >= edit.sequence) return;
   views.set(root.id, {
     ...root,

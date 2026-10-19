@@ -15,7 +15,7 @@ async function body(request: IncomingMessage): Promise<unknown> {
       ? value
       : Buffer.from(String(value));
     length += chunk.length;
-    if (length > 4096) throw new Error('Pedido excedido.');
+    if (length > 4096) throw new Error('Request exceeds the limit.');
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;

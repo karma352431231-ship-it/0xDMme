@@ -35,7 +35,7 @@ export function mentionSpans(text: string): MentionSpan[] {
 }
 export function mentionToken(mention: PublicMention): string {
   if (!labelOf(mention.label.replaceAll('\\', '\\\\').replaceAll(']', '\\]')))
-    throw new AccountError(400, 'Nome da menção inválido.');
+    throw new AccountError(400, 'Invalid mention name.');
   const label = mention.label.replaceAll('\\', '\\\\').replaceAll(']', '\\]');
   return `@[${label}](${mention.kind === 'user' ? 'u' : 'c'}:${uuid(mention.id)})`;
 }
@@ -55,22 +55,19 @@ export function mentionPlainText(text: string): string {
 /** Visible limits stay unchanged; reference overhead has its own bounded budget. */
 export function mentionText(value: unknown, maximum: number): string {
   if (typeof value !== 'string' || value.length > maximum + mentionLimit * 250)
-    throw new AccountError(400, 'Texto com menções muito longo.');
+    throw new AccountError(400, 'Text with mentions is too long.');
   if (
     mentionSpans(value).length > mentionLimit ||
     mentionPlainText(value).length > maximum
   )
-    throw new AccountError(
-      400,
-      'Texto ou quantidade de menções acima do limite.',
-    );
+    throw new AccountError(400, 'Text or mention count exceeds the limit.');
   return value;
 }
 export function mentionQuery(value: unknown): string {
   if (typeof value !== 'string')
-    throw new AccountError(400, 'Busca de menções inválida.');
+    throw new AccountError(400, 'Invalid mention search.');
   const query = communityNameKey(value);
   if (query.length < 2 || query.length > 100 || /[\p{Cc}\p{Cf}]/u.test(query))
-    throw new AccountError(400, 'Digite de 2 a 100 caracteres para buscar.');
+    throw new AccountError(400, 'Enter 2–100 characters to search.');
   return query;
 }

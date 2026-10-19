@@ -9,7 +9,7 @@ function descriptions(mode: DiscoveryMode): {
 } {
   if (mode === 'invite')
     return {
-      title: t('Somente com meu link de convite'),
+      title: t('Only through my invitation link'),
       hint: t('Invite people yourself'),
       explanation: t(
         'Only people with your active invitation link can find your private account and request a chat. You choose whether to accept. Replacing or revoking the link stops new requests through the old link. Approved contacts keep access.',
@@ -17,14 +17,14 @@ function descriptions(mode: DiscoveryMode): {
     };
   if (mode === 'wallet')
     return {
-      title: t('Por wallet exata ou convite'),
+      title: t('By exact wallet address or invitation'),
       hint: t('Let people find your exact wallet'),
       explanation: t(
         'Anyone with your complete wallet address or active invitation link can find your private account and request a chat. You must accept before they can message you. This does not publish your wallet in a directory.',
       ),
     };
   return {
-    title: t('Somente contatos já aprovados'),
+    title: t('Approved contacts only'),
     hint: t('Stop new chat requests'),
     explanation: t(
       'Only contacts you have already approved can chat with you. New requests are disabled, including requests through your invitation link or exact wallet address. Existing contacts stay approved.',

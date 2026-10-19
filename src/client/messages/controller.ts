@@ -205,7 +205,7 @@ export class Messages {
         authority.session.deviceId !== session.deviceId ||
         authority.session.csrf !== session.csrf
       )
-        throw new Error('Conta alterada.');
+        throw new Error('Account changed.');
       const card = await knownPeerProfile(authority, peer);
       this.guard(generation);
       return card;
@@ -355,7 +355,7 @@ export class Messages {
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
-      throw new Error('Sessão ou sincronização alterada.');
+      throw new Error('Session or synchronization changed.');
   }
   private async machine(
     a: VaultAuthority,
@@ -381,7 +381,7 @@ export class Messages {
       );
     const key = recoveryKey(raw),
       event = a.events[key.authorityRevision - 1];
-    if (!event) throw new Error('Autoridade da recuperação ausente.');
+    if (!event) throw new Error('Recovery authority missing.');
     await verifyRecoveryKey(key, event);
     const secret = await openRecoveryKey(key, a);
     secret.free();
@@ -549,7 +549,7 @@ export class Messages {
   ): Promise<void> {
     const id = crypto.randomUUID();
     const session = this.session;
-    if (!session) throw new Error('Sessão encerrada.');
+    if (!session) throw new Error('Session ended.');
     const relation = {
       id: view.id,
       hash: view.hash,
@@ -580,12 +580,12 @@ export class Messages {
             (r) => r.id === view.id && r.hash === view.hash,
           ))
       )
-        throw new Error('Sincronize antes de abrir o anexo.');
+        throw new Error('Sync before opening the attachment.');
     };
     guard();
     const content = attachmentContent(JSON.parse(view.text) as unknown),
       file = thumbnail ? content.thumbnail : content.file;
-    if (!file) throw new Error('Miniatura ausente.');
+    if (!file) throw new Error('Thumbnail missing.');
     if (view.archived) return this.historicalMedia(view, thumbnail, guard);
     const work = async (a: VaultAuthority) => {
       const snapshot: unknown = confirmed
@@ -617,7 +617,7 @@ export class Messages {
     try {
       if (navigator.onLine) return await this.access.withVault(false, work);
       const locator = await localLocator();
-      if (!locator) throw new Error('Cópia local não autorizada.');
+      if (!locator) throw new Error('Local copy not authorized.');
       return await this.access.withLocalVault(locator, work);
     } catch (error: unknown) {
       if (
@@ -635,7 +635,7 @@ export class Messages {
   ): Promise<Uint8Array<ArrayBuffer>> {
     const content = attachmentContent(JSON.parse(view.text) as unknown);
     const file = thumbnail ? content.thumbnail : content.file;
-    if (!file) throw new Error('Miniatura ausente.');
+    if (!file) throw new Error('Thumbnail missing.');
 
     const work = async (a: VaultAuthority) => {
       const row = await historyRecord(a, 'media', file.ref.id);
@@ -646,7 +646,7 @@ export class Messages {
         row.hash !== file.ref.hash ||
         row.message !== view.id
       )
-        throw new Error('Mídia não está disponível no histórico importado.');
+        throw new Error('Media unavailable in imported history.');
       return openStoredAttachment(
         file,
         base64(row.bytes, chatFileLimit),
@@ -656,7 +656,7 @@ export class Messages {
     };
     if (navigator.onLine) return this.access.withVault(false, work);
     const locator = await localLocator();
-    if (!locator) throw new Error('Histórico local não autorizado.');
+    if (!locator) throw new Error('Local history not authorized.');
     return this.access.withLocalVault(locator, work);
   }
   private async sealDraft(
@@ -788,7 +788,7 @@ export class Messages {
     }
     const history = await this.history({ a, generation }, value.peer, null),
       last = history.at(-1);
-    if (!last) throw new Error('Diretório do contato ausente.');
+    if (!last) throw new Error('Contact directory missing.');
     if (
       !value.packet ||
       value.packet.deviceId !== a.session.deviceId ||
@@ -798,11 +798,11 @@ export class Messages {
       const raw = await api('recovery-peer', { accountId: value.peer });
       if (raw === null)
         throw new Error(
-          'O contato precisa abrir o aplicativo para preparar sua recuperação antes da primeira mensagem.',
+          'Your contact must open the app to prepare recovery before the first message.',
         );
       const peer = recoveryKey(raw),
         event = history[peer.authorityRevision - 1];
-      if (!event) throw new Error('Recuperação do contato divergente.');
+      if (!event) throw new Error('Contact recovery does not match.');
       await verifyRecoveryKey(peer, event);
       value.packet = await machine.encrypt({
         authority: a,
@@ -1050,7 +1050,7 @@ export class Messages {
         await this.access.withVault(false, open);
       else {
         const locator = await localLocator();
-        if (!locator) throw new Error('Histórico local indisponível.');
+        if (!locator) throw new Error('Local history unavailable.');
         await this.access.withLocalVault(locator, open);
       }
     } catch (error: unknown) {
@@ -1171,7 +1171,7 @@ export class Messages {
         id: item.id,
         peer: messagePeer(c.a.session.accountId, item),
         own: item.sender === c.a.session.accountId,
-        text: t('Entrega suspensa: é necessário novo consentimento.'),
+        text: t('Delivery suspended: renewed consent is required.'),
         state: messageStates.suspended,
         hash: item.hash,
       };
@@ -1211,11 +1211,11 @@ export class Messages {
       c.histories.set(packet.sender, history);
     }
     const event = history[packet.senderRevision - 1];
-    if (!event) throw new Error('Mensagem divergente do índice.');
+    if (!event) throw new Error('Message differs from index.');
     const archive = packet.archives.find(
       (x) => x.accountId === a.session.accountId,
     );
-    if (!archive) throw new Error('Arquivo recuperável ausente.');
+    if (!archive) throw new Error('Recoverable file missing.');
     let rawKey = c.keys.get(archive.keyId);
     if (!rawKey) {
       rawKey = recoveryKey(await api('recovery-key', { id: archive.keyId }));
@@ -1279,7 +1279,7 @@ export class Messages {
       archive = packet.archives.find(
         (x) => x.accountId === a.session.accountId,
       );
-    if (!archive) throw new Error('Arquivo recuperável ausente.');
+    if (!archive) throw new Error('Recoverable file missing.');
     try {
       return await machine.decryptContent({ packet, senderEvent: event });
     } catch (error: unknown) {
@@ -1387,7 +1387,7 @@ export class Messages {
       const raw = object(await api('matrix-inbox', {})),
         items = raw['items'];
       if (!Array.isArray(items) || items.length > 16)
-        throw new Error('Caixa Olm inválida.');
+        throw new Error('Invalid Olm box.');
       const newlyReceived = await machine.receive(
         items.map((x) => object(x)['event']),
         Number(raw['oneTimeKeys']),
@@ -1462,7 +1462,7 @@ export class Messages {
     const hash = verifiedReceiptHash(receipt, snapshot, item);
     if (hash === null) return null;
     if ((await digest(cached.text)) !== hash)
-      throw new Error('Conteúdo local divergente do pacote verificado.');
+      throw new Error('Local content differs from the verified package.');
     return this.viewFromItem(
       a,
       item,
@@ -1532,7 +1532,7 @@ export class Messages {
         return Promise.reject(
           new AccountError(
             status ?? 410,
-            'Mensagem indisponível sob a autorização atual.',
+            'Message unavailable under current authorization.',
           ),
         );
       };
@@ -1567,7 +1567,7 @@ export class Messages {
   }
   async backupBatch(items: MessageItem[]): Promise<Map<string, MessageView>> {
     if (!items.length) return new Map();
-    if (items.length > 32) throw new Error('Lote de backup excedido.');
+    if (items.length > 32) throw new Error('Backup batch exceeds the limit.');
     const generation = this.generation;
     return this.access.withVault(false, async (a) => {
       const api = (op: string, data: Record<string, unknown>) =>
@@ -1607,7 +1607,7 @@ export class Messages {
       const more = await this.access.withVault(false, async (a) => {
         guard();
         if (a.session.accountId !== this.session?.accountId)
-          throw new Error('Conta alterada.');
+          throw new Error('Account changed.');
         const api = (op: string, data: Record<string, unknown>) =>
           messageApi(a, op, data, { guard, signal: combined });
         const source = await readPrefetchPage(api, this.prefetch);
@@ -1688,7 +1688,7 @@ export class Messages {
       await indexedPacket(await api('object', { id: view.id, snapshot }), view);
       const content = attachmentContent(JSON.parse(view.text) as unknown),
         file = thumbnail ? content.thumbnail : content.file;
-      if (!file) throw new Error('Miniatura ausente.');
+      if (!file) throw new Error('Thumbnail missing.');
       const input = {
         account: a.session.accountId,
         message: view.id,
@@ -1767,12 +1767,11 @@ export class Messages {
   }
   async openOffline(peer: string | null): Promise<void> {
     if (navigator.onLine)
-      throw new Error('Conectado: sincronize antes de abrir o histórico.');
+      throw new Error('Connected: sync before opening history.');
     const token = this.visibility.begin(),
       generation = this.generation,
       locator = await localLocator();
-    if (!locator)
-      throw new Error('Não há cópia local autorizada neste aparelho.');
+    if (!locator) throw new Error('No authorized local copy on this device.');
     try {
       await this.access.withLocalVault(locator, async (a) => {
         const removed = new RemovalIndex();
@@ -1876,7 +1875,7 @@ export class Messages {
     const generation = this.generation,
       confirmed = this.confirmed;
     if (navigator.onLine && !confirmed)
-      throw new Error('Sincronize antes de buscar; o histórico está oculto.');
+      throw new Error('Sync before searching; history is hidden.');
     const guard = () => this.guard(generation);
     const work = async (a: VaultAuthority) => {
       const check = async () => {
@@ -1910,7 +1909,7 @@ export class Messages {
     if (this.session && navigator.onLine)
       return this.access.withVault(false, work);
     const locator = await localLocator();
-    if (!locator) throw new Error('Histórico local indisponível.');
+    if (!locator) throw new Error('Local history unavailable.');
     return this.access.withLocalVault(locator, work);
   }
   async discard(id: string): Promise<void> {
@@ -1922,7 +1921,7 @@ export class Messages {
       if (!row) return;
       if (row.kind === 'attachment' && row.transferStarted && a.offline)
         throw new Error(
-          'Reconecte para cancelar a reserva remota deste anexo.',
+          "Reconnect to cancel this attachment's remote reservation.",
         );
       const accepted = await this.discardRemote(a, row, generation);
       if (row.kind === 'attachment') {
@@ -1945,7 +1944,7 @@ export class Messages {
     if (row.packet) {
       if (a.offline)
         throw new Error(
-          'Reconecte para confirmar a exclusão de um envio que pode ter sido aceito.',
+          'Reconnect to confirm deletion of a send that may have been accepted.',
         );
       const hash = await digest(JSON.stringify(row.packet));
       accepted = Boolean(

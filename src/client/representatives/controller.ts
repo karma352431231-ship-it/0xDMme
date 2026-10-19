@@ -70,10 +70,10 @@ export class Representatives {
   }
   private guard(generation: number): void {
     if (generation !== this.generation || !this.session)
-      throw new Error('Sessão alterada.');
+      throw new Error('Session changed.');
   }
   private identity(): RepresentativeIdentity {
-    if (!this.session) throw new Error('Entre na sua conta.');
+    if (!this.session) throw new Error('Sign in to your account.');
     return {
       accountId: this.session.accountId,
       ecosystem: this.session.ecosystem,
@@ -102,7 +102,7 @@ export class Representatives {
       deadline = Date.now() + 60_000;
     do {
       if (Date.now() > deadline)
-        throw new Error('Sincronização não concluída. Tente novamente.');
+        throw new Error('Synchronization not completed. Try again.');
       await this.sync.refresh();
       this.guard(generation);
     } while (!this.sync.complete);
@@ -143,7 +143,7 @@ export class Representatives {
       canonical(registration.issuer) !== canonical(org.issuer) ||
       canonical(org.issuer) !== canonical(this.identity())
     )
-      throw new Error('Registro de organização divergente.');
+      throw new Error('Organization record does not match.');
     const { signature, ...body } = registration;
     verifyWalletStatement(org.issuer, registrationStatement(body), signature);
     return { organization: org, registration };
@@ -245,7 +245,7 @@ export class Representatives {
     const c = card.credential,
       generation = this.generation;
     if (c.organization.issuer.accountId !== this.session?.accountId)
-      throw new Error('Somente o emissor registra esta autorização.');
+      throw new Error('Only the issuer can register this authorization.');
     const hash = await representativeHash(c);
     this.guard(generation);
     await this.api('representative-register', {
@@ -262,9 +262,10 @@ export class Representatives {
       c = card.credential,
       hash = await representativeHash(c);
     this.guard(generation);
-    if (c.issuedAt > Date.now() + 60_000) throw new Error('Emissão no futuro.');
+    if (c.issuedAt > Date.now() + 60_000)
+      throw new Error('Issuance date is in the future.');
     if (c.expiresAt <= Date.now())
-      return { status: t('Expirada'), domain: null, domainCurrent: false };
+      return { status: t('Expired'), domain: null, domainCurrent: false };
     const raw = object(
       await this.api('representative-status', {
         id: c.id,
@@ -276,7 +277,7 @@ export class Representatives {
     this.checkReceipt(card, raw);
     if (raw['revocation'] !== null) {
       this.checkRevocation(card, hash, raw['revocation']);
-      return { status: t('Revogada'), domain: null, domainCurrent: false };
+      return { status: t('Revoked'), domain: null, domainCurrent: false };
     }
     return this.checkedDomain(card, raw['domain']);
   }
@@ -290,13 +291,13 @@ export class Representatives {
       raw['issuedAt'] !== c.issuedAt ||
       raw['expiresAt'] !== c.expiresAt
     )
-      throw new Error('Estado da autorização divergente.');
+      throw new Error('Authorization state does not match.');
     const checkedAt = Number(raw['checkedAt']);
     if (
       !Number.isSafeInteger(checkedAt) ||
       Math.abs(Date.now() - checkedAt) > 60_000
     )
-      throw new Error('Estado sem atualização suficiente.');
+      throw new Error('State is not sufficiently up to date.');
   }
   private checkRevocation(
     card: RepresentativeCard,
@@ -312,7 +313,7 @@ export class Representatives {
       r.credentialHash !== hash ||
       r.origin !== location.origin
     )
-      throw new Error('Revogação divergente.');
+      throw new Error('Revocation does not match.');
     verifyWalletStatement(
       c.organization.issuer,
       revocationStatement(body),
@@ -325,8 +326,8 @@ export class Representatives {
   ): CheckedRepresentative {
     const result = {
       status: card.acceptance
-        ? t('Vigente — aceite verificado')
-        : t('Vigente — aguardando aceite'),
+        ? t('Active — acceptance verified')
+        : t('Active — awaiting acceptance'),
       domain: null as string | null,
       domainCurrent: false,
     };
@@ -338,7 +339,7 @@ export class Representatives {
       claim.organizationId !== card.credential.organization.id ||
       claim.origin !== location.origin
     )
-      throw new Error('Vínculo do domínio divergente.');
+      throw new Error('Domain binding does not match.');
     verifyWalletStatement(
       card.credential.organization.issuer,
       domainStatement(body),
@@ -357,10 +358,10 @@ export class Representatives {
     await verifyRepresentativeCard(card, location.origin);
     this.guard(generation);
     if (canonical(card.credential.subject) !== canonical(this.identity()))
-      throw new Error('Esta autorização pertence a outra conta.');
+      throw new Error('This authorization belongs to another account.');
     const checked = await this.check(card);
     this.guard(generation);
-    if (checked.status === t('Revogada') || checked.status === t('Expirada'))
+    if (checked.status === t('Revoked') || checked.status === t('Expired'))
       throw new Error(checked.status);
     const body = {
       version: 2 as const,
@@ -430,5 +431,5 @@ export class Representatives {
 export function representativeFailure(error: unknown): string {
   if (error instanceof AccountError || error instanceof Error)
     return translatedError(error.message);
-  return t('Não foi possível concluir a autorização.');
+  return t('Could not complete authorization.');
 }

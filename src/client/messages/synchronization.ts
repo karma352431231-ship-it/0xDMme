@@ -83,7 +83,7 @@ export class MessageSynchronization {
       run: (step) => this.background(step),
       changed: () => this.resume(),
       failed: (error) =>
-        this.report(error, t('Não foi possível concluir a operação.')),
+        this.report(error, t('Could not complete the operation.')),
       steps: options.changeMaintenance,
     });
   }
@@ -167,7 +167,7 @@ export class MessageSynchronization {
   }
   async background(work: () => Promise<void>): Promise<void> {
     await this.maintain(work, (error) => {
-      this.report(error, t('Não foi possível concluir a operação.'));
+      this.report(error, t('Could not complete the operation.'));
     });
   }
   async run(work: () => Promise<void>): Promise<boolean> {
@@ -190,7 +190,7 @@ export class MessageSynchronization {
     } catch (error: unknown) {
       if (this.current(current)) {
         this.failed = true;
-        this.report(error, t('Não foi possível concluir a operação.'));
+        this.report(error, t('Could not complete the operation.'));
       }
       return false;
     } finally {
@@ -204,7 +204,7 @@ export class MessageSynchronization {
       } catch {
         if (this.current(current))
           this.options.notice(
-            t('Não foi possível abrir os envios pendentes deste aparelho.'),
+            t('Could not open pending sends on this device.'),
           );
       }
     }
@@ -272,10 +272,7 @@ export class MessageSynchronization {
       await this.preloadBranch(abort.signal, current);
     } catch (error: unknown) {
       if (!abort.signal.aborted && this.current(current)) {
-        this.report(
-          error,
-          t('Não foi possível preparar o histórico das conversas.'),
-        );
+        this.report(error, t('Could not prepare conversation history.'));
         this.options.status();
         // A concurrent snapshot change needs another current read, not the
         // minute backoff reserved for rate limits and operational failures.
@@ -338,14 +335,14 @@ export class MessageSynchronization {
       },
       (error) => {
         this.failed = true;
-        this.report(error, t('Não foi possível concluir a operação.'));
+        this.report(error, t('Could not complete the operation.'));
       },
     );
   }
   async maintainPresence(): Promise<void> {
     if (!this.options.state().visible) return;
     await this.maintain(this.options.presence, (error) => {
-      this.report(error, t('Não foi possível atualizar a presença.'));
+      this.report(error, t('Could not update presence.'));
     });
   }
   private async maintain(
@@ -403,7 +400,7 @@ export class MessageSynchronization {
       await this.checkAutomatically(this.options.periodic);
     } catch (error: unknown) {
       if (!this.current(current)) return;
-      this.report(error, t('Não foi possível conferir os envios pendentes.'));
+      this.report(error, t('Could not check pending sends.'));
       this.options.status();
     }
   }

@@ -94,7 +94,7 @@ await test('public reaction actions fold into their original bubble without expo
   assert.equal(edited?.edited, true);
   assert.equal(edited?.sentAt, root.sentAt);
   assert.deepEqual(edited?.reactions, ['😂']);
-  assert.throws(() => backupRecord({ ...edit, own: true }), /autor/u);
+  assert.throws(() => backupRecord({ ...edit, own: true }), /author/u);
   assert.throws(() =>
     projectDmMessages(
       [root],

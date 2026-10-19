@@ -153,7 +153,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
           signal,
           detector: { ...detector, classify: () => Promise.resolve([]) },
         }),
-        /Análise/u,
+        /[Aa]nalysis/u,
       );
       const stop = new AbortController();
       await assert.rejects(
@@ -169,7 +169,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
             },
           },
         }),
-        /Análise/u,
+        /[Aa]nalysis/u,
       );
       await assert.rejects(
         classifyPreparedFrames({
@@ -178,7 +178,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
           signal,
           input: { ...input, bytes: new Uint8Array([1, 2, 3]) },
         }),
-        /Inspeção/u,
+        /[Ii]nspection/u,
       );
     },
   );

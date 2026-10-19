@@ -27,8 +27,8 @@ const transport: MessageTransport = (operation) =>
 await test('DM pelo @ reutiliza Megolm com identidade/chaves próprias e não recupera com chave privada', async (t) => {
   await initAsync();
   const privatePeer = await groupParticipant(),
-    sender = await groupParticipant({ deviceName: 'Aparelho de DMs' }),
-    recipient = await groupParticipant({ deviceName: 'Aparelho de DMs' });
+    sender = await groupParticipant({ deviceName: 'DM device' }),
+    recipient = await groupParticipant({ deviceName: 'DM device' });
   const recovery = await Promise.all(
     [sender, recipient, privatePeer].map((p) => createRecoveryKey(p.authority)),
   );

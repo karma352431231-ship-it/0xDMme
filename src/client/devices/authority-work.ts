@@ -21,7 +21,7 @@ export class AuthorityWork {
   ): Promise<T> {
     if (this.waiting.length >= 64)
       return Promise.reject(
-        new Error('Aguarde a atualização das conversas e tente novamente.'),
+        new Error('Wait for conversations to update, then try again.'),
       );
     const deadline = performance.now() + 8000;
     return new Promise<T>((resolve, reject) => {
@@ -33,7 +33,7 @@ export class AuthorityWork {
           if (remaining <= 0) {
             reject(
               new DOMException(
-                t('Aguarde a atualização das conversas e tente novamente.'),
+                t('Wait for conversations to update, then try again.'),
                 'TimeoutError',
               ),
             );
@@ -45,7 +45,7 @@ export class AuthorityWork {
             reject(
               error instanceof Error
                 ? error
-                : new Error('Não foi possível concluir a operação.'),
+                : new Error('Could not complete the operation.'),
             );
           }
         },
@@ -56,7 +56,7 @@ export class AuthorityWork {
         this.waiting.splice(index, 1);
         reject(
           new DOMException(
-            t('Aguarde a atualização das conversas e tente novamente.'),
+            t('Wait for conversations to update, then try again.'),
             'TimeoutError',
           ),
         );

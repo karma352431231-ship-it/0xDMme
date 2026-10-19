@@ -108,7 +108,7 @@ export class GroupService {
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action) throw new AccountError(404, 'Operação de grupo indisponível.');
+    if (!action) throw new AccountError(404, 'Group operation unavailable.');
     return await action(authority, data, proof);
   }
   private commit(

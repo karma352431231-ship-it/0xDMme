@@ -65,7 +65,7 @@ await test('troca de sessão ou revogação ainda cancela uma mutação, inclusi
       authority.invalidate();
       return Promise.resolve('saved');
     }),
-    /Autorização da conta alterada/u,
+    /Account authorization changed/u,
   );
   t.mock.method(globalThis, 'fetch', () => {
     authority.invalidate();
@@ -73,7 +73,7 @@ await test('troca de sessão ou revogação ainda cancela uma mutação, inclusi
   });
   await assert.rejects(
     authority.mutate((context) => context.api('group-link-revoke', {})),
-    /Autorização da conta alterada/u,
+    /Account authorization changed/u,
   );
 });
 
@@ -83,7 +83,7 @@ await test('autoridade do cofre precisa coincidir com conta, aparelho e sessão 
     vault.session = { ...session, [field]: crypto.randomUUID() };
     await assert.rejects(
       authority.mutate(() => Promise.resolve('saved')),
-      /Conta alterada/u,
+      /Account changed/u,
     );
   }
 });

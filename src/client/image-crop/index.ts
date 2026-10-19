@@ -49,7 +49,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     const image = new Image();
     image.decoding = 'async';
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Imagem inválida.'));
+    image.onerror = () => reject(new Error('Invalid image.'));
     image.src = url;
   });
 }
@@ -263,8 +263,7 @@ class CropDialog {
     canvas.width = this.shape.width;
     canvas.height = this.shape.height;
     const context = canvas.getContext('2d');
-    if (!context)
-      throw new Error('Processamento local de imagem indisponível.');
+    if (!context) throw new Error('Local image processing unavailable.');
     context.imageSmoothingQuality = 'high';
     context.drawImage(
       this.image,
@@ -281,7 +280,7 @@ class CropDialog {
     const blob = await new Promise<Blob | null>((done) =>
       canvas.toBlob(done, type, 0.92),
     );
-    if (!blob) throw new Error('Processamento local de imagem indisponível.');
+    if (!blob) throw new Error('Local image processing unavailable.');
     const stem = file.name.replace(/\.[^.]+$/u, '') || 'image';
     return new File([blob], `${stem}.${type === 'image/png' ? 'png' : 'jpg'}`, {
       type,

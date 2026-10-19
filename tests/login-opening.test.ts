@@ -258,7 +258,7 @@ for (const ecosystem of ['evm', 'solana'] as const)
         contacts.setSession(user);
         await assert.rejects(
           contacts.configure('wallet', null),
-          /Autorize ou recupere/,
+          /Authorize or recover/,
         );
         assert.equal(configured, 0);
         assert.ok(await devices.privateKey(user, 'login'));

@@ -141,7 +141,7 @@ await test('endereço completo identifica o ecossistema com a mesma validação 
     'O'.repeat(44),
     'So111111…11112',
   ])
-    assert.throws(() => walletContactFromAddress(invalid), /Wallet inválida/u);
+    assert.throws(() => walletContactFromAddress(invalid), /Invalid wallet/u);
 });
 await test('convite fica no fragmento, não autoriza dispositivo e rejeita origem/campos/QR indevidos', () => {
   const invite = { owner: accountId, token: 'a'.repeat(64) };

@@ -59,7 +59,7 @@ export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
     typeof wallet !== 'string' ||
     !['MetaMask', 'Phantom', 'Backpack'].includes(wallet)
   )
-    throw new Error('Pedido de wallet inválido.');
+    throw new Error('Invalid wallet request.');
   return {
     ticket,
     wallet: wallet as WalletName,

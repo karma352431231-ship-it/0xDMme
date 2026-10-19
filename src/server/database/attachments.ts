@@ -71,7 +71,7 @@ export class AttachmentStore {
   ): Promise<AttachmentRow> {
     const row = await this.row(c, id);
     if (!row || row.sender !== a.session.accountId || row.status === 'deleting')
-      throw new AccountError(404, 'Reserva de anexo indisponível.');
+      throw new AccountError(404, 'Attachment reservation unavailable.');
     if (
       !(await this.contacts.messageDeliveryAllowed(
         c,
@@ -79,10 +79,7 @@ export class AttachmentStore {
         row.recipient,
       ))
     )
-      throw new AccountError(
-        423,
-        'Transferência suspensa por falta de consentimento.',
-      );
+      throw new AccountError(423, 'Transfer suspended due to missing consent.');
     return row;
   }
   async begin(
@@ -93,9 +90,9 @@ export class AttachmentStore {
     return this.contacts.withMessageAuthority(a, async (c) => {
       const row = await this.owned(c, a, id);
       if (index !== null && !row.descriptor.parts[index])
-        throw new AccountError(400, 'Parte inexistente.');
+        throw new AccountError(400, 'Part does not exist.');
       if (row.status === 'writing')
-        throw new AccountError(409, 'Anexo ocupado.');
+        throw new AccountError(409, 'Attachment busy.');
       if (
         row.status === 'accepted' ||
         row.status === 'ready' ||
@@ -103,7 +100,7 @@ export class AttachmentStore {
       )
         return { ref: row.descriptor, writer: null };
       if (index === null && row.received.length !== row.descriptor.parts.length)
-        throw new AccountError(409, 'Anexo incompleto.');
+        throw new AccountError(409, 'Attachment incomplete.');
       const writer = randomUUID();
       await c.query(
         "UPDATE hash_talk.message_attachments SET status='writing',writer=$2 WHERE id=$1",
@@ -119,7 +116,7 @@ export class AttachmentStore {
     return this.contacts.withMessageAuthority(a, async (c) => {
       const row = await this.owned(c, a, input.id);
       if (row.writer !== input.writer)
-        throw new AccountError(409, 'Escrita de anexo interrompida.');
+        throw new AccountError(409, 'Attachment write interrupted.');
       await c.query(
         'UPDATE hash_talk.message_attachments SET status=$3,writer=NULL,received=$4 WHERE id=$1 AND writer=$2',
         [
@@ -146,13 +143,13 @@ export class AttachmentStore {
         [message],
       );
       if (sent.rowCount)
-        throw new AccountError(409, 'Envio aceito: use a exclusão bilateral.');
+        throw new AccountError(409, 'Send accepted: use bilateral deletion.');
       const writers = await c.query(
         "SELECT 1 FROM hash_talk.message_attachments WHERE message_id=$1 AND sender=$2 AND status='writing'",
         [message, a.session.accountId],
       );
       if (writers.rowCount)
-        throw new AccountError(409, 'Aguarde a transferência ativa terminar.');
+        throw new AccountError(409, 'Wait for the active transfer to finish.');
       await c.query(
         "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND sender=$2 AND status<>'deleting'",
         [message, a.session.accountId],
@@ -171,7 +168,7 @@ export class AttachmentStore {
         row.recipient !== packet.recipient ||
         canonical(row.descriptor) !== canonical(ref)
       )
-        throw new AccountError(409, 'Anexo não está integralmente preservado.');
+        throw new AccountError(409, 'Attachment not fully preserved.');
       await c.query(
         "UPDATE hash_talk.message_attachments SET status='accepted' WHERE id=$1",
         [ref.id],
@@ -190,13 +187,16 @@ export class AttachmentStore {
         row.message_id !== input.message ||
         ![row.sender, row.recipient].includes(a.session.accountId)
       )
-        throw new AccountError(404, 'Anexo indisponível.');
+        throw new AccountError(404, 'Attachment unavailable.');
       const removed = await c.query(
         "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
         [a.session.accountId, input.message],
       );
       if (removed.rowCount)
-        throw new AccountError(410, 'Anexo removido do cofre pessoal.');
+        throw new AccountError(
+          410,
+          'Attachment removed from the personal vault.',
+        );
       if (
         !(await this.contacts.messageDeliveryAllowed(
           c,
@@ -206,10 +206,10 @@ export class AttachmentStore {
       )
         throw new AccountError(
           423,
-          'Download suspenso por falta de consentimento.',
+          'Download suspended due to missing consent.',
         );
       if (!row.descriptor.parts[input.index])
-        throw new AccountError(400, 'Parte inválida.');
+        throw new AccountError(400, 'Invalid part.');
       return row.descriptor;
     });
   }

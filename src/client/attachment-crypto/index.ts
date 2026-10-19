@@ -30,7 +30,7 @@ export async function sealFile(
   try {
     const ciphertext = Uint8Array.from(sealed.encryptedData),
       encryption = sealed.mediaEncryptionInfo;
-    if (!encryption) throw new Error('Informação criptográfica ausente.');
+    if (!encryption) throw new Error('Cryptographic information missing.');
     const parts: AttachmentRef['parts'] = [];
     for (let offset = 0; offset < ciphertext.length; offset += partLimit) {
       const part = ciphertext.subarray(offset, offset + partLimit);
@@ -59,7 +59,7 @@ export async function openFile(
 ): Promise<Uint8Array<ArrayBuffer>> {
   const ref = attachmentRef(file.ref, maximum);
   if (bytes.length !== ref.bytes || (await bytesHash(bytes)) !== ref.hash)
-    throw new Error('Anexo incompleto ou adulterado.');
+    throw new Error('Attachment incomplete or tampered with.');
   await initAsync('/matrix-crypto-18.9.0.wasm');
   const sealed = new EncryptedAttachment(bytes, file.encryption);
   try {

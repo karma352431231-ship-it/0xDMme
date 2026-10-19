@@ -32,7 +32,7 @@ export async function openSocialConversation(input: {
         [actor, peer],
       )
     ).rows[0];
-  if (!row) throw new Error('Conversa de DM não confirmada.');
+  if (!row) throw new Error('DM conversation not confirmed.');
   return {
     row,
     changed: Boolean(opened.rowCount),

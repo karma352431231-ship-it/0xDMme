@@ -16,22 +16,20 @@ export interface Collection {
   cases: ImageCase[];
 }
 const messages: Record<string, string> = {
-  round_expired: t(
-    'A rodada expirou. As imagens temporárias foram descartadas.',
-  ),
-  round_completed: t('O envio desta rodada já foi concluído.'),
-  round_empty: t('Marque pelo menos uma imagem antes de concluir.'),
+  round_expired: t('The round expired. Temporary images were discarded.'),
+  round_completed: t("This round's upload is already complete."),
+  round_empty: t('Annotate at least one image before finishing.'),
   round_full: t(
-    'A rodada chegou ao limite. As imagens já enviadas continuam preservadas.',
+    'The round reached its limit. Images already uploaded are preserved.',
   ),
   conflicting_reference: t(
-    'Esta imagem já foi enviada com outra marcação. Use “Corrigir” no caso salvo.',
+    'This image was already uploaded with a different annotation. Use “Correct” on the saved case.',
   ),
-  invalid_image: t('O arquivo não corresponde a uma imagem PNG, JPEG ou WebP.'),
+  invalid_image: t('The file is not a PNG, JPEG or WebP image.'),
 };
 function record(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('Resposta inválida da coleta.');
+    throw new Error('Invalid collection response.');
   return value as Record<string, unknown>;
 }
 function imageCase(value: unknown): ImageCase {
@@ -43,10 +41,10 @@ function imageCase(value: unknown): ImageCase {
     typeof entry['bytes'] !== 'number' ||
     typeof entry['ordinal'] !== 'number'
   )
-    throw new Error('Caso inválido recebido da coleta.');
+    throw new Error('Invalid case received from collection.');
   const reference = entry['reference'];
   if (reference !== 'allow' && reference !== 'reject')
-    throw new Error('Marcação inválida recebida da coleta.');
+    throw new Error('Invalid annotation received from collection.');
   return {
     id: entry['id'],
     imageHash: entry['imageHash'],
@@ -64,10 +62,10 @@ function collection(value: unknown): Collection {
     typeof data['expiresAt'] !== 'number' ||
     !Array.isArray(data['cases'])
   )
-    throw new Error('Rodada inválida recebida da coleta.');
+    throw new Error('Invalid round received from collection.');
   const completedAt = data['completedAt'];
   if (completedAt !== null && typeof completedAt !== 'number')
-    throw new Error('Estado inválido recebido da coleta.');
+    throw new Error('Invalid state received from collection.');
   const cases: unknown[] = data['cases'];
   return {
     roundId: data['roundId'],
@@ -132,7 +130,7 @@ export class CollectionApi {
     ).join('');
     if (saved.imageHash !== hash || saved.reference !== reference)
       throw new Error(
-        'A imagem salva diverge do envio. A fila foi preservada.',
+        'The saved image differs from the upload. The queue was preserved.',
       );
     return saved;
   }

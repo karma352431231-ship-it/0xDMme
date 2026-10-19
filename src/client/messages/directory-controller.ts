@@ -40,7 +40,7 @@ export class MessageDirectory {
     this.remoteMore = this.archivedMore = true;
   }
   private guard(current: number): void {
-    if (current !== this.generation) throw new Error('Sessão alterada.');
+    if (current !== this.generation) throw new Error('Session changed.');
   }
   async refresh(
     more = false,

@@ -59,7 +59,7 @@ interface DirectoryView {
 function directoryTitle(item: DirectoryItem): string {
   if (item.saved && item.saved.contact.alias) return item.saved.contact.alias;
   if (item.peer && item.peer.name) return item.peer.name;
-  if (item.saved?.contact.addedVia === 'invite') return t('Sem nome');
+  if (item.saved?.contact.addedVia === 'invite') return t('Unnamed');
   const identity = item.peer ?? item.saved!.contact;
   return shortAddress(identity.address);
 }
@@ -77,11 +77,11 @@ function directoryRow(item: DirectoryItem, view: DirectoryView): HTMLLIElement {
   if (item.kind === 'approved' && item.peer && view.openChat) {
     const peer = item.peer,
       open = view.openChat;
-    const chat = view.button(t('Conversar'), () => open(peer));
+    const chat = view.button(t('Chat'), () => open(peer));
     chat.className = 'primary';
     actions.append(chat);
   }
-  actions.append(view.button(t('Abrir contato'), () => view.openContact(item)));
+  actions.append(view.button(t('Open contact'), () => view.openContact(item)));
   row.dataset['contactState'] = item.kind;
   if (item.kind !== 'approved') {
     const state = document.createElement('span');

@@ -87,7 +87,7 @@ export function startGroups(
   let session: AccountSession | null = null,
     host: HTMLElement | null = null,
     aside: HTMLElement | null = null,
-    notice = t('Abra um grupo para conversar.');
+    notice = t('Open a group to chat.');
   let states = new Map<string, PeerState>();
   let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
   let externalAbort = new AbortController();
@@ -163,14 +163,14 @@ export function startGroups(
     const settingsNotice = node('[data-group-settings-notice]');
     if (settingsNotice)
       settingsNotice.textContent = [
-        t('Grupo aberto.'),
-        t('Mensagem enviada.'),
+        t('Group opened.'),
+        t('Message sent.'),
       ].includes(notice)
         ? ''
         : notice;
     const label = node('[data-group-notice]');
     if (label)
-      label.textContent = [t('Grupo aberto.'), t('Mensagem enviada.')].includes(
+      label.textContent = [t('Group opened.'), t('Message sent.')].includes(
         notice,
       )
         ? ''
@@ -188,7 +188,7 @@ export function startGroups(
         notice =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível concluir a operação do grupo.');
+            : t('Could not complete the group operation.');
         throw error;
       } finally {
         status();
@@ -198,9 +198,9 @@ export function startGroups(
   }
   function name(account: string): string {
     return account === session?.accountId
-      ? t('Você')
+      ? t('You')
       : options.peers().find((p) => p.accountId === account)?.name ||
-          t('Membro {0}', [account.slice(0, 8)]);
+          t('Member {0}', [account.slice(0, 8)]);
   }
   function listLabel(group: GroupSummary): string {
     const id = group.state.groupId,
@@ -210,15 +210,15 @@ export function startGroups(
     return t('{0}{1} · {2}{3}{4}{5}', [
       settings.pinned ? '📌 ' : '',
       group.title,
-      group.localOnly ? t('cópia local do grupo') : t('grupo'),
-      state?.unread ? t(' · {0} não lidas', [state.unread]) : '',
-      state && state.mutedUntil > Date.now() ? t(' · silenciado') : '',
+      group.localOnly ? t('local group copy') : t('group'),
+      state?.unread ? t(' · {0} unread', [state.unread]) : '',
+      state && state.mutedUntil > Date.now() ? t(' · muted') : '',
       cleanup,
     ]);
   }
   function cleanupLabel(state: PeerState | undefined): string {
     return state?.cleanup
-      ? t(' · ⚠ limpeza de mídias em {0}', [
+      ? t(' · ⚠ media cleanup in {0}', [
           new Date(state.cleanup.dueAt).toLocaleString(currentLanguage()),
         ])
       : '';
@@ -254,7 +254,7 @@ export function startGroups(
   }
   function updateOwnerNotice(previous: GroupSummary | null): void {
     if (previous && previous.state.owner !== controller.selected?.state.owner)
-      notice = t('Propriedade do grupo atualizada.');
+      notice = t('Group ownership updated.');
   }
   async function refreshSelected(selected: string | undefined): Promise<void> {
     if (
@@ -287,7 +287,7 @@ export function startGroups(
       localOnly = typeof group === 'string' ? false : !!group.localOnly;
     if (voice.active || attachments.selected?.voice)
       throw new Error(
-        'Envie ou remova a prévia de voz antes de trocar de conversa.',
+        'Send or remove the voice preview before changing conversations.',
       );
     if (controller.selected?.state.groupId !== id)
       resetHistoryPosition(node('[data-group-history]'));
@@ -301,7 +301,7 @@ export function startGroups(
       options.changed();
     }
     await refreshVault();
-    notice = controller.warning || t('Grupo aberto.');
+    notice = controller.warning || t('Group opened.');
     render();
     await pending();
   }
@@ -378,7 +378,7 @@ export function startGroups(
       if (view.unavailableMedia.length) {
         const unavailable = document.createElement('p');
         unavailable.textContent = t(
-          'Mídia indisponível no cofre remoto. Uma cópia já baixada pode continuar neste aparelho.',
+          'Media unavailable in the remote vault. A downloaded copy may remain on this device.',
         );
         article.append(unavailable);
       }
@@ -392,7 +392,7 @@ export function startGroups(
     if (view.localOnly) {
       const local = document.createElement('small');
       local.textContent = t(
-        'Cópia local · conteúdo indisponível no cofre remoto',
+        'Local copy · content unavailable in the remote vault',
       );
       article.append(local);
     }
@@ -409,13 +409,13 @@ export function startGroups(
     if (checks || view.edited) {
       const state = document.createElement('small');
       state.className = 'message-meta';
-      if (view.edited) state.append(t('Editada · '));
+      if (view.edited) state.append(t('Edited · '));
       if (checks)
         state.append(
           checksIcon({
             ...checks,
             label: view.read
-              ? t('Vista pelos destinatários com confirmação de leitura')
+              ? t('Seen by recipients who share read receipts')
               : checks.label,
           }),
         );
@@ -455,10 +455,8 @@ export function startGroups(
     const count = node('[data-group-count]');
     if (count)
       count.textContent = group.localOnly
-        ? t(
-            'Cópia local independente · sem acesso remoto concedido por esta cópia',
-          )
-        : t('{0} participantes', [group.state.members.length]);
+        ? t('Independent local copy · this copy grants no remote access')
+        : t('{0} participants', [group.state.members.length]);
     renderGroupPhoto(group);
     renderLocalControls(group);
     renderHistory();
@@ -490,9 +488,9 @@ export function startGroups(
       if (node instanceof HTMLButtonElement) node.disabled = !allowed;
       node.setAttribute(
         'aria-label',
-        allowed ? t('Alterar foto do grupo') : t('Foto do grupo'),
+        allowed ? t('Change group photo') : t('Group photo'),
       );
-      node.title = allowed ? t('Alterar foto do grupo') : t('Foto do grupo');
+      node.title = allowed ? t('Change group photo') : t('Group photo');
     }
     photoView.show(
       JSON.stringify([
@@ -533,10 +531,10 @@ export function startGroups(
       row.className = 'group-member-row';
       const role =
         member.role === 'owner'
-          ? t('Dono')
+          ? t('Owner')
           : member.role === 'admin'
-            ? t('Administrador')
-            : t('Membro');
+            ? t('Administrator')
+            : t('Member');
       row.append(
         people.identity(member.accountId, name(member.accountId), role),
       );
@@ -579,10 +577,10 @@ export function startGroups(
     if (groupManager(group.state, session.accountId))
       row.append(
         withMenuIcon(
-          button(t('Remover'), async () => {
+          button(t('Remove'), async () => {
             if (
               !window.confirm(
-                t('Remover {0} do grupo?', [name(member.accountId)]),
+                t('Remove {0} from the group?', [name(member.accountId)]),
               )
             )
               return;
@@ -599,9 +597,7 @@ export function startGroups(
     row.append(
       withMenuIcon(
         button(
-          member.role === 'admin'
-            ? t('Tornar membro')
-            : t('Tornar administrador'),
+          member.role === 'admin' ? t('Make member') : t('Make administrator'),
           async () => {
             await controller.change({
               kind: 'role',
@@ -616,11 +612,11 @@ export function startGroups(
     );
     row.append(
       withMenuIcon(
-        button(t('Oferecer propriedade'), async () => {
+        button(t('Offer ownership'), async () => {
           if (
             !window.confirm(
               t(
-                'Oferecer a propriedade a {0}? Ele precisa aceitar. Você ficará como membro comum após o aceite.',
+                'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.',
                 [name(member.accountId)],
               ),
             )
@@ -628,7 +624,7 @@ export function startGroups(
             return;
           await controller.propose(member.accountId, 'transfer');
           notice = t(
-            'Transferência oferecida. A propriedade muda após o aceite do membro escolhido.',
+            'Transfer offered. Ownership changes after the selected member accepts.',
           );
         }),
         'shield',
@@ -653,7 +649,7 @@ export function startGroups(
     const value = node('[data-group-usage]');
     if (value)
       value.textContent = vault
-        ? t('Texto e administração: {0} / {1} MB · mídia: {2} / {3} MB', [
+        ? t('Text and administration: {0} / {1} MB · media: {2} / {3} MB', [
             (vault.textBytes / 1_000_000).toFixed(2),
             groupTextQuota / 1_000_000,
             (vault.mediaBytes / 1_000_000).toFixed(2),
@@ -664,7 +660,7 @@ export function startGroups(
     if (warning)
       warning.textContent = vault?.notice
         ? t(
-            'Limpeza de mídias antigas prevista para {0}. Cerca de {1} MB selecionados. Textos permanecem.',
+            'Old media cleanup scheduled for {0}. About {1} MB selected. Text stays.',
             [
               new Date(vault.notice.dueAt).toLocaleString(currentLanguage()),
               (vault.notice.bytes / 1_000_000).toFixed(2),
@@ -689,7 +685,7 @@ export function startGroups(
       selected.replaceChildren();
       for (const item of vault?.items ?? []) {
         const li = document.createElement('li');
-        li.textContent = t('Mensagem {0} · {1} MB', [
+        li.textContent = t('Message {0} · {1} MB', [
           item.message.slice(0, 8),
           (item.bytes / 1_000_000).toFixed(2),
         ]);
@@ -706,17 +702,15 @@ export function startGroups(
         label = document.createElement('p');
       label.textContent =
         consent.kind === 'invite'
-          ? t('{0} convidou você para um grupo.', [name(consent.actor)])
+          ? t('{0} invited you to a group.', [name(consent.actor)])
           : t(
-              '{0} ofereceu a propriedade de um grupo. É necessário aceitar para assumir a administração.',
+              '{0} offered you ownership of a group. Accept to take over administration.',
               [name(consent.actor)],
             );
       row.append(label);
       row.append(
         button(
-          consent.kind === 'invite'
-            ? t('Entrar no grupo')
-            : t('Aceitar propriedade'),
+          consent.kind === 'invite' ? t('Join group') : t('Accept ownership'),
           async () => {
             await controller.respond(consent, true);
             await refresh();
@@ -728,7 +722,7 @@ export function startGroups(
         ),
       );
       row.append(
-        button(t('Recusar'), async () => {
+        button(t('Decline'), async () => {
           await controller.respond(consent, false);
           await controller.refreshIncoming();
           renderIncoming();
@@ -745,9 +739,9 @@ export function startGroups(
       mode.textContent =
         controller.mode === 'configured'
           ? t(
-              'Criação gratuita, sem limite de quantidade. Até uma criação por minuto e dez por hora.',
+              'Free creation, with no total limit. Up to one creation per minute and ten per hour.',
             )
-          : t('Consultando disponibilidade de grupos…');
+          : t('Checking group availability…');
     const toggle = sidebar<HTMLButtonElement>('[data-group-new]');
     if (toggle)
       toggle.disabled = options.isBusy() || controller.mode === 'unavailable';
@@ -760,19 +754,19 @@ export function startGroups(
     list.replaceChildren();
     for (const draft of await controller.pending()) {
       const row = document.createElement('li');
-      row.textContent = t('Rascunho {0} pendente ', [draft.id.slice(0, 8)]);
+      row.textContent = t('Draft {0} pending ', [draft.id.slice(0, 8)]);
       row.append(
-        button(t('Retomar'), async () => {
+        button(t('Resume'), async () => {
           await controller.sendPending();
           await reopen();
         }),
       );
       row.append(
-        button(t('Descartar rascunho local'), async () => {
+        button(t('Discard local draft'), async () => {
           await controller.discard(draft.id);
           await pending();
           notice = t(
-            'Rascunho local descartado. Isso não exclui uma mensagem que já tenha sido aceita.',
+            'Local draft discarded. This does not delete a message already accepted.',
           );
         }),
       );
@@ -829,7 +823,7 @@ export function startGroups(
           }
           await controller.sendPending();
           await reopen();
-          notice = t('Mensagem enviada.');
+          notice = t('Message sent.');
         });
       },
     );
@@ -839,7 +833,7 @@ export function startGroups(
         input = node<HTMLTextAreaElement>('[data-group-text]');
       if (!anchor || !input) return;
       void emojiIntoComposer(emoji, anchor, input).catch(() => {
-        notice = t('Não foi possível abrir os emojis.');
+        notice = t('Could not open emoji.');
         status();
       });
     });
@@ -864,7 +858,7 @@ export function startGroups(
         void run(async () => {
           if (
             !window.confirm(
-              t('Sair do grupo? Você perderá o acesso ao cofre remoto.'),
+              t('Leave the group? You will lose access to the remote vault.'),
             )
           )
             return;
@@ -883,7 +877,7 @@ export function startGroups(
           if (
             !window.confirm(
               t(
-                'Excluir o grupo e iniciar a remoção do cofre remoto para todos? Cópias já conservadas pelos participantes continuam sob controle deles.',
+                'Delete the group and start removing the remote vault for everyone? Copies already kept by participants remain under their control.',
               ),
             )
           )
@@ -900,13 +894,13 @@ export function startGroups(
           if (
             !window.confirm(
               t(
-                'Limpar o conteúdo do cofre remoto deste grupo? Mensagens e mídias serão removidas; cópias locais e arquivos já salvos podem permanecer.',
+                "Clear this group's remote vault content? Messages and media will be removed; local copies and saved files may remain.",
               ),
             )
           )
             return;
           await controller.clearVault();
-          notice = t('Limpeza do cofre iniciada.');
+          notice = t('Vault cleanup started.');
           await reopen();
         }),
     );
@@ -924,7 +918,7 @@ export function startGroups(
         void run(async () => {
           await controller.cancelCreation();
           notice = t(
-            'Pedido local descartado. Se o servidor já tiver criado o grupo, ele continuará na lista.',
+            'Local request discarded. If the server already created the group, it remains in the list.',
           );
           await refresh();
         }),
@@ -944,7 +938,7 @@ export function startGroups(
     people.clear();
     if (voice.active || attachments.selected?.voice)
       throw new Error(
-        'Envie ou remova a prévia de voz antes de trocar de conversa.',
+        'Send or remove the voice preview before changing conversations.',
       );
     controller.close();
     attachments.clearSelection();
@@ -963,7 +957,9 @@ export function startGroups(
     externalAbort = new AbortController();
     if (voice.active)
       void voice.stop(
-        t('Navegação interrompeu a gravação. Confira o trecho ao voltar.'),
+        t(
+          'Navigation interrupted recording. Check the excerpt when you return.',
+        ),
       );
     attachments.clearMedia();
     attachments.pausePreview();
@@ -983,7 +979,7 @@ export function startGroups(
         .forEach((list) => list.replaceChildren());
     }
     actions.reset();
-    notice = t('Abra um grupo para conversar.');
+    notice = t('Open a group to chat.');
   }
   window.addEventListener('beforeunload', (event) => {
     if (!voice.active && !attachments.selected?.voice) return;
@@ -994,7 +990,7 @@ export function startGroups(
     if (document.visibilityState === 'hidden' && voice.active)
       void voice.stop(
         t(
-          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+          'The browser interrupted recording. Check the preserved excerpt when you return.',
         ),
       );
   });
@@ -1028,7 +1024,7 @@ export function startGroups(
     },
     async respondInvite(id: string, accept: boolean): Promise<void> {
       const consent = controller.incoming.find((item) => item.id === id);
-      if (!consent) throw new Error('Este convite não está mais disponível.');
+      if (!consent) throw new Error('This invitation is no longer available.');
       await controller.respond(consent, accept);
       if (accept) await refresh();
       await controller.refreshIncoming();

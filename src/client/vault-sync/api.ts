@@ -9,7 +9,7 @@ export async function vaultApi(
 ): Promise<unknown> {
   if (authority.offline)
     throw new Error(
-      'Cópia local apenas. Entre e confira a autorização para sincronizar com o servidor.',
+      'Local copy only. Sign in and check authorization to sync with the server.',
     );
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

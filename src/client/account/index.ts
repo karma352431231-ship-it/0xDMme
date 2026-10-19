@@ -74,7 +74,7 @@ export function startAccount(
     },
     authenticated: async (authenticated) => {
       setSession(authenticated);
-      core.status = t('Abrindo sua conta…');
+      core.status = t('Opening your account…');
       await profile.load(authenticated, 'login');
     },
   });
@@ -132,7 +132,7 @@ export function startAccount(
         core.epoch++;
         profile.clear();
         setSession(null);
-        core.status = t('Sessão expirada. Entre novamente.');
+        core.status = t('Session expired. Sign in again.');
         render();
       },
       Math.min(remaining, 2_147_483_647),
@@ -148,7 +148,7 @@ export function startAccount(
       // their result and keep one operation until the provider settles.
       core.epoch++;
       core.status = t(
-        'A wallet não concluiu o pedido. Feche ou recuse a solicitação na wallet antes de tentar novamente.',
+        'The wallet did not complete the request. Close or reject the request in your wallet before trying again.',
       );
       render();
     }, approval.operationTimeout());
@@ -160,7 +160,7 @@ export function startAccount(
         error instanceof AccountError || error instanceof SolanaConnectionError
           ? translatedError(error.message)
           : t(
-              'Operação não concluída. Confira a wallet e a conexão; tente novamente.',
+              'Operation not completed. Check your wallet and connection, then try again.',
             );
     } finally {
       window.clearTimeout(timer);
@@ -176,14 +176,14 @@ export function startAccount(
     login.stopObserving();
     profile.clear();
     setSession(null);
-    core.status = t('Encerrando sessão…');
+    core.status = t('Signing out…');
     render();
     try {
       if (options.mobileOpening) await forgetLoginOpening();
     } finally {
       if (current) await api('logout', { input: {}, csrf: current.csrf });
     }
-    core.status = t('Sessão encerrada.');
+    core.status = t('Session ended.');
   }
   async function restore(): Promise<void> {
     if (approval.only) {
@@ -216,14 +216,14 @@ export function startAccount(
       // A resumed/new tab can have the old session cookie while a newly signed
       // handoff is still awaiting the original browser's explicit confirmation.
       if (options.mobileOpening) await walletReturn.refresh();
-      core.status = t('Abrindo sua conta…');
+      core.status = t('Opening your account…');
       await profile.load(restored);
     } catch (error: unknown) {
       core.status =
         error instanceof AccountError
           ? translatedError(error.message)
           : t(
-              'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.',
+              'Could not recover the session or open the private profile. Check your connection.',
             );
     }
     render();
@@ -287,7 +287,7 @@ export function startAccount(
     node(core, '[data-account-finish]')?.addEventListener('click', () => {
       requestPicker(
         t(
-          'Escolha a wallet desta conta para concluir a entrada e abrir suas chaves.',
+          "Choose this account's wallet to finish signing in and open your keys.",
         ),
       );
     });
@@ -314,7 +314,7 @@ export function startAccount(
       picker.request();
       location.hash = '#configuracoes';
       core.status = t(
-        'Confirme a wallet da sua conta para liberar as ações sensíveis nesta sessão.',
+        "Confirm your account's wallet to enable sensitive actions in this session.",
       );
       render();
     },

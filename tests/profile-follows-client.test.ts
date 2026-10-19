@@ -21,7 +21,7 @@ await test('escolha de seguir autor não consulta vínculo consigo mesmo nem ace
   });
   assert.equal(await follows.inspect(own.profile.id), null);
   current = null;
-  await assert.rejects(follows.inspect(target), /Crie seu perfil/);
+  await assert.rejects(follows.inspect(target), /Create your public profile/);
   assert.deepEqual(reads, ['state', 'state']);
 });
 
@@ -56,5 +56,5 @@ await test('estado de vínculo inválido não vira uma opção utilizável', asy
         operation === 'state' ? own : { following: true, revision: -1 },
       ),
   });
-  await assert.rejects(follows.inspect(target), /Contagem/);
+  await assert.rejects(follows.inspect(target), /[Cc]ount/);
 });

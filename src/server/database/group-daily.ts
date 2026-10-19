@@ -61,7 +61,7 @@ export class GroupDailyStore {
       if ((old.rows[0]?.revision ?? 0) !== input.revision)
         throw new AccountError(
           409,
-          'Silêncio do grupo mudou em outro aparelho. Atualize.',
+          'Group mute changed on another device. Refresh.',
         );
       await client.query(
         'INSERT INTO hash_talk.group_controls(account_id,group_id,revision,muted_until) VALUES($1,$2,1,$3) ON CONFLICT(account_id,group_id) DO UPDATE SET revision=hash_talk.group_controls.revision+1,muted_until=$3 WHERE hash_talk.group_controls.muted_until<>$3',
@@ -86,7 +86,7 @@ export class GroupDailyStore {
       if (known.rows[0]?.count !== input.ids.length)
         throw new AccountError(
           409,
-          'Leitura exige conteúdo recebido e preservado neste aparelho.',
+          'Read receipt requires content received and preserved on this device.',
         );
       const changed = await client.query<{ share_epoch: number | null }>(
         `INSERT INTO hash_talk.group_reads(account_id,group_id,message_id,share_epoch) SELECT $1,$2,unnest($3::uuid[]),CASE WHEN d.read_receipts THEN d.receipt_epoch ELSE NULL END FROM (SELECT 1) root LEFT JOIN hash_talk.daily_controls d ON d.account_id=$1 ON CONFLICT(account_id,message_id) DO UPDATE SET share_epoch=excluded.share_epoch WHERE hash_talk.group_reads.share_epoch IS DISTINCT FROM excluded.share_epoch RETURNING share_epoch`,

@@ -165,7 +165,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           senderEvent: owner.directory,
           exported: openRoomKey(readerKey, capsule),
         }),
-        /não corresponde/,
+        /does not match|is not a/,
       );
       const payload = {
         groupId: state.groupId,
@@ -215,7 +215,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           },
           [owner.directory],
         ),
-        /outra mensagem/,
+        /another message/,
       );
     },
   );
@@ -307,7 +307,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
             },
           ],
         }),
-        /Mensagem divergente/u,
+        /Message differs/u,
       );
       await assert.rejects(
         readGroupPage(
@@ -325,7 +325,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           },
           page,
         ),
-        /período de participação/u,
+        /membership period/u,
       );
     },
   );

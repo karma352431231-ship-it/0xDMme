@@ -89,7 +89,7 @@ export class MessageRemovalAllocations {
 function validateCleanup(row: CleanupRecord, account: string): void {
   if (row.prior !== null) {
     if (row.prior !== row.expected_hash)
-      throw new AccountError(409, 'Seleção de limpeza divergente.');
+      throw new AccountError(409, 'Cleanup selection does not match.');
     return;
   }
   assertPersonalCleanupTarget(row, { account, hash: row.expected_hash });

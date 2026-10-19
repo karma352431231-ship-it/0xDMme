@@ -279,7 +279,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
       await assert.rejects(devices.inspect(first.session, cancelled));
       await assert.rejects(
         devices.start(target.session, request),
-        /já utilizado/,
+        /already used/,
       );
       const expired = {
         ...cancelled,
@@ -291,7 +291,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
           code: expired,
           signature: await sign(identity.signing, linkProof(expired)),
         }),
-        /expirado/,
+        /expired/,
       );
     },
   );
@@ -309,7 +309,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
       );
       await assert.rejects(
         devices.inspect(first.session, code),
-        /já utilizado/,
+        /already used/,
       );
       await assert.rejects(
         devices.commit(first.session, { event: linked, profile: null }),

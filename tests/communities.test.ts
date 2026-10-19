@@ -15,7 +15,7 @@ const profile = { id: crypto.randomUUID(), handle: 'sintetico', avatar: null };
 const value = () => ({
   id: crypto.randomUUID(),
   name: 'Memes e discussões',
-  description: 'Descrição',
+  description: 'Description',
   rules: 'Respeite os participantes.',
   revision: 1,
   archived: false,
@@ -40,7 +40,7 @@ await test('comunidades preservam texto Unicode, recusam controles invisíveis e
   assert.throws(
     () =>
       communityMeta({
-        name: 'Teste',
+        name: 'Test',
         description: '',
         rules: '',
         owner: profile,

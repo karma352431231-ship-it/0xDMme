@@ -15,7 +15,7 @@ export class VoicePcm {
   samples = 0;
   constructor(sampleRate: number) {
     if (!Number.isFinite(sampleRate) || sampleRate < 8000 || sampleRate > 96000)
-      throw new Error('Frequência do microfone não suportada.');
+      throw new Error('Unsupported microphone sample rate.');
     this.interval = sampleRate / voiceRate;
     this.remaining = this.interval;
   }
@@ -25,8 +25,7 @@ export class VoicePcm {
   append(input: Float32Array, emit: (chunk: Int16Array) => void): void {
     for (const sample of input) {
       if (this.full) return;
-      if (!Number.isFinite(sample))
-        throw new Error('Amostra de áudio inválida.');
+      if (!Number.isFinite(sample)) throw new Error('Invalid audio sample.');
       this.sample(Math.max(-1, Math.min(1, sample)), emit);
     }
   }
@@ -62,7 +61,7 @@ export function voiceWav(
 ): Uint8Array<ArrayBuffer> {
   const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   if (!samples || samples > voiceSamples)
-    throw new Error('Gravação vazia ou acima de 90 segundos.');
+    throw new Error('Recording empty or longer than 90 seconds.');
   const bytes = new Uint8Array(44 + samples * 2),
     view = new DataView(bytes.buffer);
   const text = (offset: number, value: string) =>

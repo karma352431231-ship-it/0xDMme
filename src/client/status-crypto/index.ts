@@ -62,11 +62,11 @@ function statusText(
   text: string,
 ): AttachmentRef[] | undefined {
   if (!text.trim() || new TextEncoder().encode(text).length > 3_000_000)
-    throw new Error('Status vazio ou acima do tamanho permitido.');
+    throw new Error('Status empty or exceeds the permitted size.');
   if (kind === 'text') return undefined;
   const photo = attachmentContent(JSON.parse(text) as unknown);
   if (!photo.image || photo.voice)
-    throw new Error('Status aceita foto ou texto.');
+    throw new Error('Statuses accept a photo or text.');
   return contentRefs(photo);
 }
 /** A fresh SDK Megolm session per post. Exported keys exist only in memory, never in the chat SDK store or a backup. */
@@ -157,7 +157,7 @@ export class StatusEncryption {
       this.sealed.deviceId !== authority.session.deviceId ||
       this.sealed.directory !== authority.directory
     )
-      throw new Error('Sessão do status mudou ou foi encerrada.');
+      throw new Error('Status session changed or ended.');
   }
   async recipient(input: {
     authority: VaultAuthority;
@@ -174,7 +174,7 @@ export class StatusEncryption {
       recovery.epoch !== current.epoch ||
       !current.devices.some((d) => d.id === recovery.deviceId)
     )
-      throw new Error('Recuperação do destinatário não está autorizada.');
+      throw new Error('Recipient recovery not authorized.');
     await verifyRecoveryKey(recovery, signer);
     const envelope = statusEnvelope({
       version: 1,
@@ -234,7 +234,7 @@ export async function openStatus(input: {
     envelope.recipient.accountId !== input.authority.session.accountId ||
     envelope.contentHash !== (await digest(canonical(packet.content)))
   )
-    throw new Error('Status expirado ou fora da audiência autorizada.');
+    throw new Error('Status expired or outside the authorized audience.');
   await initAsync('/matrix-crypto-18.9.0.wasm');
   const machine = await OlmMachine.initialize(
     new UserId(matrixUser(input.authority.session.accountId)),
@@ -266,7 +266,7 @@ export async function openStatus(input: {
         event.senderCurve25519Key !== packet.senderKey ||
         event.senderClaimedEd25519Key !== packet.signingKey
       )
-        throw new Error('Chave de origem de status divergente.');
+        throw new Error('Status source key does not match.');
       return openedStatusText(packet, event.event);
     } finally {
       event.free();
@@ -285,9 +285,9 @@ function openedStatusText(packet: StatusPacket, event: string): string {
     identity['kind'] !== packet.kind ||
     typeof payload['body'] !== 'string'
   )
-    throw new Error('Conteúdo de status divergente.');
+    throw new Error('Status content does not match.');
   const refs = statusText(packet.kind, payload['body']);
   if (canonical(refs ?? null) !== canonical(packet.attachments ?? null))
-    throw new Error('Mídia de status divergente.');
+    throw new Error('Status media does not match.');
   return payload['body'];
 }

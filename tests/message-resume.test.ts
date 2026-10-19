@@ -58,7 +58,7 @@ await test('session replacement during a pending-text restore prevents publishin
   });
   data.beforeLocalOpen = () =>
     controller.setSession({ ...session, csrf: 'd'.repeat(64) });
-  await assert.rejects(controller.pendingTexts(peer, ['stale']), /Sessão/u);
+  await assert.rejects(controller.pendingTexts(peer, ['stale']), /[Ss]ession/u);
 });
 
 await test('reabrir janela confirmada compartilha uma conferência de autoridade entre snapshot, entrega e confirmação', async () => {
@@ -84,7 +84,7 @@ await test('troca de sessão durante a preparação do perfil impede conferir ou
       revision: 1,
       photo: null,
     }),
-    /Sessão/,
+    /[Ss]ession/,
   );
   assert.equal(data.authorityReads, 0);
   assert.equal(data.requests.length, 0);
@@ -190,7 +190,10 @@ await test('falha na conferência ou confirmação fecha o histórico e impede f
     await controller.synchronize();
     controller.pause();
     data.failure = operation;
-    await assert.rejects(controller.probe(), /Sem autorização/);
+    await assert.rejects(
+      controller.probe(),
+      /Not authorized|No verified local authorization/,
+    );
     assert.equal(data.frames.at(-1), null);
     data.failure = null;
     assert.equal(await controller.probe(), true);
@@ -207,7 +210,7 @@ await test('pausa durante a confirmação cancela a publicação e não transfor
       release = () => resolve(Response.json({}));
     });
   const loading = controller.synchronize();
-  const rejected = assert.rejects(loading, /substituída/);
+  const rejected = assert.rejects(loading, /superseded|replaced/);
   const deadline = Date.now() + 2000;
   while (!release && Date.now() < deadline) await setImmediate();
   assert.ok(release, 'A leitura não chegou à confirmação dentro do prazo.');
@@ -292,7 +295,10 @@ await test('exclusão e falha descartam também as outras conversas guardadas', 
     if (cause === 'hide') controller.hide();
     else {
       data.failure = 'confirm';
-      await assert.rejects(controller.probe(), /Sem autorização/);
+      await assert.rejects(
+        controller.probe(),
+        /Not authorized|No verified local authorization/,
+      );
       data.failure = null;
     }
     controller.select(peer);
@@ -410,7 +416,10 @@ await test('falha ao apagar mantém o gate fechado e descarta os candidatos reti
   await controller.synchronize();
   const view = data.frames.at(-1)![0]!;
   data.failure = 'delete';
-  await assert.rejects(controller.remove(view), /Sem autorização/);
+  await assert.rejects(
+    controller.remove(view),
+    /Not authorized|No verified local authorization/,
+  );
   assert.equal(data.frames.at(-1), null);
   data.failure = null;
   assert.equal(await controller.probe(), true);

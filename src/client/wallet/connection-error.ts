@@ -1,20 +1,26 @@
 import { t } from '../../shared/i18n/index.ts';
 const messages = {
-  'conexao-recusada': t('A solicitação de conexão foi recusada na wallet.'),
-  'conexao-nao-autorizada': t('A wallet não autorizou a conexão desta página.'),
+  'conexao-recusada': t('The connection request was rejected in the wallet.'),
+  'conexao-nao-autorizada': t(
+    'The wallet did not authorize this page to connect.',
+  ),
   'conexao-pendente': t(
-    'Já existe uma solicitação de conexão pendente na wallet.',
+    'A connection request is already pending in your wallet.',
   ),
-  'conexao-nao-suportada': t('A wallet recusou o método de conexão Solana.'),
+  'conexao-nao-suportada': t(
+    'The wallet rejected the Solana connection method.',
+  ),
   'conexao-parametros-recusados': t(
-    'A wallet recusou os parâmetros da conexão Solana.',
+    'The wallet rejected the Solana connection parameters.',
   ),
-  'conexao-provider-falhou': t('A wallet não concluiu a conexão Solana.'),
+  'conexao-provider-falhou': t(
+    'The wallet did not complete the Solana connection.',
+  ),
   'conta-solana-ausente': t(
-    'Selecione uma conta Solana que assine mensagens: a conexão não disponibilizou uma conta autorizada.',
+    'Select a Solana account that signs messages: the connection did not provide an authorized account.',
   ),
   'conta-solana-invalida': t(
-    'A wallet apresentou uma conta Solana com endereço ou chave pública inválidos.',
+    'The wallet returned a Solana account with an invalid address or public key.',
   ),
 } as const;
 

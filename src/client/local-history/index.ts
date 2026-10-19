@@ -62,7 +62,7 @@ function transaction<T>(
       db?.close();
       reject(
         new Error(
-          'Histórico local não gravado. Confira o espaço disponível no aparelho; o arquivo de backup continua independente.',
+          'Local history was not saved. Check available device space; the backup file remains independent.',
         ),
       );
     }
@@ -359,7 +359,7 @@ export async function dmHistoryPeers(a: VaultAuthority, after: string | null) {
   for (const row of page.rows) {
     const value = await openHistoryRecord(a, row);
     if (value.type !== 'dm-message')
-      throw new Error('Histórico público de outro contexto.');
+      throw new Error('Public history belongs to another context.');
     items.push(value);
   }
   return { items, next: page.next };
@@ -421,7 +421,7 @@ export async function dmConversationHistory(
   for (const row of rows) {
     const record = await openHistoryRecord(a, row);
     if (record.type !== 'dm-message' || record.peer.id !== peer)
-      throw new Error('Conversa histórica de outra DM.');
+      throw new Error('Historical conversation belongs to another DM.');
     result.push(record);
   }
   return result.sort((x, y) => x.sequence - y.sequence);
@@ -435,12 +435,12 @@ function validateStored(row: StoredRecord, account: string): void {
     !Array.isArray(row.chunks) ||
     row.chunks.length !== Math.ceil(row.bytes / backupChunk)
   )
-    throw new Error('Registro histórico inválido.');
+    throw new Error('Invalid historical record.');
   if (
     row.manifest.bytes.length > 32_000 ||
     row.chunks.some((c) => c.bytes.length > Math.ceil(backupChunk / 3) * 4 + 28)
   )
-    throw new Error('Partes históricas excedidas.');
+    throw new Error('Historical parts exceed the limit.');
 }
 function validateIdentity(row: StoredRecord, record: BackupRecord): void {
   const index = {
@@ -454,7 +454,7 @@ function validateIdentity(row: StoredRecord, record: BackupRecord): void {
     record.hash !== row.hash ||
     canonical(historyIndex(record)) !== canonical(index)
   )
-    throw new Error('Índice histórico divergente do conteúdo cifrado.');
+    throw new Error('Historical index differs from encrypted content.');
 }
 export async function openHistoryRecord(
   a: VaultAuthority,
@@ -462,7 +462,7 @@ export async function openHistoryRecord(
 ): Promise<BackupRecord> {
   validateStored(row, a.session.accountId);
   if ((await openLocal(a, row.manifest)) !== recordManifest(row))
-    throw new Error('Índice histórico não autenticado.');
+    throw new Error('Historical index not authenticated.');
   const bytes = new Uint8Array(row.bytes);
   let offset = 0;
   try {
@@ -476,7 +476,7 @@ export async function openHistoryRecord(
       }
     }
     if (offset !== bytes.length || (await bytesHash(bytes)) !== row.digest)
-      throw new Error('Registro histórico corrompido.');
+      throw new Error('Historical record corrupted.');
     const record = deserializeRecord(bytes);
     validateIdentity(row, record);
     return record;
@@ -525,7 +525,7 @@ function alreadyImported(
 ): boolean {
   if (!previous) return false;
   if (previous.hash !== record.hash)
-    throw new Error('Arquivos divergem para o mesmo registro histórico.');
+    throw new Error('Files differ for the same historical record.');
   return true;
 }
 export async function importHistory(
@@ -588,7 +588,7 @@ export async function cacheDmRecord(
   const previous = await stored(a, record.type, record.id);
   if (previous) {
     if (previous.hash !== record.hash)
-      throw new Error('Histórico de DM diverge da cópia autenticada.');
+      throw new Error('DM history differs from the authenticated copy.');
     if (record.type !== 'dm-message' || record.sentAt === undefined) return;
     const old = await openHistoryRecord(a, previous);
     if (old.type !== 'dm-message' || old.sentAt !== undefined) return;
@@ -717,11 +717,11 @@ export async function historyPeers(
   for (const row of rows.rows) {
     const record = await openHistoryRecord(a, row);
     if (record.type !== 'message')
-      throw new Error('Conversa histórica inválida.');
+      throw new Error('Invalid historical conversation.');
     items.push(
       record.participant ?? {
         accountId: record.peer,
-        name: t('Conversa do backup'),
+        name: t('Backup conversation'),
         address: record.peer,
         ecosystem: 'evm',
       },
@@ -735,13 +735,13 @@ export async function historyPage(
   limit = 16,
 ): Promise<{ rows: BackupRecord[]; next: IDBValidKey | null }> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 16)
-    throw new Error('Página histórica excedida.');
+    throw new Error('Historical page exceeds the limit.');
   const account = a.session.accountId;
   if (
     after !== null &&
     (!Array.isArray(after) || after.length !== 4 || after[0] !== account)
   )
-    throw new Error('Página histórica pertence a outra conta.');
+    throw new Error('Historical page belongs to another account.');
   const page = await transaction<{
     rows: StoredRecord[];
     next: IDBValidKey | null;
@@ -785,7 +785,7 @@ async function searchablePage(a: VaultAuthority, after: IDBValidKey | null) {
       after[0] !== account ||
       after[1] !== 'message')
   )
-    throw new Error('Busca de outra conta.');
+    throw new Error('Search belongs to another account.');
   return transaction<{ rows: StoredRecord[]; next: IDBValidKey | null }>(
     (tx, done) => {
       const request = tx
@@ -824,7 +824,7 @@ async function searchablePage(a: VaultAuthority, after: IDBValidKey | null) {
 }
 function searchCursor(cursor: string | null): IDBValidKey | null {
   if (cursor === null) return null;
-  if (cursor.length > 1024) throw new Error('Página de busca inválida.');
+  if (cursor.length > 1024) throw new Error('Invalid search page.');
   return JSON.parse(cursor) as IDBValidKey;
 }
 export async function searchHistory(
@@ -838,7 +838,7 @@ export async function searchHistory(
     .toLocaleLowerCase(currentLanguage())
     .trim();
   if (!term || term.length > 128)
-    throw new Error('Busque entre 1 e 128 caracteres.');
+    throw new Error('Enter between 1 and 128 characters.');
   let after: IDBValidKey | null = searchCursor(cursor);
   const items: {
     id: string;
@@ -970,7 +970,7 @@ export async function groupHistoryPage(
   const items: Extract<BackupRecord, { type: 'group' }>[] = [];
   for (const row of page.rows) {
     const record = await openHistoryRecord(a, row);
-    if (record.type !== 'group') throw new Error('Grupo histórico inválido.');
+    if (record.type !== 'group') throw new Error('Invalid historical group.');
     items.push(record);
   }
   return { items, next: page.next };
@@ -1023,7 +1023,7 @@ export async function groupConversationHistory(
   for (const row of rows) {
     const record = await openHistoryRecord(a, row);
     if (record.type !== 'group-message' || record.groupId !== groupId)
-      throw new Error('Conversa histórica de outro grupo.');
+      throw new Error('Historical conversation belongs to another group.');
     result.push(record);
   }
   return result.sort((x, y) => x.sequence - y.sequence);
@@ -1035,7 +1035,7 @@ export function mergeHistory<
   for (const row of remote) {
     const old = rows.get(row.id);
     if (old && old.hash !== row.hash)
-      throw new Error('Mensagem diverge do histórico validado.');
+      throw new Error('Message differs from validated history.');
     if (!old || row.text) rows.set(row.id, row);
   }
   return [...rows.values()].sort(
@@ -1150,9 +1150,9 @@ function historicalAction(
     record.type !== 'group-message' &&
     record.type !== 'dm-message'
   )
-    throw new Error('Alteração histórica divergente.');
+    throw new Error('Historical change does not match.');
   if (record.type !== family || record.relation?.id !== id)
-    throw new Error('Alteração histórica divergente.');
+    throw new Error('Historical change does not match.');
   return record;
 }
 
@@ -1184,7 +1184,7 @@ export async function groupProfileHistory(
   });
   if (!rows.length) return null;
   if (rows.length !== 1)
-    throw new Error('Perfil restaurado do grupo divergente.');
+    throw new Error('Restored group profile does not match.');
   const record = await openHistoryRecord(a, rows[0]!);
   if (
     record.type !== 'group-message' ||
@@ -1192,6 +1192,6 @@ export async function groupProfileHistory(
     record.sequence !== sequence ||
     record.kind !== 'profile'
   )
-    throw new Error('Perfil histórico de outro grupo.');
+    throw new Error('Historical profile belongs to another group.');
   return record;
 }

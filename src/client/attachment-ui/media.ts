@@ -36,7 +36,7 @@ function displayType(bytes: Uint8Array, content: AttachmentContent): string {
   return originalImageType(bytes) ?? 'application/octet-stream';
 }
 const defaultSaveNotice = t(
-  'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.',
+  'The saved copy is outside the vault and bilateral deletion. Only open files from sources you trust.',
 );
 /** Images are only their content in the bubble; saving lives in the viewer. */
 function showImage(
@@ -47,7 +47,7 @@ function showImage(
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'chat-image-open';
-  open.setAttribute('aria-label', t('Ampliar imagem {0}', [input.name]));
+  open.setAttribute('aria-label', t('Zoom in on image {0}', [input.name]));
   const image = document.createElement('img');
   image.src = url;
   image.alt = input.name;
@@ -55,7 +55,7 @@ function showImage(
   image.decoding = 'async';
   image.addEventListener('error', () => {
     preview.textContent = t(
-      'Não foi possível exibir a imagem. Você pode salvar o arquivo original.',
+      'Could not display the image. You can save the original file.',
     );
   });
   open.append(image);
@@ -80,10 +80,10 @@ function openImageViewer(
   const save = document.createElement('a');
   save.href = url;
   save.download = input.name;
-  save.textContent = t('Salvar no aparelho');
+  save.textContent = t('Save on device');
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = t('Fechar');
+  close.textContent = t('Close');
   close.addEventListener('click', () => {
     viewer.close();
   });
@@ -109,7 +109,7 @@ function offerSave<V extends MediaView>(
   const save = document.createElement('a');
   save.href = url;
   save.download = name;
-  save.textContent = t('Salvar no aparelho');
+  save.textContent = t('Save on device');
   const warning = document.createElement('small');
   warning.textContent = input.saveNotice ?? defaultSaveNotice;
   input.article.append(save, warning);
@@ -176,9 +176,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
-  button.textContent = image
-    ? t('Carregar imagem')
-    : t('Baixar arquivo original');
+  button.textContent = image ? t('Load image') : t('Download original file');
   input.article.append(...(image ? [preview, info] : [info, preview]), button);
   button.hidden = image;
   let pending = false;
@@ -202,7 +200,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       }
       if (image)
         preview.textContent = t(
-          'Prévia indisponível para esta imagem. O arquivo original está preservado.',
+          'Preview unavailable for this image. The original file is preserved.',
         );
       offerSave(input, url, content.name);
     } finally {
@@ -224,16 +222,16 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     void input.run(request);
   });
   if (image) {
-    preview.textContent = t('Carregando imagem…');
+    preview.textContent = t('Loading image…');
     // Rendering precedes DOM insertion; the serial queue starts after insertion.
     void Promise.resolve()
       .then(request)
       .catch(() => {
         if (!input.current()) return;
         preview.textContent = t(
-          'Imagem indisponível. Conecte ou toque para tentar novamente.',
+          'Image unavailable. Connect or tap to try again.',
         );
-        button.textContent = t('Tentar carregar imagem');
+        button.textContent = t('Try loading image');
         button.hidden = false;
       });
   }

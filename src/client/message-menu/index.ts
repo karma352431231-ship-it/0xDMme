@@ -15,14 +15,14 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
   host.className = 'message-actions';
   trigger.type = 'button';
   trigger.className = 'chat-icon';
-  trigger.setAttribute('aria-label', t('Opções da mensagem'));
+  trigger.setAttribute('aria-label', t('Message options'));
   trigger.setAttribute('aria-haspopup', 'menu');
   trigger.setAttribute('aria-expanded', 'false');
   trigger.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   panel.className = 'message-menu';
   panel.setAttribute('role', 'menu');
-  panel.setAttribute('aria-label', t('Opções da mensagem'));
+  panel.setAttribute('aria-label', t('Message options'));
   panel.popover = 'auto';
   panel.hidden = true;
   let opened = false,

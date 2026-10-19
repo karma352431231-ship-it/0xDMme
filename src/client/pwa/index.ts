@@ -54,7 +54,7 @@ export function startPwa(
   } = {},
 ) {
   let registration: ServiceWorkerRegistration | undefined;
-  let state = t('Preparando interface offline…');
+  let state = t('Preparing offline interface…');
   let busy = false;
   let attempts = 0;
   let deadline: number | undefined;
@@ -83,12 +83,12 @@ export function startPwa(
     finish(
       registration?.active
         ? t(
-            'Atualização offline indisponível. A versão instalada permanece disponível.',
+            'Offline update unavailable. The installed version remains available.',
           )
-        : t('Interface offline indisponível. Tente novamente com conexão.'),
+        : t('Offline interface unavailable. Try again with a connection.'),
     );
   const begin = () => {
-    state = t('Preparando interface offline…');
+    state = t('Preparing offline interface…');
     render();
     window.clearTimeout(deadline);
     deadline = window.setTimeout(() => {
@@ -96,7 +96,7 @@ export function startPwa(
       // concurrency lock until they settle rather than accumulating retries.
       finish(
         t(
-          'O preparo offline continua. Mantenha o app aberto e conectado; a versão atual segue disponível.',
+          'Offline preparation continues. Keep the app open and connected; the current version remains available.',
         ),
       );
     }, 10_000);
@@ -112,7 +112,7 @@ export function startPwa(
       return;
     }
     if (registration?.active) {
-      finish(t('Interface pública instalada para uso offline.'));
+      finish(t('Public interface installed for offline use.'));
       return;
     }
     failed();
@@ -133,7 +133,7 @@ export function startPwa(
     if (!own.length) {
       // Nothing to compare: a waiting worker keeps the explicit choice.
       outdated = !!registration?.waiting;
-      if (outdated) finish(t('Nova versão pronta. Escolha quando atualizar.'));
+      if (outdated) finish(t('New version ready. Choose when to update.'));
       else render();
       return;
     }
@@ -142,8 +142,8 @@ export function startPwa(
       const waiting = !!registration?.waiting;
       outdated =
         latest === null ? waiting : !latest && !registration?.installing;
-      if (outdated) finish(t('Nova versão pronta. Escolha quando atualizar.'));
-      else if (waiting) finish(t('Esta página já usa a versão mais recente.'));
+      if (outdated) finish(t('New version ready. Choose when to update.'));
+      else if (waiting) finish(t('This page already runs the latest version.'));
       else render();
     });
   }
@@ -191,7 +191,7 @@ export function startPwa(
     if (attempts >= 2) {
       finish(
         t(
-          'O navegador não concluiu o modo offline. Reabra a página para tentar novamente.',
+          'The browser did not complete offline mode. Reopen the page to try again.',
         ),
       );
       return;
@@ -216,7 +216,7 @@ export function startPwa(
     const blocked = options.blockedReason?.();
     if (blocked) return blocked;
     return options.canActivate?.() === false
-      ? t('Conclua a operação ou salve suas alterações antes de atualizar.')
+      ? t('Finish the operation or save your changes before updating.')
       : null;
   }
   let activationRetry: number | undefined;
@@ -279,7 +279,7 @@ export function startPwa(
       const result = document.getElementById('update-result');
       if (result)
         result.textContent = t(
-          'Atualização não concluída. Reabra a página quando for conveniente.',
+          'Update not completed. Reopen the page when convenient.',
         );
     };
     const timer = window.setTimeout(failedActivation, 10_000);
@@ -322,7 +322,7 @@ export function startPwa(
   if (supported) void prepare();
   else
     state = t(
-      'Instalação e modo offline exigem navegador compatível e HTTPS ou loopback.',
+      'Installation and offline mode require a compatible browser and HTTPS or loopback.',
     );
   document
     .getElementById('apply-update')
@@ -336,9 +336,7 @@ export function startPwa(
         return;
       }
       if (busy || registration?.installing) {
-        state = t(
-          'Atualização em andamento. Mantenha o app aberto e conectado.',
-        );
+        state = t('Update in progress. Keep the app open and connected.');
         render();
         return;
       }

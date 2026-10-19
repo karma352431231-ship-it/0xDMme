@@ -115,7 +115,7 @@ await test('reação admite um emoji composto e variantes; rejeita texto, múlti
             relation: { ...relation, type: 'reaction' as const },
           },
         ]),
-      /Reação inválida/,
+      /Invalid reaction/,
     );
   }
   assert.equal(validReaction(''), true);
@@ -315,7 +315,7 @@ await test('ações cifradas preservam texto legado, resposta e encaminhamento; 
   assert.equal(dailyViews([edit, react]).length, 0);
   assert.throws(
     () => dailyViews([original, { ...edit, author: crypto.randomUUID() }]),
-    /outro autor/,
+    /another author/,
   );
   assert.throws(
     () =>
@@ -323,16 +323,16 @@ await test('ações cifradas preservam texto legado, resposta e encaminhamento; 
         original,
         { ...edit, relation: { ...relation, hash: 'b'.repeat(64) } },
       ]),
-    /divergente/,
+    /differ|not match/,
   );
   assertRemovalIdentity(original, original);
   assert.throws(
     () => assertRemovalIdentity({ ...original, relation }, original),
-    /já autenticada/,
+    /already authenticated/,
   );
   assert.throws(
     () => assertRemovalIdentity({ ...edit, hash: 'b'.repeat(64) }, edit),
-    /já autenticada/,
+    /already authenticated/,
   );
 });
 await test('push só admite origens fixas, chaves limitadas e destinos públicos; payload é genérico e cifrado pela biblioteca', () => {
@@ -584,10 +584,10 @@ await test('favoritos cifrados resolvem seus próprios ramos, preservam preferê
     historyAuthorized: false,
   });
   release();
-  await assert.rejects(loading, /Sessão alterada/);
+  await assert.rejects(loading, /Session changed/);
   assert.equal(blocked.favorite(id), false);
   content.set(pendingEntry.commit.id, JSON.stringify({ favorite: 'sim' }));
-  await assert.rejects(daily.loadSettings([id]), /Favorito inválido/);
+  await assert.rejects(daily.loadSettings([id]), /Invalid favorite/);
 });
 function archiveFixture(settingsId = original.peer) {
   const entry = settingsEntry(settingsId, 1);
@@ -647,8 +647,8 @@ await test('arquivar silencia sem prazo; retomar exige desarquivar; mute de 24 h
   await daily.organize(original.peer, { archived: true });
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   assert.equal(daily.conversation(original.peer).archived, true);
-  await assert.rejects(daily.mute(original.peer, 0), /Desarquive/);
-  await assert.rejects(daily.mute(original.peer, 86400000), /Desarquive/);
+  await assert.rejects(daily.mute(original.peer, 0), /Unarchive/);
+  await assert.rejects(daily.mute(original.peer, 86400000), /Unarchive/);
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   await daily.organize(original.peer, { archived: false });
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
@@ -672,7 +672,7 @@ await test('wallet arquivada passa a silenciar ao ser aprovada e impede retomar 
   assert.equal(approved.mutedUntil, Number.MAX_SAFE_INTEGER);
   await assert.rejects(
     daily.mute(original.peer, 0, { settingsId }),
-    /Desarquive/,
+    /Unarchive/,
   );
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   await daily.organize(
@@ -697,7 +697,7 @@ await test('falha de mute impede arquivamento; falha de salvar não religa alert
   state.failSave = true;
   await assert.rejects(
     daily.organize(original.peer, { archived: true }),
-    /Alertas silenciados.*não foi salvo/,
+    /Alerts were muted.*not saved/,
   );
   assert.equal(state.writes, 0);
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);

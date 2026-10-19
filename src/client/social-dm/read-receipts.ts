@@ -7,7 +7,7 @@ export interface DmMessageState {
 }
 export function dmMessageStates(value: unknown): DmMessageState[] {
   if (!Array.isArray(value) || value.length > 16)
-    throw new Error('Confirmações de DM inválidas.');
+    throw new Error('Invalid DM confirmations.');
   return value.map((item) => {
     const data = object(item);
     if (
@@ -15,7 +15,7 @@ export function dmMessageStates(value: unknown): DmMessageState[] {
       typeof data['read'] !== 'boolean' ||
       (data['read'] && !data['received'])
     )
-      throw new Error('Confirmações de DM inválidas.');
+      throw new Error('Invalid DM confirmations.');
     return {
       id: uuid(data['id']),
       received: data['received'],

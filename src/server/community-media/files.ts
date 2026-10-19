@@ -106,7 +106,7 @@ export class CommunityMediaFiles {
             source.bytes - index * communityMediaPartBytes,
           )
         )
-          throw new Error('Upload incompleto.');
+          throw new Error('Upload incomplete.');
         hash.update(bytes);
         await file.writeFile(bytes);
       }

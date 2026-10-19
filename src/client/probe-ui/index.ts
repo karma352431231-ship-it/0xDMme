@@ -4,6 +4,6 @@ export function element<T extends HTMLElement>(
   kind: { new (): T },
 ): T {
   const value = document.getElementById(id);
-  if (!(value instanceof kind)) throw new Error('Tela de ensaio incompleta.');
+  if (!(value instanceof kind)) throw new Error('Test screen incomplete.');
   return value;
 }

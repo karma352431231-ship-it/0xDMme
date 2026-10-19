@@ -77,7 +77,7 @@ export class Communities {
     const generation = this.generation;
     if (!this.session)
       throw new Error(
-        'Entre e crie seu perfil público em Perfil para participar.',
+        'Sign in and create your public profile in Profile to participate.',
       );
     const send = (authority: CommunitySigner) =>
       signedCommunityRequest({

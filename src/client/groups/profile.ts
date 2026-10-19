@@ -70,13 +70,13 @@ export async function publishGroupPhoto(
         groupProfilePhoto(JSON.parse(latest.text) as unknown) ?? null,
       ) !== canonical(c.photo)
     )
-      throw new Error('Pedido de foto repetido com conteúdo diferente.');
+      throw new Error('Photo request repeated with different content.');
     return;
   }
   const cache = new GroupCache(c.authority, c.group.state.groupId),
     raw = await cache.get('profile');
   if (raw === null)
-    throw new Error('Atualize o grupo antes de alterar a foto.');
+    throw new Error('Refresh the group before changing its photo.');
   const pending = await cache.get(`outbox:${c.id}`);
   if (pending === null)
     await composeGroup({
@@ -104,5 +104,5 @@ function assertPendingPhoto(pending: unknown, photo: GroupPhoto | null): void {
       groupProfilePhoto(JSON.parse(draft['text']) as unknown) ?? null,
     ) !== canonical(photo)
   )
-    throw new Error('Pedido local de foto divergente.');
+    throw new Error('Local photo request does not match.');
 }

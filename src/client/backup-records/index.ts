@@ -150,7 +150,7 @@ function participant(data: Record<string, unknown>): { participant?: Peer } {
   if (!Object.hasOwn(data, 'participant')) return {};
   const result = peer(data['participant']);
   if (result.accountId !== data['peer'])
-    throw new Error('Participante histórico divergente.');
+    throw new Error('Historical participant does not match.');
   return { participant: result };
 }
 export function backupRecord(input: unknown): BackupRecord {
@@ -170,16 +170,16 @@ export function backupRecord(input: unknown): BackupRecord {
     keys(d, ['type', 'id', 'hash', 'change', 'value']);
     const value = boundedText(d['value'], 3_000_000);
     if (new TextEncoder().encode(value).length > 3_000_000)
-      throw new Error('Conteúdo do cofre excedido.');
+      throw new Error('Vault content exceeds the limit.');
     return { type, id, hash, change: vaultChange(d['change']), value };
   }
   if (type === 'message') return messageRecord(d, id, hash);
   if (type === 'media') {
     keys(d, ['type', 'id', 'hash', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
-      throw new Error('Mídia histórica inválida.');
+      throw new Error('Invalid historical media.');
     const bytes = base64(d['bytes'], chatFileLimit);
-    if (!bytes.length) throw new Error('Mídia vazia.');
+    if (!bytes.length) throw new Error('Empty media.');
     return {
       type,
       id,
@@ -189,7 +189,7 @@ export function backupRecord(input: unknown): BackupRecord {
       bytes: encode(bytes),
     };
   }
-  throw new Error('Tipo de registro de backup não suportado.');
+  throw new Error('Unsupported backup record type.');
 }
 function contextRecord(
   d: Record<string, unknown>,
@@ -212,9 +212,9 @@ function dmRecord(
   if (type === 'dm-media') {
     keys(d, ['type', 'id', 'hash', 'self', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
-      throw new Error('Mídia de DM histórica inválida.');
+      throw new Error('Invalid historical DM media.');
     const bytes = base64(d['bytes'], chatFileLimit);
-    if (!bytes.length) throw new Error('Mídia de DM vazia.');
+    if (!bytes.length) throw new Error('Empty DM media.');
     return {
       type,
       id,
@@ -264,17 +264,17 @@ function dmMessage(
     typeof d['own'] !== 'boolean' ||
     (d['kind'] !== 'text' && d['kind'] !== 'attachment')
   )
-    throw new Error('Registro de DM inválido.');
+    throw new Error('Invalid DM record.');
   const relation = optionalRelation(d['relation']).relation;
   validateDmAction(relation, d['kind'], d['text']);
   validateDmEditor(relation, d);
   const text = boundedText(d['text'], 3_000_000),
     media = d['media'] === null ? null : socialMedia(d['media']);
   if (d['kind'] === 'attachment') {
-    if (!media) throw new Error('Mídia de DM não declarada.');
+    if (!media) throw new Error('DM media not declared.');
     socialAttachment(JSON.parse(text) as unknown, media);
   } else if (media || new TextEncoder().encode(text).length > 3_000_000)
-    throw new Error('Texto de DM inválido.');
+    throw new Error('Invalid DM text.');
   return {
     type,
     id,
@@ -296,7 +296,7 @@ function validateDmEditor(
 ): void {
   if (relation?.type !== 'edit') return;
   const author = data['own'] ? data['self'] : publicProfile(data['peer']).id;
-  if (relation.author !== author) throw new Error('Edição por outro autor.');
+  if (relation.author !== author) throw new Error('Edit by another author.');
 }
 function groupBackupRecord(
   d: Record<string, unknown>,
@@ -319,9 +319,9 @@ function groupBackupRecord(
   if (type === 'group-media') {
     keys(d, ['type', 'id', 'hash', 'groupId', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
-      throw new Error('Mídia de grupo inválida.');
+      throw new Error('Invalid group media.');
     const bytes = base64(d['bytes'], chatFileLimit);
-    if (!bytes.length) throw new Error('Mídia vazia.');
+    if (!bytes.length) throw new Error('Empty media.');
     return {
       type,
       id,
@@ -358,7 +358,7 @@ function groupMessageRecord(
     typeof d['own'] !== 'boolean' ||
     (kind !== 'text' && kind !== 'profile' && kind !== 'attachment')
   )
-    throw new Error('Mensagem histórica de grupo inválida.');
+    throw new Error('Invalid historical group message.');
   if (kind === 'profile') groupTitle(JSON.parse(text) as unknown);
   else validateContent(kind, text);
   return {
@@ -398,7 +398,7 @@ function messageRecord(
     typeof d['own'] !== 'boolean' ||
     !['text', 'profile', 'attachment'].includes(String(kind))
   )
-    throw new Error('Mensagem histórica inválida.');
+    throw new Error('Invalid historical message.');
   const text = boundedText(d['text'], backupTextLimit);
   validateContent(String(kind), text);
   return {
@@ -420,7 +420,7 @@ function validateContent(kind: string, text: string): void {
   if (kind === 'profile') profileCard(JSON.parse(text) as unknown);
   if (kind === 'attachment') attachmentContent(JSON.parse(text) as unknown);
   if (kind === 'text' && text.length > 4000)
-    throw new Error('Texto histórico excedido.');
+    throw new Error('Historical text exceeds the limit.');
 }
 export function recordKey(row: Pick<BackupRecord, 'type' | 'id'>): string {
   return `${row.type}:${row.id}`;
@@ -497,7 +497,7 @@ export function deserializeRecord(bytes: Uint8Array): BackupRecord {
   )
     return backupRecord(raw);
   if (raw['encoding'] !== 'base64-utf8')
-    throw new Error('Codificação do registro não suportada.');
+    throw new Error('Unsupported record encoding.');
   const { encoding: _encoding, ...value } = raw;
   void _encoding;
   const field = ['vault', 'account', 'dm-identity'].includes(

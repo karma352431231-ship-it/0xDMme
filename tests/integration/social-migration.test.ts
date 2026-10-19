@@ -42,7 +42,7 @@ async function seedOwner(client: pg.Client, index: number) {
   );
   await client.query(
     'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
-    [community, profile, 'Comunidade preservada', 'Descrição', 'Regras'],
+    [community, profile, 'Comunidade preservada', 'Description', 'Rules'],
   );
   return { profile, community };
 }

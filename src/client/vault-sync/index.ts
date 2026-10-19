@@ -52,9 +52,9 @@ function validatePageHead(page: VaultPage, next: VaultCheckpoint): void {
     page.sequence < next.sequence ||
     (!page.commits.length && page.sequence > next.sequence)
   )
-    throw new Error('Página de cofre omitida.');
+    throw new Error('Vault page omitted.');
   if (page.sequence === next.sequence && page.head !== next.head)
-    throw new Error('Cofre remoto divergente do checkpoint.');
+    throw new Error('Remote vault differs from checkpoint.');
 }
 export class VaultSync {
   session: AccountSession | null = null;
@@ -110,7 +110,7 @@ export class VaultSync {
     const locator = session ?? this.locator;
     if (!locator)
       throw new Error(
-        'Conecte a wallet original ou abra uma cópia local autorizada.',
+        'Connect the original wallet or open an authorized local copy.',
       );
     const operation = async (authority: VaultAuthority) => {
       if (
@@ -118,7 +118,7 @@ export class VaultSync {
         authority.session.deviceId !== locator.deviceId ||
         generation !== this.generation
       )
-        throw new Error('Sessão alterada.');
+        throw new Error('Session changed.');
       request.started?.();
       let result: T;
       try {
@@ -127,7 +127,7 @@ export class VaultSync {
         if (generation !== this.generation) this.clear();
       }
       if (generation !== this.generation)
-        throw new Error('Sessão alterada durante a sincronização.');
+        throw new Error('Session changed during synchronization.');
       return result;
     };
     return session
@@ -164,11 +164,10 @@ export class VaultSync {
   ): Promise<VaultEntry> {
     const raw = object(input);
     const event = authority.events[integer(raw['authorityRevision'], 128) - 1];
-    if (!event)
-      throw new Error('Manifesto referencia autoridade desconhecida.');
+    if (!event) throw new Error('Manifest references an unknown authority.');
     const commit = await verifyCommit(input, event);
     if (commit.accountId !== authority.session.accountId)
-      throw new Error('Manifesto de outra conta.');
+      throw new Error('Manifest belongs to another account.');
     const change = await openManifest(
       await authority.key(commit.epoch),
       commit,
@@ -180,7 +179,7 @@ export class VaultSync {
         parent.change.entity !== change.entity ||
         parent.change.kind !== change.kind
       )
-        throw new Error('Relação de versões privada inválida.');
+        throw new Error('Invalid private version relationship.');
     }
     return { commit, change };
   }
@@ -190,7 +189,7 @@ export class VaultSync {
         this.session &&
         this.session.accountId !== authority.session.accountId
       )
-        throw new Error('Sessão alterada.');
+        throw new Error('Session changed.');
     });
     this.state = await checkpoint(authority.session.accountId);
     this.pending = await draft(authority.session.accountId);
@@ -214,7 +213,7 @@ export class VaultSync {
   }
   private async checkLocalHead(previous: VaultCommit | null): Promise<void> {
     if (this.complete && (await hashOf(previous)) !== this.state.head)
-      throw new Error('Checkpoint local corrompido.');
+      throw new Error('Local checkpoint corrupted.');
   }
   private async pull(authority: VaultAuthority): Promise<void> {
     if (!this.complete) return;
@@ -243,7 +242,7 @@ export class VaultSync {
         const entry = await this.readEntry(authority, raw);
         await verifySuccessor(previous, entry.commit);
         if (this.entries.has(entry.commit.id))
-          throw new Error('Operação repetida na cadeia.');
+          throw new Error('Duplicate operation in the chain.');
         this.entries.set(entry.commit.id, entry);
         staged.push(entry);
         previous = entry.commit;
@@ -277,7 +276,7 @@ export class VaultSync {
           (await commitHash(this.pending.commit))
       )
         throw new Error(
-          'Identificador confirmado com conteúdo divergente. Rascunho preservado.',
+          'Identifier confirmed with different content. Draft preserved.',
         );
       await saveDraft(authority.session.accountId, null);
       this.pending = null;
@@ -319,15 +318,15 @@ export class VaultSync {
         await this.loadLocal(authority);
         if (this.pending)
           throw new Error(
-            'Há um rascunho cifrado. Retome ou descarte primeiro.',
+            'An encrypted draft exists. Resume or discard it first.',
           );
         if (!authority.offline) await this.pull(authority);
         if (!this.complete)
-          throw new Error('Continue carregando o cofre antes de editar.');
+          throw new Error('Continue loading the vault before editing.');
         for (const id of input.change.parents) {
           if (this.isRemoved(id))
             throw new Error(
-              'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+              'The previous version was removed. Create a new version explicitly.',
             );
           const parent = this.entries.get(id);
           if (
@@ -335,7 +334,7 @@ export class VaultSync {
             parent.change.entity !== input.change.entity ||
             parent.change.kind !== input.change.kind
           )
-            throw new Error('Versão anterior inválida para esta edição.');
+            throw new Error('Previous version invalid for this edit.');
         }
         const id = crypto.randomUUID();
         const identity = {
@@ -392,7 +391,7 @@ export class VaultSync {
       response['sequence'] !== commit.sequence
     )
       throw new Error(
-        'Confirmação divergente. Rascunho preservado; sincronize para conferir.',
+        'Confirmation does not match. Draft preserved; sync to check.',
       );
     await this.pull(authority);
   }
@@ -406,7 +405,7 @@ export class VaultSync {
     );
     if (change.parents.some((id) => this.isRemoved(id)))
       throw new Error(
-        'Rascunho anterior à limpeza. Nenhum conteúdo removido foi republicado; descarte-o ou recrie deliberadamente.',
+        'Draft predates cleanup. No removed content was republished; discard it or recreate explicitly.',
       );
     const value = await openBlock(
       await authority.key(pending.commit.epoch),
@@ -446,11 +445,10 @@ export class VaultSync {
       await this.loadLocal(authority);
       if (authority.offline)
         throw new Error(
-          'Rascunho preservado. Reconecte para confirmar no cofre.',
+          'Draft preserved. Reconnect to confirm it in the vault.',
         );
       await this.pull(authority);
-      if (!this.complete)
-        throw new Error('Continue carregando antes de retomar.');
+      if (!this.complete) throw new Error('Continue loading before resuming.');
       await this.publish(authority);
     });
   }
@@ -458,7 +456,7 @@ export class VaultSync {
     await this.run(async (authority) => {
       if (authority.offline)
         throw new Error(
-          'Reconecte para liberar a reserva remota antes de descartar.',
+          'Reconnect to release the remote reservation before discarding.',
         );
       await this.loadLocal(authority);
       await this.pull(authority);
@@ -466,7 +464,7 @@ export class VaultSync {
       if (!target) return;
       if (this.entries.has(target))
         throw new Error(
-          'A versão já foi confirmada. Nenhum dado aceito foi descartado.',
+          'The version was already confirmed. No accepted data was discarded.',
         );
       if (this.remotePending.some((c) => c.id === target))
         await api(authority, 'discard', { id: target });
@@ -486,7 +484,7 @@ export class VaultSync {
     options: VaultWorkOptions = {},
   ): Promise<string[]> {
     if (ids.length > 16 || new Set(ids).size !== ids.length)
-      throw new Error('Página de cofre inválida.');
+      throw new Error('Invalid vault page.');
     if (!ids.length) return [];
     const page = [...ids];
     const generation = this.generation;
@@ -494,7 +492,7 @@ export class VaultSync {
       async (authority) => {
         const guard = () => {
           if (generation !== this.generation)
-            throw new Error('Sessão alterada.');
+            throw new Error('Session changed.');
         };
         await this.removals.load(authority, guard);
         guard();

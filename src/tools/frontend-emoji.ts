@@ -90,7 +90,7 @@ export async function frontendEmoji(
     ) as unknown,
   );
   if (pack['version'] !== 1 || Object.keys(record(pack['svg'])).length !== 4009)
-    throw new Error('Desenhos de emojis ausentes.');
+    throw new Error('Emoji artwork missing.');
   const annotations = await emojiAnnotations(root);
   return {
     content,

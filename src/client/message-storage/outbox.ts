@@ -27,7 +27,7 @@ export function enqueueOutbox(input: {
 }): Promise<void> {
   const { scope, id, value, size, current } = input;
   if (!Number.isSafeInteger(size) || size < 0)
-    throw new Error('Orçamento local inválido.');
+    throw new Error('Invalid local budget.');
   return transaction(scope, (store, done) => {
     const old = store.get([scope, `outbox:${id}`]),
       usage = store.get([scope, 'usage']),

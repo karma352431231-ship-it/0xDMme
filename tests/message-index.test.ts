@@ -83,7 +83,7 @@ await test('índice adulterado não avança; foto excluída não faz reaparecer 
       ...context,
       api: () => Promise.resolve({ items: [profile], next: 2 }),
     }),
-    /Paginação/,
+    /pagination/,
   );
 });
 
@@ -129,7 +129,7 @@ await test('navegação reutiliza um índice completo de todas as conversas; alt
   assert.deepEqual(removed, [4, 4]);
   await assert.rejects(
     new MessageIndex().read({ ...context, account: crypto.randomUUID() }),
-    /fora da conta/,
+    /outside the authorized account/,
   );
 });
 

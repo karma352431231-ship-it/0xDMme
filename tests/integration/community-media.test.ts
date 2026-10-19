@@ -556,7 +556,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           revision,
           content: {
             title: 'Mídia sintética',
-            text: 'Teste',
+            text: 'Test',
             tags: [await firstTag(id)],
             media: [input.id, item.id],
           },
@@ -880,7 +880,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           parent: rootPost,
           content: {
             title: '',
-            text: 'Resposta',
+            text: 'Reply',
             tags: [],
             media: [animation.id],
           },
@@ -1573,7 +1573,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           writer: lease.writer,
           hash: candidate.hash,
         }),
-        /Sessão encerrada ou expirada/u,
+        /Session ended or expired/u,
       );
       await db.communityMedia.release(candidate.id, lease.writer);
       assert.equal(

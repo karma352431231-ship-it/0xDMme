@@ -287,7 +287,7 @@ await test('organizações/autorizações privadas: ownership, revogação persi
         ...receipt,
         id: crypto.randomUUID(),
       }),
-      /Capacidade global/,
+      /Global capacity/,
     );
     await signed('representative-register', receipt);
     await signed('representative-revoke', { revocation: proof });

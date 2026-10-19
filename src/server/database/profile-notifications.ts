@@ -30,7 +30,7 @@ export async function profileNotificationSetting(
     if (blocks.rowCount)
       throw new AccountError(
         403,
-        'Notificações indisponíveis para este perfil.',
+        'Notifications unavailable for this profile.',
       );
   }
   await context.client.query(
@@ -47,8 +47,11 @@ function notificationChange(
     revision = postCount(data['revision']);
   if (old.revision === revision + 1 && old.enabled === enabled) return null;
   if (revision !== old.revision)
-    throw new AccountError(409, 'O sininho mudou. Recarregue.');
+    throw new AccountError(409, 'The notification bell changed. Reload.');
   if (enabled && !old.following)
-    throw new AccountError(403, 'Siga a conta antes de ativar o sininho.');
+    throw new AccountError(
+      403,
+      'Follow the account before enabling its notification bell.',
+    );
   return enabled === old.enabled ? null : enabled;
 }

@@ -150,7 +150,7 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
     async () => {
       await assert.rejects(
         recoverSecrets(revocation, newSecret()),
-        /Recuperação rejeitada/,
+        /Recovery rejected/,
       );
       const corrupted = structuredClone(revocation);
       corrupted.root.capsule.ciphertext = `${corrupted.root.capsule.ciphertext[0] === 'A' ? 'B' : 'A'}${corrupted.root.capsule.ciphertext.slice(1)}`;

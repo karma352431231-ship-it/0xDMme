@@ -41,14 +41,14 @@ function scope(
 }
 function receipts(value: unknown): { id: string; hash: string }[] {
   if (!Array.isArray(value) || value.length > 16)
-    throw new AccountError(400, 'Lote de recebimento inválido.');
+    throw new AccountError(400, 'Invalid receipt batch.');
   const result = value.map((input: unknown) => {
     const data = object(input);
     keys(data, ['id', 'hash']);
     return { id: uuid(data['id']), hash: fingerprint(data['hash']) };
   });
   if (new Set(result.map((r) => r.id)).size !== result.length)
-    throw new AccountError(400, 'Recebimentos duplicados.');
+    throw new AccountError(400, 'Duplicate receipts.');
   return result;
 }
 function messageScope(d: Record<string, unknown>, fields: string[]) {
@@ -59,10 +59,10 @@ function messageScope(d: Record<string, unknown>, fields: string[]) {
 }
 function messageIds(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 16)
-    throw new AccountError(400, 'Lote de mensagens inválido.');
+    throw new AccountError(400, 'Invalid message batch.');
   const ids = value.map(uuid);
   if (new Set(ids).size !== ids.length)
-    throw new AccountError(400, 'Mensagens duplicadas.');
+    throw new AccountError(400, 'Duplicate messages.');
   return ids;
 }
 export function groupDeliveryActions(
@@ -106,7 +106,7 @@ export function groupDeliveryActions(
         hash: fingerprint(d['hash']),
       };
       integer(d['revision'], 128);
-      if (!proof) throw new AccountError(403, 'Prova de exclusão ausente.');
+      if (!proof) throw new AccountError(403, 'Missing deletion proof.');
       await store.updates.remove(a, input, proof);
       return { status: 'saved' };
     },

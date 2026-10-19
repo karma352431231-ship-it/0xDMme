@@ -19,7 +19,7 @@ export async function authorityTurn<T>(
     const remaining = Math.ceil(deadline - performance.now());
     if (remaining <= 0)
       throw new DOMException(
-        t('Aguarde a atualização das conversas e tente novamente.'),
+        t('Wait for conversations to update, then try again.'),
         'TimeoutError',
       );
     return exclusive(

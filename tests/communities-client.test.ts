@@ -103,7 +103,7 @@ await test('troca de sessão durante assinatura de comunidade impede envio com a
   await signing;
   controller.setSession(session());
   finish('assinatura-sintetica');
-  await assert.rejects(pending, /Sessão alterada/);
+  await assert.rejects(pending, /Session changed/);
   assert.equal(fetch.mock.callCount(), 0);
 });
 await test('resposta atrasada não restaura comunidade de outra sessão; estado recusa campos privados', async (t) => {
@@ -132,7 +132,7 @@ await test('resposta atrasada não restaura comunidade de outra sessão; estado 
   await sent;
   controller.setSession(null);
   finish(Response.json(result()));
-  await assert.rejects(pending, /Sessão alterada/);
+  await assert.rejects(pending, /Session changed/);
   const clean = new Communities(
     access(first, () => Promise.resolve('assinatura-sintetica')),
   );
@@ -140,7 +140,7 @@ await test('resposta atrasada não restaura comunidade de outra sessão; estado 
   t.mock.method(globalThis, 'fetch', () =>
     Promise.resolve(Response.json({ ...result(), accountId: first.accountId })),
   );
-  await assert.rejects(clean.state(crypto.randomUUID()), /Campos inválidos/);
+  await assert.rejects(clean.state(crypto.randomUUID()), /Invalid fields/);
 });
 
 function post(): CommunityPost {
@@ -148,7 +148,7 @@ function post(): CommunityPost {
     id: crypto.randomUUID(),
     community: crypto.randomUUID(),
     author: null,
-    title: 'Teste',
+    title: 'Test',
     text: 'Texto público sintético',
     tags: [],
     createdAt: new Date().toISOString(),
@@ -324,7 +324,7 @@ await test('partes próximas reusam só o contexto de assinatura; cada pedido co
   const sent: number[] = [];
   t.mock.method(globalThis, 'fetch', (_path: string, options: RequestInit) => {
     assert.equal(typeof options.body, 'string');
-    if (typeof options.body !== 'string') throw new Error('Corpo inválido.');
+    if (typeof options.body !== 'string') throw new Error('Invalid body.');
     const body = JSON.parse(options.body) as {
       signature: string;
       payload: { index: number };
@@ -388,7 +388,7 @@ await test('recusa do diretório invalida partes; retomada exige nova conferênc
   t.mock.method(globalThis, 'fetch', (_path: string, options: RequestInit) => {
     requests++;
     assert.equal(typeof options.body, 'string');
-    if (typeof options.body !== 'string') throw new Error('Corpo inválido.');
+    if (typeof options.body !== 'string') throw new Error('Invalid body.');
     const body = JSON.parse(options.body) as {
       directory: string;
       signature: string;
@@ -398,7 +398,7 @@ await test('recusa do diretório invalida partes; retomada exige nova conferênc
       body.directory === head
         ? Response.json({ received: requests })
         : Response.json(
-            { error: 'Aparelho sem autorização atual.' },
+            { error: 'Device has no current authorization.' },
             { status: 403 },
           ),
     );
@@ -407,7 +407,7 @@ await test('recusa do diretório invalida partes; retomada exige nova conferênc
   head = 'c'.repeat(64);
   await assert.rejects(
     controller.request('media-part', { index: 1 }),
-    /Aparelho sem autorização/,
+    /Device (?:has no (?:current )?authorization|unauthorized)/,
   );
   assert.equal(requests, 2);
   await controller.request('media-part', { index: 1 });
@@ -415,7 +415,7 @@ await test('recusa do diretório invalida partes; retomada exige nova conferênc
   controller.setSession(null);
   await assert.rejects(
     controller.request('media-part', { index: 2 }),
-    /Entre e crie/,
+    /Sign in and create/,
   );
   assert.equal(requests, 3);
 });
@@ -441,7 +441,7 @@ await test('cache de partes tem orçamento de usos e mudança de aparelho exige 
   controller.setSession({ ...account, deviceId: crypto.randomUUID() });
   await assert.rejects(
     controller.request('media-part', { index: 17 }),
-    /Sessão alterada/,
+    /Session changed/,
   );
   assert.equal(fetch.mock.callCount(), 17);
 });

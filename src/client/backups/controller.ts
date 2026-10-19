@@ -91,7 +91,7 @@ export class Backups {
     return () => {
       if (token !== this.generation || Date.now() > deadline)
         throw new Error(
-          'Operação interrompida. Se uma limpeza foi enviada, confira o estado remoto.',
+          'Operation interrupted. If cleanup was sent, check the remote state.',
         );
     };
   }
@@ -125,14 +125,14 @@ export class Backups {
     const locator = await localLocator();
     if (!locator)
       throw new Error(
-        'Entre com a wallet original e autorize ou recupere as chaves deste aparelho.',
+        "Sign in with the original wallet and authorize or recover this device's keys.",
       );
     return this.access.withLocalVault(locator, work);
   }
   async discover(): Promise<void> {
     if (!navigator.onLine || !this.session)
       throw new Error(
-        'Conecte e autorize este aparelho para selecionar conteúdo remoto.',
+        'Connect and authorize this device to select remote content.',
       );
     const guard = this.guard();
     await this.sync.refresh();
@@ -145,7 +145,7 @@ export class Backups {
       this.choose({
         type: 'vault',
         id: entry.commit.id,
-        label: t('{0} · versão {1}', [
+        label: t('{0} · version {1}', [
           vaultLabel(entry.change),
           entry.commit.sequence,
         ]),
@@ -165,9 +165,9 @@ export class Backups {
   }
   private messageChoice(item: MessageItem, account: string): BackupChoice {
     const names = {
-      attachment: t('Foto/arquivo'),
-      profile: t('Perfil compartilhado'),
-      text: t('Mensagem'),
+      attachment: t('Photo/file'),
+      profile: t('Shared profile'),
+      text: t('Message'),
     };
     return {
       type: 'message',
@@ -177,11 +177,11 @@ export class Backups {
       label: t('{0} · #{1} · {2}', [
         item.relation
           ? item.relation.type === 'edit'
-            ? t('Edição')
-            : t('Reação')
+            ? t('Edit')
+            : t('Reaction')
           : names[item.kind],
         item.sequence,
-        item.sender === account ? t('enviada') : t('recebida'),
+        item.sender === account ? t('sent') : t('received'),
       ]),
       bytes: item.kind === 'profile' ? 4_100_000 : 16_384,
     };
@@ -191,7 +191,7 @@ export class Backups {
       !this.choices.has(`${choice.type}:${choice.id}`) &&
       this.choices.size >= backupItemLimit
     )
-      throw new Error('O histórico excede o limite de registros por arquivo.');
+      throw new Error('History exceeds the per-file record limit.');
     this.choices.set(`${choice.type}:${choice.id}`, choice);
   }
   async generate(
@@ -270,12 +270,12 @@ export class Backups {
         c.guard();
       } catch {
         c.guard();
-        c.omitted.push(t('{0}:{1} indisponível', [choice.type, choice.id]));
+        c.omitted.push(t('{0}:{1} unavailable', [choice.type, choice.id]));
         continue;
       }
       const existing = c.historical.get(`${row.type}:${row.id}`);
       if (existing && existing !== row.hash)
-        throw new Error('Histórico diverge da cópia remota.');
+        throw new Error('History differs from the remote copy.');
       if (!existing) {
         await c.writer.add(row, c.guard);
         included++;
@@ -329,7 +329,7 @@ export class Backups {
         if (previous === row.hash) continue;
         if (previous !== undefined)
           throw new Error(
-            'Cópias históricas divergentes. Preserve os arquivos originais antes de resolver.',
+            'Historical copies differ. Preserve the original files before resolving.',
           );
         historical.set(identity, row.hash);
         await writer.add(row, guard);
@@ -347,7 +347,7 @@ export class Backups {
     const value = this.profile();
     if (value === null)
       throw new Error(
-        'Aguarde a abertura do perfil antes de salvar o backup completo.',
+        'Wait for the profile to open before saving the full backup.',
       );
     const hash = await bytesHash(new TextEncoder().encode(value));
     const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
@@ -371,7 +371,7 @@ export class Backups {
         });
       if (!page.next) return;
       if (this.peers.size >= backupItemLimit)
-        throw new Error('Contatos excedem o limite do backup.');
+        throw new Error('Contacts exceed the backup limit.');
       more = true;
     }
   }
@@ -397,7 +397,7 @@ export class Backups {
   ): Promise<BackupRecord> {
     if (choice.type === 'vault') {
       const entry = this.sync.entries.get(choice.id);
-      if (!entry) throw new Error('Versão ausente.');
+      if (!entry) throw new Error('Version missing.');
       return {
         type: 'vault',
         id: choice.id,
@@ -406,8 +406,8 @@ export class Backups {
         value: await this.sync.open(choice.id),
       };
     }
-    if (!choice.item) throw new Error('Mensagem ausente.');
-    if (!view) throw new Error('Mensagem indisponível.');
+    if (!choice.item) throw new Error('Message missing.');
+    if (!view) throw new Error('Message unavailable.');
     return {
       type: 'message',
       id: view.id,
@@ -440,12 +440,12 @@ export class Backups {
       const preserved = c.historical.get(`media:${file.ref.id}`);
       if (preserved) {
         if (preserved !== file.ref.hash)
-          throw new Error('Mídia histórica divergente.');
+          throw new Error('Historical media does not match.');
         continue;
       }
       const omission = t('media:{0} {1}', [
         file.ref.id,
-        c.media ? t('indisponível') : t('não selecionada'),
+        c.media ? t('unavailable') : t('not selected'),
       ]);
       if (!c.media) {
         c.omitted.push(omission);
@@ -454,7 +454,7 @@ export class Backups {
       let bytes: Uint8Array<ArrayBuffer>;
       try {
         bytes = await this.messages.backupMedia(
-          { ...c.row, state: t('Exportação') },
+          { ...c.row, state: t('Export') },
           thumbnail,
         );
         c.guard();
@@ -513,11 +513,11 @@ export class Backups {
     const reader = this.reader;
     if (!reader || !navigator.onLine || !this.session)
       throw new Error(
-        'Selecione e valide o arquivo salvo e conecte antes de limpar.',
+        'Select and validate the saved file, then connect before cleanup.',
       );
     if (!reader.complete)
       throw new Error(
-        'Backup incompleto. O reset exige todas as conversas e mídias.',
+        'Backup incomplete. Reset requires all conversations and media.',
       );
     const items = reader.targets.filter(
       (t) =>
@@ -526,7 +526,7 @@ export class Backups {
     );
     if (!items.length)
       throw new Error(
-        'Nenhum item desta exportação está elegível para limpeza. Anexos precisam estar completos no arquivo.',
+        'No items in this export are eligible for cleanup. Attachments must be complete in the file.',
       );
     const guard = this.guard();
     try {
@@ -558,6 +558,6 @@ export class Backups {
     );
     return last && Date.now() - last < 7 * 86400000
       ? null
-      : t('Salve um backup completo para manter uma cópia com você.');
+      : t('Save a full backup to keep your own copy.');
   }
 }

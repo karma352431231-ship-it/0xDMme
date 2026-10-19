@@ -4,7 +4,7 @@ let tail: Promise<unknown> = Promise.resolve();
 /** Bounded serial jobs, each worker terminated to release keys/WASM/decoder memory. */
 export function attachmentWork<T>(input: unknown): Promise<T> {
   if (queued >= 4)
-    return Promise.reject(new Error('Anexos em processamento. Aguarde.'));
+    return Promise.reject(new Error('Processing attachments. Please wait.'));
   queued++;
   const result = tail.then(() => runWorker<T>(input));
   tail = result.then(
@@ -20,7 +20,7 @@ function runWorker<T>(input: unknown): Promise<T> {
     let worker: Worker | null = null,
       finished = false;
     const timer = setTimeout(
-      () => finish(new Error('Processamento de anexo excedeu o prazo.')),
+      () => finish(new Error('Attachment processing timed out.')),
       30000,
     );
     function finish(error: Error | null, result?: T) {
@@ -39,12 +39,10 @@ function runWorker<T>(input: unknown): Promise<T> {
           event.data.result,
         );
       worker.onerror = () =>
-        finish(new Error('Processamento local de anexos indisponível.'));
+        finish(new Error('Local attachment processing unavailable.'));
       worker.postMessage(input);
     } catch {
-      finish(
-        new Error('Não foi possível iniciar o processamento local de anexos.'),
-      );
+      finish(new Error('Could not start local attachment processing.'));
     }
   });
 }

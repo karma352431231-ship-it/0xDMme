@@ -53,7 +53,7 @@ await test('bookmark abre com o estado salvo, só muda após confirmação e con
     community: crypto.randomUUID(),
     author: null,
     title: 'Post',
-    text: 'Texto',
+    text: 'Text',
     tags: [],
     revision: 1,
     status: 'visible',
@@ -115,7 +115,7 @@ await test('troca de sessão remove o bookmark privado sem mutar a publicação 
     community: crypto.randomUUID(),
     author: null,
     title: 'Post',
-    text: 'Texto',
+    text: 'Text',
     tags: [],
     revision: 1,
     status: 'visible',
@@ -129,7 +129,7 @@ await test('troca de sessão remove o bookmark privado sem mutar a publicação 
   };
   const entry = {
     post,
-    community: { id: post.community, name: 'Comunidade' },
+    community: { id: post.community, name: 'Community' },
     viewerSaved: true,
   };
   const clean = withoutBookmarkState(entry);

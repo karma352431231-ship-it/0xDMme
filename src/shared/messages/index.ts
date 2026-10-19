@@ -79,7 +79,7 @@ export function messageProof(input: unknown): MessageProof {
   const data = object(input);
   keys(data, ['deviceId', 'directory', 'payload', 'signature']);
   if (base64(data['signature'], 64).length !== 64)
-    throw new AccountError(400, 'Assinatura de mensagem inválida.');
+    throw new AccountError(400, 'Invalid message signature.');
   return {
     deviceId: uuid(data['deviceId']),
     directory: fingerprint(data['directory']),
@@ -129,21 +129,21 @@ export function messagePacket(input: unknown): MessagePacket {
       : undefined;
   const declaredMedia = socialMediaKind(data);
   if (data['kind'] !== 'attachment' && Object.hasOwn(data, 'attachments'))
-    throw new AccountError(400, 'Referência fora de mensagem de anexo.');
+    throw new AccountError(400, 'Reference is not for an attachment message.');
   const content = megolmContent(data['content']);
   if (
     data['version'] !== 1 ||
     !Array.isArray(data['archives']) ||
     data['archives'].length !== 2
   )
-    throw new AccountError(400, 'Pacote de mensagem inválido.');
+    throw new AccountError(400, 'Invalid message package.');
   const sender = uuid(data['sender']),
     recipient = uuid(data['recipient']),
     deviceId = uuid(data['deviceId']);
   const archives = (data['archives'] as unknown[]).map(roomKeyArchive);
   assertDestinations({ sender, recipient, archives, deviceId, content });
   if (base64(data['signature'], 64).length !== 64)
-    throw new AccountError(400, 'Assinatura de pacote inválida.');
+    throw new AccountError(400, 'Invalid package signature.');
   return {
     version: 1,
     ...declaredMedia,
@@ -166,7 +166,7 @@ export function messagePacket(input: unknown): MessagePacket {
 }
 export function messageKind(value: unknown): MessagePacket['kind'] {
   if (value !== 'text' && value !== 'profile' && value !== 'attachment')
-    throw new AccountError(400, 'Tipo de mensagem inválido.');
+    throw new AccountError(400, 'Invalid message type.');
   return value;
 }
 function socialMediaKeys(data: Record<string, unknown>): string[] {
@@ -180,7 +180,7 @@ function socialMediaKind(data: Record<string, unknown>): {
     data['kind'] !== 'attachment' ||
     !['photo', 'gif', 'voice'].includes(String(data['socialMedia']))
   )
-    throw new AccountError(400, 'Tipo declarado de mídia de DM inválido.');
+    throw new AccountError(400, 'Invalid declared DM media type.');
   return {
     socialMedia: data['socialMedia'] as NonNullable<
       MessagePacket['socialMedia']
@@ -201,7 +201,7 @@ function assertDestinations(c: {
     archives[1]?.accountId !== recipient ||
     content.device_id !== deviceId
   )
-    throw new AccountError(400, 'Destinatários de mensagem divergentes.');
+    throw new AccountError(400, 'Message recipients do not match.');
 }
 export function megolmContent(input: unknown): MessagePacket['content'] {
   const content = object(input);
@@ -213,7 +213,7 @@ export function megolmContent(input: unknown): MessagePacket['content'] {
     'ciphertext',
   ]);
   if (content['algorithm'] !== 'm.megolm.v1.aes-sha2')
-    throw new AccountError(400, 'Algoritmo de mensagem inválido.');
+    throw new AccountError(400, 'Invalid message algorithm.');
   return {
     algorithm: 'm.megolm.v1.aes-sha2',
     sender_key: matrixBase64(content['sender_key'], 32),
@@ -239,7 +239,7 @@ export async function verifyPacket(
     senderEvent.revision !== packet.senderRevision ||
     (await eventHash(senderEvent)) !== packet.senderDirectory
   )
-    throw new AccountError(403, 'Mensagem sem autoridade verificada.');
+    throw new AccountError(403, 'Message lacks verified authority.');
   await verify(signer.signing, packet.signature, packetProof(packet));
   const binding = await verifyMatrixBinding(packet.binding, senderEvent);
   if (
@@ -248,7 +248,7 @@ export async function verifyPacket(
     binding.public.keys[`curve25519:${packet.deviceId}`] !==
       packet.content.sender_key
   )
-    throw new AccountError(403, 'Chave Matrix de origem divergente.');
+    throw new AccountError(403, 'Source Matrix key does not match.');
   return packet;
 }
 function positive(value: unknown): number {
@@ -258,7 +258,7 @@ function positive(value: unknown): number {
     value < 1 ||
     value > 128
   )
-    throw new AccountError(400, 'Época de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery epoch.');
   return value;
 }
 export function recoveryKey(input: unknown): RecoveryKey {
@@ -276,14 +276,14 @@ export function recoveryKey(input: unknown): RecoveryKey {
     'signature',
   ]);
   if (data['version'] !== 1)
-    throw new AccountError(400, 'Versão de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery version.');
   const capsule = object(data['capsule']);
   keys(capsule, ['hash', 'bytes', 'ciphertext']);
   const ciphertext = base64(capsule['ciphertext'], 1024);
   if (ciphertext.length < 29 || capsule['bytes'] !== ciphertext.length)
-    throw new AccountError(400, 'Cápsula de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery capsule.');
   if (base64(data['signature'], 64).length !== 64)
-    throw new AccountError(400, 'Assinatura de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery signature.');
   return {
     version: 1,
     id: uuid(data['id']),
@@ -319,14 +319,11 @@ export async function verifyRecoveryKey(
     key.authorityRevision !== event.revision ||
     key.directory !== (await eventHash(event))
   )
-    throw new AccountError(
-      403,
-      'Chave de recuperação sem autoridade verificada.',
-    );
+    throw new AccountError(403, 'Recovery key lacks verified authority.');
   if (
     (await bytesHash(base64(key.capsule.ciphertext, 1024))) !== key.capsule.hash
   )
-    throw new AccountError(400, 'Cápsula de recuperação corrompida.');
+    throw new AccountError(400, 'Recovery capsule corrupted.');
   await verify(device.signing, key.signature, recoveryKeyProof(key));
   return key;
 }

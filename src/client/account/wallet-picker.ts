@@ -186,12 +186,12 @@ function option(labelText: string): HTMLButtonElement {
   label.textContent = labelText;
   const indicator = document.createElement('span');
   indicator.className = 'wallet-detection is-detected';
-  indicator.textContent = t('Detectada');
+  indicator.textContent = t('Detected');
   button.append(label, indicator);
   return button;
 }
 
 function detectionLabel(detected: boolean): string {
   if (detected) return t('wallet.available');
-  return mobileWalletBrowser() ? t('Abrir no app') : t('wallet.not-detected');
+  return mobileWalletBrowser() ? t('Open in app') : t('wallet.not-detected');
 }

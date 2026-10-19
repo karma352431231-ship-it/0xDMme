@@ -32,7 +32,7 @@ interface GroupRow {
   link?: GroupLink;
 }
 function unavailable(): never {
-  throw new AccountError(403, 'Grupo indisponível para esta conta.');
+  throw new AccountError(403, 'Group unavailable for this account.');
 }
 
 export class GroupStore {
@@ -98,7 +98,7 @@ export class GroupStore {
         if ((await groupEventHash(state)) !== scope.head)
           throw new AccountError(
             409,
-            'Participação do grupo mudou. Atualize antes de continuar.',
+            'Group membership changed. Refresh before continuing.',
           );
         return work(client, state);
       },
@@ -143,13 +143,13 @@ export class GroupStore {
       scopes.length > 16 ||
       new Set(scopes.map((s) => s.groupId)).size !== scopes.length
     )
-      throw new AccountError(400, 'Lote de grupos inválido.');
+      throw new AccountError(400, 'Invalid group batch.');
     const result = await client.query<{ event: unknown }>(
       `SELECT g.event FROM jsonb_to_recordset($1::jsonb) r("groupId" uuid,head text) JOIN hash_talk.groups g ON g.id=r."groupId" AND g.head=r.head AND NOT g.deleted JOIN hash_talk.group_members m ON m.group_id=g.id AND m.account_id=$2`,
       [JSON.stringify(scopes), account],
     );
     if (result.rows.length !== scopes.length)
-      throw new AccountError(409, 'Participação de um grupo mudou. Atualize.');
+      throw new AccountError(409, "A group's membership changed. Refresh.");
     return result.rows.map((r) => groupEvent(r.event));
   }
   async list(
@@ -265,7 +265,7 @@ export class GroupStore {
     )
       throw new AccountError(
         429,
-        'Limite de criação: uma por minuto e dez por hora.',
+        'Creation limit: one per minute and ten per hour.',
       );
   }
   private async checkConsent(
@@ -281,7 +281,7 @@ export class GroupStore {
       !row.rows[0] ||
       canonical(row.rows[0].proof) !== canonical(event.consent)
     )
-      throw new AccountError(409, 'Convite ou transferência encerrados.');
+      throw new AccountError(409, 'Invitation or transfer ended.');
     const anchor = await client.query<{ event: unknown }>(
       'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND hash=$2',
       [event.groupId, event.consent.head],
@@ -391,7 +391,7 @@ export class GroupStore {
     await this.contacts.withMessageAuthority(authority, async (client) => {
       const row = await this.row(client, consent.groupId);
       if (!row || row.head !== consent.head)
-        throw new AccountError(409, 'Grupo mudou. Confira novamente.');
+        throw new AccountError(409, 'Group changed. Check again.');
       const state = groupEvent(row.event);
       if (!groupManager(state, consent.actor)) unavailable();
       await this.devices.lockDirectories(client, [
@@ -411,10 +411,7 @@ export class GroupStore {
         target.revision !== consent.targetRevision ||
         (await eventHash(target)) !== consent.targetDirectory
       )
-        throw new AccountError(
-          409,
-          'Chaves do destinatário mudaram. Confira novamente.',
-        );
+        throw new AccountError(409, 'Recipient keys changed. Check again.');
       const serialized = JSON.stringify(consent);
       await client.query(
         'INSERT INTO hash_talk.group_consents(id,group_id,target,actor,kind,head,proof,charge) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) ON CONFLICT(group_id,target,kind) DO UPDATE SET id=excluded.id,actor=excluded.actor,head=excluded.head,proof=excluded.proof,charge=excluded.charge WHERE hash_talk.group_consents.proof<>excluded.proof',
@@ -541,7 +538,7 @@ export class GroupStore {
     periods: { groupId: string; epoch: number }[],
   ): Promise<Set<string>> {
     if (periods.length > 16)
-      throw new AccountError(413, 'Lote de períodos excedido.');
+      throw new AccountError(413, 'Period batch exceeds the limit.');
     const rows = await client.query<{
       group_id: string;
       joined: number;
@@ -572,7 +569,7 @@ export class GroupStore {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       const row = await this.historyState(client, authority, input);
       if (row.head !== input.head)
-        throw new AccountError(409, 'Participação do grupo mudou.');
+        throw new AccountError(409, 'Group membership changed.');
       const state = groupEvent(row.event),
         current = new Set(state.members.map((m) => m.accountId));
       const historical = await client.query<{ actor: string }>(
@@ -644,7 +641,7 @@ export class GroupStore {
     epochs: number[],
   ): Promise<GroupEvent[]> {
     if (epochs.length > 16)
-      throw new AccountError(413, 'Lote de períodos excedido.');
+      throw new AccountError(413, 'Period batch exceeds the limit.');
     const rows = await client.query<{ event: unknown }>(
       'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND epoch=ANY($2::integer[]) ORDER BY epoch',
       [groupId, epochs],

@@ -17,12 +17,12 @@ function assertCreationWindow(input: {
   createdAt: readonly number[];
 }): void {
   if (!Number.isSafeInteger(input.now) || input.now < 0)
-    throw new AccountError(400, 'Horário de admissão inválido.');
+    throw new AccountError(400, 'Invalid admission time.');
   if (input.createdAt.length > groupCreationsPerHour)
-    throw new AccountError(400, 'Janela de criação inválida.');
+    throw new AccountError(400, 'Invalid creation window.');
   for (const time of input.createdAt)
     if (!Number.isSafeInteger(time) || time < 0 || time > input.now)
-      throw new AccountError(400, 'Registro de criação inválido.');
+      throw new AccountError(400, 'Invalid creation record.');
 }
 
 /** The store supplies at most ten successful creations from the current hour, under its account lock. */
@@ -49,7 +49,7 @@ export function assertGroupQuota(input: {
 }): void {
   for (const bytes of [input.mediaBytes, input.textBytes])
     if (!Number.isSafeInteger(bytes) || bytes < 0)
-      throw new AccountError(400, 'Contabilização do cofre de grupo inválida.');
+      throw new AccountError(400, 'Invalid group vault accounting.');
   if (input.mediaBytes > groupMediaQuota || input.textBytes > groupTextQuota)
-    throw new AccountError(413, 'Cofre de grupo cheio nesta categoria.');
+    throw new AccountError(413, 'Group vault full in this category.');
 }

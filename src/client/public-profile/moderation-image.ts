@@ -27,7 +27,7 @@ export function showModerationImage(
   const unavailable = () => {
     clear();
     status.textContent = t(
-      'Este arquivo não está mais disponível. Ele pode ter sido substituído, removido ou atingido o prazo de retenção.',
+      'This file is no longer available. It may have been replaced, removed, or reached its retention deadline.',
     );
   };
   input.signal.addEventListener('abort', clear, { once: true });
@@ -42,7 +42,7 @@ export function showModerationImage(
   }
   if (notice.status !== 'approved') timer = setTimeout(unavailable, remaining);
   async function load(): Promise<void> {
-    status.textContent = t('Carregando a mídia…');
+    status.textContent = t('Loading media…');
     try {
       const media = pendingPublicAvatar(
         await input.controller.perform('moderation-media', { id: notice.id }),
@@ -55,9 +55,9 @@ export function showModerationImage(
         unavailable();
         return;
       }
-      if (!media) throw new Error('Prévia indisponível.');
+      if (!media) throw new Error('Preview unavailable.');
       const image = document.createElement('img');
-      image.alt = t('Mídia restrita à sua conta');
+      image.alt = t('Media restricted to your account');
       image.className = 'moderation-image-preview';
       url = URL.createObjectURL(new Blob([media.bytes], { type: media.type }));
       image.src = url;
@@ -80,10 +80,10 @@ export function showModerationImage(
     status.textContent =
       error instanceof Error
         ? translatedError(error.message)
-        : t('Prévia indisponível.');
+        : t('Preview unavailable.');
     const retry = document.createElement('button');
     retry.type = 'button';
-    retry.textContent = t('Tentar novamente');
+    retry.textContent = t('Try again');
     retry.addEventListener('click', () => {
       retry.remove();
       void load();

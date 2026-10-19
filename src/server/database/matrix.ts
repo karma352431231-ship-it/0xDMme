@@ -155,7 +155,7 @@ export class MatrixStore {
         account,
       ))
     )
-      throw new AccountError(403, 'Contato sem consentimento atual.');
+      throw new AccountError(403, 'Contact has no current consent.');
   }
   async upload(
     authority: ContactAuthority,
@@ -174,7 +174,7 @@ export class MatrixStore {
       )
         throw new AccountError(
           409,
-          'Chaves Matrix deste aparelho mudaram. Autorize uma nova identidade de aparelho.',
+          "This device's Matrix keys changed. Authorize a new device identity.",
         );
       await client.query(
         'INSERT INTO hash_talk.matrix_devices(account_id,device_id,binding,charge) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(account_id,device_id) DO UPDATE SET binding=excluded.binding,charge=excluded.charge WHERE hash_talk.matrix_devices.binding<>excluded.binding',
@@ -193,7 +193,7 @@ export class MatrixStore {
         [accountId, deviceId],
       );
       if ((count.rows[0]?.count ?? 0) > 100)
-        throw new AccountError(413, 'Lote de chaves Matrix excedido.');
+        throw new AccountError(413, 'Matrix key batch exceeds the limit.');
       await assertVaultQuota(client, accountId);
       await assertContentCapacity(client, this.capacity);
       return {
@@ -231,7 +231,7 @@ export class MatrixStore {
     )
       throw new AccountError(
         409,
-        'Chave descartável repetida com conteúdo diferente.',
+        'One-time key repeated with different content.',
       );
     await client.query(
       'INSERT INTO hash_talk.matrix_one_time_keys(account_id,device_id,id,body,fallback,charge) VALUES($1,$2,$3,$4::jsonb,$5,$6) ON CONFLICT DO NOTHING',
@@ -281,7 +281,7 @@ export class MatrixStore {
           [item.account, item.device],
         );
         if (!device.rowCount)
-          throw new AccountError(403, 'Aparelho destinatário revogado.');
+          throw new AccountError(403, 'Recipient device revoked.');
         const result = await client.query<{
           id: string;
           body: unknown;
@@ -348,7 +348,7 @@ export class MatrixStore {
       !event ||
       !directoryEvent(event).devices.some((d) => d.id === input.device)
     )
-      throw new AccountError(403, 'Aparelho destinatário revogado.');
+      throw new AccountError(403, 'Recipient device revoked.');
     const body = {
       type: 'm.room.encrypted',
       sender: matrixUser(authority.session.accountId),
@@ -365,14 +365,14 @@ export class MatrixStore {
         `curve25519:${authority.session.deviceId}`
       ] !== input.content['sender_key']
     )
-      throw new AccountError(403, 'Envelope de outra identidade Olm.');
+      throw new AccountError(403, 'Envelope belongs to another Olm identity.');
     const previous = await client.query<{ hash: string }>(
       'SELECT hash FROM hash_talk.matrix_envelopes WHERE sender=$1 AND id=$2 AND account_id=$3 AND device_id=$4',
       [authority.session.accountId, input.id, input.account, input.device],
     );
     if (previous.rows[0]) {
       if (previous.rows[0].hash !== hash)
-        throw new AccountError(409, 'Envelope repetido divergente.');
+        throw new AccountError(409, 'Repeated envelope does not match.');
       return;
     }
     await client.query(

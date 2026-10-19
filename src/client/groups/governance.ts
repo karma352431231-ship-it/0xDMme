@@ -28,7 +28,7 @@ function historyPage(input: unknown): HistoryPage {
   const data = object(input),
     raw = data['events'];
   if (!Array.isArray(raw) || raw.length > 16)
-    throw new Error('Histórico de grupo inválido.');
+    throw new Error('Invalid group history.');
   const values: unknown[] = raw;
   return {
     head: fingerprint(data['head']),
@@ -45,15 +45,13 @@ function checkProgress(
     expected &&
     (expected.head !== page.head || expected.revision !== page.revision)
   )
-    throw new Error(
-      'Participantes mudaram durante a leitura. Tente novamente.',
-    );
+    throw new Error('Participants changed while reading. Try again.');
   if (previous && previous.revision > page.revision)
-    throw new Error('Histórico antigo do grupo.');
+    throw new Error('Old group history.');
 }
 function checkCachedGroup(previous: GroupEvent | null, groupId: string): void {
   if (previous && previous.groupId !== groupId)
-    throw new Error('Histórico local de outro grupo.');
+    throw new Error('Local history belongs to another group.');
 }
 export class GroupGovernance {
   private readonly identities: PeerIdentity;
@@ -92,11 +90,10 @@ export class GroupGovernance {
         });
       if (previous?.revision === page.revision) {
         if ((await groupEventHash(previous)) !== page.head)
-          throw new Error('Histórico do grupo divergente.');
+          throw new Error('Group history does not match.');
         return { state: previous, head: page.head };
       }
-      if (!page.events.length)
-        throw new Error('Histórico do grupo incompleto.');
+      if (!page.events.length) throw new Error('Group history incomplete.');
     }
   }
   private async verifyPage(input: {
@@ -128,7 +125,7 @@ export class GroupGovernance {
     let previous = input.previous;
     for (const event of input.page) {
       if (event.groupId !== input.groupId)
-        throw new Error('Evento de outro grupo.');
+        throw new Error('Event belongs to another group.');
       if (event.consent) await this.checkAnchor(event.consent, input.cache);
       previous = await verifyGroupTransition({
         previous,
@@ -140,7 +137,7 @@ export class GroupGovernance {
       });
       await input.cache.preserve(previous);
     }
-    if (!previous) throw new Error('Grupo sem origem.');
+    if (!previous) throw new Error('Group has no origin.');
     return previous;
   }
   private eventOrigins(
@@ -182,7 +179,7 @@ export class GroupGovernance {
     revision: number,
   ): DirectoryEvent {
     const event = events?.[revision - 1];
-    if (!event) throw new Error('Autoridade de grupo incompleta.');
+    if (!event) throw new Error('Group authority incomplete.');
     return event;
   }
   private async checkAnchor(
@@ -195,12 +192,12 @@ export class GroupGovernance {
       !groupManager(anchor, consent.actor) ||
       anchor.groupId !== consent.groupId
     )
-      throw new Error('Convite sem participação administrativa verificada.');
+      throw new Error('Invitation has no verified administrative membership.');
     return anchor;
   }
   async invitation(consent: GroupConsent): Promise<GroupState> {
     if (consent.target !== this.authority.session.accountId)
-      throw new Error('Convite de outra conta.');
+      throw new Error('Invitation belongs to another account.');
     const verified = await this.verify(consent.groupId),
       cache = new GroupCache(this.authority, consent.groupId);
     const data = await readDirectories({
@@ -219,10 +216,12 @@ export class GroupGovernance {
     );
     const target = this.authority.events[consent.targetRevision - 1];
     if (!target || (await eventHash(target)) !== consent.targetDirectory)
-      throw new Error('O convite diverge da sua identidade.');
+      throw new Error('The invitation differs from your identity.');
     await this.checkAnchor(consent, cache);
     if (!groupManager(verified.state, consent.actor))
-      throw new Error('O convite não tem mais administrador autorizado.');
+      throw new Error(
+        'The invitation no longer has an authorized administrator.',
+      );
     return verified;
   }
 }

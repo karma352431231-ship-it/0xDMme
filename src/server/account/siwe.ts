@@ -76,5 +76,5 @@ export function verifyLoginSignature(
     verifyMessage(challenge.message, signature).toLowerCase() !==
     challenge.address
   )
-    throw new Error('Assinatura inválida.');
+    throw new Error('Invalid signature.');
 }

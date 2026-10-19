@@ -131,15 +131,15 @@ export class ExternalMediaConsent {
     const choice = this.choices[scope];
     const status =
       choice === null
-        ? t('Permissão ainda não escolhida.')
+        ? t('Permission not chosen yet.')
         : choice
-          ? t('Mídias externas permitidas.')
-          : t('Mídias externas somente como links.');
+          ? t('External media allowed.')
+          : t('External media kept as links only.');
     return t('{0} {1}', [
       status,
       this.durable
-        ? t('A escolha acompanha sua conta.')
-        : t('Não foi possível salvar; escolha válida só neste acesso.'),
+        ? t('This choice follows your account.')
+        : t('Could not save; this choice applies only to this visit.'),
     ]);
   }
   storageChanged(key: string | null): void {

@@ -29,7 +29,7 @@ async function run(action: () => Promise<void>): Promise<void> {
     await action();
   } catch {
     status.textContent = t(
-      'Operação rejeitada. Confira segredo, identidade, revisão e integridade; nenhum histórico foi enviado em texto aberto.',
+      'Operation rejected. Check the secret, identity, revision and integrity; no plaintext history was sent.',
     );
   } finally {
     busy = false;
@@ -44,7 +44,7 @@ async function relay(
   const config = await fetch('/api/config', {
     signal: AbortSignal.timeout(5_000),
   });
-  if (!config.ok) throw new Error('Sessão indisponível.');
+  if (!config.ok) throw new Error('Session unavailable.');
   const token = text(parseObject(await boundedResponse(config)).alice);
   const response = await fetch(`/api/alice/${operation}`, {
     method: 'POST',
@@ -55,14 +55,14 @@ async function relay(
     body,
     signal: AbortSignal.timeout(5_000),
   });
-  if (!response.ok) throw new Error('Cofre rejeitado pelo relay.');
+  if (!response.ok) throw new Error('Vault rejected by the relay.');
   return boundedResponse(response);
 }
 
 element('generate-secret', HTMLButtonElement).addEventListener('click', () => {
   secret.value = newRecoverySecret();
   status.textContent = t(
-    'Segredo fictício gerado somente neste navegador. Copie para o ensaio de recuperação.',
+    'Fictional secret generated only in this browser. Copy it for the recovery test.',
   );
 });
 element('seal', HTMLButtonElement).addEventListener('click', () => {
@@ -78,7 +78,7 @@ element('seal', HTMLButtonElement).addEventListener('click', () => {
     );
     envelope.value = JSON.stringify(sealed);
     status.textContent = t(
-      'Cofre cifrado localmente em {0} ms. Apenas o envelope pode ser guardado no relay.',
+      'Vault encrypted locally in {0} ms. Only the envelope may be stored on the relay.',
       [(performance.now() - started).toFixed(1)],
     );
   });
@@ -86,10 +86,10 @@ element('seal', HTMLButtonElement).addEventListener('click', () => {
 element('store', HTMLButtonElement).addEventListener('click', () => {
   void run(async () => {
     const sealed = parseEnvelope(envelope.value);
-    if (sealed.owner !== owner) throw new Error('Identidade inválida.');
+    if (sealed.owner !== owner) throw new Error('Invalid identity.');
     await relay('vault-save', JSON.stringify(sealed));
     status.textContent = t(
-      'Relay recebeu apenas o envelope cifrado, em memória. Segredo e histórico ficaram no cliente.',
+      'The relay received only the encrypted envelope in memory. The secret and history stayed on the client.',
     );
   });
 });
@@ -99,7 +99,7 @@ element('load', HTMLButtonElement).addEventListener('click', () => {
       parseEnvelope(await relay('vault-load', '{}')),
     );
     status.textContent = t(
-      'Envelope cifrado obtido. Informe o segredo para abrir localmente.',
+      'Encrypted envelope received. Enter the secret to open it locally.',
     );
   });
 });
@@ -112,7 +112,7 @@ element('open', HTMLButtonElement).addEventListener('click', () => {
       .map((entry) => entry.body)
       .join('\n');
     status.textContent = t(
-      'Histórico recuperado localmente em {0} ms (revisão {1}). Nenhuma sessão ou permissão de aparelho foi restaurada.',
+      'History recovered locally in {0} ms (revision {1}). No session or device permission was restored.',
       [(performance.now() - started).toFixed(1), snapshot.revision],
     );
   });

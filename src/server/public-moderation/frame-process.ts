@@ -94,7 +94,7 @@ export async function inspectPreparedFrames(options: {
   } catch {
     child.kill('SIGKILL');
     await closed;
-    throw new AccountError(503, 'Inspeção da mídia indisponível.');
+    throw new AccountError(503, 'Media inspection unavailable.');
   }
 }
 function preparedMetadata(output: string, maximum: number) {

@@ -95,7 +95,7 @@ await test('limpeza e substituição descartam a janela anterior; conteúdo susp
         Array.from({ length: 67 }, () => item),
         [view],
       ),
-    /excedida/,
+    /exceed/,
   );
   assert.equal(cache.read(snapshot, received), null);
 });
@@ -152,7 +152,7 @@ await test('cópia cifrada de outra conversa ou após recarga só serve com paco
     );
   assert.throws(
     () => verifiedReceiptHash('{}', snapshot, received),
-    /inválida/,
+    /[Ii]nvalid/,
   );
 });
 
@@ -163,7 +163,7 @@ await test('preparação global retoma página interrompida e reinicia ao mudar 
   assert.equal(prefetch.cursor(snapshot), 0);
   assert.throws(
     () => prefetch.commit(snapshot, { ...first, next: 2 }),
-    /Paginação/,
+    /pagination/,
   );
   assert.equal(prefetch.cursor(snapshot), 0);
   prefetch.commit(snapshot, first);
@@ -171,7 +171,7 @@ await test('preparação global retoma página interrompida e reinicia ao mudar 
   prefetch.commit(snapshot, { items: [], next: null });
   assert.equal(prefetch.cursor(snapshot), null);
   assert.equal(prefetch.cursor({ ...snapshot, revision: 2 }), 0);
-  assert.throws(() => prefetch.commit(snapshot, first), /alterada/);
+  assert.throws(() => prefetch.commit(snapshot, first), /changed/);
   prefetch.reset();
   assert.equal(prefetch.cursor(snapshot), 0);
 });
@@ -203,6 +203,6 @@ await test('índice não pode atribuir outro autor, destinatário, tipo ou revis
   for (const change of changes)
     assert.throws(
       () => assertPacketIdentity(packet, { ...item, ...change }),
-      /divergente do índice/,
+      /differs from (?:the )?(?:group )?index/,
     );
 });

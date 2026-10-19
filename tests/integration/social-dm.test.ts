@@ -163,11 +163,11 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
   }
   const a = await groupParticipant({
       accountId: ap.id,
-      deviceName: 'Aparelho de DMs',
+      deviceName: 'DM device',
     }),
     b = await groupParticipant({
       accountId: bp.id,
-      deviceName: 'Aparelho de DMs',
+      deviceName: 'DM device',
     });
   await t.test(
     'DM pública abre sem aceite/follow e sem revelar dados do contato privado',
@@ -1151,7 +1151,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
       );
       const publicDevice = await createIdentity(
         crypto.randomUUID(),
-        'Aparelho de DMs',
+        'DM device',
       );
       const updated = await prepareEvent({
         accountId: ap.id,

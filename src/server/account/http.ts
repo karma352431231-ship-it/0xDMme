@@ -119,9 +119,10 @@ async function body(request: IncomingMessage): Promise<unknown> {
   try {
     for await (const value of request) {
       if (!(value instanceof Buffer))
-        throw new AccountError(400, 'Corpo inválido.');
+        throw new AccountError(400, 'Invalid body.');
       size += value.length;
-      if (size > maximum) throw new AccountError(413, 'Pedido excedido.');
+      if (size > maximum)
+        throw new AccountError(413, 'Request exceeds the limit.');
       parts.push(value);
     }
     try {
@@ -131,7 +132,7 @@ async function body(request: IncomingMessage): Promise<unknown> {
         ),
       ) as unknown;
     } catch {
-      throw new AccountError(400, 'JSON inválido.');
+      throw new AccountError(400, 'Invalid JSON.');
     }
   } finally {
     clearTimeout(timer);
@@ -213,7 +214,7 @@ export function createAccountHandler(options: {
     response: ServerResponse,
   ): Promise<void> {
     if (request.headers.origin !== options.origin)
-      throw new AccountError(403, 'Origem inválida.');
+      throw new AccountError(403, 'Invalid origin.');
     if (await earlyVaultPost(request, response)) return;
     if (await earlyMessagePost(request, response)) return;
     const input = await body(request);
@@ -377,7 +378,7 @@ export function createAccountHandler(options: {
           options.devices
             ? options.devices.openingRecovery(accountId)
             : Promise.reject(
-                new AccountError(503, 'Abertura de conta indisponível.'),
+                new AccountError(503, 'Account opening unavailable.'),
               ),
       );
       response.setHeader('Set-Cookie', cookie(challengeName, '', 0, secure));
@@ -413,7 +414,7 @@ export function createAccountHandler(options: {
       send(response, 200, login.session);
       return;
     }
-    throw new AccountError(404, 'Operação não encontrada.');
+    throw new AccountError(404, 'Operation not found.');
   }
 
   async function privateRecoveryPost(
@@ -435,7 +436,7 @@ export function createAccountHandler(options: {
         result = recovery.cancel(session, input);
         break;
       default:
-        throw new AccountError(404, 'Operação não encontrada.');
+        throw new AccountError(404, 'Operation not found.');
     }
     send(response, 200, result);
   }
@@ -494,7 +495,7 @@ export function createAccountHandler(options: {
     const session = await options.service.session(token);
     const head = await options.messages?.operate('live', session, input.proof);
     if (typeof head !== 'string')
-      throw new AccountError(503, 'Canal indisponível.');
+      throw new AccountError(503, 'Channel unavailable.');
     const validate = async () => {
       const [current, authorized] = await Promise.all([
         options.service.session(token),
@@ -508,7 +509,7 @@ export function createAccountHandler(options: {
       );
     };
     if (!(await validate()))
-      throw new AccountError(403, 'Canal sem autorização atual.');
+      throw new AccountError(403, 'Channel has no current authorization.');
     if (!response.destroyed)
       options.live?.open({
         session,
@@ -602,7 +603,7 @@ export function createAccountHandler(options: {
       send(response, 200, { status: 'saved' });
       return;
     }
-    throw new AccountError(404, 'Operação não encontrada.');
+    throw new AccountError(404, 'Operation not found.');
   }
   async function socialPost(
     request: IncomingMessage,
@@ -704,7 +705,7 @@ export function createAccountHandler(options: {
         send(response, error.status, { error: error.message });
         return;
       }
-      send(response, 503, { error: 'Conta indisponível. Tente novamente.' });
+      send(response, 503, { error: 'Account unavailable. Try again.' });
     }
   }
   /** Public, unauthenticated client settings. */
@@ -723,7 +724,7 @@ export function createAccountHandler(options: {
     response: ServerResponse,
   ): Promise<void> {
     if (request.method !== 'GET')
-      throw new AccountError(405, 'Método inválido.');
+      throw new AccountError(405, 'Invalid method.');
     if (await approvalGet(request, response)) return;
     if (recoveryGet(request, response)) return;
     if (request.url === '/api/account/config') {
@@ -751,7 +752,7 @@ export function createAccountHandler(options: {
       send(response, 200, await options.service.profile(sessionToken));
       return;
     }
-    throw new AccountError(404, 'Operação não encontrada.');
+    throw new AccountError(404, 'Operation not found.');
   }
   async function notificationsGet(
     request: IncomingMessage,
@@ -779,7 +780,7 @@ export function createAccountHandler(options: {
         request.headers['sec-fetch-mode'] !== 'navigate' ||
         request.headers['sec-fetch-dest'] !== 'document'
       )
-        throw new AccountError(403, 'Entrada exige navegação de documento.');
+        throw new AccountError(403, 'Entry requires document navigation.');
       if (approvalDocumentUrl(request.url))
         await approval.document(request, response);
       else await approval.enter(request, response);
@@ -801,7 +802,7 @@ export function createAccountHandler(options: {
       request.headers['sec-fetch-mode'] !== 'navigate' ||
       request.headers['sec-fetch-dest'] !== 'document'
     )
-      throw new AccountError(403, 'Entrada exige navegação de documento.');
+      throw new AccountError(403, 'Entry requires document navigation.');
     let rejected = false;
     try {
       recovery.requestPublic(entry);
@@ -811,7 +812,7 @@ export function createAccountHandler(options: {
     }
     let document = options.recoveryDocument;
     if (!document || document.length > 65_536)
-      throw new AccountError(503, 'Página de recuperação indisponível.');
+      throw new AccountError(503, 'Recovery page unavailable.');
     if (rejected)
       document = Buffer.from(
         new TextDecoder()

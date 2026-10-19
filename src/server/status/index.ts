@@ -66,14 +66,14 @@ function directoryRequests(
   input: unknown,
 ): { accountId: string; after: number }[] {
   if (!Array.isArray(input) || !input.length || input.length > 16)
-    throw new AccountError(400, 'Página de destinatários inválida.');
+    throw new AccountError(400, 'Invalid recipient page.');
   const requests = input.map((raw: unknown) => {
     const d = object(raw);
     keys(d, ['accountId', 'after']);
     return { accountId: uuid(d['accountId']), after: integer(d['after'], 128) };
   });
   if (new Set(requests.map((r) => r.accountId)).size !== requests.length)
-    throw new AccountError(400, 'Destinatário repetido.');
+    throw new AccountError(400, 'Duplicate recipient.');
   return requests;
 }
 function nullableUuid(value: unknown): string | null {
@@ -174,15 +174,13 @@ export class StatusService {
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action)
-      throw new AccountError(404, 'Operação de status indisponível.');
+    if (!action) throw new AccountError(404, 'Status operation unavailable.');
     // Publication/read may hold a full bounded packet; other operations use chunks.
     const bytes = ['status-publish', 'status-read'].includes(operation)
       ? 24_000_000
       : partLimit * 8;
     const release = reserveOperationMemory(bytes);
-    if (!release)
-      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
+    if (!release) throw new AccountError(429, 'Transfers busy. Resume later.');
     try {
       return await action(a, d);
     } finally {
@@ -262,7 +260,7 @@ export class StatusService {
       for (const part of data.ref.parts)
         digest.update(await media.read(part.hash));
       if (digest.digest('hex') !== data.ref.hash)
-        throw new AccountError(400, 'Foto integral divergente.');
+        throw new AccountError(400, 'Full photo does not match.');
     }
     await this.media.finish(a, input);
   }
@@ -278,7 +276,7 @@ export class StatusService {
     };
     const ref = await this.media.readable(a, input),
       part = ref.parts[input.index];
-    if (!part) throw new AccountError(400, 'Parte inexistente.');
+    if (!part) throw new AccountError(400, 'Part does not exist.');
     const bytes = await (
       await (
         await this.objects.readStatusMedia(input.statusId)

@@ -29,13 +29,13 @@ export async function evmIdentity(
     typeof accounts[0] !== 'string' ||
     !/^0x[0-9a-fA-F]{40}$/u.test(accounts[0])
   )
-    throw new Error('Selecione uma conta EVM na wallet.');
+    throw new Error('Select an EVM account in your wallet.');
   const chain = await instance.request({ method: 'eth_chainId' });
   if (typeof chain !== 'string' || !/^0x[0-9a-fA-F]{1,8}$/u.test(chain))
-    throw new Error('Rede EVM inválida.');
+    throw new Error('Invalid EVM network.');
   const chainId = Number.parseInt(chain.slice(2), 16);
   if (chainId < 1 || chainId > 2_147_483_647)
-    throw new Error('Rede EVM inválida.');
+    throw new Error('Invalid EVM network.');
   return { address: accounts[0], chainId, ecosystem: 'evm' as const };
 }
 export async function signEvm(
@@ -49,6 +49,6 @@ export async function signEvm(
     params: [hex, address],
   });
   if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]{130}$/u.test(signature))
-    throw new Error('Assinatura EVM inválida.');
+    throw new Error('Invalid EVM signature.');
   return signature;
 }

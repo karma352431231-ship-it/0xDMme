@@ -16,14 +16,17 @@ import {
 export function mobileWebAddress(value: unknown): string {
   const address = boundedText(value, 15);
   if (isIP(address) !== 4)
-    throw new AccountError(400, 'Endereço privado IPv4 necessário.');
+    throw new AccountError(400, 'A private IPv4 address is required.');
   const [first, second] = address.split('.').map(Number);
   const privateAddress =
     first === 10 ||
     (first === 192 && second === 168) ||
     (first === 172 && second !== undefined && second >= 16 && second <= 31);
   if (!privateAddress)
-    throw new AccountError(400, 'A base mobile exige rede privada.');
+    throw new AccountError(
+      400,
+      'The mobile environment requires a private network.',
+    );
   return address;
 }
 

@@ -89,15 +89,15 @@ export function postTime(value: unknown): string {
     value.length !== 24 ||
     !Number.isFinite(Date.parse(value))
   )
-    throw new AccountError(400, 'Horário do post inválido.');
+    throw new AccountError(400, 'Invalid post time.');
   if (new Date(value).toISOString() !== value)
-    throw new AccountError(400, 'Horário do post inválido.');
+    throw new AccountError(400, 'Invalid post time.');
   return value;
 }
 export function postCursor(value: unknown): string | null {
   if (value === null) return null;
   if (typeof value !== 'string' || value.length !== 61)
-    throw new AccountError(400, 'Cursor de posts inválido.');
+    throw new AccountError(400, 'Invalid post cursor.');
   const [time, id] = value.split('/');
   return `${postTime(time)}/${uuid(id)}`;
 }
@@ -114,7 +114,7 @@ export function postContent(value: unknown): PostContent {
     : [];
   const title = communityMentionText(data['title'], 200, true);
   if (/[\n\t]/u.test(title))
-    throw new AccountError(400, 'Título deve ocupar uma linha.');
+    throw new AccountError(400, 'The title must be one line.');
   return {
     title,
     // A titled post or one with media may have no text; a reply needs one of them.
@@ -131,15 +131,15 @@ export function postContent(value: unknown): PostContent {
 export function postTagIds(value: unknown): string[] {
   const ids = communityArray(value).map((id) => uuid(id));
   if (ids.length > postTagLimit)
-    throw new AccountError(400, `Escolha até ${postTagLimit} tags.`);
+    throw new AccountError(400, `Choose up to ${postTagLimit} tags.`);
   if (new Set(ids).size !== ids.length)
-    throw new AccountError(400, 'Tag repetida no post.');
+    throw new AccountError(400, 'Duplicate tag in the post.');
   return ids;
 }
 export function postTagLabel(value: unknown): string {
   const label = communityText(value, 36);
   if (/[\n\t]/u.test(label))
-    throw new AccountError(400, 'Tag deve ocupar uma linha.');
+    throw new AccountError(400, 'The tag must be one line.');
   return label;
 }
 export function postTag(value: unknown): PostTag {
@@ -159,7 +159,7 @@ function publicPostContent(data: Record<string, unknown>) {
     text = communityMentionText(data['text'], 4000, true),
     media = Object.hasOwn(data, 'media') ? publicPostMedia(data['media']) : [];
   if (tags.length > postTagLimit)
-    throw new AccountError(400, 'Tags demais no post.');
+    throw new AccountError(400, 'Too many tags in the post.');
   const hiddenFields = [title, text, author].some(
     (field) => field !== '' && field !== null,
   );
@@ -167,7 +167,7 @@ function publicPostContent(data: Record<string, unknown>) {
     data['status'] !== 'visible' &&
     (hiddenFields || tags.length > 0 || media.length > 0)
   )
-    throw new AccountError(400, 'Marcador de post contém dados restritos.');
+    throw new AccountError(400, 'Post marker contains restricted data.');
   return { author, tags, title, text, ...(media.length ? { media } : {}) };
 }
 function postBadgeFields(
@@ -177,7 +177,7 @@ function postBadgeFields(
   if (!Object.hasOwn(data, 'authorBadges')) return {};
   const authorBadges = communityBadges(data['authorBadges']);
   if (status !== 'visible' && authorBadges.length)
-    throw new AccountError(400, 'Marcador de post contém badges restritos.');
+    throw new AccountError(400, 'Post marker contains restricted badges.');
   return { authorBadges };
 }
 function postViewFields(data: Record<string, unknown>) {
@@ -229,7 +229,7 @@ export function communityPost(value: unknown): CommunityPost {
   ]);
   const status = data['status'];
   if (status !== 'visible' && status !== 'removed' && status !== 'deleted')
-    throw new AccountError(400, 'Estado do post inválido.');
+    throw new AccountError(400, 'Invalid post state.');
   return {
     id: uuid(data['id']),
     community: uuid(data['community']),
@@ -304,7 +304,7 @@ export function postState(value: unknown): PostState {
       data['content'] === null ? null : postContent(data['content']),
     removal = data['removal'] === null ? null : postRemoval(data['removal']);
   if (!own && !manager && (content || removal))
-    throw new AccountError(400, 'Estado do post contém dados restritos.');
+    throw new AccountError(400, 'Post state contains restricted data.');
   return {
     post: communityPost(data['post']),
     own,
@@ -342,7 +342,7 @@ export interface PostVote {
 }
 export function votePosition(value: unknown): -1 | 0 | 1 {
   if (value !== -1 && value !== 0 && value !== 1)
-    throw new AccountError(400, 'Voto inválido.');
+    throw new AccountError(400, 'Invalid vote.');
   return value;
 }
 export function postCount(value: unknown, signed = false): number {
@@ -351,7 +351,7 @@ export function postCount(value: unknown, signed = false): number {
     !Number.isSafeInteger(value) ||
     (!signed && value < 0)
   )
-    throw new AccountError(400, 'Contagem inválida.');
+    throw new AccountError(400, 'Invalid count.');
   return value;
 }
 export function postVote(value: unknown): PostVote {
@@ -370,10 +370,10 @@ function postTree(data: Record<string, unknown>) {
     parent === data['id'] ||
     root === data['id']
   )
-    throw new AccountError(400, 'Árvore inválida.');
+    throw new AccountError(400, 'Invalid tree.');
   const tagged = Array.isArray(data['tags']) && data['tags'].length > 0;
   if (parent && (data['title'] !== '' || tagged))
-    throw new AccountError(400, 'Resposta não admite título/tag.');
+    throw new AccountError(400, 'Replies do not accept a title/tag.');
   return { parent, root };
 }
 /**
@@ -418,12 +418,12 @@ export function replyPreview(
 function previewStatus(value: unknown): ReplyPreview['status'] {
   if (value === 'visible' || value === 'removed' || value === 'deleted')
     return value;
-  throw new AccountError(400, 'Prévia de resposta inválida.');
+  throw new AccountError(400, 'Invalid reply preview.');
 }
 function previewText(value: unknown): string {
   if (typeof value === 'string' && value.length <= replyPreviewLength)
     return value;
-  throw new AccountError(400, 'Prévia de resposta inválida.');
+  throw new AccountError(400, 'Invalid reply preview.');
 }
 function parseReplyPreview(value: unknown): ReplyPreview | null {
   if (value === null) return null;
@@ -440,7 +440,7 @@ function parseReplyPreview(value: unknown): ReplyPreview | null {
     author = data['author'] === null ? null : publicHandle(data['author']);
   // Hidden replies never carry who wrote them or what they said.
   if (status !== 'visible' && (author !== null || text !== ''))
-    throw new AccountError(400, 'Prévia de resposta inválida.');
+    throw new AccountError(400, 'Invalid reply preview.');
   const identity = previewIdentity(data['identity'], status, author);
   return {
     author,
@@ -458,7 +458,7 @@ function previewIdentity(
   if (value === undefined || value === null) return null;
   const identity = publicProfile(value);
   if (status !== 'visible' || identity.handle !== author)
-    throw new AccountError(400, 'Prévia de resposta inválida.');
+    throw new AccountError(400, 'Invalid reply preview.');
   return identity;
 }
 export interface ReplyNotificationPage {
@@ -471,9 +471,9 @@ function notificationKind(data: Record<string, unknown>): {
   if (!Object.hasOwn(data, 'kind')) return {};
   const kind = data['kind'];
   if (kind !== 'post' && kind !== 'reply')
-    throw new AccountError(400, 'Tipo de notificação inválido.');
+    throw new AccountError(400, 'Invalid notification type.');
   if ((kind === 'post') !== (data['post'] === data['reply']))
-    throw new AccountError(400, 'Referência de notificação inválida.');
+    throw new AccountError(400, 'Invalid notification reference.');
   return { kind };
 }
 export function replyNotificationPage(value: unknown): ReplyNotificationPage {

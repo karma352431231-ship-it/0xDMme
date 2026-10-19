@@ -50,7 +50,7 @@ function staff(
   state: CommunityState,
   actions: CommunityActions,
 ): void {
-  const card = communityCard(t('Moderadores'));
+  const card = communityCard(t('Moderators'));
   container.append(card);
   const list = communityElement('div');
   card.append(list);
@@ -66,13 +66,11 @@ function staff(
     for (const item of communityArray(data['items']))
       list.append(staffRow(publicProfile(item), state, actions));
     if (!list.children.length)
-      list.append(
-        communityElement('p', t('Nenhum moderador.'), 'community-hint'),
-      );
+      list.append(communityElement('p', t('No moderators.'), 'community-hint'));
     after = communityCursor(data['next']);
     more.hidden = after === null;
   };
-  const more = communityButton(card, t('Mais moderadores'), () =>
+  const more = communityButton(card, t('More moderators'), () =>
     actions.query(load),
   );
   more.hidden = true;
@@ -80,14 +78,14 @@ function staff(
     list.replaceChildren(
       communityElement(
         'p',
-        t('Moderadores indisponíveis agora.'),
+        t('Moderators currently unavailable.'),
         'community-hint',
       ),
     );
   });
   if (state.role !== 'owner') return;
   const target = communityTargetPicker(card, actions);
-  communityButton(card, t('Nomear moderador'), () =>
+  communityButton(card, t('Appoint moderator'), () =>
     actions.mutate('role', {
       ...command(state),
       target: target().id,
@@ -107,7 +105,7 @@ function staffRow(
     `#users?handle=${encodeURIComponent(profile.handle)}`,
   );
   if (state.role === 'owner')
-    communityButton(row, t('Remover'), () =>
+    communityButton(row, t('Remove'), () =>
       actions.mutate('role', {
         ...command(state),
         target: profile.id,
@@ -121,28 +119,28 @@ function sanctionForm(
   state: CommunityState,
   actions: CommunityActions,
 ): void {
-  const card = communityCard(t('Suspender participante'));
+  const card = communityCard(t('Suspend participant'));
   container.append(card);
   card.append(
     communityElement(
       'p',
       t(
-        'O motivo será visível ao participante e aos gestores. Gestores devem perder a função antes de serem sancionados.',
+        'The reason is visible to the participant and managers. Managers must lose their role before being sanctioned.',
       ),
     ),
   );
   const target = communityTargetPicker(card, actions),
-    reason = communityField(card, t('Motivo'), {
+    reason = communityField(card, t('Reason'), {
       maximum: 1000,
       multiline: true,
     });
-  const label = communityElement('label', t('Duração')),
+  const label = communityElement('label', t('Duration')),
     days = communityElement('select');
   for (const [value, title] of [
-    ['1', t('1 dia')],
-    ['7', t('7 dias')],
-    ['30', t('30 dias')],
-    ['permanent', t('Banimento reversível')],
+    ['1', t('1 day')],
+    ['7', t('7 days')],
+    ['30', t('30 days')],
+    ['permanent', t('Reversible ban')],
   ] as const) {
     const option = communityElement('option', title);
     option.value = value;
@@ -151,7 +149,7 @@ function sanctionForm(
   label.append(days);
   card.append(label);
   const record = crypto.randomUUID();
-  communityButton(card, t('Aplicar sanção'), () =>
+  communityButton(card, t('Apply sanction'), () =>
     actions.mutate('sanction', {
       ...command(state),
       target: target().id,
@@ -166,18 +164,18 @@ function ownership(
   state: CommunityState,
   actions: CommunityActions,
 ): void {
-  const card = communityCard(t('Propriedade e arquivamento'));
+  const card = communityCard(t('Ownership and archiving'));
   container.append(card);
   card.append(
     communityElement(
       'p',
       t(
-        'A transferência depende do aceite do destinatário. Depois do aceite, você passa a participante e perde a gestão.',
+        'The recipient must accept the transfer. After acceptance, you become a participant and lose management access.',
       ),
     ),
   );
   const target = communityTargetPicker(card, actions);
-  communityButton(card, t('Oferecer transferência'), () =>
+  communityButton(card, t('Offer transfer'), () =>
     actions.mutate('transfer-offer', {
       ...command(state),
       target: target().id,
@@ -187,10 +185,10 @@ function ownership(
     card.append(
       communityElement(
         'p',
-        t('Transferência aguardando @{0}.', [state.transfer.target.handle]),
+        t('Transfer awaiting @{0}.', [state.transfer.target.handle]),
       ),
     );
-    communityButton(card, t('Cancelar transferência'), () =>
+    communityButton(card, t('Cancel transfer'), () =>
       actions.mutate('transfer-offer', { ...command(state), target: null }),
     );
   }
@@ -201,19 +199,16 @@ function ownership(
     confirm,
     document.createTextNode(
       state.community.archived
-        ? t('Quero reabrir a participação.')
-        : t('Quero arquivar, preservando conteúdo e registros.'),
+        ? t('I want to reopen participation.')
+        : t('I want to archive, preserving content and records.'),
     ),
   );
   card.append(label);
   communityButton(
     card,
-    state.community.archived
-      ? t('Reabrir comunidade')
-      : t('Arquivar comunidade'),
+    state.community.archived ? t('Reopen community') : t('Archive community'),
     async () => {
-      if (!confirm.checked)
-        throw new Error('Confirme a alteração de participação.');
+      if (!confirm.checked) throw new Error('Confirm the membership change.');
       await actions.mutate('archive', {
         ...command(state),
         archived: !state.community.archived,
@@ -228,17 +223,17 @@ function accept(
 ): void {
   const transfer = state.transfer;
   if (!transfer) return;
-  const card = communityCard(t('Transferência para você'));
+  const card = communityCard(t('Transfer to you'));
   container.append(card);
   card.append(
     communityElement(
       'p',
       t(
-        'Ao aceitar, você assume a propriedade e a gestão desta comunidade. Confira as regras e o proprietário atual.',
+        'By accepting, you take ownership and management of this community. Check its rules and current owner.',
       ),
     ),
   );
-  communityButton(card, t('Aceitar propriedade'), () =>
+  communityButton(card, t('Accept ownership'), () =>
     actions.mutate('transfer-accept', {
       ...command(state),
       offer: transfer.id,
@@ -251,19 +246,16 @@ function appeal(
   actions: CommunityActions,
   current: Sanction,
 ): void {
-  const card = communityCard(t('Contestar sanção'));
+  const card = communityCard(t('Appeal sanction'));
   container.append(card);
-  const text = communityField(card, t('Sua contestação'), {
+  const text = communityField(card, t('Your appeal'), {
     maximum: 2000,
     multiline: true,
   });
   card.append(
-    communityElement(
-      'p',
-      t('Uma contestação por sanção, visível aos gestores.'),
-    ),
+    communityElement('p', t('One appeal per sanction, visible to managers.')),
   );
-  communityButton(card, t('Enviar contestação'), () =>
+  communityButton(card, t('Submit appeal'), () =>
     actions.mutate('appeal', {
       id: state.community.id,
       record: current.id,
@@ -276,12 +268,12 @@ function reviews(
   state: CommunityState,
   actions: CommunityActions,
 ): void {
-  const card = communityCard(t('Sanções e contestações'));
+  const card = communityCard(t('Sanctions and appeals'));
   container.append(card);
   const list = communityElement('div');
   card.append(list);
   let after: string | null = null;
-  communityButton(card, t('Carregar sanções'), () =>
+  communityButton(card, t('Load sanctions'), () =>
     actions.query(async () => {
       const data = object(
         await actions.request('sanctions', { id: state.community.id, after }),
@@ -294,7 +286,7 @@ function reviews(
         row.append(
           communityElement(
             'h3',
-            record.target ? `@${record.target.handle}` : t('Perfil removido'),
+            record.target ? `@${record.target.handle}` : t('Removed profile'),
           ),
           communityElement('p', record.reason),
         );
@@ -302,22 +294,18 @@ function reviews(
           communityElement(
             'p',
             record.lifted
-              ? t('Sanção retirada')
+              ? t('Sanction lifted')
               : record.until
-                ? t('Até {0}', [
+                ? t('Until {0}', [
                     new Date(record.until).toLocaleString(currentLanguage()),
                   ])
-                : t('Banimento reversível'),
+                : t('Reversible ban'),
           ),
         );
         if (record.appeal)
-          row.append(
-            communityElement('p', t('Contestação: {0}', [record.appeal])),
-          );
+          row.append(communityElement('p', t('Appeal: {0}', [record.appeal])));
         if (record.decision)
-          row.append(
-            communityElement('p', t('Resposta: {0}', [record.decision])),
-          );
+          row.append(communityElement('p', t('Reply: {0}', [record.decision])));
         recordActions(row, state, actions, record);
         list.append(row);
       }
@@ -353,7 +341,7 @@ function reviewButtons(
     appeal: boolean;
   },
 ): void {
-  const decision = communityField(row, t('Resposta / motivo da revisão'), {
+  const decision = communityField(row, t('Response / review reason'), {
     maximum: 1000,
     multiline: true,
   });
@@ -362,11 +350,11 @@ function reviewButtons(
     record: input.record,
     decision: decision.value,
   });
-  communityButton(row, t('Retirar sanção'), () =>
+  communityButton(row, t('Lift sanction'), () =>
     input.actions.mutate('decide-sanction', { ...data(), lift: true }),
   );
   if (input.appeal)
-    communityButton(row, t('Manter sanção e responder'), () =>
+    communityButton(row, t('Keep sanction and respond'), () =>
       input.actions.mutate('decide-sanction', { ...data(), lift: false }),
     );
 }
@@ -375,22 +363,22 @@ function reports(
   state: CommunityState,
   actions: CommunityActions,
 ): void {
-  const card = communityCard(t('Denúncias da comunidade'));
+  const card = communityCard(t('Community reports'));
   container.append(card);
   card.append(
     communityElement(
       'p',
       t(
-        'A denúncia local é analisada pelos gestores. Sua identidade não aparece na resposta entregue a eles. Você pode acompanhar a análise abaixo.',
+        'Community managers review the local report. Your identity is not shown in the response delivered to them. You can track the review below.',
       ),
     ),
   );
-  const reason = communityField(card, t('Motivo da denúncia'), {
+  const reason = communityField(card, t('Report reason'), {
       maximum: 1000,
       multiline: true,
     }),
     record = crypto.randomUUID();
-  communityButton(card, t('Enviar denúncia'), () =>
+  communityButton(card, t('Submit report'), () =>
     actions.mutate('report', {
       id: state.community.id,
       record,
@@ -411,9 +399,7 @@ function reportListButton(
   let after: string | null = null;
   communityButton(
     card,
-    input.own
-      ? t('Carregar minhas denúncias')
-      : t('Carregar denúncias recebidas'),
+    input.own ? t('Load my reports') : t('Load received reports'),
     () =>
       input.actions.query(async () => {
         const data = object(
@@ -433,16 +419,16 @@ function reportListButton(
             communityElement(
               'p',
               report.resolved
-                ? t('Encerrada: {0}', [report.decision ?? ''])
-                : t('Aguardando análise'),
+                ? t('Ended: {0}', [report.decision ?? ''])
+                : t('Awaiting analysis'),
             ),
           );
           if (!input.own && !report.resolved) {
-            const decision = communityField(row, t('Resposta'), {
+            const decision = communityField(row, t('Reply'), {
               maximum: 1000,
               multiline: true,
             });
-            communityButton(row, t('Encerrar denúncia'), () =>
+            communityButton(row, t('Close report'), () =>
               input.actions.mutate('resolve-report', {
                 ...command(input.state),
                 record: report.id,

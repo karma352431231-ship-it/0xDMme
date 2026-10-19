@@ -46,7 +46,7 @@ export function mountPublicSearch(
   const search = async () => {
     timer = null;
     const value = query;
-    show(t('Buscando…'));
+    show(t('Searching…'));
     try {
       const choices = await requests.search(value);
       if (choices === null || signal.aborted || value !== query) return;
@@ -56,13 +56,13 @@ export function mountPublicSearch(
       selected = -1;
       const lifetime = AbortSignal.any([signal, media.signal]);
       renderResults(list, choices, lifetime);
-      show(choices.length ? '' : t('Nenhum usuário ou comunidade encontrado.'));
+      show(choices.length ? '' : t('No users or communities found.'));
     } catch (error: unknown) {
       if (!signal.aborted && value === query)
         show(
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível buscar. Tente novamente.'),
+            : t('Could not search. Try again.'),
         );
     }
   };
@@ -74,7 +74,7 @@ export function mountPublicSearch(
       show(
         error instanceof Error
           ? translatedError(error.message)
-          : t('Busca inválida.'),
+          : t('Invalid search.'),
       );
       return;
     }
@@ -170,7 +170,7 @@ function searchChoice(
   avatar.setAttribute('aria-hidden', 'true');
   name.textContent = choice.kind === 'user' ? '@' + choice.label : choice.label;
   kind.textContent =
-    choice.kind === 'user' ? t('Perfil público') : t('Comunidade');
+    choice.kind === 'user' ? t('Public profile') : t('Community');
   copy.className = 'public-search-copy';
   copy.append(name, kind);
   link.append(avatar, copy);
@@ -193,7 +193,7 @@ function renderResults(
     const items = choices.filter((choice) => choice.kind === kind);
     if (!items.length) continue;
     const heading = document.createElement('h3');
-    heading.textContent = kind === 'user' ? t('Usuários') : t('Comunidades');
+    heading.textContent = kind === 'user' ? t('Users') : t('Communities');
     list.append(heading);
     for (const item of items) list.append(searchChoice(item, signal));
   }

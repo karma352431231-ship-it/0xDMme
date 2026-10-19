@@ -21,14 +21,14 @@ export function inlinePostReply(
   toggle.append(
     communityIcon('comment'),
     el('span', String(parent.replies)),
-    el('span', t('Responder'), 'post-action-caption'),
+    el('span', t('Reply'), 'post-action-caption'),
   );
-  toggle.setAttribute('aria-label', t('Responder à postagem'));
+  toggle.setAttribute('aria-label', t('Reply to post'));
   toggle.setAttribute('aria-expanded', 'false');
   toolbar.append(toggle);
   if (!access || parent.status !== 'visible') {
     toggle.disabled = true;
-    toggle.title = t('Respostas indisponíveis para sua participação.');
+    toggle.title = t('Replies unavailable for your membership.');
     return () => undefined;
   }
   const lifetime = new AbortController();
@@ -66,7 +66,7 @@ export function inlinePostReply(
     }
     void access.run(async () => {
       if (!(await access.canReply()))
-        throw new Error('Respostas indisponíveis para sua participação.');
+        throw new Error('Replies unavailable for your membership.');
       if (!access.valid() || lifetime.signal.aborted) return;
       box = inlineReplyBox(
         toolbar,
@@ -101,7 +101,7 @@ function inlineReplyBox(
 ): HTMLElement {
   const box = el('section', '', 'reply-box reply-inline');
   box.id = 'reply-' + crypto.randomUUID();
-  box.setAttribute('aria-label', t('Escrever resposta'));
+  box.setAttribute('aria-label', t('Write a reply'));
   box.hidden = true;
   toolbar
     .querySelector('.post-comments')
@@ -117,23 +117,23 @@ function inlineReplyBox(
   feedback.setAttribute('role', 'status');
   box.append(actions, feedback);
   const id = crypto.randomUUID();
-  button(actions, t('Cancelar'), () => {
+  button(actions, t('Cancel'), () => {
     hide();
     return Promise.resolve();
   });
-  button(actions, t('Publicar resposta'), () =>
+  button(actions, t('Publish reply'), () =>
     access.run(async () => {
       feedback.textContent = '';
       try {
         if (!(await access.canReply()))
-          throw new Error('Respostas indisponíveis para sua participação.');
+          throw new Error('Replies unavailable for your membership.');
         const state = await submitPostReply(parent, { id, content }, access);
         if (state) await access.replied(state);
       } catch (error: unknown) {
         feedback.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Resposta indisponível.');
+            : t('Reply unavailable.');
         throw error;
       }
     }),

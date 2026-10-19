@@ -28,7 +28,7 @@ function validated(value: unknown) {
   try {
     return walletApprovalRequest(value);
   } catch {
-    throw new AccountError(400, 'Pedido inválido.');
+    throw new AccountError(400, 'Invalid request.');
   }
 }
 
@@ -51,7 +51,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
           request.ecosystem !== expected ||
           consumed.has(request.ticket)
         )
-          throw new AccountError(401, 'Pedido inválido.');
+          throw new AccountError(401, 'Invalid request.');
         return Promise.resolve({
           request,
           expiresAt: new Date(expires).toISOString(),

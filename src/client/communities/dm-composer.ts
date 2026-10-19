@@ -123,7 +123,7 @@ export function startDmComposer(options: {
     if (pending && !chosen) {
       area.replaceChildren(
         Object.assign(document.createElement('p'), {
-          textContent: t('Mídia pendente neste aparelho. Envie ou remova.'),
+          textContent: t('Media pending on this device. Send or remove it.'),
         }),
       );
       return;
@@ -154,7 +154,7 @@ export function startDmComposer(options: {
       new Blob([selection.bytes], { type: selection.type }),
     );
     image.src = previewUrl;
-    image.alt = t('Prévia da imagem escolhida');
+    image.alt = t('Selected image preview');
     area.replaceChildren(image);
   }
   async function send(): Promise<void> {
@@ -193,7 +193,7 @@ export function startDmComposer(options: {
           showToast(
             error instanceof Error
               ? translatedError(error.message)
-              : t('Imagem inválida.'),
+              : t('Invalid image.'),
           );
         });
     });
@@ -250,7 +250,7 @@ export function startDmComposer(options: {
           });
         },
       }).catch(() => {
-        showToast(t('Não foi possível abrir os emojis.'));
+        showToast(t('Could not open emoji.'));
       });
     });
   }

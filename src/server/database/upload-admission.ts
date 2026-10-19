@@ -6,8 +6,7 @@ export async function withUploadAdmission<T>(
   work: () => Promise<T>,
 ): Promise<T> {
   const release = reserveOperationMemory(1_048_576);
-  if (!release)
-    throw new AccountError(503, 'Transferências ocupadas. Retome depois.');
+  if (!release) throw new AccountError(503, 'Transfers busy. Resume later.');
   try {
     return await work();
   } finally {

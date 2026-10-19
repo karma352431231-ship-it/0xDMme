@@ -212,7 +212,7 @@ await test('aviso atrasado de análise não reaparece após troca de conta', asy
   await started;
   controller.setSession(session());
   finish(Response.json([notice]));
-  await assert.rejects(pending, /Sessão alterada/);
+  await assert.rejects(pending, /Session changed/);
   assert.deepEqual(controller.notices, []);
 });
 await test('resposta atrasada do perfil público não repõe identidade após troca de conta', async (t) => {
@@ -241,7 +241,7 @@ await test('resposta atrasada do perfil público não repõe identidade após tr
   await started;
   controller.setSession(session());
   finish(Response.json(result()));
-  await assert.rejects(pending, /Sessão alterada/);
+  await assert.rejects(pending, /Session changed/);
   assert.equal(controller.profile, null);
 });
 await test('troca de sessão durante assinatura impede o envio e campos privados são recusados', async (t) => {
@@ -272,7 +272,7 @@ await test('troca de sessão durante assinatura impede o envio e campos privados
   await started;
   controller.setSession(session());
   complete('assinatura-sintetica');
-  await assert.rejects(pending, /Sessão alterada/);
+  await assert.rejects(pending, /Session changed/);
   assert.equal(fetch.mock.callCount(), 0);
   const clean = new PublicProfiles(
     access(first, () => Promise.resolve('assinatura-sintetica')),
@@ -281,7 +281,7 @@ await test('troca de sessão durante assinatura impede o envio e campos privados
   fetch.mock.mockImplementation(() =>
     Promise.resolve(Response.json({ ...result(), accountId: first.accountId })),
   );
-  await assert.rejects(clean.refresh(), /Campos inválidos/);
+  await assert.rejects(clean.refresh(), /Invalid fields/);
   assert.equal(clean.profile, null);
 });
 

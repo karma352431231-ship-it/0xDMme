@@ -203,7 +203,7 @@ export class MessageDirectoryUi {
     return {
       id: entity,
       title: contact.alias || contact.address,
-      detail: t('{0}{1} · salvo na agenda', [
+      detail: t('{0}{1} · saved in contacts', [
         settings.pinned ? '📌 ' : '',
         shortAddress(contact.address),
       ]),
@@ -251,7 +251,7 @@ export class MessageDirectoryUi {
           perform: this.options.perform,
         }),
         menuNote: t(
-          'Arquivar silencia alertas. Desarquivar não retoma alertas automaticamente.',
+          'Archiving mutes alerts. Unarchiving does not automatically restore alerts.',
         ),
         open: () => {
           this.options.openGroup(group);
@@ -263,10 +263,10 @@ export class MessageDirectoryUi {
   private emptyState(): { empty: string; emptyMood: 'wink' | 'puzzled' } {
     return this.filter === 'all'
       ? {
-          empty: t('Adicione um contato ou entre em um grupo para começar.'),
+          empty: t('Add a contact or join a group to get started.'),
           emptyMood: 'wink',
         }
-      : { empty: t('Nenhuma conversa neste filtro.'), emptyMood: 'puzzled' };
+      : { empty: t('No conversations in this filter.'), emptyMood: 'puzzled' };
   }
   renderContacts(): void {
     const { peers, session, statusAuthors, selected } = this.options.snapshot();
@@ -325,9 +325,9 @@ export class MessageDirectoryUi {
     const state = this.options.snapshot().states.get(peer.accountId),
       settings = this.options.daily.conversation(settingsId);
     const conflict = this.options.daily.organizationConflict(settingsId)
-      ? t(' · organização em conflito')
+      ? t(' · conflicting organization')
       : '';
     const address = shortAddress(peer.address);
-    return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? t(' · silenciada') : ''}${conflict}`;
+    return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? t(' · muted') : ''}${conflict}`;
   }
 }

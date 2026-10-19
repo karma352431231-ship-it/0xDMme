@@ -33,13 +33,13 @@ export type ProbeIdentity = Pick<ProbeContext, 'ecosystem' | 'address'>;
 
 function object(value: unknown, keys: string[]): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new ProbeError('Pacote do ensaio inválido.');
+    throw new ProbeError('Invalid test package.');
   const record = value as Record<string, unknown>;
   if (
     Object.keys(record).length !== keys.length ||
     !keys.every((key) => Object.hasOwn(record, key))
   )
-    throw new ProbeError('Campos do ensaio inválidos.');
+    throw new ProbeError('Invalid test fields.');
   return record;
 }
 function decode(value: unknown, length: number): Uint8Array<ArrayBuffer> {
@@ -48,21 +48,21 @@ function decode(value: unknown, length: number): Uint8Array<ArrayBuffer> {
     value.length !== Math.ceil((length * 8) / 6) ||
     !/^[A-Za-z0-9_-]+$/u.test(value)
   )
-    throw new ProbeError('Codificação do ensaio inválida.');
+    throw new ProbeError('Invalid test encoding.');
   const bytes = Uint8Array.from(base64urlnopad.decode(value));
   if (bytes.length !== length || base64urlnopad.encode(bytes) !== value)
-    throw new ProbeError('Codificação do ensaio inválida.');
+    throw new ProbeError('Invalid test encoding.');
   return bytes;
 }
 function origin(value: unknown): string {
   if (typeof value !== 'string' || value.length > 256)
-    throw new ProbeError('Origem do ensaio inválida.');
+    throw new ProbeError('Invalid test origin.');
   const url = new URL(value);
   const local =
     url.protocol === 'http:' &&
     (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
   if ((!local && url.protocol !== 'https:') || url.origin !== value)
-    throw new ProbeError('Origem do ensaio inválida.');
+    throw new ProbeError('Invalid test origin.');
   return value;
 }
 function context(value: unknown): ProbeContext {
@@ -73,12 +73,11 @@ function context(value: unknown): ProbeContext {
     'address',
     'id',
   ]);
-  if (input['version'] !== 2)
-    throw new ProbeError('Versão do ensaio inválida.');
+  if (input['version'] !== 2) throw new ProbeError('Invalid test version.');
   const network = ecosystem(input['ecosystem']);
   const address = canonicalAddress(network, input['address']);
   if (address !== input['address'])
-    throw new ProbeError('Conta do ensaio não canônica.');
+    throw new ProbeError('Test account is not canonical.');
   return {
     version: 2,
     origin: origin(input['origin']),
@@ -127,14 +126,16 @@ function signatureBytes(input: ProbeContext, signature: string) {
   const message = recoveryMessage(input);
   if (input.ecosystem === 'evm') {
     if (!/^0x[0-9a-fA-F]{130}$/u.test(signature))
-      throw new ProbeError('Assinatura do ensaio inválida.');
+      throw new ProbeError('Invalid test signature.');
     const canonical = Signature.from(signature).serialized;
     if (verifyMessage(message, canonical).toLowerCase() !== input.address)
-      throw new ProbeError('A assinatura não pertence à conta do ensaio.');
+      throw new ProbeError(
+        'The signature does not belong to the test account.',
+      );
     return Uint8Array.from(getBytes(canonical));
   }
   if (!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/u.test(signature))
-    throw new ProbeError('Assinatura do ensaio inválida.');
+    throw new ProbeError('Invalid test signature.');
   const bytes = Uint8Array.from(base58.decode(signature));
   if (
     bytes.length !== 64 ||
@@ -145,7 +146,7 @@ function signatureBytes(input: ProbeContext, signature: string) {
       { zip215: false },
     )
   )
-    throw new ProbeError('A assinatura não pertence à conta do ensaio.');
+    throw new ProbeError('The signature does not belong to the test account.');
   return bytes;
 }
 export function repeatableSignatures(input: {
@@ -224,8 +225,7 @@ export function parseProbePacket(value: unknown): ProbePacket {
     'iv',
     'ciphertext',
   ]);
-  if (input['format'] !== format)
-    throw new ProbeError('Formato do ensaio inválido.');
+  if (input['format'] !== format) throw new ProbeError('Invalid test format.');
   return {
     format,
     context: context(input['context']),
@@ -238,7 +238,7 @@ export function parseProbePacket(value: unknown): ProbePacket {
 }
 export function readProbePacket(text: string): ProbePacket {
   if (new TextEncoder().encode(text).length > maxPacketBytes)
-    throw new ProbeError('Pacote do ensaio excedido.');
+    throw new ProbeError('Test package exceeds the limit.');
   const value: unknown = JSON.parse(text);
   return parseProbePacket(value);
 }
@@ -249,13 +249,13 @@ export function checkProbeIdentity(input: {
 }): void {
   const value = parseProbePacket(input.packet).context;
   if (value.origin !== origin(input.origin))
-    throw new ProbeError('O pacote pertence a outra origem.');
+    throw new ProbeError('The package belongs to another origin.');
   if (
     value.ecosystem !== input.identity.ecosystem ||
     value.address !==
       canonicalAddress(input.identity.ecosystem, input.identity.address)
   )
-    throw new ProbeError('A conta selecionada não é a conta do pacote.');
+    throw new ProbeError("The selected account is not the package's account.");
 }
 export async function openProbe(input: {
   packet: ProbePacket;
@@ -286,11 +286,11 @@ export async function openProbe(input: {
     );
   } catch {
     throw new ProbeError(
-      'O pacote não abriu: assinatura diferente ou dados adulterados.',
+      'The package could not open: different signature or tampered data.',
     );
   }
   const bytes = new Uint8Array(plaintext);
   const matches = payload.every((byte, index) => bytes[index] === byte);
   bytes.fill(0);
-  if (!matches) throw new ProbeError('Conteúdo fictício inválido.');
+  if (!matches) throw new ProbeError('Invalid fictional content.');
 }

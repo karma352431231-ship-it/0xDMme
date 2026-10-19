@@ -175,7 +175,7 @@ await test('arquivo acima de 3 MB abre em leitor limpo com chave histórica da c
     const again = await BackupReader.open(newer, file, () => {});
     assert.equal(again.report.records.length, 2);
     reader.close();
-    await assert.rejects(reader.read(0), /fechado/u);
+    await assert.rejects(reader.read(0), /closed/u);
   } finally {
     globalThis.fetch = oldFetch;
   }
@@ -213,7 +213,7 @@ await test('permissões extras, duplicação, registros grandes e cancelamento n
   await writer.add(row, () => {});
   await assert.rejects(
     writer.add(row, () => {}),
-    /repetidos/u,
+    /[Dd]uplicate/u,
   );
   writer.abort();
   await assert.rejects(writer.finish([], () => {}));
@@ -297,7 +297,7 @@ await test('texto válido com controles não explode por escapes JSON; mídia co
   };
   await assert.rejects(
     BackupReader.open(a, await archive(a, [media]), () => {}),
-    /adulterada/u,
+    /tampered/u,
   );
 });
 
@@ -395,7 +395,7 @@ await test('backup do perfil conserva foto e preferências com hash, sem concede
       await archive(a, [{ ...row, hash: '0'.repeat(64) }]),
       () => {},
     ),
-    /perfil|hash|divergente/iu,
+    /profile|hash|differ|not match/iu,
   );
 });
 await test('lote do backup recusa resposta vazia, ordem trocada e falha simulada', () => {

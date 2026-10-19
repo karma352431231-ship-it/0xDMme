@@ -14,7 +14,7 @@ export async function pushSoundEnabled(): Promise<boolean> {
   if (!response) return true;
   const value = await response.text();
   if (value !== 'true' && value !== 'false')
-    throw new Error('Preferência de som do push inválida.');
+    throw new Error('Invalid push sound preference.');
   return value === 'true';
 }
 export async function savePushSoundPreference(enabled: boolean): Promise<void> {
@@ -105,11 +105,11 @@ export class NotificationSound {
         value === null || value === 'true' || value === 'false'
           ? ''
           : t(
-              'Preferência de som inválida. Som ativado nesta abertura; escolha novamente nas configurações.',
+              'Invalid sound preference. Sound is on for this visit; choose again in settings.',
             );
     } catch {
       this.problem = t(
-        'Não foi possível carregar a preferência de som. A escolha atual vale nesta abertura.',
+        'Could not load sound preferences. The current choice applies for this visit.',
       );
     }
     this.changed();
@@ -120,7 +120,7 @@ export class NotificationSound {
       this.storage.setItem(soundPreferenceKey, String(value));
     } catch {
       this.problem = t(
-        'Preferência de som alterada só nesta abertura: o navegador não permitiu salvá-la.',
+        'Sound preference changed for this visit only: the browser did not allow saving.',
       );
       this.changed();
       throw new Error(this.problem);
@@ -137,14 +137,14 @@ export class NotificationSound {
       this.audio ??= this.createAudio();
     } catch {
       this.problem = t(
-        'Som ativado, mas este navegador não conseguiu preparar o áudio.',
+        'Sound enabled, but this browser could not prepare audio.',
       );
       this.changed();
       return false;
     }
     if (this.audio.state !== 'running') {
       this.problem = t(
-        'Som ativado. O navegador pode aguardar um toque para liberar a reprodução.',
+        'Sound enabled. The browser may wait for a tap before allowing playback.',
       );
       this.changed();
     }
@@ -165,12 +165,12 @@ export class NotificationSound {
           audio.state === 'running'
             ? ''
             : t(
-                'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.',
+                'Sound enabled, but playback is blocked by the browser or system.',
               );
     } catch {
       if (this.audio === audio)
         this.problem = t(
-          'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.',
+          'Sound enabled, but playback is blocked by the browser or system.',
         );
     } finally {
       this.resuming = false;

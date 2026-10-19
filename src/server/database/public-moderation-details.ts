@@ -24,7 +24,7 @@ export async function readModerationDetails(
   );
   const row = result.rows[0];
   if (!row)
-    throw new AccountError(404, 'Análise indisponível para esta conta.');
+    throw new AccountError(404, 'Analysis unavailable for this account.');
   const post =
     row.kind === 'post-media'
       ? await postReviewContext(client, {

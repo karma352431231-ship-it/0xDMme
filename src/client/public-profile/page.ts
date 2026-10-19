@@ -48,28 +48,28 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   const number = (count: number) => count.toLocaleString(currentLanguage());
   for (const [value, label] of [
     [number(summary.posts), t('Posts')],
-    [number(summary.replies), t('Respostas')],
-    [number(summary.communities), t('Comunidades seguidas')],
+    [number(summary.replies), t('Replies')],
+    [number(summary.communities), t('Followed communities')],
     [
       summary.createdAt
         ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
             month: 'long',
             year: 'numeric',
           })
-        : t('Data não registrada'),
-      t('Perfil público desde'),
+        : t('Date not recorded'),
+      t('Public profile since'),
     ],
   ] as const) {
     const item = element('div');
     item.append(element('dd', value), element('dt', label));
     metrics.append(item);
   }
-  host.append(element('h2', t('Sobre')), metrics);
+  host.append(element('h2', t('About')), metrics);
 }
 
 /** Return to the exact feed position the profile was opened from. */
 function feedBackLink(href: string): HTMLAnchorElement {
-  const back = element('a', t('Voltar ao feed'), 'feed-back-link');
+  const back = element('a', t('Back to feed'), 'feed-back-link');
   back.href = href;
   back.prepend(communityIcon('back'));
   return back;
@@ -90,11 +90,7 @@ export function showProfilePage(
     tab = 'overview',
     generation = 0;
   const page = element('section', '', 'public-profile-page'),
-    status = element(
-      'p',
-      t('Carregando perfil público…'),
-      'community-feedback',
-    );
+    status = element('p', t('Loading public profile…'), 'community-feedback');
   status.setAttribute('role', 'status');
   // Stays above every redraw of the profile below it.
   const lead = options.back ? [feedBackLink(options.back)] : [];
@@ -119,7 +115,7 @@ export function showProfilePage(
       status.textContent =
         message instanceof Error
           ? translatedError(message.message)
-          : t('Perfil público indisponível.');
+          : t('Public profile unavailable.');
   }
   async function currentHandle(): Promise<string> {
     if (typeof handle === 'string' && handle.length === 36) {
@@ -139,7 +135,7 @@ export function showProfilePage(
       handle.length === 36 &&
       summary.profile.id !== handle
     )
-      throw new Error('Perfil público indisponível.');
+      throw new Error('Public profile unavailable.');
     if (lifetime.signal.aborted) return;
     let block: PublicBlockState = { blocked: false, revision: 0 };
     const controller = options.controller;
@@ -188,7 +184,7 @@ export function showProfilePage(
       element('h1', `@${summary.profile.handle}`),
       element(
         'p',
-        t('{0} seguidores', [
+        t('{0} followers', [
           summary.followers.toLocaleString(currentLanguage()),
         ]),
       ),
@@ -206,11 +202,11 @@ export function showProfilePage(
       tabs = element('nav', '', 'public-profile-tabs'),
       items = element('section', '', 'public-profile-activity community-scope'),
       paging = element('div', '', 'post-toolbar');
-    tabs.setAttribute('aria-label', t('Atividade do perfil público'));
+    tabs.setAttribute('aria-label', t('Public profile activity'));
     for (const [value, label] of [
-      ['overview', t('Visão geral')],
+      ['overview', t('Overview')],
       ['posts', t('Posts')],
-      ['replies', t('Respostas')],
+      ['replies', t('Replies')],
     ] as const) {
       const button = element('button', label);
       button.type = 'button';
@@ -223,7 +219,7 @@ export function showProfilePage(
             element(
               'p',
               t(
-                'Este usuário está bloqueado. Suas publicações e respostas ficam ocultas para você.',
+                'This user is blocked. Their posts and replies are hidden from you.',
               ),
             ),
           );
@@ -249,7 +245,7 @@ export function showProfilePage(
     if (!block.blocked && !own)
       link(
         actions,
-        t('Mensagem'),
+        t('Message'),
         `#communities?view=dms&dm=${summary.profile.id}`,
       ).className = 'profile-message';
     void follow(actions, summary, block).catch(error);
@@ -268,7 +264,7 @@ export function showProfilePage(
       contentAbort = new AbortController();
       const signal = AbortSignal.any([lifetime.signal, contentAbort.signal]),
         old = ++generation;
-      status.textContent = t('Carregando atividade…');
+      status.textContent = t('Loading activity…');
       const query = new URLSearchParams({ tab });
       if (after) query.set('after', after);
       const response = feedPage(
@@ -298,14 +294,14 @@ export function showProfilePage(
         items.append(
           element(
             'p',
-            t('Nenhuma publicação pública nesta aba.'),
+            t('No public publications in this tab.'),
             'public-profile-empty',
           ),
         );
       paging.replaceChildren();
       if (response.next)
-        control(paging, t('Próxima página'), () => activity(response.next));
-      if (after) control(paging, t('Voltar ao início'), () => activity(null));
+        control(paging, t('Next page'), () => activity(response.next));
+      if (after) control(paging, t('Back to start'), () => activity(null));
       status.textContent = '';
     }
   }
@@ -335,20 +331,20 @@ export function showProfilePage(
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
-      link(host, t('Entrar para seguir'), '#settings');
+      link(host, t('Sign in to follow'), '#settings');
       return;
     }
     if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
-      link(host, t('Criar perfil para seguir'), '#settings');
+      link(host, t('Create profile to follow'), '#settings');
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
       const edit = link(host, '', editPublicProfileHash);
       edit.className = 'profile-edit';
-      edit.setAttribute('aria-label', t('Editar perfil público'));
-      edit.title = t('Editar perfil público');
+      edit.setAttribute('aria-label', t('Edit public profile'));
+      edit.title = t('Edit public profile');
       edit.append(communityIcon('pencil'));
       return;
     }

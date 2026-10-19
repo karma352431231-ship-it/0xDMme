@@ -7,7 +7,7 @@ import { validateVoice } from '../voice/index.ts';
 export type SocialMedia = 'photo' | 'gif' | 'voice';
 export function socialMedia(value: unknown): SocialMedia {
   if (value !== 'photo' && value !== 'gif' && value !== 'voice')
-    throw new AccountError(400, 'Use foto, GIF ou voz nesta DM.');
+    throw new AccountError(400, 'Use photos, GIFs or voice in this DM.');
   return value;
 }
 export function socialAttachment(

@@ -43,7 +43,7 @@ export function text(value: unknown, maximum = 16_384): string {
     value.length === 0 ||
     value.length > maximum
   ) {
-    throw new Error('Texto inválido.');
+    throw new Error('Invalid text.');
   }
   return value;
 }

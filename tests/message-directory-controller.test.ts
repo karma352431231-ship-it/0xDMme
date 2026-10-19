@@ -107,7 +107,7 @@ for (const phase of ['contacts', 'archive', 'prepare'] as const)
     await started.promise;
     f.directory.clear();
     pending.resolve();
-    await assert.rejects(loading, /Sessão alterada/u);
+    await assert.rejects(loading, /Session changed/u);
     assert.deepEqual(f.directory.peers, []);
     assert.equal(f.publications(), 0);
   });

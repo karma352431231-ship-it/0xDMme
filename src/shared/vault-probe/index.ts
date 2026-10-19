@@ -27,7 +27,7 @@ export function decode(
       encoded,
     )
   )
-    throw new Error('Codificação inválida.');
+    throw new Error('Invalid encoding.');
   const bytes = Uint8Array.from(atob(encoded), (character) =>
     character.charCodeAt(0),
   );
@@ -65,7 +65,7 @@ export function parseEnvelope(serialized: string): VaultEnvelope {
     !Number.isSafeInteger(revision) ||
     revision < 1
   )
-    throw new Error('Revisão inválida.');
+    throw new Error('Invalid revision.');
   const ciphertext = text(value.ciphertext, 44_000);
   if (decode(ciphertext, 32_016).length < 16)
     throw new Error('Cofre incompleto.');

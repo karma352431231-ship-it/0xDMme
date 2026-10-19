@@ -53,7 +53,7 @@ export async function localGroupViews(
     if (!visibleRoot(view)) continue;
     const previous = rows.get(view.id);
     if (previous && previous.hash !== view.hash)
-      throw new Error('Cópias locais de grupo divergentes.');
+      throw new Error('Local group copies do not match.');
     rows.set(view.id, { ...view, localOnly: true });
   }
   const views = [...rows.values()]
@@ -102,7 +102,7 @@ function localCopy(
     view.groupId !== expected.groupId ||
     view.own !== (view.sender === expected.accountId)
   )
-    throw new Error('Cópia histórica de outra conta ou grupo.');
+    throw new Error('Historical copy belongs to another account or group.');
   return view;
 }
 export async function restoredGroupMedia(
@@ -112,7 +112,7 @@ export async function restoredGroupMedia(
 ): Promise<Uint8Array<ArrayBuffer> | null> {
   const content = attachmentContent(JSON.parse(view.text) as unknown),
     file = thumbnail ? content.thumbnail : content.file;
-  if (!file) throw new Error('Prévia ausente.');
+  if (!file) throw new Error('Preview missing.');
   const row = await historyRecord(authority, 'group-media', file.ref.id);
   if (row === null) return null;
   const checked = restoredMediaRecord(row, {
@@ -124,7 +124,7 @@ export async function restoredGroupMedia(
   const bytes = Uint8Array.from(base64(checked.bytes, chatFileLimit));
   try {
     if ((await bytesHash(bytes)) !== file.ref.hash)
-      throw new Error('Mídia histórica adulterada.');
+      throw new Error('Historical media tampered with.');
     return await openStoredAttachment(
       file,
       bytes,
@@ -151,6 +151,6 @@ function restoredMediaRecord(
     row.hash !== expected.hash ||
     row.thumbnail !== expected.thumbnail
   )
-    throw new Error('Mídia restaurada de outro grupo.');
+    throw new Error('Restored media belongs to another group.');
   return row;
 }

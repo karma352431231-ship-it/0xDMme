@@ -100,8 +100,7 @@ export class CommunityStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ) {
-    if (!this.socialControls)
-      throw new AccountError(503, 'Bloqueio indisponível.');
+    if (!this.socialControls) throw new AccountError(503, 'Block unavailable.');
     keys(
       data,
       operation === 'profile-block-set'
@@ -197,7 +196,7 @@ export class CommunityStore {
       'SELECT community_id FROM hash_talk.community_addresses WHERE slug=$1',
       [communitySlug(value)],
     );
-    if (!found.rows[0]) throw new AccountError(404, 'Comunidade indisponível.');
+    if (!found.rows[0]) throw new AccountError(404, 'Community unavailable.');
     return this.read(found.rows[0].community_id);
   }
   async read(id: string): Promise<Community> {
@@ -205,7 +204,7 @@ export class CommunityStore {
       `SELECT ${columns} FROM hash_talk.communities c WHERE c.id=$1`,
       [id],
     );
-    if (!found.rows[0]) throw new AccountError(404, 'Comunidade indisponível.');
+    if (!found.rows[0]) throw new AccountError(404, 'Community unavailable.');
     const result = await this.visible(this.pool, found.rows);
     return result[0]!;
   }
@@ -215,7 +214,7 @@ export class CommunityStore {
     ids: string[],
   ): Promise<Map<string, string>> {
     if (ids.length > communityPageSize)
-      throw new AccountError(400, 'Página muito grande.');
+      throw new AccountError(400, 'Page too large.');
     if (!ids.length) return new Map();
     return this.photos.references(client, ids);
   }
@@ -230,7 +229,7 @@ export class CommunityStore {
     ids: string[],
   ): Promise<Community[]> {
     if (ids.length > communityPageSize)
-      throw new AccountError(400, 'Página muito grande.');
+      throw new AccountError(400, 'Page too large.');
     const found = await client.query<CommunityRecord>(
       `SELECT ${columns} FROM hash_talk.communities c WHERE c.id=ANY($1::uuid[])`,
       [ids],
@@ -254,7 +253,7 @@ export class CommunityStore {
       [id],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(404, 'Comunidade indisponível.');
+    if (!row) throw new AccountError(404, 'Community unavailable.');
     return row;
   }
   private async state(context: CommunityContext): Promise<CommunityStateWire> {
@@ -313,7 +312,7 @@ export class CommunityStore {
     keys(data, ['kind', 'after']);
     const kind = data['kind'];
     if (kind !== 'following' && kind !== 'managed' && kind !== 'invitations')
-      throw new AccountError(400, 'Lista inválida.');
+      throw new AccountError(400, 'Invalid list.');
     const after = communityCursor(data['after']);
     const filter = {
       following:
@@ -353,7 +352,7 @@ export class CommunityStore {
         row.description !== meta.description ||
         row.rules !== meta.rules
       )
-        throw new AccountError(409, 'Identificador de criação já utilizado.');
+        throw new AccountError(409, 'Creation identifier already used.');
       await verifyCommunityClassification(client, id, data['classification']);
       return row;
     }
@@ -461,7 +460,7 @@ export class CommunityStore {
       if (!following)
         throw new AccountError(
           403,
-          'O dono segue sua comunidade automaticamente.',
+          'The owner automatically follows their community.',
         );
       return;
     }

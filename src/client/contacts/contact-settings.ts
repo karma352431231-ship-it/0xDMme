@@ -78,7 +78,7 @@ export class ContactSettings {
   }
   private guard(epoch: number): void {
     if (epoch !== this.epoch || !this.host?.isConnected)
-      throw new Error('Sessão alterada.');
+      throw new Error('Session changed.');
   }
   private createDialog(): void {
     this.dialog = document.createElement('dialog');
@@ -109,7 +109,7 @@ export class ContactSettings {
     const name = this.dialog!.querySelector<HTMLElement>(
       '[data-contact-name]',
     )!;
-    name.textContent = this.contact.alias || t('Sem nome');
+    name.textContent = this.contact.alias || t('Unnamed');
     const identity = this.dialog!.querySelector<HTMLElement>(
       '[data-contact-identity]',
     )!;
@@ -143,7 +143,7 @@ export class ContactSettings {
     for (const version of this.versions) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = t('Resolver usando esta versão');
+      button.textContent = t('Resolve using this version');
       button.addEventListener('click', () => {
         void this.ports.run(() => this.chooseVersion(version.commit.id));
       });
@@ -156,7 +156,7 @@ export class ContactSettings {
       editing = await this.ports.book.open(id);
     this.guard(epoch);
     if (!this.contact || walletKey(this.contact) !== walletKey(editing.contact))
-      throw new Error('Crie outro contato para outra wallet.');
+      throw new Error('Create another contact for a different wallet.');
     this.editing = editing;
     this.contact = editing.contact;
     this.draft = editing.contact.alias;
@@ -164,7 +164,7 @@ export class ContactSettings {
       .heads(editing.vault.change.entity)
       .map((entry) => entry.commit.id);
     this.status = t(
-      'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.',
+      'Saving preserves previous versions and resolves the selected branches.',
     );
     this.render();
   }
@@ -220,7 +220,7 @@ export class ContactSettings {
       await this.persist(contact, epoch);
       this.status = this.ports.sync.pending
         ? t(
-            'Contato salvo neste aparelho. Será enviado quando a conexão voltar.',
+            'Contact saved on this device. It will be sent when the connection returns.',
           )
         : t('Contact changes saved.');
     } catch (error: unknown) {
@@ -228,7 +228,7 @@ export class ContactSettings {
         this.status = translatedError(
           error instanceof Error
             ? error.message
-            : t('Operação indisponível. Confira o estado antes de repetir.'),
+            : t('Operation unavailable. Check the state before retrying.'),
         );
       throw error;
     } finally {

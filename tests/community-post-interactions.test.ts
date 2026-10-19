@@ -73,7 +73,7 @@ await test('responder a uma resposta preserva comunidade/pai direto e ID nas ten
       root: crypto.randomUUID(),
     },
     id = crypto.randomUUID(),
-    content = { title: '', text: 'Resposta', tags: [] },
+    content = { title: '', text: 'Reply', tags: [] },
     accepted = state({
       ...post(),
       id,
@@ -241,7 +241,7 @@ await test('resposta no perfil é marcada como resposta e mostra inteira a posta
   const card = renderActivityEntry(
     {
       post: reply,
-      community: { id: root.community, name: 'Comunidade' },
+      community: { id: root.community, name: 'Community' },
       context: { root, parent: answered },
     },
     new AbortController().signal,
@@ -290,7 +290,7 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
     ],
   };
   const card = renderActivityEntry(
-    { post: value, community: { id: value.community, name: 'Comunidade' } },
+    { post: value, community: { id: value.community, name: 'Community' } },
     new AbortController().signal,
   ) as unknown as CardNode;
   const title = card.children.findIndex((node) => node.tag === 'h2'),

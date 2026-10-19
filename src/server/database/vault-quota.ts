@@ -15,6 +15,6 @@ export async function assertVaultQuota(
   if ((await vaultUsage(client, accountId)) > vaultQuota)
     throw new AccountError(
       413,
-      'Cofre cheio. Preserve ou exclua conteúdo antes de aceitar novos dados.',
+      'Vault full. Preserve or delete content before accepting new data.',
     );
 }

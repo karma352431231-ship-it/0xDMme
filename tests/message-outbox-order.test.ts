@@ -84,7 +84,7 @@ await test('encrypted outbox commits FIFO order atomically, survives reopening, 
   );
   await assert.rejects(
     save('cancelled', () => false),
-    /Gravação/u,
+    /Recording|storage/u,
   );
   await assert.rejects(
     enqueueOutbox({
@@ -94,7 +94,7 @@ await test('encrypted outbox commits FIFO order atomically, survives reopening, 
       size: vaultQuota,
       current: () => true,
     }),
-    /Gravação/u,
+    /Recording|storage/u,
   );
   assert.equal(await localGet(scope, 'outbox:cancelled'), null);
   assert.equal(await localGet(scope, 'outbox:over-budget'), null);

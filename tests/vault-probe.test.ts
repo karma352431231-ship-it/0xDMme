@@ -45,7 +45,7 @@ await test('segredo errado, ciphertext, encapsulamento ou cabeçalho alterados f
   const sealed = await sealHistory(snapshot, secret);
   await assert.rejects(
     openHistory(JSON.stringify(sealed), newRecoverySecret(), owner),
-    /Cofre rejeitado/,
+    /Vault rejected/,
   );
   for (const field of ['ciphertext', 'wrappedKey', 'iv', 'wrapIv'] as const) {
     const bytes = decode(sealed[field], 32_016);
@@ -56,16 +56,16 @@ await test('segredo errado, ciphertext, encapsulamento ou cabeçalho alterados f
         secret,
         owner,
       ),
-      /Cofre rejeitado/,
+      /Vault rejected/,
     );
   }
   await assert.rejects(
     openHistory(JSON.stringify({ ...sealed, revision: 2 }), secret, owner),
-    /Cofre rejeitado/,
+    /Vault rejected/,
   );
   await assert.rejects(
     openHistory(JSON.stringify(sealed), secret, '@bob:probe.invalid'),
-    /outra identidade/,
+    /another (?:Olm )?identity/,
   );
 });
 
@@ -84,7 +84,7 @@ await test('backup histórico antigo é permitido e não autoriza dispositivo no
   t.after(() => fresh.close());
   await assert.rejects(
     fresh.send('Histórico restaurado não autoriza envio'),
-    /Confirme a chave/,
+    /Confirm the other client's key/,
   );
 });
 
@@ -92,7 +92,7 @@ await test('campos de permissão, versões desconhecidas e entradas malformadas 
   const secret = newRecoverySecret();
   await assert.rejects(
     sealHistory({ ...snapshot, messages: [{ id: '1', body: '' }] }, secret),
-    /Texto inválido/,
+    /Invalid text/,
   );
   const sealed = await sealHistory(snapshot, secret);
   await assert.rejects(

@@ -104,8 +104,8 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
   ids.push(id);
   const meta = {
     name: 'Comunidade sintética',
-    description: 'Teste',
-    rules: 'Regras',
+    description: 'Test',
+    rules: 'Rules',
   };
   const state = () => owner.operate('state', { id }).then(communityState);
   const publicAction = async (
@@ -163,7 +163,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     bad(403),
   );
   const root = await create(owner, 'Original'),
-    reply = await create(author, 'Resposta', root.id);
+    reply = await create(author, 'Reply', root.id);
   await t.test(
     'papéis atuais, badge de dois dias e atribuições manuais sem poderes',
     async () => {
@@ -216,7 +216,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
         reader.operate('badge-create', {
           id,
           badge: crypto.randomUUID(),
-          label: 'Dono',
+          label: 'Owner',
         }),
         bad(403),
       );

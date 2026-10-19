@@ -7,7 +7,7 @@ import type {
 
 async function boundedBody(response: Response, maximum: number): Promise<Blob> {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('Resposta ausente.');
+  if (!reader) throw new Error('Reply missing.');
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let size = 0;
   try {
@@ -18,7 +18,7 @@ async function boundedBody(response: Response, maximum: number): Promise<Blob> {
           type: response.headers.get('Content-Type') ?? '',
         });
       size += next.value.length;
-      if (size > maximum) throw new Error('Resposta excedida.');
+      if (size > maximum) throw new Error('Response exceeds the limit.');
       chunks.push(next.value.slice());
     }
   } finally {
@@ -28,10 +28,10 @@ async function boundedBody(response: Response, maximum: number): Promise<Blob> {
 }
 function responseFailure(status: number): Error {
   const messages: Record<number, string> = {
-    401: t('Acesso inválido. Reabra o endereço privado fornecido.'),
-    410: t('Esta rodada expirou.'),
+    401: t('Invalid access. Reopen the private address provided.'),
+    410: t('This round expired.'),
     507: t(
-      'A galeria está cheia. Exporte e apague a rodada antes de enviar mais imagens.',
+      'The gallery is full. Export and delete the round before uploading more images.',
     ),
   };
   return new Error(
@@ -46,7 +46,7 @@ export class EvaluationApi {
   }
   acceptAccess(token: string): void {
     if (!/^[a-f0-9]{64}$/.test(token))
-      throw new Error('Acesso ausente. Reabra o endereço privado fornecido.');
+      throw new Error('Access missing. Reopen the private address provided.');
     this.token = token;
   }
 
@@ -56,7 +56,7 @@ export class EvaluationApi {
     timeout = 45_000,
   ): Promise<Response> {
     if (!/^[a-f0-9]{64}$/.test(this.token))
-      throw new Error('Acesso ausente. Reabra o endereço privado fornecido.');
+      throw new Error('Access missing. Reopen the private address provided.');
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${this.token}`);
     const deadline = AbortSignal.timeout(timeout);
@@ -88,7 +88,7 @@ export class EvaluationApi {
     });
     const body = await boundedBody(response, size);
     if (body.size !== size || body.type !== mime)
-      throw new Error('Imagem divergente do caso.');
+      throw new Error('Image differs from the case.');
     const digest = await crypto.subtle.digest(
       'SHA-256',
       await body.arrayBuffer(),
@@ -96,7 +96,7 @@ export class EvaluationApi {
     const actual = Array.from(new Uint8Array(digest), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
-    if (actual !== hash) throw new Error('Hash da imagem divergente do caso.');
+    if (actual !== hash) throw new Error('Image hash differs from the case.');
     return body;
   }
   annotate(
@@ -114,8 +114,7 @@ export class EvaluationApi {
       await this.request('/api/export', {}, 150_000),
       513 * 1024 * 1024,
     );
-    if (body.type !== 'application/zip')
-      throw new Error('Exportação inválida.');
+    if (body.type !== 'application/zip') throw new Error('Invalid export.');
     return body;
   }
 }

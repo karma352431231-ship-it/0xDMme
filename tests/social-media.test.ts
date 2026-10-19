@@ -257,7 +257,7 @@ await test('exportação reúne cópias de DM uma vez, preserva mídia e recusa 
       omitted: [],
       guard: () => {},
     }),
-    /diverge/,
+    /differ/,
   );
   assert.equal(download.mock.callCount(), 1);
 });

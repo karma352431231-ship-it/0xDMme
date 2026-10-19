@@ -14,7 +14,7 @@ export async function operatePostShare(
 ): Promise<PostShareState> {
   const writing = operation === 'discovery-share-set';
   if (!writing && operation !== 'discovery-share')
-    throw new AccountError(404, 'Compartilhamento indisponível.');
+    throw new AccountError(404, 'Share unavailable.');
   keys(data, writing ? ['id', 'post', 'state'] : ['id', 'post']);
   const post = uuid(data['post']),
     community = uuid(data['id']);
@@ -26,7 +26,7 @@ export async function operatePostShare(
     FROM hash_talk.community_posts p WHERE p.id=$1 AND p.community_id=$2`,
     [post, community, context.actor.id],
   );
-  if (!found.rowCount) throw new AccountError(404, 'Postagem indisponível.');
+  if (!found.rowCount) throw new AccountError(404, 'Post unavailable.');
   const result = await context.client.query<PostShareState>(
     'SELECT shared,revision FROM hash_talk.community_post_shares WHERE profile_id=$1 AND post_id=$2 FOR UPDATE',
     [context.actor.id, post],
@@ -63,10 +63,10 @@ function shouldShare(
   visible: boolean,
 ): boolean {
   if (desired.shared && !visible)
-    throw new AccountError(403, 'Postagem indisponível para compartilhar.');
+    throw new AccountError(403, 'Post unavailable for sharing.');
   if (old.revision === desired.revision + 1 && old.shared === desired.shared)
     return false;
   if (old.revision !== desired.revision)
-    throw new AccountError(409, 'O compartilhamento mudou. Recarregue.');
+    throw new AccountError(409, 'The share changed. Reload.');
   return old.shared !== desired.shared;
 }

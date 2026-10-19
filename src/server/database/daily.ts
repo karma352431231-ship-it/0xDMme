@@ -70,7 +70,7 @@ export class DailyStore {
       if (row.rows[0]?.profile_revision !== revision)
         throw new AccountError(
           409,
-          'Perfil mudou; recarregue suas preferências.',
+          'Profile changed; reload your preferences.',
         );
       await c.query(
         `INSERT INTO hash_talk.daily_controls(account_id,profile_revision,online,last_seen,read_receipts) VALUES($1,$2,$3,$4,$5)
@@ -94,7 +94,7 @@ export class DailyStore {
   }
   async state(a: ContactAuthority, peer: string) {
     const rows = await this.states(a, [peer]);
-    if (!rows.length) throw new AccountError(404, 'Contato indisponível.');
+    if (!rows.length) throw new AccountError(404, 'Contact unavailable.');
     return rows[0];
   }
   async states(a: ContactAuthority, peers: string[]): Promise<unknown[]> {
@@ -121,7 +121,10 @@ export class DailyStore {
         [a.session.accountId, peer],
       );
       if ((r.rows[0]?.revision ?? 0) !== input.revision)
-        throw new AccountError(409, 'Mute mudou em outro aparelho; atualize.');
+        throw new AccountError(
+          409,
+          'Mute setting changed on another device; refresh.',
+        );
       await c.query(
         `INSERT INTO hash_talk.conversation_controls(account_id,peer,revision,muted_until) VALUES($1,$2,1,$3) ON CONFLICT(account_id,peer) DO UPDATE SET revision=hash_talk.conversation_controls.revision+1,muted_until=$3 WHERE hash_talk.conversation_controls.muted_until<>$3`,
         [a.session.accountId, peer, input.mutedUntil],
@@ -159,7 +162,7 @@ export class DailyStore {
       if (m.rows.length !== new Set(ids).size)
         throw new AccountError(
           409,
-          'Leitura exige mensagens recebidas e preservadas neste aparelho.',
+          'Read receipt requires messages received and preserved on this device.',
         );
       if (
         this.readAllocations &&
@@ -209,7 +212,7 @@ export class DailyStore {
       if (claimed.rowCount)
         throw new AccountError(
           409,
-          'Inscrição já vinculada; remova-a na conta anterior.',
+          'Subscription already linked; remove it from the previous account.',
         );
       const text = JSON.stringify(subscription);
       await c.query(

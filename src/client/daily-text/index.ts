@@ -60,7 +60,7 @@ function applyAction<T extends DailyRow>(
   const target = byId.get(relation.id);
   if (!target) return;
   if (relation.hash !== target.hash || relation.author !== target.author)
-    throw new Error('Alteração divergente da mensagem original.');
+    throw new Error('Change differs from the original message.');
   const content = decodeDailyText(row.text);
   if (relation.type === 'edit') updateEdit(target, row, content);
   else updateReaction(target.id, row, content.text, reacted);
@@ -71,7 +71,7 @@ function updateEdit<T extends DailyRow>(
   content: DailyText,
 ): void {
   if (row.author !== target.author || target.kind !== 'text')
-    throw new Error('Edição por outro autor.');
+    throw new Error('Edit by another author.');
   target.content = content;
   target.edited = true;
 }
@@ -81,7 +81,7 @@ function updateReaction(
   text: string,
   reacted: Map<string, Map<string, { text: string; own: boolean }>>,
 ): void {
-  if (!validReaction(text)) throw new Error('Reação inválida.');
+  if (!validReaction(text)) throw new Error('Invalid reaction.');
   const values =
     reacted.get(target) ?? new Map<string, { text: string; own: boolean }>();
   values.set(row.author ?? String(row.own), { text, own: row.own });

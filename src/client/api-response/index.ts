@@ -25,33 +25,33 @@ function responseType(response: Response): ResponseType {
 function statusMessage(status: number): string {
   switch (status) {
     case 401:
-      return t('Sessão encerrada ou login rejeitado.');
+      return t('Session ended or sign-in rejected.');
     case 403:
-      return t('Pedido sem autorização atual.');
+      return t('Request has no current authorization.');
     case 413:
-      return t('Pedido excede o tamanho permitido.');
+      return t('Request exceeds the permitted size.');
     case 429:
-      return t('Muitos pedidos ao servidor. Aguarde e tente novamente.');
+      return t('Too many server requests. Wait and try again.');
     case 502:
-      return t('Falha na comunicação com o serviço.');
+      return t('Failed to communicate with the service.');
     case 503:
-      return t('Serviço indisponível. Tente novamente.');
+      return t('Service unavailable. Try again.');
     case 504:
-      return t('O serviço demorou a responder. Tente novamente.');
+      return t('The service took too long to respond. Try again.');
     default:
-      return t('O servidor recusou o pedido.');
+      return t('The server rejected the request.');
   }
 }
 function failureMessage(failure: ApiFailure): string {
   switch (failure) {
     case 'network':
-      return t('Não foi possível conectar ao servidor.');
+      return t('Could not connect to the server.');
     case 'timeout':
-      return t('O pedido excedeu o tempo de espera.');
+      return t('The request timed out.');
     case 'cancelled':
-      return t('O pedido foi interrompido.');
+      return t('The request was interrupted.');
     default:
-      return t('Resposta inválida do servidor.');
+      return t('Invalid server response.');
   }
 }
 export class ApiResponseError extends AccountError {
@@ -75,7 +75,7 @@ export class ApiResponseError extends AccountError {
         : failureMessage(input.failure));
     const http = input.status
       ? t('HTTP {0}', [input.status])
-      : t('sem resposta HTTP');
+      : t('no HTTP response');
     super(
       input.status,
       t('{0} [{1} · {2} · {3} · {4}]', [

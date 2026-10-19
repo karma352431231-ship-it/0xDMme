@@ -23,12 +23,12 @@ export function mentionRows(
     row.dataset['read'] = String(item.read);
     copy.className = 'activity-copy';
     controls.className = 'activity-actions';
-    title.textContent = t('@{0} mencionou você', [item.actor.handle]);
+    title.textContent = t('@{0} mentioned you', [item.actor.handle]);
     const labels = {
-      post: t('em uma postagem'),
-      reply: t('em uma resposta'),
-      profile: t('na descrição do perfil'),
-      community: t('na descrição da comunidade'),
+      post: t('in a post'),
+      reply: t('in a reply'),
+      profile: t('in the profile description'),
+      community: t('in the community description'),
     };
     detail.textContent = t('{0}{1} · {2}', [
       labels[item.source.kind],
@@ -37,7 +37,7 @@ export function mentionRows(
     ]);
     copy.append(title, text, detail);
     const link = noticeLink({
-      label: t('Abrir'),
+      label: t('Open'),
       href: mentionNotificationHref(item),
       read: item.read,
       acknowledge: () => actions.open(item.id),

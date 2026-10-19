@@ -43,7 +43,7 @@ async function summary(
     ),
   );
   if ('id' in target && value.profile.id !== target.id)
-    throw new Error('Perfil público alterado.');
+    throw new Error('Public profile changed.');
   if (cache.size >= cacheSize) cache.delete(cache.keys().next().value!);
   cache.set(key, { at: Date.now(), value });
   return value;
@@ -127,9 +127,9 @@ export function profileHoverProvider(
         line(
           'p',
           [
-            count(value.followers, t('seguidor'), t('seguidores')),
+            count(value.followers, t('follower'), t('followers')),
             count(value.posts, 'post', 'posts'),
-            count(value.replies, t('resposta'), t('respostas')),
+            count(value.replies, t('reply'), t('replies')),
           ].join(' · '),
           'hover-card-stats',
         ),
@@ -144,7 +144,7 @@ export function profileHoverProvider(
               'p',
               error instanceof Error
                 ? translatedError(error.message)
-                : t('Ação indisponível.'),
+                : t('Action unavailable.'),
               'hover-card-error',
             ),
           );

@@ -84,7 +84,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
       ),
     }),
     'group-message-confirm': () => {
-      if (data.fail) throw new Error('Confirmação recusada');
+      if (data.fail) throw new Error('Confirmation rejected');
       return {};
     },
   };
@@ -96,7 +96,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     api: (op: string, d: Record<string, unknown>) => {
       data.calls.push({ op, ids: d['ids'] });
       if (op === data.failure)
-        return Promise.reject(new Error('Conferência recusada'));
+        return Promise.reject(new Error('Check rejected'));
       return Promise.resolve(handlers[op]!(d));
     },
     read: (raw: unknown) => {
@@ -135,7 +135,7 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
     ...root,
     id: crypto.randomUUID(),
     sequence: 3,
-    text: 'Editada',
+    text: 'Edited',
     relation: {
       id: root.id,
       hash: root.hash,
@@ -147,7 +147,7 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
   data.changed = [edit];
   data.revision++;
   const result = await windows.read(c, null);
-  assert.equal(result.views[0]!.text, 'Editada');
+  assert.equal(result.views[0]!.text, 'Edited');
   assert.equal(result.views[1], intact);
   assert.deepEqual(data.decoded.slice(reads), [edit.id]);
   assert.ok(
@@ -172,7 +172,7 @@ await test('falha de confirmação elimina o candidato e exige conferência ante
   add('Confirmada');
   await windows.read(c, null);
   data.fail = true;
-  await assert.rejects(windows.read(c, null), /recusada/);
+  await assert.rejects(windows.read(c, null), /rejected|declined/);
   data.fail = false;
   const before = data.calls.length;
   await windows.read(c, null);
@@ -219,7 +219,7 @@ await test('projeção de grupo rejeita edição de outro autor ou original e ig
   assert.throws(
     () =>
       projectGroupMessages([root], [{ ...edit, sender: crypto.randomUUID() }]),
-    /divergente/,
+    /differ|not match/,
   );
   assert.throws(
     () =>
@@ -227,7 +227,7 @@ await test('projeção de grupo rejeita edição de outro autor ou original e ig
         [root],
         [{ ...edit, relation: { ...edit.relation, hash: 'c'.repeat(64) } }],
       ),
-    /divergente/,
+    /differ|not match/,
   );
 });
 
@@ -244,7 +244,7 @@ await test('falha no snapshot descarta o candidato; página anterior não ganha 
   assert.equal(old.views.length, 9);
   assert.ok(old.views.every((view) => view.sequence < 10));
   data.failure = 'group-message-snapshot';
-  await assert.rejects(windows.read(c, 10), /recusada/);
+  await assert.rejects(windows.read(c, 10), /rejected|declined/);
   data.failure = null;
   const before = data.calls.length;
   await windows.read(c, 10);

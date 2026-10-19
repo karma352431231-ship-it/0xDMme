@@ -43,7 +43,7 @@ export async function walletHash(wallet: WalletContact): Promise<string> {
   );
 }
 function unavailable(): never {
-  throw new AccountError(404, 'Contato indisponível para esta operação.');
+  throw new AccountError(404, 'Contact unavailable for this operation.');
 }
 export class ContactStore {
   private readonly pool: pg.Pool;
@@ -159,7 +159,7 @@ export class ContactStore {
       [s.accountId, s.deviceId, s.csrf],
     );
     if (!session.rowCount)
-      throw new AccountError(401, 'Sessão encerrada ou expirada.');
+      throw new AccountError(401, 'Session ended or expired.');
     const directory = await client.query<{ head: string; event: unknown }>(
       'SELECT head,event FROM hash_talk.device_directories WHERE account_id=$1',
       [s.accountId],
@@ -170,10 +170,7 @@ export class ContactStore {
       row.head !== authority.directory ||
       !directoryEvent(row.event).devices.some((d) => d.id === s.deviceId)
     )
-      throw new AccountError(
-        409,
-        'Autorização do aparelho mudou. Confira novamente.',
-      );
+      throw new AccountError(409, 'Device authorization changed. Check again.');
   }
   private async controls(
     client: pg.PoolClient,
@@ -193,7 +190,7 @@ export class ContactStore {
     if ((await this.controls(client, accountId)).revision !== revision)
       throw new AccountError(
         409,
-        'Permissões mudaram em outro aparelho. Atualize e confira antes de repetir.',
+        'Permissions changed on another device. Refresh and check before retrying.',
       );
   }
   private async bump(client: pg.PoolClient, ids: string[]): Promise<void> {
@@ -343,7 +340,7 @@ export class ContactStore {
     targetIds: string[],
   ): Promise<Set<string>> {
     if (targetIds.length > 16)
-      throw new AccountError(413, 'Lote de contatos excedido.');
+      throw new AccountError(413, 'Contact batch exceeds the limit.');
     if (!targetIds.length) return new Set();
     const peers = await client.query<Peer>(
       'SELECT id AS "accountId",ecosystem,address,display_name AS name FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
@@ -568,7 +565,7 @@ export class ContactStore {
     )
       throw new AccountError(
         409,
-        'Há uma decisão ou solicitação pendente. Confira a caixa de solicitações.',
+        'A decision or request is pending. Check the requests inbox.',
       );
     return true;
   }
@@ -611,10 +608,7 @@ export class ContactStore {
       await this.expect(client, id, input.revision);
       const own = await this.account(client, id);
       if (hash === (await walletHash(own)))
-        throw new AccountError(
-          400,
-          'Não é possível bloquear a própria wallet.',
-        );
+        throw new AccountError(400, 'You cannot block your own wallet.');
       const exists = await client.query(
         'SELECT 1 FROM hash_talk.contact_blocks WHERE account_id=$1 AND wallet_hash=$2',
         [id, hash],
@@ -731,7 +725,7 @@ export class ContactStore {
       );
       const row = current.rows[0] ?? unavailable();
       if (after > row.revision)
-        throw new AccountError(409, 'Diretório do contato mudou.');
+        throw new AccountError(409, 'Contact directory changed.');
       const events = await client.query<{ event: unknown }>(
         'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision>$2 ORDER BY revision LIMIT 8',
         [targetId, after],

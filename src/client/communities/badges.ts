@@ -17,17 +17,17 @@ export function mountCommunityBadges(
   id: string,
   actions: CommunityActions,
 ): void {
-  const section = card(t('Badges personalizados'));
+  const section = card(t('Custom badges'));
   host.append(section);
   section.append(
     el(
       'p',
       t(
-        'Atribuição manual, sem poderes de gestão. Até 20 badges e três por pessoa.',
+        'Manually assigned, without management powers. Up to 20 badges and three per person.',
       ),
     ),
   );
-  const label = field(section, t('Nome do badge (texto ou emoji)'), {
+  const label = field(section, t('Badge name (text or emoji)'), {
     maximum: 32,
   });
   const list = el('div');
@@ -41,8 +41,8 @@ export function mountCommunityBadges(
       const badge = customBadge(raw),
         row = el('section', '', 'community-badge-editor');
       row.append(el('h3', badge.label));
-      const name = field(row, t('Nome'), { maximum: 32, value: badge.label });
-      button(row, t('Confirmar alterações'), () =>
+      const name = field(row, t('Name'), { maximum: 32, value: badge.label });
+      button(row, t('Confirm changes'), () =>
         actions.query(async () => {
           await actions.request('badge-edit', {
             id,
@@ -55,8 +55,8 @@ export function mountCommunityBadges(
       );
       const target = communityTargetPicker(row, actions);
       for (const [enabled, title] of [
-        [true, t('Atribuir badge')],
-        [false, t('Remover badge do membro')],
+        [true, t('Assign badge')],
+        [false, t('Remove badge from member')],
       ] as const)
         button(row, title, () =>
           actions.query(async () => {
@@ -66,21 +66,20 @@ export function mountCommunityBadges(
               target: target().id,
               enabled,
             });
-            feedback.textContent = t('Badge atualizado.');
+            feedback.textContent = t('Badge updated.');
           }),
         );
       const confirm = el('input');
       confirm.type = 'checkbox';
       const remove = el(
         'label',
-        t('Excluir a definição deste badge quando não houver atribuições'),
+        t('Delete this badge definition when it has no assignments'),
       );
       remove.prepend(confirm);
       row.append(remove);
-      button(row, t('Excluir badge'), () =>
+      button(row, t('Delete badge'), () =>
         actions.query(async () => {
-          if (!confirm.checked)
-            throw new Error('Confirme a exclusão do badge.');
+          if (!confirm.checked) throw new Error('Confirm badge deletion.');
           await actions.request('badge-delete', {
             id,
             badge: badge.id,
@@ -95,7 +94,7 @@ export function mountCommunityBadges(
   const feedback = el('p');
   feedback.setAttribute('role', 'status');
   section.append(feedback);
-  button(section, t('Criar badge'), () =>
+  button(section, t('Create badge'), () =>
     actions.query(async () => {
       await actions.request('badge-create', {
         id,
@@ -107,5 +106,5 @@ export function mountCommunityBadges(
       await load();
     }),
   );
-  button(section, t('Carregar badges'), () => actions.query(load));
+  button(section, t('Load badges'), () => actions.query(load));
 }

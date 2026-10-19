@@ -35,11 +35,11 @@ export class VaultService {
     if (!row)
       throw new AccountError(
         403,
-        'Configure aparelhos e recuperação antes de abrir o cofre.',
+        'Configure devices and recovery before opening the vault.',
       );
     const authority = directoryEvent(row.event);
     if (!authority.devices.some((d) => d.id === session.deviceId))
-      throw new AccountError(403, 'Aparelho não autorizado ao cofre.');
+      throw new AccountError(403, 'Device not authorized for the vault.');
     return authority;
   }
   async preflight(session: AccountSession, id: unknown): Promise<void> {
@@ -121,14 +121,14 @@ export class VaultService {
       keys(data, ['commit']);
       const commit = await verifyCommit(data['commit'], authority);
       if (commit.deviceId !== session.deviceId)
-        throw new AccountError(403, 'Operação assinada por outro aparelho.');
+        throw new AccountError(403, 'Operation signed by another device.');
       await this.cleanExpired();
       return this.store.reserve(session, commit, await commitHash(commit));
     }
     if (path === 'upload') {
       return this.upload(session, data);
     }
-    throw new AccountError(404, 'Operação de cofre não encontrada.');
+    throw new AccountError(404, 'Vault operation not found.');
   }
   private async upload(session: AccountSession, data: Record<string, unknown>) {
     keys(data, ['commit', 'ciphertext']);
@@ -137,19 +137,19 @@ export class VaultService {
       await this.authority(session),
     );
     if (commit.deviceId !== session.deviceId)
-      throw new AccountError(403, 'Operação assinada por outro aparelho.');
+      throw new AccountError(403, 'Operation signed by another device.');
     const bytes = base64(data['ciphertext'], blockLimit);
     if (
       bytes.length !== commit.block.bytes ||
       (await bytesHash(bytes)) !== commit.block.hash
     )
-      throw new AccountError(400, 'Upload incompleto ou divergente.');
+      throw new AccountError(400, 'Upload incomplete or does not match.');
     const hash = await commitHash(commit);
     const writer = await this.store.beginUpload(session, commit, hash);
     if (writer) {
       try {
         if ((await this.objects.put(bytes)) !== commit.block.hash)
-          throw new Error('Objeto divergente.');
+          throw new Error('Object does not match.');
         await this.store.finishUpload({ session, commit, hash, writer });
       } catch (error: unknown) {
         await this.store.releaseUpload(session.accountId, commit.id, writer);

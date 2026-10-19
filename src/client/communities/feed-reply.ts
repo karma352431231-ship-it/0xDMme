@@ -24,8 +24,8 @@ export function feedReply(
     stop = postReply(toolbar, parent, {
       ...access,
       replied: async (state) => {
-        status.replaceChildren(el('span', t('Resposta publicada.') + ' '));
-        const result = el('a', t('Ver resposta'));
+        status.replaceChildren(el('span', t('Reply published.') + ' '));
+        const result = el('a', t('View reply'));
         result.href = `#communities?id=${parent.community}&post=${state.post.id}`;
         status.append(result);
         try {
@@ -40,16 +40,14 @@ export function feedReply(
           if (count) count.textContent = String(current.post.replies);
         } catch {
           if (access.valid())
-            status.append(
-              el('span', ' ' + t('Não foi possível atualizar a contagem.')),
-            );
+            status.append(el('span', ' ' + t('Could not update the count.')));
         }
       },
     });
   } else {
-    const login = el('a', t('Responder'), 'post-action post-comments');
+    const login = el('a', t('Reply'), 'post-action post-comments');
     login.href = '#settings';
-    login.setAttribute('aria-label', t('Entre pelo Perfil para responder'));
+    login.setAttribute('aria-label', t('Sign in through Profile to reply'));
     toolbar.append(login);
   }
   const discussion = el('a', '', 'post-discussion');

@@ -101,7 +101,7 @@ export function startPublicProfile(
       appeal: (id, reason) => {
         void run(async () => {
           await controller.appeal(id, reason);
-          status = t('Contestação registrada para revisão excepcional.');
+          status = t('Appeal recorded for exceptional review.');
         });
       },
     });
@@ -117,7 +117,7 @@ export function startPublicProfile(
       status =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Perfil público indisponível.');
+          : t('Public profile unavailable.');
     },
     settled: (old) => {
       if (old === generation) render();
@@ -144,7 +144,7 @@ export function startPublicProfile(
         failed = false;
         status = controller.profile
           ? ''
-          : t('Você ainda não criou um perfil público.');
+          : t('You have not created a public profile yet.');
       },
       { background: true },
     );

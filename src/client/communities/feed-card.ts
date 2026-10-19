@@ -171,15 +171,15 @@ function postContent(
     );
     if (post.media?.length)
       options.addCleanup(showPublicPostMedia(row, post.media, options.signal));
-    else if (!post.text) row.append(el('p', t('Mídia aguardando liberação.')));
+    else if (!post.text) row.append(el('p', t('Media awaiting approval.')));
     postTagLink(row, post);
   } else
     row.append(
       el(
         'p',
         post.status === 'deleted'
-          ? t('Conteúdo excluído pelo autor.')
-          : t('Conteúdo ocultado pela moderação.'),
+          ? t('Content deleted by the author.')
+          : t('Content hidden by moderation.'),
       ),
     );
 }

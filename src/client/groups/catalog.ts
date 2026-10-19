@@ -38,7 +38,7 @@ export class GroupCatalog {
       JSON.parse(await openLocal(this.authority, row)) as unknown,
     );
     if (data['scope'] !== this.scope || data['name'] !== name)
-      throw new Error('Catálogo local de outra conta.');
+      throw new Error('Local catalog belongs to another account.');
     return data['value'];
   }
   async save(group: CatalogGroup): Promise<void> {
@@ -69,7 +69,7 @@ export class GroupCatalog {
       const data = object(await this.open(row.name, row.value)),
         state = groupEvent(data['state']);
       if (row.name !== `group:${state.groupId}`)
-        throw new Error('Índice local de outro grupo.');
+        throw new Error('Local index belongs to another group.');
       items.push({
         state,
         title: groupTitle({ version: 1, title: data['title'] }),
@@ -90,7 +90,7 @@ export class GroupCatalog {
       event.kind !== 'create' ||
       event.actor !== this.authority.session.accountId
     )
-      throw new Error('Criação local inválida.');
+      throw new Error('Invalid local creation.');
     return { event, title: groupTitle({ version: 1, title: data['title'] }) };
   }
   saveCreation(event: GroupEvent, title: string): Promise<void> {

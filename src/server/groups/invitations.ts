@@ -35,7 +35,7 @@ export function groupInvitationActions(
       keys(d, ['event', 'token']);
       const event = groupEvent(d['event']);
       if (event.kind !== 'link-join')
-        throw new AccountError(400, 'Entrada por link inválida.');
+        throw new AccountError(400, 'Invalid link entry.');
       return store.commit(a, { event, token: fingerprint(d['token']) });
     },
     'group-link-history': (a, d) => {

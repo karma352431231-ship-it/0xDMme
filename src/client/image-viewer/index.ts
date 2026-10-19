@@ -13,15 +13,15 @@ export function openImageViewer(input: {
     zoom = document.createElement('button'),
     close = document.createElement('button');
   dialog.className = 'public-image-viewer';
-  dialog.setAttribute('aria-label', t('Imagem ampliada'));
+  dialog.setAttribute('aria-label', t('Enlarged image'));
   toolbar.className = 'public-image-toolbar';
   frame.className = 'public-image-frame';
   image.src = input.url;
   image.alt = input.alt;
   zoom.type = close.type = 'button';
-  zoom.textContent = t('Ampliar');
+  zoom.textContent = t('Zoom in');
   zoom.setAttribute('aria-pressed', 'false');
-  close.textContent = t('Fechar');
+  close.textContent = t('Close');
   let expanded = false;
   const toggle = (): void => {
     expanded = !expanded;
@@ -30,7 +30,7 @@ export function openImageViewer(input: {
       ? `${Math.max(image.naturalWidth, frame.clientWidth * 2)}px`
       : '';
     image.style.height = '';
-    zoom.textContent = expanded ? t('Ajustar à tela') : t('Ampliar');
+    zoom.textContent = expanded ? t('Fit to screen') : t('Zoom in');
     zoom.setAttribute('aria-pressed', String(expanded));
   };
   const stop = (): void => {

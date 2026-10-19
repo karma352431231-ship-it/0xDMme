@@ -26,7 +26,7 @@ export function mountPublicVideo(
   video.setAttribute('playsinline', '');
   caption.setAttribute('role', 'status');
   retry.type = 'button';
-  retry.textContent = t('Tentar carregar vídeo');
+  retry.textContent = t('Try loading video');
   retry.hidden = true;
   slot.append(video, fullscreenButton(video), caption, retry);
   let visible = false,
@@ -67,7 +67,7 @@ export function mountPublicVideo(
     const controller = new AbortController();
     current = controller;
     const signal = AbortSignal.any([options.signal, controller.signal]);
-    caption.textContent = t('Carregando vídeo…');
+    caption.textContent = t('Loading video…');
     retry.hidden = true;
     loadPoster(signal);
     try {
@@ -78,7 +78,7 @@ export function mountPublicVideo(
       video.load();
     } catch {
       if (usable(signal)) {
-        caption.textContent = t('Vídeo indisponível. Tente novamente.');
+        caption.textContent = t('Video unavailable. Try again.');
         retry.hidden = false;
       }
     } finally {

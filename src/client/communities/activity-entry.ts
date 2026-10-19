@@ -16,7 +16,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 export function entryCard(post: CommunityPost): HTMLElement {
   const row = post.parent
     ? el('article', '', 'card community-card')
-    : card(post.title || t('Postagem'));
+    : card(post.title || t('Post'));
   row.classList.add('community-post');
   row.dataset['postId'] = post.id;
   return row;
@@ -67,7 +67,7 @@ export function renderActivityEntry(
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);
   const actions = el('div', '', 'post-actions');
-  actions.append(el('span', t('{0} votos', [post.score])));
+  actions.append(el('span', t('{0} votes', [post.score])));
   postComments(actions, post);
   row.append(actions);
   return row;

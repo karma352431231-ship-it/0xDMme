@@ -85,7 +85,7 @@ export function communityHoverProvider(input: {
       const figures = [
         t('{0} {1}', [
           value.followers.toLocaleString(currentLanguage()),
-          value.followers === 1 ? t('seguidor') : t('seguidores'),
+          value.followers === 1 ? t('follower') : t('followers'),
         ]),
       ];
       if (value.archived) figures.push('arquivada');
@@ -109,7 +109,7 @@ async function followButton(
   const button = el('button');
   button.type = 'button';
   const paint = (): void => {
-    button.textContent = following ? t('Seguindo') : t('Seguir');
+    button.textContent = following ? t('follow.following') : t('Follow');
     button.setAttribute('aria-pressed', String(following));
   };
   button.addEventListener('click', () => {
@@ -129,7 +129,7 @@ async function followButton(
             'p',
             error instanceof Error
               ? translatedError(error.message)
-              : t('Ação indisponível.'),
+              : t('Action unavailable.'),
             'hover-card-error',
           ),
         );

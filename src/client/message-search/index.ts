@@ -54,7 +54,7 @@ export function searchTerm(query: string): string {
     .toLocaleLowerCase(currentLanguage())
     .trim();
   if (!term || term.length > 128)
-    throw new Error('Busque entre 1 e 128 caracteres.');
+    throw new Error('Enter between 1 and 128 characters.');
   return term;
 }
 export async function searchMessages(c: {

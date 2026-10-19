@@ -118,10 +118,10 @@ export class AccountPrivateProfile {
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
       this.core.status = t(
-        'Sessão conectada. Abra sua conta em Perfil → Aparelhos.',
+        'Session connected. Open your account in Profile → Devices.',
       );
       this.core.profileStatus = t(
-        'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.',
+        'Profile locked. Authorize this device through linking or recovery.',
       );
       return;
     }
@@ -145,8 +145,8 @@ export class AccountPrivateProfile {
     this.key = localKey;
     this.profile = opened;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
-    this.core.status = t('Conta pronta.');
-    this.core.profileStatus = t('Perfil disponível.');
+    this.core.status = t('Account ready.');
+    this.core.profileStatus = t('Profile available.');
   }
   /** Reloads the session and profile unless a form has an unsaved draft. */
   async refresh(): Promise<void> {
@@ -227,7 +227,7 @@ export class AccountPrivateProfile {
     const file = chosen ? await this.framed(chosen, input) : null;
     if (chosen && !file) return;
     if (!file || !this.profile || file.size > 3_000_000) {
-      this.core.status = t('Selecione uma foto de até 3 MB.');
+      this.core.status = t('Select a photo no larger than 3 MB.');
       this.host.render();
       return;
     }
@@ -277,7 +277,7 @@ export class AccountPrivateProfile {
         JSON.stringify(this.preferencesDraft.value(profile.preferences)) !==
         JSON.stringify(profile.preferences);
       this.host.setSession({ ...session, profileRevision: revision });
-      this.core.status = t('Perfil salvo.');
+      this.core.status = t('Profile saved.');
       this.renderPhoto();
       this.host.renderSidebar();
     });
@@ -295,7 +295,7 @@ export class AccountPrivateProfile {
       this.dirtyProfile
     )
       throw new Error(
-        'Privacidade não aplicada: o perfil está carregando ou com edição aberta.',
+        'Privacy settings not applied: the profile is loading or being edited.',
       );
     const preferences = { ...profile.preferences, ...changes };
     if (JSON.stringify(preferences) === JSON.stringify(profile.preferences))
@@ -359,10 +359,10 @@ export class AccountPrivateProfile {
     )?.value;
     await this.host.operation(async () => {
       if (this.dirtyProfile && (!currentKey || !profile))
-        throw new Error('Abra sua conta para confirmar o perfil.');
+        throw new Error('Open your account to confirm the profile.');
       await this.confirmName(original, name);
       await this.confirmContent(original, currentKey, profile);
-      this.core.status = t('Alterações confirmadas.');
+      this.core.status = t('Changes confirmed.');
     });
   }
   private async confirmName(
@@ -419,7 +419,7 @@ export class AccountPrivateProfile {
     this.preferencesDraft.commit(profile);
     this.host.setSession({ ...current, profileRevision: revision });
     await this.options.privacyChanged?.(profile.preferences);
-    this.core.status = t('Perfil salvo.');
+    this.core.status = t('Profile saved.');
     this.dirtyProfile = false;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     this.host.renderSidebar();

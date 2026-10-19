@@ -47,27 +47,27 @@ for (const language of [
         .querySelectorAll('.ranking-stat')
         .map((node) => node.textContent),
       [
-        (1234).toLocaleString(language) + fixture.t('seguidores'),
+        (1234).toLocaleString(language) + fixture.t('followers'),
         '8' + fixture.t('ranking.active-label'),
-        '+6' + fixture.t('upvotes em alta'),
+        '+6' + fixture.t('trending upvotes'),
       ],
     );
     assert.equal(
       rows[1]!.querySelector('.ranking-growth')?.textContent,
-      '+6' + fixture.t('upvotes em alta'),
+      '+6' + fixture.t('trending upvotes'),
     );
     await ui.refresh();
     assert.equal(host.querySelector('.ranking-row'), rows[0]);
     state.ranking.items = [first];
     state.ranking.next = null;
-    button(host, fixture.t('Próxima página')).click();
+    button(host, fixture.t('Next page')).click();
     await settled(fixture);
     const third = host.querySelector('.ranking-row');
     assert.equal(third?.querySelector('.ranking-position')?.textContent, '3');
     await ui.refresh();
     assert.equal(host.querySelector('.ranking-row'), third);
     assert.equal(requests.at(-1)?.after, cursor);
-    button(host, fixture.t('Maiores')).click();
+    button(host, fixture.t('Largest')).click();
     await settled(fixture);
     assert.equal(host.querySelector('.ranking-position')?.textContent, '1');
     assert.equal(host.querySelectorAll('.ranking-stat').length, 1);
@@ -100,7 +100,7 @@ for (const language of [
     );
     assert.equal(
       row.querySelector('.post-comments')?.getAttribute('aria-label'),
-      fixture.t('Responder à postagem'),
+      fixture.t('Reply to post'),
     );
     const pending = deferred<unknown>();
     state.reply = () => pending.promise;
@@ -191,7 +191,7 @@ await test('hiding a feed card uses the existing preference operation and reload
     if (hidden) fixture.state.feed.items = [];
     return Promise.resolve({ saved: true, hidden, revision: hidden ? 8 : 7 });
   };
-  button(fixture.host, fixture.t('Ocultar ou mostrar nos meus feeds')).click();
+  button(fixture.host, fixture.t('Hide or show in my feeds')).click();
   await settled(fixture);
   assert.deepEqual(fixture.state.operations, [
     'discovery-feed',
@@ -216,7 +216,7 @@ await test('confirmed feed votes preserve the displayed page, scroll, card and d
   await settled(fixture);
   fixture.state.feed.next = null;
   fixture.state.feed.items[0]!.viewerVote = 0;
-  button(fixture.host, fixture.t('Próxima página')).click();
+  button(fixture.host, fixture.t('Next page')).click();
   await settled(fixture);
   assert.equal(fixture.ui.bookmark()?.after, cursor);
   const card = fixture.host.querySelector('.community-post')!,
@@ -283,8 +283,8 @@ await test('deleted and moderated feed cards preserve their notices and omit con
       fixture.host.textContent.includes(
         fixture.t(
           status === 'deleted'
-            ? 'Conteúdo excluído pelo autor.'
-            : 'Conteúdo ocultado pela moderação.',
+            ? 'Content deleted by the author.'
+            : 'Content hidden by moderation.',
         ),
       ),
     );
@@ -298,7 +298,7 @@ await test('Discover starts at 24 hours and respects an explicit period choice',
   t.after(() => fixture.ui.leave());
   await settled(fixture);
   assert.equal(fixture.ui.bookmark()?.period, 'day');
-  button(fixture.host, fixture.t('Todo o histórico')).click();
+  button(fixture.host, fixture.t('All history')).click();
   await settled(fixture);
   assert.equal(fixture.ui.bookmark()?.period, 'all');
   assert.ok(fixture.requests.length >= 2);
@@ -342,7 +342,7 @@ for (const language of ['en', 'zh-CN'] as const) {
       },
     ];
     state.accounts.next = null;
-    button(accountPanel, fixture.t('Próxima página')).click();
+    button(accountPanel, fixture.t('Next page')).click();
     await settled(fixture);
     assert.equal(
       accountPanel.querySelectorAll('.account-ranking-row').length,
@@ -355,14 +355,14 @@ for (const language of ['en', 'zh-CN'] as const) {
       state.accountRequests.at(-1)!.searchParams.get('after'),
       cursor,
     );
-    button(accountPanel, fixture.t('30 dias')).click();
+    button(accountPanel, fixture.t('30 days')).click();
     await settled(fixture);
     assert.equal(
       state.accountRequests.at(-1)!.searchParams.get('period'),
       'month',
     );
     assert.equal(state.accountRequests.at(-1)!.searchParams.get('after'), null);
-    button(accountPanel, fixture.t('7 dias')).click();
+    button(accountPanel, fixture.t('7 days')).click();
     await settled(fixture);
     assert.equal(
       state.accountRequests.at(-1)!.searchParams.get('period'),
@@ -384,7 +384,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     await Promise.resolve();
     fixture.state.accountReply = null;
     const panel = fixture.host.querySelector('.account-ranking')!;
-    button(panel, fixture.t('30 dias')).click();
+    button(panel, fixture.t('30 days')).click();
     await settled(fixture);
     wait.resolve({ ...fixture.state.accounts, items: [] });
     await settled(fixture);

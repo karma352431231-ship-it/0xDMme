@@ -167,7 +167,7 @@ await test('local concurrent change and root substitution cannot reuse a loaded 
     head: replacement.head,
     revision: 1,
   });
-  await assert.rejects(f.run(), /Identidade|identidade/u);
+  await assert.rejects(f.run(), /[Ii]dentity/u);
   assert.equal(f.count().work, 2);
 });
 await test('legacy server path uses existing peer-directory and fully refreshes identity pins', async (t) => {

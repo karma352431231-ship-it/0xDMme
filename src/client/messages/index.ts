@@ -121,7 +121,7 @@ export function startMessages(
     generation = 0;
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
-  let message = t('Entre e autorize este aparelho para conversar.');
+  let message = t('Sign in and authorize this device to chat.');
   // Sent fraction of the attachment being uploaded, shown as a ring (16/10/2026).
   const uploadIndicator = uploadStatus();
   let uploading: number | null = null;
@@ -276,7 +276,7 @@ export function startMessages(
   function selectGroup(): void {
     if (voice.active || attachments.selected?.voice)
       throw new Error(
-        'Envie ou remova a prévia de voz antes de trocar de conversa.',
+        'Send or remove the voice preview before changing conversations.',
       );
     selected = null;
     enterConversation();
@@ -357,8 +357,8 @@ export function startMessages(
             .map((peer) => peer.accountId),
         );
       message = controller.transportPending
-        ? t('Alguns envios ainda estão pendentes. A retomada é automática.')
-        : t('Conversas atualizadas.');
+        ? t('Some sends are still pending. They will resume automatically.')
+        : t('Conversations updated.');
     },
     renderPending,
     pause: () => {
@@ -413,7 +413,7 @@ export function startMessages(
       message =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível concluir a operação.');
+          : t('Could not complete the operation.');
       status();
     },
     steps: [
@@ -546,7 +546,7 @@ export function startMessages(
         if (!(await controller.playbackAllowed(recordingPeer)))
           await voice.stop(
             t(
-              'A conversa foi bloqueada. Trecho preservado somente como prévia local.',
+              'This conversation was blocked. The excerpt is preserved only as a local preview.',
             ),
           );
       } catch {
@@ -570,8 +570,8 @@ export function startMessages(
     const retry = node('[data-message-refresh]');
     if (retry)
       retry.textContent = synchronization.failed
-        ? t('Tentar novamente')
-        : t('Sincronizar agora');
+        ? t('Try again')
+        : t('Sync now');
     renderChatStatus();
     const directoryStatus = node('[data-directory-status]');
     if (directoryStatus)
@@ -594,11 +594,11 @@ export function startMessages(
     const upToDate =
       !synchronization.busy &&
       !synchronization.failed &&
-      message === t('Conversas atualizadas.');
+      message === t('Conversations updated.');
     text.textContent = synchronization.busy
-      ? t('Sincronizando…')
+      ? t('Syncing…')
       : upToDate
-        ? t('Atualizada')
+        ? t('Updated')
         : message;
     // The desktop workspace hides the strip while everything is up to date.
     const strip = text.closest<HTMLElement>('.chat-feedback');
@@ -634,8 +634,8 @@ export function startMessages(
     );
     if (toggle) {
       toggle.textContent = sound.enabled
-        ? t('Desativar sons')
-        : t('Ativar sons');
+        ? t('Disable sounds')
+        : t('Enable sounds');
       toggle.setAttribute('aria-pressed', String(sound.enabled));
     }
     const notice = settingsHost?.querySelector('[data-sound-status]');
@@ -643,8 +643,8 @@ export function startMessages(
       notice.textContent =
         sound.notice ||
         (sound.enabled
-          ? t('Sons ativados neste navegador.')
-          : t('Sons desativados neste navegador.'));
+          ? t('Sounds enabled in this browser.')
+          : t('Sounds disabled in this browser.'));
   }
   sound.observe(renderSoundSettings);
   sound.prepare();
@@ -717,7 +717,7 @@ export function startMessages(
     const label = node('[data-compose-context]');
     if (label)
       label.textContent = t('{0}: {1}', [
-        mode === 'edit' ? t('Editando') : t('Respondendo'),
+        mode === 'edit' ? t('Editing') : t('Replying'),
         original.slice(0, 120),
       ]);
     const bar = node('[data-compose-bar]');
@@ -765,7 +765,7 @@ export function startMessages(
     peer: string,
   ): Promise<void> {
     if (!directoryData.peers.some((p) => p.accountId === peer && !p.localOnly))
-      throw new Error('Selecione um contato aprovado para encaminhar.');
+      throw new Error('Select an approved contact to forward to.');
     if (view.kind === 'text')
       await controller.compose(
         peer,
@@ -826,7 +826,7 @@ export function startMessages(
         )
         .map((item) =>
           pendingBubble(
-            action(t('Apagar envio'), async () => {
+            action(t('Delete send'), async () => {
               await controller.discard(item.id);
             }),
           ),
@@ -846,7 +846,7 @@ export function startMessages(
     message =
       error instanceof Error
         ? translatedError(error.message)
-        : t('Não foi possível concluir a operação.');
+        : t('Could not complete the operation.');
     status();
   }
   function canQueueText(): boolean {
@@ -892,9 +892,9 @@ export function startMessages(
   function performDirectoryAction(work: () => Promise<void>): void {
     const expected = generation;
     void run(async () => {
-      if (expected !== generation) throw new Error('Sessão alterada.');
+      if (expected !== generation) throw new Error('Session changed.');
       await work();
-      if (expected !== generation) throw new Error('Sessão alterada.');
+      if (expected !== generation) throw new Error('Session changed.');
       renderContacts();
     });
   }
@@ -915,19 +915,19 @@ export function startMessages(
       }),
       {
         id: 'block',
-        label: t('Bloquear contato'),
+        label: t('Block contact'),
         icon: 'block',
         perform: () =>
           perform(async () => {
             const expected = generation;
             if (voice.active || attachments.selected?.voice)
               throw new Error(
-                'Envie ou remova a prévia de voz antes de bloquear o contato.',
+                'Send or remove the voice preview before blocking the contact.',
               );
             await contacts.snapshot();
-            if (expected !== generation) throw new Error('Sessão alterada.');
+            if (expected !== generation) throw new Error('Session changed.');
             await contacts.block(contact, true);
-            if (expected !== generation) throw new Error('Sessão alterada.');
+            if (expected !== generation) throw new Error('Session changed.');
             if (
               selected?.ecosystem === contact.ecosystem &&
               selected.address === contact.address
@@ -941,13 +941,13 @@ export function startMessages(
       },
       {
         id: 'remove',
-        label: t('Remover contato'),
+        label: t('Remove contact'),
         icon: 'remove',
         perform: () =>
           perform(async () => {
             const expected = generation;
             await sync.refresh();
-            if (expected !== generation) throw new Error('Sessão alterada.');
+            if (expected !== generation) throw new Error('Session changed.');
             await agenda.remove(contact);
           }),
       },
@@ -988,7 +988,7 @@ export function startMessages(
       selected?.accountId !== peer.accountId
     )
       throw new Error(
-        'Envie ou remova a prévia de voz antes de trocar de destinatário.',
+        'Send or remove the voice preview before changing recipients.',
       );
     selectPeer(peer);
     if (!navigator.onLine) {
@@ -1030,7 +1030,7 @@ export function startMessages(
         peer,
         async (text) => {
           if (selected?.accountId !== peer.accountId)
-            throw new Error('Conversa alterada.');
+            throw new Error('Conversation changed.');
           await controller.compose(peer.accountId, text);
           await transmit();
         },
@@ -1089,7 +1089,7 @@ export function startMessages(
         loadPins: () => controller.loadPins(work),
         loadContacts: () => refreshContacts(false, initialWork),
         guard: () => {
-          if (current !== generation) throw new Error('Sessão alterada.');
+          if (current !== generation) throw new Error('Session changed.');
         },
       });
       if (!synchronization.openingRequested) await refreshSelected(requested);
@@ -1146,14 +1146,14 @@ export function startMessages(
   async function submit(): Promise<void> {
     if (selected?.localOnly)
       throw new Error(
-        'Peça autorização ao contato para enviar novas mensagens. Seu histórico salvo continua disponível.',
+        'Ask your contact for permission to send new messages. Your saved history remains available.',
       );
     if (voice.active)
-      throw new Error('Pare a gravação e confira a prévia antes de enviar.');
+      throw new Error('Stop recording and check the preview before sending.');
     const text = node<HTMLTextAreaElement>('[data-message-text]');
     if (!selected || !text || (!text.value.trim() && !attachments.selected))
       throw new Error(
-        'Selecione um contato e escreva a mensagem ou escolha um anexo.',
+        'Select a contact and write a message or choose an attachment.',
       );
     await saveComposition(selected.accountId, text.value);
     text.value = '';
@@ -1181,8 +1181,8 @@ export function startMessages(
   /** The message carries only the KLIPY link, inside the usual E2EE text. */
   async function sendGif(url: string): Promise<void> {
     if (!selected || selected.localOnly)
-      throw new Error('Escolha um contato autorizado para enviar o GIF.');
-    if (!gifMessageUrl(url)) throw new Error('GIF inválido.');
+      throw new Error('Choose an authorized contact to send the GIF.');
+    if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
     await controller.compose(
       selected.accountId,
       encodeDailyText({ text: url, reply: null, forwarded: false }),
@@ -1197,7 +1197,7 @@ export function startMessages(
     if (composing?.mode === 'edit') {
       if (attachments.selected)
         throw new Error(
-          'Edição altera somente texto; remova o anexo selecionado.',
+          'Editing changes text only; remove the selected attachment.',
         );
       await controller.composeAction(
         composing.view,
@@ -1273,7 +1273,7 @@ export function startMessages(
     after: string | null,
   ): Promise<SearchPage> {
     if (synchronization.busy)
-      throw new Error('Aguarde a atualização das conversas e tente novamente.');
+      throw new Error('Wait for conversations to update, then try again.');
     let result: SearchPage | null = null;
     await run(async () => {
       if (after?.startsWith('groups:')) {
@@ -1318,7 +1318,7 @@ export function startMessages(
     if (!synchronization.busy || !mounted?.isConnected) return;
     uploading = progress.total ? progress.done / progress.total : 0;
     message = t(
-      'Enviando anexo: parte {0} de {1}. Fechar o app pausa a transferência; o rascunho cifrado permanece.',
+      'Uploading attachment: part {0} of {1}. Closing the app pauses the transfer; the encrypted draft is preserved.',
       [progress.done, progress.total],
     );
     status();
@@ -1332,9 +1332,7 @@ export function startMessages(
   function offline(): void {
     live.stop();
     suspend();
-    message = t(
-      'Sem conexão. O histórico salvo continua disponível neste aparelho.',
-    );
+    message = t('Offline. Saved history remains available on this device.');
     void run(refreshLocalContacts);
     status();
   }
@@ -1350,7 +1348,7 @@ export function startMessages(
     if (!visible && voice.active)
       void voice.stop(
         t(
-          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+          'The browser interrupted recording. Check the preserved excerpt when you return.',
         ),
       );
     continuity.visibility(visible);
@@ -1358,7 +1356,7 @@ export function startMessages(
     void daily.heartbeat(visible).catch(() => {
       if (current !== generation) return;
       message = t(
-        'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.',
+        'Could not update presence. Online status will stop after the activity timeout.',
       );
       status();
     });
@@ -1372,7 +1370,7 @@ export function startMessages(
       message =
         error instanceof Error
           ? error.message
-          : t('Não foi possível conferir a leitura.');
+          : t('Could not verify read receipts.');
       status();
     });
   }
@@ -1441,7 +1439,7 @@ export function startMessages(
     if (voice.active)
       void voice.stop(
         t(
-          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+          'The browser interrupted recording. Check the preserved excerpt when you return.',
         ),
       );
     if (!event.persisted) {
@@ -1455,7 +1453,7 @@ export function startMessages(
       synchronization.close();
       soundEvents.abort();
       void sound.dispose().catch(() => {
-        message = t('Não foi possível encerrar o áudio deste navegador.');
+        message = t('Could not stop audio in this browser.');
         status();
       });
     }
@@ -1496,7 +1494,7 @@ export function startMessages(
       void emojiIntoComposer(emojiPicker, anchor, input, {
         pane: gifPane,
       }).catch(() => {
-        message = t('Não foi possível abrir o painel de emojis.');
+        message = t('Could not open the emoji panel.');
         status();
       });
     });
@@ -1616,13 +1614,13 @@ export function startMessages(
     prepareCall(): void {
       if (voice.active)
         throw new Error(
-          'Pare ou cancele a gravação de voz antes de iniciar ou atender uma chamada. A prévia continuará disponível.',
+          'Stop or cancel voice recording before starting or answering a call. The preview remains available.',
         );
     },
     callLabel: (peer: string) =>
       directoryData.peers.find((p) => p.accountId === peer)?.name ||
       directoryData.peers.find((p) => p.accountId === peer)?.address ||
-      t('Contato aprovado {0}', [peer.slice(0, 8)]),
+      t('Approved contact {0}', [peer.slice(0, 8)]),
     openSearch: () => searchPanel.open(),
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
@@ -1665,8 +1663,8 @@ export function startMessages(
       clearSessionPanels();
 
       message = value
-        ? t('Abra os contatos e sincronize para conversar.')
-        : t('Entre e autorize este aparelho para conversar.');
+        ? t('Open and sync contacts to start chatting.')
+        : t('Sign in and authorize this device to chat.');
       renderContacts();
       renderHistory();
       status();
@@ -1694,7 +1692,7 @@ export function startMessages(
       if (voice.active)
         void voice.stop(
           t(
-            'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
+            'Navigation interrupted recording; the excerpt is preserved for review when returning to the conversation.',
           ),
         );
       attachments.clearMedia();
@@ -1722,7 +1720,7 @@ export function startMessages(
           await savePushSoundPreference(sound.enabled);
         } catch {
           throw new Error(
-            'Som alterado na interface, mas a preferência para push não foi salva. Não é possível garantir silêncio das notificações do sistema.',
+            'Sound changed in the interface, but the push preference was not saved. System notification silence cannot be guaranteed.',
           );
         }
       });

@@ -18,19 +18,19 @@ function liveNotice(phase: LivePhase): string {
   switch (phase) {
     case 'paused':
       return t(
-        'Recebimento em tempo real pausado. Ao retornar, o app confere o estado atual.',
+        'Live updates paused. The app checks the current state when you return.',
       );
     case 'connecting':
-      return t('Conectando recebimento em tempo real…');
+      return t('Connecting live updates…');
     case 'connected':
-      return t('Recebimento em tempo real conectado.');
+      return t('Live updates connected.');
     case 'unavailable':
       return t(
-        'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.',
+        'Live updates unavailable. The app keeps checking every 30 seconds; you can also sync.',
       );
     case 'authorization':
       return t(
-        'A autorização mudou. O app confere o estado atual do aparelho.',
+        "Authorization changed. The app is checking the device's current state.",
       );
   }
 }

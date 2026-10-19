@@ -20,19 +20,19 @@ export function dmMessageMenu(
   const copy = document.createElement('button'),
     status = document.createElement('p');
   copy.type = 'button';
-  copy.textContent = t('Copiar texto');
+  copy.textContent = t('Copy text');
   status.setAttribute('role', 'status');
   copy.addEventListener('click', () => {
     void navigator.clipboard.writeText(input.text).catch(() => {
       if (!input.signal.aborted)
-        status.textContent = t('Não foi possível copiar o texto.');
+        status.textContent = t('Could not copy the text.');
     });
   });
   menu.panel.append(withMenuIcon(copy, 'copy'));
   if (input.edit && input.editable) {
     const edit = document.createElement('button');
     edit.type = 'button';
-    edit.textContent = t('Editar');
+    edit.textContent = t('Edit');
     edit.addEventListener('click', () => {
       input.edit?.();
     });
@@ -41,7 +41,7 @@ export function dmMessageMenu(
   if (input.react) {
     const reaction = document.createElement('button');
     reaction.type = 'button';
-    reaction.textContent = t('Reagir…');
+    reaction.textContent = t('React…');
     reaction.addEventListener('click', () => {
       void input.run(async () => {
         const emoji = await input.picker.choose(menu.trigger);

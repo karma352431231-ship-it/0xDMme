@@ -46,7 +46,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
     historyAuthorized: false,
     walletConfirmed: true,
   };
-  const identity = await createIdentity(session.deviceId, 'Teste');
+  const identity = await createIdentity(session.deviceId, 'Test');
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
@@ -60,7 +60,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
   const flow: RecoveryFlow = {
     mode: 'initialize',
     config,
-    name: 'Teste',
+    name: 'Test',
     revoked: [],
     revision: 0,
     head: null,

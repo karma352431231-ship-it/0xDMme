@@ -147,7 +147,7 @@ await test('prévia de menção por UUID mantém identidade estável e recusa @ 
         card as unknown as HTMLElement,
         new AbortController().signal,
       ),
-      /Perfil público alterado/,
+      /Public profile changed/,
     );
     assert.equal(provider(link('invalid')), null);
   } finally {

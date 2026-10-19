@@ -42,7 +42,7 @@ interface StatusServices {
   capacity: ContentCapacity;
 }
 function unavailable(): never {
-  throw new AccountError(404, 'Status indisponível ou expirado.');
+  throw new AccountError(404, 'Status unavailable or expired.');
 }
 /** Owns frozen publication ACLs. Media operations coordinate through the explicit transaction contracts below. */
 export class StatusStore {
@@ -77,14 +77,14 @@ export class StatusStore {
       row.device_id !== a.session.deviceId ||
       row.directory !== a.directory
     )
-      throw new AccountError(409, 'Publicação ou aparelho mudou.');
+      throw new AccountError(409, 'Publication or device changed.');
     if (
       row.contact_revision !==
       (await this.contacts.publicationRevision(client, row.author))
     )
       throw new AccountError(
         409,
-        'Contatos mudaram durante a publicação. Confira a audiência e tente novamente.',
+        'Contacts changed during publication. Check the audience and try again.',
       );
     return row;
   }
@@ -142,10 +142,7 @@ export class StatusStore {
         [a.session.accountId],
       );
       if ((pending.rows[0]?.count ?? 0) >= 4)
-        throw new AccountError(
-          429,
-          'Conclua ou cancele as publicações em andamento.',
-        );
+        throw new AccountError(429, 'Complete or cancel ongoing publications.');
       const revision = await this.contacts.publicationRevision(
         client,
         a.session.accountId,
@@ -228,10 +225,7 @@ export class StatusStore {
       );
       if (existing.rows[0]) {
         if (existing.rows[0].hash !== hash || existing.rows[0].head !== head)
-          throw new AccountError(
-            409,
-            'Página de audiência repetida divergente.',
-          );
+          throw new AccountError(409, 'Repeated audience page does not match.');
         return { head, count: row.audience_count, pages: row.pages };
       }
       if (
@@ -239,7 +233,10 @@ export class StatusStore {
         row.audience_head !== input.previous ||
         row.published_at
       )
-        throw new AccountError(409, 'Audiência mudou ou já foi finalizada.');
+        throw new AccountError(
+          409,
+          'Audience changed or was already finalized.',
+        );
       const contentHash = await this.validateEnvelopes(client, a, {
         row,
         envelopes,
@@ -310,10 +307,7 @@ export class StatusStore {
       [JSON.stringify(request)],
     );
     if (matches.rows[0]?.count !== request.length)
-      throw new AccountError(
-        409,
-        'Chaves do destinatário mudaram. Confira novamente.',
-      );
+      throw new AccountError(409, 'Recipient keys changed. Check again.');
     return contentHash;
   }
   private assertEnvelopeOrigin(
@@ -340,7 +334,10 @@ export class StatusStore {
       [envelopes[0]?.id, envelopes.map((e) => e.recipient.accountId)],
     );
     if (duplicates.rowCount)
-      throw new AccountError(409, 'Destinatário já incluído nesta publicação.');
+      throw new AccountError(
+        409,
+        'Recipient already included in this publication.',
+      );
     const rows = await Promise.all(
       envelopes.map(async (e) => ({
         status_id: e.id,
@@ -365,7 +362,7 @@ export class StatusStore {
       if (!own.rowCount || !row.audience_head)
         throw new AccountError(
           409,
-          'Recuperação do autor e audiência ainda não preservadas.',
+          'Author and audience recovery not yet preserved.',
         );
       if (row.published_at) return this.summary(row);
       const publishedAt = new Date(Date.now()),
@@ -424,7 +421,7 @@ export class StatusStore {
     )
       throw new AccountError(
         409,
-        'Publicação diverge da audiência ou do conteúdo preparado.',
+        'Publication differs from the audience or prepared content.',
       );
     await verifyStatusPacket(
       packet,

@@ -36,7 +36,7 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
       ? el(
           'p',
           t(
-            'Este arquivo não está mais vinculado a uma postagem disponível. O registro da análise permanece abaixo.',
+            'This file is no longer linked to an available post. The analysis record remains below.',
           ),
         )
       : null;
@@ -44,8 +44,8 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
   section.append(
     el(
       'small',
-      t('{0} em {1}', [
-        post.reply ? t('Resposta') : t('Postagem'),
+      t('{0} in {1}', [
+        post.reply ? t('Reply') : t('Post'),
         post.communityName,
       ]),
     ),
@@ -54,19 +54,16 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
     el(
       'h2',
       post.title ||
-        (post.reply ? t('Resposta na discussão') : t('Postagem com mídia')),
+        (post.reply ? t('Reply in the discussion') : t('Post with media')),
     ),
   );
   if (post.deleted)
     section.append(
-      el(
-        'p',
-        t('A postagem foi excluída. Seu conteúdo anterior não é conservado.'),
-      ),
+      el('p', t('The post was deleted. Its previous content is not retained.')),
     );
   else if (post.text)
     section.append(el('p', post.text, 'community-text moderation-post-text'));
-  const link = el('a', t('Abrir a discussão'));
+  const link = el('a', t('Open the discussion'));
   link.href = `#communities?id=${post.community}&post=${post.id}`;
   section.append(link);
   return section;
@@ -74,19 +71,19 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
 function analysisFacts(detail: PublicModerationDetails): HTMLElement {
   const facts = el('section', '', 'moderation-facts');
   const results = {
-    allow: t('Permitido'),
-    reject: t('Indicação de conteúdo explícito'),
-    hold: t('Resultado incerto'),
+    allow: t('Allowed'),
+    reject: t('Explicit content detected'),
+    hold: t('Uncertain result'),
   };
   facts.append(
-    el('h2', t('Resultado da análise')),
+    el('h2', t('Analysis result')),
     el(
       'p',
       detail.notice.unreviewed
         ? t('community.publication.unreviewed')
         : detail.automaticVerdict
           ? results[detail.automaticVerdict]
-          : t('A análise automática não foi concluída.'),
+          : t('Automated analysis was not completed.'),
     ),
   );
   if (detail.frames !== null)
@@ -95,14 +92,14 @@ function analysisFacts(detail: PublicModerationDetails): HTMLElement {
         'p',
         t('{0} {1}.', [
           detail.frames.toLocaleString(currentLanguage()),
-          detail.frames === 1 ? t('quadro analisado') : t('quadros analisados'),
+          detail.frames === 1 ? t('analyzed frame') : t('analyzed frames'),
         ]),
       ),
     );
   facts.append(
     el(
       'p',
-      t('Enviado em {0}.', [
+      t('Sent on {0}.', [
         new Date(detail.notice.createdAt).toLocaleString(currentLanguage()),
       ]),
     ),
@@ -111,7 +108,7 @@ function analysisFacts(detail: PublicModerationDetails): HTMLElement {
     el(
       'p',
       t(
-        'A avaliação se aplica à mídia identificada nesta página. Uma contestação permite solicitar a revisão desse resultado.',
+        'The assessment applies to the media identified on this page. An appeal requests a review of this result.',
       ),
     ),
   );
@@ -120,13 +117,13 @@ function analysisFacts(detail: PublicModerationDetails): HTMLElement {
       el(
         'p',
         t(
-          'Este registro usa uma versão anterior da política. A revisão considera as regras públicas atuais.',
+          'This record uses an earlier policy version. The review follows the current public rules.',
         ),
       ),
     );
   facts.append(
-    el('small', t('Arquivo: {0}', [detail.notice.target])),
-    el('small', t('Análise: {0}', [detail.notice.id])),
+    el('small', t('File: {0}', [detail.notice.target])),
+    el('small', t('Analysis: {0}', [detail.notice.id])),
   );
   return facts;
 }
@@ -139,13 +136,13 @@ function showFailure(
     'p',
     error instanceof Error
       ? translatedError(error.message)
-      : t('Análise indisponível.'),
+      : t('Analysis unavailable.'),
     'moderation-feedback',
   );
   status.setAttribute('role', 'alert');
-  const back = el('a', t('Voltar à Atividade'));
+  const back = el('a', t('Back to Activity'));
   back.href = '#activity';
-  const button = el('button', t('Tentar novamente'));
+  const button = el('button', t('Try again'));
   button.type = 'button';
   button.addEventListener('click', retry);
   container.replaceChildren(back, status, button);
@@ -181,7 +178,7 @@ export function startModerationReview(
     const current = generation;
     busy = true;
     disable(true);
-    feedback(t('Registrando contestação…'));
+    feedback(t('Recording appeal…'));
     try {
       const result = await controller.perform('moderation-appeal', {
         id: detail.notice.id,
@@ -190,13 +187,13 @@ export function startModerationReview(
       if (current !== generation) return;
       detail = publicModerationDetails({ ...detail, notice: result });
       renderOutcome();
-      feedback(t('Contestação registrada para revisão excepcional.'));
+      feedback(t('Appeal recorded for exceptional review.'));
     } catch (error: unknown) {
       if (current === generation)
         feedback(
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível registrar a contestação.'),
+            : t('Could not record the appeal.'),
         );
     } finally {
       if (current === generation) {
@@ -220,12 +217,16 @@ export function startModerationReview(
     if (!host) return;
     abort.abort();
     abort = new AbortController();
-    const back = el('a', t('← Voltar à Atividade'), 'moderation-back');
+    const back = el('a', t('← Back to Activity'), 'moderation-back');
     back.href = '#activity';
     const card = el('article', '', 'moderation-review-card');
     card.append(
-      el('h1', t('Análise do conteúdo')),
-      el('p', t('Esta página é restrita à sua conta.'), 'moderation-private'),
+      el('h1', t('Content analysis')),
+      el(
+        'p',
+        t('This page is restricted to your account.'),
+        'moderation-private',
+      ),
     );
     const identity = postIdentity(value);
     if (identity) card.append(identity);
@@ -287,17 +288,17 @@ export function startModerationReview(
     host = container;
     abort = new AbortController();
     host.className = 'moderation-review';
-    const status = el('p', t('Carregando sua análise…'), 'moderation-feedback');
+    const status = el('p', t('Loading your analysis…'), 'moderation-feedback');
     status.dataset['reviewFeedback'] = '';
     status.setAttribute('role', 'status');
-    const back = el('a', t('← Voltar à Atividade'));
+    const back = el('a', t('← Back to Activity'));
     back.href = '#activity';
     host.replaceChildren(back, status);
     try {
       id = uuid(value);
       void ready();
     } catch {
-      feedback(t('Identificador de análise inválido.'));
+      feedback(t('Invalid analysis identifier.'));
     }
   }
   return {

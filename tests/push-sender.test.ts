@@ -177,7 +177,7 @@ await test('envio externo conserva payload genérico, separa coalescência urgen
       payload,
       JSON.stringify({
         title: '0xDMme',
-        body: 'Há nova atividade. Abra o app para sincronizar.',
+        body: 'New activity. Open the app to sync.',
       }),
     );
     assert.equal(options?.TTL, 2);

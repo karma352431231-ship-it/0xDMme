@@ -51,7 +51,7 @@ await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legen
   );
   // A titled post may have no text; nothing at all is refused.
   assert.equal(
-    postContent({ title: 'Título', text: '', tags: [], media: [] }).text,
+    postContent({ title: 'Title', text: '', tags: [], media: [] }).text,
     '',
   );
   assert.throws(() =>

@@ -14,7 +14,7 @@ export function offerPushOnDevice(input: {
   return new Promise((resolve) => {
     const dialog = document.createElement('dialog');
     dialog.className = 'settings-pack card';
-    dialog.setAttribute('aria-label', t('Notificações neste aparelho'));
+    dialog.setAttribute('aria-label', t('Notifications on this device'));
     // Static authored markup only.
     dialog.innerHTML = t('html.5ee9df8dde64');
     const status = dialog.querySelector('[data-push-offer-status]')!;
@@ -37,7 +37,7 @@ export function offerPushOnDevice(input: {
         status.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível ativar as notificações.');
+            : t('Could not enable notifications.');
       });
     });
     dialog.addEventListener('cancel', finish);

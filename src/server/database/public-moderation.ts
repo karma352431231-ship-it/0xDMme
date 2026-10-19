@@ -130,7 +130,7 @@ function claim(row: ReviewRow): PublicModerationClaim {
 }
 function requireOperatorReview(row: ReviewRow, bound: boolean): void {
   if (row.operator_verdict !== null)
-    throw new AccountError(409, 'Esta contestação já foi decidida.');
+    throw new AccountError(409, 'This appeal has already been decided.');
   if (
     row.policy !== publicModerationPolicy ||
     !bound ||
@@ -138,10 +138,7 @@ function requireOperatorReview(row: ReviewRow, bound: boolean): void {
     !['held', 'rejected', 'failed'].includes(row.status) ||
     row.expires_at.getTime() <= Date.now()
   )
-    throw new AccountError(
-      409,
-      'Contestação substituída, indisponível ou expirada.',
-    );
+    throw new AccountError(409, 'Appeal superseded, unavailable or expired.');
 }
 export function validateModerationEvaluation(
   job: PublicModerationClaim,
@@ -153,17 +150,17 @@ export function validateModerationEvaluation(
   )
     throw new AccountError(
       409,
-      'Resultado de análise pertence a outro conteúdo ou modelo.',
+      'Analysis result belongs to another content item or model.',
     );
   if (!['allow', 'reject', 'hold'].includes(result.verdict))
-    throw new AccountError(422, 'Decisão de análise inválida.');
+    throw new AccountError(422, 'Invalid analysis decision.');
   if (
     !Number.isInteger(result.frames) ||
     result.frames < 1 ||
     result.frames > 60_001 ||
     result.frames !== result.expectedFrames
   )
-    throw new AccountError(422, 'Cobertura de análise incompleta.');
+    throw new AccountError(422, 'Analysis coverage incomplete.');
 }
 /** One global durable queue; no community/person quota and no per-minute rate cap. */
 export class PublicModerationStore {
@@ -196,7 +193,7 @@ export class PublicModerationStore {
     ids: string[],
   ): Promise<Map<string, PublicModerationSubject>> {
     if (ids.length > 256)
-      throw new AccountError(400, 'Página de mídia excedida.');
+      throw new AccountError(400, 'Media page exceeds the limit.');
     if (!ids.length || (!this.acceptedModels.length && !this.publicationPaused))
       return new Map();
     const found = await client.query<ReviewRow>(
@@ -241,7 +238,7 @@ export class PublicModerationStore {
     ids: string[],
   ): Promise<Map<string, PublicModerationSubject>> {
     if (ids.length > 256)
-      throw new AccountError(400, 'Página de mídia excedida.');
+      throw new AccountError(400, 'Media page exceeds the limit.');
     if (!ids.length || !this.acceptedModels.length) return new Map();
     const found = await client.query<ReviewRow>(
       `SELECT r.* FROM hash_talk.public_moderation r WHERE r.id=ANY($1::uuid[])
@@ -357,7 +354,7 @@ export class PublicModerationStore {
       if (!current || !sameClaim(current, job))
         throw new AccountError(
           409,
-          'Análise substituída, interrompida ou expirada.',
+          'Analysis superseded, interrupted or expired.',
         );
       if (
         current.completed_lease === job.lease &&
@@ -368,7 +365,7 @@ export class PublicModerationStore {
       if (!current.live)
         throw new AccountError(
           409,
-          'Análise substituída, interrompida ou expirada.',
+          'Analysis superseded, interrupted or expired.',
         );
       if (apply) await apply(result.verdict);
       const status = apply
@@ -507,15 +504,15 @@ export class PublicModerationStore {
       [id, owner],
     );
     const row = current.rows[0];
-    if (!row) throw new AccountError(404, 'Análise indisponível.');
+    if (!row) throw new AccountError(404, 'Analysis unavailable.');
     if (row.appeal === reason) return notice(row);
     if (row.appeal !== null)
-      throw new AccountError(409, 'A contestação já foi registrada.');
+      throw new AccountError(409, 'The appeal has already been recorded.');
     if (
       !['rejected', 'held', 'failed'].includes(row.status) ||
       row.expires_at.getTime() <= Date.now()
     )
-      throw new AccountError(409, 'Esta análise não aceita contestação.');
+      throw new AccountError(409, 'This analysis does not accept appeals.');
     const saved = await client.query<ReviewRow>(
       'UPDATE hash_talk.public_moderation SET appeal=$2 WHERE id=$1 RETURNING *',
       [id, reason],
@@ -610,7 +607,7 @@ export class PublicModerationStore {
     )
       throw new AccountError(
         400,
-        'A revisão deve preservar a proibição global de conteúdo explícito.',
+        'Review must preserve the global ban on explicit content.',
       );
     return this.transaction(async (client) => {
       const initial = await client.query<ReviewRow>(
@@ -618,7 +615,7 @@ export class PublicModerationStore {
         [id],
       );
       const row = initial.rows[0];
-      if (!row) throw new AccountError(404, 'Análise indisponível.');
+      if (!row) throw new AccountError(404, 'Analysis unavailable.');
       const apply = await bind(client, subject(row));
       const locked = await client.query<ReviewRow>(
         'SELECT * FROM hash_talk.public_moderation WHERE id=$1 FOR UPDATE',

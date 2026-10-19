@@ -41,15 +41,15 @@ await test('JSON válido conserva dados e erros de autorização; vazio/adultera
   );
   await assert.rejects(
     readApiJson(
-      Response.json({ error: 'Aparelho revogado.' }, { status: 403 }),
+      Response.json({ error: 'Device revoked.' }, { status: 403 }),
       'account/devices/read',
     ),
     (error: unknown) => {
       assert.ok(error instanceof ApiResponseError);
       assert.equal(error.status, 403);
       assert.equal(error.failure, 'http');
-      assert.equal(error.reason, 'Aparelho revogado.');
-      assert.match(error.message, /Aparelho revogado/u);
+      assert.equal(error.reason, 'Device revoked.');
+      assert.match(error.message, /Device revoked/u);
       return true;
     },
   );
@@ -156,9 +156,9 @@ await test('cliente de mensagens não perde HTTP 429 nem contorna sua guarda; r�
   );
   await assert.rejects(
     messageApi(authority, 'publish', {}, () => {
-      throw new Error('Sessão alterada.');
+      throw new Error('Session changed.');
     }),
-    /Sessão alterada/u,
+    /Session changed/u,
   );
   assert.equal(requests, 1);
   const error = new ApiResponseError({

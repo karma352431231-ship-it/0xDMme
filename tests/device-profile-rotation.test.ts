@@ -171,7 +171,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
   });
   await assert.rejects(
     controller.saveProfile(session, oldProfile, oldRing.epoch),
-    /Dispositivos alterados/,
+    /Devices changed/,
   );
   assert.deepEqual(requests, ['/api/account/devices/read']);
   const profile = await sealProfile({
@@ -188,7 +188,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
       profile,
       ring.epoch,
     ),
-    /Sessão alterada/,
+    /Session changed/,
   );
   assert.equal(requests.length, 3);
   await t.test(
@@ -218,7 +218,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
             revoked: [owner.public.id],
             revision: initial.revision,
           }),
-          /lista de aparelhos mudou/,
+          /device list changed/,
         );
         assert.deepEqual(requests.slice(before), ['/api/account/devices/read']);
         assert.equal(recovering.current?.revision, current.revision);

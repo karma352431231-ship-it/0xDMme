@@ -59,7 +59,7 @@ export class WalletLogin {
     if (this.approval.only && !this.approval.incoming)
       throw new AccountError(
         400,
-        'Pedido ausente. Reinicie pelo navegador original.',
+        'Request missing. Restart from the original browser.',
       );
     const request = this.approval.incoming;
     const instance = this.wallets.get(name);
@@ -74,7 +74,7 @@ export class WalletLogin {
     }
     if (!this.approval.incoming && this.walletReturn.state())
       await this.walletReturn.cancel();
-    this.core.status = t('Confirme a conexão na {0}.', [instance.name]);
+    this.core.status = t('Confirm the connection in {0}.', [instance.name]);
     this.host.render();
     const proof = await this.createLoginProof(instance);
     if (request) {
@@ -97,10 +97,10 @@ export class WalletLogin {
   async signStatement(message: string): Promise<string> {
     const active = this.core.session;
     if (!active || this.core.busy)
-      throw new Error('Entre na conta e aguarde a operação atual.');
+      throw new Error('Sign in and wait for the current operation.');
     const current = () => {
       if (this.core.session?.csrf !== active.csrf)
-        throw new Error('Sessão alterada durante a assinatura.');
+        throw new Error('Session changed during signing.');
     };
     this.core.busy = true;
     try {
@@ -111,7 +111,7 @@ export class WalletLogin {
         ) ?? this.wallets.list().find((w) => w.ecosystem === active.ecosystem);
       if (!wallet)
         throw new Error(
-          'Para assinar organizações e autorizações, abra o 0xDMme no navegador da wallet ou use uma extensão. O retorno dessas assinaturas ao Chrome/Safari ainda está pendente.',
+          "To sign organizations and authorizations, open 0xDMme in your wallet's browser or use an extension. Returning these signatures to Chrome/Safari on mobile is still pending.",
         );
       return await signWalletStatement({
         wallet,
@@ -142,11 +142,11 @@ export class WalletLogin {
     this.rememberLoginWallet(name);
     if (this.approval.incoming)
       throw new Error(
-        'Wallet não disponível neste navegador interno. Abra novamente o pedido no navegador original.',
+        'Wallet unavailable in this in-app browser. Reopen the request in the original browser.',
       );
     const [wallet, network] = name.split(':');
     if (!['MetaMask', 'Phantom', 'Backpack'].includes(wallet ?? ''))
-      throw new Error('Wallet não disponível.');
+      throw new Error('Wallet unavailable.');
     await this.walletReturn.start(
       wallet as WalletName,
       network === 'solana' ? 'solana' : 'evm',
@@ -160,11 +160,13 @@ export class WalletLogin {
       incoming.wallet !== instance.name ||
       this.approval.signed
     )
-      throw new Error('Selecione a wallet e o ecossistema do pedido original.');
+      throw new Error(
+        'Select the wallet and ecosystem from the original request.',
+      );
   }
   private checkEpoch(current: number): void {
     if (current !== this.core.epoch || this.core.disposed)
-      throw new Error('Pedido encerrado ou wallet alterada.');
+      throw new Error('Request ended or wallet changed.');
   }
   private async createLoginProof(
     instance: WalletConnection,
@@ -221,7 +223,7 @@ export class WalletLogin {
       stillConnected.chainId !== identity.chainId ||
       stillConnected.ecosystem !== identity.ecosystem
     )
-      throw new Error('Wallet alterada.');
+      throw new Error('Wallet changed.');
   }
   private checkConfirmationWallet(identity: {
     ecosystem: AccountSession['ecosystem'];
@@ -236,7 +238,7 @@ export class WalletLogin {
           session.address)
     )
       throw new Error(
-        'Selecione a wallet da conta aberta para confirmar as ações sensíveis.',
+        "Select the open account's wallet to confirm sensitive actions.",
       );
   }
   private rememberLoginWallet(name: string): void {
@@ -276,7 +278,7 @@ export class WalletLogin {
       return;
     }
     this.host.setSession(authenticated);
-    this.core.status = t('Abrindo sua conta…');
+    this.core.status = t('Opening your account…');
     await this.host.openAccount(authenticated);
   }
   private async finishIncomingOpening(
@@ -287,7 +289,7 @@ export class WalletLogin {
     const opening = this.approval.opening;
     if (opening) {
       this.core.status = t(
-        'Continue nesta wallet para abrir as chaves da sua conta.',
+        "Continue in this wallet to open your account's keys.",
       );
       this.host.render();
       const encrypted = await signLoginOpening({
@@ -301,7 +303,7 @@ export class WalletLogin {
     this.checkEpoch(currentEpoch);
     this.approval.confirmed(request.ticket);
     this.core.status = t(
-      'Assinatura confirmada. Feche a {0} e volte ao navegador onde iniciou o login para confirmar o endereço.',
+      'Signature confirmed. Close {0} and return to the browser where you started signing in to confirm the address.',
       [instance.name],
     );
     this.approval.step('retorno-manual');

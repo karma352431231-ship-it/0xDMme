@@ -16,7 +16,7 @@ export function pendingPublicAvatar(
   keys(data, ['type', 'bytes']);
   const type = data['type'];
   if (type !== 'image/png' && type !== 'image/jpeg')
-    throw new AccountError(400, 'Prepare uma foto PNG ou JPEG.');
+    throw new AccountError(400, 'Prepare a PNG or JPEG photo.');
   const bytes = base64(data['bytes'], publicAvatarLimit);
   try {
     const shape = imageShape(bytes);
@@ -29,7 +29,7 @@ export function pendingPublicAvatar(
   } catch {
     throw new AccountError(
       400,
-      'Foto inválida ou com metadados. Prepare novamente.',
+      'Photo invalid or contains metadata. Prepare it again.',
     );
   }
   return { type, bytes };

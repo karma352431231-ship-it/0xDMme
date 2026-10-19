@@ -19,9 +19,9 @@ export function rankingPeriods(): readonly (readonly [
   string,
 ])[] {
   return [
-    ['day', t('24 horas')],
-    ['week', t('7 dias')],
-    ['month', t('30 dias')],
+    ['day', t('24 hours')],
+    ['week', t('7 days')],
+    ['month', t('30 days')],
   ];
 }
 
@@ -46,7 +46,7 @@ export class AccountRankingView {
     this.signal = signal;
     this.status.setAttribute('role', 'status');
     this.more.type = 'button';
-    this.more.textContent = t('Próxima página');
+    this.more.textContent = t('Next page');
     this.more.hidden = true;
     this.more.addEventListener('click', () => {
       void this.load(true);
@@ -271,7 +271,7 @@ export function rankingScopes(
 function periodButtons(selected: (period: RankingPeriod) => void) {
   const periods = el('nav', '', 'ranking-periods'),
     buttons = new Map<RankingPeriod, HTMLButtonElement>();
-  periods.setAttribute('aria-label', t('Período'));
+  periods.setAttribute('aria-label', t('Period'));
   for (const [period, label] of rankingPeriods()) {
     const button = el('button', label);
     button.type = 'button';

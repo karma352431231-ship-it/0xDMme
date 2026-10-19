@@ -269,7 +269,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
       const pendingDevice = await login();
       await assert.rejects(
         vault.operate('read', pendingDevice.session, { after: 0 }),
-        /não autorizado/,
+        /not authorized|unauthorized/,
       );
       const headers = {
         'Content-Type': 'application/json',
@@ -330,7 +330,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
           commit: concurrentB.commit,
           ciphertext: encode(concurrentB.bytes),
         }),
-        /mudou/,
+        /changed/,
       );
       await vault.operate('discard', b.session, { id: concurrentB.commit.id });
       const rebased = await prepare({
@@ -373,7 +373,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
           commit: next.commit,
           ciphertext: encode(next.bytes.slice(1)),
         }),
-        /incompleto/,
+        /incomplete/,
       );
       const writer = await database.vault.beginUpload(
         a.session,
@@ -435,7 +435,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
         assert.ok(before.used < vaultQuota);
         await assert.rejects(
           vault.operate('reserve', a.session, { commit: next.commit }),
-          /Cofre cheio/,
+          /Vault full/,
         );
         assert.equal(
           (
@@ -470,7 +470,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
       }
       await assert.rejects(
         vault.operate('discard', a.session, { id: first.commit.id }),
-        /confirmada/,
+        /[Cc]onfirmed/,
       );
       const before = (await vault.operate('read', a.session, { after: 0 })) as {
         used: number;
@@ -776,7 +776,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
       await vault.operate('discard', a.session, { id: next.commit.id });
       await assert.rejects(
         vault.operate('object', b.session, { id: first.commit.id }),
-        /não autorizado/,
+        /not authorized|unauthorized/,
       );
       const latest = await prepare({
         previous: last,

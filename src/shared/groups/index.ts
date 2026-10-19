@@ -64,19 +64,19 @@ export interface GroupEvent {
 }
 function signature(value: unknown): string {
   if (base64(value, 64).length !== 64)
-    throw new AccountError(400, 'Assinatura de grupo inválida.');
+    throw new AccountError(400, 'Invalid group signature.');
   return value as string;
 }
 function positive(value: unknown): number {
   const valid = revision(value);
-  if (!valid) throw new AccountError(400, 'Revisão do grupo inválida.');
+  if (!valid) throw new AccountError(400, 'Invalid group revision.');
   return valid;
 }
 export function groupMember(value: unknown): GroupMember {
   const data = object(value);
   keys(data, ['accountId', 'role', 'joined']);
   if (!['owner', 'admin', 'member'].includes(String(data['role'])))
-    throw new AccountError(400, 'Função de grupo inválida.');
+    throw new AccountError(400, 'Invalid group role.');
   return {
     accountId: uuid(data['accountId']),
     role: data['role'] as GroupRole,
@@ -104,7 +104,7 @@ export function groupConsent(value: unknown): GroupConsent {
     data['version'] !== 1 ||
     (data['kind'] !== 'invite' && data['kind'] !== 'transfer')
   )
-    throw new AccountError(400, 'Convite ou transferência inválidos.');
+    throw new AccountError(400, 'Invalid invitation or transfer.');
   return {
     version: 1,
     kind: data['kind'],
@@ -147,7 +147,7 @@ export function groupEvent(value: unknown): GroupEvent {
     !Array.isArray(data['members']) ||
     data['members'].length > groupParticipantLimit
   )
-    throw new AccountError(400, 'Diretório de grupo inválido.');
+    throw new AccountError(400, 'Invalid group directory.');
   const event: GroupEvent = {
     version: 1,
     groupId: uuid(data['groupId']),
@@ -184,7 +184,7 @@ function groupKind(value: unknown): GroupEvent['kind'] {
       'delete',
     ].includes(value)
   )
-    throw new AccountError(400, 'Alteração de grupo inválida.');
+    throw new AccountError(400, 'Invalid group change.');
   return value as GroupEvent['kind'];
 }
 function assertMembers(event: GroupEvent): void {
@@ -193,15 +193,15 @@ function assertMembers(event: GroupEvent): void {
     canonical(ordered) !== canonical([...new Set(ordered)].sort()) ||
     event.members.some((m) => m.joined > event.epoch)
   )
-    throw new AccountError(400, 'Participação repetida ou inconsistente.');
+    throw new AccountError(400, 'Membership duplicated or inconsistent.');
   const owners = event.members.filter((m) => m.role === 'owner');
   if (event.kind === 'delete') {
     if (event.members.length)
-      throw new AccountError(400, 'Grupo excluído ainda tem membros.');
+      throw new AccountError(400, 'Deleted group still has members.');
     return;
   }
   if (owners.length !== 1 || owners[0]?.accountId !== event.owner)
-    throw new AccountError(400, 'Propriedade do grupo divergente.');
+    throw new AccountError(400, 'Group ownership does not match.');
 }
 export function groupEventProof(event: GroupEvent): string {
   const { signature: ignored, ...unsigned } = event;
@@ -232,7 +232,7 @@ async function authorizedSigner(
     directory.revision !== input.authorityRevision ||
     (await eventHash(directory)) !== input.directory
   )
-    throw new AccountError(403, 'Grupo sem autoridade de aparelho verificada.');
+    throw new AccountError(403, 'Group lacks verified device authority.');
   return signer.signing;
 }
 export async function verifyGroupConsent(
@@ -254,10 +254,7 @@ export function groupManager(state: GroupEvent, account: string): boolean {
   );
 }
 function rejectTransition(): never {
-  throw new AccountError(
-    403,
-    'Mudança de participação ou propriedade não autorizada.',
-  );
+  throw new AccountError(403, 'Membership or ownership change not authorized.');
 }
 function assertGenesis(event: GroupEvent): void {
   if (

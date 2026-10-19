@@ -42,7 +42,7 @@ function legacyPending(): unknown {
     return undefined;
   }
   if (!text) return undefined;
-  if (text.length > 2048) throw new Error('Entrada pendente inválida.');
+  if (text.length > 2048) throw new Error('Invalid pending entry.');
   return JSON.parse(text) as unknown;
 }
 function pendingData(value: unknown): OpeningPending {
@@ -62,11 +62,11 @@ function pendingData(value: unknown): OpeningPending {
   )
     throw new AccountError(
       409,
-      'A entrada expirou. Conecte a wallet novamente.',
+      'The sign-in expired. Connect your wallet again.',
     );
   const ticket = boundedText(data['ticket'], 64);
   if (!/^[a-f0-9]{64}$/u.test(ticket))
-    throw new Error('Entrada pendente inválida.');
+    throw new Error('Invalid pending entry.');
   return {
     ...openingReceiver({
       receiver: data['receiver'],
@@ -97,7 +97,7 @@ async function pending(): Promise<OpeningPending | null> {
       ...(current.language ? { language: current.language } : {}),
     })) !== current.ticket
   )
-    throw new Error('Destino da entrada alterado.');
+    throw new Error('Sign-in destination changed.');
   await storedOpeningReceiverIdentity(current.receiver);
   return current;
 }
@@ -120,7 +120,7 @@ export async function rememberLoginOpening(
   ticket: string,
 ): Promise<void> {
   if ((await openingTicket(receiver)) !== ticket)
-    throw new Error('Destino da entrada alterado.');
+    throw new Error('Sign-in destination changed.');
   await storedOpeningReceiverIdentity(receiver.receiver);
   await saveOpeningPending({
     ...receiver,
@@ -190,7 +190,7 @@ export async function readLoginOpening(session: AccountSession) {
     transfer.receiver !== identity.public.wrapping ||
     transfer.wallet !== current.wallet
   )
-    throw new Error('O destino da entrada mudou. Inicie novamente.');
+    throw new Error('The sign-in destination changed. Start again.');
   const packet = object(
     await openFrom(
       identity.wrapping,
@@ -205,7 +205,7 @@ export async function readLoginOpening(session: AccountSession) {
     signatures.length !== transfer.count ||
     signatures.some((value) => typeof value !== 'string' || value.length > 132)
   )
-    throw new Error('Prova privada de entrada inválida.');
+    throw new Error('Invalid private entry proof.');
   return {
     config: transfer.config,
     count: transfer.count,
@@ -240,7 +240,7 @@ export async function signLoginOpening(input: {
     transfer.wallet !== input.wallet.name ||
     transfer.config.origin !== location.origin
   )
-    throw new Error('Pedido de abertura divergente.');
+    throw new Error('Opening request does not match.');
   input.current();
   const signatures = await signRecovery({
     wallet: input.wallet,

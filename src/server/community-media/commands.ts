@@ -158,7 +158,7 @@ function preparationPaths(
   source: string,
   output: string,
 ): string[] {
-  if (!source.endsWith('/source')) throw new Error('Origem inválida.');
+  if (!source.endsWith('/source')) throw new Error('Invalid origin.');
   for (const kind of ['photo', 'gif', 'video', 'thumbnail'] as const) {
     const expected = preparationCommand({ kind, source, output });
     const matches =

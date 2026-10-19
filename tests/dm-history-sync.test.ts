@@ -77,14 +77,14 @@ await test('snapshot alterado durante a leitura e cancelamento não publicam cur
   await new Promise<void>((resolve) => setImmediate(resolve));
   f.snapshot.removals++;
   pending.resolve({ next: 12, unavailable: [] });
-  await assert.rejects(read, /mudou/u);
+  await assert.rejects(read, /changed/u);
   assert.equal(f.saved.length, 0);
   const g = fixture();
   g.options.page = () => Promise.resolve({ next: 0, unavailable: [] });
-  await assert.rejects(synchronizeDmHistory(g.options), /Paginação/u);
+  await assert.rejects(synchronizeDmHistory(g.options), /pagination/u);
   g.options.guard = () => {
-    throw new Error('Sessão alterada');
+    throw new Error('Session changed');
   };
-  await assert.rejects(synchronizeDmHistory(g.options), /Sessão/u);
+  await assert.rejects(synchronizeDmHistory(g.options), /[Ss]ession/u);
   assert.equal(g.saved.length, 0);
 });

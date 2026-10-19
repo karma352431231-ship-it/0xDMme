@@ -14,7 +14,7 @@ function feature(
 ): Record<string, unknown> {
   const value: unknown = wallet.features[name];
   if (typeof value !== 'object' || value === null)
-    throw new Error('Wallet sem a capacidade necessária.');
+    throw new Error('Wallet lacks the required capability.');
   return value as Record<string, unknown>;
 }
 export function supportsSolana(wallet: StandardWallet): boolean {
@@ -85,7 +85,7 @@ export async function signStandard(
     message: bytes,
   });
   if (!Array.isArray(outputs) || outputs.length !== 1)
-    throw new Error('Resposta de assinatura inválida.');
+    throw new Error('Invalid signing response.');
   const output: unknown = outputs[0];
   return standardSignature(output, bytes);
 }
@@ -96,22 +96,22 @@ function standardSignature(output: unknown, bytes: Uint8Array): string {
     !('signedMessage' in output) ||
     !('signature' in output)
   )
-    throw new Error('Resposta de assinatura inválida.');
+    throw new Error('Invalid signing response.');
   const signed = output.signedMessage;
   if (
     !(signed instanceof Uint8Array) ||
     signed.length !== bytes.length ||
     !bytes.every((value, index) => value === signed[index])
   )
-    throw new Error('A wallet alterou o pedido de login.');
+    throw new Error('The wallet changed the sign-in request.');
   if ('signatureType' in output && output.signatureType !== 'ed25519')
-    throw new Error('Tipo de assinatura inválido.');
+    throw new Error('Invalid signature type.');
   return signatureBytes(output.signature);
 }
 
 function signatureBytes(value: unknown): string {
   if (!(value instanceof Uint8Array) || value.length !== 64)
-    throw new Error('Assinatura Solana inválida.');
+    throw new Error('Invalid Solana signature.');
   return base58.encode(value);
 }
 export function observeStandard(
@@ -150,7 +150,7 @@ function publicAddress(value: unknown): string {
     !('toBase58' in value) ||
     typeof value.toBase58 !== 'function'
   )
-    throw new Error('Chave Solana inválida.');
+    throw new Error('Invalid Solana key.');
   const key = value as { toBase58: () => unknown };
   const result = key.toBase58();
   solanaPublicKey(result);
@@ -173,7 +173,7 @@ export async function signLegacy(
   address: string,
 ) {
   if (publicAddress(provider.publicKey) !== address)
-    throw new Error('Wallet alterada.');
+    throw new Error('Wallet changed.');
   const result = await provider.signMessage(
     new TextEncoder().encode(message),
     'utf8',
@@ -185,6 +185,6 @@ export async function signLegacy(
     !('signature' in result) ||
     ('publicKey' in result && publicAddress(result.publicKey) !== address)
   )
-    throw new Error('Resposta de assinatura inválida.');
+    throw new Error('Invalid signing response.');
   return signatureBytes(result.signature);
 }

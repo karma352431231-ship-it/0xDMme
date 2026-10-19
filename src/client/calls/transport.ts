@@ -38,7 +38,7 @@ export class CallTransport {
     return result;
   }
   private guard(g: number): void {
-    if (g !== this.generation) throw new Error('Sessão da chamada encerrada.');
+    if (g !== this.generation) throw new Error('Call session ended.');
   }
   private async authority(g: number): Promise<SigningAuthority> {
     if (this.signing && Date.now() < this.signing.until)

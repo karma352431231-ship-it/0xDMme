@@ -46,7 +46,7 @@ export class PublicProfiles {
   ): Promise<void> {
     const generation = this.generation;
     const data = await this.perform(operation, payload);
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     this.profile = ownPublicProfile(data);
   }
   async perform(
@@ -55,7 +55,7 @@ export class PublicProfiles {
   ): Promise<unknown> {
     if (!this.session)
       throw new Error(
-        'Conecte e autorize seu aparelho para gerenciar o perfil público.',
+        'Connect and authorize your device to manage your public profile.',
       );
     const generation = this.generation;
     return this.access.withVault(false, async (authority) => {
@@ -64,7 +64,7 @@ export class PublicProfiles {
         authority.session.deviceId !== this.session.deviceId ||
         generation !== this.generation
       )
-        throw new Error('Sessão alterada.');
+        throw new Error('Session changed.');
       const proof = { directory: authority.directory, payload };
       const signature = await authority.sign(
         publicProfileBody(
@@ -74,7 +74,7 @@ export class PublicProfiles {
           proof,
         ),
       );
-      if (generation !== this.generation) throw new Error('Sessão alterada.');
+      if (generation !== this.generation) throw new Error('Session changed.');
       const response = await fetchApi(
         `public-profile/${operation}`,
         `/api/account/public-profile/${operation}`,
@@ -93,16 +93,16 @@ export class PublicProfiles {
       );
       const data = await readApiJson(response, `public-profile/${operation}`);
       if (generation !== this.generation)
-        throw new Error('Sessão alterada durante a operação.');
+        throw new Error('Session changed during the operation.');
       return data;
     });
   }
   async refreshModeration(after: string | null = null): Promise<void> {
     const generation = this.generation;
     const data = await this.perform('moderation-notices', { after });
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     if (!Array.isArray(data) || data.length > 32)
-      throw new Error('Avisos de análise inválidos.');
+      throw new Error('Invalid analysis notices.');
     this.notices = data.map(publicModerationNotice);
     this.moderationAfter = after;
     this.moderationOlder =
@@ -111,7 +111,7 @@ export class PublicProfiles {
   async appeal(id: string, reason: string): Promise<void> {
     const generation = this.generation;
     const data = await this.perform('moderation-appeal', { id, reason });
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     const notice = publicModerationNotice(data);
     this.notices = this.notices.map((old) =>
       old.id === notice.id ? notice : old,
@@ -124,7 +124,7 @@ export class PublicProfiles {
     return ownPublicProfile(await this.perform('state', {})) !== null;
   }
   async create(handle: string, consent: boolean): Promise<void> {
-    if (!consent) throw new Error('Confirme a criação do perfil público.');
+    if (!consent) throw new Error('Confirm public profile creation.');
     await this.request('create', {
       handle: claimableHandle(handle),
       consent: true,
@@ -134,7 +134,7 @@ export class PublicProfiles {
     avatar: PendingPublicAvatar | null,
     revision?: number,
   ): Promise<void> {
-    if (!this.profile) throw new Error('Crie seu perfil público primeiro.');
+    if (!this.profile) throw new Error('Create your public profile first.');
     await this.request('avatar', {
       revision: revision ?? this.profile.revision,
       avatar: avatar

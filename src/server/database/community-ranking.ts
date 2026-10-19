@@ -231,7 +231,7 @@ export class CommunityRankingStore {
     if (Number(needed) > this.cacheBudget)
       throw new AccountError(
         503,
-        'Capacidade do ranking insuficiente para publicar o universo completo.',
+        'Insufficient ranking capacity to publish the full set.',
       );
     if (
       Number(used) + Number(needed) <= this.cacheBudget &&
@@ -248,7 +248,7 @@ export class CommunityRankingStore {
     if (!old.rows[0]!.exists)
       throw new AccountError(
         503,
-        'Capacidade global insuficiente para publicar o ranking.',
+        'Insufficient global capacity to publish the ranking.',
       );
     await client.query(`UPDATE hash_talk.community_ranking_generations SET expires_at=clock_timestamp()
       WHERE id=(SELECT id FROM hash_talk.community_ranking_generations WHERE expires_at>clock_timestamp()
@@ -341,8 +341,8 @@ export class CommunityRankingStore {
     const head = result.rows[0];
     if (!head) {
       if (cursor)
-        throw new AccountError(409, 'Ranking atualizado; recarregue a lista.');
-      throw new AccountError(503, 'Ranking em preparação. Tente novamente.');
+        throw new AccountError(409, 'Ranking updated; reload the list.');
+      throw new AccountError(503, 'Ranking being prepared. Try again.');
     }
     return { head, rows: head.entries };
   }

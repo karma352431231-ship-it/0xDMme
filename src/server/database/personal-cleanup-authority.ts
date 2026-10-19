@@ -19,7 +19,7 @@ export function assertPersonalCleanupTarget(
     target.hash !== input.hash ||
     ![target.sender, target.recipient].includes(input.account)
   )
-    throw new AccountError(409, 'Mensagem ausente ou divergente.');
+    throw new AccountError(409, 'Message missing or does not match.');
 }
 
 interface CleanupAuthority {
@@ -79,7 +79,7 @@ export function withPersonalCleanupAuthority<T>(
           (owner) => !participants.includes(owner),
         )
       )
-        throw new AccountError(409, 'Mensagem ausente ou divergente.');
+        throw new AccountError(409, 'Message missing or does not match.');
       return work(client, participants);
     },
   );

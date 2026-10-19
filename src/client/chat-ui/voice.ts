@@ -41,7 +41,7 @@ export function bindRecordGesture(
     }
     lastTap = event.timeStamp;
     hint = window.setTimeout(() => {
-      showToast(t('Segure para gravar ou toque duas vezes.'));
+      showToast(t('Hold to record or tap twice.'));
     }, doubleTap);
   };
   button.addEventListener('pointerdown', (event) => {

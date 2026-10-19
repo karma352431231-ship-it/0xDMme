@@ -237,16 +237,16 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
       ]);
       const newTag = crypto.randomUUID();
       await assert.rejects(
-        author.operate('tag-create', { id, tag: newTag, label: 'Teste' }),
+        author.operate('tag-create', { id, tag: newTag, label: 'Test' }),
         bad(403),
       );
-      await owner.operate('tag-create', { id, tag: newTag, label: 'Teste' });
-      await owner.operate('tag-create', { id, tag: newTag, label: 'Teste' });
+      await owner.operate('tag-create', { id, tag: newTag, label: 'Test' });
+      await owner.operate('tag-create', { id, tag: newTag, label: 'Test' });
       await assert.rejects(
         owner.operate('tag-create', {
           id,
           tag: crypto.randomUUID(),
-          label: 'teste',
+          label: 'test',
         }),
         bad(409),
       );
@@ -375,7 +375,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
           post,
           revision: (await own()).post.revision,
           record: removal,
-          reason: 'Teste',
+          reason: 'Test',
         }),
         bad(403),
       );
@@ -632,7 +632,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
           id,
           post: reply,
           parent: tagged,
-          content: { title: '', text: 'Resposta', tags: [active[0]] },
+          content: { title: '', text: 'Reply', tags: [active[0]] },
         }),
         bad(400),
       );

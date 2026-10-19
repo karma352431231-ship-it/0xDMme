@@ -56,7 +56,7 @@ await test('DM cancela antes do envio se a sessão muda durante assinatura; não
     );
   controller.setSession(session);
   const pending = controller.request('request', { peer: crypto.randomUUID() }),
-    rejection = assert.rejects(pending, /Sessão/);
+    rejection = assert.rejects(pending, /[Ss]ession/);
   await signing;
   controller.setSession(null);
   finish('a'.repeat(88));
@@ -65,7 +65,7 @@ await test('DM cancela antes do envio se a sessão muda durante assinatura; não
   controller.setSession({ ...session, accountId: crypto.randomUUID() });
   await assert.rejects(
     controller.request('list', { after: null }),
-    /outra conta/,
+    /another account/,
   );
   assert.equal(fetch.mock.callCount(), 0);
 });

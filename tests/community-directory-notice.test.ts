@@ -28,7 +28,7 @@ await test('missing public profile offers a localized direct setup link; unrelat
     status: 403,
     failure: 'http' as const,
     responseType: 'json' as const,
-    message: 'Crie seu perfil público em Perfil antes de participar.',
+    message: 'Create your public profile in Profile before participating.',
   };
   for (const [language, title, text] of [
     ['en', 'Want to participate?', 'Create your public profile here'],
@@ -52,7 +52,7 @@ await test('missing public profile offers a localized direct setup link; unrelat
     assert.equal(mobile.children.length, 0);
   }
   for (const changes of [
-    { message: 'Aparelho revogado.' },
+    { message: 'Device revoked.' },
     { status: 500 },
     { operation: 'communities/read' },
   ]) {

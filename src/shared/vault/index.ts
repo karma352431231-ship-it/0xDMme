@@ -48,7 +48,7 @@ export function integer(value: unknown, maximum = 100_000): number {
     value < 0 ||
     value > maximum
   )
-    throw new AccountError(400, 'Número do cofre inválido.');
+    throw new AccountError(400, 'Invalid vault number.');
   return value;
 }
 export function vaultCommit(value: unknown): VaultCommit {
@@ -82,13 +82,13 @@ export function vaultCommit(value: unknown): VaultCommit {
     !authorityRevision ||
     bytes < 29
   )
-    throw new AccountError(400, 'Formato do cofre inválido.');
+    throw new AccountError(400, 'Invalid vault format.');
   if (
     base64(manifest['iv'], 12).length !== 12 ||
     base64(manifest['ciphertext'], 4096).length < 16 ||
     base64(data['signature'], 64).length !== 64
   )
-    throw new AccountError(400, 'Envelope do cofre inválido.');
+    throw new AccountError(400, 'Invalid vault envelope.');
   return {
     version: 1,
     id: uuid(data['id']),
@@ -119,10 +119,10 @@ export function vaultChange(value: unknown): VaultChange {
     !Array.isArray(data['parents']) ||
     data['parents'].length > 16
   )
-    throw new AccountError(400, 'Alteração privada inválida.');
+    throw new AccountError(400, 'Invalid private change.');
   const parents = (data['parents'] as unknown[]).map(uuid);
   if (new Set(parents).size !== parents.length)
-    throw new AccountError(400, 'Versões repetidas.');
+    throw new AccountError(400, 'Duplicate versions.');
   return {
     version: 1,
     entity: uuid(data['entity']),
@@ -183,7 +183,7 @@ export async function verifyCommit(
     commit.authorityRevision !== authority.revision ||
     commit.directory !== (await eventHash(authority))
   )
-    throw new AccountError(403, 'Manifesto sem autorização verificada.');
+    throw new AccountError(403, 'Manifest lacks verified authorization.');
   await verify(device.signing, commit.signature, commitProof(commit));
   return commit;
 }
@@ -195,12 +195,12 @@ export async function verifySuccessor(
     commit.sequence !== (previous?.sequence ?? 0) + 1 ||
     commit.previous !== (previous ? await commitHash(previous) : null)
   )
-    throw new AccountError(409, 'Cofre antigo, omitido ou divergente.');
+    throw new AccountError(409, 'Vault outdated, omitted or inconsistent.');
   if (
     previous &&
     (commit.accountId !== previous.accountId ||
       commit.authorityRevision < previous.authorityRevision ||
       commit.epoch < previous.epoch)
   )
-    throw new AccountError(409, 'Autoridade antiga no cofre.');
+    throw new AccountError(409, 'Old authority in the vault.');
 }

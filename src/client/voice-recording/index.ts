@@ -45,14 +45,16 @@ export class VoiceRecording {
     const generation = this.generation;
     this.update(
       'requesting',
-      t('Autorize o microfone. A gravação começa após a permissão.'),
+      t(
+        'Allow microphone access. Recording starts after permission is granted.',
+      ),
     );
     const capture = this.factory({
       chunk: (chunk) => this.receive(chunk, generation),
       ended: () => {
         if (generation === this.generation)
           void this.stop(
-            t('Gravação concluída; confira a prévia antes de enviar.'),
+            t('Recording complete; check the preview before sending.'),
           );
       },
       interrupted: (notice) => {
@@ -65,14 +67,14 @@ export class VoiceRecording {
       if (generation !== this.generation || this.state.phase !== 'requesting')
         return;
       this.started = this.lastChunk = Date.now();
-      this.update('recording', t('Gravando. Até 90 segundos.'));
+      this.update('recording', t('Recording. Up to 90 seconds.'));
       this.timer = setInterval(() => this.watchdog(), 1000);
     } catch (error: unknown) {
       if (generation !== this.generation) return;
       if (this.samples) {
         await this.stop(
           t(
-            'A inicialização do microfone foi interrompida. Confira o trecho preservado.',
+            'Microphone initialization was interrupted. Check the preserved excerpt.',
           ),
         );
         return;
@@ -82,8 +84,8 @@ export class VoiceRecording {
       this.update(
         'idle',
         error instanceof Error
-          ? t('Gravação não iniciada: {0}', [translatedError(error.message)])
-          : t('Gravação não iniciada. Confira a permissão do microfone.'),
+          ? t('Recording not started: {0}', [translatedError(error.message)])
+          : t('Recording not started. Check microphone permission.'),
       );
     }
   }
@@ -100,7 +102,7 @@ export class VoiceRecording {
       chunk.fill(0);
       void this.stop(
         t(
-          'O microfone enviou dados fora do limite. Confira o trecho preservado.',
+          'The microphone sent data beyond the limit. Check the preserved excerpt.',
         ),
       );
       return;
@@ -111,17 +113,19 @@ export class VoiceRecording {
     this.update(this.state.phase, this.state.notice);
     if (this.samples === voiceSamples)
       void this.stop(
-        t('Limite de 90 segundos atingido. Confira a prévia antes de enviar.'),
+        t('90-second limit reached. Check the preview before sending.'),
       );
   }
   private watchdog(): void {
     if (Date.now() - this.started >= 95000)
       void this.stop(
-        t('Limite de gravação atingido. Confira o trecho preservado.'),
+        t('Recording limit reached. Check the preserved excerpt.'),
       );
     else if (Date.now() - this.lastChunk > 5000)
       void this.stop(
-        t('O microfone parou de produzir áudio. Confira o trecho preservado.'),
+        t(
+          'The microphone stopped producing audio. Check the preserved excerpt.',
+        ),
       );
   }
   /** A deliberate stop needs no notice; the preview itself is the review. */
@@ -129,10 +133,7 @@ export class VoiceRecording {
     if (!this.active || this.state.phase === 'stopping') return;
     if (this.state.phase === 'requesting' && !this.samples) {
       this.cancel();
-      this.update(
-        'idle',
-        t('Pedido de microfone cancelado. Nenhum áudio enviado.'),
-      );
+      this.update('idle', t('Microphone request cancelled. No audio sent.'));
       return;
     }
     const generation = this.generation;
@@ -156,7 +157,7 @@ export class VoiceRecording {
       'idle',
       error instanceof Error
         ? translatedError(error.message)
-        : t('Não foi possível preparar a gravação.'),
+        : t('Could not prepare the recording.'),
     );
   }
   private async finishCapture(notice: string): Promise<string> {
@@ -165,13 +166,13 @@ export class VoiceRecording {
       return notice;
     } catch {
       return t(
-        'O microfone não encerrou normalmente. Confira o trecho capturado que foi preservado.',
+        'The microphone did not stop normally. Check the captured excerpt that was preserved.',
       );
     }
   }
   private complete(notice: string): void {
     if (!this.samples) {
-      this.update('idle', t('Nenhum áudio capturado. Tente novamente.'));
+      this.update('idle', t('No audio captured. Try again.'));
       return;
     }
     const bytes = voiceWav(this.chunks),
@@ -186,9 +187,7 @@ export class VoiceRecording {
     });
     this.update(
       'idle',
-      notice
-        ? t('{0} Nenhum áudio foi enviado automaticamente.', [notice])
-        : '',
+      notice ? t('{0} No audio was sent automatically.', [notice]) : '',
     );
   }
   cancel(): void {
@@ -198,7 +197,7 @@ export class VoiceRecording {
     this.clearChunks();
     this.update(
       'idle',
-      hadRecording ? t('Gravação cancelada. Nenhum áudio enviado.') : '',
+      hadRecording ? t('Recording cancelled. No audio sent.') : '',
     );
   }
   private release(): void {

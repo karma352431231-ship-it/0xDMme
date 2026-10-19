@@ -204,9 +204,9 @@ await test('verificação no cliente exige estado recente e revogação assinada
   });
   assert.match((await controller.check(card)).status, /Active/u);
   result = { ...result, checkedAt: Date.now() - 120000 };
-  await assert.rejects(controller.check(card), /atualização/u);
+  await assert.rejects(controller.check(card), /up to date/u);
   result = { ...result, checkedAt: Date.now(), expiresAt: c.expiresAt + 1 };
-  await assert.rejects(controller.check(card), /divergente/u);
+  await assert.rejects(controller.check(card), /differ|not match/u);
   const body = {
     version: 2 as const,
     organizationId: c.organization.id,
@@ -234,7 +234,7 @@ await test('verificação no cliente exige estado recente e revogação assinada
       signature: await issuer.signMessage(revocationStatement(body)),
     },
   };
-  await assert.rejects(controller.check(card), /Revogação divergente/u);
+  await assert.rejects(controller.check(card), /Revocation does not match/u);
   t.mock.method(globalThis, 'fetch', () =>
     Promise.reject(new Error('Offline')),
   );
@@ -246,10 +246,10 @@ await test('verificação no cliente exige estado recente e revogação assinada
   });
   const accepting = controller.accept(card);
   controller.setSession({ ...session, csrf: 'c'.repeat(64) });
-  await assert.rejects(accepting, /Sessão alterada/u);
+  await assert.rejects(accepting, /Session changed/u);
   const creating = controller.create('Pedido da sessão anterior');
   controller.setSession({ ...session, csrf: 'd'.repeat(64) });
-  await assert.rejects(creating, /Sessão alterada/u);
+  await assert.rejects(creating, /Session changed/u);
 });
 
 await test('pedido de assinatura recusa troca de wallet e sessão antes de usar o resultado', async () => {
@@ -274,7 +274,7 @@ await test('pedido de assinatura recusa troca de wallet e sessão antes de usar 
     observe: () => () => undefined,
   };
   const current = () => {
-    if (cancelled) throw new Error('Sessão alterada.');
+    if (cancelled) throw new Error('Session changed.');
   };
   verifyWalletStatement(
     identity,
@@ -288,7 +288,7 @@ await test('pedido de assinatura recusa troca de wallet e sessão antes de usar 
   };
   await assert.rejects(
     signWalletStatement({ wallet, identity, message, current }),
-    /Selecione/u,
+    /Select/u,
   );
   switched = false;
   wallet.sign = async (text) => {
@@ -298,7 +298,7 @@ await test('pedido de assinatura recusa troca de wallet e sessão antes de usar 
   };
   await assert.rejects(
     signWalletStatement({ wallet, identity, message, current }),
-    /Sessão alterada/u,
+    /Session changed/u,
   );
 });
 await test('mensagens Solana verificadas sem depender de backend ou confundir finalidade', () => {

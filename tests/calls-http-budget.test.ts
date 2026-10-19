@@ -11,7 +11,7 @@ await test('call commands retain their session budget while synchronization and 
   for (let i = 0; i < 60; i++) sessions.admit('synthetic-session-a', false);
   assert.throws(
     () => sessions.admit('synthetic-session-a', false),
-    /Muitos pedidos/u,
+    /Too many/u,
   );
   // Heartbeat and authenticated End remain available after command exhaustion.
   for (let i = 0; i < 1000; i++)

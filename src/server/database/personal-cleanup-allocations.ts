@@ -78,7 +78,7 @@ async function validateSelection(
     const hash = receipts.get(item.kind + ':' + item.id);
     if (hash !== undefined) {
       if (hash !== item.hash)
-        throw new AccountError(409, 'Seleção de limpeza divergente.');
+        throw new AccountError(409, 'Cleanup selection does not match.');
       continue;
     }
     await validateTarget(client, { input, item });
@@ -99,7 +99,7 @@ async function validateTarget(
       [input.accountId, item.id],
     );
     if (row.rows[0]?.hash !== item.hash)
-      throw new AccountError(409, 'Versão do cofre ausente ou divergente.');
+      throw new AccountError(409, 'Vault version missing or does not match.');
     return;
   }
   const row = await client.query<PersonalCleanupTarget>(

@@ -11,7 +11,7 @@ await test('assinatura mantém prova individual e rejeita sessão alterada mesmo
   );
   let current = true;
   const signature = authoritySignature(pair.privateKey, () => {
-    if (!current) throw new Error('Sessão alterada.');
+    if (!current) throw new Error('Session changed.');
   });
   const proof = 'synthetic-public-proof';
   assert.ok(
@@ -32,5 +32,5 @@ await test('assinatura mantém prova individual e rejeita sessão alterada mesmo
       return signed;
     },
   );
-  await assert.rejects(signature(proof), /Sessão alterada/);
+  await assert.rejects(signature(proof), /Session changed/);
 });

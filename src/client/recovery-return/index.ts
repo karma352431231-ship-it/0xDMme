@@ -27,7 +27,7 @@ export class RecoveryReturnError extends ApiResponseError {
       failure: error.failure,
       responseType: error.responseType,
       message: t(
-        'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
+        'Recovery return unavailable, expired or rejected. Start again.',
       ),
     });
   }
@@ -88,12 +88,12 @@ export async function requestRecovery(input: {
   });
   const commitment = await digest(canonical(transfer));
   if (commitment !== data['commitment'])
-    throw new Error('Chave de destino ou pedido de recuperação alterado.');
+    throw new Error('Destination key or recovery request changed.');
   const remaining =
     Date.parse(boundedText(data['expiresAt'], 32)) -
     Date.parse(boundedText(data['serverTime'], 32));
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 300_000)
-    throw new Error('Prazo de recuperação inválido.');
+    throw new Error('Invalid recovery deadline.');
   return {
     transfer,
     commitment,
@@ -103,7 +103,7 @@ export async function requestRecovery(input: {
 }
 export function openRecoveryWallet(pending: PendingRecovery): void {
   if (pending.deadline <= Date.now())
-    throw new Error('O pedido de recuperação expirou.');
+    throw new Error('The recovery request expired.');
   location.assign(pending.link);
 }
 export { rememberRecovery, readRecovery, forgetRecovery } from './pending.ts';
@@ -115,7 +115,7 @@ export async function receiveRecovery(input: {
 }): Promise<string[] | null> {
   const { session, identity, pending } = input;
   if (pending.deadline <= Date.now())
-    throw new Error('O pedido de recuperação expirou. Inicie novamente.');
+    throw new Error('The recovery request expired. Start again.');
   const data = object(
     await recoveryApi(
       'take',
@@ -140,7 +140,7 @@ export async function receiveRecovery(input: {
       (value) => typeof value !== 'string' || value.length > 132,
     )
   )
-    throw new Error('Retorno de recuperação inválido.');
+    throw new Error('Invalid recovery return.');
   const signatures = packet['signatures'] as string[];
   try {
     await walletRecoveryKey(pending.transfer.config, signatures);

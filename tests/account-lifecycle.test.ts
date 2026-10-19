@@ -800,7 +800,7 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   assert.match(browser.diagnostic.textContent, /failure=HTTP-403/u);
   assert.doesNotMatch(
     browser.diagnostic.textContent,
-    /Pedido rejeitado|a{64}|0x|https:/u,
+    /Request rejected|a{64}|0x|https:/u,
   );
   assert.deepEqual(browser.requests, ['/api/account/handoff-challenge']);
   assert.equal(browser.providerRequests.includes('personal_sign'), false);
@@ -884,7 +884,7 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
     if (input.startsWith('entrada-rejeitada')) {
       assert.doesNotMatch(
         browser.intro.textContent,
-        /Pedido ausente ou perdido/u,
+        /Request missing or lost/u,
       );
       assert.equal(browser.approve.hidden, true);
       assert.deepEqual(browser.providerRequests, []);
@@ -1165,7 +1165,7 @@ await test('recuperação por cookie substitui registro antigo; cancelamento nã
     pathname: '/wallet.html',
     hash: '#configuracoes',
     approvalResponse: Promise.resolve(
-      Response.json({ error: 'Pedido expirou.' }, { status: 401 }),
+      Response.json({ error: 'Request expired.' }, { status: 401 }),
     ),
   });
   await tick();

@@ -168,7 +168,7 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   const target = crypto.randomUUID();
   t.mock.method(Contacts.prototype, 'discover', (wallet: WalletContact) => {
     discovered.push(wallet);
-    return Promise.resolve({ ...wallet, accountId: target, name: 'Contato' });
+    return Promise.resolve({ ...wallet, accountId: target, name: 'Contact' });
   });
   t.mock.method(
     Contacts.prototype,

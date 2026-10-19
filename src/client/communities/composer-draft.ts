@@ -31,12 +31,10 @@ export function confirmComposerDiscard(
     keep = document.createElement('button'),
     discard = document.createElement('button');
   heading.textContent = options.label;
-  copy.textContent = t(
-    'O que você escreveu e os anexos selecionados serão perdidos.',
-  );
+  copy.textContent = t('Your text and selected attachments will be lost.');
   keep.type = discard.type = 'button';
-  keep.textContent = t('Continuar editando');
-  discard.textContent = t('Descartar');
+  keep.textContent = t('Keep editing');
+  discard.textContent = t('Discard');
   const content = [...dialog.children].filter(
     (node): node is HTMLElement => node instanceof HTMLElement,
   );

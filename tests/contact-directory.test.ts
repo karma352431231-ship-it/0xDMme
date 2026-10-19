@@ -13,7 +13,7 @@ function contact(number: number): AddressBookEntry {
     version: 1,
     ecosystem: 'evm',
     address: '0x' + number.toString(16).padStart(40, '0'),
-    alias: `Contato ${number}`,
+    alias: `Contact ${number}`,
     accountId: null,
     identity: null,
     directory: null,
@@ -28,7 +28,7 @@ function version(entity: string, sequence: number): VaultEntry {
       entity,
       kind: 'address-book',
       parents: [],
-      label: 'Contato',
+      label: 'Contact',
     },
     commit: {
       version: 1,
@@ -115,14 +115,14 @@ await test('salvar mostra wallet sem aprovação; remover escreve somente marcad
   assert.deepEqual(removal.change.parents, [prior.commit.id]);
   assert.equal(removal.change.kind, 'address-book');
   const removed = f.heads.get(entity)![0]!;
-  await book.save({ ...value, alias: 'Restaurado' }, null);
+  await book.save({ ...value, alias: 'Restored' }, null);
   assert.deepEqual(f.save.mock.calls.at(-1)?.arguments[0].change.parents, [
     removed.commit.id,
   ]);
   assert.equal(f.heads.get(entity)?.length, 1);
   await directory.load();
   assert.equal(directory.find(value)?.contact.removed, false);
-  assert.equal(directory.find(value)?.contact.alias, 'Restaurado');
+  assert.equal(directory.find(value)?.contact.alias, 'Restored');
   // Approval changes neither the wallet's favorite key nor its private alias.
   const peer = {
     ecosystem: value.ecosystem,
@@ -132,7 +132,7 @@ await test('salvar mostra wallet sem aprovação; remover escreve somente marcad
   };
   await directory.prepare([peer]);
   assert.equal(directory.id(peer), entity);
-  assert.equal(directory.find(peer)?.contact.alias, 'Restaurado');
+  assert.equal(directory.find(peer)?.contact.alias, 'Restored');
 });
 await test('agenda abre 16 contatos por página e remoção concorrente vence até uma escolha explícita', async (t) => {
   const f = fixture(t),
@@ -148,7 +148,7 @@ await test('agenda abre 16 contatos por página e remoção concorrente vence at
   assert.equal(new Set(f.reads).size, 17);
   await f.add({ ...contact(17), removed: true }, 18);
   assert.equal((await book.page()).items[0]?.contact.removed, true);
-  await assert.rejects(book.page(crypto.randomUUID()), /agenda mudou/);
+  await assert.rejects(book.page(crypto.randomUUID()), /Contacts have changed/);
 });
 await test('trocar a conta durante abertura não restaura apelidos nem wallets da conta anterior', async (t) => {
   const f = fixture(t);
@@ -166,7 +166,7 @@ await test('trocar a conta durante abertura não restaura apelidos nem wallets d
     loading = directory.load();
   directory.clear();
   release(JSON.stringify(contact(1)));
-  await assert.rejects(loading, /Sessão alterada/);
+  await assert.rejects(loading, /Session changed/);
   assert.deepEqual(directory.entries, []);
   assert.deepEqual(directory.ids, []);
 });
@@ -175,7 +175,7 @@ await test('troca de conta antes de cifrar a remoção impede escrever o contato
     directory = new ContactDirectory(f.sync);
   const removing = directory.remove(contact(1));
   directory.clear();
-  await assert.rejects(removing, /Sessão alterada/);
+  await assert.rejects(removing, /Session changed/);
   assert.equal(f.save.mock.callCount(), 0);
 });
 

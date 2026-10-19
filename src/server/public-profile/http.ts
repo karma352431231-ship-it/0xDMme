@@ -31,7 +31,7 @@ export function createPublicProfileHandler(
     const head = request.method === 'HEAD';
     if (request.method !== 'GET' && !head) {
       response.setHeader('Allow', 'GET, HEAD');
-      throw new AccountError(405, 'Método inválido.');
+      throw new AccountError(405, 'Invalid method.');
     }
     const address = new URL(request.url ?? '', 'http://public.invalid');
     budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
@@ -44,8 +44,7 @@ export function createPublicProfileHandler(
       /^\/api\/public-profiles\/([A-Za-z0-9_]{3,30})(?:\/(page|activity|communities))?$/u.exec(
         address.pathname,
       );
-    if (!match?.[1])
-      throw new AccountError(404, 'Perfil público indisponível.');
+    if (!match?.[1]) throw new AccountError(404, 'Public profile unavailable.');
     send(
       response,
       200,
@@ -69,9 +68,9 @@ export function createPublicProfileHandler(
         (key) => !allowed.includes(key) || query.getAll(key).length !== 1,
       )
     )
-      throw new AccountError(400, 'Filtros inválidos.');
+      throw new AccountError(400, 'Invalid filters.');
     if (!section) return publicProfile(await read(handle));
-    if (!pages) throw new AccountError(404, 'Página pública indisponível.');
+    if (!pages) throw new AccountError(404, 'Public page unavailable.');
     if (section === 'page') return profileSummary(await pages.summary(handle));
     if (section === 'communities')
       return communityPage(await pages.memberships(handle, query.get('after')));

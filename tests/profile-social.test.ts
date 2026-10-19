@@ -77,7 +77,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
     community,
     author: profile,
     title: 'Original',
-    text: 'Texto',
+    text: 'Text',
     tags: [],
     createdAt: '2026-10-10T12:00:00.000Z',
     editedAt: null,
@@ -91,7 +91,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
   };
   const entry = {
     post: { ...post, id: reply, title: '', parent: root, root },
-    community: { id: community, name: 'Comunidade' },
+    community: { id: community, name: 'Community' },
     context: { root: post, parent: post },
   };
   assert.equal(

@@ -4,7 +4,7 @@ import type { SocialDmStore, SocialContext } from './social-dm.ts';
 
 function messageIds(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 16)
-    throw new AccountError(400, 'Lote de confirmações inválido.');
+    throw new AccountError(400, 'Invalid confirmation batch.');
   return [...new Set(value.map(uuid))];
 }
 /** Only metadata of received encrypted packets; uses the existing account read privacy/epoch. */
@@ -78,7 +78,7 @@ export class SocialReadReceipts {
     if (valid.rowCount !== ids.length)
       throw new AccountError(
         409,
-        'Leitura exige DMs recebidas e preservadas neste aparelho.',
+        'Read receipt requires DMs received and preserved on this device.',
       );
     const updated = await context.client.query<{ read_epoch: number | null }>(
       `UPDATE hash_talk.social_receipts r SET read_epoch=CASE WHEN d.read_receipts THEN d.receipt_epoch ELSE NULL END

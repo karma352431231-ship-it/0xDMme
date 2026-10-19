@@ -21,7 +21,7 @@ export async function discussionRows(
     cursor = discussionCursor(selection.after, key),
     anchor = cursor?.anchor ?? new Date().toISOString();
   if (Date.parse(anchor) > Date.now() + 1000)
-    throw new AccountError(400, 'Cursor no futuro.');
+    throw new AccountError(400, 'Cursor is in the future.');
   const { activity, score, direction, compare } = replyOrdering(
     selection.order,
   );

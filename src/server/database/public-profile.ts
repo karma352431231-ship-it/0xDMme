@@ -64,7 +64,7 @@ export class PublicProfileStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<MentionNotificationPage | { saved: true }> {
-    if (!this.mentions) throw new AccountError(503, 'Menções indisponíveis.');
+    if (!this.mentions) throw new AccountError(503, 'Mentions unavailable.');
     return this.mentions.operate(operation, authority, data);
   }
   readonly banners: ProfileBanners;
@@ -163,7 +163,7 @@ export class PublicProfileStore {
     if (!profile)
       throw new AccountError(
         403,
-        'Crie seu perfil público em Perfil antes de participar.',
+        'Create your public profile in Profile before participating.',
       );
     return profile;
   }
@@ -200,7 +200,7 @@ export class PublicProfileStore {
       [profile],
     );
     const account = result.rows[0]?.account_id;
-    if (!account) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!account) throw new AccountError(404, 'Public profile unavailable.');
     return account;
   }
   /** Bounded internal routing only; never expose wallet-account mappings in social responses. */
@@ -243,7 +243,10 @@ export class PublicProfileStore {
       );
       if (previous.rows[0]) {
         if (previous.rows[0].handle !== handle)
-          throw new AccountError(409, 'Seu @ já foi criado e é fixo.');
+          throw new AccountError(
+            409,
+            'Your handle has already been created and is fixed.',
+          );
         return this.view(client, previous.rows[0]);
       }
       const result = await client.query<ProfileRow>(
@@ -251,7 +254,10 @@ export class PublicProfileStore {
         [randomUUID(), account, handle],
       );
       if (!result.rows[0])
-        throw new AccountError(409, 'Este @ já está em uso. Escolha outro.');
+        throw new AccountError(
+          409,
+          'This handle is already in use. Choose another.',
+        );
       await assertContentCapacity(client, this.capacity);
       return this.view(client, result.rows[0]);
     });
@@ -271,12 +277,12 @@ export class PublicProfileStore {
       );
       const old = current.rows[0];
       if (!old)
-        throw new AccountError(404, 'Crie seu perfil público primeiro.');
+        throw new AccountError(404, 'Create your public profile first.');
       if (sameAvatar(old, avatar)) return this.view(client, old);
       if (old.revision !== revision)
         throw new AccountError(
           409,
-          'Perfil alterado em outro aparelho. Recarregue antes de editar.',
+          'Profile changed on another device. Reload before editing.',
         );
       if (old.pendingReview)
         await this.moderation.remove(client, old.pendingReview);

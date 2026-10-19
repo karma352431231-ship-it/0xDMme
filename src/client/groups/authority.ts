@@ -30,7 +30,7 @@ export class GroupAuthority {
     const generation = this.generation;
     return this.run(() => {
       if (generation !== this.generation)
-        throw new Error('Autorização da conta alterada.');
+        throw new Error('Account authorization changed.');
     }, work);
   }
   async run<T>(
@@ -38,7 +38,7 @@ export class GroupAuthority {
     work: (context: GroupContext) => Promise<T>,
   ): Promise<T> {
     const session = this.options.session();
-    if (!session) throw new Error('Entre e autorize este aparelho.');
+    if (!session) throw new Error('Sign in and authorize this device.');
     return this.options.access.withVault(
       !navigator.onLine,
       async (authority) => {
@@ -48,7 +48,7 @@ export class GroupAuthority {
           authority.session.deviceId !== session.deviceId ||
           authority.session.csrf !== session.csrf
         )
-          throw new Error('Conta alterada.');
+          throw new Error('Account changed.');
         const api: AttachmentApi = (op, payload) =>
           backupMessageApi(authority, op, payload, guard);
         const governance = new GroupGovernance(

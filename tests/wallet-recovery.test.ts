@@ -186,7 +186,7 @@ await test('assinatura EVM válida mas variável é recusada na configuração e
   const other = `${hexlify(alternate.toCompactRawBytes())}${(27 + alternate.recovery).toString(16)}`;
   await assert.rejects(
     walletRecoveryKey(config, [signature, other]),
-    /assinaturas diferentes/,
+    /different signatures/,
   );
   const key = await walletRecoveryKey(config, [signature]);
   const authority = await createRecovery(config.accountId, key, config);

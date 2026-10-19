@@ -68,12 +68,12 @@ function rankingStats(
   };
   const followers = stat(
     number(item.community.followers),
-    item.community.archived ? t('seguidores · arquivada') : t('seguidores'),
+    item.community.archived ? t('followers · archived') : t('followers'),
   );
   if (order === 'size') return [followers];
   const growth = stat(
     `+${number(item.upvotes)}`,
-    t('upvotes em alta'),
+    t('trending upvotes'),
     'ranking-growth',
   );
   if (!item.historyComplete) growth.title = t('ranking.partial-history');

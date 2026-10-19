@@ -33,7 +33,7 @@ await test('edição termina na primeira hora original; badge de ingresso termin
   assert.equal(isNewMember(null, time), false);
 });
 await test('badges não admitem poderes, identidade privada ou identificadores falsos', () => {
-  const owner = { kind: 'owner', id: null, label: 'Dono' };
+  const owner = { kind: 'owner', id: null, label: 'Owner' };
   assert.deepEqual(communityBadges([owner]), [owner]);
   for (const badge of [
     { ...owner, id: crypto.randomUUID() },

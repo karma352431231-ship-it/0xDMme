@@ -127,14 +127,14 @@ async function writeEditedContent(
   if (!edited.rowCount)
     throw new AccountError(
       403,
-      'A postagem só pode ser editada na primeira hora.',
+      'Posts can only be edited within the first hour.',
     );
 }
 function requireEditWindow(row: PostRow): void {
   if (!withinPostEditWindow(row.created_at))
     throw new AccountError(
       403,
-      'A postagem só pode ser editada na primeira hora.',
+      'Posts can only be edited within the first hour.',
     );
 }
 interface PostLookup {
@@ -191,7 +191,7 @@ function requireCreateRetry(
     ],
   ];
   if (row.deleted || fields.some(([actual, value]) => actual !== value))
-    throw new AccountError(409, 'Identificador de post já utilizado.');
+    throw new AccountError(409, 'Post identifier already used.');
 }
 async function createParent(
   context: CommunityContext,
@@ -202,7 +202,7 @@ async function createParent(
   const parent = await loadPost(context, uuid(data['parent']));
   await requireReplyTarget(context, parent);
   if (value.title || value.tags.length)
-    throw new AccountError(400, 'Resposta não admite título/tag.');
+    throw new AccountError(400, 'Replies do not accept a title/tag.');
   return parent;
 }
 /** The first tag goes on the row, the others to the extras table. */
@@ -255,7 +255,7 @@ async function requireTagged(
 ): Promise<void> {
   if (!input.root) {
     if (value.title || value.tags.length)
-      throw new AccountError(400, 'Resposta não admite título/tag.');
+      throw new AccountError(400, 'Replies do not accept a title/tag.');
     return;
   }
   await requireRootContent(context, value);
@@ -355,7 +355,7 @@ export class CommunityPostStore {
       `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND id=$2`,
       [community, id],
     );
-    if (!found.rows[0]) throw new AccountError(404, 'Post indisponível.');
+    if (!found.rows[0]) throw new AccountError(404, 'Post unavailable.');
     return this.view(found.rows[0], await this.lookups(this.pool, found.rows));
   }
   /** Bounded projection for discovery; markers retain the same privacy rules. */
@@ -364,7 +364,7 @@ export class CommunityPostStore {
     ids: string[],
   ): Promise<CommunityPost[]> {
     if (ids.length > communityPageSize)
-      throw new AccountError(400, 'Página muito grande.');
+      throw new AccountError(400, 'Page too large.');
     const found = await client.query<PostRow>(
       `SELECT ${columns} FROM hash_talk.community_posts WHERE id=ANY($1::uuid[])`,
       [ids],
@@ -378,7 +378,7 @@ export class CommunityPostStore {
     ids: string[],
   ): Promise<CommunityPost[]> {
     if (ids.length > communityPageSize)
-      throw new AccountError(400, 'Página muito grande.');
+      throw new AccountError(400, 'Page too large.');
     const visible = await client.query<{ id: string }>(
       `SELECT p.id FROM hash_talk.community_posts p WHERE p.id=ANY($1::uuid[]) AND ${visiblePost('p')}
       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts r WHERE r.id=p.root_id AND ${visiblePost('r')}))
@@ -580,7 +580,7 @@ export class CommunityPostStore {
     keys(data, ['id', 'scope', 'after', 'tag']);
     const scope = data['scope'];
     if (scope !== 'own' && scope !== 'removed')
-      throw new AccountError(400, 'Lista de posts inválida.');
+      throw new AccountError(400, 'Invalid post list.');
     if (scope === 'removed') await requireCommunityManager(context);
     const result = page(
       await this.rows(context.client, {
@@ -636,13 +636,10 @@ export class CommunityPostStore {
       value = postContent(data['content']),
       ids = value.media ?? [];
     if (row.author !== context.actor.id)
-      throw new AccountError(403, 'Somente o autor pode editar o post.');
+      throw new AccountError(403, 'Only the author can edit the post.');
     await requireCommunityParticipation(context);
     if (row.deleted || row.active_removal)
-      throw new AccountError(
-        409,
-        'Post excluído ou oculto não pode ser editado.',
-      );
+      throw new AccountError(409, 'Deleted or hidden posts cannot be edited.');
     currentPost(row, data['revision']);
     const current = rowTags(row, await postExtraTags(context.client, [row.id]));
     await requireTagged(context, value, {
@@ -674,7 +671,7 @@ export class CommunityPostStore {
     keys(data, ['id', 'post', 'revision']);
     const row = await loadPost(context, uuid(data['post']));
     if (row.author !== context.actor.id)
-      throw new AccountError(403, 'Somente o autor pode excluir o post.');
+      throw new AccountError(403, 'Only the author can delete the post.');
     if (row.deleted) return;
     currentPost(row, data['revision']);
     await this.media.replace(context, { post: row.id, ids: [] });
@@ -703,12 +700,12 @@ export class CommunityPostStore {
         break;
       case 'reply-create':
         if (!Object.hasOwn(data, 'parent'))
-          throw new AccountError(400, 'Resposta exige pai.');
+          throw new AccountError(400, 'Replies require a parent.');
         await this.create(context, data);
         break;
       case 'post-create':
         if (Object.hasOwn(data, 'parent'))
-          throw new AccountError(400, 'Post não admite pai.');
+          throw new AccountError(400, 'Posts do not accept a parent.');
         await this.create(context, data);
         break;
       case 'post-edit':
@@ -831,6 +828,6 @@ export class CommunityPostStore {
       [context.actor.id, id],
     );
     if (blocked.rowCount)
-      throw new AccountError(404, 'Postagem indisponível para este perfil.');
+      throw new AccountError(404, 'Post unavailable for this profile.');
   }
 }

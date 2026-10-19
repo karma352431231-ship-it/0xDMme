@@ -11,9 +11,9 @@ import {
 import { isAppLanguage } from '../../shared/i18n/index.ts';
 
 const discoveryOptions = [
-  ['invite', t('Somente com meu link de convite')],
-  ['wallet', t('Por wallet exata ou convite')],
-  ['contacts', t('Somente contatos já aprovados')],
+  ['invite', t('Only through my invitation link')],
+  ['wallet', t('By exact wallet address or invitation')],
+  ['contacts', t('Approved contacts only')],
 ] as const;
 
 // Static authored markup; values are set through DOM properties afterwards.
@@ -115,10 +115,8 @@ function show(dialog: HTMLDialogElement, step: string): void {
 
 function showResult(dialog: HTMLDialogElement, problems: string[]): void {
   dialog.querySelector('[data-wizard-result]')!.textContent = problems.length
-    ? t(
-        'Parte das configurações não foi aplicada. Ajuste o que faltou em Perfil.',
-      )
-    : t('Pronto. Suas configurações foram salvas na conta.');
+    ? t('Some settings were not applied. Adjust the remaining ones in Profile.')
+    : t('Done. Your settings were saved to your account.');
   const list = dialog.querySelector('[data-wizard-problems]')!;
   list.replaceChildren(
     ...problems.map((problem) => {
@@ -147,11 +145,11 @@ export function openSettingsWizard(input: {
   return new Promise((resolve, reject) => {
     const dialog = document.createElement('dialog');
     dialog.className = 'settings-pack card';
-    dialog.setAttribute('aria-label', t('Configurações iniciais'));
+    dialog.setAttribute('aria-label', t('Initial settings'));
     dialog.innerHTML = choiceStep + reviewStep + resultStep;
     const languageLabel = document.createElement('label');
     languageLabel.className = 'settings-pack-language';
-    languageLabel.textContent = t('Idioma do aplicativo');
+    languageLabel.textContent = t('App language');
     const language = languageSelect();
     languageLabel.append(language);
     dialog
@@ -224,7 +222,7 @@ export function openSettingsWizard(input: {
           showResult(dialog, [
             error instanceof Error
               ? translatedError(error.message)
-              : t('Não foi possível salvar as configurações.'),
+              : t('Could not save settings.'),
           ]);
         });
     });
@@ -242,7 +240,7 @@ export function openSettingsWizard(input: {
       reject(
         error instanceof Error
           ? error
-          : new Error('Configurações iniciais indisponíveis.'),
+          : new Error('Initial settings unavailable.'),
       );
     }
   });

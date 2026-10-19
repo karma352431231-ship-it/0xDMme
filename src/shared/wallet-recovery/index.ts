@@ -18,7 +18,7 @@ export const walletRecoveryVersion = 3;
 
 export function recoveryLanguage(value: unknown): RecoveryLanguage {
   if (value !== 'en' && value !== 'zh-CN')
-    throw new AccountError(400, 'Configuração de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery configuration.');
   return value;
 }
 function recoveryOrigin(value: unknown): string {
@@ -28,7 +28,7 @@ function recoveryOrigin(value: unknown): string {
     url.protocol === 'http:' &&
     ['127.0.0.1', 'localhost'].includes(url.hostname);
   if ((!local && url.protocol !== 'https:') || url.origin !== text)
-    throw new AccountError(400, 'Origem de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery origin.');
   return text;
 }
 export function walletRecovery(value: unknown): WalletRecovery {
@@ -52,7 +52,7 @@ export function walletRecovery(value: unknown): WalletRecovery {
     salt.length !== 32 ||
     encode(salt) !== input['salt']
   )
-    throw new AccountError(400, 'Configuração de recuperação inválida.');
+    throw new AccountError(400, 'Invalid recovery configuration.');
   const config = {
     accountId: uuid(input['accountId']),
     origin: recoveryOrigin(input['origin']),
@@ -84,7 +84,7 @@ export function recoveryIdentity(
   )
     throw new AccountError(
       403,
-      'A recuperação pertence a outra conta ou origem.',
+      'Recovery belongs to another account or origin.',
     );
 }
 export interface RecoveryTransfer {
@@ -107,9 +107,9 @@ export function recoveryTransfer(value: unknown): RecoveryTransfer {
     ![1, 2].includes(Number(input['count'])) ||
     typeof input['count'] !== 'number'
   )
-    throw new AccountError(400, 'Retorno de recuperação inválido.');
+    throw new AccountError(400, 'Invalid recovery return.');
   if (base64(input['receiver'], 422).length !== 422)
-    throw new AccountError(400, 'Destino de recuperação inválido.');
+    throw new AccountError(400, 'Invalid recovery destination.');
   return {
     version: 1,
     ticket,

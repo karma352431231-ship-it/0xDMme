@@ -23,7 +23,7 @@ export async function ready(): Promise<void> {
     sodium.ready,
     new Promise<never>((_, reject) => {
       const timer = setTimeout(
-        () => reject(new Error('Canal indisponível.')),
+        () => reject(new Error('Channel unavailable.')),
         10_000,
       );
       void sodium.ready.then(
@@ -35,7 +35,7 @@ export async function ready(): Promise<void> {
 }
 function bytes(value: unknown, size: number): Uint8Array {
   const decoded = base58.decode(boundedText(value, size * 2));
-  if (decoded.length !== size) throw new Error('Comprimento inválido.');
+  if (decoded.length !== size) throw new Error('Invalid length.');
   return decoded;
 }
 function ownOrigin(value: string): string {
@@ -47,7 +47,7 @@ function ownOrigin(value: string): string {
     (url.protocol !== 'https:' &&
       !(url.protocol === 'http:' && url.hostname === '127.0.0.1'))
   )
-    throw new Error('Origem inválida.');
+    throw new Error('Invalid origin.');
   return url.origin;
 }
 function callback(origin: string, state: NativeProbe): string {
@@ -76,7 +76,7 @@ export function readProbe(input: unknown, now = Date.now()): NativeProbe {
       : required,
   );
   if (data['version'] !== 1 || (phase !== 'connect' && phase !== 'sign'))
-    throw new Error('Prova inválida.');
+    throw new Error('Invalid proof.');
   const createdAt = probeCreatedAt(data['createdAt'], now);
   const id = boundedText(data['id'], 64);
   bytes(id, 32);
@@ -90,7 +90,7 @@ export function readProbe(input: unknown, now = Date.now()): NativeProbe {
         bytes(publicKey, 32),
       )
     )
-      throw new Error('Canal inválido.');
+      throw new Error('Invalid channel.');
   } finally {
     sodium.memzero(privateBytes);
   }
@@ -118,7 +118,7 @@ function probeCreatedAt(value: unknown, now: number): number {
     now < value ||
     now - value >= probeLifetime
   )
-    throw new Error('Prova ausente ou expirada.');
+    throw new Error('Proof missing or expired.');
   return value;
 }
 export function beginProbe(origin: string, now = Date.now()) {
@@ -155,7 +155,7 @@ function packet(params: URLSearchParams, state: NativeProbe) {
     params.get('state') !== state.id ||
     params.get('phase') !== state.phase
   )
-    throw new Error('Retorno inválido ou de outra prova.');
+    throw new Error('Return invalid or from another proof.');
   return {
     nonce: bytes(params.get('nonce'), 24),
     ciphertext: base58.decode(boundedText(params.get('data'), 4096)),
@@ -192,7 +192,7 @@ function connected(
       bytes(address, 32),
     )
   )
-    throw new Error('Sessão da wallet inválida.');
+    throw new Error('Invalid wallet session.');
   const metadata = object(
     JSON.parse(
       new TextDecoder('utf-8', { fatal: true }).decode(signed.slice(64)),
@@ -204,7 +204,7 @@ function connected(
     (metadata['cluster'] !== undefined &&
       metadata['cluster'] !== 'mainnet-beta')
   )
-    throw new Error('Sessão de outra aplicação ou rede.');
+    throw new Error('Session belongs to another application or network.');
   return { address, session };
 }
 export function receiveProbe(
@@ -240,7 +240,7 @@ export function receiveProbe(
           bytes(previous.address, 32),
         )
       )
-        throw new Error('Assinatura inválida.');
+        throw new Error('Invalid signature.');
       return { complete: true as const };
     }
     const identity = connected(plaintext, origin);

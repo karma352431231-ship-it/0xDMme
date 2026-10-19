@@ -12,7 +12,7 @@ export interface GroupEnvelope {
   content: Record<string, unknown>;
 }
 function unavailable(): never {
-  throw new AccountError(403, 'Chaves fora da participação autorizada.');
+  throw new AccountError(403, 'Keys outside authorized membership.');
 }
 export function assertGroupAccounts(
   state: GroupEvent,
@@ -142,7 +142,7 @@ export async function putGroupEnvelopes(
     ],
   );
   if (conflict.rowCount)
-    throw new AccountError(409, 'Envelope de grupo repetido divergente.');
+    throw new AccountError(409, 'Repeated group envelope does not match.');
   await client.query(
     `INSERT INTO hash_talk.group_matrix_envelopes(group_id,epoch,sender,id,account_id,device_id,body,hash,charge) SELECT $1,$2,$3,$4,r.account,r.device,r.body,r.hash,r.charge FROM jsonb_to_recordset($5::jsonb) AS r(account uuid,device uuid,body jsonb,hash text,charge integer) ON CONFLICT DO NOTHING`,
     [

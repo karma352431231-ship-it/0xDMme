@@ -21,12 +21,12 @@ export function isNewMember(joinedAt: Date | null, now = Date.now()): boolean {
 }
 export function badgeLabel(value: unknown): string {
   if (typeof value !== 'string' || value.length > 32)
-    throw new AccountError(400, 'Badge inválido ou muito longo.');
+    throw new AccountError(400, 'Badge invalid or too long.');
   const label = value.trim();
   if (!label || /\p{Cc}|(?!\u200D)\p{Cf}/u.test(label))
     throw new AccountError(
       400,
-      'Badge deve ocupar uma linha sem controles invisíveis.',
+      'The badge must be one line without invisible control characters.',
     );
   return label;
 }
@@ -41,7 +41,7 @@ export function customBadge(value: unknown): CustomBadge {
 }
 export function communityBadges(value: unknown): CommunityBadge[] {
   if (!Array.isArray(value) || value.length > 5)
-    throw new AccountError(400, 'Badges inválidos.');
+    throw new AccountError(400, 'Invalid badges.');
   return communityArray(value).map((value) => {
     const data = object(value);
     keys(data, ['id', 'kind', 'label']);
@@ -52,9 +52,9 @@ export function communityBadges(value: unknown): CommunityBadge[] {
       kind !== 'new' &&
       kind !== 'custom'
     )
-      throw new AccountError(400, 'Badge inválido.');
+      throw new AccountError(400, 'Invalid badge.');
     if ((kind === 'custom') !== (data['id'] !== null))
-      throw new AccountError(400, 'Badge inválido.');
+      throw new AccountError(400, 'Invalid badge.');
     return {
       kind,
       label: badgeLabel(data['label']),

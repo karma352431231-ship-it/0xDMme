@@ -25,7 +25,7 @@ export async function reconcileMentionNotifications(
     ),
   ];
   if (targets.length > 64)
-    throw new AccountError(400, 'Menções demais nesta publicação.');
+    throw new AccountError(400, 'Too many mentions in this publication.');
   const column = columns[input.source.kind];
   await client.query(
     `DELETE FROM hash_talk.public_mention_notifications WHERE ${column}=$1 AND NOT (recipient=ANY($2::uuid[]))`,

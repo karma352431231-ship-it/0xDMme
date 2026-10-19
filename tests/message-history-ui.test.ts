@@ -413,7 +413,7 @@ await test('uma resposta atualiza sua citação se a original mudar, conservando
     reply = {
       ...row('reply'),
       text: encodeDailyText({
-        text: 'Resposta',
+        text: 'Reply',
         reply: original.id,
         forwarded: false,
       }),

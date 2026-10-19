@@ -29,7 +29,7 @@ export class SocialBackups {
     const has = (key: string, hash: string) => {
       const previous = known.get(key);
       if (previous !== undefined && previous !== hash)
-        throw new Error('Cópia de DM diverge do histórico preservado.');
+        throw new Error('DM copy differs from preserved history.');
       return previous !== undefined;
     };
     let count = 0;
@@ -63,12 +63,10 @@ export class SocialBackups {
       }
       if (rows.next === null) return count;
       if (rows.next <= after)
-        throw new Error('Página histórica de DMs não avançou.');
+        throw new Error('Historical DM page did not advance.');
       after = rows.next;
     }
-    throw new Error(
-      'Histórico de DMs excede o orçamento de registros do backup.',
-    );
+    throw new Error('DM history exceeds the backup record budget.');
   }
   private async media(
     input: {
@@ -94,7 +92,7 @@ export class SocialBackups {
         input.guard();
       } catch {
         input.guard();
-        input.omitted.push(t('dm-media:{0} indisponível', [file.ref.id]));
+        input.omitted.push(t('dm-media:{0} unavailable', [file.ref.id]));
         continue;
       }
       try {

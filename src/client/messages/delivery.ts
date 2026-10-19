@@ -30,7 +30,7 @@ export async function readDelivery<T extends DeliveryView>(input: {
       snapshot: input.snapshot,
       ids: online.slice(offset, offset + 18).map((view) => view.id),
     });
-    if (!Array.isArray(raw)) throw new Error('Estado de entrega inválido.');
+    if (!Array.isArray(raw)) throw new Error('Invalid delivery state.');
     const values: unknown[] = raw;
     for (const value of values) {
       const row = object(value);
@@ -38,7 +38,7 @@ export async function readDelivery<T extends DeliveryView>(input: {
         typeof row['queue_active'] !== 'boolean' ||
         typeof row['recipient_received'] !== 'boolean'
       )
-        throw new Error('Estado de entrega inválido.');
+        throw new Error('Invalid delivery state.');
       states.set(String(row['id']), {
         hash: String(row['hash']),
         pending: row['queue_active'],
@@ -56,7 +56,7 @@ function projectDelivery<T extends DeliveryView>(
   if (view.archived) return view;
   const state = states.get(view.id);
   if (!state || state.hash !== view.hash)
-    throw new Error('Estado de entrega divergente.');
+    throw new Error('Delivery state does not match.');
   if (view.state === messageStates.suspended) return view;
   return {
     ...view,

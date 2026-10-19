@@ -48,7 +48,7 @@ await test('download público omite sessão, não segue redirects e valida bytes
     await assert.rejects(read());
   }
   response = new Response(bytes, { status: 404 });
-  await assert.rejects(read(), /indisponível/u);
+  await assert.rejects(read(), /[Uu]navailable/u);
 });
 
 await test('resultado e miniatura usam o contrato aprovado; bytes extras são recusados e o reader é cancelado', async (t) => {
@@ -95,7 +95,7 @@ await test('resultado e miniatura usam o contrato aprovado; bytes extras são re
   });
   await assert.rejects(
     publicPostMediaBlob(item, false, new AbortController().signal),
-    /excedida/u,
+    /exceed/u,
   );
   assert.equal(cancelled, true);
   thumbnail = true;

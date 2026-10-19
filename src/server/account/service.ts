@@ -46,7 +46,7 @@ function validatedEcosystem(value: unknown) {
   try {
     return ecosystem(value);
   } catch {
-    throw new AccountError(400, 'Ecossistema inválido.');
+    throw new AccountError(400, 'Invalid ecosystem.');
   }
 }
 
@@ -108,7 +108,7 @@ export class AccountService {
     if (challenge.handoffHash)
       throw new AccountError(
         401,
-        'Pedido exige confirmação no navegador original.',
+        'Request requires confirmation in the original browser.',
       );
     verifyChallenge(challenge, data['signature'], this.origin);
     const sessionToken = token();
@@ -177,15 +177,15 @@ export class AccountService {
     try {
       request = walletApprovalRequest(input);
     } catch {
-      throw new AccountError(400, 'Pedido de wallet inválido.');
+      throw new AccountError(400, 'Invalid wallet request.');
     }
     const handoff = await this.store.handoffByTicket(tokenHash(request.ticket));
     if (request.ecosystem !== handoff.ecosystem)
-      throw new AccountError(401, 'Pedido de wallet inválido.');
+      throw new AccountError(401, 'Invalid wallet request.');
     const serverTime = new Date();
     const remaining = handoff.expiresAt.getTime() - serverTime.getTime();
     if (remaining <= 0 || remaining > challengeSeconds * 1000)
-      throw new AccountError(401, 'Pedido expirou.');
+      throw new AccountError(401, 'Request expired.');
     return {
       request,
       expiresAt: handoff.expiresAt.toISOString(),
@@ -195,7 +195,7 @@ export class AccountService {
   private handoffTicket(input: unknown): string {
     const value = boundedText(input, 64);
     if (!/^[a-f0-9]{64}$/u.test(value))
-      throw new AccountError(400, 'Pedido inválido.');
+      throw new AccountError(400, 'Invalid request.');
     return value;
   }
   async signHandoff(input: unknown, browserToken: string) {
@@ -207,7 +207,7 @@ export class AccountService {
       tokenHash(browserToken),
     );
     if (challenge.handoffHash !== hash)
-      throw new AccountError(401, 'Pedido de retorno inválido.');
+      throw new AccountError(401, 'Invalid return request.');
     verifyChallenge(challenge, data['signature'], this.origin);
     await this.store.acceptHandoffSignature(challenge, hash);
     return {
@@ -309,7 +309,7 @@ export class AccountService {
       !/^[0-9a-f]{64}$/u.test(csrf) ||
       !timingSafeEqual(Buffer.from(csrf), Buffer.from(session.csrf))
     )
-      throw new AccountError(403, 'Pedido não autorizado.');
+      throw new AccountError(403, 'Request not authorized.');
   }
 
   async logout(sessionToken: string): Promise<void> {

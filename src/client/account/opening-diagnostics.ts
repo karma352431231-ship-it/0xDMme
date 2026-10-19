@@ -22,15 +22,14 @@ export function openingDiagnostics(
     const target = new URL(
       decodeURIComponent(outer.pathname.slice(prefix.length)),
     );
-    if (!outer.pathname.startsWith(prefix))
-      throw new Error('Rota desconhecida.');
-    return t('D2 · protocolo=doc-3 · plataforma={0} · {1} · ref={2}', [
+    if (!outer.pathname.startsWith(prefix)) throw new Error('Unknown route.');
+    return t('D2 · protocol=doc-3 · platform={0} · {1} · ref={2}', [
       agent,
       targetSummary(target),
       outer.searchParams.has('ref') ? 'presente' : 'ausente',
     ]);
   } catch {
-    return t('D2 · protocolo=doc-3 · plataforma={0} · destino=invalido', [
+    return t('D2 · protocol=doc-3 · platform={0} · destination=invalid', [
       agent,
     ]);
   }
@@ -40,7 +39,7 @@ function targetSummary(target: URL): string {
   const path = approvalPathRequest(target.pathname);
   if (path)
     return t(
-      'destino=entrada-caminho · modo=documento · pedido=presente · rede={0}',
+      'destination=path-entry · mode=document · request=present · network={0}',
       [path.ecosystem],
     );
   const params = target.hash.startsWith('#configuracoes?')
@@ -55,7 +54,7 @@ function targetSummary(target: URL): string {
         : 'invalido';
   const network = params.get('ecosystem');
   const { route, mode } = routeMode(target);
-  return t('destino={0} · modo={1} · pedido={2} · rede={3}', [
+  return t('destination={0} · mode={1} · request={2} · network={3}', [
     route,
     mode,
     request,

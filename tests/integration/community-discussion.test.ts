@@ -411,7 +411,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
         post: nested,
         revision: state.post.revision,
         record,
-        reason: 'Teste',
+        reason: 'Test',
       });
       assert.equal((await stats(popular)).participants, 1);
       const marker = (await replies(popular, 'oldest')).items[0]!;

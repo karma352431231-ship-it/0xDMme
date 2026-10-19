@@ -54,7 +54,7 @@ function install(): void {
     const next = document.createElement('div');
     next.className = 'hover-card';
     next.setAttribute('role', 'dialog');
-    next.setAttribute('aria-label', t('Prévia'));
+    next.setAttribute('aria-label', t('Preview'));
     next.addEventListener('pointerenter', () => clearTimeout(closeTimer));
     next.addEventListener('pointerleave', scheduleClose);
     document.body.append(next);

@@ -34,7 +34,7 @@ export class StatusMediaStore {
       [id],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(404, 'Mídia de status indisponível.');
+    if (!row) throw new AccountError(404, 'Status media unavailable.');
     return row;
   }
   async reserve(
@@ -48,7 +48,7 @@ export class StatusMediaStore {
           [input.statusId, input.refs.map((r) => r.id)],
         );
         if (extra.rowCount)
-          throw new AccountError(409, 'Referências de status divergentes.');
+          throw new AccountError(409, 'Status references do not match.');
         for (const ref of input.refs) {
           const existing = await client.query<MediaRow>(
             'SELECT * FROM hash_talk.status_media WHERE id=$1',
@@ -97,7 +97,7 @@ export class StatusMediaStore {
       row.status === 'deleting' ||
       canonical(row.descriptor) !== canonical(ref)
     )
-      throw new AccountError(409, 'Reserva de status divergente.');
+      throw new AccountError(409, 'Status reservation does not match.');
   }
   async begin(
     a: ContactAuthority,
@@ -107,9 +107,8 @@ export class StatusMediaStore {
       const row = await this.row(client, input.id);
       this.assertReservation(row, a, input.statusId, row.descriptor);
       if (input.index !== null && !row.descriptor.parts[input.index])
-        throw new AccountError(400, 'Parte inexistente.');
-      if (row.status === 'writing')
-        throw new AccountError(409, 'Mídia ocupada.');
+        throw new AccountError(400, 'Part does not exist.');
+      if (row.status === 'writing') throw new AccountError(409, 'Media busy.');
       if (
         row.status === 'ready' ||
         (input.index !== null && row.received.includes(input.index))
@@ -119,7 +118,7 @@ export class StatusMediaStore {
         input.index === null &&
         row.received.length !== row.descriptor.parts.length
       )
-        throw new AccountError(409, 'Mídia incompleta.');
+        throw new AccountError(409, 'Media incomplete.');
       const writer = randomUUID();
       await client.query(
         "UPDATE hash_talk.status_media SET status='writing',writer=$2 WHERE id=$1",
@@ -141,7 +140,7 @@ export class StatusMediaStore {
       const row = await this.row(client, input.id);
       this.assertReservation(row, a, input.statusId, row.descriptor);
       if (row.writer !== input.writer)
-        throw new AccountError(409, 'Escrita interrompida.');
+        throw new AccountError(409, 'Write interrupted.');
       await client.query(
         'UPDATE hash_talk.status_media SET status=$3,writer=NULL,received=$4 WHERE id=$1 AND writer=$2',
         [
@@ -169,7 +168,7 @@ export class StatusMediaStore {
       [packet.id],
     );
     if (rows.rows.length !== refs.length)
-      throw new AccountError(409, 'Mídias declaradas e preservadas divergem.');
+      throw new AccountError(409, 'Declared and preserved media differ.');
     const byId = new Map(rows.rows.map((r) => [r.id, r]));
     for (const ref of refs) {
       const row = byId.get(ref.id);
@@ -179,7 +178,7 @@ export class StatusMediaStore {
         row.author !== packet.author ||
         canonical(row.descriptor) !== canonical(ref)
       )
-        throw new AccountError(409, 'Foto não está integralmente preservada.');
+        throw new AccountError(409, 'Photo not fully preserved.');
     }
     await client.query(
       "UPDATE hash_talk.status_media SET status='accepted' WHERE status_id=$1 AND status='ready'",
@@ -193,9 +192,9 @@ export class StatusMediaStore {
     return this.posts.withReadable(a, input.statusId, async (client) => {
       const row = await this.row(client, input.id);
       if (row.status_id !== input.statusId || row.status !== 'accepted')
-        throw new AccountError(404, 'Foto indisponível ou expirada.');
+        throw new AccountError(404, 'Photo unavailable or expired.');
       if (!row.descriptor.parts[input.index])
-        throw new AccountError(400, 'Parte inexistente.');
+        throw new AccountError(400, 'Part does not exist.');
       return row.descriptor;
     });
   }

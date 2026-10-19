@@ -2,7 +2,7 @@ import { base58 } from '@scure/base';
 export type Ecosystem = 'evm' | 'solana';
 export function ecosystem(value: unknown): Ecosystem {
   if (value !== 'evm' && value !== 'solana')
-    throw new Error('Ecossistema inválido.');
+    throw new Error('Invalid ecosystem.');
   return value;
 }
 export function solanaPublicKey(address: unknown): Uint8Array<ArrayBuffer> {

@@ -90,7 +90,7 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
             secret = newSecret(),
             events: DirectoryEvent[] = [];
           const before = cached
-            ? await localIdentity(profile, alias, t('Aparelho de DMs'))
+            ? await localIdentity(profile, alias, t('DM device'))
             : null;
           const authority = await socialAuthority({
             privateAuthority,
@@ -101,11 +101,11 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
           });
           assert.equal(events.length, 1);
           const identity = await storedIdentity(profile, alias);
-          assert.equal(identity.public.name, 'Aparelho de DMs');
+          assert.equal(identity.public.name, 'DM device');
           if (before)
             assert.deepEqual(identity.public, {
               ...before.public,
-              name: 'Aparelho de DMs',
+              name: 'DM device',
             });
           await verify(
             identity.public.signing,
@@ -155,7 +155,7 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
         });
         setActiveLanguage(collision ? 'zh-CN' : 'en');
         const alias = collision ? firstAlias : crypto.randomUUID(),
-          before = await localIdentity(profile, alias, t('Aparelho de DMs'));
+          before = await localIdentity(profile, alias, t('DM device'));
         const recovered = await socialAuthority({
           privateAuthority,
           directory: {
@@ -176,12 +176,12 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
           profile,
           recovered.session.deviceId,
         );
-        assert.equal(identity.public.name, 'Aparelho de DMs');
+        assert.equal(identity.public.name, 'DM device');
         if (collision) assert.notEqual(identity.public.id, firstAlias);
         else
           assert.deepEqual(identity.public, {
             ...before.public,
-            name: 'Aparelho de DMs',
+            name: 'DM device',
           });
         await assertHistoryReadable(original, recovered);
       },

@@ -110,6 +110,6 @@ await test('histórico antigo e novo se unem por identidade, mantendo edições 
   assert.equal(visible[1]!.content.text, 'Nova');
   assert.throws(
     () => mergeHistory([{ ...base, hash: 'f'.repeat(64) }], [base]),
-    /diverge/u,
+    /differ/u,
   );
 });

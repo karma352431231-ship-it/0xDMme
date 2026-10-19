@@ -46,7 +46,7 @@ await test('translation leaves user substitutions untouched and rejects missing 
   for (const language of ['en', 'zh-CN'] as const) {
     setActiveLanguage(language);
     const value = 'Perfil <b>&$1 {0} 名字';
-    assert.ok(t('{0} convidou você para um grupo', [value]).startsWith(value));
+    assert.ok(t('{0} invited you to a group', [value]).startsWith(value));
     assert.throws(() => t('constructor'), /Missing translation/u);
     assert.equal(
       staticText('A private name that is not authored UI'),
@@ -59,24 +59,22 @@ await test('translation leaves user substitutions untouched and rejects missing 
 await test('server errors retain the reason, numeric details and coarse diagnostics', () => {
   setActiveLanguage('zh-CN');
   assert.equal(
-    translatedError('A descrição aceita até 500 caracteres.'),
+    translatedError('The description allows up to 500 characters.'),
     '简介最多允许 500 个字符。',
   );
   assert.equal(translatedError('Device not authorized.'), '设备未获授权。');
   assert.equal(
-    translatedError('Esta mensagem atingiu 64 edições.'),
+    translatedError('This message has reached 64 edits.'),
     '此消息已达到 64 次编辑。',
   );
   assert.equal(
-    translatedError(
-      'Índice do grupo parcialmente conferido. Continue a sincronização.',
-    ),
+    translatedError('Group index partially verified. Continue syncing.'),
     '群组索引已部分核验。请继续同步。',
   );
   assert.equal(staticText('  Initial\n    settings  '), '  初始设置  ');
   assert.equal(
     translatedError(
-      'Cofre cheio. Preserve ou exclua conteúdo antes de aceitar novos dados. [vault/save · HTTP 409 · http · json]',
+      'Vault full. Preserve or delete content before accepting new data. [vault/save · HTTP 409 · http · json]',
     ),
     '保险库已满。接受新数据前，请保留或删除内容。 [vault/save · HTTP 409 · http · json]',
   );

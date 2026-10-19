@@ -25,7 +25,7 @@ export function readPage(value: unknown): VaultPage {
     !Array.isArray(pending) ||
     pending.length > 4
   )
-    throw new Error('Página de cofre inválida.');
+    throw new Error('Invalid vault page.');
   return {
     sequence: integer(data['sequence']),
     head: data['head'] === null ? null : fingerprint(data['head']),

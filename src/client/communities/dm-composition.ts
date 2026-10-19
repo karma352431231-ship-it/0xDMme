@@ -23,7 +23,7 @@ export class DmComposition {
     bar.className = 'compose-context';
     bar.hidden = true;
     cancel.type = 'button';
-    cancel.textContent = t('Cancelar');
+    cancel.textContent = t('Cancel');
     cancel.addEventListener('click', () => {
       this.cancel();
       changed();
@@ -35,12 +35,12 @@ export class DmComposition {
   }
   choose(target: Message): void {
     if (!target.own || target.kind !== 'text' || target.relation)
-      throw new Error('Edição por outro autor.');
+      throw new Error('Edit by another author.');
     this.target = target;
     if (this.bar) this.bar.hidden = false;
     if (this.label)
       this.label.textContent = t('{0}: {1}', [
-        t('Editando'),
+        t('Editing'),
         target.displayText.slice(0, 120),
       ]);
     if (this.text) {

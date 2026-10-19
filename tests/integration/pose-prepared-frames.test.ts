@@ -181,7 +181,7 @@ await test('RGBA original e contextual: todos os frames, alpha, geometria e deta
       input,
       detector: { model, classifyPrepared: () => Promise.resolve([]) },
     }),
-    /Análise/u,
+    /[Aa]nalysis/u,
   );
   const abort = new AbortController();
   await assert.rejects(
@@ -197,6 +197,6 @@ await test('RGBA original e contextual: todos os frames, alpha, geometria e deta
         },
       },
     }),
-    /Análise/u,
+    /[Aa]nalysis/u,
   );
 });

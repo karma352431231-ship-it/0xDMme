@@ -47,7 +47,7 @@ export class DeviceService {
       !device ||
       (await digest(canonical(current.root))) !== payload.root
     )
-      throw new AccountError(403, 'Identidade de vinculação divergente.');
+      throw new AccountError(403, 'Linking identity does not match.');
     await verify(
       device.signing,
       signature,
@@ -73,7 +73,7 @@ export class DeviceService {
     if (!current.root.wallet)
       throw new AccountError(
         409,
-        'Esta conta exige recuperação pelo código antigo ou por aparelho autorizado.',
+        'This account requires recovery through the old code or an authorized device.',
       );
     return current.root.wallet;
   }
@@ -86,7 +86,7 @@ export class DeviceService {
     const events = await this.store.page(session.accountId, after);
     const current = await this.store.current(session.accountId);
     if (after > (current?.revision ?? 0))
-      throw new AccountError(409, 'Diretório antigo ou incompleto.');
+      throw new AccountError(409, 'Directory outdated or incomplete.');
     return {
       events,
       serverTime: new Date().toISOString(),
@@ -102,18 +102,18 @@ export class DeviceService {
       code.accountId !== session.accountId ||
       code.device.id !== session.deviceId
     )
-      throw new AccountError(403, 'Pedido pertence a outro aparelho ou conta.');
+      throw new AccountError(
+        403,
+        'Request belongs to another device or account.',
+      );
     const current = await this.current(session);
     if (
       current?.devices.some((device) => device.id === session.deviceId) ||
       current?.revoked.includes(session.deviceId)
     )
-      throw new AccountError(
-        409,
-        'Use um novo cadastro de aparelho para vincular.',
-      );
+      throw new AccountError(409, 'Use a new device registration for linking.');
     if (typeof data['signature'] !== 'string')
-      throw new AccountError(400, 'Assinatura ausente.');
+      throw new AccountError(400, 'Signature missing.');
     await verify(code.device.signing, data['signature'], linkProof(code));
     const expiresAt = linkDeadline(code.expiresAt);
     await this.store.createLink(session, {
@@ -130,16 +130,16 @@ export class DeviceService {
   async inspect(session: AccountSession, input: unknown) {
     const code = linkCode(input);
     if (code.accountId !== session.accountId)
-      throw new AccountError(403, 'Código pertence a outra conta.');
+      throw new AccountError(403, 'Code belongs to another account.');
     const current = await this.current(session);
     if (!current?.devices.some((device) => device.id === session.deviceId))
-      throw new AccountError(403, 'Aparelho sem autorização.');
+      throw new AccountError(403, 'Device has no authorization.');
     const link = await this.store.link(session.accountId, code.id);
     if (
       link.codeHash !== (await digest(canonical(code))) ||
       canonical(link.device) !== canonical(code.device)
     )
-      throw new AccountError(409, 'Código ou chaves divergentes.');
+      throw new AccountError(409, 'Code or keys do not match.');
     return {
       device: link.device,
       expiresAt: link.expiresAt.toISOString(),
@@ -164,7 +164,7 @@ export class DeviceService {
     )
       requireWalletSession(session);
     if (event.accountId !== session.accountId)
-      throw new AccountError(403, 'Diretório pertence a outra conta.');
+      throw new AccountError(403, 'Directory belongs to another account.');
     this.authorizeRecovery(session, event);
     this.authorizeCommit(session, previous, event);
     if (event.linkId) {
@@ -175,15 +175,12 @@ export class DeviceService {
           (device) => canonical(identityOf(device)) === canonical(link.device),
         )
       )
-        throw new AccountError(409, 'Aparelho divergente do código.');
+        throw new AccountError(409, 'Device differs from the code.');
     }
     const profile =
       data['profile'] === null ? null : profileEnvelope(data['profile']);
     if ((profile ? await digest(canonical(profile)) : null) !== event.profile)
-      throw new AccountError(
-        400,
-        'Perfil não corresponde à alteração assinada.',
-      );
+      throw new AccountError(400, 'Profile does not match the signed change.');
     const head = await eventHash(event);
     await this.store.commit({ session, event, head, profile });
     return { head, revision: event.revision };
@@ -197,12 +194,12 @@ export class DeviceService {
       event.kind === 'migrate' &&
       !previous?.devices.some((device) => device.id === session.deviceId)
     )
-      throw new AccountError(403, 'Migração exige aparelho autorizado.');
+      throw new AccountError(403, 'Migration requires an authorized device.');
     if (event.signer !== 'recovery' && event.signer !== session.deviceId)
-      throw new AccountError(403, 'Assinatura pertence a outro aparelho.');
+      throw new AccountError(403, 'Signature belongs to another device.');
     if (event.kind === 'initialize' || event.kind === 'recover') {
       if (!event.devices.some((device) => device.id === session.deviceId))
-        throw new AccountError(403, 'Autorização pertence a outro aparelho.');
+        throw new AccountError(403, 'Authorization belongs to another device.');
       requireFreshDevice(previous, session.deviceId);
     }
   }
@@ -226,10 +223,10 @@ export class DeviceService {
       (device) => device.id === session.deviceId,
     );
     if (!device || !current || head !== (await eventHash(current)))
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     const profile = profileEnvelope(data['profile']);
     if (typeof data['signature'] !== 'string')
-      throw new AccountError(400, 'Assinatura ausente.');
+      throw new AccountError(400, 'Signature missing.');
     await verify(
       device.signing,
       data['signature'],
@@ -257,7 +254,7 @@ export class DeviceService {
       case 'profile':
         return this.saveProfile(session, input);
       default:
-        throw new AccountError(404, 'Operação de dispositivos não encontrada.');
+        throw new AccountError(404, 'Device operation not found.');
     }
   }
 }
@@ -268,7 +265,7 @@ function pageOffset(value: unknown): number {
     value < 0 ||
     value > 128
   )
-    throw new AccountError(400, 'Página inválida.');
+    throw new AccountError(400, 'Invalid page.');
   return value;
 }
 function linkDeadline(value: string): Date {
@@ -277,7 +274,7 @@ function linkDeadline(value: string): Date {
   if (remaining <= 0 || remaining > linkSeconds * 1000)
     throw new AccountError(
       409,
-      'Código expirado ou prazo inválido. Crie um novo pedido.',
+      'Code expired or deadline invalid. Create a new request.',
     );
   return expiresAt;
 }
@@ -291,6 +288,6 @@ function requireFreshDevice(
   )
     throw new AccountError(
       409,
-      'Recuperação exige um novo aparelho, sem reutilizar identidade revogada.',
+      'Recovery requires a new device without reusing a revoked identity.',
     );
 }

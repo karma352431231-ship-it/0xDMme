@@ -14,7 +14,7 @@ export async function accountRankingLookup(
       ) => Promise<AccountRankingPage>)
     | undefined,
 ): Promise<AccountRankingPage> {
-  if (!read) throw new AccountError(404, 'Descoberta indisponível.');
+  if (!read) throw new AccountError(404, 'Discovery unavailable.');
   const query = address.searchParams;
   if (
     [...query.keys()].some(
@@ -22,7 +22,7 @@ export async function accountRankingLookup(
         !['period', 'after'].includes(key) || query.getAll(key).length !== 1,
     )
   )
-    throw new AccountError(400, 'Filtros inválidos.');
+    throw new AccountError(400, 'Invalid filters.');
   return accountRankingPage(
     await read(rankingPeriod(query.get('period') ?? 'day'), query.get('after')),
   );

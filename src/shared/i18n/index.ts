@@ -86,7 +86,7 @@ export function translatedError(message: string): string {
   }
   // API diagnostics append only fixed operation/status identifiers.
   const diagnostic =
-    /^(.*) (\[[a-z]+(?:[/-][a-z]+)* · (?:HTTP [1-5][0-9]{2}|sem resposta HTTP|no HTTP response|无 HTTP 响应) · (?:http|non-json|invalid-json|network|timeout|cancelled) · (?:json|html|other|missing)\])$/u.exec(
+    /^(.*) (\[[a-z]+(?:[/-][a-z]+)* · (?:HTTP [1-5][0-9]{2}|no HTTP response|无 HTTP 响应) · (?:http|non-json|invalid-json|network|timeout|cancelled) · (?:json|html|other|missing)\])$/u.exec(
       message,
     );
   if (diagnostic) return `${translatedError(diagnostic[1]!)} ${diagnostic[2]}`;

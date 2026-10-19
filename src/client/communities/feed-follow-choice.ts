@@ -27,12 +27,12 @@ export function chooseFeedFollow(
   if (options.signal.aborted) return Promise.resolve(null);
   return new Promise((resolve, reject) => {
     const dialog = el('dialog', '', 'feed-follow-dialog'),
-      status = el('p', t('Carregando opções…'), 'feed-follow-status'),
-      cancel = el('button', t('Cancelar')),
+      status = el('p', t('Loading options…'), 'feed-follow-status'),
+      cancel = el('button', t('Cancel')),
       lifetime = new AbortController();
     const signal = AbortSignal.any([options.signal, lifetime.signal]);
     cancel.className = 'feed-follow-cancel';
-    dialog.setAttribute('aria-label', t('Seguir comunidade ou autor'));
+    dialog.setAttribute('aria-label', t('Follow community or author'));
     status.setAttribute('role', 'status');
     cancel.type = 'button';
     let settled = false;
@@ -75,7 +75,7 @@ export function chooseFeedFollow(
       reject(
         error instanceof Error
           ? error
-          : new Error('Opções de seguir indisponíveis.'),
+          : new Error('Follow options unavailable.'),
       );
       return;
     }
@@ -115,7 +115,7 @@ export function chooseFeedFollow(
         reject(
           error instanceof Error
             ? error
-            : new Error('Opções de seguir indisponíveis.'),
+            : new Error('Follow options unavailable.'),
         );
       });
   });
@@ -127,7 +127,7 @@ function authorChoice(input: {
   choose: () => void;
 }): HTMLElement {
   return choiceRow({
-    name: input.author ? `@${input.author.handle}` : t('Autor indisponível'),
+    name: input.author ? `@${input.author.handle}` : t('Author unavailable'),
     photo: {
       kind: 'avatar',
       target: input.author?.id ?? '',
@@ -153,16 +153,16 @@ function choiceRow(input: {
 }): HTMLElement {
   const row = el('div', '', 'feed-follow-choice'),
     avatar = communityAvatar(input.name),
-    button = el('button', input.following ? t('Seguindo') : t('Seguir'));
+    button = el(
+      'button',
+      input.following ? t('follow.following') : t('Follow'),
+    );
   if (input.photo.kind === 'avatar') avatar.classList.add('person');
   button.type = 'button';
   button.disabled = input.disabled ?? false;
   button.setAttribute(
     'aria-label',
-    t('{0} {1}', [
-      input.following ? t('Deixar de seguir') : t('Seguir'),
-      input.name,
-    ]),
+    t('{0} {1}', [input.following ? t('Unfollow') : t('Follow'), input.name]),
   );
   button.setAttribute('aria-pressed', String(input.following));
   button.addEventListener('click', input.choose);

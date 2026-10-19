@@ -105,11 +105,11 @@ await test('conta Z não abre o pacote de Y, inclusive se declarar o endereço d
       identity: { ecosystem: 'evm', address: outsider.address },
       signature,
     }),
-    /conta selecionada/,
+    /selected account/,
   );
   await assert.rejects(
     openProbe({ packet, origin, identity: packet.context, signature }),
-    /não pertence/,
+    /does not belong/,
   );
 });
 await test('assinaturas EVM diferentes e válidas da mesma conta falham na recuperação: determinismo não é garantido por validade', async () => {
@@ -130,7 +130,7 @@ await test('assinaturas EVM diferentes e válidas da mesma conta falham na recup
   );
   await assert.rejects(
     openProbe({ packet, origin, identity, signature: otherSignature }),
-    /assinatura diferente/,
+    /different signature/,
   );
   await openProbe({ packet, origin, identity, signature });
 });
@@ -146,7 +146,7 @@ await test('adulteração de ciphertext, nonce e salt falha sem danificar o paco
         identity,
         signature,
       }),
-      /assinatura diferente/,
+      /different signature/,
     );
   }
   await openProbe({ packet, origin, identity, signature });
@@ -155,7 +155,7 @@ await test('outra origem, outro ensaio e outro ecossistema não reutilizam uma a
   const { packet, context, signature, identity } = await evmPacket();
   await assert.rejects(
     openProbe({ packet, origin: 'https://other.invalid', identity, signature }),
-    /outra origem/,
+    /another origin/,
   );
   const changed = createProbeContext({ origin, identity });
   await assert.rejects(
@@ -165,7 +165,7 @@ await test('outra origem, outro ensaio e outro ecossistema não reutilizam uma a
       identity,
       signature,
     }),
-    /não pertence/,
+    /does not belong/,
   );
   await assert.rejects(
     openProbe({
@@ -179,7 +179,7 @@ await test('outra origem, outro ensaio e outro ecossistema não reutilizam uma a
       },
       signature,
     }),
-    /conta selecionada/,
+    /selected account/,
   );
   assert.notEqual(recoveryMessage(context), recoveryMessage(changed));
 });
@@ -190,7 +190,7 @@ await test('assinatura comum de login não abre pacote exclusivo de recuperaçã
   );
   await assert.rejects(
     openProbe({ packet, origin, identity, signature }),
-    /não pertence/,
+    /does not belong/,
   );
 });
 await test('risco demonstrado: cópia da assinatura exclusiva abre o pacote sem nova interação com a wallet', async () => {
@@ -206,7 +206,7 @@ await test('risco demonstrado: cópia da assinatura exclusiva abre o pacote sem 
 });
 await test('entrada externa é limitada e recusa campos secretos, versões estranhas e bytes não canônicos', async () => {
   const { packet } = await evmPacket();
-  assert.throws(() => readProbePacket(' '.repeat(4097)), /excedido/);
+  assert.throws(() => readProbePacket(' '.repeat(4097)), /exceed/);
   for (const input of [
     { ...packet, signature: 'segredo fictício' },
     { ...packet, context: { ...packet.context, version: 3 } },
@@ -248,7 +248,7 @@ await test('importar B sobre A troca o alvo: cada arquivo abre somente com sua c
           recoveryMessage(target.packet.context),
         ),
       }),
-      /conta selecionada/,
+      /selected account/,
     );
     await openProbe({
       packet: selection.requireTarget().packet,
@@ -274,7 +274,7 @@ await test('arquivos com o mesmo nome e a mesma conta ainda selecionam o pacote 
       identity: first.identity,
       signature: first.signature,
     }),
-    /não pertence/,
+    /does not belong/,
   );
   await openProbe({
     packet: selection.requireTarget().packet,
@@ -310,7 +310,7 @@ await test('arquivo inválido, excessivo, de outra origem ou ilegível deixa nen
     selection.restore(previous);
     await assert.rejects(selection.importFile(file, () => {}));
     assert.equal(selection.active, null);
-    assert.throws(() => selection.requireTarget(), /Nenhum pacote ativo/);
+    assert.throws(() => selection.requireTarget(), /No active package/);
     assert.equal(stored, previous);
   }
 });
@@ -329,7 +329,7 @@ await test('falha ao guardar o arquivo válido não confirma importação nem re
     /Armazenamento recusado/,
   );
   assert.equal(selection.active, null);
-  assert.throws(() => selection.requireTarget(), /Nenhum pacote ativo/);
+  assert.throws(() => selection.requireTarget(), /No active package/);
 });
 await test('selecionar arquivo invalida A antes de ler B; leitura tardia de operação interrompida não publica resultado', async () => {
   const first = await evmPacket();
@@ -349,14 +349,14 @@ await test('selecionar arquivo invalida A antes de ler B; leitura tardia de oper
   const pending = selection.importFile(
     { name: 'ensaio-B.json', size: 600, text: () => read },
     () => {
-      throw new Error('Operação interrompida');
+      throw new Error('Operation interrupted');
     },
   );
   assert.equal(selection.active, null);
-  assert.throws(() => selection.requireTarget(), /Nenhum pacote ativo/);
+  assert.throws(() => selection.requireTarget(), /No active package/);
   assert.ok(provideText);
   provideText(JSON.stringify(second.packet));
-  await assert.rejects(pending, /Operação interrompida/);
+  await assert.rejects(pending, /Operation interrupted/);
   assert.equal(selection.active, null);
   assert.deepEqual(readProbePacket(stored), first.packet);
 });

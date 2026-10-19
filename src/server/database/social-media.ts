@@ -68,7 +68,7 @@ export class SocialMediaStore {
           [input.message],
         );
         if (existing.rowCount)
-          throw new AccountError(409, 'Mensagem de DM já aceita.');
+          throw new AccountError(409, 'DM already accepted.');
         let created = false;
         for (const ref of input.refs) {
           const old = await this.row(context.client, ref.id);
@@ -81,10 +81,7 @@ export class SocialMediaStore {
             [input.message, input.refs.map((r) => r.id)],
           );
           if (other.rowCount)
-            throw new AccountError(
-              409,
-              'Referências da transferência de DM mudaram.',
-            );
+            throw new AccountError(409, 'DM transfer references changed.');
           await context.client.query(
             'INSERT INTO hash_talk.social_media(id,message_id,sender,recipient,descriptor,media,bytes,sender_charge,recipient_charge,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$8,$8)',
             [
@@ -129,12 +126,12 @@ export class SocialMediaStore {
       canonical(row.descriptor) !== canonical(ref) ||
       row.status === 'deleting'
     )
-      throw new AccountError(409, 'Reserva de mídia de DM divergente.');
+      throw new AccountError(409, 'DM media reservation does not match.');
   }
   private async owned(context: SocialContext, id: string): Promise<Row> {
     const row = await this.row(context.client, id);
     if (!row || row.sender !== context.actor.id || row.status === 'deleting')
-      throw new AccountError(404, 'Reserva de mídia de DM indisponível.');
+      throw new AccountError(404, 'DM media reservation unavailable.');
     await this.social.requireConversation(context, row.recipient);
     return row;
   }
@@ -147,16 +144,16 @@ export class SocialMediaStore {
     return this.social.withActor(a, async (context) => {
       const row = await this.owned(context, id);
       if (index !== null && !row.descriptor.parts[index])
-        throw new AccountError(400, 'Parte de mídia inexistente.');
+        throw new AccountError(400, 'Media part does not exist.');
       if (row.status === 'writing')
-        throw new AccountError(409, 'Transferência de DM ocupada.');
+        throw new AccountError(409, 'DM transfer busy.');
       if (
         ['accepted', 'ready'].includes(row.status) ||
         (index !== null && row.received.includes(index))
       )
         return { ref: row.descriptor, writer: null };
       if (index === null && row.received.length !== row.descriptor.parts.length)
-        throw new AccountError(409, 'Transferência de DM incompleta.');
+        throw new AccountError(409, 'DM transfer incomplete.');
       const writer = randomUUID();
       await context.client.query(
         "UPDATE hash_talk.social_media SET status='writing',writer=$2,lease_at=now() WHERE id=$1",
@@ -172,7 +169,7 @@ export class SocialMediaStore {
     await this.social.withActor(a, async (context) => {
       const row = await this.owned(context, input.id);
       if (row.writer !== input.writer)
-        throw new AccountError(409, 'Transferência de DM interrompida.');
+        throw new AccountError(409, 'DM transfer interrupted.');
       await context.client.query(
         'UPDATE hash_talk.social_media SET status=$3,writer=NULL,lease_at=NULL,received=$4 WHERE id=$1 AND writer=$2',
         [
@@ -201,14 +198,14 @@ export class SocialMediaStore {
       if (sent.rowCount)
         throw new AccountError(
           409,
-          'DM aceita: use a limpeza pessoal após preservar seu backup.',
+          'DM accepted: use personal cleanup after preserving your backup.',
         );
       const active = await context.client.query(
         "SELECT 1 FROM hash_talk.social_media WHERE message_id=$1 AND sender=$2 AND status='writing'",
         [message, context.actor.id],
       );
       if (active.rowCount)
-        throw new AccountError(409, 'Aguarde a transferência ativa terminar.');
+        throw new AccountError(409, 'Wait for the active transfer to finish.');
       await context.client.query(
         "UPDATE hash_talk.social_media SET status='deleting' WHERE message_id=$1 AND sender=$2 AND status<>'deleting'",
         [message, context.actor.id],
@@ -236,10 +233,7 @@ export class SocialMediaStore {
           ),
       )
     )
-      throw new AccountError(
-        409,
-        'Mídia de DM não está integralmente preservada.',
-      );
+      throw new AccountError(409, 'DM media not fully preserved.');
     if (refs.length)
       await c.query(
         "UPDATE hash_talk.social_media SET status='accepted' WHERE id=ANY($1::uuid[])",
@@ -264,7 +258,7 @@ export class SocialMediaStore {
         !message.body.attachments?.some((ref) => ref.id === row.id) ||
         !row.descriptor.parts[input.index]
       )
-        throw new AccountError(404, 'Mídia de DM indisponível.');
+        throw new AccountError(404, 'DM media unavailable.');
       await this.social.requireConversation(
         context,
         row.sender === context.actor.id ? row.recipient : row.sender,

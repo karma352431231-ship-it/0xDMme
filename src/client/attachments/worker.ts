@@ -47,7 +47,7 @@ scope.addEventListener('message', (event) => {
       scope.postMessage(
         {
           error: t(
-            'Não foi possível processar o anexo. Confira formato, tamanho, pixels e suporte do navegador.',
+            'Could not process the attachment. Check its format, size, pixels and browser support.',
           ),
         },
         [],

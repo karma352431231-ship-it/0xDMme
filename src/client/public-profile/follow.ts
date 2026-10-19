@@ -27,17 +27,17 @@ export async function followControl(
 ): Promise<void> {
   const { controller, signal } = input;
   if (!controller?.hasSession()) {
-    link(host, t('Entrar para seguir'), editPublicProfileHash);
+    link(host, t('Sign in to follow'), editPublicProfileHash);
     return;
   }
   if (!controller.profile) await controller.refresh();
   if (signal.aborted) return;
   if (!controller.profile) {
-    link(host, t('Criar perfil para seguir'), editPublicProfileHash);
+    link(host, t('Create profile to follow'), editPublicProfileHash);
     return;
   }
   if (controller.profile.profile.id === input.target) {
-    link(host, t('Editar perfil público'), editPublicProfileHash);
+    link(host, t('Edit public profile'), editPublicProfileHash);
     return;
   }
   let state: ProfileFollow = profileFollow(
@@ -47,7 +47,7 @@ export async function followControl(
   const button = document.createElement('button');
   button.type = 'button';
   const paint = (): void => {
-    button.textContent = state.following ? t('Seguindo') : t('Seguir');
+    button.textContent = state.following ? t('follow.following') : t('Follow');
     button.setAttribute('aria-pressed', String(state.following));
   };
   button.addEventListener('click', () => {

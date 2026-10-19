@@ -194,8 +194,8 @@ export class ProfileRankingStore {
       throw new AccountError(
         cursor ? 409 : 503,
         cursor
-          ? 'Ranking atualizado; recarregue a lista.'
-          : 'Ranking em preparação. Tente novamente.',
+          ? 'Ranking updated; reload the list.'
+          : 'Ranking being prepared. Try again.',
       );
     const rows = head.entries.slice(0, communityPageSize),
       last = rows.at(-1);

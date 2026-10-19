@@ -77,8 +77,7 @@ export async function composeGroup(input: {
     text = JSON.stringify(content);
     kind = 'attachment';
   }
-  if (!text.trim())
-    throw new Error('Escreva uma mensagem ou escolha um anexo.');
+  if (!text.trim()) throw new Error('Write a message or choose an attachment.');
   await cache.put(`outbox:${id}`, {
     id,
     kind,
@@ -130,7 +129,7 @@ async function sendGroupOne(
       state: c.group.state,
       histories: accounts.map((account) => {
         const d = directories.get(account);
-        if (!d) throw new Error('Participante sem diretório.');
+        if (!d) throw new Error('Participant has no directory.');
         return d.events;
       }),
       recovery: accounts.map((account) =>
@@ -164,7 +163,7 @@ async function sendGroupOne(
     result['status'] !== 'accepted' ||
     result['hash'] !== (await digest(canonical(value.packet)))
   )
-    throw new Error('Envio do grupo não confirmado.');
+    throw new Error('Group send not confirmed.');
   await cache.remove(name);
 }
 function currentPacket(value: Outbox, c: SendContext): boolean {
@@ -231,7 +230,7 @@ function outbox(input: unknown): Outbox {
     !['text', 'profile', 'attachment'].includes(String(kind)) ||
     typeof d['text'] !== 'string'
   )
-    throw new Error('Rascunho de grupo inválido.');
+    throw new Error('Invalid group draft.');
   const uploadEpoch = d['uploadEpoch'];
   if (
     uploadEpoch !== null &&
@@ -239,7 +238,7 @@ function outbox(input: unknown): Outbox {
       !Number.isSafeInteger(uploadEpoch) ||
       uploadEpoch < 1)
   )
-    throw new Error('Época de upload inválida.');
+    throw new Error('Invalid upload epoch.');
   return {
     id: uuid(d['id']),
     kind: kind as GroupPacket['kind'],

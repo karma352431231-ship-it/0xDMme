@@ -82,7 +82,7 @@ await test('a genuine signed DM list failure remains visible', async (t) => {
   f.holdList();
   f.ui.mount(f.host, null);
   await turn();
-  f.releaseList(Response.json({ error: 'DM indisponível.' }, { status: 503 }));
+  f.releaseList(Response.json({ error: 'DM unavailable.' }, { status: 503 }));
   await turn();
   assert.match(f.host.textContent ?? '', /DM unavailable.*HTTP 503/u);
 });

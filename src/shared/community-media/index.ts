@@ -39,7 +39,7 @@ export interface CommunityMediaState {
 }
 export function communityMediaKind(value: unknown): CommunityMediaKind {
   if (value !== 'photo' && value !== 'gif' && value !== 'video')
-    throw new AccountError(400, 'Tipo de mídia inválido.');
+    throw new AccountError(400, 'Invalid media type.');
   return value;
 }
 export function communityMediaSource(value: unknown): CommunityMediaSource {
@@ -47,15 +47,15 @@ export function communityMediaSource(value: unknown): CommunityMediaSource {
   keys(data, ['id', 'kind', 'bytes', 'hash']);
   const kind = communityMediaKind(data['kind']);
   const bytes = integer(data['bytes'], communityMediaLimits[kind].source);
-  if (!bytes) throw new AccountError(400, 'Arquivo vazio.');
+  if (!bytes) throw new AccountError(400, 'Empty file.');
   return { id: uuid(data['id']), kind, bytes, hash: fingerprint(data['hash']) };
 }
 export function communityMediaIds(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 4)
-    throw new AccountError(400, 'Quantidade de mídia inválida.');
+    throw new AccountError(400, 'Invalid media quantity.');
   const ids = value.map(uuid);
   if (new Set(ids).size !== ids.length)
-    throw new AccountError(400, 'Mídia repetida.');
+    throw new AccountError(400, 'Duplicate media.');
   return ids;
 }
 export function communityMediaSet(sources: CommunityMediaSource[]): void {
@@ -65,9 +65,12 @@ export function communityMediaKindsSet(kinds: CommunityMediaKind[]): void {
   if (!kinds.length) return;
   const kind = kinds[0]!;
   if (kinds.some((item) => item !== kind))
-    throw new AccountError(400, 'Use fotos, GIFs ou um vídeo, sem mistura.');
+    throw new AccountError(
+      400,
+      'Use photos, GIFs or one video, without mixing.',
+    );
   if (kinds.length > communityMediaLimits[kind].count)
-    throw new AccountError(400, 'Use até 4 fotos, 3 GIFs ou 1 vídeo.');
+    throw new AccountError(400, 'Use up to 4 photos, 3 GIFs or 1 video.');
 }
 export function communityMediaResult(value: unknown): CommunityMediaResult {
   const d = object(value);
@@ -90,17 +93,17 @@ export function communityMediaResult(value: unknown): CommunityMediaResult {
         ? 'image/gif'
         : 'video/mp4';
   if (kind === 'photo' && !['image/png', 'image/jpeg'].includes(type))
-    throw new AccountError(400, 'Formato de foto preparada inválido.');
+    throw new AccountError(400, 'Invalid prepared photo format.');
   const bytes = integer(d['bytes'], communityMediaLimits[kind].result);
   const width = integer(d['width'], 65_535),
     height = integer(d['height'], 65_535);
   const seconds = d['seconds'],
     fps = d['fps'];
   if (invalidResultFields(d, { type, bytes, width, height }))
-    throw new AccountError(400, 'Resultado de mídia inválido.');
+    throw new AccountError(400, 'Invalid media result.');
   validateTiming({ kind, seconds, fps });
   const thumbnailBytes = integer(d['thumbnailBytes'], 96_000);
-  if (!thumbnailBytes) throw new AccountError(400, 'Miniatura inválida.');
+  if (!thumbnailBytes) throw new AccountError(400, 'Invalid thumbnail.');
   return {
     kind,
     type,
@@ -163,16 +166,16 @@ export function communityMediaState(value: unknown): CommunityMediaState {
   if (
     !['uploading', 'processing', 'ready', 'attached'].includes(String(status))
   )
-    throw new AccountError(400, 'Estado de mídia inválido.');
+    throw new AccountError(400, 'Invalid media state.');
   if (
     d['error'] !== null &&
     (typeof d['error'] !== 'string' || d['error'].length > 240)
   )
-    throw new AccountError(400, 'Erro de mídia inválido.');
+    throw new AccountError(400, 'Invalid media error.');
   const result =
     d['result'] === null ? null : communityMediaResult(d['result']);
   if ((status === 'ready' || status === 'attached') && !result)
-    throw new AccountError(400, 'Mídia incompleta.');
+    throw new AccountError(400, 'Media incomplete.');
   return {
     source,
     received,

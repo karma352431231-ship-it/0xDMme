@@ -58,7 +58,7 @@ await test('erro de preparação sai do progresso e permite retomar a mesma míd
         if (operation === 'media-status')
           return Promise.resolve({
             ...state,
-            error: 'Processador isolado indisponível.',
+            error: 'Isolated processor unavailable.',
           });
         return Promise.resolve(state);
       },
@@ -72,7 +72,7 @@ await test('erro de preparação sai do progresso e permite retomar a mesma míd
     input.dispatchEvent(new Event('change'));
     const status = picker.querySelector('small');
     assert.ok(status);
-    await assert.rejects(send(), /Processador isolado indisponível/u);
+    await assert.rejects(send(), /Isolated processor unavailable/u);
     assert.equal(status.textContent, 'Isolated processor unavailable.');
     fail = false;
     assert.deepEqual(await send(), [state.source.id]);

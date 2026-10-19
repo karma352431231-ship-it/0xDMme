@@ -35,7 +35,7 @@ export class EnrollmentLinks {
   private readonly devices: EnrollmentDevices;
   private readonly bySource = new Map<string, string>();
   private readonly invitations = new TemporaryRequests<Invitation>({
-    unavailable: 'Muitos pedidos de vinculação. Aguarde.',
+    unavailable: 'Too many linking requests. Please wait.',
     removed: (id, value) => {
       const source = value.source.accountId + ':' + value.source.deviceId;
       if (this.bySource.get(source) === id) this.bySource.delete(source);
@@ -49,13 +49,13 @@ export class EnrollmentLinks {
     if (!invitation)
       throw new AccountError(
         409,
-        'Código expirado. Gere outro no aparelho conectado.',
+        'Code expired. Generate another on the connected device.',
       );
     return invitation;
   }
   async create(session: AccountSession, input: unknown) {
     return withTemporaryAdmission(
-      'Muitos pedidos de vinculação. Aguarde.',
+      'Too many linking requests. Please wait.',
       () => this.createInvitation(session, input),
     );
   }
@@ -71,7 +71,7 @@ export class EnrollmentLinks {
     };
     const remaining = Date.parse(payload.expiresAt) - Date.now();
     if (!(remaining > 0 && remaining <= 300_000))
-      throw new AccountError(400, 'Prazo de vinculação inválido.');
+      throw new AccountError(400, 'Invalid linking deadline.');
     await this.devices.enrollmentSource(
       session,
       payload,
@@ -81,7 +81,7 @@ export class EnrollmentLinks {
     const previous = this.bySource.get(source);
     const existing = this.invitations.get(payload.id);
     if (existing && previous !== payload.id)
-      throw new AccountError(409, 'Código já usado.');
+      throw new AccountError(409, 'Code already used.');
     const invitation: Invitation = {
       ...payload,
       source: session,
@@ -95,7 +95,7 @@ export class EnrollmentLinks {
         previous === payload.id ? existing : undefined,
       )
     )
-      throw new AccountError(429, 'Muitos pedidos de vinculação. Aguarde.');
+      throw new AccountError(429, 'Too many linking requests. Please wait.');
     if (previous && previous !== payload.id) this.invitations.delete(previous);
     this.bySource.set(source, payload.id);
     return { expiresAt: payload.expiresAt };
@@ -109,7 +109,7 @@ export class EnrollmentLinks {
     cancel: (token: string) => Promise<void>,
   ) {
     return withTemporaryAdmission(
-      'Muitos pedidos de vinculação. Aguarde.',
+      'Too many linking requests. Please wait.',
       () => this.joinInvitation(input, issue, cancel),
     );
   }
@@ -128,7 +128,7 @@ export class EnrollmentLinks {
       invitation.candidate ||
       fingerprint(data['codeHash']) !== invitation.codeHash
     )
-      throw new AccountError(409, 'Código já usado ou inválido.');
+      throw new AccountError(409, 'Code already used or invalid.');
     await this.devices.assertEnrollmentSource(
       invitation.source,
       invitation.head,
@@ -140,18 +140,21 @@ export class EnrollmentLinks {
       code.accountId !== invitation.source.accountId ||
       code.expiresAt !== invitation.expiresAt
     )
-      throw new AccountError(400, 'Pedido pertence a outra conta ou prazo.');
+      throw new AccountError(
+        400,
+        'Request belongs to another account or deadline.',
+      );
     await verify(code.device.signing, signature, linkProof(code));
     // Reserve before issuing a session so concurrent uses cannot create two receivers.
     if (invitation.candidate || this.current(invitation.id) !== invitation)
-      throw new AccountError(409, 'Código já usado ou inválido.');
+      throw new AccountError(409, 'Code already used or invalid.');
     invitation.candidate = { code, signature, proof };
     let issued: string | null = null;
     try {
       const result = await issue(invitation.source, code.device.id);
       issued = result.sessionToken;
       if (this.current(invitation.id) !== invitation)
-        throw new AccountError(409, 'Código já usado ou inválido.');
+        throw new AccountError(409, 'Code already used or invalid.');
       await this.devices.start(result.session, { code, signature });
       return result;
     } catch (error: unknown) {
@@ -169,7 +172,7 @@ export class EnrollmentLinks {
       invitation.source.deviceId !== session.deviceId ||
       invitation.source.csrf !== session.csrf
     )
-      throw new AccountError(403, 'Código pertence a outra sessão.');
+      throw new AccountError(403, 'Code belongs to another session.');
     await this.devices.assertEnrollmentSource(session, invitation.head);
     return invitation.candidate;
   }

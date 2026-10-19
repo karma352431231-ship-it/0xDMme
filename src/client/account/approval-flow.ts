@@ -138,18 +138,18 @@ export class ApprovalFlow {
     this.diagnostics.beginFragment();
     this.incoming = this.read();
     this.core.status = this.incoming
-      ? t('Confirme a assinatura do pedido iniciado no seu navegador.')
-      : t('Pedido inválido. Volte ao navegador e crie um novo pedido.');
+      ? t('Confirm the signature for the request started in your browser.')
+      : t('Invalid request. Return to your browser and create a new request.');
     this.host.render();
   }
   async restore(): Promise<void> {
     if (this.cookieEligible && !(await this.restoreCookie())) return;
     this.core.status = this.incoming
       ? t(
-          'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.',
+          'Confirm the signature to complete sign-in in the browser that started the request. Reject requests received from others.',
         )
       : t(
-          'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.',
+          'Request missing or lost. Return to the original browser and create a new request.',
         );
   }
   checkDeadline(): void {
@@ -215,7 +215,7 @@ export class ApprovalFlow {
     this.incoming = null;
     this.step('pedido-expirado');
     this.core.status = t(
-      'Pedido expirou. Volte ao navegador original e inicie um novo pedido.',
+      'Request expired. Return to the original browser and start a new request.',
     );
     this.host.render();
   }
@@ -224,7 +224,7 @@ export class ApprovalFlow {
     const legacy = this.incoming;
     this.incoming = null;
     this.step('pedido-cookie-solicitado');
-    this.core.status = t('Recuperando o pedido iniciado no seu navegador…');
+    this.core.status = t('Recovering the request started in your browser…');
     this.host.render();
     let state;
     try {
@@ -256,7 +256,7 @@ export class ApprovalFlow {
   private renderApproval(): void {
     if (!this.only) return;
     const title = this.find('[data-account-title]');
-    if (title) title.textContent = t('Confirme o login no seu navegador');
+    if (title) title.textContent = t('Confirm sign-in in your browser');
     const intro = this.find('[data-account-intro]');
     if (intro) {
       intro.hidden = this.signed;
@@ -265,7 +265,7 @@ export class ApprovalFlow {
     const approve = this.find<HTMLButtonElement>('[data-wallet-approve]');
     if (!approve) return;
     approve.hidden = !this.incoming || this.signed;
-    approve.textContent = t('Confirmar assinatura na {0}', [
+    approve.textContent = t('Confirm signature in {0}', [
       this.incoming?.wallet ?? 'wallet',
     ]);
     approve.disabled =
@@ -274,7 +274,7 @@ export class ApprovalFlow {
   private description(): string {
     return this.incoming
       ? t(
-          '{0} · {1}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.',
+          '{0} · {1}. Only confirm a request you started. Your wallet will ask for signatures to sign in and open your encrypted data in the original browser. No transaction or token approval is requested.',
           [
             this.incoming.wallet,
             this.incoming.ecosystem === 'solana' ? 'Solana' : 'EVM',
@@ -282,7 +282,7 @@ export class ApprovalFlow {
         )
       : (this.diagnostics.rejectionMessage() ??
           t(
-            'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.',
+            'Request missing or lost. Return to the tab that started sign-in and create a new request.',
           ));
   }
 }

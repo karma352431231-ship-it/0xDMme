@@ -16,6 +16,6 @@ export function moderationPreviewDocument(input: {
   const media =
     input.type === 'video/mp4'
       ? `<video controls src="${input.path}/file"></video>`
-      : `<img src="${input.path}/file" alt="${t('Candidato de imagem')}">`;
-  return `<!doctype html><html lang="${language}"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${t('0xDMme — revisão restrita')}</title><h1>${t('Revisão excepcional')}</h1><p>${t('Verifique a mídia completa. Nudez artística em pinturas é permitida, inclusive em pinturas digitais/IA que sejam de fato pinturas. Atos sexuais explícitos continuam proibidos. Fotos e desenhos fora dessa exceção não permitem genitais/seios femininos expostos. Decida pelo comando restrito, após conferir a contestação.')}</p>${media}<p>${t('A prévia encerra em até cinco minutos.')}</p></html>`;
+      : `<img src="${input.path}/file" alt="${t('Image candidate')}">`;
+  return `<!doctype html><html lang="${language}"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${t('0xDMme — restricted review')}</title><h1>${t('Exceptional review')}</h1><p>${t('Inspect the complete media. Artistic nudity in paintings is allowed, including digital/AI paintings that are genuinely paintings. Explicit sexual acts remain prohibited. Photos and drawings outside this exception do not allow exposed genitals or female breasts. Decide using the restricted command after reviewing the appeal.')}</p>${media}<p>${t('The preview closes within five minutes.')}</p></html>`;
 }

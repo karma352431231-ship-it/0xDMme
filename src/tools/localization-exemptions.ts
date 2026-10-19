@@ -39,6 +39,26 @@ export const localizationExemptions = new Map<string, ReadonlySet<string>>([
   ],
 ]);
 
+/**
+ * Catalog keys must be their English text or an `area.name` identifier. These
+ * older keys are exceptions: English wire reasons whose display text differs,
+ * and labels persisted in existing records, which need a migration to rename.
+ */
+export const legacyCatalogKeys: ReadonlySet<string> = new Set([
+  'Message action target is unavailable.',
+  'Message action limit reached.',
+  'Invalid public-identity message or action.',
+  'Reaction target is unavailable.',
+  'Message reaction limit reached.',
+  'DM accepts text, declared media and reactions; private profile and edits are forbidden.',
+  'Upvote read unavailable.',
+  'Invalid community topics.',
+  'Invalid NSFW choice.',
+  'Community creation classification already fixed.',
+  'timeout',
+  ...[...localizationExemptions.values()].flatMap((labels) => [...labels]),
+]);
+
 export const routeIdentifiers = new Set([
   'conversas',
   'comunidades',

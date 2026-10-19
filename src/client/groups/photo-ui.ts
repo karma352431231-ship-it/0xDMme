@@ -49,7 +49,7 @@ export class GroupPhotoUi {
     const dialog = document.createElement('dialog');
     this.dialog = dialog;
     dialog.className = 'group-dialog group-photo-dialog';
-    dialog.setAttribute('aria-label', t('Foto do grupo'));
+    dialog.setAttribute('aria-label', t('Group photo'));
     dialog.innerHTML = t('html.b63f4d3d54aa', [chatIcon('close')]);
     const preview = dialog.querySelector<HTMLElement>('[data-preview]')!,
       file = dialog.querySelector<HTMLInputElement>('[data-file]')!,
@@ -95,12 +95,12 @@ export class GroupPhotoUi {
             failure =
               error instanceof Error
                 ? error
-                : new Error('Foto não confirmada. Tente novamente.');
+                : new Error('Photo not confirmed. Try again.');
             throw error;
           }
         });
         if (!saved)
-          throw failure ?? new Error('Foto não confirmada. Tente novamente.');
+          throw failure ?? new Error('Photo not confirmed. Try again.');
         if (current === this.epoch) this.reset();
       });
     });
@@ -155,7 +155,7 @@ export class GroupPhotoUi {
         feedback.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Foto não confirmada. Tente novamente.');
+            : t('Photo not confirmed. Try again.');
     } finally {
       this.busy = false;
       controls.forEach((node, index) => {
@@ -202,7 +202,7 @@ export class GroupPhotoView {
       .catch(() => {
         if (epoch === this.epoch)
           nodes.forEach((node) => {
-            node.title = t('Foto do grupo indisponível neste aparelho.');
+            node.title = t('Group photo unavailable on this device.');
           });
       });
   }

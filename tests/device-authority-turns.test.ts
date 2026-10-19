@@ -146,7 +146,7 @@ await test('operation failure and session replacement release all admission gate
       },
       { priority: 'interactive' },
     ),
-    /Sessão alterada/,
+    /Session changed/,
   );
   await pending(accountId, 1);
   assert.equal(

@@ -23,12 +23,12 @@ export function domainName(input: unknown): string {
   if (!/^[a-z0-9.-]+$/u.test(raw))
     throw new AccountError(
       400,
-      'Informe somente o domínio, sem endereço de página.',
+      'Enter only the domain, without a page address.',
     );
   const labels = raw.split('.'),
     last = labels.at(-1) ?? '';
   if (labels.length < 2 || !/^[a-z]{2,63}$/u.test(last))
-    throw new AccountError(400, 'Domínio público inválido.');
+    throw new AccountError(400, 'Invalid public domain.');
   if (
     [
       'local',
@@ -40,13 +40,13 @@ export function domainName(input: unknown): string {
       'arpa',
     ].includes(last)
   )
-    throw new AccountError(400, 'Domínio privado não permitido.');
+    throw new AccountError(400, 'Private domain not allowed.');
   if (
     labels.some(
       (label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label),
     )
   )
-    throw new AccountError(400, 'Domínio inválido.');
+    throw new AccountError(400, 'Invalid domain.');
   return raw;
 }
 export function domainClaim(input: unknown): DomainClaim {
@@ -65,10 +65,10 @@ export function domainClaim(input: unknown): DomainClaim {
     !Number.isSafeInteger(d['expiresAt']) ||
     d['expiresAt'] < 1
   )
-    throw new AccountError(400, 'Desafio inválido.');
+    throw new AccountError(400, 'Invalid challenge.');
   const origin = new URL(boundedText(d['origin'], 256));
   if (origin.origin !== d['origin'])
-    throw new AccountError(400, 'Origem inválida.');
+    throw new AccountError(400, 'Invalid origin.');
   return {
     version: statementVersion(d['version']),
     organizationId: uuid(d['organizationId']),

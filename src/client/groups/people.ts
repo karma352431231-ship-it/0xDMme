@@ -50,7 +50,7 @@ export class GroupPeople {
         avatar.replaceChildren(image);
       } catch {
         if (this.usable(identity, epoch))
-          avatar.title = t('Foto privada indisponível neste aparelho.');
+          avatar.title = t('Private photo unavailable on this device.');
       }
     });
     queueMicrotask(() => this.pump());

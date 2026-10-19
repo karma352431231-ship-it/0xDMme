@@ -16,7 +16,7 @@ export function startVault(access: VaultAccess) {
   let meter: HTMLElement | null = null;
   let busy = false;
   let known = false;
-  let message = t('Entre na sua conta para consultar o armazenamento.');
+  let message = t('Sign in to your account to check storage.');
   function render(): void {
     const status = mounted?.querySelector('[data-vault-status]');
     if (status) status.textContent = message;
@@ -26,12 +26,12 @@ export function startVault(access: VaultAccess) {
     const quota = mounted?.querySelector('[data-vault-quota]');
     if (quota)
       quota.textContent = known
-        ? t('{0} MB usados · {1} MB disponíveis de {2} MB', [
+        ? t('{0} MB used · {1} MB available out of {2} MB', [
             (sync.state.used / 1_000_000).toFixed(2),
             (Math.max(0, vaultQuota - sync.state.used) / 1_000_000).toFixed(2),
             vaultQuota / 1_000_000,
           ])
-        : t('Consultando uso da conta…');
+        : t('Checking account usage…');
     const retry =
       mounted?.querySelector<HTMLButtonElement>('[data-vault-retry]');
     if (retry) retry.disabled = busy;
@@ -43,11 +43,11 @@ export function startVault(access: VaultAccess) {
     const label = meter.querySelector('[data-vault-meter-label]');
     if (label)
       label.textContent = known
-        ? t('{0} de {1}', [
+        ? t('{0} of {1}', [
             storageSize(sync.state.used),
             storageSize(vaultQuota),
           ])
-        : t('Consultando…');
+        : t('Checking…');
     renderUsage(meter.querySelector<HTMLProgressElement>('progress'));
   }
   function renderUsage(usage: HTMLProgressElement | null): void {
@@ -67,7 +67,7 @@ export function startVault(access: VaultAccess) {
   async function refresh(): Promise<void> {
     if (!canRefresh()) return;
     busy = true;
-    message = t('Consultando armazenamento…');
+    message = t('Checking storage…');
     render();
     try {
       await sync.refresh();
@@ -75,16 +75,16 @@ export function startVault(access: VaultAccess) {
       if (sync.pending) await sync.retry();
       message =
         sync.state.used >= vaultQuota * 0.9
-          ? t('Seu armazenamento está próximo do limite.')
+          ? t('Your storage is close to its limit.')
           : t(
-              'Conversas e arquivos ficam cifrados. Salvar um backup não libera espaço automaticamente.',
+              'Conversations and files stay encrypted. Saving a backup does not automatically free space.',
             );
       retryVisible(false);
     } catch (error: unknown) {
       message =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível consultar o armazenamento.');
+          : t('Could not check storage.');
       retryVisible(true);
     } finally {
       busy = false;
@@ -108,14 +108,12 @@ export function startVault(access: VaultAccess) {
           accountId: session.accountId,
           deviceId: session.deviceId,
         }).catch(() => {
-          message = t(
-            'Não foi possível guardar o acesso local neste aparelho.',
-          );
+          message = t('Could not save local access on this device.');
           render();
         });
         void refresh();
       } else {
-        message = t('Entre na sua conta para consultar o armazenamento.');
+        message = t('Sign in to your account to check storage.');
         render();
       }
     },

@@ -29,12 +29,12 @@ async function role(
   const target = await communityTarget(context, uuid(data['target'])),
     enabled = communityBoolean(data['moderator']);
   if (target.id === context.row.owner)
-    throw new AccountError(
-      400,
-      'O proprietário não precisa de função de moderador.',
-    );
+    throw new AccountError(400, 'The owner does not need a moderator role.');
   if (enabled && (await activeSanction(context, target.id)))
-    throw new AccountError(403, 'Remova a sanção antes de nomear moderador.');
+    throw new AccountError(
+      403,
+      'Lift the sanction before appointing a moderator.',
+    );
   const changed = enabled
     ? await context.client.query(
         'INSERT INTO hash_talk.community_moderators(community_id,profile_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
@@ -69,9 +69,9 @@ async function transferTarget(
   if (value === null) return null;
   const target = await communityTarget(context, uuid(value));
   if (target.id === context.actor.id)
-    throw new AccountError(400, 'Você já é o proprietário.');
+    throw new AccountError(400, 'You are already the owner.');
   if (await activeSanction(context, target.id))
-    throw new AccountError(403, 'Destinatário suspenso.');
+    throw new AccountError(403, 'Recipient suspended.');
   return target.id;
 }
 async function accept(
@@ -86,10 +86,10 @@ async function accept(
   )
     throw new AccountError(
       403,
-      'Transferência não destinada a este perfil ou já encerrada.',
+      'Transfer is not for this profile or has already ended.',
     );
   if (await activeSanction(context))
-    throw new AccountError(403, 'Destinatário suspenso.');
+    throw new AccountError(403, 'Recipient suspended.');
   await context.client.query(
     'DELETE FROM hash_talk.community_moderators WHERE community_id=$1 AND profile_id=$2',
     [context.row.id, context.actor.id],

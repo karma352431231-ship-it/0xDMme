@@ -138,7 +138,7 @@ export class GroupMessageUpdates {
           a.session.accountId,
         );
         if (proof.payload['revision'] !== current.revision)
-          throw new AccountError(409, 'Autoridade da exclusão mudou.');
+          throw new AccountError(409, 'Deletion authorization has changed.');
         const result = await client.query<{
           sender: string;
           hash: string;
@@ -161,7 +161,7 @@ export class GroupMessageUpdates {
         )
           throw new AccountError(
             403,
-            'Somente o autor participante pode apagar sua mensagem.',
+            'Only the author who is a group participant can delete their message.',
           );
         if (
           root.deletion &&
@@ -219,7 +219,7 @@ export class GroupMessageUpdates {
     const joined = state.members.find(
       (member) => member.accountId === a.session.accountId,
     )?.joined;
-    if (!joined) throw new AccountError(403, 'Participação indisponível.');
+    if (!joined) throw new AccountError(403, 'Membership unavailable.');
     return joined;
   }
   private async revision(
@@ -236,7 +236,7 @@ export class GroupMessageUpdates {
     if ((await this.revision(client, scope.groupId)) !== scope.revision)
       throw new AccountError(
         409,
-        'Mensagens do grupo mudaram. Confira novamente.',
+        'Group messages have changed. Verify them again.',
       );
   }
 }
@@ -265,7 +265,7 @@ export async function assertGroupEdit(
     [packet.groupId, relation.id],
   );
   if ((count.rows[0]?.count ?? 0) >= 64)
-    throw new AccountError(413, 'Esta mensagem atingiu 64 edições.');
+    throw new AccountError(413, 'This message has reached 64 edits.');
 }
 
 interface EditRoot {
@@ -278,7 +278,7 @@ interface EditRoot {
 }
 function editableRoot(root: EditRoot | undefined): EditRoot {
   if (!root || root.kind !== 'text' || root.relation || !root.body)
-    throw new AccountError(403, 'Edição fora da mensagem própria autorizada.');
+    throw new AccountError(403, 'Edit is outside your authorized message.');
   return root;
 }
 function assertEditOwner(
@@ -299,5 +299,5 @@ function assertEditOwner(
     root.hash !== input.relation.hash ||
     root.epoch < joined
   )
-    throw new AccountError(403, 'Edição fora da mensagem própria autorizada.');
+    throw new AccountError(403, 'Edit is outside your authorized message.');
 }

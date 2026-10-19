@@ -31,12 +31,12 @@ export function preferenceControls(
 ): void {
   postBookmark(container, post, actions);
   const menu = el('details', '', 'post-more'),
-    summary = el('summary', t('Mais opções da postagem')),
+    summary = el('summary', t('More post options')),
     content = el('div', '', 'post-more-content');
   iconLabel(summary, 'more');
   menu.append(summary, content);
   container.append(menu);
-  const hide = button(content, t('Ocultar ou mostrar nos meus feeds'), () =>
+  const hide = button(content, t('Hide or show in my feeds'), () =>
     actions.run(async () => {
       const value = await togglePostPreference(post, 'hidden', actions);
       if (value) await actions.changed();
@@ -45,7 +45,7 @@ export function preferenceControls(
   iconLabel(hide, 'hide');
   if (post.status === 'visible') reportControl(content, post, actions);
   if (post.author) {
-    const block = button(content, t('Bloquear usuário'), () =>
+    const block = button(content, t('Block user'), () =>
       actions.run(async () => {
         const target = post.author!.id;
         const current = publicBlockState(
@@ -99,7 +99,7 @@ function reportControl(
   actions: Actions,
 ): void {
   const form = el('details', '', 'post-report'),
-    summary = el('summary', t('Denunciar'));
+    summary = el('summary', t('Report'));
   iconLabel(summary, 'flag');
   form.append(summary);
   container.append(form);
@@ -113,9 +113,9 @@ function reportControl(
         await actions.controller.request('public-report', data),
       );
       keys(result, ['saved']);
-      if (result['saved'] !== true) throw new Error('Denúncia não confirmada.');
+      if (result['saved'] !== true) throw new Error('Report not confirmed.');
       if (actions.valid())
-        status.textContent = t('Denúncia guardada no backend do app.');
+        status.textContent = t("Report saved on the app's backend.");
     }),
   );
 }
@@ -126,11 +126,11 @@ export function postVoting(
 ): void {
   if (post.status !== 'visible') return;
   const controls = el('div', '', 'post-votes');
-  controls.setAttribute('aria-label', t('Votos da postagem'));
+  controls.setAttribute('aria-label', t('Post votes'));
   container.append(controls);
   for (const [position, title, icon] of [
-    [1, t('Votar a favor; tocar novamente retira o voto'), 'up'],
-    [-1, t('Votar contra; tocar novamente retira o voto'), 'down'],
+    [1, t('Upvote; tap again to remove your vote'), 'up'],
+    [-1, t('Downvote; tap again to remove your vote'), 'down'],
   ] as const) {
     const node = actions
       ? button(controls, '', () =>
@@ -143,7 +143,7 @@ export function postVoting(
     if (node instanceof HTMLAnchorElement) node.href = '#settings';
     node.setAttribute(
       'aria-label',
-      actions ? title : t('Entre pelo Perfil para votar'),
+      actions ? title : t('Sign in through Profile to vote'),
     );
     node.dataset['vote'] = String(position);
     node.setAttribute('aria-pressed', String(actions?.position === position));
@@ -195,14 +195,14 @@ export function discoveryMenu(
   return menu;
 }
 export const feedOrders = [
-  ['mixed', t('Destaques')],
-  ['recent', t('Recentes')],
-  ['votes', t('Mais votados')],
-  ['replies', t('Mais comentados')],
+  ['mixed', t('Highlights')],
+  ['recent', t('Recent')],
+  ['votes', t('Top voted')],
+  ['replies', t('Most discussed')],
 ] as const;
 export const discoveryPeriods = [
-  ['day', t('24 horas')],
-  ['week', t('7 dias')],
-  ['month', t('30 dias')],
-  ['all', t('Todo o histórico')],
+  ['day', t('24 hours')],
+  ['week', t('7 days')],
+  ['month', t('30 days')],
+  ['all', t('All history')],
 ] as const;

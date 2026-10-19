@@ -35,7 +35,7 @@ export function startDevices(options: {
   let mounted: HTMLElement | null = null,
     busy = false,
     failed = false;
-  let message = t('Entre com a wallet ou use um código de vinculação.');
+  let message = t('Sign in with your wallet or use a linking code.');
   let invitation: EnrollmentCode | null = null,
     waiting = false,
     deadline = 0;
@@ -99,14 +99,12 @@ export function startDevices(options: {
         label = document.createElement('span');
       label.textContent =
         device.name +
-        (device.id === controller.session?.deviceId
-          ? t(' · este aparelho')
-          : '');
+        (device.id === controller.session?.deviceId ? t(' · this device') : '');
       item.append(label);
       if (device.id !== controller.session?.deviceId) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = t('Revogar');
+        button.textContent = t('Revoke');
         button.disabled = busy;
         button.addEventListener('click', () => {
           if (controller.session?.walletConfirmed !== true) {
@@ -115,13 +113,13 @@ export function startDevices(options: {
           }
           if (
             !window.confirm(
-              t('Revogar este aparelho? Ele perderá acesso aos novos dados.'),
+              t('Revoke this device? It will lose access to new data.'),
             )
           )
             return;
           void run(async () => {
             await controller.revoke(device.id);
-            message = t('Aparelho revogado.');
+            message = t('Device revoked.');
             await changed();
           });
         });
@@ -149,7 +147,7 @@ export function startDevices(options: {
       message =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível concluir a operação.');
+          : t('Could not complete the operation.');
     } finally {
       busy = false;
       render();
@@ -168,9 +166,7 @@ export function startDevices(options: {
     if (!controller.expireWalletRecovery()) return;
     clearTimeout(timer);
     failed = true;
-    message = t(
-      'O pedido na wallet expirou. Toque em Abrir conta para tentar novamente.',
-    );
+    message = t('The wallet request expired. Tap Open account to try again.');
     render();
   }
   async function poll(): Promise<void> {
@@ -181,17 +177,17 @@ export function startDevices(options: {
     await run(async () => {
       if (controller.walletPending) {
         if (await controller.finishWalletRecovery()) {
-          message = t('Conta pronta.');
+          message = t('Account ready.');
           await changed();
         }
         return;
       }
       if (Date.now() >= deadline)
-        throw new Error('Código expirado. Gere um novo código para vincular.');
+        throw new Error('Code expired. Generate a new linking code.');
       if (invitation) {
         if (await controller.approveEnrollment(invitation)) {
           invitation = null;
-          message = t('Novo aparelho vinculado.');
+          message = t('New device linked.');
           await changed();
         }
         return;
@@ -200,7 +196,7 @@ export function startDevices(options: {
         await controller.refresh();
         if (controller.authorized) {
           waiting = false;
-          message = t('Aparelho vinculado. Sua conta está pronta.');
+          message = t('Device linked. Your account is ready.');
           await changed();
         }
       }
@@ -218,12 +214,12 @@ export function startDevices(options: {
     const wallet =
       localStorage.getItem('0xdmme:login-wallet') ||
       (session.ecosystem === 'solana' ? 'Phantom' : 'MetaMask');
-    message = t('Confirme a abertura da conta na sua wallet.');
+    message = t('Confirm account opening in your wallet.');
     render();
     return controller.beginWalletRecovery({
       mode: controller.current ? 'recover' : 'initialize',
       wallet,
-      name: t('Meu aparelho'),
+      name: t('My device'),
       revoked: [],
       revision: controller.current?.revision ?? 0,
     });
@@ -261,13 +257,13 @@ export function startDevices(options: {
     }
     if (walletOpening === 'login' && needsWalletOpening(session)) {
       attempted = session.csrf;
-      message = t('Confirme a abertura da conta na sua wallet.');
+      message = t('Confirm account opening in your wallet.');
       render();
       const completed = await authorizeWallet(session);
       if (!completed) {
         controller.openWalletRecovery();
         message = t(
-          'Assine na wallet e volte a este navegador. A conclusão será automática.',
+          'Sign in your wallet and return to this browser. Completion is automatic.',
         );
         schedule();
         render();
@@ -281,10 +277,10 @@ export function startDevices(options: {
   }
   function renderOpeningStatus(): void {
     if (controller.authorized)
-      message = t('Sua conta está pronta neste aparelho.');
+      message = t('Your account is ready on this device.');
     else if (!controller.walletPending)
       message = t(
-        'A sessão está conectada. Abra sua conta para autorizar as chaves neste navegador.',
+        'The session is connected. Open your account to authorize the keys in this browser.',
       );
     schedule();
     render();
@@ -294,7 +290,7 @@ export function startDevices(options: {
     waiting = true;
     deadline = Date.now() + 300_000;
     message = t(
-      'Aguardando autorização automática. Mantenha aberto o aparelho que gerou o código.',
+      'Waiting for automatic authorization. Keep the device that generated the code open.',
     );
     await options.linked?.(session);
   }
@@ -358,7 +354,7 @@ export function startDevices(options: {
     ): Promise<void> {
       const lease = leases.get(key);
       if (!lease || lease.accountId !== session.accountId)
-        throw new Error('Reabra a conta antes de salvar o perfil.');
+        throw new Error('Reopen the account before saving the profile.');
       await controller.saveProfile(session, profile, lease.epoch);
     },
     authorized: () => controller.authorized,
@@ -371,9 +367,13 @@ export function startDevices(options: {
     }),
     async enroll(code: string): Promise<void> {
       if (busy)
-        throw new Error('Aguarde a entrada atual terminar e tente novamente.');
+        throw new Error(
+          'Wait for the current sign-in to finish, then try again.',
+        );
       if (controller.session)
-        throw new Error('Saia da conta atual antes de vincular outra conta.');
+        throw new Error(
+          'Sign out of the current account before linking another.',
+        );
       await run(() => join(code));
       if (failed) throw new Error(message);
     },
@@ -381,11 +381,11 @@ export function startDevices(options: {
       expireWalletRequest();
       if (controller.walletPending)
         return t(
-          'Há uma abertura de conta pendente na wallet. Em Perfil → Aparelhos, conclua ou cancele o pedido antes de atualizar.',
+          'Account opening is pending in your wallet. In Profile → Devices, complete or cancel the request before updating.',
         );
       if (invitation || waiting || camera?.active)
         return t(
-          'Conclua a vinculação ou feche a câmera em Perfil → Aparelhos antes de atualizar.',
+          'Finish linking or close the camera in Profile → Devices before updating.',
         );
       return null;
     },
@@ -428,7 +428,7 @@ export function startDevices(options: {
         void run(async () => {
           invitation = await controller.createEnrollment();
           deadline = Date.parse(invitation.expiresAt);
-          message = t('Use este QR ou código somente no seu outro aparelho.');
+          message = t('Use this QR code or code only on your other device.');
         });
       });
       listen('[data-device-copy]', 'click', () => {
@@ -466,7 +466,7 @@ export function startDevices(options: {
         });
       });
       const retry = node('[data-device-retry]');
-      if (retry) retry.textContent = t('Abrir conta');
+      if (retry) retry.textContent = t('Open account');
       render();
     },
   };

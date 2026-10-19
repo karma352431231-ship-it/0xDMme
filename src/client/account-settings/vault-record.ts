@@ -38,7 +38,7 @@ export class SettingsRecord {
       )
       .sort((a, b) => b.commit.sequence - a.commit.sequence);
     if (heads.length > 16)
-      throw new Error('Configurações da conta com versões demais no cofre.');
+      throw new Error('Too many account settings versions in the vault.');
     return heads;
   }
   /** `null` when the account never confirmed Configurações iniciais. */
@@ -51,7 +51,7 @@ export class SettingsRecord {
       if (this.sync.complete) break;
     }
     if (!this.sync.complete)
-      throw new Error('O cofre ainda está carregando as configurações.');
+      throw new Error('The vault is still loading settings.');
     const newest = (await this.heads(accountId))[0];
     if (!newest) return null;
     // Opening failures propagate. Content that does not validate is offered

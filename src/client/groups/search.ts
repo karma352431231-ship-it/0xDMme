@@ -67,17 +67,17 @@ function readCursor(
 ): Cursor | null {
   if (after === null)
     return groups[0] ? { group: groups[0], before: null } : null;
-  if (after.length > 256) throw new Error('Página de busca inválida.');
+  if (after.length > 256) throw new Error('Invalid search page.');
   const data = object(JSON.parse(after) as unknown),
     group = data['group'],
     before = data['before'];
   if (typeof group !== 'string' || !groups.includes(group))
-    throw new Error('Grupo da busca mudou. Inicie novamente.');
+    throw new Error('Search group changed. Start again.');
   return { group, before: searchBefore(before) };
 }
 function searchBefore(value: unknown): number | null {
   if (value === null) return null;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
-    throw new Error('Página de busca inválida.');
+    throw new Error('Invalid search page.');
   return value;
 }

@@ -13,7 +13,8 @@ startLanguage();
 
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const node = document.getElementById(id);
-  if (!(node instanceof type)) throw new Error('Tela de coleta indisponível.');
+  if (!(node instanceof type))
+    throw new Error('Collection screen unavailable.');
   return node;
 }
 function readAccess(): string {
@@ -44,7 +45,7 @@ function message(error: unknown): void {
   status.textContent =
     error instanceof Error
       ? translatedError(error.message)
-      : t('Coleta indisponível.');
+      : t('Collection unavailable.');
 }
 function clearPreview(): void {
   previewReady = false;
@@ -91,16 +92,16 @@ async function showQueue(): Promise<void> {
   clearPreview();
   const current = queue.current;
   if (!current) {
-    title.textContent = t('Selecione imagens ou conclua o envio.');
+    title.textContent = t('Select images or complete the upload.');
     return;
   }
-  title.textContent = t('{0} · {1} na fila', [current.name, queue.length]);
+  title.textContent = t('{0} · {1} queued', [current.name, queue.length]);
   try {
     await showImage(current);
   } catch {
     skip.hidden = false;
     throw new Error(
-      'Não foi possível abrir esta imagem. Remova o arquivo da fila e continue.',
+      'Could not open this image. Remove the file from the queue and continue.',
     );
   }
 }
@@ -108,9 +109,9 @@ async function edit(entry: ImageCase): Promise<void> {
   editing = entry;
   back.hidden = false;
   skip.hidden = true;
-  title.textContent = t('Corrigir imagem {0} · marcação atual: {1}', [
+  title.textContent = t('Correct image {0} · current annotation: {1}', [
     entry.ordinal,
-    entry.reference === 'allow' ? t('Passa') : t('Bloqueia'),
+    entry.reference === 'allow' ? t('Pass') : t('Block'),
   ]);
   await showImage(await api.image(entry.id));
 }
@@ -121,11 +122,11 @@ function historyEntry(entry: ImageCase): HTMLDivElement {
   row.className = 'case';
   label.textContent = t('{0}. {1}', [
     entry.ordinal,
-    entry.reference === 'allow' ? t('Passa') : t('Bloqueia'),
+    entry.reference === 'allow' ? t('Pass') : t('Block'),
   ]);
   label.className = entry.reference;
   button.type = 'button';
-  button.textContent = t('Corrigir');
+  button.textContent = t('Correct');
   button.addEventListener('click', () => action(() => edit(entry)));
   row.append(label, button);
   return row;
@@ -144,15 +145,15 @@ function render(): void {
     },
   );
   summary.textContent = t(
-    '{0} salvas · {1} passam · {2} bloqueiam · expira em {3} (Fortaleza)',
+    '{0} saved · {1} pass · {2} blocked · expires at {3} (Fortaleza)',
     [snapshot.cases.length, allowed, snapshot.cases.length - allowed, expires],
   );
   savedCases.replaceChildren(...snapshot.cases.map(historyEntry));
   if (snapshot.completedAt !== null) {
     clearPreview();
-    title.textContent = t('Envio concluído');
+    title.textContent = t('Upload complete');
     status.textContent = t(
-      'Sua rodada está pronta para calibração. Pode fechar esta aba; mantenha o Mac ligado e sem repouso.',
+      'Your round is ready for calibration. You can close this tab; keep your Mac on and awake.',
     );
   }
   controls();
@@ -166,16 +167,16 @@ async function mark(reference: Reference): Promise<void> {
     await api.annotate(editing.id, reference);
     await refresh();
     await showQueue();
-    status.textContent = t('Marcação corrigida.');
+    status.textContent = t('Annotation corrected.');
     return;
   }
   const current = queue.current;
-  if (!current) throw new Error('Selecione uma imagem.');
+  if (!current) throw new Error('Select an image.');
   const saved = await api.save(current, reference);
   queue.next();
-  status.textContent = t('Imagem {0} salva: {1}.', [
+  status.textContent = t('Image {0} saved: {1}.', [
     saved.ordinal,
-    reference === 'allow' ? t('Passa') : t('Bloqueia'),
+    reference === 'allow' ? t('Pass') : t('Block'),
   ]);
   await refresh();
   await showQueue();
@@ -186,7 +187,7 @@ file.addEventListener('change', () => {
     queue.add(selected);
     file.value = '';
     status.textContent = t(
-      'Marque cada imagem. Cada clique salva o original e avança.',
+      'Annotate each image. Each click saves the original and advances.',
     );
     await showQueue();
   });
@@ -198,7 +199,7 @@ skip.addEventListener('click', () => {
   action(async () => {
     queue.next();
     status.textContent = t(
-      'Arquivo removido da fila; nenhuma marcação foi salva para ele.',
+      'File removed from the queue; no annotation was saved for it.',
     );
     await showQueue();
   });

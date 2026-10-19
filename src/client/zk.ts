@@ -27,9 +27,9 @@ function complete(value: unknown): void {
     typeof result.proveMs !== 'number' ||
     typeof result.verifyMs !== 'number'
   )
-    throw new Error('Prova rejeitada.');
+    throw new Error('Proof rejected.');
   status.textContent = t(
-    'Prova ZK real válida. Geração: {0} ms; verificação: {1} ms. Prova: {2} bytes. Alteração e raiz sem o membro foram rejeitadas. Workers encerrados.',
+    'Real ZK proof valid. Generation: {0} ms; verification: {1} ms. Proof: {2} bytes. Modification and a root without the member were rejected. Workers stopped.',
     [
       result.proveMs.toFixed(1),
       result.verifyMs.toFixed(1),
@@ -42,7 +42,7 @@ button.addEventListener('click', () => {
   if (worker) return;
   button.disabled = true;
   status.textContent = t(
-    'Gerando prova com identidade fictícia e artefatos locais…',
+    'Generating proof with a fictional identity and local artifacts…',
   );
   try {
     worker = new Worker('/zk-worker.js', { type: 'module' });
@@ -51,26 +51,24 @@ button.addEventListener('click', () => {
         complete(event.data);
       } catch {
         status.textContent = t(
-          'Ensaio rejeitado. Confira os artefatos locais e a compatibilidade do navegador.',
+          'Test rejected. Check local artifacts and browser compatibility.',
         );
       }
     };
     worker.onerror = () => {
       stop();
-      status.textContent = t(
-        'Não foi possível executar a prova neste navegador.',
-      );
+      status.textContent = t('Could not run the proof in this browser.');
     };
     timer = setTimeout(() => {
       stop();
       status.textContent = t(
-        'Limite de 45 segundos atingido; workers encerrados. Registrar este resultado no teste do aparelho.',
+        '45-second limit reached; workers stopped. Record this result in the device test.',
       );
     }, 45_000);
     worker.postMessage({ start: true });
   } catch {
     stop();
-    status.textContent = t('Worker indisponível neste navegador.');
+    status.textContent = t('Worker unavailable in this browser.');
   }
 });
 window.addEventListener('pagehide', stop, { once: true });

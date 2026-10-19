@@ -191,7 +191,7 @@ await test('avisos contínuos têm limite de três confirmações e não publica
       visibility.hint();
       return Promise.resolve();
     }),
-    /Novas atualizações/,
+    /New updates/,
   );
   assert.equal(checks, 3);
   assert.ok(frames.every((rows) => rows === null));

@@ -49,7 +49,7 @@ export function publicModerationKind(value: unknown): PublicModerationKind {
     value !== 'community-banner' &&
     value !== 'post-media'
   )
-    throw new AccountError(400, 'Objeto de análise inválido.');
+    throw new AccountError(400, 'Invalid analysis object.');
   return value;
 }
 export function publicModerationStatus(value: unknown): PublicModerationStatus {
@@ -65,12 +65,12 @@ export function publicModerationStatus(value: unknown): PublicModerationStatus {
     'removed',
   ];
   if (typeof value !== 'string' || !statuses.includes(value))
-    throw new AccountError(400, 'Estado de análise inválido.');
+    throw new AccountError(400, 'Invalid analysis state.');
   return value as PublicModerationStatus;
 }
 function instant(value: unknown): string {
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value)))
-    throw new AccountError(400, 'Prazo de análise inválido.');
+    throw new AccountError(400, 'Invalid analysis deadline.');
   return value;
 }
 function optionalText(value: unknown, maximum: number): string | null {
@@ -82,12 +82,12 @@ function videoNoticeFlags(
 ) {
   for (const field of ['afterPublication', 'warning'])
     if (data[field] !== undefined && typeof data[field] !== 'boolean')
-      throw new AccountError(400, 'Aviso de vídeo inválido.');
+      throw new AccountError(400, 'Invalid video notice.');
   if (
     (data['afterPublication'] === true && kind !== 'post-media') ||
     (data['warning'] === true && data['afterPublication'] !== true)
   )
-    throw new AccountError(400, 'Aviso de vídeo inválido.');
+    throw new AccountError(400, 'Invalid video notice.');
   return {
     ...(typeof data['afterPublication'] === 'boolean'
       ? { afterPublication: data['afterPublication'] }

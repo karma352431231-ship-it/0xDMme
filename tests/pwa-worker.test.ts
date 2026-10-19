@@ -666,13 +666,13 @@ await test('Chinese background alerts localize app text without translating publ
   assert.equal(media.notifications[0]?.options.body, '新的媒体发布。');
   const content = await worker({
     pushAllowed: true,
-    publicPreview: { ...preview, text: 'Nova publicação com mídia.' },
+    publicPreview: { ...preview, text: 'New media publication.' },
     language: 'zh-CN',
   });
   await content.dispatch('push');
   assert.equal(
     content.notifications[0]?.options.body,
-    'Nova publicação com mídia.',
+    'New media publication.',
   );
   const invalid = await worker({ pushAllowed: true, language: 'pt-BR' });
   await invalid.dispatch('push');

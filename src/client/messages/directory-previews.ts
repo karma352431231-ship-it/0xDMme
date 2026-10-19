@@ -49,7 +49,7 @@ export async function readDirectoryPreviews(options: {
       ? await options.api('daily-receipts', { ids: own })
       : [];
     if (!Array.isArray(receipts) || receipts.length > 16)
-      throw new Error('Confirmações inválidas.');
+      throw new Error('Invalid confirmations.');
     const read = new Set<unknown>(receipts);
     options.guard();
     for (const row of dailyViews(delivered)) {

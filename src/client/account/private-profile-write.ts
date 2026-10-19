@@ -29,7 +29,7 @@ export async function writePrivateProfile(input: {
     accountId: input.session.accountId,
     revision,
   });
-  if (!input.current()) throw new AccountError(409, 'Sessão alterada.');
+  if (!input.current()) throw new AccountError(409, 'Session changed.');
   if (input.save) await input.save(input.session, envelope, input.key);
   else await api('profile', { input: envelope, csrf: input.session.csrf });
   return revision;

@@ -51,7 +51,7 @@ export class SocialHistoryStore {
           body['bytes'] !== ciphertext.length ||
           (await bytesHash(ciphertext)) !== body['hash']
         )
-          throw new AccountError(400, 'Cápsula de identidade de DM inválida.');
+          throw new AccountError(400, 'Invalid DM identity capsule.');
         const text = JSON.stringify(body);
         await context.client.query(
           'INSERT INTO hash_talk.social_personal_secrets(profile_id,body,charge) VALUES($1,$2::jsonb,$3) ON CONFLICT DO NOTHING',
@@ -99,7 +99,7 @@ export class SocialHistoryStore {
     )
       throw new AccountError(
         409,
-        'Histórico de DMs mudou durante a leitura. Retome a sincronização.',
+        'DM history changed while reading. Resume synchronization.',
       );
   }
   async page(
@@ -216,10 +216,7 @@ export class SocialHistoryStore {
     );
     const row = rows.rows[0];
     if (!row?.body)
-      throw new AccountError(
-        410,
-        'Mensagem de DM indisponível no cofre pessoal.',
-      );
+      throw new AccountError(410, 'DM unavailable in the personal vault.');
     return { ...row, body: row.body, actor: actor.id };
   }
   async owned(c: pg.PoolClient, a: ContactAuthority, id: string) {
@@ -237,7 +234,7 @@ export class SocialHistoryStore {
       if (!allowed)
         throw new AccountError(
           423,
-          'Entrega de DM suspensa. É necessário novo consentimento.',
+          'DM delivery suspended. Renewed consent is required.',
         );
     }
     return row;
@@ -250,7 +247,7 @@ export class SocialHistoryStore {
       for (const item of items) {
         const row = await this.owned(context.client, a, item.id);
         if (row.hash !== item.hash)
-          throw new AccountError(409, 'Confirmação de DM divergente.');
+          throw new AccountError(409, 'DM confirmation does not match.');
         await context.client.query(
           'INSERT INTO hash_talk.social_receipts(message_id,profile_id,device_id,received) VALUES($1,$2,$3,true) ON CONFLICT(message_id,profile_id,device_id) DO UPDATE SET received=true WHERE NOT hash_talk.social_receipts.received',
           [item.id, context.actor.id, a.session.deviceId],

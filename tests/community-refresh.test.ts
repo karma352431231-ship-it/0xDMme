@@ -96,7 +96,7 @@ function fixture(
     community: {
       id,
       name: 'Comunidade sintética',
-      description: 'Descrição',
+      description: 'Description',
       rules: '',
       revision: 1,
       archived: false,
@@ -163,7 +163,7 @@ function fixture(
   const respond = (path: string, input?: RequestInit) => {
     if (path.endsWith('/state'))
       return Promise.resolve(
-        Response.json(data.failState ? { error: 'Sem autorização.' } : state, {
+        Response.json(data.failState ? { error: 'Not authorized.' } : state, {
           status: data.failState ? 403 : 200,
         }),
       );
@@ -316,10 +316,10 @@ await test('post e respostas idênticos conservam elementos; edição e exclusã
   await settled(ui);
   assert.equal(host.querySelector('.community-post'), card);
   assert.equal(host.querySelector('.community-thread'), thread);
-  data.value = { ...data.value, title: 'Editada', revision: 2 };
+  data.value = { ...data.value, title: 'Edited', revision: 2 };
   ui.ready();
   await settled(ui);
-  assert.match(host.textContent, /Editada/);
+  assert.match(host.textContent, /Edited/);
   assert.notEqual(host.querySelector('.community-post'), card);
   data.value = {
     ...data.value,
@@ -558,7 +558,7 @@ await test('the sidebar applies changes and discards previous data on authorizat
   assert.equal(sidebar.querySelector('.community-row'), row);
   data.overrides.set('/api/account/communities/list', () =>
     Promise.resolve(
-      Response.json({ error: 'Sem autorização.' }, { status: 403 }),
+      Response.json({ error: 'Not authorized.' }, { status: 403 }),
     ),
   );
   ui.ready();

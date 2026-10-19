@@ -135,10 +135,10 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   const refs = [sealed.file.ref];
   assert.equal(attachmentRefs(refs, chatFileLimit)[0]?.bytes, chatFileLimit);
   assert.throws(() => attachmentRefs(refs));
-  await assert.rejects(sealFile(bytes), /até 3 MB/u);
+  await assert.rejects(sealFile(bytes), /no larger than 3 MB/u);
   await assert.rejects(
     sealFile(new Uint8Array(chatFileLimit + 1), chatFileLimit),
-    /até 10 MB/u,
+    /no larger than 10 MB/u,
   );
   const oversized = {
     size: chatFileLimit + 1,
@@ -146,7 +146,7 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   };
   await assert.rejects(
     prepareOriginal(oversized as unknown as File, chatFileLimit),
-    /limite de 10 MB/u,
+    /larger than 10 MB/u,
   );
   const exact = await prepareOriginal(
     new File([bytes], 'ten.bin'),
@@ -155,7 +155,7 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   assert.equal(exact.bytes.length, chatFileLimit);
   await assert.rejects(
     prepareOriginal(new File([bytes], 'ten.bin')),
-    /limite de 3 MB/u,
+    /larger than 3 MB/u,
   );
 });
 await test('original acima de 3 MB é recusado antes da leitura; teto exato e formatos sem prévia conservam os bytes', async () => {
@@ -167,7 +167,7 @@ await test('original acima de 3 MB é recusado antes da leitura; teto exato e fo
       return Promise.resolve(new ArrayBuffer(0));
     },
   };
-  await assert.rejects(prepareOriginal(oversized as File), /limite de 3 MB/);
+  await assert.rejects(prepareOriginal(oversized as File), /larger than 3 MB/);
   assert.equal(reads, 0);
   const exact = await prepareOriginal(
     new File([new Uint8Array(fileLimit)], 'teto.bin'),
@@ -181,7 +181,7 @@ await test('original acima de 3 MB é recusado antes da leitura; teto exato e fo
   assert.deepEqual(original.bytes, oversizedPixels);
   await assert.rejects(
     prepareOriginal(new File([new Uint8Array([1])], 'video.mp4')),
-    /vídeo/,
+    /[Vv]ideo/,
   );
 });
 await test('limite de pixels vem antes de decodificar e metadados privados impedem promessa de remoção', () => {
@@ -205,13 +205,13 @@ await test('limite de pixels vem antes de decodificar e metadados privados imped
         'application/octet-stream',
         new Uint8Array([1]),
       ),
-    /vídeo/,
+    /[Vv]ideo/,
   );
   const mp4 = new Uint8Array(24);
   mp4.set(new TextEncoder().encode('ftyp'), 4);
   assert.throws(
     () => assertFileAllowed('fake.pdf', 'application/octet-stream', mp4),
-    /vídeo/,
+    /[Vv]ideo/,
   );
   for (const brand of ['heic', 'avif', 'M4A ']) {
     mp4.set(new TextEncoder().encode(brand), 8);

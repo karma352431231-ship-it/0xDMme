@@ -87,12 +87,12 @@ export function representativeOrigin(input: unknown): string {
   const value = boundedText(input, 256),
     u = new URL(value);
   if (u.origin !== value || !['https:', 'http:'].includes(u.protocol))
-    throw new AccountError(400, 'Origem da autorização inválida.');
+    throw new AccountError(400, 'Invalid authorization origin.');
   if (
     u.protocol === 'http:' &&
     !['localhost', '127.0.0.1'].includes(u.hostname)
   )
-    throw new AccountError(400, 'Autorização exige HTTPS.');
+    throw new AccountError(400, 'Authorization requires HTTPS.');
   return value;
 }
 export function statementSignature(input: unknown): string {
@@ -105,7 +105,7 @@ export function representativeTime(input: unknown): number {
     input < 1 ||
     input > 8_640_000_000_000_000
   )
-    throw new AccountError(400, 'Prazo inválido.');
+    throw new AccountError(400, 'Invalid deadline.');
   return input;
 }
 export function organization(input: unknown): Organization {
@@ -113,7 +113,7 @@ export function organization(input: unknown): Organization {
   keys(d, ['version', 'id', 'origin', 'name', 'issuer']);
   const name = displayName(d['name']);
   if (d['version'] !== 1 || !name)
-    throw new AccountError(400, 'Organização inválida.');
+    throw new AccountError(400, 'Invalid organization.');
   return {
     version: 1,
     id: uuid(d['id']),
@@ -181,7 +181,7 @@ export function credential(input: unknown): RepresentativeCredential {
     issuedAt = representativeTime(d['issuedAt']),
     expiresAt = representativeTime(d['expiresAt']);
   if (!scope || /[\p{Cc}\p{Cf}]/u.test(scope) || expiresAt <= issuedAt)
-    throw new AccountError(400, 'Autorização inválida.');
+    throw new AccountError(400, 'Invalid authorization.');
   return {
     version: statementVersion(d['version']),
     id: uuid(d['id']),
@@ -234,14 +234,15 @@ export function representativeCard(input: unknown): RepresentativeCard {
 export function encodeRepresentativeCard(card: RepresentativeCard): string {
   const text = cardPrefix + JSON.stringify(representativeCard(card));
   if (text.length > 4000)
-    throw new AccountError(400, 'Cartão excede o limite da mensagem.');
+    throw new AccountError(400, 'Card exceeds the message limit.');
   return text;
 }
 export function decodeRepresentativeCard(
   text: string,
 ): RepresentativeCard | null {
   if (!text.startsWith(cardPrefix)) return null;
-  if (text.length > 4000) throw new AccountError(400, 'Cartão excedido.');
+  if (text.length > 4000)
+    throw new AccountError(400, 'Card exceeds the limit.');
   return representativeCard(
     JSON.parse(text.slice(cardPrefix.length)) as unknown,
   );
@@ -262,9 +263,9 @@ export async function verifyRepresentativeCard(
     r.organizationId !== c.organization.id ||
     canonical(r.issuer) !== canonical(c.organization.issuer)
   )
-    throw new AccountError(403, 'Emissor/contexto divergente.');
+    throw new AccountError(403, 'Issuer/context does not match.');
   if ((await representativeHash(c.organization)) !== r.descriptorHash)
-    throw new AccountError(403, 'Organização adulterada.');
+    throw new AccountError(403, 'Organization tampered with.');
   const { signature: registrationSignature, ...registrationBody } = r;
   verifyWalletStatement(
     r.issuer,
@@ -280,7 +281,10 @@ export async function verifyRepresentativeCard(
       canonical(c.subject) !== canonical(acceptanceBody.subject) ||
       (await representativeHash(c)) !== acceptanceBody.credentialHash
     )
-      throw new AccountError(403, 'Aceite de outra autorização.');
+      throw new AccountError(
+        403,
+        'Acceptance belongs to another authorization.',
+      );
     verifyWalletStatement(
       c.subject,
       acceptanceStatement(acceptanceBody, expectedOrigin),

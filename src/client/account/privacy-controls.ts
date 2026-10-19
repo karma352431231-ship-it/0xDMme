@@ -42,7 +42,7 @@ export class PrivacyControls {
     if (status)
       status.textContent = value
         ? this.ports.status()
-        : t('Abra sua conta para alterar a privacidade.');
+        : t('Open your account to change privacy settings.');
   }
   private renderChoices(value: ProfilePreferences | null): void {
     if (!this.host) return;

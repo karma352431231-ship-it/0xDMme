@@ -379,7 +379,7 @@ await test('governança persistente: criação atômica, convites, transferênci
       });
       await assert.rejects(
         noCapacity.publish(authority(contactUser), link),
-        /Capacidade global/u,
+        /Global capacity/u,
       );
       assert.equal(
         await message(messages, admin, 'group-link-current', {
@@ -1611,7 +1611,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     db.groups.commit(authority(owner), {
       event: second,
     }),
-    /Limite de criação/u,
+    /Creation limit/u,
   );
   const events = await inspector.query<{ count: number }>(
     'SELECT count(*)::integer AS count FROM hash_talk.group_events WHERE group_id=$1',

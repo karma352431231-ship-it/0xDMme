@@ -40,7 +40,8 @@ export function rememberRecovery(
   flow: RecoveryFlow,
 ): void {
   const text = JSON.stringify(flow);
-  if (text.length > 4096) throw new Error('Pedido de recuperação excedido.');
+  if (text.length > 4096)
+    throw new Error('Recovery request exceeds the limit.');
   sessionStorage.setItem(storageKey(session), text);
 }
 export function forgetRecovery(session: AccountSession): void {
@@ -74,14 +75,14 @@ function validatePlan(
     revision < 0 ||
     revision > 128
   )
-    throw new Error('Pedido inválido.');
+    throw new Error('Invalid request.');
 }
 async function parseFlow(
   text: string,
   session: AccountSession,
   receiver: string,
 ): Promise<RecoveryFlow> {
-  if (text.length > 4096) throw new Error('Pedido excedido.');
+  if (text.length > 4096) throw new Error('Request exceeds the limit.');
   const data = object(JSON.parse(text) as unknown);
   keys(data, [
     'mode',
@@ -103,7 +104,7 @@ async function parseFlow(
     canonical(config) !== canonical(pending.transfer.config) ||
     pending.transfer.count !== (mode === 'recover' ? 1 : 2)
   )
-    throw new Error('Pedido divergente.');
+    throw new Error('Request does not match.');
   return {
     mode: mode as RecoveryPlan['mode'],
     config,
@@ -132,12 +133,12 @@ async function parsePending(
     deadline <= Date.now() ||
     deadline > Date.now() + 300_000
   )
-    throw new Error('Retorno inválido ou expirado.');
+    throw new Error('Return invalid or expired.');
   const expected = mobileLink(transfer, commitment);
   const priorPhantom =
     transfer.wallet === 'Phantom' &&
     link === expected.replace('https://phantom.com/', 'https://phantom.app/');
   if (link !== expected && !priorPhantom)
-    throw new Error('Destino da wallet alterado.');
+    throw new Error('Wallet destination changed.');
   return { transfer, commitment, deadline, link };
 }

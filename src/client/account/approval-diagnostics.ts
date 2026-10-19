@@ -111,19 +111,19 @@ export function createApprovalDiagnostics() {
     rejectionMessage(): string | null {
       if (input === 'entrada-sem-cookie')
         return t(
-          'O pedido não chegou à página de aprovação. Volte ao navegador original e crie um novo pedido.',
+          'The request did not reach the approval page. Return to the original browser and create a new request.',
         );
       if (input === 'entrada-rejeitada-parametros')
         return t(
-          'O link chegou com parâmetros inválidos ou incompletos. Volte ao navegador original e crie um novo pedido.',
+          'The link arrived with invalid or incomplete parameters. Return to the original browser and create a new request.',
         );
       if (input === 'entrada-rejeitada-pedido')
         return t(
-          'O pedido foi recusado na entrada: pode ter expirado, sido cancelado ou já assinado, ou não corresponder ao ecossistema. Volte ao navegador original e crie um novo pedido.',
+          'The request was rejected at entry: it may have expired, been cancelled or already signed, or not match the ecosystem. Return to the original browser and create a new request.',
         );
       if (input === 'entrada-rejeitada')
         return t(
-          'O pedido foi recusado na entrada. Volte ao navegador original e crie um novo pedido.',
+          'The request was rejected at entry. Return to the original browser and create a new request.',
         );
       return null;
     },
@@ -155,7 +155,7 @@ export function createApprovalDiagnostics() {
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
       return t(
-        'D1 · entrada={0} · chegada={1} · navegacao={2} · historico={3} · etapa={4} · provider={5} · armazenamento={6} · falha={7} · protocolo=doc-3',
+        'D1 · input={0} · arrival={1} · navigation={2} · history={3} · stage={4} · provider={5} · storage={6} · failure={7} · protocol=doc-3',
         [
           input,
           source,

@@ -56,7 +56,7 @@ export class VoiceCalls {
   private targets: string[] = [];
   private busy = false;
   private polling = false;
-  private notice = t('Chamadas: entre e autorize este aparelho.');
+  private notice = t('Calls: sign in and authorize this device.');
   private settledNotice = false;
   private generation = 0;
   private wakePending = false;
@@ -94,7 +94,7 @@ export class VoiceCalls {
       session?.deviceId === this.session?.deviceId
     )
       return;
-    this.clear(t('Chamadas: entre e autorize este aparelho.'));
+    this.clear(t('Calls: sign in and authorize this device.'));
     this.transport.reset();
     this.security.clear();
     this.primed = false;
@@ -124,8 +124,7 @@ export class VoiceCalls {
     this.schedule();
   }
   private guard(g: number): void {
-    if (g !== this.generation || !this.session)
-      throw new Error('Chamada encerrada.');
+    if (g !== this.generation || !this.session) throw new Error('Call ended.');
   }
   private currentNotice(): string {
     return this.rtc?.captureStopped ? t('calls.capture-stopped') : this.notice;
@@ -155,11 +154,11 @@ export class VoiceCalls {
           this.started ||= Date.now();
           this.recovery = 0;
           this.restartAttempts = 0;
-          this.notice = t('Chamada conectada · voz criptografada.');
+          this.notice = t('Call connected · encrypted voice.');
         }
         if (state === 'disconnected') {
           this.recovery ||= Date.now();
-          this.notice = t('Reconectando pelo TURN…');
+          this.notice = t('Reconnecting through TURN…');
         }
         this.render();
       },
@@ -177,11 +176,13 @@ export class VoiceCalls {
   async start(peer: string): Promise<void> {
     await this.run(async (g) => {
       if (this.active) {
-        this.notice = t('Encerre a chamada atual primeiro.');
+        this.notice = t('End the current call first.');
         return;
       }
       if (!this.snapshot.configured)
-        throw new Error('Chamadas aguardam a configuração do TURN próprio.');
+        throw new Error(
+          "Calls are awaiting configuration of the app's own TURN server.",
+        );
       if (!this.prepareAudio()) return;
       const rtc = this.connection();
       await rtc.acquire();
@@ -198,11 +199,11 @@ export class VoiceCalls {
       this.call = callSnapshot({ ...this.snapshot, call: raw['call'] }).call;
       const devices = raw['devices'];
       if (!Array.isArray(devices) || devices.length > 32)
-        throw new Error('Aparelhos da chamada inválidos.');
+        throw new Error('Invalid call devices.');
       const values: unknown[] = devices;
       this.targets = values.map(uuid);
       this.sequence = 1;
-      this.notice = t('Chamando…');
+      this.notice = t('Calling…');
       this.render();
       if (raw['invitation'] === true) await this.sendInvitation(g);
       const config = iceConfiguration(
@@ -219,7 +220,7 @@ export class VoiceCalls {
       const call = this.require(),
         description = this.verified;
       if (call.caller || !description || description.id !== call.id)
-        throw new Error('Aguarde a confirmação da identidade da chamada.');
+        throw new Error('Wait for the call identity to be confirmed.');
       if (!this.prepareAudio()) return;
       const rtc = this.connection();
       await rtc.acquire();
@@ -235,7 +236,7 @@ export class VoiceCalls {
       rtc.create(config);
       if (description.type !== 'invite') await this.sendAnswer(description, g);
       this.guard(g);
-      this.notice = t('Conectando…');
+      this.notice = t('Connecting…');
     });
   }
   private prepareAudio(): boolean {
@@ -247,7 +248,7 @@ export class VoiceCalls {
       this.notice =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Pare a gravação de voz antes de usar o microfone.');
+          : t('Stop voice recording before using the microphone.');
       return false;
     }
   }
@@ -267,7 +268,7 @@ export class VoiceCalls {
   private async sendOffer(restart: boolean, g: number): Promise<void> {
     const call = this.require(),
       rtc = this.rtc;
-    if (!rtc) throw new Error('Microfone encerrado.');
+    if (!rtc) throw new Error('Microphone stopped.');
     if (restart) {
       const config = iceConfiguration(
         await this.transport.request('turn', { id: call.id }),
@@ -301,8 +302,7 @@ export class VoiceCalls {
   ): Promise<void> {
     const call = this.require(),
       rtc = this.rtc;
-    if (!rtc || !call.peerDevice)
-      throw new Error('Extremo da chamada ausente.');
+    if (!rtc || !call.peerDevice) throw new Error('Call endpoint missing.');
     const sdp = await rtc.answer(description.sdp);
     this.guard(g);
     const packets = await this.security.seal({
@@ -314,7 +314,7 @@ export class VoiceCalls {
     });
     this.guard(g);
     const packet = packets[0];
-    if (!packet) throw new Error('Resposta protegida ausente.');
+    if (!packet) throw new Error('Protected response missing.');
     await this.transport.request('answer', {
       id: call.id,
       sequence: description.sequence,
@@ -369,7 +369,7 @@ export class VoiceCalls {
       this.notice =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Chamadas indisponíveis agora.');
+          : t('Calls currently unavailable.');
       this.render();
     });
   }
@@ -381,7 +381,7 @@ export class VoiceCalls {
     ) {
       this.clear(
         this.active
-          ? t('Chamada encerrada: autorização indisponível.')
+          ? t('Call ended: authorization unavailable.')
           : translatedError(error.message),
       );
       return;
@@ -390,7 +390,7 @@ export class VoiceCalls {
       this.notice =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Chamadas indisponíveis agora.');
+          : t('Calls currently unavailable.');
   }
   private async applySnapshot(g: number): Promise<void> {
     const next = this.snapshot.call;
@@ -399,7 +399,7 @@ export class VoiceCalls {
       return;
     }
     if (this.call && this.call.id !== next.id)
-      throw new Error('Estado da chamada divergente.');
+      throw new Error('Call state does not match.');
     await this.applyInvitation(next, g);
     if (next.signal && next.sequence > this.ack) {
       const description = await this.description(next, g);
@@ -407,7 +407,7 @@ export class VoiceCalls {
       this.verified = description;
       if (!this.call) {
         this.call = next;
-        this.notice = t('Chamada de voz recebida.');
+        this.notice = t('Incoming voice call.');
       }
       await this.receive(next, description, g);
     }
@@ -422,7 +422,7 @@ export class VoiceCalls {
       if (this.supersededSnapshot()) return;
       this.verified = description;
       this.call = next;
-      this.notice = t('Chamada de voz recebida.');
+      this.notice = t('Incoming voice call.');
     }
   }
   private supersededSnapshot(): boolean {
@@ -439,13 +439,13 @@ export class VoiceCalls {
           peer: this.call.peer,
           at: Date.now(),
         });
-      this.clear(t('Chamada encerrada ou indisponível.'));
+      this.clear(t('Call ended or unavailable.'));
       return;
     }
     if (this.settledNotice) return;
     this.notice = this.snapshot.configured
-      ? t('Chamadas disponíveis com o app aberto.')
-      : t('Chamadas aguardam a configuração do TURN próprio.');
+      ? t('Calls available while the app is open.')
+      : t("Calls are awaiting configuration of the app's own TURN server.");
   }
   private connectingDeadline(view: CallView): void {
     if (
@@ -456,7 +456,7 @@ export class VoiceCalls {
       this.recovery = Date.now();
     if (view.phase === 'active' && view.deadline !== null) {
       this.recovery ||= Date.now();
-      this.notice = t('Reconectando pelo TURN…');
+      this.notice = t('Reconnecting through TURN…');
     }
   }
   private async description(
@@ -478,7 +478,7 @@ export class VoiceCalls {
         .request('end', { id: view.id })
         .catch(() => undefined);
       this.guard(g);
-      this.clear(t('Chamada rejeitada: identidade ou negociação inválida.'));
+      this.clear(t('Call rejected: invalid identity or negotiation.'));
       throw error;
     }
   }
@@ -488,7 +488,7 @@ export class VoiceCalls {
     g: number,
   ): Promise<void> {
     if (view.caller) {
-      if (!this.rtc) throw new Error('Conexão ausente.');
+      if (!this.rtc) throw new Error('Connection missing.');
       await this.rtc.accept(d.sdp);
       this.guard(g);
       this.ack = d.sequence;
@@ -520,11 +520,11 @@ export class VoiceCalls {
       return;
     }
     if (this.recovery && Date.now() - this.recovery >= leaseMs) {
-      void this.end(t('Não foi possível reconectar em 20 segundos.'));
+      void this.end(t('Could not reconnect within 20 seconds.'));
       return;
     }
     if (this.call?.deadline && this.call.deadline <= Date.now()) {
-      void this.end(t('Chamada encerrada ou indisponível.'));
+      void this.end(t('Call ended or unavailable.'));
       return;
     }
     this.maybeRestart();
@@ -533,9 +533,9 @@ export class VoiceCalls {
   private expiredAuthorization(): string | null {
     const now = Date.now();
     if (this.lastLease && now - this.lastLease >= leaseMs)
-      return t('Chamada encerrada: conexão com o servidor perdida.');
+      return t('Call ended: connection to server lost.');
     if (this.authorizationUntil && now >= this.authorizationUntil)
-      return t('Chamada encerrada: autorização indisponível.');
+      return t('Call ended: authorization unavailable.');
     return null;
   }
   private maybeRestart(): void {
@@ -570,9 +570,9 @@ export class VoiceCalls {
         error instanceof AccountError &&
         [401, 403, 409].includes(error.status)
       )
-        await this.end(t('Chamada encerrada: autorização mudou.'));
+        await this.end(t('Call ended: authorization changed.'));
       else {
-        this.notice = t('Reconectando pelo TURN…');
+        this.notice = t('Reconnecting through TURN…');
         this.render();
       }
     } finally {
@@ -580,7 +580,7 @@ export class VoiceCalls {
     }
   }
   private require(): CallView {
-    if (!this.call) throw new Error('Chamada encerrada.');
+    if (!this.call) throw new Error('Call ended.');
     return this.call;
   }
   private async run(
@@ -601,7 +601,7 @@ export class VoiceCalls {
         await this.end(
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível iniciar a chamada.'),
+            : t('Could not start the call.'),
         );
     } finally {
       if (g === this.generation) this.busy = false;
@@ -610,7 +610,7 @@ export class VoiceCalls {
       this.ready();
     }
   }
-  async end(notice = t('Chamada encerrada.')): Promise<void> {
+  async end(notice = t('Call ended.')): Promise<void> {
     const id = this.call?.id;
     // Queue the signed end before invalidating local resources; authorization remains checked.
     const sent = id ? this.transport.request('end', { id }) : null;
@@ -621,9 +621,9 @@ export class VoiceCalls {
     } catch {
       // Local media is already stopped. A signed idle heartbeat or lease expiry
       // closes the remote side; never claim that the server acknowledged it.
-      if (closed === this.generation && notice === t('Chamada encerrada.')) {
+      if (closed === this.generation && notice === t('Call ended.')) {
         this.notice = t(
-          'Áudio encerrado neste aparelho. Sem confirmação do servidor; o outro lado encerra em até 20 segundos.',
+          'Audio ended on this device. The server has not confirmed; the other side ends within 20 seconds.',
         );
         this.render();
       }
@@ -663,14 +663,16 @@ export class VoiceCalls {
   async sendTestTone(): Promise<void> {
     const rtc = this.rtc,
       g = this.generation;
-    if (!rtc || rtc.state !== 'connected') throw new Error('Conexão ausente.');
+    if (!rtc || rtc.state !== 'connected')
+      throw new Error('Connection missing.');
     await rtc.sendTestTone();
     this.guard(g);
   }
   async stopCaptureForInspection(): Promise<void> {
     const rtc = this.rtc,
       g = this.generation;
-    if (!rtc || rtc.state !== 'connected') throw new Error('Conexão ausente.');
+    if (!rtc || rtc.state !== 'connected')
+      throw new Error('Connection missing.');
     try {
       await rtc.stopCaptureForInspection();
       this.guard(g);
@@ -681,7 +683,7 @@ export class VoiceCalls {
   async inspectAudio() {
     const rtc = this.rtc,
       g = this.generation;
-    if (!rtc) throw new Error('Conexão ausente.');
+    if (!rtc) throw new Error('Connection missing.');
     const report = await rtc.inspectAudio();
     this.guard(g);
     return report;
@@ -695,8 +697,8 @@ export class VoiceCalls {
       this.guard(g);
       this.snapshot.enabled = enabled;
       this.notice = enabled
-        ? t('Recebimento de chamadas ativado.')
-        : t('Recebimento de chamadas desativado.');
+        ? t('Incoming calls enabled.')
+        : t('Incoming calls disabled.');
     });
   }
   dispose(): void {
@@ -737,7 +739,7 @@ export function emptyCallLog(): CallLogValue {
 
 function timestamp(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-    throw new Error('Registro de chamadas inválido.');
+    throw new Error('Invalid call record.');
   return value;
 }
 
@@ -750,7 +752,7 @@ export function parseCallLog(text: string): CallLogValue {
     data['missed'].length > callLogLimit ||
     data['answered'].length > callLogLimit
   )
-    throw new Error('Registro de chamadas inválido.');
+    throw new Error('Invalid call record.');
   const missed: unknown[] = data['missed'];
   const answered: unknown[] = data['answered'];
   return {

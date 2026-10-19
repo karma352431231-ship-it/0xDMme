@@ -18,7 +18,7 @@ const cancel = document.querySelector<HTMLButtonElement>('[data-probe-cancel]');
 const launch = document.querySelector<HTMLAnchorElement>('[data-probe-launch]');
 const status = document.querySelector<HTMLElement>('[data-probe-status]');
 if (!start || !cancel || !launch || !status)
-  throw new Error('Página de prova incompleta.');
+  throw new Error('Proof page incomplete.');
 const controls = { start, cancel, launch, status };
 let current: NativeProbe | null = null;
 let timer: number | undefined;
@@ -44,8 +44,8 @@ function save(state: NativeProbe, link: string): void {
   controls.launch.hidden = false;
   controls.launch.textContent =
     state.phase === 'connect'
-      ? t('Abrir Phantom')
-      : t('Confirmar mensagem na Phantom');
+      ? t('Open Phantom')
+      : t('Confirm message in Phantom');
   controls.cancel.hidden = false;
   controls.start.disabled = true;
   window.clearTimeout(timer);
@@ -65,13 +65,13 @@ function expire(): void {
     );
   } catch {
     fail();
-    controls.status.textContent = t('Prova expirada. Inicie uma nova conexão.');
+    controls.status.textContent = t('Proof expired. Start a new connection.');
   }
 }
 function stored(): NativeProbe | null {
   const raw = localStorage.getItem(storageKey);
   if (raw === null) return null;
-  if (raw.length > 6144) throw new Error('Registro excedido.');
+  if (raw.length > 6144) throw new Error('Record exceeds the limit.');
   return readProbe(JSON.parse(raw));
 }
 function fail(): void {
@@ -84,7 +84,7 @@ function fail(): void {
     controls.start.disabled = true;
   }
   controls.status.textContent = t(
-    'Prova não concluída. Confira a wallet e a conexão. Se o armazenamento estiver bloqueado, permita-o antes de iniciar uma nova prova.',
+    'Proof not completed. Check your wallet and connection. If storage is blocked, allow it before starting a new proof.',
   );
 }
 async function initialize(): Promise<void> {
@@ -94,22 +94,22 @@ async function initialize(): Promise<void> {
   if (!callback.size) {
     clear();
     controls.status.textContent = t(
-      'Pronto para testar conexão, assinatura e retorno. Nenhuma conta do 0xDMme será conectada.',
+      'Ready to test connection, signing and return. No 0xDMme account will be connected.',
     );
     return;
   }
-  if (!previous) throw new Error('Prova ausente.');
+  if (!previous) throw new Error('Proof missing.');
   const result = receiveProbe(previous, callback, location.origin);
   if (result.complete) {
     clear();
     controls.status.textContent = t(
-      'Assinatura de teste confirmada. A Phantom devolveu a resposta a este navegador. Nenhuma conta do 0xDMme foi conectada. Se esta for outra aba, volte à aba original para comparar o retorno.',
+      'Test signature confirmed. Phantom returned the response to this browser. No 0xDMme account was connected. If this is another tab, return to the original tab to compare the result.',
     );
     return;
   }
   save(result.state, result.link);
   controls.status.textContent = t(
-    'Conexão confirmada. Toque em “Confirmar mensagem na Phantom”, confira a mensagem de teste e assine. A wallet solicitará o retorno a este site.',
+    'Connection confirmed. Tap “Confirm message in Phantom”, check the test message and sign. Your wallet will request a return to this site.',
   );
 }
 controls.start.addEventListener('click', () => {
@@ -118,7 +118,7 @@ controls.start.addEventListener('click', () => {
     const pending = beginProbe(location.origin);
     save(pending.state, pending.link);
     controls.status.textContent = t(
-      'Confirme a conexão na Phantom. Se a abertura for bloqueada, toque em “Abrir Phantom”.',
+      'Confirm the connection in Phantom. If opening is blocked, tap “Open Phantom”.',
     );
     location.assign(pending.link);
   } catch {
@@ -129,7 +129,7 @@ controls.cancel.addEventListener('click', () => {
   try {
     clear();
     controls.status.textContent = t(
-      'Prova cancelada. Retornos antigos não serão aceitos.',
+      'Proof cancelled. Old returns will not be accepted.',
     );
   } catch {
     fail();

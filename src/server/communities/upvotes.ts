@@ -16,12 +16,12 @@ export async function upvoterLookup(
       address.pathname,
     )
   )
-    throw new AccountError(404, 'Post indisponível.');
+    throw new AccountError(404, 'Post unavailable.');
   if (
     [...address.searchParams.keys()].some((key) => key !== 'after') ||
     address.searchParams.getAll('after').length > 1
   )
-    throw new AccountError(400, 'Filtros inválidos.');
+    throw new AccountError(400, 'Invalid filters.');
   const parts = address.pathname.split('/');
   return upvoterPage(
     await read(

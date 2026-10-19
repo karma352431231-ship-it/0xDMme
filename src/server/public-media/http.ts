@@ -27,7 +27,7 @@ function publicRoute(url: string): {
       kind !== 'community-banner' &&
       kind !== 'post-media')
   )
-    throw new AccountError(404, 'Mídia pública indisponível.');
+    throw new AccountError(404, 'Public media unavailable.');
   const target = uuid(parts[4]),
     review = uuid(parts[5]),
     thumbnail = parts.length === 7;
@@ -53,7 +53,7 @@ function requireCanonicalRoute(input: {
     input.url !==
       publicMediaPath(input.kind, input.target, input.review, input.thumbnail)
   )
-    throw new AccountError(404, 'Mídia pública indisponível.');
+    throw new AccountError(404, 'Public media unavailable.');
 }
 
 /** Request-owned memory, deadline and file descriptor; no reader outlives cancellation. */
@@ -67,14 +67,14 @@ export function createPublicMediaHandler(service: PublicMediaService) {
     const head = request.method === 'HEAD';
     if (request.method !== 'GET' && !head) {
       response.setHeader('Allow', 'GET, HEAD');
-      throw new AccountError(405, 'Método inválido.');
+      throw new AccountError(405, 'Invalid method.');
     }
     const { kind, target, review, thumbnail } = publicRoute(request.url ?? '');
     // Prepared files use bounded hash/stream buffers; avatars still come from SQL.
     const release = reserveOperationMemory(
       kind === 'post-media' ? 524_288 : 6_524_288,
     );
-    if (!release) throw new AccountError(503, 'Mídia pública indisponível.');
+    if (!release) throw new AccountError(503, 'Public media unavailable.');
     let content: PublicMediaBody | undefined;
     try {
       signal.throwIfAborted();
@@ -129,7 +129,7 @@ export function createPublicMediaHandler(service: PublicMediaService) {
                 error:
                   error instanceof AccountError
                     ? error.message
-                    : 'Mídia pública indisponível.',
+                    : 'Public media unavailable.',
               }),
         );
     } finally {

@@ -116,7 +116,7 @@ function readPage(value: unknown): {
     revision < 0 ||
     revision > directoryLimit
   )
-    throw new Error('Página de dispositivos inválida.');
+    throw new Error('Invalid device page.');
   return {
     events: events as unknown[],
     revision,
@@ -137,17 +137,17 @@ async function fetchDirectory(
     for (const candidate of result.events) {
       current = await verifyTransition(current, candidate);
       if (current.accountId !== session.accountId)
-        throw new Error('Conta divergente no diretório.');
+        throw new Error('Account does not match the directory.');
       events.push(current);
     }
     if (events.length === result.revision) {
       if ((current ? await eventHash(current) : null) !== result.head)
-        throw new Error('Diretório antigo, omitido ou divergente.');
+        throw new Error('Directory outdated, omitted or inconsistent.');
       return { current, events, serverTime: result.serverTime };
     }
-    if (!result.events.length) throw new Error('Diretório incompleto.');
+    if (!result.events.length) throw new Error('Directory incomplete.');
   }
-  throw new Error('Diretório excedido ou alterado repetidamente.');
+  throw new Error('Directory exceeds the limit or changed repeatedly.');
 }
 
 async function api(
@@ -178,7 +178,7 @@ export class DeviceController {
   async createEnrollment(): Promise<EnrollmentCode> {
     return this.withVault(false, async (a) => {
       if (this.session?.walletConfirmed !== true)
-        throw new Error('Confirme a wallet para vincular outro aparelho.');
+        throw new Error('Confirm your wallet to link another device.');
       const code: EnrollmentCode = {
         version: 1,
         id: crypto.randomUUID(),
@@ -198,7 +198,7 @@ export class DeviceController {
         head: a.directory,
         expiresAt: code.expiresAt,
       };
-      if (!this.session) throw new Error('Sessão ausente.');
+      if (!this.session) throw new Error('Session missing.');
       await api(this.session, 'devices/enrollment-create', {
         ...payload,
         signature: await a.sign(
@@ -211,16 +211,16 @@ export class DeviceController {
   async joinEnrollment(serialized: string): Promise<AccountSession> {
     const invitation = readEnrollment(serialized);
     if (Date.parse(invitation.expiresAt) <= Date.now())
-      throw new Error('Código expirado.');
+      throw new Error('Code expired.');
     const deviceId = crypto.randomUUID();
     const identity = await localIdentity(
       invitation.accountId,
       deviceId,
-      t('Meu aparelho'),
+      t('My device'),
     );
     const checkpoint = await readCheckpoint(invitation.accountId);
     if (checkpoint.trustedRoot && checkpoint.trustedRoot !== invitation.root)
-      throw new Error('Código diverge da identidade conhecida da conta.');
+      throw new Error("Code differs from the account's known identity.");
     await saveCheckpoint(invitation.accountId, {
       ...checkpoint,
       trustedRoot: invitation.root,
@@ -260,7 +260,7 @@ export class DeviceController {
       session.deviceId !== deviceId ||
       session.walletConfirmed
     )
-      throw new Error('Sessão diverge da vinculação solicitada.');
+      throw new Error('Session differs from the requested device linking.');
     this.setSession(session);
     return session;
   }
@@ -275,7 +275,7 @@ export class DeviceController {
       code.accountId !== invitation.accountId ||
       code.expiresAt !== invitation.expiresAt
     )
-      throw new Error('Pedido de vinculação divergente.');
+      throw new Error('Linking request does not match.');
     await verifyEnrollmentMac(
       invitation.secret,
       code,
@@ -307,7 +307,7 @@ export class DeviceController {
       session.deviceId !== this.session.deviceId ||
       session.csrf !== this.session.csrf
     )
-      throw new Error('Sessão alterada durante a operação.');
+      throw new Error('Session changed during the operation.');
   }
   private async loadIdentity(
     session: AccountSession,
@@ -316,7 +316,7 @@ export class DeviceController {
     let identity = await localIdentity(
       session.accountId,
       session.deviceId,
-      name || t('Meu aparelho'),
+      name || t('My device'),
     );
     this.assertSession(session);
     if (
@@ -366,18 +366,18 @@ export class DeviceController {
   ): Promise<T> {
     const session = this.session;
     const generation = this.generation;
-    if (!session) throw new Error('Conecte a wallet original primeiro.');
+    if (!session) throw new Error('Connect the original wallet first.');
     return this.authorityWork.run(
       (waitMs) =>
         authorityTurn(
           session.accountId,
           async () => {
             if (generation !== this.generation)
-              throw new Error('Sessão alterada antes da operação.');
+              throw new Error('Session changed before the operation.');
             const result = await operation(session);
             if (generation !== this.generation) {
               this.ring = null;
-              throw new Error('Sessão alterada durante a operação.');
+              throw new Error('Session changed during the operation.');
             }
             return result;
           },
@@ -406,9 +406,7 @@ export class DeviceController {
       if (offline) await this.restoreOffline(session);
       else await this.synchronize(session);
       if (!this.current || !this.ring || !this.identity)
-        throw new Error(
-          'Autorize ou recupere este aparelho para abrir o cofre.',
-        );
+        throw new Error('Authorize or recover this device to open the vault.');
       const ring = this.ring;
       const signing = this.identity.signing;
       const wrapping = this.identity.wrapping;
@@ -421,7 +419,7 @@ export class DeviceController {
         key: async (epoch) => {
           this.assertSession(session);
           const secret = ring.keys[epoch - 1];
-          if (!secret) throw new Error('Época de chave indisponível.');
+          if (!secret) throw new Error('Key epoch unavailable.');
           return aesKey(secret);
         },
         sign: this.signingAuthority(session, signing),
@@ -449,7 +447,7 @@ export class DeviceController {
         checkpoint.trustedRoot !== (await digest(canonical(event.root)))
       )
         throw new Error(
-          'Sem autorização local verificada. Entre e recupere este aparelho.',
+          'No verified local authorization. Sign in and recover this device.',
         );
       const identity = await storedIdentity(
         locator.accountId,
@@ -464,7 +462,7 @@ export class DeviceController {
         events: checkpoint.events,
         key: async (epoch) => {
           const secret = ring.keys[epoch - 1];
-          if (!secret) throw new Error('Época de chave indisponível.');
+          if (!secret) throw new Error('Key epoch unavailable.');
           return aesKey(secret);
         },
         sign: (proof) => sign(identity.signing, proof),
@@ -479,9 +477,7 @@ export class DeviceController {
       !this.identity ||
       checkpoint.trustedRoot !== (await digest(canonical(current.root)))
     )
-      throw new Error(
-        'Sem autorização local verificada. Conecte-se para recuperar.',
-      );
+      throw new Error('No verified local authorization. Connect to recover.');
     this.ring = await deviceSecrets(this.identity, current);
     this.current = current;
     this.events = checkpoint.events;
@@ -496,7 +492,7 @@ export class DeviceController {
       session,
       checkpoint.events,
     );
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     const trustedRoot = await this.reconciledRoot(checkpoint, current);
     const persist =
       trustedRoot === checkpoint.trustedRoot
@@ -573,7 +569,7 @@ export class DeviceController {
     return this.run((session) =>
       this.startWalletRecovery(session, {
         ...input,
-        name: input.name || t('Meu aparelho'),
+        name: input.name || t('My device'),
       }),
     );
   }
@@ -593,14 +589,12 @@ export class DeviceController {
           (previous &&
             canonical(previous.root.wallet) !== canonical(proof.config))
         )
-          throw new Error(
-            'A recuperação mudou durante a entrada. Inicie novamente.',
-          );
+          throw new Error('Recovery changed during sign-in. Start again.');
         const generation = this.generation;
         const plan: RecoveryPlan = {
           mode: previous ? 'recover' : 'initialize',
           config: proof.config,
-          name: t('Meu aparelho'),
+          name: t('My device'),
           revoked: [],
           revision: previous?.revision ?? 0,
           head: previous ? await eventHash(previous) : null,
@@ -613,7 +607,7 @@ export class DeviceController {
           current: () => {
             this.assertSession(session);
             if (generation !== this.generation)
-              throw new Error('Entrada interrompida.');
+              throw new Error('Sign-in interrupted.');
           },
         });
       });
@@ -628,12 +622,12 @@ export class DeviceController {
     await this.loadIdentity(session, input.name);
     await this.synchronize(session);
     if (this.walletPending)
-      throw new Error('Conclua ou cancele o pedido de recuperação anterior.');
+      throw new Error('Complete or cancel the previous recovery request.');
     this.validateWalletMode(input.mode, input.revision);
     if (input.mode === 'migrate') {
       if (!input.legacy || !this.current)
         throw new Error(
-          'Informe uma última vez o código antigo para autorizar a migração.',
+          'Enter the old code one last time to authorize migration.',
         );
       await recoverSecrets(this.current, input.legacy);
     }
@@ -655,7 +649,7 @@ export class DeviceController {
         : createWalletRecovery(session, location.origin);
     if (!config)
       throw new Error(
-        'Esta conta ainda usa o código antigo. Recupere ou migre pelo fluxo legado.',
+        'This account still uses the old code. Recover or migrate through the legacy flow.',
       );
     recoveryIdentity(config, session, location.origin);
     return config;
@@ -665,7 +659,7 @@ export class DeviceController {
     input: WalletRecoveryStart,
   ): Promise<boolean> {
     const plan = await this.walletPlan(session, input);
-    if (!this.identity) throw new Error('Identidade local ausente.');
+    if (!this.identity) throw new Error('Local identity missing.');
     if (input.mode === 'recover' && this.current)
       recoveryIdentities(this.current, plan.revoked);
     const token = this.generation;
@@ -673,7 +667,7 @@ export class DeviceController {
     const current = () => {
       this.assertSession(session);
       if (token !== this.generation || Date.now() > deadline)
-        throw new Error('Pedido interrompido ou expirado. Inicie novamente.');
+        throw new Error('Request interrupted or expired. Start again.');
     };
     const count = input.mode === 'recover' ? 1 : 2;
     const signatures = await directRecovery({
@@ -694,7 +688,7 @@ export class DeviceController {
     }
     if (!/Android|iPhone|iPad|iPod/iu.test(navigator.userAgent))
       throw new Error(
-        'Wallet indisponível neste navegador. Abra uma wallet compatível para assinar.',
+        'Wallet unavailable in this browser. Open a compatible wallet to sign.',
       );
     const pending = await requestRecovery({
       session,
@@ -714,20 +708,18 @@ export class DeviceController {
     revision: number,
   ): void {
     if (mode === 'initialize') {
-      if (this.current) throw new Error('A recuperação já foi configurada.');
+      if (this.current) throw new Error('Recovery is already configured.');
       return;
     }
     if (!this.current || this.current.revision !== revision)
-      throw new Error(
-        'A lista de aparelhos mudou. Confira sua escolha novamente.',
-      );
+      throw new Error('The device list changed. Review your choice again.');
     if (mode === 'migrate' && (!this.authorized || this.current.root.wallet))
       throw new Error(
-        'Migração exige aparelho autorizado e configuração antiga.',
+        'Migration requires an authorized device and old configuration.',
       );
   }
   openWalletRecovery(): void {
-    if (!this.walletPending) throw new Error('Pedido de recuperação ausente.');
+    if (!this.walletPending) throw new Error('Recovery request missing.');
     openRecoveryWallet(this.walletPending.pending);
   }
   private forgetWalletRecovery(): void {
@@ -766,23 +758,23 @@ export class DeviceController {
   }
   async finishWalletRecovery(legacy = ''): Promise<boolean> {
     if (this.expireWalletRecovery())
-      throw new Error('O pedido na wallet expirou. Abra sua conta novamente.');
+      throw new Error('The wallet request expired. Open your account again.');
     return this.run(async (session) => {
       await this.loadIdentity(session);
       await this.restoreWalletPending(session);
       const flow = this.walletPending;
       if (!flow || !this.identity)
-        throw new Error('Pedido ausente. Inicie novamente.');
+        throw new Error('Request missing. Start again.');
       await this.synchronize(session);
       this.validateWalletMode(flow.mode, flow.revision);
       if ((this.current ? await eventHash(this.current) : null) !== flow.head)
         throw new Error(
-          'A autorização mudou durante a assinatura. Cancele e confira novamente.',
+          'Authorization changed during signing. Cancel and check again.',
         );
       const oldSecret = legacy || this.legacyRecoverySecret;
       if (flow.mode === 'migrate' && !oldSecret)
         throw new Error(
-          'Informe uma última vez o código antigo para autorizar a migração.',
+          'Enter the old code one last time to authorize migration.',
         );
       const signatures = await this.walletSignatures(
         session,
@@ -798,7 +790,7 @@ export class DeviceController {
           this.walletPending !== flow ||
           Date.now() >= flow.pending.deadline
         )
-          throw new Error('Sessão alterada durante a recuperação.');
+          throw new Error('Session changed during recovery.');
       };
       await this.completeWalletRecovery({
         session,
@@ -866,7 +858,7 @@ export class DeviceController {
         await walletRecoveryKey(plan.config, [signatures.at(-1) ?? '']),
       );
       if (canonical(restored.ring) !== canonical(ring))
-        throw new Error('Verificação de recuperação falhou.');
+        throw new Error('Recovery verification failed.');
       current();
       await this.commit(session, event, profile);
     } finally {
@@ -900,9 +892,9 @@ export class DeviceController {
     };
   }
   private walletIdentities(plan: RecoveryPlan) {
-    if (!this.identity) throw new Error('Identidade local ausente.');
+    if (!this.identity) throw new Error('Local identity missing.');
     if (plan.mode === 'initialize') return [this.identity.public];
-    if (!this.current) throw new Error('Diretório ausente.');
+    if (!this.current) throw new Error('Directory missing.');
     if (plan.mode === 'migrate') return this.current.devices.map(identityOf);
     return [
       ...recoveryIdentities(this.current, plan.revoked),
@@ -954,7 +946,7 @@ export class DeviceController {
       }
     }
     throw new Error(
-      'Recuperação incompleta: o perfil antigo não abre neste aparelho. Configure pelo navegador que possui a chave do perfil.',
+      'Recovery incomplete: the old profile cannot open on this device. Configure it in the browser holding the profile key.',
     );
   }
   private async commit(
@@ -981,9 +973,9 @@ export class DeviceController {
       response['revision'] !== event.revision
     )
       throw new Error(
-        'Confirmação de autorização divergente. Atualize para verificar o estado persistido.',
+        'Authorization confirmation does not match. Refresh to check the saved state.',
       );
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     const events = [...this.events, event];
     const persist =
       event.kind === 'migrate' ? advanceCheckpoint : saveCheckpoint;
@@ -999,9 +991,10 @@ export class DeviceController {
   async startLink(name: string): Promise<void> {
     return this.run(async (session) => {
       await this.synchronize(session);
-      if (this.authorized) throw new Error('Este aparelho já está autorizado.');
-      await this.loadIdentity(session, name || t('Novo aparelho'));
-      if (!this.identity) throw new Error('Identidade local ausente.');
+      if (this.authorized)
+        throw new Error('This device is already authorized.');
+      await this.loadIdentity(session, name || t('New device'));
+      if (!this.identity) throw new Error('Local identity missing.');
       const code: LinkCode = {
         version: 1,
         accountId: session.accountId,
@@ -1022,7 +1015,7 @@ export class DeviceController {
         Date.parse(String(response['expiresAt'])) -
         Date.parse(String(response['serverTime']));
       if (!(remaining > 0 && remaining <= 300_000))
-        throw new Error('Prazo de vinculação inválido.');
+        throw new Error('Invalid linking deadline.');
       this.pendingCode = code;
       this.pendingFingerprint = await digest(canonical(code.device));
       this.expiresAt = Date.now() + remaining;
@@ -1032,12 +1025,12 @@ export class DeviceController {
     return this.run(async (session) => {
       await this.synchronize(session);
       if (!this.authorized)
-        throw new Error('Use um aparelho autorizado para aprovar.');
-      if (serialized.length > 4096) throw new Error('Código excedido.');
+        throw new Error('Use an authorized device to approve.');
+      if (serialized.length > 4096) throw new Error('Code exceeds the limit.');
       const code = linkCode(JSON.parse(serialized) as unknown);
       await api(session, 'devices/inspect', code);
       this.approvalCode = code;
-      return t('{0} · impressão {1}', [
+      return t('{0} · fingerprint {1}', [
         code.device.name,
         await digest(canonical(code.device)),
       ]);
@@ -1048,7 +1041,7 @@ export class DeviceController {
       const code = this.approvalCode;
       await this.synchronize(session);
       if (!code || !this.current || !this.ring || !this.identity)
-        throw new Error('Confira um código válido antes de autorizar.');
+        throw new Error('Check a valid code before authorizing.');
       await api(session, 'devices/inspect', code);
       const event = await prepareEvent({
         accountId: session.accountId,
@@ -1088,7 +1081,7 @@ export class DeviceController {
           (await eventHash(authorization)).slice(0, 32)
       )
         throw new Error(
-          'Código de confirmação não confere. Confira no aparelho que autorizou.',
+          'Confirmation code does not match. Check it on the authorizing device.',
         );
       const ring = await deviceSecrets(this.identity, this.current);
       const trustedRoot = await digest(canonical(this.current.root));
@@ -1121,7 +1114,7 @@ export class DeviceController {
         id === session.deviceId ||
         !this.current.devices.some((device) => device.id === id)
       )
-        throw new Error('Escolha outro aparelho autorizado para revogar.');
+        throw new Error('Choose another authorized device to revoke.');
       const ring = freshKeyring(session.accountId, this.ring);
       const profile = await this.rotatedProfile(session, ring);
       const event = await prepareEvent({
@@ -1147,14 +1140,12 @@ export class DeviceController {
     return this.run(async (session) => {
       await this.synchronize(session);
       if (!this.current)
-        throw new Error('A conta ainda não possui chave de recuperação.');
+        throw new Error('This account does not have a recovery key yet.');
       if (this.current.revision !== input.revision)
-        throw new Error(
-          'A lista de aparelhos mudou. Confira sua escolha novamente.',
-        );
+        throw new Error('The device list changed. Review your choice again.');
       const retained = recoveryIdentities(this.current, input.revoked);
-      await this.loadIdentity(session, input.name || t('Aparelho recuperado'));
-      if (!this.identity) throw new Error('Identidade local ausente.');
+      await this.loadIdentity(session, input.name || t('Recovered device'));
+      if (!this.identity) throw new Error('Local identity missing.');
       const recovered = await recoverSecrets(this.current, input.secret.trim());
       this.assertSession(session);
       this.ring = recovered.ring;
@@ -1194,9 +1185,7 @@ export class DeviceController {
         (await eventHash(this.current)) !== expected ||
         this.current.epoch !== encryptedEpoch
       )
-        throw new Error(
-          'Dispositivos alterados. Recarregue o perfil antes de salvar.',
-        );
+        throw new Error('Devices changed. Reload the profile before saving.');
       const signature = await sign(
         this.identity.signing,
         profileProof(session.accountId, session.deviceId, expected, profile),

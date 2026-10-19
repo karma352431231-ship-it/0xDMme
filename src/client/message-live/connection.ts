@@ -41,7 +41,7 @@ export class LiveConnection {
   get connecting(): boolean {
     return this.wanted && this.connection !== null && !this.connected;
   }
-  notice = t('Atualização imediata disponível após autorizar o aparelho.');
+  notice = t('Live updates available after authorizing the device.');
   constructor(options: {
     access: VaultAccess;
     event: (event: LiveEvent) => void;
@@ -76,7 +76,7 @@ export class LiveConnection {
     this.retryTimer = null;
     this.phase = 'paused';
     this.notice = t(
-      'Recebimento em tempo real pausado. Ao retornar, o app confere o estado atual.',
+      'Live updates paused. The app checks the current state when you return.',
     );
     this.changed();
   }
@@ -89,7 +89,7 @@ export class LiveConnection {
     this.connection = controller;
     this.attempts++;
     this.phase = 'connecting';
-    this.notice = t('Conectando recebimento em tempo real…');
+    this.notice = t('Connecting live updates…');
     this.changed();
     void this.consume(controller, generation)
       .catch((error: unknown) => {
@@ -109,7 +109,7 @@ export class LiveConnection {
             ? translatedError(error.message) + ' '
             : '') +
           t(
-            'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.',
+            'Live updates unavailable. The app keeps checking every 30 seconds; you can also sync.',
           );
       })
       .finally(() => {
@@ -161,11 +161,10 @@ export class LiveConnection {
         !response.ok ||
         !response.headers.get('content-type')?.startsWith('text/event-stream')
       )
-        throw new Error('Recebimento em tempo real indisponível.');
-      if (!response.body)
-        throw new Error('Recebimento em tempo real sem resposta.');
+        throw new Error('Live updates unavailable.');
+      if (!response.body) throw new Error('Live updates unresponsive.');
       await this.read(response.body, { generation, reset });
-      if (this.wanted) throw new Error('Recebimento em tempo real encerrado.');
+      if (this.wanted) throw new Error('Live updates ended.');
     } finally {
       clearTimeout(watchdog);
       controller.abort();
@@ -177,7 +176,7 @@ export class LiveConnection {
       this.connected = true;
       this.readyAt = Date.now();
       this.phase = 'connected';
-      this.notice = t('Recebimento em tempo real conectado.');
+      this.notice = t('Live updates connected.');
       this.changed();
     }
     if (terminalLiveEvent(event)) {
@@ -185,7 +184,7 @@ export class LiveConnection {
       this.wanted = false;
       this.connected = false;
       this.notice = t(
-        'A autorização mudou. O app confere o estado atual do aparelho.',
+        "Authorization changed. The app is checking the device's current state.",
       );
       this.changed();
     }
@@ -208,7 +207,7 @@ export class LiveConnection {
         const { value, done } = await reader.read();
         if (done || context.generation !== this.generation) return;
         if (this.connected && !this.current)
-          throw new Error('Recebimento interrompido durante suspensão.');
+          throw new Error('Receiving was interrupted while suspended.');
         const events = parser.accept(value);
         this.lastActivity = Date.now();
         context.reset();

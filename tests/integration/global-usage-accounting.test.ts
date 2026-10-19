@@ -285,7 +285,7 @@ async function verifyCoordination(t: TestContext, c: GlobalContext) {
         await insertJournal(writer, fixture.first);
         await assert.rejects(
           assertContentCapacity(writer, Number(before)),
-          /Capacidade global/u,
+          /Global capacity/u,
         );
       });
       await reconciled(c);

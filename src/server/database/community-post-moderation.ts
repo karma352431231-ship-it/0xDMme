@@ -59,7 +59,7 @@ async function record(
     `SELECT ${columns} FROM hash_talk.community_post_removals WHERE community_id=$1 AND post_id=$2 AND id=$3`,
     [context.row.id, post, id],
   );
-  if (!found.rows[0]) throw new AccountError(404, 'Remoção indisponível.');
+  if (!found.rows[0]) throw new AccountError(404, 'Removal unavailable.');
   return found.rows[0];
 }
 async function hide(
@@ -80,12 +80,12 @@ async function hide(
       old.actor !== context.actor.id ||
       old.reason !== reason
     )
-      throw new AccountError(409, 'Identificador de remoção já utilizado.');
+      throw new AccountError(409, 'Removal identifier already used.');
     return;
   }
   currentPost(row, data['revision']);
   if (row.deleted || row.active_removal)
-    throw new AccountError(409, 'Post já excluído ou oculto.');
+    throw new AccountError(409, 'Post already deleted or hidden.');
   await context.client.query(
     'INSERT INTO hash_talk.community_post_removals(id,community_id,post_id,actor,reason) VALUES($1,$2,$3,$4,$5)',
     [id, context.row.id, row.id, context.actor.id, reason],
@@ -106,10 +106,10 @@ async function appeal(
     removal = await record(context, row.id, uuid(data['record'])),
     text = communityText(data['text'], 2000);
   if (row.author !== context.actor.id)
-    throw new AccountError(403, 'Somente o autor pode contestar esta remoção.');
+    throw new AccountError(403, 'Only the author can appeal this removal.');
   if (removal.appeal === text) return;
   if (removal.appeal || removal.restored)
-    throw new AccountError(409, 'Contestação já enviada ou remoção encerrada.');
+    throw new AccountError(409, 'Appeal already sent or removal ended.');
   await context.client.query(
     'UPDATE hash_talk.community_post_removals SET appeal=$2 WHERE id=$1',
     [removal.id, text],
@@ -130,11 +130,11 @@ async function decide(
   if (removal.decision === decision && removal.restored === restore) return;
   currentPost(row, data['revision']);
   if (row.deleted || row.active_removal !== removal.id)
-    throw new AccountError(409, 'Post excluído ou remoção já encerrada.');
+    throw new AccountError(409, 'Post deleted or removal already ended.');
   if (!restore && (!removal.appeal || removal.decision))
     throw new AccountError(
       409,
-      'Conteste antes da revisão, ou restaure com motivo.',
+      'Appeal before review, or restore with a reason.',
     );
   await context.client.query(
     'UPDATE hash_talk.community_post_removals SET decision=$2,restored=$3 WHERE id=$1',
@@ -157,7 +157,10 @@ async function history(
     row.author !== context.actor.id &&
     (await communityRole(context)) === 'participant'
   )
-    throw new AccountError(403, 'Histórico restrito ao autor e gestores.');
+    throw new AccountError(
+      403,
+      'History restricted to the author and managers.',
+    );
   const found = await context.client.query<RemovalRow>(
       `SELECT ${columns} FROM hash_talk.community_post_removals WHERE community_id=$1 AND post_id=$2 AND ($3::uuid IS NULL OR id>$3) ORDER BY id LIMIT $4`,
       [
@@ -193,6 +196,6 @@ export async function postModeration(
     case 'post-moderations':
       return history(context, data);
     default:
-      throw new AccountError(404, 'Operação de post indisponível.');
+      throw new AccountError(404, 'Post operation unavailable.');
   }
 }

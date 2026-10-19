@@ -36,7 +36,7 @@ import { assertGroupTextQuota } from './group-quota.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 
 function denied(): never {
-  throw new AccountError(403, 'Convite de grupo indisponível.');
+  throw new AccountError(403, 'Group invitation unavailable.');
 }
 /** GroupStore owns the group lock; this module owns admission and invitation persistence. */
 export class GroupAdmission {

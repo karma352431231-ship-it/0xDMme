@@ -124,7 +124,7 @@ await test('D1 recebe somente categoria fixa de conexão, mantendo HTTP e erro g
     diagnostic.text(true),
     /stage=conexao-solicitada.*failure=conta-solana-ausente/u,
   );
-  assert.doesNotMatch(diagnostic.text(true), /Selecione|0x|PRIVATE|signature/u);
+  assert.doesNotMatch(diagnostic.text(true), /Select|0x|PRIVATE|signature/u);
   diagnostic.fail(403);
   assert.match(diagnostic.text(true), /failure=HTTP-403/u);
   diagnostic.fail();

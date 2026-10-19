@@ -21,7 +21,7 @@ export type ContentCapacity = number | AdaptiveContentCapacity;
 export function contentCapacityUnavailable(): AccountError {
   return new AccountError(
     503,
-    'Capacidade global ocupada pelos dados usados ou uploads em andamento. Retome depois.',
+    'Global capacity occupied by stored data or ongoing uploads. Resume later.',
   );
 }
 

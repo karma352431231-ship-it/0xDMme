@@ -347,7 +347,7 @@ await test('falha ao preparar o pedido explica a etapa sem expor erro interno ne
   await assert.rejects(controller.start('MetaMask', 'evm'), {
     status: 503,
     message:
-      'Não foi possível criar o pedido para abrir a wallet. Confira a conexão e tente novamente.',
+      'Could not create the wallet-opening request. Check your connection and try again.',
   });
   assert.equal(opened.length, 0);
   assert.equal(controller.link(), null);

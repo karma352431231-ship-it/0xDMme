@@ -36,7 +36,7 @@ interface Pending {
 export class LoginOpening {
   private readonly byBrowser = new Map<string, Set<string>>();
   private readonly pending = new TemporaryRequests<Pending>({
-    unavailable: 'Muitas entradas pendentes. Aguarde.',
+    unavailable: 'Too many pending sign-ins. Please wait.',
     removed: (ticket, state) => {
       const tickets = this.byBrowser.get(state.browser);
       tickets?.delete(ticket);
@@ -53,8 +53,9 @@ export class LoginOpening {
     expires: number,
   ): Promise<string> {
     const receiver = openingReceiver(input);
-    return withTemporaryAdmission('Muitas entradas pendentes. Aguarde.', () =>
-      this.startReceiver({ browser, receiver, expires }),
+    return withTemporaryAdmission(
+      'Too many pending sign-ins. Please wait.',
+      () => this.startReceiver({ browser, receiver, expires }),
     );
   }
   private async startReceiver(input: {
@@ -71,7 +72,7 @@ export class LoginOpening {
       ['encrypt'],
     );
     if ((key.algorithm as RsaHashedKeyAlgorithm).modulusLength !== 3072)
-      throw new AccountError(400, 'Destino de abertura inválido.');
+      throw new AccountError(400, 'Invalid opening destination.');
     const ticket = await openingTicket(receiver);
     const retained = this.pending.add(
       ticket,
@@ -86,7 +87,7 @@ export class LoginOpening {
       expires,
     );
     if (!retained)
-      throw new AccountError(429, 'Muitas entradas pendentes. Aguarde.');
+      throw new AccountError(429, 'Too many pending sign-ins. Please wait.');
     const tickets = this.byBrowser.get(browser) ?? new Set<string>();
     tickets.add(ticket);
     this.byBrowser.set(browser, tickets);
@@ -155,10 +156,10 @@ export class LoginOpening {
       state.session ||
       data['commitment'] !== (await digest(canonical(state.request.transfer)))
     )
-      throw new AccountError(409, 'Abertura encerrada ou divergente.');
+      throw new AccountError(409, 'Opening ended or does not match.');
     const envelope = sealedSecret(data['envelope']);
     if (canonical(envelope).length > 2048)
-      throw new AccountError(413, 'Retorno de abertura excedido.');
+      throw new AccountError(413, 'Opening return exceeds the limit.');
     state.envelope = envelope;
   }
   confirmation(
@@ -170,14 +171,14 @@ export class LoginOpening {
     if (ticket && state?.request?.transfer.ticket !== ticket)
       throw new AccountError(
         409,
-        'A abertura expirou ou foi interrompida. Inicie novamente.',
+        'Opening expired or was interrupted. Start again.',
       );
     if (!state) return undefined;
     const config = state.request?.transfer.config;
     if (!config || !state.envelope)
       throw new AccountError(
         409,
-        'A wallet ainda não concluiu a abertura das chaves.',
+        'The wallet has not finished opening the keys.',
       );
     recoveryIdentity(
       config,
@@ -189,7 +190,7 @@ export class LoginOpening {
   bind(browser: string, session: AccountSession): void {
     const state = this.browser(browser);
     if (!state) return;
-    if (!state.request) throw new AccountError(409, 'Abertura ausente.');
+    if (!state.request) throw new AccountError(409, 'Opening request missing.');
     recoveryIdentity(state.request.transfer.config, session, this.origin);
     state.session = {
       accountId: session.accountId,
@@ -212,7 +213,7 @@ export class LoginOpening {
       state.session.deviceId !== session.deviceId ||
       state.session.csrf !== session.csrf
     )
-      throw new AccountError(409, 'Abertura indisponível para este navegador.');
+      throw new AccountError(409, 'Opening unavailable for this browser.');
     return { request: state.request, envelope: state.envelope };
   }
   cancel(browser: string): void {

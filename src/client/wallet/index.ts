@@ -235,7 +235,7 @@ export function walletBrowserUrl(input: {
   )
     return null;
   if (!/^[a-f0-9]{64}$/u.test(input.ticket))
-    throw new Error('Pedido inválido.');
+    throw new Error('Invalid request.');
   const query = new URLSearchParams({
     ticket: input.ticket,
     ecosystem: input.ecosystem,

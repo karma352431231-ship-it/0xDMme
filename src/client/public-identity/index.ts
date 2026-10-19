@@ -11,10 +11,7 @@ export function publicIdentityAvatar(
   const avatar = document.createElement('a');
   avatar.className = 'public-identity-avatar conversation-avatar';
   avatar.href = `#users?id=${profile.id}`;
-  avatar.setAttribute(
-    'aria-label',
-    t('Abrir perfil de @{0}', [profile.handle]),
-  );
+  avatar.setAttribute('aria-label', t("Open @{0}'s profile", [profile.handle]));
   avatar.dataset['tone'] = avatarTone(profile.handle);
   const initial = document.createElement('span');
   initial.textContent = avatarInitials(profile.handle);

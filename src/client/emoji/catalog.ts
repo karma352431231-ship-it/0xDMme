@@ -7,15 +7,15 @@ export type EmojiRow = readonly [
   artwork: string | null,
 ];
 export const emojiCategories = [
-  t('Rostos e emoções'),
-  t('Pessoas e corpo'),
-  t('Animais e natureza'),
-  t('Comida e bebida'),
-  t('Viagens e lugares'),
-  t('Atividades'),
-  t('Objetos'),
-  t('Símbolos'),
-  t('Bandeiras'),
+  t('Faces and emotions'),
+  t('People and body'),
+  t('Animals and nature'),
+  t('Food and drink'),
+  t('Travel and places'),
+  t('Activity'),
+  t('Objects'),
+  t('Symbols'),
+  t('Flags'),
 ] as const;
 export const emojiPageSize = 72;
 const skinTones = /[\u{1F3FB}-\u{1F3FF}]/gu;

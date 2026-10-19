@@ -56,7 +56,7 @@ import { SessionBoot } from './session-boot.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
-  if (!result) throw new Error('Interface incompleta.');
+  if (!result) throw new Error('Interface incomplete.');
   return result as T;
 }
 
@@ -314,8 +314,8 @@ const account = startAccount({
     const label = document.getElementById('account-label');
     if (label)
       label.textContent = session
-        ? session.name || t('Conta conectada')
-        : t('Conta não conectada');
+        ? session.name || t('Account connected')
+        : t('No account connected');
     if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
       currentPage = '';
       route();
@@ -467,7 +467,7 @@ function showAboutLinks(): void {
 function renderPageHeader(key: PageKey): void {
   const dm =
     key === 'comunidades' && routeParams(appAddress()).get('view') === 'dms';
-  const title = dm ? t('Mensagens pelo @') : pages[key].title;
+  const title = dm ? t('Handle messages') : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
   const mobileTitle = document.querySelector('[data-mobile-title]');
@@ -475,12 +475,12 @@ function renderPageHeader(key: PageKey): void {
   element('breadcrumb').textContent =
     title.toLocaleUpperCase(currentLanguage());
   element('page-phase').textContent = dm
-    ? t('DMs individuais · E2EE')
+    ? t('Individual DMs · E2EE')
     : key === 'publico'
-      ? t('Perfil público · Leitura aberta')
+      ? t('Public profile · Open access')
       : key === 'comunidades'
-        ? t('Comunidades · Leitura aberta')
-        : t('Conta EVM / Solana · Mensagens privadas');
+        ? t('Communities · Open access')
+        : t('EVM / Solana account · Private messages');
   document.title = t('{0} · 0xDMme', [title]);
 }
 function mountProfileSettings(content: HTMLElement): void {
@@ -621,12 +621,12 @@ function mountAccountPanels(key: PageKey): void {
 }
 
 function renderApprovalPage(): void {
-  element('page-title').textContent = t('Confirmar assinatura');
-  element('breadcrumb').textContent = t('CONTA');
+  element('page-title').textContent = t('Confirm signature');
+  element('breadcrumb').textContent = t('ACCOUNT');
   const container = document.createElement('div');
   element('page-content').replaceChildren(container);
   account.mount(container);
-  document.title = t('Confirmar assinatura · 0xDMme');
+  document.title = t('Confirm signature · 0xDMme');
 }
 
 function connection(): void {
@@ -655,10 +655,10 @@ function renderConnection(): void {
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()
-        ? t('Conta conectada')
-        : t('Sessão conectada · abertura da conta em Perfil → Aparelhos')
-      : t('Conexão disponível · nenhuma conta conectada')
-    : t('Sem conexão · histórico salvo disponível neste aparelho');
+        ? t('Account connected')
+        : t('Session connected · open account in Profile → Devices')
+      : t('Connection available · no account connected')
+    : t('Offline · saved history available on this device');
 }
 
 function loadSessionExtras(accountId: string): void {

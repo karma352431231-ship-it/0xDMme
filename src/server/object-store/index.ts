@@ -112,7 +112,7 @@ export class ObjectStore {
     const path = resolve(this.directory, `group-${groupId}`);
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de grupo inválido.');
+      throw new Error('Invalid group directory.');
     return new ObjectStore(path);
   }
   async discardGroupMedia(

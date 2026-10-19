@@ -86,6 +86,6 @@ await test('troca de contexto durante preparação interrompe o envio seguinte',
       [new File([new Uint8Array(10)], 'synthetic.gif', { type: 'image/gif' })],
       () => {},
     ),
-    /Sessão ou comunidade alterada/u,
+    /Session or community changed/u,
   );
 });

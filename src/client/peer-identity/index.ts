@@ -24,9 +24,9 @@ export async function verifiedPeer(c: {
   current: boolean;
 }): Promise<DirectoryEvent[]> {
   const last = await verifyHistory(c.events, c.account);
-  if (!last) throw new Error('Diretório ausente.');
+  if (!last) throw new Error('Directory missing.');
   if (c.expected !== null && (await eventHash(last)) !== c.expected)
-    throw new Error('Diretório divergente.');
+    throw new Error('Directory does not match.');
   const checked = c.events as DirectoryEvent[],
     pin = await pinFor(checked);
   if (c.pin)
@@ -46,18 +46,18 @@ async function checkPeerPin(c: {
 }): Promise<void> {
   if (c.known.fingerprint !== c.pin.fingerprint)
     throw new Error(
-      'Identidade do contato mudou. Confira com ele antes de continuar.',
+      "The contact's identity changed. Check with them before continuing.",
     );
   if (c.current && c.pin.revision < c.known.revision)
-    throw new Error('Diretório antigo do contato.');
+    throw new Error('Old contact directory.');
   const pinned = c.history[c.known.revision - 1];
   if (pinned && (await eventHash(pinned)) !== c.known.directory)
-    throw new Error('Diretório diverge da identidade fixada.');
+    throw new Error('Directory differs from the pinned identity.');
 }
 export async function pinFor(history: DirectoryEvent[]): Promise<PeerPin> {
   const first = history[0],
     last = history.at(-1);
-  if (!first || !last) throw new Error('Diretório ausente.');
+  if (!first || !last) throw new Error('Directory missing.');
   return {
     fingerprint: await digest(
       canonical([first.root.signing, first.root.wrapping]),
@@ -89,7 +89,7 @@ export class PeerIdentity {
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
-      throw new Error('Sessão alterada durante a conferência de identidades.');
+      throw new Error('Session changed during identity verification.');
   }
   get(account: string): PeerPin | null {
     return this.pins.get(account) ?? null;
@@ -100,7 +100,7 @@ export class PeerIdentity {
     do {
       if (Date.now() > deadline)
         throw new Error(
-          'Não foi possível concluir a sincronização das identidades. Tente novamente.',
+          'Could not complete identity synchronization. Try again.',
         );
       await this.sync.refresh(options);
       this.guard(generation);
@@ -168,13 +168,13 @@ export class PeerIdentity {
   private accept(account: string, next: PeerPin): void {
     const old = this.pins.get(account);
     if (old && old.fingerprint !== next.fingerprint)
-      throw new Error('Identidades fixadas em conflito.');
+      throw new Error('Pinned identities conflict.');
     if (
       old &&
       old.revision === next.revision &&
       old.directory !== next.directory
     )
-      throw new Error('Diretórios fixados divergentes.');
+      throw new Error('Pinned directories do not match.');
     if (!old || old.revision < next.revision) this.pins.set(account, next);
   }
   async remember(account: string, history: DirectoryEvent[]): Promise<void> {
@@ -289,7 +289,7 @@ async function readDirectoryBatch(
         account = uuid(row['accountId']),
         history = histories.get(account);
       if (!history || result.has(account) || seen.has(account))
-        throw new Error('Diretório de outra página ou repetido.');
+        throw new Error('Directory belongs to another page or is duplicated.');
       seen.add(account);
       appendDirectory(history, row);
       history.recovery =
@@ -308,7 +308,7 @@ async function readDirectoryBatch(
     }
   }
   if (input.accounts.some((account) => !result.has(account)))
-    throw new Error('Diretório omitido.');
+    throw new Error('Directory omitted.');
   return result;
 }
 function directoryBatchResponse(
@@ -324,7 +324,7 @@ function directoryBatchResponse(
     !Array.isArray(recovery) ||
     recovery.length > count
   )
-    throw new Error('Diretórios de destinatários incompletos.');
+    throw new Error('Recipient directories incomplete.');
   return { directories, recovery };
 }
 function appendDirectory(
@@ -335,14 +335,15 @@ function appendDirectory(
     revision = integer(row['revision'], 128),
     events = row['events'];
   if (!Array.isArray(events) || !events.length || events.length > 8)
-    throw new Error('Página de diretório inválida.');
+    throw new Error('Invalid directory page.');
   if (history.head && (head !== history.head || revision !== history.revision))
-    throw new Error('Aparelhos mudaram durante a leitura. Tente novamente.');
+    throw new Error('Devices changed while reading. Try again.');
   history.head = head;
   history.revision = revision;
   const values: unknown[] = events;
   history.events.push(...values);
-  if (history.events.length > revision) throw new Error('Diretório excedido.');
+  if (history.events.length > revision)
+    throw new Error('Directory exceeds the limit.');
 }
 
 export type Api = (
@@ -377,9 +378,9 @@ export async function peerHistory(
       current: through === null,
     });
   }
-  throw new Error('Diretório incompleto.');
+  throw new Error('Directory incomplete.');
 }
 function assertHistoryPage(raw: unknown): asserts raw is unknown[] {
   if (!Array.isArray(raw) || raw.length > 8 || !raw.length)
-    throw new Error('Diretório omitido ou inválido.');
+    throw new Error('Directory omitted or invalid.');
 }

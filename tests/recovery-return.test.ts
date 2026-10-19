@@ -274,7 +274,7 @@ await test('cliente recusa substituição do destino e retoma apenas metadados p
       wallet: 'MetaMask',
       count: 2,
     }),
-    /destino/,
+    /[Dd]estination/,
   );
 });
 await test('entrada privada tem URL estrita e fica fora do cache PWA mesmo com allowlist adulterada', () => {

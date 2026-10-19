@@ -13,19 +13,19 @@ export class WakeupFrames {
   private readonly decoder = new TextDecoder('utf-8', { fatal: true });
   private buffer = '';
   accept(bytes: Uint8Array): LiveEvent[] {
-    if (bytes.length > 4096) throw new Error('Aviso de atualização excedido.');
+    if (bytes.length > 4096)
+      throw new Error('Update notice exceeds the limit.');
     this.buffer += this.decoder.decode(bytes, { stream: true });
     const frames = this.buffer.split('\n\n');
     this.buffer = frames.pop() ?? '';
-    if (this.buffer.length > 128)
-      throw new Error('Aviso de atualização incompleto.');
+    if (this.buffer.length > 128) throw new Error('Update notice incomplete.');
     return frames.flatMap((frame) => {
       if (frame === ': heartbeat') return [];
       const match =
         /^event: (ready|changed|call|removed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
           frame,
         );
-      if (!match) throw new Error('Aviso de atualização inválido.');
+      if (!match) throw new Error('Invalid update notice.');
       return [match[1] as LiveEvent];
     });
   }

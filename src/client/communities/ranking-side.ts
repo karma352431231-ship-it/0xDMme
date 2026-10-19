@@ -315,7 +315,7 @@ class RankingView {
     const row = el('div', '', 'ranking-side-columns');
     discoveryMenu(
       this.periodHost,
-      t('Período'),
+      t('Period'),
       { value: this.period, options: rankingPeriods() },
       (value) => {
         this.period = value as RankingPeriod;

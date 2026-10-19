@@ -26,7 +26,7 @@ async function decision(): Promise<{
     typeof data['reason'] !== 'string' ||
     typeof data['confirmsPermitted'] !== 'boolean'
   )
-    throw new Error('Decisão inválida.');
+    throw new Error('Invalid decision.');
   return {
     id: uuid(data['id']),
     verdict: data['verdict'],
@@ -106,7 +106,7 @@ async function preview(
   });
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Prévia indisponível.');
+    throw new Error('Preview unavailable.');
   process.stdout.write(
     `Prévia privada por cinco minutos: http://127.0.0.1:${address.port}${path}\n`,
   );

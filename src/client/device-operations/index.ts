@@ -126,9 +126,7 @@ export function recoveryIdentities(
     new Set(revoked).size !== revoked.length ||
     revoked.some((id) => !event.devices.some((device) => device.id === id))
   )
-    throw new Error(
-      'Seleção de aparelhos inválida. Confira a lista novamente.',
-    );
+    throw new Error('Invalid device selection. Check the list again.');
   return event.devices
     .filter((device) => !revoked.includes(device.id))
     .map(identityOf);

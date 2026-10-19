@@ -30,18 +30,18 @@ export interface MediaShape {
 function number(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0)
-    throw new AccountError(422, 'Metadados de mídia inválidos.');
+    throw new AccountError(422, 'Invalid media metadata.');
   return n;
 }
 export function readMediaShape(value: unknown): MediaShape {
   const data = object(value),
     format = object(data['format']);
   if (!Array.isArray(data['streams']) || data['streams'].length > 8)
-    throw new AccountError(422, 'Streams inválidos.');
+    throw new AccountError(422, 'Invalid streams.');
   const streams = data['streams'].map(object),
     videos = streams.filter((s) => s['codec_type'] === 'video');
   if (videos.length !== 1)
-    throw new AccountError(422, 'Use um único vídeo ou imagem.');
+    throw new AccountError(422, 'Use a single video or image.');
   const video = videos[0]!;
   const rate = String(video['avg_frame_rate']).split('/');
   const denominator = number(rate[1]);
@@ -61,7 +61,7 @@ export function validateMediaSource(
   shape: MediaShape,
 ): void {
   if (!shape.width || !shape.height || !shape.frames)
-    throw new AccountError(422, 'Mídia vazia ou incompleta.');
+    throw new AccountError(422, 'Media empty or incomplete.');
   if (source.kind === 'photo') {
     validatePhoto(shape);
     return;
@@ -73,7 +73,7 @@ function validateAnimation(
   shape: MediaShape,
 ): void {
   if (source.kind === 'gif' && shape.codec !== 'gif')
-    throw new AccountError(422, 'Use um arquivo GIF.');
+    throw new AccountError(422, 'Use a GIF file.');
   if (source.kind === 'video') validateVideoFormat(shape);
   if (
     !shape.seconds ||
@@ -92,7 +92,7 @@ function validateVideoFormat(shape: MediaShape): void {
       .split(',')
       .some((f) => ['mov', 'mp4', 'matroska', 'webm'].includes(f))
   )
-    throw new AccountError(422, 'Use vídeo MP4, MOV ou WebM.');
+    throw new AccountError(422, 'Use MP4, MOV or WebM video.');
 }
 function validatePhoto(shape: MediaShape): void {
   if (
@@ -103,7 +103,7 @@ function validatePhoto(shape: MediaShape): void {
   )
     throw new AccountError(
       422,
-      'Use uma foto preparada PNG, JPEG ou WebP de até 2.048 px.',
+      'Use a prepared PNG, JPEG or WebP photo up to 2,048 px.',
     );
 }
 async function probe(
@@ -137,7 +137,7 @@ export class CommunityMediaNormalizer {
     stop: AbortSignal,
   ): Promise<CommunityMediaResult> {
     if (!this.runtime)
-      throw new AccountError(503, 'Processador de mídia não configurado.');
+      throw new AccountError(503, 'Media processor not configured.');
     const signal = AbortSignal.any([stop, AbortSignal.timeout(360_000)]),
       path = await this.files.assemble(source);
     const input = await probe(this.runtime, path, signal);
@@ -191,7 +191,7 @@ export class CommunityMediaNormalizer {
     directory: string;
     signal: AbortSignal;
   }): Promise<string | null> {
-    if (!this.runtime) throw new AccountError(503, 'Processador indisponível.');
+    if (!this.runtime) throw new AccountError(503, 'Processor unavailable.');
     const { source, path, directory, signal } = request;
     if (source.kind === 'photo') {
       const bytes = await this.files.read(source.id, 'source', 3_000_000),
@@ -199,7 +199,7 @@ export class CommunityMediaNormalizer {
       if (!metadataFree(bytes, shape.type))
         throw new AccountError(
           422,
-          'Prepare a foto para remover seus metadados.',
+          'Prepare the photo to remove its metadata.',
         );
       await mediaProcess(this.runtime, {
         ...preparationCommand({ kind: 'photo', source: path, output: '-' }),
@@ -225,13 +225,13 @@ export class CommunityMediaNormalizer {
   ): void {
     if (source.kind === 'photo') return;
     if (Math.abs(output.seconds - input.seconds) > 0.1)
-      throw new AccountError(422, 'A preparação alterou a duração.');
+      throw new AccountError(422, 'Preparation changed the duration.');
     if (
       source.kind === 'video' &&
       (output.audio !== input.audio ||
         Math.max(output.width, output.height) > 1280 ||
         Math.min(output.width, output.height) > 720)
     )
-      throw new AccountError(422, 'Resultado de vídeo inválido.');
+      throw new AccountError(422, 'Invalid video result.');
   }
 }

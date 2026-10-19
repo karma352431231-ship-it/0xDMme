@@ -38,22 +38,22 @@ export function startCalls(options: {
   const dock = document.createElement('aside');
   dock.className = 'call-dock card';
   dock.hidden = true;
-  dock.setAttribute('aria-label', t('Chamada de voz'));
+  dock.setAttribute('aria-label', t('Voice call'));
   const title = document.createElement('strong'),
     notice = document.createElement('p'),
     duration = document.createElement('p'),
     buttons = document.createElement('div');
   notice.setAttribute('role', 'status');
   buttons.className = 'call-actions';
-  const accept = button(t('Atender'), () => calls.accept()),
-    reject = button(t('Recusar'), () => calls.end(t('Chamada recusada.'))),
-    hangup = button(t('Encerrar'), () => calls.end()),
-    mute = button(t('Silenciar microfone'), () => {
+  const accept = button(t('Answer'), () => calls.accept()),
+    reject = button(t('Decline'), () => calls.end(t('Call declined.'))),
+    hangup = button(t('End'), () => calls.end()),
+    mute = button(t('Mute microphone'), () => {
       calls.mute();
       return Promise.resolve();
     }),
-    play = button(t('Ouvir chamada'), () => calls.play()),
-    close = button(t('Fechar aviso'), () => {
+    play = button(t('Listen to call'), () => calls.play()),
+    close = button(t('Close notice'), () => {
       dock.hidden = true;
       return Promise.resolve();
     });
@@ -109,9 +109,7 @@ export function startCalls(options: {
     element.textContent = label;
     element.addEventListener('click', () => {
       void work().catch(() => {
-        notice.textContent = t(
-          'Não foi possível concluir a operação de chamada.',
-        );
+        notice.textContent = t('Could not complete the call operation.');
       });
     });
     return element;
@@ -121,8 +119,8 @@ export function startCalls(options: {
     const active = state.call !== null;
     if (active || state.busy) dock.hidden = false;
     title.textContent = state.call
-      ? t('Chamada de voz · {0}', [options.label(state.call.peer)])
-      : t('Chamada de voz');
+      ? t('Voice call · {0}', [options.label(state.call.peer)])
+      : t('Voice call');
     notice.textContent = state.notice;
     duration.textContent = state.connected
       ? `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, '0')}`
@@ -137,13 +135,13 @@ export function startCalls(options: {
     accept.hidden = !incoming;
     reject.hidden = !incoming;
     hangup.hidden = (!active && !state.busy) || !!incoming;
-    hangup.textContent = active ? t('Encerrar') : t('Cancelar chamada');
+    hangup.textContent = active ? t('End') : t('Cancel call');
     mute.hidden = !state.connected;
     play.hidden = !state.autoplay;
     close.hidden = active || state.busy;
     mute.textContent = state.muted
-      ? t('Reativar microfone')
-      : t('Silenciar microfone');
+      ? t('Re-enable microphone')
+      : t('Mute microphone');
     mute.setAttribute('aria-pressed', String(state.muted));
     for (const b of [accept, reject, mute, play]) b.disabled = state.busy;
     mute.disabled ||= state.captureStopped === true;
@@ -153,8 +151,8 @@ export function startCalls(options: {
       settings?.querySelector<HTMLButtonElement>('[data-call-toggle]');
     if (toggle) {
       toggle.textContent = state.enabled
-        ? t('Desativar recebimento de chamadas')
-        : t('Ativar recebimento de chamadas');
+        ? t('Disable incoming calls')
+        : t('Enable incoming calls');
       toggle.setAttribute('aria-pressed', String(state.enabled));
       toggle.disabled = state.busy;
     }
@@ -162,7 +160,7 @@ export function startCalls(options: {
     if (status) status.textContent = state.notice;
   }
   function suspend(): void {
-    void calls.end(t('Chamada encerrada ao sair desta página.'));
+    void calls.end(t('Call ended when leaving this page.'));
   }
   window.addEventListener('online', () => calls.ready(), {
     signal: events.signal,
@@ -200,7 +198,7 @@ export function startCalls(options: {
     start: (peer: string) => calls.start(peer),
     event: (event: string) => {
       if (event === 'revoked' || event === 'ended' || event === 'invalidated')
-        void calls.end(t('Chamada encerrada: autorização mudou.'));
+        void calls.end(t('Call ended: authorization changed.'));
       else if (event === 'call' || event === 'ready') calls.wake();
       else if (event === 'authorization') calls.ready();
     },

@@ -24,7 +24,7 @@ const page = (changes: Partial<typeof post> = {}) => ({
   items: [
     {
       post: { ...post, ...changes },
-      community: { id: community, name: 'Teste' },
+      community: { id: community, name: 'Test' },
     },
   ],
   next: null,

@@ -71,7 +71,7 @@ export class Contacts {
     work: VaultWorkOptions = {},
   ): Promise<unknown> {
     if (!this.session || !navigator.onLine)
-      throw new Error('Entre e conecte-se para conferir as permissões atuais.');
+      throw new Error('Sign in and connect to check current permissions.');
     const generation = this.generation;
     return this.access.withVault(
       false,
@@ -80,7 +80,7 @@ export class Contacts {
           authority.session.accountId !== this.session?.accountId ||
           generation !== this.generation
         )
-          throw new Error('Sessão alterada.');
+          throw new Error('Session changed.');
         const proof = { directory: authority.directory, payload };
         const signature = await authority.sign(
           contactBody(
@@ -117,7 +117,7 @@ export class Contacts {
         );
         const data = await readApiJson(response, `contacts/${operation}`);
         if (generation !== this.generation)
-          throw new Error('Sessão alterada durante a operação.');
+          throw new Error('Session changed during the operation.');
         if (mutation) notifyMessageControls();
         return data;
       },
@@ -164,7 +164,7 @@ export class Contacts {
     const data = object(value);
     keys(data, ['items', 'next']);
     if (!Array.isArray(data['items']) || data['items'].length > contactPageSize)
-      throw new Error('Lista de contatos inválida.');
+      throw new Error('Invalid contact list.');
     const values: unknown[] = data['items'];
     const page: ContactPage = {
       items: [],
@@ -254,18 +254,18 @@ export class Contacts {
   async ownIdentity(): Promise<{ accountId: string; fingerprint: string }> {
     const session = this.session,
       generation = this.generation;
-    if (!session) throw new Error('Entre e autorize este aparelho primeiro.');
+    if (!session) throw new Error('Sign in and authorize this device first.');
     return this.access.withVault(false, async (authority) => {
       if (authority.session.accountId !== session.accountId)
-        throw new Error('Sessão alterada.');
+        throw new Error('Session changed.');
       const first = await verifyHistory(
         authority.events.slice(0, 1),
         session.accountId,
       );
-      if (!first) throw new Error('Identidade inicial ausente.');
+      if (!first) throw new Error('Initial identity missing.');
       const fingerprint = await rootFingerprint(first);
       if (generation !== this.generation)
-        throw new Error('Sessão alterada durante a operação.');
+        throw new Error('Session changed during the operation.');
       return { accountId: session.accountId, fingerprint };
     });
   }
@@ -285,11 +285,11 @@ export class Contacts {
     const { events, head: lastHead } = await this.directoryHistory(target);
     const event = await verifyHistory(events, target);
     if (!event || (await eventHash(event)) !== lastHead)
-      throw new Error('Identidade do contato divergente.');
+      throw new Error('Contact identity does not match.');
     // The initial recovery signing/wrapping identity remains pinned across its
     // authenticated migration to wallet recovery; capsule fields may change.
     const first = await verifyHistory(events.slice(0, 1), target);
-    if (!first) throw new Error('Identidade inicial ausente.');
+    if (!first) throw new Error('Initial identity missing.');
     const fingerprint = await rootFingerprint(first);
     checkPinnedIdentity(known, {
       fingerprint,
@@ -314,13 +314,13 @@ export class Contacts {
       keys(data, ['events', 'head', 'revision']);
       const raw = data['events'];
       if (!Array.isArray(raw) || raw.length > 8)
-        throw new Error('Diretório do contato inválido.');
+        throw new Error('Invalid contact directory.');
       events.push(...(raw as unknown[]));
       const head = token(data['head']);
       if (events.length === revision(data['revision'])) return { events, head };
-      if (!raw.length) throw new Error('Diretório do contato omitido.');
+      if (!raw.length) throw new Error('Contact directory omitted.');
     }
-    throw new Error('Diretório do contato excedido.');
+    throw new Error('Contact directory exceeds the limit.');
   }
 }
 
@@ -334,14 +334,14 @@ export function checkPinnedIdentity(
 ): void {
   if (known.identity && known.identity !== current.fingerprint)
     throw new Error(
-      'A identidade criptográfica mudou. Compare com o contato por um canal independente antes de aceitar novas chaves.',
+      'The cryptographic identity changed. Compare it with your contact through an independent channel before accepting new keys.',
     );
   if (known.identityRevision > current.revision)
-    throw new Error('Diretório antigo do contato.');
+    throw new Error('Old contact directory.');
   if (
     known.directory &&
     known.identityRevision === current.revision &&
     known.directory !== current.head
   )
-    throw new Error('Diretório divergente do contato.');
+    throw new Error('Contact directory does not match.');
 }

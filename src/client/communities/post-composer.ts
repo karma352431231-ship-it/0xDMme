@@ -38,7 +38,7 @@ export class PostComposer {
         return;
       event.preventDefault();
       if (signedIn()) this.open();
-      else showToast(t('Entre pelo Perfil para criar uma postagem.'));
+      else showToast(t('Sign in through Profile to create a post.'));
     });
   }
 
@@ -50,18 +50,18 @@ export class PostComposer {
     const header = el('header', '', 'post-composer-heading');
     const heading = el('div', '', 'post-composer-heading-copy');
     heading.append(
-      el('h2', t('Criar postagem')),
-      el('p', t('Compartilhe com uma comunidade.')),
+      el('h2', t('Create post')),
+      el('p', t('Share with a community.')),
     );
     header.append(heading);
-    button(header, t('Fechar'), () => {
+    button(header, t('Close'), () => {
       this.requestClose();
       return Promise.resolve();
     });
     this.feedback = el('p', '', 'community-feedback');
     this.feedback.setAttribute('role', 'status');
     this.draft = el('div', '', 'post-composer-content');
-    dialog.setAttribute('aria-label', t('Criar postagem'));
+    dialog.setAttribute('aria-label', t('Create post'));
     dialog.append(header, this.feedback, this.draft);
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
@@ -101,7 +101,7 @@ export class PostComposer {
         this.feedback.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Postagem indisponível.');
+            : t('Post unavailable.');
       }
     } finally {
       this.busy = false;
@@ -132,14 +132,14 @@ export class PostComposer {
     this.stage = new AbortController();
     const page = await this.controller.list('following', after);
     if (lifetime.signal.aborted || !this.draft) return;
-    this.draft.replaceChildren(el('h3', t('Suas comunidades seguidas')));
+    this.draft.replaceChildren(el('h3', t('Your followed communities')));
     for (const group of page.items) this.choice(group);
     if (!page.items.length)
       this.draft.append(
-        el('p', t('Siga uma comunidade em Explorar para encontrá-la aqui.')),
+        el('p', t('Follow a community in Explore to find it here.')),
       );
     if (page.next)
-      button(this.draft, t('Mais comunidades'), () =>
+      button(this.draft, t('More communities'), () =>
         this.run(() => this.choose(page.next)),
       );
   }
@@ -171,7 +171,7 @@ export class PostComposer {
     if (lifetime.signal.aborted) return;
     if (!state.canPost)
       throw new Error(
-        'Você não pode postar nesta comunidade. Confira se ela está arquivada ou se há uma restrição à sua participação.',
+        'You cannot post in this community. Check whether it is archived or your participation is restricted.',
       );
     const tags = tagPage(
       await communityRead(`/api/communities/${id}/tags`, this.signal()),
@@ -213,7 +213,7 @@ export class PostComposer {
     const post = crypto.randomUUID();
     const footer = el('footer', '', 'post-composer-footer');
     this.draft.append(footer);
-    const publish = button(footer, t('Publicar postagem'), () =>
+    const publish = button(footer, t('Publish post'), () =>
       this.run(async () => {
         const value = await content();
         postState(
@@ -225,7 +225,7 @@ export class PostComposer {
         );
         if (lifetime.signal.aborted) return;
         this.close();
-        showToast(t('Postagem publicada.'), { success: true });
+        showToast(t('Post published.'), { success: true });
       }),
     );
     publish.className = 'post-composer-publish';
@@ -238,7 +238,7 @@ export class PostComposer {
     }
     confirmComposerDiscard(this.dialog, {
       draft: this.draft,
-      label: t('Descartar postagem?'),
+      label: t('Discard post?'),
       close: () => this.close(),
     });
   }

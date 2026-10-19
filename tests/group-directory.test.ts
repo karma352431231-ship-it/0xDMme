@@ -276,7 +276,7 @@ await test('directory photo reads only the local private cache for a known group
   const pending = controller.photo(current);
   controller.setSession(null);
   read();
-  await assert.rejects(pending, /Sessão ou grupo alterado/u);
+  await assert.rejects(pending, /Session or group changed/u);
 });
 
 await test('replacing rows or closing search aborts late photos and revokes their blob URLs', async (t) => {

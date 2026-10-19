@@ -51,7 +51,7 @@ export async function postAuthorBadges(
     if (row.owner)
       values.push({ id: null, kind: 'owner', label: 'Dono da comunidade' });
     else if (row.moderator)
-      values.push({ id: null, kind: 'moderator', label: 'Moderador' });
+      values.push({ id: null, kind: 'moderator', label: 'Moderator' });
     else if (isNewMember(row.joined))
       values.push({ id: null, kind: 'new', label: 'Novo membro' });
     values.push(
@@ -86,7 +86,7 @@ async function saveBadge(
   capacity: ContentCapacity,
 ) {
   if (!['badge-create', 'badge-edit', 'badge-delete'].includes(operation))
-    throw new AccountError(404, 'Operação de badge inválida.');
+    throw new AccountError(404, 'Invalid badge operation.');
   const creating = operation === 'badge-create',
     deleting = operation === 'badge-delete';
   keys(data, [
@@ -105,7 +105,7 @@ async function saveBadge(
   );
   const old = found.rows[0];
   if (old && old.community_id !== context.row.id)
-    throw new AccountError(409, 'Identificador de badge já usado.');
+    throw new AccountError(409, 'Badge identifier already used.');
   if (creating) await createBadge(context, { id, label, old });
   else
     await changeBadge(context, {
@@ -124,16 +124,13 @@ async function createBadge(
 ) {
   const { id, label, old } = input;
   if (old?.label === label) return;
-  if (old) throw new AccountError(409, 'Identificador de badge já usado.');
+  if (old) throw new AccountError(409, 'Badge identifier already used.');
   const count = await context.client.query<{ count: string }>(
     'SELECT count(*) FROM hash_talk.community_badges WHERE community_id=$1',
     [context.row.id],
   );
   if (Number(count.rows[0]!.count) >= 20)
-    throw new AccountError(
-      409,
-      'Use até 20 badges personalizados por comunidade.',
-    );
+    throw new AccountError(409, 'Use up to 20 custom badges per community.');
   await context.client.query(
     'INSERT INTO hash_talk.community_badges(id,community_id,label) VALUES($1,$2,$3)',
     [id, context.row.id, label],
@@ -151,7 +148,7 @@ async function changeBadge(
 ) {
   const { id, label, old, deleting } = input;
   if (!old || old.revision !== communityRevision(input.revision))
-    throw new AccountError(409, 'Badge mudou. Recarregue.');
+    throw new AccountError(409, 'Badge changed. Reload.');
   if (deleting) await deleteUnusedBadge(context, id);
   else if (old.label !== label)
     await context.client.query(
@@ -170,7 +167,7 @@ async function deleteUnusedBadge(
   if (assigned.rowCount)
     throw new AccountError(
       409,
-      'Este badge está em uso. Remova as atribuições antes de excluir a definição.',
+      'This badge is in use. Remove assignments before deleting its definition.',
     );
   await context.client.query(
     'DELETE FROM hash_talk.community_badges WHERE id=$1',
@@ -190,7 +187,7 @@ async function assignBadge(
     'SELECT 1 FROM hash_talk.community_badges WHERE community_id=$1 AND id=$2',
     [context.row.id, badge],
   );
-  if (!found.rowCount) throw new AccountError(404, 'Badge indisponível.');
+  if (!found.rowCount) throw new AccountError(404, 'Badge unavailable.');
   if (!enabled) {
     await context.client.query(
       'DELETE FROM hash_talk.community_member_badges WHERE badge_id=$1 AND profile_id=$2',
@@ -199,7 +196,7 @@ async function assignBadge(
     return { saved: true };
   }
   if (await activeSanction(context, target.id))
-    throw new AccountError(403, 'Participante suspenso.');
+    throw new AccountError(403, 'Participant suspended.');
   const old = await context.client.query<{ badge_id: string }>(
     'SELECT badge_id FROM hash_talk.community_member_badges WHERE community_id=$1 AND profile_id=$2',
     [context.row.id, target.id],
@@ -208,7 +205,7 @@ async function assignBadge(
   if (old.rows.length >= 3)
     throw new AccountError(
       409,
-      'Use até três badges personalizados por pessoa nesta comunidade.',
+      'Use up to three custom badges per person in this community.',
     );
   await context.client.query(
     'INSERT INTO hash_talk.community_member_badges(community_id,profile_id,badge_id) VALUES($1,$2,$3)',

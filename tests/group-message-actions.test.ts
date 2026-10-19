@@ -53,7 +53,7 @@ for (const language of ['en', 'zh-CN'] as const)
     ) as unknown as DialogNode;
     row
       .querySelector('.message-menu')!
-      .children.find((child) => child.textContent === label('Editar'))!
+      .children.find((child) => child.textContent === label('Edit'))!
       .click();
     const dialog = body.children[0] as DialogNode,
       text = dialog.querySelector('textarea')!;

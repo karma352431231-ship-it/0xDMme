@@ -14,21 +14,21 @@ export interface CommunityFollowers {
 }
 export function communityFollowerTab(value: unknown): CommunityFollowerTab {
   if (value !== 'all' && value !== 'known' && value !== 'staff')
-    throw new AccountError(400, 'Lista de seguidores inválida.');
+    throw new AccountError(400, 'Invalid follower list.');
   return value;
 }
 export function communityFollowers(value: unknown): CommunityFollowers {
   const data = object(value);
   keys(data, ['items', 'total', 'next']);
   if (!Array.isArray(data['items']) || data['items'].length > communityPageSize)
-    throw new AccountError(400, 'Seguidores inválidos.');
+    throw new AccountError(400, 'Invalid followers.');
   const items = data['items'].map(follower),
     total = postCount(data['total']);
   if (
     items.length > total ||
     new Set(items.map((item) => item.id)).size !== items.length
   )
-    throw new AccountError(400, 'Seguidores inválidos.');
+    throw new AccountError(400, 'Invalid followers.');
   return { items, total, next: communityCursor(data['next']) };
 }
 
@@ -38,7 +38,7 @@ function follower(value: unknown): CommunityFollower {
   keys(data, ['id', 'handle', 'avatar', 'role']);
   const role = data['role'];
   if (role !== null && role !== 'owner' && role !== 'moderator')
-    throw new AccountError(400, 'Função pública inválida.');
+    throw new AccountError(400, 'Invalid public role.');
   return {
     ...publicProfile({
       id: data['id'],

@@ -17,7 +17,7 @@ async function readLimited(
       size += next.value.length;
       if (size > limit) {
         await reader.cancel();
-        throw new Error('Pacote de emojis excedido.');
+        throw new Error('Emoji package exceeds the limit.');
       }
       chunks.push(next.value);
     }
@@ -39,7 +39,7 @@ function checkedSvg(svg: unknown): string {
     !svg.startsWith('<svg ') ||
     /<(?:script|foreignObject|image|use)\b|\bhref=|\bon[a-z]+=/iu.test(svg)
   )
-    throw new Error('Desenho de emoji inválido.');
+    throw new Error('Invalid emoji artwork.');
   return svg;
 }
 function svgMap(value: unknown): ReadonlyMap<string, string> {
@@ -50,14 +50,13 @@ function svgMap(value: unknown): ReadonlyMap<string, string> {
     typeof value.svg !== 'object' ||
     value.svg === null
   )
-    throw new Error('Desenhos de emojis ausentes.');
+    throw new Error('Emoji artwork missing.');
   const entries = Object.entries(value.svg as Record<string, unknown>);
-  if (entries.length !== 4009)
-    throw new Error('Desenhos de emojis incompletos.');
+  if (entries.length !== 4009) throw new Error('Emoji artwork incomplete.');
   const result = new Map<string, string>();
   for (const [key, svg] of entries) {
     if (!/^[a-f0-9]+(?:-[a-f0-9]+)*$/u.test(key))
-      throw new Error('Desenho de emoji inválido.');
+      throw new Error('Invalid emoji artwork.');
     result.set(key, checkedSvg(svg));
   }
   return result;
@@ -69,7 +68,7 @@ async function loadArtwork(): Promise<ReadonlyMap<string, string>> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok || !response.body)
-    throw new Error('Pacote de emojis indisponível.');
+    throw new Error('Emoji package unavailable.');
   const compressed = await readLimited(response.body, maximum);
   const stream = new Blob([compressed])
     .stream()
@@ -98,7 +97,7 @@ export class EmojiArtwork {
         if (span.isConnected && svg) this.paint(span, svg);
       })
       .catch(() => {
-        span.title = t('Desenho do aparelho: pacote gráfico indisponível.');
+        span.title = t('Device artwork: graphic package unavailable.');
       });
     return span;
   }

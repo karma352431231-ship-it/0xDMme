@@ -6,10 +6,9 @@ export async function viewRequest(
   request: IncomingMessage,
   origin: string,
 ): Promise<unknown> {
-  if (request.method !== 'POST')
-    throw new AccountError(405, 'Método inválido.');
+  if (request.method !== 'POST') throw new AccountError(405, 'Invalid method.');
   if (request.headers.origin !== origin)
-    throw new AccountError(403, 'Origem de visualização inválida.');
+    throw new AccountError(403, 'Invalid view origin.');
   if (request.headers['content-type'] !== 'application/json')
     throw new AccountError(415, 'Use JSON.');
   const parts: Buffer[] = [];
@@ -19,17 +18,17 @@ export async function viewRequest(
   try {
     for await (const value of request) {
       if (!(value instanceof Buffer))
-        throw new AccountError(400, 'Corpo inválido.');
+        throw new AccountError(400, 'Invalid body.');
       size += value.length;
       if (size > 8192)
-        throw new AccountError(413, 'Lote de visualizações excedido.');
+        throw new AccountError(413, 'View batch exceeds the limit.');
       parts.push(value);
     }
     let input: unknown;
     try {
       input = JSON.parse(Buffer.concat(parts).toString('utf8'));
     } catch {
-      throw new AccountError(400, 'JSON inválido.');
+      throw new AccountError(400, 'Invalid JSON.');
     }
     return { items: postObservations(input) };
   } finally {

@@ -160,7 +160,7 @@ export class GroupController {
   }
   private guard(generation: number): void {
     if (this.generation !== generation)
-      throw new Error('Sessão ou grupo alterado.');
+      throw new Error('Session or group changed.');
   }
   private withAuthority<T>(
     work: (context: GroupContext) => Promise<T>,
@@ -189,11 +189,11 @@ export class GroupController {
     work: (authority: VaultAuthority) => Promise<T>,
   ): Promise<T> {
     const generation = this.generation;
-    if (!this.session) throw new Error('Entre e autorize este aparelho.');
+    if (!this.session) throw new Error('Sign in and authorize this device.');
     return this.access.withVault(true, async (authority) => {
       this.guard(generation);
       if (authority.session.accountId !== this.session?.accountId)
-        throw new Error('Conta alterada.');
+        throw new Error('Account changed.');
       const result = await work(authority);
       this.guard(generation);
       return result;
@@ -201,7 +201,7 @@ export class GroupController {
   }
   async search(query: string, after: string | null) {
     if (this.historyPending && navigator.onLine)
-      throw new Error('Confira as exclusões antes de buscar.');
+      throw new Error('Verify deletions before searching.');
     const generation = this.generation;
     return this.withLocalAuthority((authority) =>
       searchGroupCopies({
@@ -220,13 +220,13 @@ export class GroupController {
     await this.identities.load();
     const data = await this.withAuthority(async (c) => {
       const mode = object(await c.api('group-mode', {}))['mode'];
-      if (mode !== 'configured') throw new Error('Modo de grupos inválido.');
+      if (mode !== 'configured') throw new Error('Invalid group mode.');
       this.mode = mode;
       const page = object(
         await c.api('group-list', { after: more ? this.remoteNext : null }),
       );
       if (!Array.isArray(page['items']) || page['items'].length > 16)
-        throw new Error('Lista de grupos inválida.');
+        throw new Error('Invalid group list.');
       const values: unknown[] = page['items'],
         entries: GroupSummary[] = [];
       if (values.length)
@@ -235,7 +235,7 @@ export class GroupController {
             const raw = groupEvent(input),
               group = await c.governance.verify(raw.groupId);
             if ((await groupEventHash(raw)) !== group.head)
-              throw new Error('A lista de grupos mudou. Atualize.');
+              throw new Error('The group list changed. Refresh it.');
             const profile = await c.api('group-profile', {
               groupId: raw.groupId,
               head: group.head,
@@ -277,7 +277,7 @@ export class GroupController {
                     ),
               title:
                 cached === null
-                  ? t('Grupo {0}', [raw.groupId.slice(0, 8)])
+                  ? t('Group {0}', [raw.groupId.slice(0, 8)])
                   : groupTitle(cached),
             };
             entries.push(summary);
@@ -370,7 +370,7 @@ export class GroupController {
       ),
     );
     if (!Array.isArray(page['items']) || page['items'].length > 16)
-      throw new Error('Convites de grupo inválidos.');
+      throw new Error('Invalid group invitations.');
     const values: unknown[] = page['items'],
       items = values.map(groupConsent);
     this.incoming = more
@@ -409,7 +409,7 @@ export class GroupController {
       const more = await this.access.withVault(false, async (authority) => {
         guard();
         if (authority.session.accountId !== this.session?.accountId)
-          throw new Error('Conta alterada.');
+          throw new Error('Account changed.');
         const api = (op: string, payload: Record<string, unknown>) =>
           messageApi(authority, op, payload, { guard, signal: combined });
         if (!(await this.loadPrefetchGroups(progress, api))) return false;
@@ -453,11 +453,11 @@ export class GroupController {
   ): { groups: GroupEvent[]; next: string | null } {
     const page = object(value);
     if (!Array.isArray(page['items']) || page['items'].length > 16)
-      throw new Error('Lista de grupos inválida.');
+      throw new Error('Invalid group list.');
     const groups = page['items'].map((input) => groupEvent(input));
     const next = page['next'] === null ? null : uuid(page['next']);
     if (next !== null && (next === after || !groups.length))
-      throw new Error('Paginação de grupos divergente.');
+      throw new Error('Group list pagination does not match.');
     return { groups, next };
   }
   private async prefetchGroupPage(
@@ -512,14 +512,12 @@ export class GroupController {
       const profile = await cache.get('profile'),
         title =
           profile === null
-            ? t('Grupo {0}', [groupId.slice(0, 8)])
+            ? t('Group {0}', [groupId.slice(0, 8)])
             : groupTitle(profile);
       this.selected = { ...group, title };
       this.warning = '';
       if (c.authority.offline)
-        throw new Error(
-          'Conecte-se para conferir a participação atual do grupo.',
-        );
+        throw new Error('Connect to check current group membership.');
       await this.machine(c, async (machine) => {
         await this.openVerified(c, group, machine, older ? this.before : null);
       });
@@ -569,7 +567,7 @@ export class GroupController {
   }
   private async openLocal(groupId: string, older: boolean): Promise<void> {
     const group = this.entries.find((g) => g.state.groupId === groupId);
-    if (!group) throw new Error('Cópia local de grupo ausente.');
+    if (!group) throw new Error('Local group copy missing.');
     await this.withAuthority(async (c) => {
       const page = await localGroupViews(
         c.authority,
@@ -581,7 +579,7 @@ export class GroupController {
       this.historyPending = false;
       this.before = page.before;
       this.warning = t(
-        'Cópia local independente. Envio e administração exigem participação atual verificada.',
+        'Independent local copy. Sending and administration require verified current membership.',
       );
     });
   }
@@ -620,17 +618,17 @@ export class GroupController {
       if (!(error instanceof AccountError) || error.status !== 413) throw error;
       await this.confirm(api, group);
       this.warning = t(
-        'Mensagens abertas. Cofre pessoal cheio: a leitura não pôde ser registrada.',
+        'Messages opened. Personal vault full: the read could not be recorded.',
       );
     }
   }
   private applyReceipts(raw: unknown): void {
     if (!Array.isArray(raw) || raw.length > 16)
-      throw new Error('Checks de grupo inválidos.');
+      throw new Error('Invalid group delivery checks.');
     for (const input of raw) {
       const d = object(input);
       if (typeof d['received'] !== 'boolean' || typeof d['read'] !== 'boolean')
-        throw new Error('Recebimento inválido.');
+        throw new Error('Invalid receipt.');
       const view = this.views.find((v) => v.id === uuid(d['id']));
       if (view) {
         view.delivery = d['received'] ? 'received' : 'accepted';
@@ -660,13 +658,15 @@ export class GroupController {
     photo: GroupPhoto | null;
   }): Promise<void> {
     if (this.selected?.state.groupId !== input.group || this.selected.localOnly)
-      throw new Error('Abra o grupo conectado antes de alterar a foto.');
+      throw new Error('Open the connected group before changing its photo.');
     const photo = groupPhoto(input.photo);
     await this.identities.load();
     await this.authority.mutate(async (c) => {
       const group = await c.governance.verify(input.group);
       if (!groupManager(group.state, c.authority.session.accountId))
-        throw new Error('Somente dono ou administrador pode alterar a foto.');
+        throw new Error(
+          'Only the owner or administrator can change the photo.',
+        );
       await this.machine(c, (machine) =>
         publishGroupPhoto({
           ...c,
@@ -691,7 +691,7 @@ export class GroupController {
           pending = await catalog.creation();
         if (pending && pending.title !== checked)
           throw new Error(
-            'Retome a criação pendente com o mesmo nome ou descarte esse pedido antes de criar outro grupo.',
+            'Resume the pending creation with the same name or discard that request before creating another group.',
           );
         const event =
             pending?.event ??
@@ -730,14 +730,14 @@ export class GroupController {
       await this.identities.save();
     } catch (error: unknown) {
       if (created === null) throw error;
-      this.warning = t('Grupo criado. Nome ou sincronização pendente: {0}', [
+      this.warning = t('Group created. Name or sync pending: {0}', [
         error instanceof Error
           ? translatedError(error.message)
-          : t('retome ao abrir o grupo.'),
+          : t('resume when opening the group.'),
       ]);
     }
     if (created === null)
-      throw new Error('Criação não confirmada. Retome o mesmo pedido.');
+      throw new Error('Creation not confirmed. Resume the same request.');
     return created;
   }
   async cancelCreation(): Promise<void> {
@@ -752,7 +752,7 @@ export class GroupController {
     role?: 'admin' | 'member';
   }): Promise<void> {
     const selected = this.selected;
-    if (!selected) throw new Error('Abra um grupo primeiro.');
+    if (!selected) throw new Error('Open a group first.');
     await this.identities.load();
     await this.authority.mutate(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);
@@ -772,7 +772,7 @@ export class GroupController {
       result['status'] !== 'saved' ||
       result['head'] !== (await groupEventHash(event))
     )
-      throw new Error('Mudança no grupo não confirmada.');
+      throw new Error('Group change not confirmed.');
     await new GroupCache(c.authority, event.groupId).preserve(event);
   }
   async admission(
@@ -781,15 +781,14 @@ export class GroupController {
   ): Promise<string | void> {
     await this.identities.load();
     const groupId = this.selected?.state.groupId;
-    if (action !== 'join' && !groupId)
-      throw new Error('Abra um grupo primeiro.');
+    if (action !== 'join' && !groupId) throw new Error('Open a group first.');
     const result = await this.authority.mutate(async (c) => {
       const admission = new GroupAdmissions({
         ...c,
         identities: this.identities,
       });
       if (action === 'join') return admission.join(value);
-      if (!groupId) throw new Error('Abra um grupo primeiro.');
+      if (!groupId) throw new Error('Open a group first.');
       if (action === 'add') return admission.add(groupId, value);
       if (action === 'link') return admission.link(groupId);
       return admission.revoke(groupId);
@@ -799,7 +798,7 @@ export class GroupController {
   }
   async propose(target: string, kind: GroupConsent['kind']): Promise<void> {
     const selected = this.selected;
-    if (!selected) throw new Error('Abra um grupo primeiro.');
+    if (!selected) throw new Error('Open a group first.');
     await this.identities.load();
     await this.withAuthority(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);
@@ -826,7 +825,7 @@ export class GroupController {
         history = directories.get(target)?.events ?? [];
       }
       const current = history.at(-1);
-      if (!current) throw new Error('Identidade do destinatário ausente.');
+      if (!current) throw new Error('Recipient identity missing.');
       const consent = await proposeGroupConsent({
         authority: c.authority,
         state: group.state,
@@ -861,7 +860,7 @@ export class GroupController {
     selection: AttachmentSelection | null,
   ): Promise<void> {
     const selected = this.selected;
-    if (!selected) throw new Error('Abra um grupo primeiro.');
+    if (!selected) throw new Error('Open a group first.');
     await this.withAuthority((c) =>
       composeGroup({
         authority: c.authority,
@@ -879,7 +878,7 @@ export class GroupController {
       view.localOnly ||
       this.historyPending
     )
-      throw new Error('Somente seu texto conectado pode ser editado.');
+      throw new Error('Only your own synced text messages can be edited.');
     await this.authority.mutate((c) =>
       composeGroup({
         authority: c.authority,
@@ -903,7 +902,7 @@ export class GroupController {
       view.localOnly ||
       this.historyPending
     )
-      throw new Error('Somente sua mensagem conectada pode ser apagada.');
+      throw new Error('Only your own synced messages can be deleted.');
     this.removed();
     try {
       await this.authority.mutate(async (c) => {
@@ -973,7 +972,7 @@ export class GroupController {
           id: uuid(d['id']),
           text:
             d['kind'] === 'profile'
-              ? t('Atualização do grupo pendente')
+              ? t('Group update pending')
               : typeof d['text'] === 'string'
                 ? d['text']
                 : '',
@@ -993,13 +992,13 @@ export class GroupController {
     thumbnail: boolean,
   ): Promise<Uint8Array<ArrayBuffer>> {
     if (this.historyPending)
-      throw new Error('Confira as exclusões antes de abrir mídia.');
+      throw new Error('Verify deletions before opening media.');
     const selected = this.selected;
     if (
       !selected ||
       !this.views.some((v) => v.id === view.id && v.hash === view.hash)
     )
-      throw new Error('Mensagem do grupo mudou.');
+      throw new Error('Group message changed.');
     const generation = this.generation;
     return this.withAuthority(async (c) => {
       if (selected.localOnly || !navigator.onLine)
@@ -1007,7 +1006,7 @@ export class GroupController {
       const group = await c.governance.verify(selected.state.groupId),
         content = attachmentContent(JSON.parse(view.text) as unknown),
         file = thumbnail ? content.thumbnail : content.file;
-      if (!file) throw new Error('Prévia indisponível.');
+      if (!file) throw new Error('Preview unavailable.');
       await this.confirmMedia(c.api, group, view);
       const bytes = await downloadAttachment({
         account: groupCacheScope(
@@ -1046,7 +1045,9 @@ export class GroupController {
         hash: view.hash,
       })) !== true
     )
-      throw new Error('Mensagem apagada ou indisponível para abrir mídia.');
+      throw new Error(
+        'The message was deleted or is unavailable for opening media.',
+      );
   }
   private async localMedia(
     authority: VaultAuthority,
@@ -1066,7 +1067,7 @@ export class GroupController {
     }
     const content = attachmentContent(JSON.parse(view.text) as unknown),
       file = thumbnail ? content.thumbnail : content.file;
-    if (!file) throw new Error('Prévia ausente.');
+    if (!file) throw new Error('Preview missing.');
     return downloadAttachment({
       account: groupCacheScope(authority.session.accountId, view.groupId),
       message: view.id,
@@ -1074,7 +1075,7 @@ export class GroupController {
       thumbnail,
       image: thumbnail || content.image,
       api: () =>
-        Promise.reject(new Error('Mídia não conservada nesta cópia local.')),
+        Promise.reject(new Error('Media not preserved in this local copy.')),
       snapshot: null,
       guard: () => this.guard(generation),
       budget: groupQuota,
@@ -1085,7 +1086,7 @@ export class GroupController {
       await api('group-current', { groupId: group.state.groupId }),
     );
     if ((await groupEventHash(current)) !== group.head)
-      throw new Error('A participação do grupo mudou. Atualize.');
+      throw new Error('Group membership changed. Refresh it.');
   }
   async state(
     group: GroupState,
@@ -1112,7 +1113,7 @@ export class GroupController {
     next: number | null;
   }> {
     const selected = this.selected;
-    if (!selected) throw new Error('Abra um grupo primeiro.');
+    if (!selected) throw new Error('Open a group first.');
     return this.withAuthority(async (c) => {
       const scope = { groupId: selected.state.groupId, head: selected.head };
       const text = object(await c.api('group-message-usage', scope)),
@@ -1123,7 +1124,7 @@ export class GroupController {
       const raw = cleanup['notice'],
         notice = raw === null ? null : object(raw);
       if (!Array.isArray(cleanup['items']))
-        throw new Error('Aviso de limpeza inválido.');
+        throw new Error('Invalid cleanup notice.');
       return {
         textBytes: integer(text['textBytes'], groupTextQuota),
         mediaBytes: integer(media['mediaBytes'], groupMediaQuota),
@@ -1149,7 +1150,7 @@ export class GroupController {
   }
   async clearVault(): Promise<void> {
     const selected = this.selected;
-    if (!selected) throw new Error('Abra um grupo primeiro.');
+    if (!selected) throw new Error('Open a group first.');
     await this.withAuthority(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);
       await c.api('group-vault-clear', {

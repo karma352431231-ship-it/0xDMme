@@ -39,7 +39,7 @@ function signatureBytes(
     return verifiedBytes(config, signature);
   } catch {
     throw new Error(
-      'Assinatura de recuperação rejeitada: wallet, mensagem ou integridade inválida.',
+      'Recovery signature rejected: invalid wallet, message or integrity.',
     );
   }
 }
@@ -50,14 +50,14 @@ function verifiedBytes(
   const message = recoveryMessage(config);
   if (config.ecosystem === 'evm') {
     if (!/^0x[0-9a-fA-F]{130}$/u.test(signature))
-      throw new Error('Assinatura de recuperação inválida.');
+      throw new Error('Invalid recovery signature.');
     const normalized = Signature.from(signature).serialized;
     if (verifyMessage(message, normalized).toLowerCase() !== config.address)
-      throw new Error('A assinatura pertence a outra wallet.');
+      throw new Error('The signature belongs to another wallet.');
     return Uint8Array.from(getBytes(normalized));
   }
   if (!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/u.test(signature))
-    throw new Error('Assinatura de recuperação inválida.');
+    throw new Error('Invalid recovery signature.');
   const bytes = Uint8Array.from(base58.decode(signature));
   if (
     bytes.length !== 64 ||
@@ -68,7 +68,7 @@ function verifiedBytes(
       { zip215: false },
     )
   )
-    throw new Error('A assinatura pertence a outra wallet.');
+    throw new Error('The signature belongs to another wallet.');
   return bytes;
 }
 export async function walletRecoveryKey(
@@ -77,7 +77,7 @@ export async function walletRecoveryKey(
 ): Promise<CryptoKey> {
   const value = walletRecovery(config);
   if (signatures.length < 1 || signatures.length > 2)
-    throw new Error('Assinaturas de recuperação ausentes.');
+    throw new Error('Recovery signatures missing.');
   const first = signatureBytes(value, signatures[0] ?? '');
   try {
     for (const signature of signatures.slice(1)) {
@@ -86,7 +86,7 @@ export async function walletRecoveryKey(
       other.fill(0);
       if (!equal)
         throw new Error(
-          'A wallet gerou assinaturas diferentes. Use outro aparelho autorizado por QR; esta tentativa não configurou recuperação.',
+          'The wallet produced different signatures. Use another device authorized by QR; recovery was not configured in this attempt.',
         );
     }
     const material = await crypto.subtle.importKey(
@@ -164,7 +164,7 @@ async function walletOperation<T>(operation: () => Promise<T>): Promise<T> {
     ]);
   } catch {
     throw new Error(
-      'Assinatura não concluída na wallet. Confira a conta e tente novamente.',
+      'Signing was not completed in the wallet. Check the account and try again.',
     );
   } finally {
     clearTimeout(timer);
