@@ -576,3 +576,39 @@ await test('a text saved during a live recheck transmits before unrelated mainte
   f.groupLoad.resolve();
   await turn();
 });
+
+await test('a newer visible live hint yields after current contacts before unrelated groups, without aborting current work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('receiving'));
+  f.state.holdContacts = true;
+  f.state.holdGroups = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(
+    !f.calls.slice(before).includes('probe'),
+    'The current contact owner finishes first',
+  );
+  f.state.holdContacts = false;
+  f.contactLoad.resolve();
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(
+    f.calls.slice(before).includes('probe'),
+    'A fresh visible hint must not wait for unrelated groups',
+  );
+  assert.equal(
+    f.priorities.findLast((entry) => entry.operation === 'probe')?.priority,
+    'interactive',
+  );
+  f.state.holdGroups = false;
+  f.groupLoad.resolve();
+  await turn();
+});

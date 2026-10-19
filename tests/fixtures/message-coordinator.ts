@@ -83,6 +83,7 @@ export function coordinatorFixture(t: TestContext) {
   const page = deferred<boolean>();
   const initialization = deferred<void>();
   const groupLoad = deferred<void>();
+  const contactLoad = deferred<void>();
   const history = deferred<void>();
   const saving = deferred<void>();
   const sending = deferred<void>();
@@ -93,6 +94,7 @@ export function coordinatorFixture(t: TestContext) {
     holdPage: false,
     holdInitialization: false,
     holdGroups: false,
+    holdContacts: false,
     holdHistory: false,
     holdSave: false,
     holdSend: false,
@@ -205,7 +207,7 @@ export function coordinatorFixture(t: TestContext) {
       refresh: () => {
         calls.push('contacts');
         options.changed([]);
-        return Promise.resolve();
+        return state.holdContacts ? contactLoad.promise : Promise.resolve();
       },
     };
   };
@@ -476,6 +478,7 @@ export function coordinatorFixture(t: TestContext) {
     page,
     initialization,
     groupLoad,
+    contactLoad,
     history,
     saving,
     sending,

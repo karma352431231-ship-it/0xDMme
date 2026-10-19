@@ -8,10 +8,12 @@ recheck continues through contacts, groups and presence before transmission can
 claim its owner. A real coordinator regression reproduces this ordering.
 
 The synchronization owner now yields a multi-owner change recheck between steps
-when a user text or requested opening is waiting. It retains one coalesced probe
+when a user text, requested opening or newer visible live hint is waiting. It retains one coalesced probe
 for the remaining automatic work. The active authority/SDK operation finishes
 normally; no work is interrupted or run concurrently. The regression verifies
-that sending wins the next turn and unrelated maintenance resumes afterward.
+that sending or the newer live check wins the next turn and unrelated maintenance
+resumes afterward. A newer visible hint arriving during contacts does not wait
+for groups/presence; the current contact owner finishes first.
 
 Explicit queued text transmission also forwards its existing interactive priority
 through current pin loading, recipient verification, pin persistence and encrypted

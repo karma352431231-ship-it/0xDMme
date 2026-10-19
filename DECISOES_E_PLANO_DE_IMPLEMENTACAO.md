@@ -3084,7 +3084,8 @@ voice-call contract. This remains diagnostic evidence, not audio acceptance.
 
 A bounded native-tab comparison and actual coordinator regression show a saved
 user text waiting behind unrelated automatic change-refresh steps. Yield between
-those owners to the queued text or requested conversation opening, keeping one
+those owners to the queued text, requested conversation opening or newer visible
+live hint, keeping one
 coalesced probe to resume the remainder. Forward explicit queued-text interactive
 priority through fresh identity verification, pin persistence and publication;
 automatic transmissions retain maintenance priority. Preserve all authority,
