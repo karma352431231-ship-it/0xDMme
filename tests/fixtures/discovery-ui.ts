@@ -70,9 +70,20 @@ const source = bundle.outputFiles[0]?.text ?? '';
 assert.ok(source);
 
 class DiscoveryNode extends CommunityNode {
+  get parentNode(): CommunityNode | null {
+    return this.parent;
+  }
+  get childNodes(): CommunityNode[] {
+    return this.children;
+  }
+  removeChild(node: CommunityNode): CommunityNode {
+    node.remove();
+    return node;
+  }
   scrollTop = 0;
   clientHeight = 600;
   override classList = {
+    contains: (name: string) => this.className.split(' ').includes(name),
     add: (...names: string[]) => {
       this.className = [
         ...new Set([...this.className.split(' '), ...names]),
@@ -271,6 +282,11 @@ export function discoveryFixture(options: FixtureOptions = {}) {
     },
     clearInterval: (id: number) => intervals.delete(id),
     requestAnimationFrame: (work: FrameRequestCallback) => work(0),
+    queueMicrotask,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
     getComputedStyle: () => ({ overflowY: 'auto' }),
     matchMedia: () => ({ matches: false }),
     fetch: async (input: string) => {

@@ -32,6 +32,13 @@
   object-fit: contain;
   background: var(--media-backdrop);
 }
+:is(#app-shell, .community-scope)
+  :is(.community-post, .replied-post-card)
+  .community-external-gif
+  .chat-gif
+  :is(video, img) {
+  width: auto;
+}
 #app-shell
   :is(.community-post, .replied-post-card)
   .community-public-media
@@ -39,6 +46,33 @@
   height: auto;
   border: 1px solid var(--line);
   border-radius: 16px;
+}
+
+/* Size the frame itself from the approved dimensions, rather than containing
+   a portrait inside a full-width landscape frame. Preserve the whole image. */
+:is(#app-shell, .community-scope)
+  .community-public-media
+  figure.community-public-picture {
+  --picture-height: min(560px, 75vh);
+  width: min(100%, calc(var(--picture-height) * var(--picture-ratio)));
+  justify-self: start;
+}
+:is(#app-shell, .community-scope)
+  .community-public-media
+  figure.community-public-picture
+  > .public-picture-open {
+  /* Keep the same layout while viewport-based loading releases image bytes. */
+  aspect-ratio: var(--picture-ratio);
+}
+:is(#app-shell, .community-scope)
+  .community-public-media
+  figure.community-public-picture
+  .community-media-preview {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: var(--picture-ratio);
+  margin: 0;
 }
 
 /* Reply pictures/GIFs: 70% of the post presentation, then 30% smaller again
@@ -53,7 +87,12 @@
   > .community-public-media
   > figure:has(.public-picture-open) {
   /* Phones keep a readable floor. */
-  width: min(100%, clamp(180px, 49%, 314px));
+  --picture-height: min(274px, 55vh);
+  width: min(
+    100%,
+    clamp(180px, 49%, 314px),
+    calc(var(--picture-height) * var(--picture-ratio))
+  );
 }
 :is(#app-shell, .community-scope)
   .community-post:is(.community-post-is-reply, .community-reply)
@@ -67,7 +106,7 @@
   > .community-public-media
   .public-picture-open
   .community-media-preview {
-  max-height: calc(var(--community-video-height, 560px) * 0.49);
+  max-height: none;
 }
 
 /* Public videos (16/10/2026): vertical "shorts" grow to an X-like height on

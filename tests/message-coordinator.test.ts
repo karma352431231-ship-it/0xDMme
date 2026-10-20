@@ -41,7 +41,7 @@ await test('live message counts refresh before selected history and deferred con
   f.contactLoad.resolve();
 });
 
-await test('returning to the mobile directory retains the verified preview; authority loss and page departure clear it', async (t) => {
+await test('mobile directory and app tabs retain previews; authority loss and permanent departure clear them', async (t) => {
   const f = coordinatorFixture(t);
   await f.messages.openContact(peer('preview-peer'));
   await turn();
@@ -61,6 +61,18 @@ await test('returning to the mobile directory retains the verified preview; auth
   await f.messages.openContact(peer('preview-peer'));
   await turn();
   f.messages.leave();
+  assert.equal(
+    f.previews().get('preview-peer')?.text,
+    'Latest received message',
+  );
+  f.calls.length = 0;
+  f.messages.resume();
+  await turn();
+  assert.ok(
+    !f.calls.includes('contacts'),
+    'Tab return must not reset the loaded contact directory',
+  );
+  f.pageHide(false);
   assert.equal(f.previews().size, 0);
 });
 

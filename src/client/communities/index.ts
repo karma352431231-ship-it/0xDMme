@@ -790,7 +790,7 @@ export function startCommunities(
       mounted = container;
       sidebar = directoryNode;
       abort = new AbortController();
-      view = params.get('view') ?? 'feed';
+      view = params.get('view') ?? discovery.visitView();
       cursor = null;
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
@@ -812,6 +812,10 @@ export function startCommunities(
       ready();
     },
     leave,
+    pause(): void {
+      discovery.pause();
+      leave();
+    },
     /** Way back to the feed a profile was opened from, if any. */
     feedReturnTarget: (): string | null => feedReturn.target(),
     /** Another app page opened: a post reached from there returns to its community. */

@@ -4,7 +4,7 @@ import { mediaEditor } from '../community-media/index.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { GifSearch, mountGifPane } from '../gif-search/index.ts';
+import { GifSearch, mountGifPane, mountGifDraft } from '../gif-search/index.ts';
 import { communityElement as el } from './elements.ts';
 import { communityIcon } from './presentation.ts';
 export type PostEditorAccess = CommunityMediaAccess & {
@@ -29,6 +29,13 @@ export function postEditorMedia(input: {
   editor.append(area);
   mountMentionInput(input.text, input.access.signal);
   const media = mediaEditor(input.container, input.ids, input.access, controls);
+  if (input.access.privacy)
+    mountGifDraft({
+      host: input.container,
+      text: input.text,
+      privacy: input.access.privacy,
+      signal: input.access.signal,
+    });
   gifControl(controls, input);
   return media;
 }

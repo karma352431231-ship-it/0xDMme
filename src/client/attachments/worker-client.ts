@@ -1,12 +1,24 @@
 declare const ATTACHMENT_WORKER_URL: string;
 let queued = 0;
 let tail: Promise<unknown> = Promise.resolve();
+class WorkerUnavailable extends Error {}
+/** A worker can fail while fetching/starting, before it can report a file
+ * error. One fresh worker retries that local-only operation; uploads are never
+ * repeated here. A reported processing error or timeout is not retried. */
+async function workWithStartupRetry<T>(input: unknown): Promise<T> {
+  try {
+    return await runWorker<T>(input);
+  } catch (error: unknown) {
+    if (!(error instanceof WorkerUnavailable)) throw error;
+    return runWorker<T>(input);
+  }
+}
 /** Bounded serial jobs, each worker terminated to release keys/WASM/decoder memory. */
 export function attachmentWork<T>(input: unknown): Promise<T> {
   if (queued >= 4)
     return Promise.reject(new Error('Processing attachments. Please wait.'));
   queued++;
-  const result = tail.then(() => runWorker<T>(input));
+  const result = tail.then(() => workWithStartupRetry<T>(input));
   tail = result.then(
     () => {},
     () => {},
@@ -39,7 +51,9 @@ function runWorker<T>(input: unknown): Promise<T> {
           event.data.result,
         );
       worker.onerror = () =>
-        finish(new Error('Local attachment processing unavailable.'));
+        finish(
+          new WorkerUnavailable('Local attachment processing unavailable.'),
+        );
       worker.postMessage(input);
     } catch {
       finish(new Error('Could not start local attachment processing.'));

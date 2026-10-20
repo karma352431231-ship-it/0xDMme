@@ -10,6 +10,56 @@ import {
 import type { AppLanguage } from '../src/shared/i18n/index.ts';
 import { CommunityNode } from './fixtures/community-dom.ts';
 
+await test('app tabs retain the feed page, cursor, card and scroll while rechecking in the background', async (t) => {
+  const fixture = discoveryFixture({ signedIn: true });
+  t.after(() => {
+    fixture.ui.discard();
+    fixture.ui.leave();
+  });
+  const cursor = JSON.stringify({
+    filter: 'all/mixed/day',
+    anchor: '2026-10-15T12:00:00.000Z',
+    rank: 1,
+    time: '2026-10-15T12:00:00.000Z',
+    id: crypto.randomUUID(),
+  });
+  fixture.state.feed.next = cursor;
+  await settled(fixture);
+  fixture.state.feed.next = null;
+  button(fixture.host, fixture.t('Next page')).click();
+  await settled(fixture);
+  const card = fixture.host.querySelector('.community-post');
+  fixture.host.scrollTop = 640;
+  fixture.ui.pause();
+  assert.ok(
+    fixture.host.querySelector('.community-post') === null,
+    'Paused feed must detach its nodes',
+  );
+  const request = deferred<unknown>();
+  fixture.state.reply = () => request.promise;
+  fixture.mount();
+  await Promise.resolve();
+  assert.ok(
+    fixture.host.querySelector('.community-post') === card,
+    'Returning feed must reuse its card',
+  );
+  assert.equal(fixture.host.scrollTop, 640);
+  request.resolve(fixture.state.feed);
+  await settled(fixture);
+  assert.equal(fixture.requests.at(-1)?.after, cursor);
+  assert.ok(
+    fixture.host.querySelector('.community-post') === card,
+    'Identical recheck must preserve the card',
+  );
+  assert.equal(fixture.ui.bookmark()?.after, cursor);
+  fixture.ui.pause();
+  fixture.ui.discard();
+  fixture.mount();
+  await settled(fixture);
+  assert.notEqual(fixture.host.querySelector('.community-post'), card);
+  assert.equal(fixture.ui.bookmark()?.after, null);
+});
+
 for (const language of [
   'en',
   'zh-CN',

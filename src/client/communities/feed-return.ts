@@ -145,17 +145,21 @@ function sameFeed(a: FeedBookmark, b: FeedBookmark): boolean {
  * down through `release`. Media stops while the page is off screen.
  */
 export class FeedPark {
-  private requested: { bookmark: FeedBookmark; at: number } | null = null;
+  private requested: {
+    bookmark: FeedBookmark;
+    at: number;
+    visit: boolean;
+  } | null = null;
   private held: {
     nodes: Node[];
     bookmark: FeedBookmark;
     signedIn: boolean;
     release: () => void;
-    timer: ReturnType<typeof setTimeout>;
+    timer: ReturnType<typeof setTimeout> | null;
   } | null = null;
   /** A profile link in the feed was followed; the next departure keeps the page. */
-  request(bookmark: FeedBookmark): void {
-    this.requested = { bookmark, at: Date.now() };
+  request(bookmark: FeedBookmark, visit = false): void {
+    this.requested = { bookmark, at: Date.now(), visit };
   }
   get holding(): boolean {
     return this.held !== null;
@@ -180,7 +184,11 @@ export class FeedPark {
       signedIn: input.signedIn,
       release: input.release,
       bookmark: requested.bookmark,
-      timer: setTimeout(() => this.release(), heldLifetime),
+      // App-tab navigation retains one bounded page for this visit. Profile
+      // return alone keeps its existing ten-minute lifetime.
+      timer: requested.visit
+        ? null
+        : setTimeout(() => this.release(), heldLifetime),
     };
     return true;
   }
@@ -196,7 +204,7 @@ export class FeedPark {
     const held = this.held;
     if (!held) return null;
     this.held = null;
-    clearTimeout(held.timer);
+    if (held.timer) clearTimeout(held.timer);
     if (
       !bookmark ||
       !sameFeed(held.bookmark, bookmark) ||
@@ -213,7 +221,7 @@ export class FeedPark {
     this.held = null;
     this.requested = null;
     if (!held) return;
-    clearTimeout(held.timer);
+    if (held.timer) clearTimeout(held.timer);
     held.release();
   }
 }
