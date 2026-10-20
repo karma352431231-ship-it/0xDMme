@@ -131,6 +131,8 @@ async function page(
     setSession: () => {},
     reset: () => {},
     leave: () => {},
+    pause: () => {},
+    resume: () => {},
     viewChanged: () => {},
     closeContact: () => {},
     dmEvent: () => {},

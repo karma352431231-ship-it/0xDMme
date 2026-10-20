@@ -152,6 +152,8 @@ await test('selecting a GIF in post or reply changes only the draft without publ
         },
         privacy: {
           authorize: () => Promise.resolve(true),
+          subscribe: () => {},
+          permitted: () => true,
           signal: abort.signal,
         } as unknown as ExternalMediaConsent,
       },
@@ -167,6 +169,15 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     assert.equal(text.value, `Legenda\n${url}`);
     assert.equal(opened.at(-1)!.closed, true);
     assert.equal(published, 0);
+    assert.equal(
+      container
+        .querySelector('.gif-draft-previews')!
+        .querySelectorAll('.media-picker-tile').length,
+      1,
+    );
+    // Keep the URL on its own line when inserting an emoji at the end.
+    text.value += '\n';
+    text.dispatchEvent(new Event('input', { bubbles: true }));
     // One panel at a time: the next opens once this one has closed.
     await new Promise<void>((resolve) => setImmediate(resolve));
     // The emoji button opens the same panel on the emoji tab, GIF tab included.
@@ -177,6 +188,13 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     opened.at(-1)!.pick('🙂');
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.ok(text.value.includes('🙂'));
+    const preview = container.querySelector('.gif-draft-previews')!;
+    assert.equal(preview.querySelectorAll('.media-picker-tile').length, 1);
+    preview.querySelector('.media-picker-remove')!.click();
+    assert.ok(text.value.includes('Legenda'));
+    assert.ok(text.value.includes('🙂'));
+    assert.ok(!text.value.includes(url));
+    assert.equal(preview.querySelectorAll('.media-picker-tile').length, 0);
     assert.equal(published, 0);
     assert.deepEqual(await getMedia(), []);
     assert.equal(published, 0);

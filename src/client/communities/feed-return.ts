@@ -159,6 +159,10 @@ export class FeedPark {
   } | null = null;
   /** A profile link in the feed was followed; the next departure keeps the page. */
   request(bookmark: FeedBookmark, visit = false): void {
+    // The route also pauses after a profile click. Preserve that more specific
+    // return's original deadline instead of promoting it to a whole-visit hold.
+    if (visit && this.requested && Date.now() - this.requested.at <= keepWindow)
+      return;
     this.requested = { bookmark, at: Date.now(), visit };
   }
   get holding(): boolean {

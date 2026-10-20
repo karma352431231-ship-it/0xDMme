@@ -210,6 +210,7 @@ await test('feed page saved when opening a profile returns at the same position;
   assert.equal(released, 1);
   before.append(...nodes);
   park.request(bookmark);
+  park.request(bookmark, true);
   leave();
   t.mock.timers.tick(10 * 60_000);
   assert.equal(released, 2);
