@@ -31,6 +31,10 @@ export class DmDirectory {
     return this.host !== null && this.valid();
   }
   mount(host: HTMLElement, valid: () => boolean): Promise<void> {
+    if (host === this.host) {
+      this.valid = valid;
+      return this.refresh();
+    }
     this.clear();
     this.host = host;
     this.valid = valid;

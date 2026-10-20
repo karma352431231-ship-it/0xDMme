@@ -40,6 +40,7 @@ await test('public list updates previews without opening chat, reuses the row an
   };
   let text = 'First',
     pending = false;
+  let pendingList: Promise<{ items: (typeof relation)[] }> | null = null;
   const held = deferred<Map<string, ReturnType<typeof conversationPreview>>>();
   const values = () =>
     new Map([
@@ -58,7 +59,7 @@ await test('public list updates previews without opening chat, reuses the row an
       ],
     ]);
   const directory = new DmDirectory({
-    list: () => Promise.resolve({ items: [relation] }),
+    list: () => pendingList ?? Promise.resolve({ items: [relation] }),
     previews: () => (pending ? held.promise : Promise.resolve(values())),
   });
   const host = new DirectoryNode();
@@ -71,6 +72,14 @@ await test('public list updates previews without opening chat, reuses the row an
   assert.equal(host.querySelector('a'), row);
   assert.equal(row.textContent.includes('New'), true);
   assert.equal(row.querySelectorAll('time').length, 1);
+  const returningList = deferred<{ items: (typeof relation)[] }>();
+  pendingList = returningList.promise;
+  const returning = directory.mount(host as unknown as HTMLElement, () => true);
+  assert.equal(host.querySelector('a'), row);
+  returningList.resolve({ items: [relation] });
+  await returning;
+  assert.equal(host.querySelector('a'), row);
+  pendingList = null;
   pending = true;
   const refresh = directory.refresh();
   await new Promise<void>((resolve) => setImmediate(resolve));

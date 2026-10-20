@@ -17,7 +17,8 @@
   returns keep their existing ten-minute limit.
 - The Contacts view retains its mounted controls and loaded data. Private chat
   directory previews survive app-tab navigation; returning checks only selected
-  history instead of restarting the contact directory. Authorization loss,
+  history instead of restarting the contact directory. The public DM directory
+  also keeps its current rows while checking for updates on return. Authorization loss,
   session replacement, suspension and permanent departure keep their existing
   history gates. Session replacement discards retained presentation.
 

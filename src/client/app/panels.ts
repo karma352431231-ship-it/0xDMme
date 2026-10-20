@@ -172,7 +172,6 @@ export function startPanels(input: {
   }
   async function renderPublicDirectory(): Promise<void> {
     const generation = ++directoryGeneration;
-    publicDirectory.replaceChildren();
     await communities.dmDirectory(
       publicDirectory,
       () => generation === directoryGeneration,
