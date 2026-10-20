@@ -215,3 +215,26 @@ await test('confirm recusado por exclusão e revogação durante confirm permane
     assert.ok(frames.every((rows) => rows === null));
   }
 });
+await test('removal conceals rows until confirmation without clearing unrelated DOM; failure fully closes', async () => {
+  const updates: string[] = [];
+  const visibility = new MessageVisibility<string>((_rows, update) =>
+    updates.push(update),
+  );
+  const initial = visibility.begin();
+  visibility.stage(initial, ['a', 'b']);
+  visibility.complete(initial);
+  updates.length = 0;
+  visibility.close('conceal');
+  const probe = visibility.refresh();
+  visibility.discard(probe);
+  const refreshed = visibility.refresh();
+  visibility.stage(refreshed, ['b']);
+  await visibility.confirm(refreshed, () => Promise.resolve());
+  assert.deepEqual(updates, ['conceal', 'history']);
+  visibility.close('conceal');
+  const failure = visibility.refresh();
+  await assert.rejects(
+    visibility.confirm(failure, () => Promise.reject(new Error('failed'))),
+  );
+  assert.equal(updates.at(-1), 'history');
+});

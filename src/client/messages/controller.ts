@@ -1,4 +1,5 @@
 import { readBackupWindow } from './backup-window.ts';
+import { ConversationWindows } from './conversation-windows.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
 import {
   conversationHistory,
@@ -151,6 +152,7 @@ export class Messages {
   private readonly prefetch = new MessagePrefetch();
   private prefetchAbort: AbortController | null = null;
   private readonly verified = new VerifiedWindow<MessageView>();
+  private readonly conversations = new ConversationWindows<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
   constructor(
     access: VaultAccess,
@@ -166,6 +168,7 @@ export class Messages {
     this.visibility = new MessageVisibility(publish);
   }
   setSession(session: AccountSession | null): void {
+    this.conversations.setProfile(session);
     if (
       session?.accountId !== this.session?.accountId ||
       session?.csrf !== this.session?.csrf ||
@@ -179,6 +182,7 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.conversations.clear();
     this.pauseSynchronization();
     this.prefetch.reset();
     this.confirmed = null;
@@ -189,6 +193,7 @@ export class Messages {
     this.offlineIndex.reset();
   }
   hide(): void {
+    this.conversations.clear();
     this.pauseSynchronization();
     this.index.reset();
     this.confirmed = null;
@@ -197,7 +202,34 @@ export class Messages {
   }
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
+    this.conversations.invalidate();
     this.visibility.hint();
+  }
+  invalidateConversations(): void {
+    this.conversations.clear();
+  }
+  canRestore(peer: string): boolean {
+    return this.conversations.has(peer);
+  }
+  restoreSelected(): boolean {
+    if (!this.selected || this.before !== null) return false;
+    const window = this.conversations.read(this.selected);
+    if (!window) return false;
+    this.confirmed = { snapshot: window.snapshot, views: window.views };
+    this.oldest = window.oldest;
+    const token = this.visibility.begin();
+    this.visibility.stage(token, window.views);
+    this.visibility.complete(token);
+    return true;
+  }
+  /** Hide immediately, retaining verified packets only for the signed index
+   * reconciliation. A deletion event never authorizes cached navigation. */
+  removed(): void {
+    this.pauseSynchronization();
+    this.conversations.clear();
+    this.confirmed = null;
+    this.index.reset();
+    this.visibility.close('conceal');
   }
   select(peer: string | null, older = false): void {
     this.pauseSynchronization();
@@ -758,7 +790,7 @@ export class Messages {
         staged.items.filter((item) => item.kind !== 'profile')[0]?.sequence ??
         this.before;
       this.confirmed = {
-        snapshot: JSON.stringify(staged.snapshot),
+        snapshot: canonical(staged.snapshot),
         views: staged.views,
       };
       await this.refreshDelivery(staged.snapshot, generation);
@@ -778,7 +810,9 @@ export class Messages {
       await this.confirmVisible(token, staged.snapshot, generation);
       this.guard(generation);
       this.verified.remember(staged.snapshot, staged.window, staged.views);
+      this.rememberConversation(staged.snapshot);
     } catch (error: unknown) {
+      this.conversations.clear();
       this.index.reset();
       this.confirmed = null;
       this.verified.clear();
@@ -796,6 +830,14 @@ export class Messages {
         messageApi(a, 'confirm', { snapshot }, () => this.guard(generation)),
       );
       this.guard(generation);
+    });
+  }
+  private rememberConversation(snapshot: unknown): void {
+    this.conversations.confirm(snapshot);
+    if (!this.selected || this.before !== null || !this.confirmed) return;
+    this.conversations.remember(this.selected, {
+      ...this.confirmed,
+      oldest: this.oldest,
     });
   }
   private historicalView(
@@ -1485,16 +1527,18 @@ export class Messages {
         messageApi(a, 'snapshot', {}, () => this.guard(generation)),
       );
       this.guard(generation);
-      if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
+      if (this.confirmed?.snapshot === canonical(snapshot)) {
         await this.refreshDelivery(snapshot, generation);
         this.visibility.stage(token, this.confirmed.views);
         await this.confirmVisible(token, snapshot, generation);
+        this.rememberConversation(snapshot);
         return false;
       }
       this.confirmed = null;
       this.visibility.discard(token);
       return true;
     } catch (error: unknown) {
+      this.conversations.clear();
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);
@@ -1651,8 +1695,8 @@ export class Messages {
     }
   }
   async remove(view: MessageView): Promise<void> {
-    this.close();
-    notifyMessageControls();
+    this.removed();
+    notifyMessageControls('other-tabs');
     const generation = this.generation;
     await this.access.withVault(false, (a) =>
       messageApi(
@@ -1662,7 +1706,7 @@ export class Messages {
         () => this.guard(generation),
       ),
     );
-    notifyMessageControls();
+    notifyMessageControls('other-tabs');
   }
   async search(query: string, after: string | null) {
     const generation = this.generation,

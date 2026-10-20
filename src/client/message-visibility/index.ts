@@ -1,5 +1,5 @@
 /** Publishes one complete synchronized view. No intermediate history reaches the UI. */
-export type HistoryUpdate = 'history' | 'delivery';
+export type HistoryUpdate = 'history' | 'delivery' | 'conceal';
 export class MessageVisibility<T> {
   private generation = 0;
   private staged: T[] = [];
@@ -8,6 +8,7 @@ export class MessageVisibility<T> {
   private changeVersion = 0;
   private startedVersion = 0;
   private visible = false;
+  private concealed = false;
   private readonly publish: (
     rows: readonly T[] | null,
     update: HistoryUpdate,
@@ -23,6 +24,7 @@ export class MessageVisibility<T> {
     this.staged = [];
     this.update = update;
     this.visible = false;
+    this.concealed = update === 'conceal';
     this.publish(null, update);
   }
   begin(update: HistoryUpdate = 'history'): number {
@@ -31,7 +33,7 @@ export class MessageVisibility<T> {
   }
   /** Retain only the last complete view while preparing a normal update. */
   refresh(update: HistoryUpdate = 'history'): number {
-    if (!this.visible) return this.begin(update);
+    if (!this.visible && !this.concealed) return this.begin(update);
     this.generation++;
     this.staged = [];
     this.update = update;
@@ -73,6 +75,7 @@ export class MessageVisibility<T> {
     this.staged = [];
     this.token = null;
     this.visible = true;
+    this.concealed = false;
     this.publish(rows, this.update);
     return true;
   }

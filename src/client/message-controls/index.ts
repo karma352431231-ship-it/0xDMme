@@ -17,9 +17,12 @@ export function observeMessageControls(changed: () => void): () => void {
     if (channel === current) channel = null;
   };
 }
-export function notifyMessageControls(): void {
+export function notifyMessageControls(
+  scope: 'all' | 'other-tabs' = 'all',
+): void {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new Event('0xdmme-message-controls'));
+  if (scope === 'all')
+    window.dispatchEvent(new Event('0xdmme-message-controls'));
   if (typeof BroadcastChannel === 'undefined') return;
   const sender = channel ?? new BroadcastChannel('0xdmme-message-controls');
   sender.postMessage('changed');

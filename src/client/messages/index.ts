@@ -52,7 +52,6 @@ import {
   showExternalGif,
 } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
-import { externalVideoIds } from '../../shared/external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
@@ -71,6 +70,7 @@ import type { VaultSync } from '../vault-sync/index.ts';
 import { Contacts } from '../contacts/index.ts';
 import { Messages, receivedState } from './controller.ts';
 import type { MessageView } from './controller.ts';
+import { messageRowKeys } from './row-keys.ts';
 type ConversationPeer = Peer & { localOnly?: boolean };
 export function startMessages(
   access: VaultAccess,
@@ -246,6 +246,7 @@ export function startMessages(
   const live = new LiveMessages({
     access,
     changed: () => {
+      if (!live.connected) controller.invalidateConversations();
       options.liveState?.(live.connected);
       const label = node('[data-message-live]');
       if (label) label.textContent = live.notice;
@@ -257,7 +258,9 @@ export function startMessages(
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
-      requestRefresh(event === 'changed' ? 'probe' : 'refresh');
+      requestRefresh(
+        event === 'changed' || event === 'removed' ? 'probe' : 'refresh',
+      );
     },
   });
   function invalidateGroupAuthority(event: LiveEvent): void {
@@ -276,7 +279,7 @@ export function startMessages(
     else if (event === 'removed') {
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
-      controller.hide();
+      controller.removed();
       groups.suspend();
       menu.close();
       searchPanel.close();
@@ -586,16 +589,13 @@ export function startMessages(
     update: HistoryUpdate,
   ): void {
     if (update === 'history') {
-      attachments.clearMedia();
+      const views = dailyViews(rows ?? []);
+      const keys = messageRowKeys(views);
       externalRows.render(
         history,
-        dailyViews(rows ?? []).map((view) => ({
+        views.map((view) => ({
           id: view.id,
-          key:
-            view.kind === 'text' &&
-            externalVideoIds(view.content.text).length > 0
-              ? JSON.stringify([view.content, view.reactions, view.archived])
-              : null,
+          key: keys.get(view.id)!,
           render: (signal) => renderMessage(view, signal),
         })),
         externalAbort.signal,
@@ -734,6 +734,7 @@ export function startMessages(
   ): void {
     if (view.kind === 'attachment') {
       attachments.render({
+        signal: mediaSignal,
         article,
         view,
         load: (v, thumb) => controller.media(v, thumb),
@@ -1095,10 +1096,31 @@ export function startMessages(
     return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
   }
   function reopenSelectedPeer(peer: ConversationPeer): boolean {
-    if (selected?.accountId !== peer.accountId || rows === null || failed)
+    if (busy || failed || !groups.canActivate()) return false;
+    if (selected?.accountId === peer.accountId && rows !== null) {
+      showDirectConversation();
+      enterConversation();
+      return true;
+    }
+    return restorePeer(peer);
+  }
+  function restorePeer(peer: ConversationPeer): boolean {
+    if (
+      !live.connected ||
+      !navigator.onLine ||
+      document.visibilityState !== 'visible' ||
+      peer.localOnly ||
+      voice.active ||
+      attachments.selected?.voice ||
+      !controller.canRestore(peer.accountId)
+    )
       return false;
-    showDirectConversation();
-    enterConversation();
+    stopPreload();
+    selectPeer(peer);
+    if (!controller.restoreSelected()) return false;
+    message = 'Conversas atualizadas.';
+    status();
+    void maintainPresence();
     return true;
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
@@ -1510,6 +1532,18 @@ export function startMessages(
     searchPanel.close();
     renderHistory();
   }
+  function releaseViewResources(): void {
+    externalAbort.abort();
+    externalRows.clear();
+    externalAbort = new AbortController();
+    groups.leave();
+    if (voice.active)
+      void voice.stop(
+        'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
+      );
+    attachments.clearMedia();
+    attachments.pausePreview();
+  }
   window.addEventListener('0xdmme-attachment-progress', (event) => {
     const progress = (event as CustomEvent<{ done: number; total: number }>)
       .detail;
@@ -1812,6 +1846,7 @@ export function startMessages(
     setSession(value: AccountSession | null): void {
       if (sameSession(value)) {
         session = value;
+        controller.setSession(value);
         daily.setSession(value);
         groups.setSession(value);
         return;
@@ -1865,20 +1900,20 @@ export function startMessages(
       !attachments.selected?.voice &&
       groups.canActivate(),
     leave(): void {
-      externalAbort.abort();
-      externalRows.clear();
-      externalAbort = new AbortController();
       suspend();
-      groups.leave();
-      if (voice.active)
-        void voice.stop(
-          'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
-        );
-      attachments.clearMedia();
-      attachments.pausePreview();
+      releaseViewResources();
     },
     viewChanged(): void {
-      if (!conversationVisible()) this.leave();
+      if (conversationVisible()) return;
+      // Collapsing the chat to its contact list is navigation inside the active
+      // session, not suspension. Cancel reads without discarding verified peers.
+      stopPreload();
+      controller.select(null);
+      groups.suspend();
+      menu.close();
+      emojiPicker.close();
+      searchPanel.close();
+      releaseViewResources();
     },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;

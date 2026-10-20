@@ -144,6 +144,7 @@ export class AttachmentUi {
     }
   }
   render<V extends MediaView>(input: {
+    signal?: AbortSignal;
     content?: AttachmentContent;
     saveNotice?: string;
     article: HTMLElement;
@@ -152,12 +153,28 @@ export class AttachmentUi {
     run: (work: () => Promise<void>) => Promise<void>;
   }): void {
     const token = this.generation;
+    const urls: string[] = [];
+    input.signal?.addEventListener(
+      'abort',
+      () => {
+        for (const url of urls) {
+          URL.revokeObjectURL(url);
+          const index = this.urls.indexOf(url);
+          if (index !== -1) this.urls.splice(index, 1);
+        }
+      },
+      { once: true },
+    );
     renderMedia({
       ...input,
       playback: this.playback,
-      current: () => token === this.generation && input.article.isConnected,
+      current: () =>
+        !input.signal?.aborted &&
+        token === this.generation &&
+        input.article.isConnected,
       retain: (url) => {
         this.urls.push(url);
+        urls.push(url);
       },
       enqueue: (work) => this.enqueue(work),
     });

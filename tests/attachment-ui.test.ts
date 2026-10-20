@@ -118,9 +118,11 @@ function render(
   ui: AttachmentUi,
   load: () => Promise<Uint8Array<ArrayBuffer>>,
   media = content(),
+  signal?: AbortSignal,
 ) {
   const article = new MediaNode('article');
   ui.render({
+    ...(signal ? { signal } : {}),
     article: article as unknown as HTMLElement,
     content: media,
     view: { id: crypto.randomUUID(), text: '', peer: crypto.randomUUID() },
@@ -173,6 +175,18 @@ await test('imagem antiga enviada como arquivo aparece automaticamente e mantém
   assert.equal(save?.href, 'blob:synthetic-1');
   ui.clearMedia();
   assert.deepEqual(revoked, ['blob:synthetic-1']);
+});
+await test('removing one message releases only its image URL and preserves unrelated media', async (t) => {
+  const { ui, revoked } = environment(t);
+  const first = new AbortController(),
+    second = new AbortController();
+  render(ui, () => Promise.resolve(png()), content(), first.signal);
+  render(ui, () => Promise.resolve(png()), content(), second.signal);
+  await flush();
+  first.abort();
+  assert.deepEqual(revoked, ['blob:synthetic-1']);
+  ui.clearMedia();
+  assert.deepEqual(revoked, ['blob:synthetic-1', 'blob:synthetic-2']);
 });
 await test('arquivo genérico permanece sob demanda e HTML não é renderizado no chat', async (t) => {
   const { ui, blobs } = environment(t);
