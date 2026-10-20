@@ -4,6 +4,8 @@ import type { TestContext } from 'node:test';
 import { startActivity } from '../src/client/activity/index.ts';
 import type { ActivitySources } from '../src/client/activity/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
+import { deferred } from './fixtures/deferred.ts';
+import { AuthorityWork } from '../src/client/devices/authority-work.ts';
 const session = { accountId: 'a', deviceId: 'd', csrf: 'c' } as AccountSession;
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 function fixture(t: TestContext, overrides: Partial<ActivitySources> = {}) {
@@ -195,5 +197,76 @@ await test('authority loss ignores an older pending request response', async (t)
   f.activity.event('revoked');
   release();
   await settle();
+  assert.equal(f.counts.at(-1), 0);
+});
+
+await test('activity leaves only one source in the authority queue and yields to the current conversation', async (t) => {
+  const authority = new AuthorityWork(),
+    first = deferred<void>();
+  const started: string[] = [],
+    queued: string[] = [];
+  const source = (name: string) => {
+    queued.push(name);
+    return authority.run(async () => {
+      started.push(name);
+      if (name === 'requests') await first.promise;
+      return [];
+    });
+  };
+  const f = fixture(t, {
+    requests: () => source('requests'),
+    groupInvites: () => source('invites'),
+    replies: () => source('replies'),
+    transfers: () => source('transfers'),
+    moderation: () => source('moderation'),
+    mentions: () => source('mentions'),
+    upvotes: () => source('upvotes'),
+  });
+  const read = f.activity.refresh();
+  await settle();
+  assert.deepEqual(
+    queued,
+    ['requests'],
+    'Other sources must not fill the shared queue before the active source settles',
+  );
+  const history = authority.run(() => {
+    started.push('selected-history');
+    return Promise.resolve();
+  }, 'interactive');
+  first.resolve();
+  await Promise.all([read, history]);
+  assert.deepEqual(started.slice(0, 3), [
+    'requests',
+    'selected-history',
+    'invites',
+  ]);
+  assert.equal(queued.length, 7);
+  assert.equal(f.counts.at(-1), 0);
+});
+
+await test('revocation stops activity sources that have not started, while clearing the previous projection', async (t) => {
+  const first = deferred<void>();
+  const started: string[] = [];
+  const f = fixture(t, {
+    requests: () => {
+      started.push('requests');
+      return first.promise.then(() => []);
+    },
+    replies: () => {
+      started.push('replies');
+      return Promise.resolve([]);
+    },
+    groupInvites: () => {
+      started.push('invites');
+      return Promise.resolve([]);
+    },
+  });
+  f.activity.ready();
+  t.mock.timers.tick(150);
+  await settle();
+  f.activity.event('revoked');
+  first.resolve();
+  await settle();
+  assert.deepEqual(started, ['requests']);
   assert.equal(f.counts.at(-1), 0);
 });

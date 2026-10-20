@@ -114,3 +114,60 @@ await test('logout discards the old signed list without reopening a DM view', as
   assert.equal(f.host.textContent, '');
   assert.equal(f.calls.filter((call) => call === 'list').length, 1);
 });
+
+await test('visible handle conversation opening and live reception retain foreground authority priority', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'recipient');
+  await turn();
+  assert.deepEqual(f.priorities, [
+    { operation: 'initialize', priority: 'interactive' },
+    { operation: 'state', priority: 'interactive' },
+    { operation: 'read', priority: 'interactive' },
+  ]);
+  f.priorities.length = 0;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(f.priorities, [
+    { operation: 'state', priority: 'interactive' },
+    { operation: 'read', priority: 'interactive' },
+  ]);
+});
+
+await test('hidden handle hints coalesce until visible and removal still closes immediately', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'recipient');
+  await turn();
+  const before = f.calls.filter((call) => call === 'read:recipient').length;
+  f.visibility('hidden');
+  for (let count = 0; count < 4; count++) f.emit('changed');
+  f.emit('removed');
+  assert.equal(f.views.at(-1)?.history.hidden, true);
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.equal(
+    f.calls.filter((call) => call === 'read:recipient').length,
+    before,
+  );
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.filter((call) => call === 'read:recipient').length,
+    before + 1,
+  );
+  assert.equal(f.views.at(-1)?.history.hidden, false);
+  const settled = f.calls.length;
+  f.visibility('hidden');
+  f.visibility('visible');
+  f.emit('call');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.length,
+    settled,
+    'Healthy visibility and call-only hints must not create idle history polling',
+  );
+});

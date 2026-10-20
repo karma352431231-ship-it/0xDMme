@@ -257,6 +257,46 @@ await test('a user opening waits for one current maintenance step, not every sta
   assert.ok(!f.calls.includes('heartbeat'));
 });
 
+await test('a coalesced full refresh retains the visible live request priority after startup', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  await f.messages.openContact(peer('recipient'));
+  f.directoryWork.length = 0;
+  f.lose();
+  f.messages.ready();
+  f.emit('ready');
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.directoryWork.length > 0);
+  assert.ok(
+    f.directoryWork.every((work) => work.priority === 'interactive'),
+    'An upgraded live request must not become ordinary maintenance during directory loading',
+  );
+});
+
+await test('removal closes the current conversation before secondary live consumers can enqueue work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const order: string[] = [];
+  const f = coordinatorFixture(t, {
+    liveEvent: () => {
+      order.push(
+        f.calls.includes('removed') ? 'closed-first' : 'secondary-first',
+      );
+    },
+  });
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await f.messages.openContact(peer('recipient'));
+  f.emit('removed');
+  assert.deepEqual(order, ['closed-first']);
+});
+
 await test('returning from page cache resumes startup maintenance and preference handling', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
@@ -785,7 +825,6 @@ await test('first visible directory startup preserves its priority through conta
   await f.messages.openContact(peer('selected-after-startup'));
   f.directoryWork.length = 0;
   f.emit('authorization');
-  f.emit('changed');
   t.mock.timers.tick(150);
   await turn();
   assert.equal(f.directoryWork.length, 1);

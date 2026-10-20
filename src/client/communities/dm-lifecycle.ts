@@ -5,6 +5,7 @@ export function bindDmLifecycle(options: {
   pause: () => void;
   refresh: () => void;
   reconnect: () => void;
+  visible?: () => void;
 }): () => void {
   const abort = new AbortController(),
     signal = abort.signal;
@@ -25,7 +26,10 @@ export function bindDmLifecycle(options: {
   document.addEventListener(
     'visibilitychange',
     () => {
-      if (document.visibilityState === 'visible') resume();
+      if (document.visibilityState === 'visible') {
+        resume();
+        options.visible?.();
+      }
     },
     { signal },
   );

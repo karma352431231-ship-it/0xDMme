@@ -101,3 +101,46 @@ de histórico e composição. Uma separação ampla deve ocorrer em tarefa próp
 primeiro montagem/ciclo de vida, depois projeção de histórico/mídia, por último
 transporte/armazenamento; validar navegação, geração de sessão, E2EE, revogação,
 remoções, retries e limpeza de mídia em cada corte.
+
+## Handle DM delivery priority — 20 October 2026
+
+The owner extended the private-delivery investigation to DMs through a public
+handle. The paired browser capture established a private-conversation delay;
+it did not measure handle-DM latency. Source inspection and regressions confirm
+that handle conversation IO previously lost foreground priority and automatic
+live hints could start hidden-page history refreshes.
+
+Visible handle conversations now propagate the existing authority work options
+through opening/state, initialization, signed history snapshots, encrypted cursor
+read/write, missing history pages, recovery-secret access, cached projection,
+pending-draft recovery and delivery/read checks. Explicit text/edit/reaction and
+media transmission use interactive authority work. Directory previews, account
+backup/export and ordinary background calls retain their maintenance defaults.
+No authorization result or decrypted content is reused as a new authority.
+
+Automatic hints coalesce while hidden and resume when the page becomes visible,
+including a healthy stream that does not need reconnecting. A healthy return
+without pending work creates no polling. Call-only hints do not refresh DM
+history. Removal, authorization loss, revocation and actual suspension still
+invalidate immediately; active work settles with its existing generation guards.
+All signed snapshots/removals, E2EE, recovery, durability, acknowledgement and
+consent rules remain. There is no new timer, dependency, backend or wire change.
+
+Regressions cover visible opening/receiving priority, signed snapshot/cursor/local
+projection boundaries, maintenance-only directory previews, hidden hint
+coalescing, removal before visibility and healthy idle return. The foreground and
+hidden-source cases fail against the preceding main behavior. Existing opening,
+stream loss, cancellation, history-cursor and public-message security tests
+remain required. Test fixtures replace IO only where explicitly documented;
+they do not certify physical-device or live-server latency.
+
+**Ponto importante:** this source correction stays on the owner's requested task
+branch, without main integration or deployment. A new paired capture on affected
+handle-DM devices is still needed to measure the outcome. `communities/dms.ts`
+and `social-dm/index.ts` remain hotspots. Proposed separate work: first
+`communities/dm-session.ts`, then `social-dm/crypto-session.ts`, then
+`social-dm/history-reader.ts` and `social-dm/media.ts`. Risks are stale-session
+reads, overlapping SDK owners, recovery divergence and missed removals; preserve
+the coordinator/lifecycle, real-SDK recovery, history-snapshot and media/export
+regressions at each step. The present change only forwards scheduling options
+through existing operations.

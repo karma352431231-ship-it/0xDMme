@@ -11,7 +11,10 @@ import { VoicePlayback } from '../voice-playback/index.ts';
 import { LiveMessages } from '../message-live/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { SocialDms } from '../social-dm/index.ts';
-import type { VaultAccess } from '../vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { historyPosition, resetHistoryPosition } from '../chat-ui/index.ts';
 import { communityElement } from './elements.ts';
@@ -25,7 +28,7 @@ import {
   paintDmPeer,
 } from './dm-chat.ts';
 import type { DmView } from './dm-chat.ts';
-import { openDmConversation } from './dm-opening.ts';
+import { openDmConversation, dmConversationWork } from './dm-opening.ts';
 import { startDmComposer } from './dm-composer.ts';
 import { DmWork } from './dm-work.ts';
 import { bindDmLifecycle } from './dm-lifecycle.ts';
@@ -87,6 +90,7 @@ export function startSocialDmUi(
   const live = new LiveMessages({
     access,
     event: (event) => {
+      if (event === 'call') return;
       if (!container && !publicDirectory.available) return;
       if (
         [
@@ -117,6 +121,7 @@ export function startSocialDmUi(
   const refreshes = new LiveUpdates({
     available: () =>
       (!!container || publicDirectory.available) &&
+      document.visibilityState === 'visible' &&
       !busy &&
       !composer.active &&
       !live.connecting,
@@ -135,6 +140,7 @@ export function startSocialDmUi(
       },
       refresh: () => refreshes.request(),
       reconnect: () => live.retry(),
+      visible: () => refreshes.resume(),
     });
   }
   function startFallback(): void {
@@ -353,12 +359,17 @@ export function startSocialDmUi(
     });
     host.append(button);
   }
-  async function identity(id: string): Promise<PublicProfile> {
+  async function identity(
+    id: string,
+    work: VaultWorkOptions = {},
+  ): Promise<PublicProfile> {
     // UUID is not a directory of private contacts. Only already-approved public identities are returned.
-    const page = await controller.list(null);
+    const page = await controller.list(null, work);
     const known = page.items.find((row) => row.peer.id === id);
     if (known) return known.peer;
-    return publicProfile(await controller.request('profile', { peer: id }));
+    return publicProfile(
+      await controller.request('profile', { peer: id }, work),
+    );
   }
   /** One frame per conversation: refreshes update it in place. */
   function frame(selected: string): DmView {
@@ -380,10 +391,14 @@ export function startSocialDmUi(
     return view;
   }
   /** What the server (or, offline, this device) knows about the conversation. */
-  async function loadConversation(selected: string, usable: () => boolean) {
+  async function loadConversation(
+    selected: string,
+    usable: () => boolean,
+    work: VaultWorkOptions,
+  ) {
     const offline = localOnly || !navigator.onLine;
     if (offline) {
-      const page = await controller.cached(selected, before);
+      const page = await controller.cached(selected, before, work);
       return {
         offline,
         value: null,
@@ -391,12 +406,12 @@ export function startSocialDmUi(
         profile: page.items[0]?.peer ?? null,
       };
     }
-    const value = await openDmConversation(controller, selected, usable);
+    const value = await openDmConversation(controller, selected, usable, work);
     return {
       offline,
       value,
       page: null,
-      profile: value?.peer ?? (await identity(selected)),
+      profile: value?.peer ?? (await identity(selected, work)),
     };
   }
   async function conversation(): Promise<void> {
@@ -404,9 +419,11 @@ export function startSocialDmUi(
     if (!selected || !container) return;
     const old = generation,
       expected = verification,
+      work = dmConversationWork(),
       data = await loadConversation(
         selected,
         () => old === generation && expected === verification,
+        work,
       );
     if (old !== generation || expected !== verification || !container) return;
     const current = frame(selected);
@@ -420,7 +437,7 @@ export function startSocialDmUi(
     current.request.hidden = gate === null;
     current.request.textContent = gate ?? '';
     writable = !data.offline && gate === null;
-    await messages(current, selected, old, data.page);
+    await messages(current, selected, old, { cached: data.page, work });
   }
   function paintHeader(
     current: DmView,
@@ -440,16 +457,20 @@ export function startSocialDmUi(
     current: DmView,
     selected: string,
     old: number,
-    cached: DmPage | null,
+    input: { cached: DmPage | null; work: VaultWorkOptions },
   ): Promise<void> {
     const expected = verification;
     const page =
-      cached ??
+      input.cached ??
       (writable
-        ? await controller.read(selected, before)
-        : await controller.cached(selected, before));
-    const draft = writable ? await controller.pending(selected) : null;
-    pendingMedia = writable ? await controller.mediaDraft(selected) : false;
+        ? await controller.read(selected, before, input.work)
+        : await controller.cached(selected, before, input.work));
+    const draft = writable
+      ? await controller.pending(selected, input.work)
+      : null;
+    pendingMedia = writable
+      ? await controller.mediaDraft(selected, input.work)
+      : false;
     if (old !== generation || expected !== verification) return;
     if (draft) {
       messageId = draft.id;
@@ -465,6 +486,7 @@ export function startSocialDmUi(
         peer: selected,
         items: page.items,
         reactionReads: page.reactionReads,
+        work: input.work,
         usable: () =>
           old === generation && writable && current.history.isConnected,
       });
@@ -691,7 +713,8 @@ export function startSocialDmUi(
       void run(async () => {
         const profile =
           navigator.onLine && !localOnly
-            ? (ownProfile ?? (await controller.initialize()))
+            ? (ownProfile ??
+              (await controller.initialize(id ? dmConversationWork() : {})))
             : ownProfile;
         if (old !== generation) return;
         ownProfile = profile;

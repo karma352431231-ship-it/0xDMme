@@ -10,6 +10,7 @@ import { VaultSync } from '../../src/client/vault-sync/index.ts';
 import type {
   VaultAccess,
   VaultAuthority,
+  VaultWorkOptions,
 } from '../../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 
@@ -89,6 +90,10 @@ class DmNode extends CommunityNode {
 export function dmCoordinatorFixture(t: TestContext) {
   const calls: string[] = [],
     held = deferred<unknown>();
+  const priorities: {
+    operation: string;
+    priority: VaultWorkOptions['priority'];
+  }[] = [];
   let hold = false;
   let emit: (event: LiveEvent) => void = () => {};
   let liveChanged: () => void = () => {};
@@ -157,11 +162,16 @@ export function dmCoordinatorFixture(t: TestContext) {
     SocialDms: function () {
       // Keep the actual session/cancellation guards and signed list transport.
       return Object.assign(new SocialDms(access, new VaultSync(access)), {
-        initialize: () => {
+        initialize: (options: VaultWorkOptions = {}) => {
+          priorities.push({
+            operation: 'initialize',
+            priority: options.priority,
+          });
           calls.push('initialize');
           return Promise.resolve('self');
         },
-        state: (peer: string) => {
+        state: (peer: string, options: VaultWorkOptions = {}) => {
+          priorities.push({ operation: 'state', priority: options.priority });
           calls.push('state:' + peer);
           return hold
             ? held.promise
@@ -171,7 +181,12 @@ export function dmCoordinatorFixture(t: TestContext) {
                 canSend: true,
               });
         },
-        read: (peer: string) => {
+        read: (
+          peer: string,
+          _before: number | null,
+          options: VaultWorkOptions = {},
+        ) => {
+          priorities.push({ operation: 'read', priority: options.priority });
           calls.push('read:' + peer);
           return Promise.resolve(page());
         },
@@ -294,6 +309,11 @@ export function dmCoordinatorFixture(t: TestContext) {
     ui,
     host: host as unknown as HTMLElement,
     calls,
+    priorities,
+    visibility: (value: 'visible' | 'hidden') => {
+      document.visibilityState = value;
+      document.dispatchEvent(new Event('visibilitychange'));
+    },
     views,
     emit: (event: LiveEvent) => emit(event),
     changeLive: (current: boolean, handshake = false) => {

@@ -5,6 +5,7 @@ import { resumeFixture } from './fixtures/message-resume.ts';
 import { AuthorityWork } from '../src/client/devices/authority-work.ts';
 import { deferred } from './fixtures/deferred.ts';
 import type { VaultAccess } from '../src/client/vault-authority/index.ts';
+import type { VaultWorkOptions } from '../src/client/vault-authority/index.ts';
 
 await test('restoring outgoing text uses current authority and excludes other recipients, attachments and message actions', async () => {
   const { controller, data, peer } = resumeFixture();
@@ -448,6 +449,12 @@ for (const interactive of [false, true])
       return value;
     };
     t.mock.method(f.access, 'withVault', scheduled);
+    // Model a pending encrypted pin write at the existing persistence boundary,
+    // so the test also catches a priority dropped between reading and exposing.
+    const savePins = f.controller.savePins.bind(f.controller);
+    t.mock.method(f.controller, 'savePins', (options: VaultWorkOptions = {}) =>
+      scheduled(false, () => savePins(options), options),
+    );
     await f.controller.synchronize(
       interactive ? { priority: 'interactive' } : {},
     );

@@ -1,5 +1,6 @@
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 const reactionReads = new WeakMap<
   HTMLElement,
   {
@@ -20,16 +21,20 @@ export async function refreshDmChecks(input: {
   items: Array<{ id: string; own: boolean }>;
   usable: () => boolean;
   reactionReads?: readonly string[];
+  work?: VaultWorkOptions;
 }): Promise<void> {
   if (!(await readDmReactions(input))) return;
-  const status = await input.controller.messageStates({
-    peer: input.peer,
-    read:
-      document.visibilityState === 'visible'
-        ? input.items.filter((item) => !item.own).map((item) => item.id)
-        : [],
-    own: input.items.filter((item) => item.own).map((item) => item.id),
-  });
+  const status = await input.controller.messageStates(
+    {
+      peer: input.peer,
+      read:
+        document.visibilityState === 'visible'
+          ? input.items.filter((item) => !item.own).map((item) => item.id)
+          : [],
+      own: input.items.filter((item) => item.own).map((item) => item.id),
+    },
+    input.work,
+  );
   if (!input.usable()) return;
   const byId = new Map(status.map((item) => [item.id, item]));
   for (const row of input.history.querySelectorAll<HTMLElement>(
@@ -84,11 +89,14 @@ async function readDmReactions(
   for (let offset = 0; offset < ids.length; offset += 16) {
     if (!input.usable() || document.visibilityState !== 'visible') return false;
     const batch = ids.slice(offset, offset + 16);
-    await input.controller.messageStates({
-      peer: input.peer,
-      own: [],
-      read: batch,
-    });
+    await input.controller.messageStates(
+      {
+        peer: input.peer,
+        own: [],
+        read: batch,
+      },
+      input.work,
+    );
     if (!input.usable()) return false;
     for (const id of batch) seen.add(id);
   }

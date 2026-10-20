@@ -75,7 +75,11 @@ import {
   socialRevision,
 } from '../../shared/social-dm/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
-import type { VaultAccess, VaultAuthority } from '../vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultAuthority,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import {
   readSocialDirectory,
@@ -142,46 +146,62 @@ export class SocialDms {
   async request(
     operation: string,
     payload: Record<string, unknown>,
+    options: VaultWorkOptions = {},
   ): Promise<unknown> {
     const generation = this.generation;
     this.guard(generation);
-    return this.access.withVault(false, (authority) =>
-      this.privateApi(authority, generation)(operation, payload),
+    return this.access.withVault(
+      false,
+      (authority) => this.privateApi(authority, generation)(operation, payload),
+      options,
     );
   }
-  async list(after: string | null) {
-    return socialPage(await this.request('list', { after }));
+  async list(after: string | null, options: VaultWorkOptions = {}) {
+    return socialPage(await this.request('list', { after }, options));
   }
-  async state(peer: string): Promise<SocialRelation | null> {
-    const value = await this.request('state', { peer });
+  async state(
+    peer: string,
+    options: VaultWorkOptions = {},
+  ): Promise<SocialRelation | null> {
+    const value = await this.request('state', { peer }, options);
     return value === null ? null : socialRelation(value);
   }
-  async initialize(): Promise<string> {
-    return this.withCrypto(({ authority }) =>
-      Promise.resolve(authority.session.accountId),
+  async initialize(options: VaultWorkOptions = {}): Promise<string> {
+    return this.withCrypto(
+      ({ authority }) => Promise.resolve(authority.session.accountId),
+      options,
     );
   }
   private async secret(
     directory: SocialDirectoryPage,
     generation: number,
+    options: VaultWorkOptions,
   ): Promise<string> {
-    const wrapped = await this.request('secret-get', {});
+    const wrapped = await this.request('secret-get', {}, options);
     if (wrapped !== null)
-      return this.access.withVault(false, (a) => this.openSecret(a, wrapped));
-    const restored = await this.access.withVault(false, (a) =>
-      historyRecord(a, 'dm-identity', directory.profile),
+      return this.access.withVault(
+        false,
+        (a) => this.openSecret(a, wrapped),
+        options,
+      );
+    const restored = await this.access.withVault(
+      false,
+      (a) => historyRecord(a, 'dm-identity', directory.profile),
+      options,
     );
     if (restored?.type === 'dm-identity') {
-      const recovered = await this.access.withVault(false, (a) =>
-        this.openSecret(a, JSON.parse(restored.value) as unknown),
+      const recovered = await this.access.withVault(
+        false,
+        (a) => this.openSecret(a, JSON.parse(restored.value) as unknown),
+        options,
       );
-      return this.preserveSecret(recovered);
+      return this.preserveSecret(recovered, options);
     }
     const deadline = Date.now() + 60_000;
     do {
       if (Date.now() > deadline)
         throw new Error('Sincronização do cofre das DMs não terminou.');
-      await this.sync.refresh();
+      await this.sync.refresh(options);
       this.guard(generation);
     } while (!this.sync.complete);
     const entries = [...this.sync.currentHeads().values()]
@@ -198,31 +218,36 @@ export class SocialDms {
       );
     if (entries[0]) {
       const data = object(
-        JSON.parse(await this.sync.open(entries[0].commit.id)) as unknown,
+        JSON.parse(
+          (await this.sync.openMany([entries[0].commit.id], options))[0]!,
+        ) as unknown,
       );
       this.guard(generation);
       keys(data, ['secret']);
       if (base64(data['secret'], 32).length !== 32)
         throw new Error('Segredo das DMs inválido.');
-      return this.preserveSecret(data['secret'] as string);
+      return this.preserveSecret(data['secret'] as string, options);
     }
     if (directory.events.length)
       throw new Error(
         'Segredo das DMs ausente do cofre. Restaure seu cofre antes de continuar.',
       );
     const secret = newSecret();
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity: directory.profile,
-        kind: 'contact',
-        parents: [],
-        label: 'Recuperação das DMs pelo @',
+    await this.sync.save(
+      {
+        change: {
+          version: 1,
+          entity: directory.profile,
+          kind: 'contact',
+          parents: [],
+          label: 'Recuperação das DMs pelo @',
+        },
+        value: JSON.stringify({ secret }),
       },
-      value: JSON.stringify({ secret }),
-    });
+      options,
+    );
     this.guard(generation);
-    return this.preserveSecret(secret);
+    return this.preserveSecret(secret, options);
   }
   private async openSecret(a: VaultAuthority, raw: unknown): Promise<string> {
     const d = object(raw),
@@ -238,22 +263,29 @@ export class SocialDms {
       throw new Error('Segredo das DMs inválido.');
     return secret;
   }
-  private async preserveSecret(secret: string): Promise<string> {
+  private async preserveSecret(
+    secret: string,
+    options: VaultWorkOptions,
+  ): Promise<string> {
     const generation = this.generation;
-    return this.access.withVault(false, async (a) => {
-      const sealed = await sealLocal(a, crypto.randomUUID(), secret);
-      const capsule = {
-        id: sealed.id,
-        epoch: sealed.epoch,
-        hash: sealed.block.hash,
-        bytes: sealed.block.bytes,
-        ciphertext: encode(sealed.bytes),
-      };
-      const accepted = await this.privateApi(a, generation)('secret-save', {
-        capsule,
-      });
-      return this.openSecret(a, accepted);
-    });
+    return this.access.withVault(
+      false,
+      async (a) => {
+        const sealed = await sealLocal(a, crypto.randomUUID(), secret);
+        const capsule = {
+          id: sealed.id,
+          epoch: sealed.epoch,
+          hash: sealed.block.hash,
+          bytes: sealed.block.bytes,
+          ciphertext: encode(sealed.bytes),
+        };
+        const accepted = await this.privateApi(a, generation)('secret-save', {
+          capsule,
+        });
+        return this.openSecret(a, accepted);
+      },
+      options,
+    );
   }
   private async alias(
     privateAuthority: VaultAuthority,
@@ -276,45 +308,49 @@ export class SocialDms {
       api: SocialApi;
       machine: MessageCrypto;
     }) => Promise<T>,
+    options: VaultWorkOptions = {},
   ): Promise<T> {
     const generation = this.generation;
     this.guard(generation);
     await prepareMessageRuntime();
     this.guard(generation);
     const directory = await readSocialDirectory(
-      (op, data) => this.request(op, data),
+      (op, data) => this.request(op, data, options),
       null,
     );
-    const secret = await this.secret(directory, generation);
+    const secret = await this.secret(directory, generation, options);
     this.guard(generation);
-    return this.access.withVault(false, (privateAuthority) =>
-      exclusive(`dm:${directory.profile}`, async () => {
-        const api = this.privateApi(privateAuthority, generation);
-        const current = await readSocialDirectory(api, null);
-        const authority = await socialAuthority({
-          privateAuthority,
-          directory: current,
-          secret,
-          api,
-          alias: await this.alias(privateAuthority, current),
-        });
-        this.guard(generation);
-        this.close();
-        const machine = await openMessageMachine(authority, (op, data) =>
-          api(op, data),
-        );
-        try {
+    return this.access.withVault(
+      false,
+      (privateAuthority) =>
+        exclusive(`dm:${directory.profile}`, async () => {
+          const api = this.privateApi(privateAuthority, generation);
+          const current = await readSocialDirectory(api, null);
+          const authority = await socialAuthority({
+            privateAuthority,
+            directory: current,
+            secret,
+            api,
+            alias: await this.alias(privateAuthority, current),
+          });
           this.guard(generation);
-          this.machine = machine;
-          await ensureMessageRecovery(authority, api);
-          await machine.prepare(authority);
-          await receiveSocialInbox(api, machine);
-          return await work({ authority, privateAuthority, api, machine });
-        } finally {
-          machine.close();
-          if (this.machine === machine) this.machine = null;
-        }
-      }),
+          this.close();
+          const machine = await openMessageMachine(authority, (op, data) =>
+            api(op, data),
+          );
+          try {
+            this.guard(generation);
+            this.machine = machine;
+            await ensureMessageRecovery(authority, api);
+            await machine.prepare(authority);
+            await receiveSocialInbox(api, machine);
+            return await work({ authority, privateAuthority, api, machine });
+          } finally {
+            machine.close();
+            if (this.machine === machine) this.machine = null;
+          }
+        }),
+      options,
     );
   }
   async send(
@@ -328,71 +364,74 @@ export class SocialDms {
     const name = relation
       ? `${relation.type === 'edit' ? 'dm-edit' : 'dm-react'}:${peer}:${relation.id}`
       : `dm-send:${peer}`;
-    await this.withCrypto(async (input) => {
-      const { authority, privateAuthority, api } = input;
-      const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`;
-      const hash = await digest(
-          canonical(
-            relation
-              ? [authority.session.accountId, peer, text, relation]
-              : [authority.session.accountId, peer, text],
+    await this.withCrypto(
+      async (input) => {
+        const { authority, privateAuthority, api } = input;
+        const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`;
+        const hash = await digest(
+            canonical(
+              relation
+                ? [authority.session.accountId, peer, text, relation]
+                : [authority.session.accountId, peer, text],
+            ),
           ),
-        ),
-        old = await localGet<LocalCipher>(scope, name);
-      let packet;
-      if (old) {
-        const held = object(
-          JSON.parse(await openLocal(privateAuthority, old)) as unknown,
-        );
-        if (held['hash'] !== hash)
-          throw new Error(
-            'Há um envio pendente com outro texto. Retome o texto original antes de enviar uma alteração.',
+          old = await localGet<LocalCipher>(scope, name);
+        let packet;
+        if (old) {
+          const held = object(
+            JSON.parse(await openLocal(privateAuthority, old)) as unknown,
           );
-        packet = socialPacket(held['packet']);
-      } else {
-        packet = await this.encrypt({
-          ...input,
-          peer,
-          text,
-          id,
-          ...(relation ? { relation } : {}),
-        });
-        const row = await sealLocal(
-          privateAuthority,
-          crypto.randomUUID(),
-          JSON.stringify({ hash, packet, text }),
-        );
-        await localPut(scope, name, row, row.bytes.length + 512);
-      }
-      if (
-        !(await api('accepted', {
-          id: packet.id,
-          hash: await digest(canonical(packet)),
-        }))
-      ) {
-        const recipient = await readSocialDirectory(api, peer);
-        if (
-          packet.senderRevision !== authority.events.length ||
-          packet.recipientRevision !== recipient.events.length
-        ) {
+          if (held['hash'] !== hash)
+            throw new Error(
+              'Há um envio pendente com outro texto. Retome o texto original antes de enviar uma alteração.',
+            );
+          packet = socialPacket(held['packet']);
+        } else {
           packet = await this.encrypt({
             ...input,
             peer,
             text,
-            id: packet.id,
+            id,
             ...(relation ? { relation } : {}),
           });
-          const renewed = await sealLocal(
+          const row = await sealLocal(
             privateAuthority,
             crypto.randomUUID(),
             JSON.stringify({ hash, packet, text }),
           );
-          await localPut(scope, name, renewed, renewed.bytes.length + 512);
+          await localPut(scope, name, row, row.bytes.length + 512);
         }
-        await api('publish', { packet });
-      }
-      await localDelete(scope, name);
-    });
+        if (
+          !(await api('accepted', {
+            id: packet.id,
+            hash: await digest(canonical(packet)),
+          }))
+        ) {
+          const recipient = await readSocialDirectory(api, peer);
+          if (
+            packet.senderRevision !== authority.events.length ||
+            packet.recipientRevision !== recipient.events.length
+          ) {
+            packet = await this.encrypt({
+              ...input,
+              peer,
+              text,
+              id: packet.id,
+              ...(relation ? { relation } : {}),
+            });
+            const renewed = await sealLocal(
+              privateAuthority,
+              crypto.randomUUID(),
+              JSON.stringify({ hash, packet, text }),
+            );
+            await localPut(scope, name, renewed, renewed.bytes.length + 512);
+          }
+          await api('publish', { packet });
+        }
+        await localDelete(scope, name);
+      },
+      { priority: 'interactive' },
+    );
   }
   private async encrypt(input: {
     authority: VaultAuthority;
@@ -420,23 +459,30 @@ export class SocialDms {
       ...(input.relation ? { relation: input.relation } : {}),
     });
   }
-  async pending(peer: string): Promise<{ id: string; text: string } | null> {
+  async pending(
+    peer: string,
+    options: VaultWorkOptions = {},
+  ): Promise<{ id: string; text: string } | null> {
     const generation = this.generation;
     this.guard(generation);
-    return this.access.withVault(false, async (authority) => {
-      this.privateApi(authority, generation);
-      const scope = `${authority.session.accountId}:${authority.session.deviceId}`,
-        row = await localGet<LocalCipher>(scope, `dm-send:${peer}`);
-      if (!row) return null;
-      const held = object(
-          JSON.parse(await openLocal(authority, row)) as unknown,
-        ),
-        packet = socialPacket(held['packet']);
-      this.guard(generation);
-      if (typeof held['text'] !== 'string' || packet.recipient !== peer)
-        throw new Error('Rascunho de DM inválido.');
-      return { id: packet.id, text: held['text'] };
-    });
+    return this.access.withVault(
+      false,
+      async (authority) => {
+        this.privateApi(authority, generation);
+        const scope = `${authority.session.accountId}:${authority.session.deviceId}`,
+          row = await localGet<LocalCipher>(scope, `dm-send:${peer}`);
+        if (!row) return null;
+        const held = object(
+            JSON.parse(await openLocal(authority, row)) as unknown,
+          ),
+          packet = socialPacket(held['packet']);
+        this.guard(generation);
+        if (typeof held['text'] !== 'string' || packet.recipient !== peer)
+          throw new Error('Rascunho de DM inválido.');
+        return { id: packet.id, text: held['text'] };
+      },
+      options,
+    );
   }
   async identityRecord(
     profile: string,
@@ -452,7 +498,11 @@ export class SocialDms {
       value,
     };
   }
-  async historyPage(snapshot: unknown, after: number) {
+  async historyPage(
+    snapshot: unknown,
+    after: number,
+    options: VaultWorkOptions = {},
+  ) {
     return this.withCrypto(async (context) => {
       const raw = personalPage(
         await context.api('personal-page', {
@@ -505,7 +555,7 @@ export class SocialDms {
         unavailable,
         next: raw['next'] === null ? null : socialRevision(raw['next']),
       };
-    });
+    }, options);
   }
   private async decode(
     context: SocialContext,
@@ -633,47 +683,66 @@ export class SocialDms {
       },
     );
   }
-  async messageStates(input: { peer: string; read: string[]; own: string[] }) {
-    return dmMessageStates(await this.request('message-status', input));
+  async messageStates(
+    input: { peer: string; read: string[]; own: string[] },
+    options: VaultWorkOptions = {},
+  ) {
+    return dmMessageStates(
+      await this.request('message-status', input, options),
+    );
   }
-  async read(peer: string, before: number | null) {
-    await this.synchronizeHistory();
-    return this.cached(peer, before);
+  async read(
+    peer: string,
+    before: number | null,
+    options: VaultWorkOptions = {},
+  ) {
+    await this.synchronizeHistory(options);
+    return this.cached(peer, before, options);
   }
-  private async synchronizeHistory(): Promise<unknown> {
+  private async synchronizeHistory(
+    options: VaultWorkOptions = {},
+  ): Promise<unknown> {
     const generation = this.generation;
     let snapshot: unknown = null;
     if (navigator.onLine) {
       snapshot = await synchronizeDmHistory({
-        snapshot: () => this.request('personal-snapshot', {}),
+        snapshot: () => this.request('personal-snapshot', {}, options),
         guard: () => this.guard(generation),
-        page: (snapshot, after) => this.historyPage(snapshot, after),
+        page: (snapshot, after) => this.historyPage(snapshot, after, options),
         cursor: () =>
-          this.access.withVault(false, async (a) => {
-            const held = await localGet<LocalCipher>(
-              `${a.session.accountId}:${a.session.deviceId}`,
-              'dm-sync-state',
-            );
-            return held
-              ? (JSON.parse(await openLocal(a, held)) as unknown)
-              : null;
-          }),
+          this.access.withVault(
+            false,
+            async (a) => {
+              const held = await localGet<LocalCipher>(
+                `${a.session.accountId}:${a.session.deviceId}`,
+                'dm-sync-state',
+              );
+              return held
+                ? (JSON.parse(await openLocal(a, held)) as unknown)
+                : null;
+            },
+            options,
+          ),
         save: (cursor) =>
-          this.access.withVault(false, async (a) => {
-            this.guard(generation);
-            const row = await sealLocal(
-              a,
-              crypto.randomUUID(),
-              JSON.stringify(cursor),
-            );
-            this.guard(generation);
-            await localPut(
-              `${a.session.accountId}:${a.session.deviceId}`,
-              'dm-sync-state',
-              row,
-              row.bytes.length + 512,
-            );
-          }),
+          this.access.withVault(
+            false,
+            async (a) => {
+              this.guard(generation);
+              const row = await sealLocal(
+                a,
+                crypto.randomUUID(),
+                JSON.stringify(cursor),
+              );
+              this.guard(generation);
+              await localPut(
+                `${a.session.accountId}:${a.session.deviceId}`,
+                'dm-sync-state',
+                row,
+                row.bytes.length + 512,
+              );
+            },
+            options,
+          ),
       });
     }
     this.guard(generation);
@@ -720,12 +789,20 @@ export class SocialDms {
       return page;
     });
   }
-  async cached(peer: string, before: number | null) {
+  async cached(
+    peer: string,
+    before: number | null,
+    options: VaultWorkOptions = {},
+  ) {
     const generation = this.generation;
-    return this.access.withVault(true, async (a) => {
-      await this.removals.load(a, () => this.guard(generation));
-      return this.cachedPage({ a, peer, before, generation, maximum: 16 });
-    });
+    return this.access.withVault(
+      true,
+      async (a) => {
+        await this.removals.load(a, () => this.guard(generation));
+        return this.cachedPage({ a, peer, before, generation, maximum: 16 });
+      },
+      options,
+    );
   }
   private async cachedPage(input: {
     a: VaultAuthority;
@@ -825,72 +902,78 @@ export class SocialDms {
     });
   }
   async sendMedia(peer: string): Promise<void> {
-    await this.withCrypto(async (context) => {
-      const { privateAuthority: a, api, authority, machine } = context,
-        scope = `${a.session.accountId}:${a.session.deviceId}`;
-      const row = await localGet<LocalCipher>(scope, `dm-media-draft:${peer}`);
-      if (!row) throw new Error('Escolha mídia para enviar.');
-      const draft = object(JSON.parse(await openLocal(a, row)) as unknown),
-        media = socialMedia(draft['media']),
-        id = uuid(draft['id']),
-        text = String(draft['text']),
-        content = socialAttachment(JSON.parse(text) as unknown, media);
-      let packet =
-        draft['packet'] === undefined ? null : socialPacket(draft['packet']);
-      if (
-        packet &&
-        (await api('accepted', { id, hash: await digest(canonical(packet)) }))
-      ) {
-        await localDelete(scope, `dm-media-draft:${peer}`);
-        await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
-        return;
-      }
-      await uploadAttachments({
-        account: dmMediaScope(a.session.accountId),
-        message: id,
-        peer,
-        content,
-        api: (op, data) =>
-          api(op, {
-            ...data,
-            ...(op === 'attachment-reserve' ? { media } : {}),
-          }),
-      });
-      const recipient = await readSocialDirectory(api, peer);
-      if (
-        !packet ||
-        packet.senderRevision !== authority.events.length ||
-        packet.recipientRevision !== recipient.events.length
-      ) {
-        const recovery = await api('recovery-peer', { accountId: peer });
-        packet = await machine.encrypt({
-          authority,
-          peerHistory: recipient.events,
-          recovery: [
-            await ensureMessageRecovery(authority, api),
-            recoveryKey(recovery),
-          ],
-          id,
-          text,
-          kind: 'attachment',
-          socialMedia: media,
-        });
-        const held = await sealLocal(
-          a,
-          crypto.randomUUID(),
-          JSON.stringify({ ...draft, packet }),
-        );
-        await localPut(
+    await this.withCrypto(
+      async (context) => {
+        const { privateAuthority: a, api, authority, machine } = context,
+          scope = `${a.session.accountId}:${a.session.deviceId}`;
+        const row = await localGet<LocalCipher>(
           scope,
           `dm-media-draft:${peer}`,
-          held,
-          held.bytes.length + 512,
         );
-      }
-      await api('publish', { packet });
-      await localDelete(scope, `dm-media-draft:${peer}`);
-      await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
-    });
+        if (!row) throw new Error('Escolha mídia para enviar.');
+        const draft = object(JSON.parse(await openLocal(a, row)) as unknown),
+          media = socialMedia(draft['media']),
+          id = uuid(draft['id']),
+          text = String(draft['text']),
+          content = socialAttachment(JSON.parse(text) as unknown, media);
+        let packet =
+          draft['packet'] === undefined ? null : socialPacket(draft['packet']);
+        if (
+          packet &&
+          (await api('accepted', { id, hash: await digest(canonical(packet)) }))
+        ) {
+          await localDelete(scope, `dm-media-draft:${peer}`);
+          await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
+          return;
+        }
+        await uploadAttachments({
+          account: dmMediaScope(a.session.accountId),
+          message: id,
+          peer,
+          content,
+          api: (op, data) =>
+            api(op, {
+              ...data,
+              ...(op === 'attachment-reserve' ? { media } : {}),
+            }),
+        });
+        const recipient = await readSocialDirectory(api, peer);
+        if (
+          !packet ||
+          packet.senderRevision !== authority.events.length ||
+          packet.recipientRevision !== recipient.events.length
+        ) {
+          const recovery = await api('recovery-peer', { accountId: peer });
+          packet = await machine.encrypt({
+            authority,
+            peerHistory: recipient.events,
+            recovery: [
+              await ensureMessageRecovery(authority, api),
+              recoveryKey(recovery),
+            ],
+            id,
+            text,
+            kind: 'attachment',
+            socialMedia: media,
+          });
+          const held = await sealLocal(
+            a,
+            crypto.randomUUID(),
+            JSON.stringify({ ...draft, packet }),
+          );
+          await localPut(
+            scope,
+            `dm-media-draft:${peer}`,
+            held,
+            held.bytes.length + 512,
+          );
+        }
+        await api('publish', { packet });
+        await localDelete(scope, `dm-media-draft:${peer}`);
+        await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
+      },
+      { priority: 'interactive' },
+    );
   }
   async cancelMedia(peer: string): Promise<void> {
     const generation = this.generation;
@@ -908,14 +991,20 @@ export class SocialDms {
       await localDelete(scope, `dm-media-draft:${peer}`);
     });
   }
-  async mediaDraft(peer: string): Promise<boolean> {
-    return this.access.withVault(false, async (a) =>
-      Boolean(
-        await localGet(
-          `${a.session.accountId}:${a.session.deviceId}`,
-          `dm-media-draft:${peer}`,
+  async mediaDraft(
+    peer: string,
+    options: VaultWorkOptions = {},
+  ): Promise<boolean> {
+    return this.access.withVault(
+      false,
+      async (a) =>
+        Boolean(
+          await localGet(
+            `${a.session.accountId}:${a.session.deviceId}`,
+            `dm-media-draft:${peer}`,
+          ),
         ),
-      ),
+      options,
     );
   }
   async media(

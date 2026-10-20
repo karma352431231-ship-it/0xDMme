@@ -1,5 +1,3 @@
-import type { UpvoteNotice } from '../../shared/public-upvotes/index.ts';
-import type { ReplyPreview } from '../../shared/community-posts/index.ts';
 import { publicIdentityAvatar } from '../public-identity/index.ts';
 import { upvoteRows } from './upvotes.ts';
 import {
@@ -10,7 +8,6 @@ import {
 export { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { ActivitySeen } from './seen.ts';
 import { mentionRows } from './mentions.ts';
-import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
 import { PublicationPreview } from './publication-preview.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { publicationTitle, publicationQuote } from './publications.ts';
@@ -18,56 +15,13 @@ import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { moderationRows } from './moderation.ts';
 import { ActivityUpdates } from './updates.ts';
 import type { LiveEvent } from '../message-live/index.ts';
-import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 
-/**
- * Atividade (docs/UI_PAINEIS_E_TEMAS.md): one place for items the app already
- * receives. Each source keeps its own API, authorization and checks; this module
- * only reads them on demand and calls the same actions as the original screens.
- */
-export interface ActivitySources {
-  upvotes?: () => Promise<readonly UpvoteNotice[]>;
-  markUpvotesRead?: (ids: readonly string[]) => Promise<void>;
-  mentions?: () => Promise<readonly MentionNotification[]>;
-  markMentionsRead?: (ids: readonly string[]) => Promise<void>;
-  moderation?: () => Promise<readonly ModerationActivity[]>;
-  markModerationRead?: (ids: readonly string[]) => Promise<void>;
-  requests: () => Promise<
-    readonly {
-      accountId: string;
-      name: string;
-      address: string;
-      ecosystem: string;
-    }[]
-  >;
-  respondRequest: (accountId: string, accept: boolean) => Promise<void>;
-  groupInvites: () => Promise<
-    readonly { id: string; kind: 'invite' | 'transfer'; actor: string }[]
-  >;
-  respondGroupInvite: (id: string, accept: boolean) => Promise<void>;
-  replies: () => Promise<
-    readonly {
-      reply: string;
-      community: string;
-      createdAt: string;
-      read?: boolean;
-      kind?: 'post' | 'reply';
-      /** Author and start of the reply, already filtered by public visibility. */
-      preview: ReplyPreview | null;
-    }[]
-  >;
-  markRepliesRead: (replies: readonly string[]) => Promise<void>;
-  transfers: () => Promise<readonly { id: string; name: string }[]>;
-  missedCalls: () => Promise<
-    readonly { id: string; peer: string; label: string; at: number }[]
-  >;
-  clearMissedCalls: () => Promise<void>;
-}
-
-type Loaded<T> = { items: readonly T[]; problem: string };
+export type { ActivitySources } from './sources.ts';
+import { empty, readActivitySnapshot } from './sources.ts';
+import type { ActivitySources, Loaded } from './sources.ts';
 
 export type ActivityFilter = 'all' | 'requests' | 'replies' | 'mentions';
 export type ActivityGroup =
@@ -101,49 +55,6 @@ export function activityGroups(
   if (filter === 'mentions') return ['mentions'];
   return groupOrder;
 }
-type Item<
-  K extends
-    'requests' | 'groupInvites' | 'replies' | 'transfers' | 'missedCalls',
-> = Awaited<ReturnType<ActivitySources[K]>>[number];
-
-interface Snapshot {
-  upvotes: Loaded<UpvoteNotice>;
-  mentions: Loaded<MentionNotification>;
-  moderation: Loaded<ModerationActivity>;
-  requests: Loaded<Item<'requests'>>;
-  invites: Loaded<Item<'groupInvites'>>;
-  replies: Loaded<Item<'replies'>>;
-  transfers: Loaded<Item<'transfers'>>;
-  calls: Loaded<Item<'missedCalls'>>;
-}
-
-function empty(): Snapshot {
-  return {
-    upvotes: { items: [], problem: '' },
-    mentions: { items: [], problem: '' },
-    moderation: { items: [], problem: '' },
-    requests: { items: [], problem: '' },
-    invites: { items: [], problem: '' },
-    replies: { items: [], problem: '' },
-    transfers: { items: [], problem: '' },
-    calls: { items: [], problem: '' },
-  };
-}
-
-async function load<T>(read: () => Promise<readonly T[]>): Promise<Loaded<T>> {
-  try {
-    return { items: await read(), problem: '' };
-  } catch (error: unknown) {
-    return {
-      items: [],
-      problem:
-        error instanceof Error
-          ? translatedError(error.message)
-          : t('Não foi possível carregar.'),
-    };
-  }
-}
-
 /** The reply itself, or why it cannot be shown. */
 export function replyQuote(
   preview: {
@@ -230,36 +141,12 @@ export function startActivity(
   async function read(): Promise<void> {
     if (!session) return;
     const old = ++generation;
-    const [
-      requests,
-      invites,
-      replies,
-      transfers,
-      calls,
-      moderation,
-      mentions,
-      upvotes,
-    ] = await Promise.all([
-      load(sources.requests),
-      load(sources.groupInvites),
-      load(sources.replies),
-      load(sources.transfers),
-      load(sources.missedCalls),
-      load(sources.moderation ?? (() => Promise.resolve([]))),
-      load(sources.mentions ?? (() => Promise.resolve([]))),
-      load(sources.upvotes ?? (() => Promise.resolve([]))),
-    ]);
-    if (old !== generation) return;
-    snapshot = {
-      upvotes,
-      requests,
-      invites,
-      replies,
-      transfers,
-      calls,
-      moderation,
-      mentions,
-    };
+    const loaded = await readActivitySnapshot(
+      sources,
+      () => old === generation,
+    );
+    if (!loaded || old !== generation) return;
+    snapshot = loaded;
     options.countChanged(count());
     render();
   }

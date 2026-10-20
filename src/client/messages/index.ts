@@ -298,8 +298,10 @@ export function startMessages(
       synchronization.resume();
     },
     event: (event) => {
-      options.liveEvent?.(event);
-      if (event === 'call') return;
+      if (event === 'call') {
+        options.liveEvent?.(event);
+        return;
+      }
       invalidateGroupAuthority(event);
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();
@@ -314,6 +316,7 @@ export function startMessages(
         ['changed', 'ready', 'removed'].includes(event) ? 'probe' : 'refresh',
         work,
       );
+      options.liveEvent?.(event);
     },
   });
   // Confirmed contacts get the new card after a profile change, not only on open.
@@ -1087,13 +1090,13 @@ export function startMessages(
     try {
       await loadMessageDirectory({
         loadPins: () => controller.loadPins(work),
-        loadContacts: () => refreshContacts(false, initialWork),
+        loadContacts: () => refreshContacts(false, work),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
         },
       });
       if (!synchronization.openingRequested) await refreshSelected(requested);
-      await controller.savePins();
+      await controller.savePins(work);
       startupWarmup.request();
       if (
         session &&
@@ -1123,7 +1126,7 @@ export function startMessages(
       synchronization.prepareHistory();
       await controller.synchronize(work);
     }
-    await controller.savePins();
+    await controller.savePins(work);
   }
   async function refreshSelected(work: VaultWorkOptions = {}): Promise<void> {
     if (!selected || !conversationMounted('[data-direct-conversation]')) return;

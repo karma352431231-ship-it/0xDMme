@@ -1864,6 +1864,25 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 ### Bloco 10A — Áudio gravado após o núcleo básico
 
+**Visible private delivery scheduling requested on 20 October 2026:** paired
+browser captures show signed secondary Activity reads occupying the authority
+queue while the selected private conversation still awaits its verified view.
+Preserve the existing interactive priority through a coalesced directory refresh,
+selected history, identity-pin persistence and final confirmation. Process local
+history invalidation/request scheduling before forwarding an empty hint to
+secondary consumers. Activity keeps every existing source and automatic wakeup,
+but enqueues one source at a time and stops unstarted sources when its session
+or authorization generation changes. Source failures remain isolated and visible.
+The owner subsequently included handle DMs: preserve foreground options through
+their existing signed history/recovery/cursor operations and defer coalesced
+automatic hidden history checks until visibility. Explicit text/media sends use
+interactive work; directory preparation and backups retain maintenance defaults.
+No new authority cache, SDK overlap, dependency, backend, wire format, retention
+or infrastructure change is included. The owner requested a new branch from
+`main`, without main integration or deployment. See the
+[delivery scheduling contract](docs/BLOCO_10A_AUDIO_E_TEMPO_REAL.md#visible-private-delivery-and-secondary-activity-reads--20-october-2026)
+and [handle DM contract](docs/PARIDADE_CHATS.md#handle-dm-delivery-priority--20-october-2026).
+
 **Visibilidade durante atualizações normais aprovada em 08/10/2026:** após testar a correção de latência, o proprietário escolheu manter a conversa individual já verificada visível durante envio, recebimento e atualização de recibos. Isso substitui, nesses caminhos, o fechamento descrito nos blocos 07 e 10A. A nova visão só é publicada inteira após conferir o snapshot; erro continua fechando o histórico. Entrada, reconexão, retorno de suspensão, navegação, fim/troca de sessão, revogação e invalidação de autorização conservam o fechamento imediato. O proprietário aprovou também aviso específico e prioritário de exclusão, do backend para os clientes conectados das contas afetadas: após COMMIT, um frame vazio `removed` fecha a visão antes de aguardar a sincronização geral, inclusive durante trabalho em andamento. O aviso não entrega conteúdo/IDs nem autoriza reabrir o histórico; a consulta assinada posterior aplica as exclusões e confirma o estado. Limpeza pessoal de mensagens avisa somente a própria conta. Offline/suspensão/perda de conexão podem atrasar a identificação; não estabelecer prazo de exclusão na VPS sem medição. Continuidade de voz já iniciada permanece conforme a exceção aprovada. Sem nova dependência, migração, retenção, custo ou infraestrutura. Ver [contrato atualizado](docs/BLOCO_10A_AUDIO_E_TEMPO_REAL.md#conversa-visível-e-aviso-prioritário-de-exclusão--08102026).
 
 **Decisão do proprietário em 03/10/2026:** manter WAV mono, PCM de 16 bits a 16 kHz, com limite de 90 segundos (até 2.880.044 bytes), em vez de avaliar compressão com perdas nesta implementação. O proprietário pediu que novas escolhas de produto ou conflitos sejam apresentados antes de implementar e autorizou continuidade após compactação até concluir o 10A. Preservar E2EE, teto de 3 MB, cofre de 300 MB e download sob demanda.

@@ -77,7 +77,10 @@ const bundle = await build({
   ],
 });
 
-export function coordinatorFixture(t: TestContext) {
+export function coordinatorFixture(
+  t: TestContext,
+  hooks: Pick<Parameters<typeof startMessages>[2], 'liveEvent'> = {},
+) {
   const calls: string[] = [];
   const directoryWork: VaultWorkOptions[] = [];
   const priorities: {
@@ -487,6 +490,7 @@ export function coordinatorFixture(t: TestContext) {
           ? { name: 'Synthetic', revision: 1, photo: null }
           : null,
       preferences: () => null,
+      ...hooks,
     },
   );
   messages.mount(

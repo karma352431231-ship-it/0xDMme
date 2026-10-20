@@ -974,7 +974,7 @@ export class Messages {
         },
         options,
       );
-      await this.savePins();
+      await this.savePins(options);
       this.guard(generation);
       const views = staged.views;
       this.oldest =

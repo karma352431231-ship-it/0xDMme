@@ -242,3 +242,56 @@ Both regressions failed against the previous modules. An isolated Chrome compari
 Local validation: 42 targeted tests passed, including the regressions that failed before the fix, pagination, late responses, authorization failure/recovery and editable fields during a pending read. Global lint, types, boundaries, formatting and the 48-asset build passed. Isolated Chrome comparisons confirmed three fields, two previews and focus at 1280 and 390 px, with typing during the pending response and no page errors. Evidence and fixtures stay exclusively in the primary checkout's `.local/`.
 
 `communities/index.ts` remains a coordination/view hotspot. This limited sidebar extraction does not perform the broader split: in a separate task, extract management/governance, detail mounting and the navigation lifecycle, in that order, preserving generation, serialization and media disposal. Repeat session/permission regressions and navigation, pagination and draft smoke checks before integration.
+
+## Visible private delivery and secondary Activity reads — 20 October 2026
+
+The owner supplied paired sender/recipient browser reports and requested the
+necessary corrections on a new branch from `main`, without integrating or
+publishing it. The retained interval contains a matching publication and incoming
+DOM row, continuous empty stream hints and many short HTTP operations ahead of
+the selected history. It also contains secondary public-feature refusals, not
+message publication refusals. The collectors discarded earlier events at their
+fixed budget; do not extrapolate this interval to every message or claim exact
+cross-device latency without independently verified clocks. Raw captures, exact
+timings, bundle/caller attribution and operational evidence stay in `.local/`.
+
+The correction preserves interactive priority through merged full-refresh
+requests, approved-contact/agenda/archive loading, selected history and pending
+identity-pin persistence. Final exposure still requires its independent fresh
+signed snapshot confirmation. No identity/removal checks, signatures, encryption,
+SDK exclusion, durable sends or error gates are omitted or cached to reduce time.
+
+The private coordinator invalidates its current history and schedules the current
+check before forwarding the empty hint to secondary consumers. Call hints retain
+their separate path. Existing history generation, priority coalescing, hidden-page
+behavior and authorization/removal closures remain in force.
+
+Activity source loading now belongs to `activity/sources.ts`: it admits one
+source at a time instead of simultaneously filling the shared authority queue
+with every source. The existing authority scheduler can prioritize foreground
+work between those reads while retaining its fairness to maintenance. Each
+source still uses its own signed API and reports its own failures; a rejected
+public-feature read cannot disable contact/group notifications or grant access.
+An invalidated generation does not start the remaining sources or publish its old
+snapshot. Existing automatic hints, push/fallback, seen/read distinctions,
+coalescing, polling periods, explicit refresh and the bounded snapshot remain.
+
+Regression coverage exercises the actual coordinator's merged-refresh priority,
+removal before secondary dispatch, selected-history priority through a simulated
+pending pin-write boundary, one Activity source in the authority queue, and
+revocation before unstarted reads. Those regressions fail against the previous
+`main` behavior. Existing authorization/removal, history-reuse, source-failure,
+automatic-Activity and authority-fairness tests remain applicable.
+
+**Ponto importante:** the visible private conversation takes precedence over
+unstarted secondary reads. A complete Activity refresh may finish later, while
+an already active SDK/authority operation still settles exclusively. This is a
+local source correction; a fresh capture on the affected devices is still needed
+to establish live latency. No main integration, push or VPS activation is part of
+this delivery. The private coordinator and message controller remain hotspots;
+extract `messages/session-live.ts`, then `messages/outbox.ts` and its media
+owner, then `messages/verified-history.ts` in separate reviewed tasks. Risks are
+stale-session publication, SDK overlap, duplicate sends and reopening removed
+content; rerun the coordinator, recovery/idempotency, identity, visibility and
+removal contracts at each boundary. This fix only changes existing routing and
+priority forwarding.
