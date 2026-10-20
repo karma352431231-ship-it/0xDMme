@@ -8,17 +8,24 @@ backups = fixtures.backups
 
 
 class SourceTextReviewTests(unittest.TestCase):
+    before = remote.SOURCE_TEXT_BEFORE
+    reviewed = remote.SOURCE_TEXT_REVIEWED
+    review_modules = remote.SOURCE_TEXT_MODULES
+
     def setUp(self):
         fixture = fixtures.CommunityFeedCodeTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         self.live, self.candidate = fixture.live, fixture.candidate
-        self.modules = sorted(remote.SOURCE_TEXT_MODULES)
+        for name in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / name).write_bytes(
+                (self.live / 'src/server/database' / name).read_bytes())
+        self.modules = sorted(self.review_modules)
         for name in self.modules:
             (self.live / 'src/server/database' / name).write_text('existing text')
             (self.candidate / 'src/server/database' / name).write_text('reviewed text')
-        self.exports = {remote.SOURCE_TEXT_BEFORE: fixture.export(self.live),
-                        remote.SOURCE_TEXT_REVIEWED: fixture.export(self.candidate)}
+        self.exports = {self.before: fixture.export(self.live),
+                        self.reviewed: fixture.export(self.candidate)}
 
     def test_exact_complete_sources_use_code_compatibility_without_schema_review(self):
         with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
@@ -29,7 +36,7 @@ class SourceTextReviewTests(unittest.TestCase):
             self.assertTrue(remote.database_code_reviewed(self.candidate, self.live))
 
     def test_every_changed_module_and_predecessor_must_match_the_review(self):
-        for name in ['communities.ts', 'devices.ts', 'vault.ts']:
+        for name in [self.modules[0], self.modules[len(self.modules) // 2], self.modules[-1]]:
             with self.subTest(module=name):
                 path = self.candidate / 'src/server/database' / name
                 before = path.read_bytes()
@@ -39,7 +46,7 @@ class SourceTextReviewTests(unittest.TestCase):
                         self.assertFalse(remote.database_code_reviewed(self.candidate, self.live))
                 finally:
                     path.write_bytes(before)
-        path = self.live / 'src/server/database/messages.ts'
+        path = self.live / 'src/server/database' / self.modules[-1]
         path.write_text('different live predecessor')
         with patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]):
             self.assertFalse(remote.database_code_reviewed(self.candidate, self.live))
@@ -55,3 +62,9 @@ class SourceTextReviewTests(unittest.TestCase):
                         self.assertFalse(remote.database_code_reviewed(self.candidate, self.live))
                 finally:
                     path.unlink()
+
+
+class RuntimeDiagnosticsReviewTests(SourceTextReviewTests):
+    before = remote.RUNTIME_DIAGNOSTICS_BEFORE
+    reviewed = remote.RUNTIME_DIAGNOSTICS_REVIEWED
+    review_modules = remote.RUNTIME_DIAGNOSTICS_MODULES

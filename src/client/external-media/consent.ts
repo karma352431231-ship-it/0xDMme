@@ -96,7 +96,7 @@ export class ExternalMediaConsent {
     this.save(scope, choice);
     return choice;
   }
-  /** An account choice already made (Configurações iniciais) is not asked again. */
+  /** An account choice already made (Initial settings) is not asked again. */
   beforeCreate(signal: AbortSignal): Promise<boolean | null> {
     if (this.choices.all !== null) return Promise.resolve(this.choices.all);
     return this.ask('all', AbortSignal.any([signal, this.signal]));

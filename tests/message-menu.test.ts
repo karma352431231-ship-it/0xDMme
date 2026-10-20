@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { anchoredMessageMenu } from '../src/client/message-menu/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
-await test('menu de mensagem fica limitado ao chat, sem modal, e fecha em ação, fora e revogação', () => {
+await test('message menu stays inside chat without a modal and closes on action, outside click and revocation', () => {
   const document = communityDocument(),
     window = new EventTarget();
   const chatBounds = { left: 300, right: 500, top: 200, bottom: 600 };

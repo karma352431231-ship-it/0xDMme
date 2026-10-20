@@ -29,7 +29,7 @@ import {
   probeCommand,
 } from '../src/server/community-media/index.ts';
 
-await test('worker público aceita somente comandos canônicos e arquivos da mesma reserva', async () => {
+await test('public worker accepts only canonical commands and files from the same reservation', async () => {
   const root = await realpath(
     await mkdtemp(resolve(tmpdir(), '0xdmme-worker-')),
   );
@@ -116,7 +116,7 @@ await test('worker público aceita somente comandos canônicos e arquivos da mes
   }
 });
 
-await test('socket público: handshake, falhas, encerramento e cancelamento sem fila pendente', async () => {
+await test('public socket: handshake, failures, shutdown and cancellation without a pending queue', async () => {
   const root = await realpath(
     await mkdtemp(resolve(tmpdir(), '0xdmme-worker-ipc-')),
   );
@@ -175,7 +175,7 @@ await test('socket público: handshake, falhas, encerramento e cancelamento sem 
   }
 });
 
-await test('transporte isolado não transmite AbortSignal e encerra requisição cancelada', async () => {
+await test('isolated transport never transmits AbortSignal and closes cancelled requests', async () => {
   const root = await realpath(
     await mkdtemp(resolve(tmpdir(), '0xdmme-worker-abort-')),
   );
@@ -219,7 +219,7 @@ await test('transporte isolado não transmite AbortSignal e encerra requisição
   }
 });
 
-await test('processamento compartilhado expõe somente o original montado ao grupo isolado', async () => {
+await test('shared processing exposes only the assembled original to the isolated group', async () => {
   const root = await realpath(
     await mkdtemp(resolve(tmpdir(), '0xdmme-worker-files-')),
   );
@@ -246,7 +246,7 @@ await test('processamento compartilhado expõe somente o original montado ao gru
   }
 });
 
-await test('worker instalado usa o mesmo diretório de mídia do web em staging', async () => {
+await test('installed worker uses the same media directory as staging web', async () => {
   const config = readWebConfiguration({
     HASH_TALK_PROFILE: 'staging',
     HASH_TALK_PUBLIC_ORIGIN: 'https://0xdmme.app',

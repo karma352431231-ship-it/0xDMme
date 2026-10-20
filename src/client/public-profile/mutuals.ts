@@ -44,7 +44,7 @@ function preview(
     if (index)
       text.append(
         index === visible.length - 1 && page.total === visible.length
-          ? ' e '
+          ? t('profile.mutual-and')
           : ', ',
       );
     text.append(profileLink(profile));

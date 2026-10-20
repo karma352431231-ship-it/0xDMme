@@ -5,7 +5,7 @@ import { bytesHash } from '../src/shared/vault/index.ts';
 import type { CommunityMediaState } from '../src/shared/community-media/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
-await test('erro de preparação sai do progresso e permite retomar a mesma mídia', async () => {
+await test('preparation error leaves progress state and allows resuming the same media', async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,

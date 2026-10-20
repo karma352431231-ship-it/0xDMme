@@ -53,7 +53,7 @@ export class NotificationService {
     this.scheduler = new WorkScheduler({
       work: () => this.dispatch(),
       failed: () => {
-        process.stderr.write('Fila de notificações indisponível.\n');
+        process.stderr.write('Notification queue unavailable.\n');
       },
     });
     this.unsubscribe = options.signals?.subscribe('push', () =>
@@ -64,18 +64,17 @@ export class NotificationService {
     this.config = options.config;
     this.send =
       options.send ??
-      (() => Promise.reject(new Error('Emissor push indisponível.')));
+      (() => Promise.reject(new Error('Push sender unavailable.')));
     this.dispatcher = new PushDispatcher({
       store: this.store,
       wake: () => this.scheduler.wake(),
       send: (subscription) => {
-        if (!this.config)
-          return Promise.reject(new Error('Push indisponível.'));
+        if (!this.config) return Promise.reject(new Error('Push unavailable.'));
         return this.send(subscription, this.config);
       },
     });
     this.calls = new CallPushQueue(this.store, (subscription, delivery) => {
-      if (!this.config) return Promise.reject(new Error('Push indisponível.'));
+      if (!this.config) return Promise.reject(new Error('Push unavailable.'));
       return this.send(subscription, this.config, delivery);
     });
   }

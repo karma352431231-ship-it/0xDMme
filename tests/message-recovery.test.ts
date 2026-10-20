@@ -65,7 +65,7 @@ async function fixture() {
   };
   return { authority, event, recoverySecret };
 }
-await test('backup de leitura nasce cifrado, autenticado e vinculado à conta/época', async () => {
+await test('read backup starts encrypted, authenticated and bound to account and epoch', async () => {
   const { authority, event } = await fixture();
   const key = await createRecoveryKey(authority);
   assert.deepEqual(await verifyRecoveryKey(key, event), key);
@@ -100,7 +100,7 @@ await test('backup de leitura nasce cifrado, autenticado e vinculado à conta/é
     privateKey.free();
   }
 });
-await test('mensagem ainda não recebida abre em aparelho novo após recuperar só o cofre', async (t) => {
+await test('unreceived message opens on a new device after recovering only the vault', async (t) => {
   const recipient = await fixture(),
     stranger = await fixture();
   const recovery = await createRecoveryKey(recipient.authority);

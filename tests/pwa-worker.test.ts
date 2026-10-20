@@ -258,7 +258,7 @@ function navigation(url: string): Request {
   return Object.defineProperty(new Request(url), 'mode', { value: 'navigate' });
 }
 
-await test('URL padrão abre o HTML atual online e conserva a versão completa para navegação offline', async () => {
+await test('default URL opens current online HTML and preserves the complete version for offline navigation', async () => {
   const scope = await worker();
   await scope.dispatch('install');
   scope.setNetworkBody('current-online-shell');
@@ -317,7 +317,7 @@ await test('URL padrão abre o HTML atual online e conserva a versão completa p
     );
 });
 
-await test('aviso de chamada mostra tipo por padrão, opção de privacidade fica genérica e convite inválido não aparece', async () => {
+await test('call notice shows type by default, privacy option stays generic and invalid invitation never appears', async () => {
   const visible = await worker({ pushAllowed: true, pushCall: true });
   await visible.dispatch('push');
   assert.equal(
@@ -341,7 +341,7 @@ await test('aviso de chamada mostra tipo por padrão, opção de privacidade fic
   assert.equal(stale.notifications.length, 0);
 });
 
-await test('navegação sem rede nem cache falha e erro HTTP do servidor não é mascarado pelo cache', async () => {
+await test('navigation without network or cache fails and server HTTP error cannot be masked by cache', async () => {
   const offline = await worker({ networkAvailable: false });
   await assert.rejects(
     offline.dispatch('fetch', { request: navigation(`${offline.origin}/`) }),
@@ -366,7 +366,7 @@ await test('navegação sem rede nem cache falha e erro HTTP do servidor não é
   assert.equal(stalled.activations(), 0);
 });
 
-await test('worker real instala só shell público e atende offline sem interceptar API', async () => {
+await test('real worker installs only public shell and serves offline without intercepting API', async () => {
   const scope = await worker();
   await scope.dispatch('install');
   assert.equal(scope.activations(), 0);
@@ -411,7 +411,7 @@ await test('worker real instala só shell público e atende offline sem intercep
     2,
   );
 });
-await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente o app', async () => {
+await test('push revalidates mute and session, ignores received content and opens only the app', async () => {
   const scope = await worker({ pushAllowed: true });
   await scope.dispatch('push', {
     data: { title: 'Texto legível malicioso', url: 'https://evil.test' },
@@ -451,7 +451,7 @@ await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente
   assert.equal(silent.notifications[0]?.options.silent, true);
 });
 
-await test('worker rejeita instalação incompleta e ativação por mensagem inválida', async () => {
+await test('worker rejects incomplete installation and activation by invalid message', async () => {
   const failed = await worker({ networkAvailable: false });
   await assert.rejects(failed.dispatch('install'), /synthetic-offline/);
   assert.equal(failed.cache.size, 0);
@@ -473,7 +473,7 @@ await test('worker rejeita instalação incompleta e ativação por mensagem inv
   assert.equal(scope.activations(), 1);
 });
 
-await test('erro de escrita remove somente candidato incompleto e preserva cache anterior', async () => {
+await test('write error removes only the incomplete candidate and preserves previous cache', async () => {
   const scope = await worker({ failWriteAt: 3 });
   await assert.rejects(scope.dispatch('install'), /synthetic-cache-full/);
   assert.equal(scope.cache.size, 0);
@@ -482,7 +482,7 @@ await test('erro de escrita remove somente candidato incompleto e preserva cache
   assert.equal(scope.stores.has('unrelated-project-cache'), true);
 });
 
-await test('instalação consome corpos antes de novos fetches sob orçamento pequeno de conexões', async () => {
+await test('installation consumes bodies before new fetches under a small connection budget', async () => {
   const scope = await worker({ unreadLimit: 3 });
   await scope.dispatch('install');
   assert.ok(scope.cache.size >= 7);
@@ -492,7 +492,7 @@ await test('instalação consome corpos antes de novos fetches sob orçamento pe
   }
 });
 
-await test('downloads lentos instalam além de oito segundos; instalação acima do prazo preserva versão anterior', async () => {
+await test('slow downloads install beyond eight seconds; installation past its deadline preserves the previous version', async () => {
   const available = await worker();
   await available.dispatch('install');
   const slow = await worker({
@@ -512,7 +512,7 @@ await test('downloads lentos instalam além de oito segundos; instalação acima
   assert.equal(stalled.stores.has('unrelated-project-cache'), true);
 });
 
-await test('atualização reaproveita WASM público somente com hash igual ao build e preserva a versão anterior', async () => {
+await test('update reuses public WASM only when its hash matches the build and preserves the previous version', async () => {
   const path = '/matrix-crypto-18.9.0.wasm';
   const bytes = await readFile(
     new URL('../dist/web/matrix-crypto-18.9.0.wasm', import.meta.url),
@@ -541,7 +541,7 @@ await test('atualização reaproveita WASM público somente com hash igual ao bu
   assert.ok(altered.stores.has('unrelated-project-cache'));
 });
 
-await test('push público mostra autor e prévia validada, com símbolo monocromático e link interno', async () => {
+await test('public push shows validated author and preview with monochrome symbol and internal link', async () => {
   const publicPreview = {
     author: { id: crypto.randomUUID(), handle: 'sintetico', avatar: null },
     post: crypto.randomUUID(),

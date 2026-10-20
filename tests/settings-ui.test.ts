@@ -7,7 +7,7 @@ import {
   startSettingsCategories,
 } from '../src/client/app/pages.ts';
 
-await test('categorias abrem uma por vez e notificam o fechamento de aparelhos', () => {
+await test('categories open one at a time and notify device-panel closure', () => {
   const account = Object.assign(new EventTarget(), {
     open: true,
     dataset: { settingsSection: 'account' },
@@ -132,7 +132,7 @@ await test('on phones the plain Profile tab shows the category list instead of t
   }
 });
 
-await test('última categoria aberta volta após recarregar; sem armazenamento nada quebra', () => {
+await test('last opened category returns after reload; absent storage causes no breakage', () => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,

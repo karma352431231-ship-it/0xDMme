@@ -33,7 +33,7 @@ const view = {
   state: 'Aceita',
 };
 
-await test('janela confirmada reutiliza só o mesmo pacote recebido por este aparelho sob a mesma autoridade', () => {
+await test('confirmed window reuses only the same packet received by this device under the same authority', () => {
   const cache = new VerifiedWindow<typeof view>();
   cache.remember(snapshot, [item], [view]);
   const received = { ...item, status: 'received' as const };
@@ -69,7 +69,7 @@ await test('janela confirmada reutiliza só o mesmo pacote recebido por este apa
     assert.equal(cache.read(snapshot, { ...received, ...change }), null);
 });
 
-await test('limpeza e substituição descartam a janela anterior; conteúdo suspenso ou local não é reutilizável', () => {
+await test('cleanup and replacement discard the previous window; suspended or local content cannot be reused', () => {
   const cache = new VerifiedWindow<typeof view & { archived?: boolean }>();
   const received = { ...item, status: 'received' as const };
   for (const changed of [
@@ -111,7 +111,7 @@ await test('Chinese presentation cannot make a suspended message reusable', (con
   assert.equal(cache.read(snapshot, { ...item, status: 'received' }), null);
 });
 
-await test('cópia cifrada de outra conversa ou após recarga só serve com pacote, autoridade e recibo atuais', () => {
+await test('encrypted copy from another conversation or after reload requires current packet, authority and receipt', () => {
   const payloadHash = 'e'.repeat(64);
   const sealed = verifiedReceipt(snapshot, item, payloadHash);
   const received = { ...item, status: 'received' as const };
@@ -156,7 +156,7 @@ await test('cópia cifrada de outra conversa ou após recarga só serve com paco
   );
 });
 
-await test('preparação global retoma página interrompida e reinicia ao mudar snapshot, sem saltar páginas inválidas', () => {
+await test('global preparation resumes an interrupted page and restarts on snapshot change without skipping invalid pages', () => {
   const prefetch = new MessagePrefetch(),
     first = { items: [item], next: 1 };
   assert.equal(prefetch.cursor(snapshot), 0);
@@ -176,7 +176,7 @@ await test('preparação global retoma página interrompida e reinicia ao mudar 
   assert.equal(prefetch.cursor(snapshot), 0);
 });
 
-await test('índice não pode atribuir outro autor, destinatário, tipo ou revisão ao pacote autenticado', () => {
+await test('index cannot assign another author, recipient, type or revision to the authenticated packet', () => {
   const packet = {
     kind: item.kind,
     sender: item.sender,

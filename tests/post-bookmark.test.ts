@@ -26,7 +26,7 @@ class Node {
     this.events.set(event, handler);
   }
 }
-await test('bookmark abre com o estado salvo, só muda após confirmação e conserva indicação na falha', async (t) => {
+await test('bookmark opens with saved state, changes only after confirmation and preserves its indicator on failure', async (t) => {
   const previous = ['document', 'window'].map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
   );
@@ -109,7 +109,7 @@ await test('bookmark abre com o estado salvo, só muda após confirmação e con
   assert.equal(saved, false);
 });
 
-await test('troca de sessão remove o bookmark privado sem mutar a publicação já recebida', () => {
+await test('session change removes the private bookmark without mutating the received post', () => {
   const post: CommunityPost = {
     id: crypto.randomUUID(),
     community: crypto.randomUUID(),

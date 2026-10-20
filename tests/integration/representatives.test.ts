@@ -22,7 +22,7 @@ import {
   credentialStatement,
 } from '../../src/shared/representatives/index.ts';
 const origin = 'http://127.0.0.1:45119';
-await test('organizações/autorizações privadas: ownership, revogação persistente, DNS, concorrência e cota', async (t) => {
+await test('private organizations and authorizations: ownership, persistent revocation, DNS, concurrency and quota', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

@@ -199,7 +199,7 @@ export class SocialDmStore {
       return {
         items: page.map((row) => {
           const peer = profiles.get(row.peer);
-          if (!peer) throw new Error('Perfil de DM ausente.');
+          if (!peer) throw new Error('DM profile missing.');
           return {
             peer,
             requester: row.requester,

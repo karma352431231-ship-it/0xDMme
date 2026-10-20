@@ -18,7 +18,7 @@ import {
 import type { CallDescription, CallView } from '../src/shared/calls/index.ts';
 import { sign } from '../src/shared/devices/index.ts';
 
-await test('SDP/fingerprint cifrados e assinados: adulteração, outra conta/aparelho/chamada/época e replay falham', async () => {
+await test('encrypted and signed SDP/fingerprint rejects tampering, other account/device/call/epoch and replay', async () => {
   const sender = await createIdentity(crypto.randomUUID(), 'Sintético A'),
     recipient = await createIdentity(crypto.randomUUID(), 'Sintético B');
   const sdp = relaySdp(
@@ -114,7 +114,7 @@ await test('SDP/fingerprint cifrados e assinados: adulteração, outra conta/apa
       ),
     );
 });
-await test('configuração da mídia só usa TURN e força relay, sem STUN/fallback', () => {
+await test('media configuration uses only TURN and forces relay without STUN or fallback', () => {
   const config = iceConfiguration({
     iceServers: [
       {

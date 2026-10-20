@@ -55,7 +55,7 @@ async function recoveryKey(secret: string): Promise<CryptoKey> {
   }
 }
 
-/** Segredo aleatório de 256 bits, independente de wallet, senha ou assinatura. */
+/** Random 256-bit secret, independent of wallet, password or signature. */
 export function newRecoverySecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   try {
@@ -75,7 +75,7 @@ export async function sealHistory(
     throw new Error('History exceeds the test limit.');
   const aad = authenticatedHeader(validated.owner, validated.revision);
   const wrappingKey = await recoveryKey(secret);
-  // Uma chave de dados nova por snapshot; nenhum nonce/ratchet próprio.
+  // One new data key per snapshot; no custom nonce or ratchet.
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     true,
@@ -110,7 +110,7 @@ export async function sealHistory(
   }
 }
 
-/** Abre somente histórico. Não importa autorização, dispositivos ou sessões Olm. */
+/** Opens only history. Imports no authorization, devices or Olm sessions. */
 export async function openHistory(
   serialized: string,
   secret: string,

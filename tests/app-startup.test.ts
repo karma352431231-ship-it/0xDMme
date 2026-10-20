@@ -280,7 +280,7 @@ for (const route of ['#communities', '#contacts'])
     assert.ok(view.readied.includes('startCalls'));
   });
 
-await test('documento da wallet inicializa a confirmação em Android e iPhone sem os painéis do app', async () => {
+await test('wallet document initializes confirmation on Android and iPhone without app panels', async () => {
   for (const agent of ['Android', 'iPhone']) {
     const view = await page(true, agent);
     assert.equal(view.nodes.has('app-shell'), false);
@@ -299,7 +299,7 @@ await test('documento da wallet inicializa a confirmação em Android e iPhone s
   }
 });
 
-await test('app completo conserva os painéis e a inicialização da PWA no desktop', async () => {
+await test('full app preserves panels and desktop PWA initialization', async () => {
   const view = await page(false, 'Macintosh');
   assert.equal(view.nodes.get('app-shell')?.dataset['page'], 'conversas');
   assert.equal(view.nodes.get('app-shell')?.dataset['layout'], 'all');
@@ -315,7 +315,7 @@ await test('app completo conserva os painéis e a inicialização da PWA no desk
   );
 });
 
-await test('Perfil no mobile só monta configurações depois do login e as retira no logout', async () => {
+await test('mobile Profile mounts settings only after login and removes them on logout', async () => {
   const view = await page(false, 'Android', '#perfil');
   const content = view.nodes.get('page-content')!;
   assert.equal(content.innerHTML, '');

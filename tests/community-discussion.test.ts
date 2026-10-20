@@ -7,7 +7,7 @@ import {
   discussionOrder,
   discussionPage,
 } from '../src/shared/community-discussion/index.ts';
-await test('cursores de discussão isolam pai/comunidade/ordem e recusam dados privados ou ilimitados', () => {
+await test('discussion cursors isolate parent, community and order and reject private or unbounded data', () => {
   const community = crypto.randomUUID(),
     parent = crypto.randomUUID(),
     time = new Date().toISOString();

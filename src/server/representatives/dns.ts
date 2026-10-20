@@ -21,7 +21,7 @@ export class DnsDomainResolver implements DomainResolver {
         records.length > 32 ||
         records.flat().reduce((n, v) => n + v.length, 0) > 16_384
       )
-        throw new Error('Resposta DNS excedida.');
+        throw new Error('DNS response exceeds the limit.');
       return records.some((chunks) => chunks.join('') === record);
     } catch (error: unknown) {
       if (

@@ -20,7 +20,7 @@ const group = {
   id: crypto.randomUUID(),
   label: 'Comunidade [Arte]',
 };
-await test('menções conservam UUID independente do nome, e links só apontam ao app', () => {
+await test('mentions preserve name-independent UUID and links point only to the app', () => {
   const text = `Olá ${mentionToken(user)} e ${mentionToken(group)}!`;
   assert.equal(mentionPlainText(text), 'Olá @ana e @Comunidade [Arte]!');
   assert.equal(mentionSpans(text).length, 2);
@@ -34,7 +34,7 @@ await test('menções conservam UUID independente do nome, e links só apontam a
   ])
     assert.equal(mentionSpans(unsafe).length, 0);
 });
-await test('editar ao redor preserva a identidade, editar ou excluir o @ desfaz a menção', () => {
+await test('editing around a mention preserves identity; editing or deleting the handle removes the mention', () => {
   const draft = new MentionDraft('Olá ' + mentionToken(user) + '!');
   draft.update('Oi, Olá @ana!');
   assert.match(draft.value(), new RegExp(user.id));
@@ -46,7 +46,7 @@ await test('editar ao redor preserva a identidade, editar ou excluir o @ desfaz 
   draft.update('');
   assert.equal(draft.value(), '');
 });
-await test('seleção substitui só a busca e mantém outras referências após o cursor', () => {
+await test('selection replaces only the query and preserves other references after the cursor', () => {
   const draft = new MentionDraft('Olá @co e ' + mentionToken(user));
   const query = draft.query(7);
   assert.deepEqual(query, { start: 4, end: 7, text: 'co' });
@@ -58,7 +58,7 @@ await test('seleção substitui só a busca e mantém outras referências após 
   );
   assert.equal(draft.query(caret), null);
 });
-await test('limites contam o texto visível, mantendo orçamento de referências e descrições anteriores', () => {
+await test('limits count visible text while preserving reference budget and previous descriptions', () => {
   const text = 'a'.repeat(275) + ' ' + mentionToken(user);
   assert.equal(mentionPlainText(text).length, 280);
   assert.equal(profileDescriptionText(text), text);
@@ -75,7 +75,7 @@ await test('limites contam o texto visível, mantendo orçamento de referências
     mentionToken(group),
   );
 });
-await test('nomes únicos e buscas normalizam caixa, espaços e formas equivalentes sem retirar acentos', () => {
+await test('unique names and searches normalize case, spaces and equivalent forms without removing accents', () => {
   assert.equal(
     communityNameKey('  Comunidade   Ａrte '),
     communityNameKey('comunidade arte'),
@@ -92,14 +92,14 @@ await test('nomes únicos e buscas normalizam caixa, espaços e formas equivalen
   assert.throws(() => mentionQuery('x'.repeat(101)));
 });
 
-await test('prévia conta caracteres visíveis e nunca corta uma referência ao meio', () => {
+await test('preview counts visible characters and never cuts a reference in half', () => {
   const text = 'x'.repeat(598) + mentionToken(user) + ' fim';
   assert.equal(postPreviewText(text), 'x'.repeat(598));
   const complete = mentionToken(user) + 'x'.repeat(700);
   assert.equal(mentionPlainText(postPreviewText(complete)).length, 600);
   assert.equal(mentionSpans(postPreviewText(complete)).length, 1);
 });
-await test('busca pública recusa filtros extras e dados privados; alvo por UUID valida o identificador', async () => {
+await test('public search rejects extra filters and private data; UUID target validates the identifier', async () => {
   const profile = { id: user.id, handle: user.label, avatar: null };
   const ports = {
     suggestions: () => Promise.resolve([profile]),

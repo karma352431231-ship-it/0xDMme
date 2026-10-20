@@ -142,7 +142,7 @@ function render(
     button: article.children.find((node) => node.tag === 'button')!,
   };
 }
-await test('imagem antiga enviada como arquivo aparece automaticamente e mantém o original para salvar', async (t) => {
+await test('legacy image sent as a file appears automatically and preserves the original for saving', async (t) => {
   const { ui, blobs, revoked, body } = environment(t),
     bytes = png(),
     original = bytes.slice();
@@ -176,7 +176,7 @@ await test('imagem antiga enviada como arquivo aparece automaticamente e mantém
   ui.clearMedia();
   assert.deepEqual(revoked, ['blob:synthetic-1']);
 });
-await test('arquivo genérico permanece sob demanda e HTML não é renderizado no chat', async (t) => {
+await test('generic file stays on demand and chat never renders HTML', async (t) => {
   const { ui, blobs } = environment(t);
   let loads = 0;
   const { preview, button } = render(
@@ -195,7 +195,7 @@ await test('arquivo genérico permanece sob demanda e HTML não é renderizado n
   assert.equal(blobs[0]?.type, 'application/octet-stream');
   assert.equal(preview.children.length, 0);
 });
-await test('troca de conversa durante download descarta bytes sem recriar imagem ou Blob', async (t) => {
+await test('conversation change during download discards bytes without recreating an image or Blob', async (t) => {
   const { ui, blobs } = environment(t);
   let finish: (bytes: Uint8Array<ArrayBuffer>) => void = () => {
     throw new Error('Download não iniciado.');
@@ -216,7 +216,7 @@ await test('troca de conversa durante download descarta bytes sem recriar imagem
     true,
   );
 });
-await test('falha automática permite uma tentativa explícita, sem duplicar download por clique repetido', async (t) => {
+await test('automatic failure allows one explicit retry without duplicate downloads from repeated clicks', async (t) => {
   const { ui, blobs } = environment(t);
   let loads = 0;
   const { preview, button } = render(ui, () => {
@@ -235,7 +235,7 @@ await test('falha automática permite uma tentativa explícita, sem duplicar dow
   assert.equal(preview.children[0]?.children[0]?.tag, 'img');
 });
 
-await test('mensagem de voz mostra só o player e baixa o áudio somente ao tocar', async (t) => {
+await test('voice message shows only the player and downloads audio only on play', async (t) => {
   const players: { load: () => Promise<void> }[] = [],
     played: number[][] = [];
   const { ui } = environment(t, {
@@ -273,7 +273,7 @@ await test('mensagem de voz mostra só o player e baixa o áudio somente ao toca
   assert.ok(bytes.every((value) => value === 0));
 });
 
-await test('remover uma bolha revoga só seu Blob; as outras imagens continuam carregadas', async (t) => {
+await test('removing a bubble revokes only its Blob; other images remain loaded', async (t) => {
   const { ui, revoked, blobs } = environment(t),
     stop = new AbortController(),
     other = new AbortController();
@@ -296,7 +296,7 @@ await test('remover uma bolha revoga só seu Blob; as outras imagens continuam c
   assert.deepEqual(revoked, ['blob:synthetic-1', 'blob:synthetic-2']);
 });
 
-await test('exclusão durante download descarta os bytes somente da bolha removida', async (t) => {
+await test("deletion during download discards only the removed bubble's bytes", async (t) => {
   const { ui, blobs } = environment(t),
     stop = new AbortController();
   let finish: (bytes: Uint8Array<ArrayBuffer>) => void = () => {

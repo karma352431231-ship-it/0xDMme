@@ -10,7 +10,7 @@ import {
   withChat,
 } from '../src/client/app/panels.ts';
 
-await test('arranjo salvo no aparelho volta para o painel completo quando inválido ou ilegível', () => {
+await test('invalid or unreadable saved device layout returns to the full panel', () => {
   const cases: [string | null | Error, string][] = [
     [null, 'all'],
     ['solo', 'solo'],
@@ -32,7 +32,7 @@ await test('arranjo salvo no aparelho volta para o painel completo quando invál
     );
 });
 
-await test('abrir conversa traz a coluna de volta sem reabrir o feed recolhido', () => {
+await test('opening a conversation restores the column without reopening the collapsed feed', () => {
   assert.equal(withChat('nochat'), 'all');
   assert.equal(withChat('solo'), 'solo');
   assert.equal(withChat('all'), 'all');
@@ -41,7 +41,7 @@ await test('abrir conversa traz a coluna de volta sem reabrir o feed recolhido',
   assert.equal(toggledChat('solo'), 'nochat');
 });
 
-await test('links de comunidade viram feed, DM pública ou perfil sem misturar identidades', () => {
+await test('community links resolve to feed, public DM or profile without mixing identities', () => {
   assert.deepEqual(
     communityTarget('#comunidades?view=dms&dm=abc&history=local'),
     { kind: 'dm', id: 'abc', local: true },
@@ -67,8 +67,8 @@ await test('links de comunidade viram feed, DM pública ou perfil sem misturar i
   assert.equal(communityTarget('#publico'), null);
 });
 
-await test('estado gravado no app nunca é confundido com um botão de layout', () => {
-  // Regressão: o app recebia data-contact-scope, e todo clique virava troca de escopo.
+await test('saved app state is never confused with a layout button', () => {
+  // Regression: the app received data-contact-scope and every click changed the scope.
   for (const attribute of shellStateAttributes)
     assert.equal(
       (panelControlAttributes as readonly string[]).includes(attribute),

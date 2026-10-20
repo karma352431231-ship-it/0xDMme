@@ -41,7 +41,7 @@ function state(value: CommunityPost): PostState {
     vote: { position: 1, revision: 4 },
   };
 }
-await test('voto no card usa posição/revisão privadas atuais e devolve o placar confirmado', async () => {
+await test('card vote uses current private position and revision and returns the confirmed score', async () => {
   const value = post(),
     current = state(value),
     changed = state({ ...value, score: 2 });
@@ -66,7 +66,7 @@ await test('voto no card usa posição/revisão privadas atuais e devolve o plac
     },
   });
 });
-await test('responder a uma resposta preserva comunidade/pai direto e ID nas tentativas', async () => {
+await test('replying to a reply preserves community, direct parent and ID across attempts', async () => {
   const parent = {
       ...post(),
       parent: crypto.randomUUID(),
@@ -103,7 +103,7 @@ await test('responder a uma resposta preserva comunidade/pai direto e ID nas ten
     { id: parent.community, post: id, parent: parent.id, content },
   ]);
 });
-await test('troca de perfil/sessão durante leitura ou preparo não publica nem atualiza card antigo', async () => {
+await test('profile or session change during reading or preparation cannot publish or update an old card', async () => {
   let valid = true,
     writes = 0;
   const parent = post(),
@@ -215,7 +215,7 @@ function fakeDocument(t: { after: (done: () => void) => void }): void {
     value: class {},
   });
 }
-await test('resposta no perfil é marcada como resposta e mostra inteira a postagem respondida', (t) => {
+await test('profile reply is marked as a reply and displays the complete original post', (t) => {
   fakeDocument(t);
   const root = {
     ...post(),
@@ -270,7 +270,7 @@ await test('resposta no perfil é marcada como resposta e mostra inteira a posta
   const order = card.children.map((node) => node.className);
   assert.ok(order.indexOf('replied-post') < order.indexOf('community-text'));
 });
-await test('atividade do perfil apresenta título, conteúdo e depois tag, conservando a comunidade', (t) => {
+await test('profile activity shows title, content and then tag while preserving the community', (t) => {
   fakeDocument(t);
   const value = {
     ...post(),
@@ -307,7 +307,7 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
   );
 });
 
-await test('bookmark preserva ocultação e revisão, só muda o estado confirmado e não grava após trocar sessão', async () => {
+await test('bookmark preserves hidden state and revision, changes only confirmed state and cannot write after session change', async () => {
   const value = post(),
     stored = { saved: false, hidden: true, revision: 4 };
   let writes = 0,

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { openingDiagnostics } from '../src/client/account/opening-diagnostics.ts';
 
-await test('diagnóstico de abertura não reproduz valores privados nem admite texto externo', () => {
+await test('opening diagnostics reproduce no private values and accept no external text', () => {
   const target =
     'https://0xdmme.app/wallet-entry?ticket=PRIVATE&ecosystem=PRIVATE&view=PRIVATE';
   const result = openingDiagnostics(

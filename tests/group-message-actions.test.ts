@@ -15,7 +15,7 @@ class DialogNode extends ChatNode {
   focus(): void {}
 }
 for (const language of ['en', 'zh-CN'] as const)
-  await test(`${language}: aviso vazio oculta editor, preserva rascunho intacto e descarta apenas a mensagem apagada`, (t) => {
+  await test(`${language}: empty notice hides the editor, preserves the untouched draft and discards only the deleted message`, (t) => {
     setActiveLanguage(language);
     t.after(() => setActiveLanguage('en'));
     const body = new DialogNode('body'),

@@ -97,7 +97,7 @@ function fixture(t: TestContext) {
   }
   return { sync, heads, values, reads, save, add };
 }
-await test('salvar mostra wallet sem aprovação; remover escreve somente marcador cifrado e salvar novamente restaura sem criar conflito', async (t) => {
+await test('saving shows the wallet without approval; removal writes only an encrypted marker and saving again restores without conflict', async (t) => {
   const f = fixture(t),
     book = new AddressBook(f.sync),
     directory = new ContactDirectory(f.sync),
@@ -134,7 +134,7 @@ await test('salvar mostra wallet sem aprovação; remover escreve somente marcad
   assert.equal(directory.id(peer), entity);
   assert.equal(directory.find(peer)?.contact.alias, 'Restored');
 });
-await test('agenda abre 16 contatos por página e remoção concorrente vence até uma escolha explícita', async (t) => {
+await test('directory opens 16 contacts per page and concurrent removal wins until an explicit choice', async (t) => {
   const f = fixture(t),
     book = new AddressBook(f.sync);
   for (let number = 1; number <= 17; number++)
@@ -150,7 +150,7 @@ await test('agenda abre 16 contatos por página e remoção concorrente vence at
   assert.equal((await book.page()).items[0]?.contact.removed, true);
   await assert.rejects(book.page(crypto.randomUUID()), /Contacts have changed/);
 });
-await test('trocar a conta durante abertura não restaura apelidos nem wallets da conta anterior', async (t) => {
+await test('account change during opening cannot restore previous account aliases or wallets', async (t) => {
   const f = fixture(t);
   await f.add(contact(1), 1);
   let release: (value: string) => void = () => undefined;
@@ -170,7 +170,7 @@ await test('trocar a conta durante abertura não restaura apelidos nem wallets d
   assert.deepEqual(directory.entries, []);
   assert.deepEqual(directory.ids, []);
 });
-await test('troca de conta antes de cifrar a remoção impede escrever o contato na conta nova', async (t) => {
+await test('account change before encrypting removal prevents writing the contact into the new account', async (t) => {
   const f = fixture(t),
     directory = new ContactDirectory(f.sync);
   const removing = directory.remove(contact(1));

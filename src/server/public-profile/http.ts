@@ -98,7 +98,7 @@ export function createPublicProfileHandler(
           error:
             error instanceof AccountError
               ? error.message
-              : 'Perfil público indisponível. Tente novamente.',
+              : 'Public profile unavailable. Try again.',
         },
         head,
       );

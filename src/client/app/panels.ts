@@ -18,7 +18,7 @@ import type {
 export { communityTarget, panelLayouts } from './panel-route.ts';
 export type { PanelLayout, CommunityTarget } from './panel-route.ts';
 export const layoutPreferenceKey = '0xdmme:layout';
-/** all: Contatos | Conversa | Feed · nochat: Contatos | Feed · solo: Contatos | Conversa. */
+/** all: Contacts | Chat | Feed · nochat: Contacts | Feed · solo: Contacts | Chat. */
 
 /** Attributes that mark clickable layout controls. */
 export const panelControlAttributes = [
@@ -57,7 +57,7 @@ export function withChat(layout: PanelLayout): PanelLayout {
   return layout === 'nochat' ? 'all' : layout;
 }
 
-/** The “Conversa ao lado” toggle only switches the chat column. */
+/** The “Chat beside” toggle only switches the chat column. */
 export function toggledChat(layout: PanelLayout): PanelLayout {
   return layout === 'nochat' ? 'all' : 'nochat';
 }
@@ -76,7 +76,7 @@ export interface PanelCommunities {
 type Scope = 'private' | 'public';
 
 /**
- * Desktop workspace: Contatos | Conversa | Feed with a collapsible chat column.
+ * Desktop workspace: Contacts | Chat | Feed with a collapsible chat column.
  * Below 1280 px the feed stays on its own page; below 701 px mobile navigation is unchanged.
  */
 export function startPanels(input: {

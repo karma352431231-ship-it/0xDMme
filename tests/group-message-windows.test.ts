@@ -123,7 +123,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
   };
   return { c, data, add, participant };
 }
-await test('edição de grupo lê só o objeto alterado e mantém a outra mensagem; retomada igual não lê histórico', async () => {
+await test('group edit reads only the changed object and preserves the other message; identical resume reads no history', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows(),
     root = add('Original'),
@@ -166,7 +166,7 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
     ['group-message-snapshot', 'group-message-confirm'],
   );
 });
-await test('falha de confirmação elimina o candidato e exige conferência antes de reabrir', async () => {
+await test('confirmation failure removes the candidate and requires checking before reopening', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   add('Confirmada');
@@ -180,7 +180,7 @@ await test('falha de confirmação elimina o candidato e exige conferência ante
     data.calls.slice(before).some((call) => call.op === 'group-message-index'),
   );
 });
-await test('índice grande conserva avanço sem decifrar uma janela parcial', async () => {
+await test('large index preserves progress without decrypting a partial window', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   for (let index = 0; index < 144; index++) add('Sintética');
@@ -193,7 +193,7 @@ await test('índice grande conserva avanço sem decifrar uma janela parcial', as
     10,
   );
 });
-await test('projeção de grupo rejeita edição de outro autor ou original e ignora versões anteriores', async () => {
+await test('group projection rejects another author or original and ignores older edit versions', async () => {
   const { add } = await fixture(),
     root = add('Original'),
     edit = {
@@ -231,7 +231,7 @@ await test('projeção de grupo rejeita edição de outro autor ou original e ig
   );
 });
 
-await test('falha no snapshot descarta o candidato; página anterior não ganha mensagens posteriores', async () => {
+await test('snapshot failure discards the candidate; previous page gains no later messages', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   for (let i = 0; i < 20; i++) add('Original');
@@ -252,7 +252,7 @@ await test('falha no snapshot descarta o candidato; página anterior não ganha 
     data.calls.slice(before).some((call) => call.op === 'group-message-index'),
   );
 });
-await test('edição em um grupo conserva o candidato de outro grupo sem reler mensagens', async () => {
+await test("edit in one group preserves another group's candidate without rereading messages", async () => {
   const a = await fixture(),
     b = await fixture(a.participant),
     windows = new GroupMessageWindows();

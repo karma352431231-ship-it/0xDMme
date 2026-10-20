@@ -9,7 +9,7 @@ const own = {
   pendingAvatar: null,
 };
 
-await test('escolha de seguir autor não consulta vínculo consigo mesmo nem aceita falta de perfil', async () => {
+await test('follow-author choice neither queries a self-relation nor accepts a missing profile', async () => {
   const reads: string[] = [];
   let current: typeof own | null = own;
   const follows = profileFollows({
@@ -25,7 +25,7 @@ await test('escolha de seguir autor não consulta vínculo consigo mesmo nem ace
   assert.deepEqual(reads, ['state', 'state']);
 });
 
-await test('seguir autor usa ID estável e revisão lida; conflito não simula sucesso', async () => {
+await test('follow-author uses stable ID and read revision; conflict cannot simulate success', async () => {
   let conflict = false;
   const follows = profileFollows({
     perform: (operation, payload) => {
@@ -49,7 +49,7 @@ await test('seguir autor usa ID estável e revisão lida; conflito não simula s
   await assert.rejects(follows.set(target, state), /Escolha alterada/);
 });
 
-await test('estado de vínculo inválido não vira uma opção utilizável', async () => {
+await test('invalid relation state cannot become a usable option', async () => {
   const follows = profileFollows({
     perform: (operation) =>
       Promise.resolve(

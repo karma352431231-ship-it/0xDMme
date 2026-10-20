@@ -49,7 +49,7 @@ function browserEnvironment(t: TestContext, hash = ''): void {
 }
 
 for (const withInvite of [false, true])
-  await test(`sessão aberta durante carga local retoma contatos sem remontar e preserva convite=${withInvite}`, async (t) => {
+  await test(`session opened during local loading resumes contacts without remounting and preserves invite=${withInvite}`, async (t) => {
     const invite = { owner: crypto.randomUUID(), token: 'a'.repeat(64) };
     const link = invitationLink('https://0xdmme.app', invite);
     browserEnvironment(t, withInvite ? new URL(link).hash : '');
@@ -147,7 +147,7 @@ for (const withInvite of [false, true])
     }
   });
 
-await test('salvar e solicitar por endereço completo identificam EVM/Solana sem seletor de ecossistema', async (t) => {
+await test('save and request by full address identify EVM/Solana without an ecosystem selector', async (t) => {
   browserEnvironment(t);
   const access: VaultAccess = {
     withVault: () =>

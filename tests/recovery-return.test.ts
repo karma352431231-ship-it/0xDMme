@@ -41,7 +41,7 @@ function session(): AccountSession {
     deviceState: 'pending',
   };
 }
-await test('retorno opaco vincula conta/aparelho/sessão/destino; rejeita replay, adulteração, expiração e assinatura em claro', async (t) => {
+await test('opaque return binds account, device, session and destination and rejects replay, tampering, expiration and plaintext signature', async (t) => {
   let now = Date.now();
   const relay = new RecoveryReturn(origin, () => now);
   t.after(() => relay.close());
@@ -178,7 +178,7 @@ await test('recovery admits more than 128 requests and supersedes without renewi
     relay.requestPublic({ ticket: fresh.ticket, commitment: fresh.commitment }),
   );
 });
-await test('cliente recusa substituição do destino e retoma apenas metadados públicos após reload', async (t) => {
+await test('client rejects destination substitution and resumes only public metadata after reload', async (t) => {
   const user = session();
   const identity = await createIdentity(user.deviceId, 'A');
   const config = createWalletRecovery(user, origin);
@@ -277,7 +277,7 @@ await test('cliente recusa substituição do destino e retoma apenas metadados p
     /[Dd]estination/,
   );
 });
-await test('entrada privada tem URL estrita e fica fora do cache PWA mesmo com allowlist adulterada', () => {
+await test('private entry has a strict URL and stays outside PWA cache even with a tampered allowlist', () => {
   const path = `/recovery-entry/${'a'.repeat(64)}/${'b'.repeat(64)}`;
   assert.ok(recoveryEntry(path));
   assert.equal(recoveryEntry(`${path}?destination=evil`), null);

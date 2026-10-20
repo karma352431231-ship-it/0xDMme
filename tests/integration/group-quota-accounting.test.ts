@@ -306,7 +306,7 @@ await test('group accounting upgrades populated history and preserves transactio
         );
         await assert.rejects(
           groupTextUsage(inspector, fixture.first),
-          /Cota de grupo indisponível/u,
+          /Group quota unavailable/u,
         );
         await assert.rejects(
           inspector.query(

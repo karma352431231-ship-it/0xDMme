@@ -76,7 +76,7 @@ function session() {
     profileRevision: 0,
   };
 }
-await test('pedido recebido é retirado do histórico antes de continuar e nunca aceita ticket inválido', () => {
+await test('received request is removed from history before continuing and never accepts an invalid ticket', () => {
   const incoming = scope(
     `#configuracoes?ticket=${'a'.repeat(64)}&ecosystem=solana&wallet=Phantom`,
   );
@@ -88,7 +88,7 @@ await test('pedido recebido é retirado do histórico antes de continuar e nunca
   assert.throws(() => invalid.api.incomingWalletRequest());
   assert.deepEqual(invalid.replaced, ['#configuracoes']);
 });
-await test('assinatura encontrada exibe candidato, mas não autentica antes da confirmação do navegador', async () => {
+await test('found signature displays a candidate but cannot authenticate before browser confirmation', async () => {
   const { api } = scope();
   const authenticated = session();
   const received: unknown[] = [];
@@ -167,7 +167,7 @@ function handoffResponse() {
   };
 }
 
-await test('cancelar enquanto o pedido local é recuperado não confirma nem cria uma sessão tardia', async () => {
+await test('cancellation while recovering the local request neither confirms nor creates a late session', async () => {
   const { api } = scope();
   const authenticated = session();
   const calls: string[] = [];
@@ -217,7 +217,7 @@ await test('cancelar enquanto o pedido local é recuperado não confirma nem cri
   controller.close();
 });
 
-await test('falha do armazenamento local não impede cancelar o pedido no servidor', async () => {
+await test('local storage failure cannot prevent cancelling the server request', async () => {
   const { api } = scope();
   let cancelled = false;
   const controller = api.createWalletReturn({
@@ -238,7 +238,7 @@ await test('falha do armazenamento local não impede cancelar o pedido no servid
   controller.close();
 });
 
-await test('seleção abre a wallet uma vez após pedido válido; consulta não abre novamente', async () => {
+await test('selection opens the wallet once after a valid request; polling never opens it again', async () => {
   const { controller, opened } = launchController(
     Promise.resolve(handoffResponse()),
     'Android Chrome/141.0',
@@ -260,7 +260,7 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   controller.close();
 });
 
-await test('pedido Backpack conserva o destino completo no caminho do documento Android/iOS', async () => {
+await test('Backpack request preserves the complete destination in the Android/iOS document path', async () => {
   for (const agent of ['Android Chrome/141.0', 'iPhone']) {
     for (const ecosystem of ['evm', 'solana'] as const) {
       const { controller, opened } = launchController(
@@ -303,7 +303,7 @@ await test('pedido Backpack conserva o destino completo no caminho do documento 
     }
   }
 });
-await test('relógio do dispositivo adiantado ou atrasado não impede abertura nem consulta; confirmação continua obrigatória', async () => {
+await test('device clock ahead or behind cannot prevent opening or polling; confirmation stays mandatory', async () => {
   for (const offset of [-3_600_000, -5000, 0, 3_600_000]) {
     const { api, navigated } = scope('', 'Android', true, offset);
     let sessions = 0;
@@ -340,7 +340,7 @@ await test('relógio do dispositivo adiantado ou atrasado não impede abertura n
   }
 });
 
-await test('falha ao preparar o pedido explica a etapa sem expor erro interno nem abrir a wallet', async () => {
+await test('request preparation failure explains the stage without exposing internal errors or opening the wallet', async () => {
   const { controller, opened } = launchController(
     Promise.reject(new Error('private transport details')),
   );
@@ -355,7 +355,7 @@ await test('falha ao preparar o pedido explica a etapa sem expor erro interno ne
   controller.close();
 });
 
-await test('pedido resolvido após fechar ou cancelar nunca abre wallet nem restaura estado', async () => {
+await test('request resolved after closing or cancelling never opens the wallet or restores state', async () => {
   for (const action of ['close', 'cancel'] as const) {
     let resolve!: (value: unknown) => void;
     const response = new Promise<unknown>((complete) => {
@@ -373,7 +373,7 @@ await test('pedido resolvido após fechar ou cancelar nunca abre wallet nem rest
   }
 });
 
-await test('resposta inválida ou expirada nunca navega para a wallet', async () => {
+await test('invalid or expired response never navigates to the wallet', async () => {
   for (const response of [
     { ...handoffResponse(), ticket: 'wrong' },
     { ...handoffResponse(), expiresAt: 'invalid' },
@@ -395,7 +395,7 @@ await test('resposta inválida ou expirada nunca navega para a wallet', async ()
   }
 });
 
-await test('navegação mobile não é vetada por ativação expirada; desktop continua sem abertura automática', () => {
+await test('expired activation cannot veto mobile navigation; desktop still has no automatic opening', () => {
   const link = 'https://phantom.app/ul/browse/example';
   for (const userAgent of ['Android', 'iPhone']) {
     const mobile = scope('', userAgent, false);
@@ -407,7 +407,7 @@ await test('navegação mobile não é vetada por ativação expirada; desktop c
   assert.deepEqual(desktop.navigated, []);
 });
 
-await test('resposta de rede após expirar o clique ainda tenta abrir uma vez e preserva link alternativo', async () => {
+await test('network response after click expiration still tries opening once and preserves the alternate link', async () => {
   for (const [wallet, network] of [
     ['MetaMask', 'evm'],
     ['Phantom', 'solana'],
@@ -439,7 +439,7 @@ await test('resposta de rede após expirar o clique ainda tenta abrir uma vez e 
   }
 });
 
-await test('recusa de navegação mantém o pedido e oferece o link explícito sem simular abertura', async () => {
+await test('navigation rejection preserves the request and offers the explicit link without simulating opening', async () => {
   const mobile = scope();
   mobile.navigation.rejected = true;
   const messages: string[] = [];
@@ -458,7 +458,7 @@ await test('recusa de navegação mantém o pedido e oferece o link explícito s
   assert.match(messages.at(-1) ?? '', /^Tap Open Phantom/u);
   controller.close();
 });
-await test('confirmação tardia após cancelar é revogada e não abre a conta nem seu perfil', async () => {
+await test('late confirmation after cancellation is revoked and opens neither account nor profile', async () => {
   const { api } = scope();
   const authenticated = session();
   const received: unknown[] = [];

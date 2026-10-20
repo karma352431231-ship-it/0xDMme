@@ -26,7 +26,7 @@ function item(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-await test('recusar o aviso KLIPY impede inclusive busca e prévias de terceiros', async (t) => {
+await test('rejecting the KLIPY notice blocks even search and third-party previews', async (t) => {
   let requests = 0;
   t.mock.method(globalThis, 'fetch', () => {
     requests++;
@@ -43,7 +43,7 @@ await test('recusar o aviso KLIPY impede inclusive busca e prévias de terceiros
   assert.equal(requests, 0);
 });
 
-await test('página do KLIPY vira prévia e clipe validados; o resto é descartado', () => {
+await test('KLIPY page becomes a validated preview and clip; the rest is discarded', () => {
   const page = parseGifPage({
     result: true,
     data: {
@@ -77,7 +77,7 @@ await test('página do KLIPY vira prévia e clipe validados; o resto é descarta
   assert.deepEqual(parseGifPage(null), { items: [], next: false });
 });
 
-await test('só uma mensagem com exatamente um link de mídia do KLIPY vira GIF', () => {
+await test('only a message with exactly one KLIPY media link becomes a GIF', () => {
   for (const [text, expected] of [
     [`${host}/b.mp4`, `${host}/b.mp4`],
     [`  ${host}/b.webp  `, `${host}/b.webp`],
@@ -90,7 +90,7 @@ await test('só uma mensagem com exatamente um link de mídia do KLIPY vira GIF'
     assert.equal(gifMessageUrl(text), expected, text);
 });
 
-await test('chave do KLIPY é opcional e validada na configuração do servidor', () => {
+await test('KLIPY key is optional and validated in server configuration', () => {
   const base = {
     HASH_TALK_PREPARATION_PROFILE: 'local',
     HASH_TALK_DATABASE_URL:
@@ -109,7 +109,7 @@ await test('chave do KLIPY é opcional e validada na configuração do servidor'
   );
 });
 
-await test('GIFs junto ao texto deduplicam e só retiram links efetivamente exibidos', () => {
+await test('GIFs alongside text deduplicate and remove only displayed links', () => {
   const a = `${host}/a.mp4`,
     b = `${host}/b.gif`,
     c = `${host}/c.webp`,

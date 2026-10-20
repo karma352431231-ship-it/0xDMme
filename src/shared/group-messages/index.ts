@@ -335,7 +335,7 @@ export function groupTitle(input: unknown): string {
     !value['title'].trim() ||
     value['title'].length > 160
   )
-    throw new Error('Nome de grupo inválido.');
+    throw new Error('Invalid group name.');
   return value['title'].trim();
 }
 

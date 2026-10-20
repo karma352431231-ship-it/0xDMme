@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { frontendVendorSource } from '../src/tools/frontend-vendor-source.ts';
 
-await test('fontes preferenciais exigem arquivo exato e versões revisadas, sem baixar dependências', async (t) => {
+await test('preferred sources require the exact archive and reviewed versions without downloading dependencies', async (t) => {
   const root = await mkdtemp(join(tmpdir(), '0xdmme-vendor-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const archiveDirectory = join(root, 'vendor/libsodium-0.8.4');
@@ -23,11 +23,14 @@ await test('fontes preferenciais exigem arquivo exato e versões revisadas, sem 
   const bytes = await frontendVendorSource(root);
   assert.ok(bytes.length < 2 * 1024 * 1024);
   await writeFile(archivePath, 'altered-source');
-  await assert.rejects(frontendVendorSource(root), /alteradas sem revisão/u);
+  await assert.rejects(
+    frontendVendorSource(root),
+    /source changed without review/u,
+  );
   await writeFile(archivePath, bytes);
   await writeFile(
     join(root, 'node_modules/libsodium/package.json'),
     JSON.stringify({ version: '0.8.5' }),
   );
-  await assert.rejects(frontendVendorSource(root), /nova revisão de versão/u);
+  await assert.rejects(frontendVendorSource(root), /new version review/u);
 });

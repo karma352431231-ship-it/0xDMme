@@ -40,7 +40,7 @@ function fixture() {
     },
   };
 }
-await test('DM sincroniza uma vez e abre outras conversas só conferindo snapshot; não regrava o cursor igual', async () => {
+await test('DM synchronizes once and opens other conversations by checking snapshots without rewriting an unchanged cursor', async () => {
   const f = fixture();
   await synchronizeDmHistory(f.options);
   await synchronizeDmHistory(f.options);
@@ -54,7 +54,7 @@ await test('DM sincroniza uma vez e abre outras conversas só conferindo snapsho
   await synchronizeDmHistory(f.options);
   assert.deepEqual(f.pages, [0, 12]);
 });
-await test('versão antiga relê edições; remoção ou mudança de autoridade invalida o cursor, e lacunas não avançam', async () => {
+await test('old version rereads edits; removal or authority change invalidates the cursor and gaps cannot advance', async () => {
   const f = fixture();
   f.cursor({ version: 2, after: 12, removals: 0 });
   await synchronizeDmHistory(f.options);
@@ -69,7 +69,7 @@ await test('versão antiga relê edições; remoção ou mudança de autoridade 
   await synchronizeDmHistory(g.options);
   assert.equal(g.saved.length, 0);
 });
-await test('snapshot alterado durante a leitura e cancelamento não publicam cursor; paginação sem progresso falha', async () => {
+await test('changed snapshot during reading and cancellation publish no cursor; pagination without progress fails', async () => {
   const f = fixture(),
     pending = deferred<{ next: number; unavailable: string[] }>();
   f.options.page = () => pending.promise;

@@ -322,7 +322,7 @@ export class AccountSettingsController {
     }
     return problems;
   }
-  /** A change made in Configurações updates the account copy. */
+  /** A change made in Settings updates the account copy. */
   private changed(change: PreferenceChange): void {
     const session = this.session;
     if (!session || this.applying) return;

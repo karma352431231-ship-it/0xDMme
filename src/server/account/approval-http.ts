@@ -62,7 +62,7 @@ function pathRef(params: URLSearchParams, origin: string): void {
 function approvalPage(document?: Uint8Array): string | undefined {
   if (!document) return;
   if (document.byteLength > 65_536)
-    throw new Error('Documento de aprovação excedido.');
+    throw new Error('Approval document exceeds the limit.');
   const page = new TextDecoder('utf-8', { fatal: true }).decode(document);
   if (page.split('</head>').length !== 2)
     throw new Error('Invalid approval document.');

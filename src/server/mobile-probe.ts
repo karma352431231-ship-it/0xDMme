@@ -41,7 +41,7 @@ try {
   await once(laboratory, 'listening');
   bootstrap = serveMobileCertificate(mobile.address, certificate);
   await once(bootstrap, 'listening');
-  // Qualquer erro de listener encerra ambos; não deixar uma sessão parcial ativa.
+  // Any listener error closes both; never leave a partial session active.
   for (const server of [laboratory, bootstrap]) {
     server.on('error', () => {
       process.exitCode = 1;
@@ -52,15 +52,15 @@ try {
   process.once('SIGTERM', shutdown);
   setTimeout(shutdown, 2 * 60 * 60 * 1000).unref();
   process.stdout.write(
-    `Certificado público: http://${mobile.address}:45103/hash-talk-test.cer\n`,
+    `Public certificate: http://${mobile.address}:45103/hash-talk-test.cer\n`,
   );
   process.stdout.write(
-    `Entrada temporária: ${origin}/?access=${mobile.accessToken}\n`,
+    `Temporary entry: ${origin}/?access=${mobile.accessToken}\n`,
   );
 } catch {
   shutdown();
   process.stderr.write(
-    'Não foi possível iniciar o ensaio HTTPS. Confira a configuração e os certificados locais.\n',
+    'Could not start the HTTPS probe. Check the local configuration and certificates.\n',
   );
   process.exitCode = 1;
 }

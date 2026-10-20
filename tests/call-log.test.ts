@@ -13,7 +13,7 @@ const now = 10 * callLogLifetime;
 const id = () => crypto.randomUUID();
 const peer = crypto.randomUUID();
 
-await test('chamada atendida em outro aparelho some da lista de perdidas', () => {
+await test('call answered on another device leaves the missed-call list', () => {
   const call = { id: id(), peer, at: now - 1000 };
   const ringingHere = { ...emptyCallLog(), missed: [call] };
   const answeredThere = {
@@ -24,7 +24,7 @@ await test('chamada atendida em outro aparelho some da lista de perdidas', () =>
   assert.deepEqual(visibleMissedCalls(merged), []);
 });
 
-await test('versões de aparelhos se juntam sem repetir a mesma chamada', () => {
+await test('device versions merge without duplicating a call', () => {
   const call = { id: id(), peer, at: now - 1000 };
   const other = { id: id(), peer, at: now - 500 };
   const merged = mergeCallLogs(
@@ -40,7 +40,7 @@ await test('versões de aparelhos se juntam sem repetir a mesma chamada', () => 
   );
 });
 
-await test('retenção: 30 dias, 50 mais recentes e nada anterior à limpeza', () => {
+await test('retention: 30 days, 50 most recent and nothing before cleanup', () => {
   const old = { id: id(), peer, at: now - callLogLifetime - 1 };
   const many = Array.from({ length: callLogLimit + 5 }, (_, i) => ({
     id: id(),
@@ -64,7 +64,7 @@ await test('retenção: 30 dias, 50 mais recentes e nada anterior à limpeza', (
   assert.equal(cleared.clearedAt, now - 10);
 });
 
-await test('registro malformado vindo do cofre é recusado', () => {
+await test('malformed vault record is rejected', () => {
   const valid = JSON.stringify({
     version: 1,
     missed: [{ id: id(), peer, at: 5 }],

@@ -79,7 +79,7 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const response = () =>
   Response.json({ configured: true, enabled: true, revision: 0, call: null });
 
-await test('ready concorrente na inicialização mantém heartbeat de 5s e não perde a autorização de 20s', async (t) => {
+await test('concurrent startup ready preserves the 5s heartbeat and 20s authorization', async (t) => {
   const { calls, session } = fixture(t);
   let requests = 0,
     release: ((response: Response) => void) | null = null;

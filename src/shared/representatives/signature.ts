@@ -30,7 +30,7 @@ export function verifyWalletStatement(
       bytes.length !== 64 ||
       base58.encode(bytes) !== signature
     )
-      throw new Error('Chave/assinatura inválida.');
+      throw new Error('Invalid key/signature.');
     if (
       !ed25519.verify(bytes, new TextEncoder().encode(message), key, {
         zip215: false,

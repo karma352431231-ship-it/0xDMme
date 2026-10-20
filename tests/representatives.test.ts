@@ -93,7 +93,7 @@ async function fixture() {
   };
   return { issuer, subject, card };
 }
-await test('autorização EVM v2 bilíngue, aceite e cartão preservam conteúdo e validade ao trocar idioma', async (context) => {
+await test('bilingual EVM v2 authorization, acceptance and card preserve content and validity after language change', async (context) => {
   context.after(() => setActiveLanguage('en'));
   const { card } = await fixture();
   const encoded = encodeRepresentativeCard(card);
@@ -145,7 +145,7 @@ await test('autorização EVM v2 bilíngue, aceite e cartão preservam conteúdo
   }
 });
 
-await test('verificação no cliente exige estado recente e revogação assinada; falha/offline nunca viram vigente', async (t) => {
+await test('client verification requires recent state and signed revocation; failure or offline never imply validity', async (t) => {
   const { card, issuer, subject } = await fixture();
   const session: AccountSession = {
     ...card.credential.subject,
@@ -252,7 +252,7 @@ await test('verificação no cliente exige estado recente e revogação assinada
   await assert.rejects(creating, /Session changed/u);
 });
 
-await test('pedido de assinatura recusa troca de wallet e sessão antes de usar o resultado', async () => {
+await test('signature request rejects wallet and session changes before using the result', async () => {
   const { issuer, subject, card } = await fixture(),
     identity = card.credential.organization.issuer;
   const { signature: _old, ...body } = card.credential;
@@ -301,7 +301,7 @@ await test('pedido de assinatura recusa troca de wallet e sessão antes de usar 
     /Session changed/u,
   );
 });
-await test('mensagens Solana verificadas sem depender de backend ou confundir finalidade', () => {
+await test('Solana messages verify without backend dependency or purpose confusion', () => {
   const secret = ed25519.utils.randomSecretKey(),
     identity = {
       ecosystem: 'solana' as const,
@@ -323,7 +323,7 @@ await test('mensagens Solana verificadas sem depender de backend ou confundir fi
     ),
   );
 });
-await test('desafio de domínio vincula organização, origem, código, prazo e wallet', async () => {
+await test('domain challenge binds organization, origin, code, deadline and wallet', async () => {
   const { issuer, card } = await fixture();
   const body = {
     version: 2 as const,

@@ -25,7 +25,7 @@ export function pendingPublicAvatar(
       Math.max(shape.width, shape.height) > 2048 ||
       !metadataFree(bytes, type)
     )
-      throw new Error('Foto não preparada.');
+      throw new Error('Photo is not prepared.');
   } catch {
     throw new AccountError(
       400,

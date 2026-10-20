@@ -70,7 +70,7 @@ function members(event: GroupEvent) {
   );
 }
 
-await test('participação assinada, remoção e reentrada não concedem histórico de períodos anteriores', async () => {
+await test('signed membership, removal and reentry grant no history from earlier periods', async () => {
   const owner = await participant(),
     invited = await participant(),
     attacker = await participant();
@@ -189,7 +189,7 @@ await test('participação assinada, remoção e reentrada não concedem histór
   );
 });
 
-await test('diretório admite 200 participantes e recusa o 201º sem reduzir o limite', async () => {
+await test('directory admits 200 participants and rejects the 201st without reducing the limit', async () => {
   const owner = await participant();
   const state: GroupEvent = {
     version: 1,
@@ -224,7 +224,7 @@ await test('diretório admite 200 participantes e recusa o 201º sem reduzir o l
   );
 });
 
-await test('admin não muda propriedade, transferência exige assinatura dos dois, antigo dono vira membro', async () => {
+await test('admin cannot change ownership; transfer requires both signatures and the former owner becomes a member', async () => {
   const owner = await participant(),
     next = await participant();
   const genesis = await signed(

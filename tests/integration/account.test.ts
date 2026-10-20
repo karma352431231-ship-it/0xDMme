@@ -138,7 +138,7 @@ function navigateEntry(path: string, cookie = ''): Promise<Response> {
   });
 }
 
-await test('Autenticação e perfil persistentes', async (t) => {
+await test('persistent authentication and profile', async (t) => {
   await database.migrate();
   await inspector.connect();
   await new Promise<void>((resolve, reject) => {
@@ -183,7 +183,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   });
 
   await t.test(
-    'login atômico aceita apenas uma verificação concorrente, preserva conta e deixa histórico bloqueado',
+    'atomic login accepts one concurrent verification, preserves the account and keeps history locked',
     async () => {
       const signer = wallet();
       const challenge = await requestChallenge(signer);
@@ -233,7 +233,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'entrada combinada só cria conta após prova cifrada e confirmação original, preservando o identificador',
+    'combined entry creates the account only after encrypted proof and original confirmation, preserving its identifier',
     async () => {
       const signer = wallet(),
         deviceId = randomUUID();
@@ -389,7 +389,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'assinatura de outro domínio, outra wallet, cookie trocado e desafio expirado são recusados',
+    'other-domain signature, other wallet, changed cookie and expired challenge are rejected',
     async () => {
       const signer = wallet();
       const other = wallet();
@@ -454,7 +454,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'cadastros vazios não comprometem cota e login concorrente preserva a identidade',
+    'empty registrations reserve no quota and concurrent login preserves identity',
     async () => {
       const signer = wallet();
       const results = await Promise.all([
@@ -469,7 +469,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
     },
   );
   await t.test(
-    'contas diferentes podem ser criadas sem reserva prévia; sessão expirada recusa escrita',
+    'different accounts can register without advance reservation; expired session rejects writes',
     async () => {
       const results = await Promise.all([
         authenticate(wallet()),
@@ -496,7 +496,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'perfil remoto permanece opaco, exige revisão seguinte, e outra wallet não o lê',
+    'remote profile stays opaque, requires the next revision and is unreadable by another wallet',
     async () => {
       const signer = wallet();
       const login = await authenticate(signer);
@@ -547,7 +547,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'Solana preserva endereço e conta, rejeita replay, outra chave, prefixo e chaves de baixa ordem',
+    'Solana preserves address and account and rejects replay, other key, prefix and low-order keys',
     async () => {
       const secret = ed25519.utils.randomPrivateKey();
       const address = base58.encode(ed25519.getPublicKey(secret));
@@ -653,7 +653,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'retorno exige assinatura, cookie original e confirmação exata; não cria sessão na wallet e é atômico',
+    'return requires signature, original cookie and exact confirmation, creates no wallet session and is atomic',
     async () => {
       const signer = wallet();
       const deviceId = randomUUID();
@@ -781,7 +781,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'retorno HTTP mantém cookies independentes e só entrega sessão após confirmação no navegador original',
+    'HTTP return keeps independent cookies and delivers a session only after confirmation in the original browser',
     async () => {
       const signer = wallet();
       const headers = { Origin: origin, 'Content-Type': 'application/json' };
@@ -982,7 +982,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'HTTP exige origem e CSRF, usa cookies HttpOnly, rejeita campos secretos e encerra sessão',
+    'HTTP requires origin and CSRF, uses HttpOnly cookies, rejects secret fields and ends the session',
     async () => {
       // This independent HTTP scenario gets its own unchanged rate limit.
       httpAccount.close();

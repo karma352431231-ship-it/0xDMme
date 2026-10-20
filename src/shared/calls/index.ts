@@ -90,7 +90,7 @@ export function callDescription(input: unknown): CallDescription {
 }
 function invitationSdp(d: Record<string, unknown>): string {
   if (d['sdp'] !== '' || d['sequence'] !== 0)
-    throw new AccountError(400, 'Convite de chamada inválido.');
+    throw new AccountError(400, 'Invalid call invitation.');
   return '';
 }
 /** Remove ICE related addresses before sharing; reject all non-relay candidates. */
@@ -159,7 +159,7 @@ export function callSnapshot(input: unknown): CallSnapshot {
     ...(Object.hasOwn(d, 'invitation') ? ['invitation'] : []),
   ]);
   if (Object.hasOwn(d, 'invitation') && d['invitation'] !== true)
-    throw new AccountError(400, 'Capacidade de chamada inválida.');
+    throw new AccountError(400, 'Invalid call capability.');
   if (typeof d['configured'] !== 'boolean' || typeof d['enabled'] !== 'boolean')
     throw new AccountError(400, 'Invalid call preference.');
   return {

@@ -120,7 +120,7 @@ function subject(row: ReviewRow): PublicModerationSubject {
 }
 function claim(row: ReviewRow): PublicModerationClaim {
   if (!row.lease || !row.model_hash || !row.runtime)
-    throw new Error('Concessão de análise incompleta.');
+    throw new Error('Incomplete analysis grant.');
   return {
     ...subject(row),
     lease: row.lease,
@@ -180,7 +180,7 @@ export class PublicModerationStore {
     this.pool = pool;
     this.capacity = capacity;
     if (acceptedModels.length > 16)
-      throw new Error('Inventário de modelos aceitos excedido.');
+      throw new Error('Approved model inventory limit exceeded.');
     this.acceptedModels = acceptedModels.map((model) => ({
       hash: fingerprint(model.hash),
       runtime: boundedText(model.runtime, 120),
@@ -628,7 +628,7 @@ export class PublicModerationStore {
       )
         return notice(current);
       requireOperatorReview(current, apply !== null);
-      if (!apply) throw new Error('Vínculo de análise ausente.');
+      if (!apply) throw new Error('Analysis binding missing.');
       await apply(input.verdict);
       const saved = await client.query<ReviewRow>(
         `UPDATE hash_talk.public_moderation SET status=$2,operator_verdict=$3,decision=$4,reviewed_at=now(),

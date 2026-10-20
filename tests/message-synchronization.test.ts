@@ -219,7 +219,7 @@ await test('prefetch failure is bounded, and session change cannot publish its d
   ]);
 });
 
-await test('aviso normal durante pré-carregamento aguarda a página confirmar sem abortar seu progresso', async (t) => {
+await test('normal notice during preload waits for page confirmation without aborting progress', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t),
     page = deferred<boolean>();
@@ -250,7 +250,7 @@ await test('aviso normal durante pré-carregamento aguarda a página confirmar s
   assert.equal(checks, 1);
 });
 
-await test('snapshot atualizado durante preparação repete no próximo turno sem esperar um minuto', async (t) => {
+await test('snapshot updated during preparation repeats on the next turn without a one-minute wait', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 100000 });
   const f = fixture(t);
   let calls = 0;

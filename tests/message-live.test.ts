@@ -45,7 +45,7 @@ function response() {
 function turn(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
-await test('SSE de sessão de 160 dias não encerra entre timers e respeita a expiração completa', (t) => {
+await test('160-day session SSE survives timers and respects full expiration', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
   const lifetime = 160 * 24 * 60 * 60 * 1000;
   const live = new MessageLive(new DatabaseChanges());
@@ -70,7 +70,7 @@ await test('SSE de sessão de 160 dias não encerra entre timers e respeita a ex
   assert.match(target.text(), /event: ended/u);
 });
 
-await test('avisos próximos geram uma sondagem; reconexão exige refresh e não pode ser rebaixada por changed', (t) => {
+await test('nearby notifications produce one probe; reconnection requires refresh and changed cannot downgrade it', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const applied: string[] = [];
   const updates = new LiveUpdates({
@@ -88,7 +88,7 @@ await test('avisos próximos geram uma sondagem; reconexão exige refresh e não
   t.mock.timers.tick(150);
   assert.deepEqual(applied, ['probe', 'refresh']);
 });
-await test('avisos durante trabalho ou suspensão aguardam retomada; troca de sessão cancela o pedido antigo', (t) => {
+await test('notifications during work or suspension wait for resume; session change cancels the old request', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const applied: string[] = [];
   let available = false;
@@ -126,7 +126,7 @@ await test('avisos durante trabalho ou suspensão aguardam retomada; troca de se
   t.mock.timers.tick(150);
   assert.deepEqual(applied, ['probe', 'refresh']);
 });
-await test('SSE admite mais de 8 clientes/2 abas; fanout só para contas afetadas e heartbeat sem banco', async (t) => {
+await test('SSE admits more than 8 clients or 2 tabs; fanout targets affected accounts only and heartbeat needs no database', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const changes = new DatabaseChanges(),
     live = new MessageLive(changes);
@@ -169,7 +169,7 @@ await test('SSE admite mais de 8 clientes/2 abas; fanout só para contas afetada
     ),
   );
 });
-await test('eventos encerram apenas sessão/aparelho afetado; falha de autorização fecha stream e cliente lento não acumula fila', async (t) => {
+await test('events end only the affected session or device; authorization failure closes stream and slow client accumulates no queue', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const changes = new DatabaseChanges(),
     live = new MessageLive(changes),
@@ -222,7 +222,7 @@ await test('eventos encerram apenas sessão/aparelho afetado; falha de autoriza�
   });
   assert.equal(slow.output.destroyed, true);
 });
-await test('exclusão envia somente aviso vazio às contas afetadas sem esperar lote ou autorização da atualização normal', async (t) => {
+await test('deletion sends only an empty notice to affected accounts without waiting for batching or normal update authorization', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const changes = new DatabaseChanges(),
     live = new MessageLive(changes);
@@ -268,7 +268,7 @@ await test('exclusão envia somente aviso vazio às contas afetadas sem esperar 
       .every((target) => target.text().includes('event: changed')),
   );
 });
-await test('falha de publicação de aviso não transforma um commit durável em erro; observador falha fechando canais', () => {
+await test('notice publication failure cannot turn durable commit into an error; observer fails by closing channels', () => {
   const changes = new DatabaseChanges();
   let failed = 0;
   const stop = changes.observe({
@@ -285,7 +285,7 @@ await test('falha de publicação de aviso não transforma um commit durável em
   changes.committed(['account']);
   assert.equal(failed, 1);
 });
-await test('parser SSE suporta UTF-8 fragmentado e recusa conteúdo, campos extras, excesso e frames truncados', () => {
+await test('SSE parser supports fragmented UTF-8 and rejects content, extra fields, oversized and truncated frames', () => {
   const parser = new WakeupFrames(),
     found: string[] = [];
   const events = [
@@ -335,7 +335,7 @@ function access(work: VaultAccess['withVault']): VaultAccess {
     withLocalVault: (_locator, action) => action(authority),
   };
 }
-await test('retomada e ready tardio pedem uma única carga depois do handshake, sem iniciar leitura que seria cancelada', async (t) => {
+await test('resume and late ready request one load after handshake without starting a read that would be cancelled', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const original = globalThis.fetch;
   t.after(() => {
@@ -387,7 +387,7 @@ await test('retomada e ready tardio pedem uma única carga depois do handshake, 
   assert.deepEqual(applied, ['refresh']);
 });
 
-await test('falha do handshake libera a conferência pendente sem depender de ready; suspensão cancela a abertura', async (t) => {
+await test('handshake failure releases the pending check without depending on ready; suspension cancels opening', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const original = globalThis.fetch;
   const applied: string[] = [];
@@ -425,7 +425,7 @@ await test('falha do handshake libera a conferência pendente sem depender de re
   assert.deepEqual(applied, ['refresh']);
 });
 
-await test('handshake sem resposta tem prazo e libera a conferência pendente pelo fallback', async (t) => {
+await test('unanswered handshake has a deadline and releases the pending check through fallback', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const original = globalThis.fetch;
   const applied: string[] = [];
@@ -463,7 +463,7 @@ await test('handshake sem resposta tem prazo e libera a conferência pendente pe
   assert.deepEqual(applied, ['refresh']);
 });
 
-await test('stream não mantém trava do cofre; quedas reconectam com ready e três falhas encerram tentativas automáticas', async (t) => {
+await test('stream holds no vault lock; disconnects reconnect with ready and three failures end automatic attempts', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const original = globalThis.fetch;
   t.after(() => {
@@ -524,7 +524,7 @@ await test('stream não mantém trava do cofre; quedas reconectam com ready e tr
   assert.equal(live.connected, false);
   assert.match(live.notice, /30 seconds/);
 });
-await test('cancelar antes da assinatura impede abrir conexão com sessão antiga', async (t) => {
+await test('cancellation before signing prevents opening a connection with an old session', async (t) => {
   const original = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = original;
@@ -554,7 +554,7 @@ await test('cancelar antes da assinatura impede abrir conexão com sessão antig
   assert.equal(fetched, 0);
 });
 
-await test('reconexão recusada por sessão encerrada comunica fim da autorização e não fica tentando indefinidamente', async (t) => {
+await test('reconnection rejected by an ended session reports authorization loss without retrying forever', async (t) => {
   const original = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = original;
@@ -578,7 +578,7 @@ await test('reconexão recusada por sessão encerrada comunica fim da autorizaç
   assert.equal(live.connected, false);
 });
 
-await test('diretório alterado durante abertura confere autorização sem anunciar revogação', async (t) => {
+await test('directory changed during opening checks authorization without announcing revocation', async (t) => {
   const original = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = original;
@@ -597,7 +597,7 @@ await test('diretório alterado durante abertura confere autorização sem anunc
   assert.equal(live.connected, false);
 });
 
-await test('atividade recente mantém o stream válido; gap sem timers e frame tardio exigem reconexão', async (t) => {
+await test('recent activity keeps the stream valid; timer gap and late frame require reconnection', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const original = globalThis.fetch;
   const events: string[] = [];

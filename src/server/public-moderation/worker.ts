@@ -49,7 +49,7 @@ export class PublicModerationWorker {
         return this.queue.nextWork?.(this.runner !== null) ?? null;
       },
       failed: () => {
-        process.stderr.write('Análise pública indisponível.\n');
+        process.stderr.write('Public analysis unavailable.\n');
       },
     });
     this.unsubscribe = options.signals?.subscribe('public-moderation', () =>
@@ -64,12 +64,11 @@ export class PublicModerationWorker {
       while (!this.stop.signal.aborted && (await this.upgradePolicy()) === 32)
         await new Promise<void>((accept) => setImmediate(accept));
     } catch {
-      process.stderr.write('Reanálise após mudança da regra está pendente.\n');
+      process.stderr.write('Reanalysis after a policy change is pending.\n');
     }
   }
   start(): void {
-    if (this.stop.signal.aborted)
-      throw new Error('Analisador público encerrado.');
+    if (this.stop.signal.aborted) throw new Error('Public analyzer stopped.');
     if (!this.runner && !this.upgradePolicy) return;
     this.scheduler.start();
   }

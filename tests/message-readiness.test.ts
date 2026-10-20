@@ -8,7 +8,7 @@ const session = {
   deviceId: crypto.randomUUID(),
   csrf: 'synthetic',
 } as AccountSession;
-await test('rechecagens de foco e perfil da mesma sessão autorizada não pedem nova carga de chat', () => {
+await test('focus and profile rechecks of the same authorized session request no new chat load', () => {
   const readiness = new MessageReadiness();
   assert.equal(readiness.update(session, false), false);
   assert.equal(readiness.update(session, true), true);
@@ -18,7 +18,7 @@ await test('rechecagens de foco e perfil da mesma sessão autorizada não pedem 
   );
   assert.equal(readiness.update(session, true), false);
 });
-await test('nova sessão, aparelho, conta e perda/retomada de autorização exigem nova carga', () => {
+await test('new session, device, account and authorization loss or restoration require a new load', () => {
   const readiness = new MessageReadiness();
   for (const next of [
     session,

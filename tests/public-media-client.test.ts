@@ -9,7 +9,7 @@ import {
   publicPostMedia,
 } from '../src/shared/public-media/index.ts';
 
-await test('download público omite sessão, não segue redirects e valida bytes e MIME', async (t) => {
+await test('public download omits session, follows no redirects and validates bytes and MIME', async (t) => {
   const target = crypto.randomUUID(),
     review = crypto.randomUUID(),
     reference = publicAvatarPath('avatar', target, review),
@@ -51,7 +51,7 @@ await test('download público omite sessão, não segue redirects e valida bytes
   await assert.rejects(read(), /[Uu]navailable/u);
 });
 
-await test('resultado e miniatura usam o contrato aprovado; bytes extras são recusados e o reader é cancelado', async (t) => {
+await test('result and thumbnail use the approved contract; extra bytes are rejected and the reader is cancelled', async (t) => {
   const item = publicPostMedia([
     {
       id: crypto.randomUUID(),
@@ -107,7 +107,7 @@ await test('resultado e miniatura usam o contrato aprovado; bytes extras são re
   assert.equal(blob.type, 'image/png');
   assert.equal(blob.size, 2);
 });
-await test('uma página de mídias mantém quatro leituras ativas; saída cancela itens ainda na fila', async (t) => {
+await test('media page keeps four active reads; leaving cancels queued items', async (t) => {
   let active = 0,
     peak = 0,
     requests = 0;
@@ -152,7 +152,7 @@ await test('uma página de mídias mantém quatro leituras ativas; saída cancel
   assert.equal(result[11]?.status, 'rejected');
 });
 
-await test('vídeo carrega ao entrar na tela e libera os bytes ao sair, sem clique de abertura ou download', async (t) => {
+await test('video loads on entering the viewport and releases bytes on leaving without an open or download click', async (t) => {
   const { showPublicPostMedia } =
     await import('../src/client/public-media/index.ts');
   const { CommunityNode, communityDocument } =
@@ -271,7 +271,7 @@ await test('vídeo carrega ao entrar na tela e libera os bytes ao sair, sem cliq
   }
 });
 
-await test('foto do feed carrega bytes completos ao entrar na tela e libera ao sair; clique permanece disponível', async (t) => {
+await test('feed photo loads full bytes on entering the viewport and releases them on leaving; click remains available', async (t) => {
   const { showPublicPostMedia } =
     await import('../src/client/public-media/index.ts');
   const { CommunityNode, communityDocument } =

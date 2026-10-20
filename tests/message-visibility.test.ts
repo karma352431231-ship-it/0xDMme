@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { MessageVisibility } from '../src/client/message-visibility/index.ts';
 import type { HistoryUpdate } from '../src/client/message-visibility/index.ts';
 
-await test('paginação e falha de sincronização nunca publicam um histórico intermediário', () => {
+await test('pagination and synchronization failure never publish intermediate history', () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin();
@@ -18,7 +18,7 @@ await test('paginação e falha de sincronização nunca publicam um histórico 
   assert.deepEqual(frames.at(-1), ['mantida após aplicar exclusões']);
   assert.throws(() => visibility.complete(retry));
 });
-await test('resposta antiga e falha antiga não reabrem nem interrompem a nova conta/aparelho', () => {
+await test('old response and old failure neither reopen nor interrupt the new account or device', () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const old = visibility.begin();
@@ -33,7 +33,7 @@ await test('resposta antiga e falha antiga não reabrem nem interrompem a nova c
   visibility.close();
   assert.equal(frames.at(-1), null);
 });
-await test('primeira sondagem mantém o histórico fechado até validar a visão completa; falha descarta os nós retidos', () => {
+await test('first probe keeps history closed until full-view validation; failure discards retained nodes', () => {
   const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
     [];
   const visibility = new MessageVisibility<string>((rows, update) =>
@@ -54,7 +54,7 @@ await test('primeira sondagem mantém o histórico fechado até validar a visão
   assert.deepEqual(frames.at(-1), { rows: null, update: 'history' });
   assert.throws(() => visibility.complete(failed));
 });
-await test('revogação ou saída da conversa invalida a sondagem de entrega em andamento', () => {
+await test('revocation or leaving the conversation invalidates the in-flight delivery probe', () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin('delivery');
@@ -63,7 +63,7 @@ await test('revogação ou saída da conversa invalida a sondagem de entrega em 
   assert.throws(() => visibility.complete(token));
   assert.ok(frames.every((rows) => rows === null));
 });
-await test('aviso durante a leitura inicial permite concluir os mesmos dados só após nova conferência', () => {
+await test('notice during initial reading allows completing the same data only after a new check', () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin();
@@ -82,7 +82,7 @@ await test('aviso durante a leitura inicial permite concluir os mesmos dados só
   );
   assert.deepEqual(frames.at(-1), ['histórico verificado']);
 });
-await test('atualizações normais conservam a última visão completa sem publicar partes ou fechar o histórico', async () => {
+await test('normal updates preserve the last complete view without publishing parts or closing history', async () => {
   for (const update of ['history', 'delivery'] as const) {
     const frames: (readonly string[] | null)[] = [];
     const visibility = new MessageVisibility<string>((rows) =>
@@ -110,7 +110,7 @@ await test('atualizações normais conservam a última visão completa sem publi
     ]);
   }
 });
-await test('snapshot diferente na sondagem conserva a visão enquanto uma carga completa é conferida', async () => {
+await test('different probe snapshot preserves the view while a full load is checked', async () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const initial = visibility.begin();
@@ -125,7 +125,7 @@ await test('snapshot diferente na sondagem conserva a visão enquanto uma carga 
   await visibility.confirm(full, () => Promise.resolve());
   assert.deepEqual(frames.at(-1), ['após mudança']);
 });
-await test('exclusão ou invalidação fecha a visão durante trabalho e respostas antigas não a reabrem; falha também fecha', async () => {
+await test('deletion or invalidation closes the working view and old responses cannot reopen it; failure also closes', async () => {
   for (const reason of ['removed', 'authorization', 'failed'] as const) {
     const frames: (readonly string[] | null)[] = [];
     const visibility = new MessageVisibility<string>((rows) =>
@@ -148,7 +148,7 @@ await test('exclusão ou invalidação fecha a visão durante trabalho e respost
     assert.deepEqual(frames.at(-1), ['após aplicar exclusões']);
   }
 });
-await test('exclusão divergente ou revogação após aviso descarta a leitura retida sem reabrir conteúdo', () => {
+await test('divergent deletion or revocation after a notice discards retained reading without reopening content', () => {
   for (const invalidate of ['fail', 'close'] as const) {
     const frames: (readonly string[] | null)[] = [];
     const visibility = new MessageVisibility<string>((rows) =>
@@ -164,7 +164,7 @@ await test('exclusão divergente ou revogação após aviso descarta a leitura r
     assert.ok(frames.every((rows) => rows === null));
   }
 });
-await test('aviso durante confirm repete só a conferência, preservando a janela decifrada oculta até concluir', async () => {
+await test('notice during confirm repeats only verification and keeps the decrypted window hidden until completion', async () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin();
@@ -179,7 +179,7 @@ await test('aviso durante confirm repete só a conferência, preservando a janel
   assert.equal(checks, 2);
   assert.deepEqual(frames.at(-1), ['janela decifrada uma vez']);
 });
-await test('avisos contínuos têm limite de três confirmações e não publicam snapshot não conferido', async () => {
+await test('continuous notices allow at most three confirmations and publish no unchecked snapshot', async () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin();
@@ -196,7 +196,7 @@ await test('avisos contínuos têm limite de três confirmações e não publica
   assert.equal(checks, 3);
   assert.ok(frames.every((rows) => rows === null));
 });
-await test('confirm recusado por exclusão e revogação durante confirm permanecem fechados', async () => {
+await test('confirm rejected by deletion and revocation during confirm remain closed', async () => {
   for (const reason of ['deleted', 'revoked'] as const) {
     const frames: (readonly string[] | null)[] = [];
     const visibility = new MessageVisibility<string>((rows) =>
@@ -216,7 +216,7 @@ await test('confirm recusado por exclusão e revogação durante confirm permane
   }
 });
 
-await test('retomada da visão fechada renderiza o histórico completo mesmo quando o snapshot só precisa conferir entrega', () => {
+await test('resuming a closed view renders full history even when the snapshot only needs delivery checking', () => {
   const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
     [];
   const visibility = new MessageVisibility<string>((rows, update) =>
@@ -233,7 +233,7 @@ await test('retomada da visão fechada renderiza o histórico completo mesmo qua
   assert.deepEqual(frames.at(-1)?.rows, ['mensagem já validada']);
 });
 
-await test('aviso de exclusão mantém candidatos ocultos durante sondagem; falha descarta e sucesso publica só após confirmar', async () => {
+await test('deletion notice keeps candidates hidden during probing; failure discards and success publishes only after confirmation', async () => {
   const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
     [];
   const gate = new MessageVisibility<string>((rows, update) =>

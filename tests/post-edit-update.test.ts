@@ -69,6 +69,15 @@ await test('confirmed root/reply edits replace only their card and show a locali
     for (const reply of [false, true]) {
       setActiveLanguage(language);
       const value = post();
+      value.author = {
+        id: crypto.randomUUID(),
+        handle: 'author',
+        avatar: null,
+      };
+      value.authorBadges = [
+        { id: null, kind: 'new', label: 'New member' },
+        { id: crypto.randomUUID(), kind: 'custom', label: 'Nome escolhido' },
+      ];
       if (reply) {
         value.parent = crypto.randomUUID();
         value.root = value.parent;
@@ -102,6 +111,13 @@ await test('confirmed root/reply edits replace only their card and show a locali
         },
       });
       assert.equal(result, true);
+      const badges = host.querySelectorAll('.community-author-badge');
+      assert.equal(
+        badges[0]!.getAttribute('aria-label'),
+        language === 'en' ? 'New member' : '新成员',
+      );
+      assert.equal(badges[1]!.getAttribute('aria-label'), 'Nome escolhido');
+      assert.equal(badges[1]!.textContent, 'Nome escolhido');
       assert.equal(host.children[1], expanded);
       assert.equal(host.children[2], siblingDraft);
       assert.equal(siblingDraft.value, 'Unsent sibling reply');

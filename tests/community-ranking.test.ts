@@ -31,7 +31,7 @@ await test('ranking uses only current-window gains and has diminishing volume re
     rankingScore(comparison(0, 200)) < 2 * rankingScore(comparison(0, 100)),
   );
 });
-await test('histórico ausente não fabrica crescimento e seis sinais têm efeito limitado', () => {
+await test('missing history cannot fabricate growth and six signals have bounded effects', () => {
   const base = comparison(0, 20);
   base.historyComplete = false;
   assert.equal(
@@ -65,7 +65,7 @@ await test('histórico ausente não fabrica crescimento e seis sinais têm efeit
     }) > rankingScore({ ...base, current: concentrated }),
   );
 });
-await test('recém-criadas usa idade real, sete dias, tamanho e atividade sem excluir acesso', () => {
+await test('newly created uses real age, seven days, size and activity without excluding access', () => {
   const cutoff = Date.now(),
     input = {
       createdAt: cutoff - rankingDay,
@@ -85,7 +85,7 @@ await test('recém-criadas usa idade real, sete dias, tamanho e atividade sem ex
   ])
     assert.equal(newlyCreated({ ...input, ...patch }), false);
 });
-await test('ranking restringe períodos e vincula cursor à geração e classificação', () => {
+await test('rankings restrict periods and bind cursors to generation and classification', () => {
   assert.deepEqual(exploreFilter({ order: 'activity', period: 'week' }), {
     order: 'trending',
     period: 'week',

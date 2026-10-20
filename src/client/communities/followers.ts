@@ -90,7 +90,7 @@ function stackedAvatar(
   return avatar;
 }
 /**
- * “Seguida por @a, @b e mais N que você segue”, as social networks phrase it:
+ * “Followed by @a, @b and N others you follow”, as social networks phrase it:
  * up to two names, then how many other profiles the reader follows.
  */
 export function knownFollowersText(page: CommunityFollowers): string {

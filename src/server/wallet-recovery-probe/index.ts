@@ -19,7 +19,7 @@ async function bundle(path: string): Promise<Uint8Array> {
   });
   const bytes = result.outputFiles[0]?.contents;
   if (!bytes || bytes.length > 1024 * 1024)
-    throw new Error('Build do ensaio ausente ou excedido.');
+    throw new Error('Probe build is missing or exceeds the limit.');
   return bytes;
 }
 function headers(response: ServerResponse): void {
@@ -43,7 +43,7 @@ export async function startWalletRecoveryProbe(
 ) {
   const port = input.port ?? 45107;
   if (!Number.isInteger(port) || port < 0 || port > 65535)
-    throw new Error('Porta do ensaio inválida.');
+    throw new Error('Invalid probe port.');
   const page = await bundle('src/client/wallet-recovery-probe/page.ts');
   const fixture = input.synthetic
     ? await bundle('tests/fixtures/wallet-recovery-probe-browser.ts')

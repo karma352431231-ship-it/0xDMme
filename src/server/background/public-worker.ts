@@ -47,7 +47,7 @@ export async function publicBackgroundWorker(options: {
       ]);
       await runner?.close();
       if (results.some((result) => result.status === 'rejected'))
-        throw new Error('Serviço público não encerrou.');
+        throw new Error('Public service did not stop.');
     },
   };
 }

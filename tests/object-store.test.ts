@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 
-await test('objetos sobrevivem a nova instância; concorrência é idempotente e corrupção falha', async (t) => {
+await test('objects survive a new instance; concurrency is idempotent and corruption fails', async (t) => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), 'hash-talk-objects-')),
   );
@@ -41,11 +41,11 @@ await test('objetos sobrevivem a nova instância; concorrência é idempotente e
   await assert.rejects(store.put(new Uint8Array()));
   await assert.rejects(store.put(new Uint8Array(4 * 1024 * 1024)));
   await writeFile(join(path, identity), 'corrupt');
-  await assert.rejects(store.read(identity), /Integridade/);
-  await assert.rejects(store.put(bytes), /Integridade/);
+  await assert.rejects(store.read(identity), /integrity/);
+  await assert.rejects(store.put(bytes), /integrity/);
 });
 
-await test('limpeza expira somente temporários não aceitos, preservando objetos finais antigos', async (t) => {
+await test('cleanup expires only unaccepted temporary objects and preserves old final objects', async (t) => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), 'hash-talk-object-cleanup-')),
   );
@@ -81,7 +81,7 @@ await test('object writes reject memory pressure and release the budget after a 
   const store = new ObjectStore(directory);
   await store.initialize();
   const bytes = new Uint8Array([1, 2, 3]);
-  await assert.rejects(store.put(bytes), /Armazenamento ocupado/u);
+  await assert.rejects(store.put(bytes), /Storage busy/u);
   available = 65_536 + bytes.length * 2;
   const id = await store.put(bytes);
   await writeFile(join(directory, id), 'corrupt');
@@ -91,7 +91,7 @@ await test('object writes reject memory pressure and release the budget after a 
   assert.deepEqual(await readdir(join(directory, '.staging')), []);
 });
 
-await test('objeto e diretório com symlink não atravessam fronteira de armazenamento', async (t) => {
+await test('symlink object and directory cannot cross the storage boundary', async (t) => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), 'hash-talk-object-links-')),
   );
@@ -109,7 +109,7 @@ await test('objeto e diretório com symlink não atravessam fronteira de armazen
   );
 });
 
-await test('retomada sob lease remove temporário recente de anexo sem apagar partes duráveis ou outro namespace', async (t) => {
+await test('leased resume removes recent attachment temporary data without deleting durable parts or another namespace', async (t) => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), 'hash-talk-attachment-resume-')),
   );
@@ -220,7 +220,10 @@ await test('attachment reclamation rejects irregular entries and never follows t
   const outside = join(directory, 'retained');
   await writeFile(outside, 'retained synthetic bytes');
   await symlink(outside, join(directory, `attachment-${id}`, 'a'.repeat(64)));
-  await assert.rejects(store.discardAttachment(id), /irregular/u);
+  await assert.rejects(
+    store.discardAttachment(id),
+    /Invalid attachment object/u,
+  );
   const file = await open(outside, 'r');
   try {
     assert.equal(await file.readFile('utf8'), 'retained synthetic bytes');

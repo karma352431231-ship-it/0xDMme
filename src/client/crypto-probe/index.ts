@@ -158,7 +158,7 @@ export class ProbeClient {
     return parseObject(await this.#transport('publish', content));
   }
 
-  /** Revogação local de laboratório: bloquear compartilhamento e invalidar a sessão de grupo. */
+  /** Local lab revocation: block sharing and invalidate the group session. */
   revokePeer(): Promise<void> {
     return this.#exclusive(() => this.#revokePeer());
   }
@@ -234,8 +234,8 @@ export class ProbeClient {
     if (!pinned || event.sender !== identity(peer(this.#role)).user) {
       throw new Error('Sender not authorized.');
     }
-    // Este ensaio usa comparação manual de chaves, não identidade cross-signed.
-    // A autenticação é obrigatória pelos dois pins abaixo, sem fallback após erro.
+    // This probe compares keys manually instead of using cross-signed identity.
+    // Both pins below are mandatory for authentication, without fallback after an error.
     const settings = new DecryptionSettings(TrustRequirement.Untrusted);
     try {
       const decrypted = await this.#machine.decryptRoomEvent(
@@ -258,7 +258,7 @@ export class ProbeClient {
         decrypted.free();
       }
     } catch (error: unknown) {
-      // Causa permanece no cliente; a UI mostra apenas a mensagem fixa e não a registra.
+      // The cause stays on the client; the UI shows only the fixed message without logging it.
       throw new Error(
         'Message rejected: invalid key, authorship or integrity.',
         { cause: error },
@@ -290,7 +290,7 @@ export class ProbeClient {
 
   #exclusive<T>(operation: () => Promise<T>): Promise<T> {
     const next = this.#pending.then(operation);
-    // A falha chega ao chamador; somente a fila interna precisa poder prosseguir.
+    // The failure reaches the caller; only the internal queue must be able to continue.
     this.#pending = next.then(
       () => undefined,
       () => undefined,

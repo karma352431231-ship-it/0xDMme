@@ -30,7 +30,7 @@ import {
   rootPostContent,
 } from './community-fixture.ts';
 
-await test('corte 6: feeds públicos, descoberta e referências privadas', async (t) => {
+await test('cut 6: public feeds, discovery and private references', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -299,7 +299,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
   );
 
   await t.test(
-    'paginação por desempate e filtro vinculado, sem replies no feed geral',
+    'tie-break pagination and bound filter exclude replies from the general feed',
     async () => {
       const anonymousAccount = await make();
       assert.equal((await feed(anonymousAccount)).items.length, 24);
@@ -336,7 +336,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'seguir controla o feed próprio, sem controlar participação ou publicar follows',
+    'following controls the personal feed without controlling participation or publishing follows',
     async () => {
       assert.equal(
         (await feed(reader, { ...baseline, scope: 'following' })).items.length,
@@ -366,7 +366,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'ordenação votos/comentários e períodos usam somente estado público',
+    'vote/comment ordering and periods use only public state',
     async () => {
       assert.equal(
         (await feed(reader, { ...baseline, order: 'votes' })).items[0]?.post.id,
@@ -420,7 +420,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'salvos/ocultos próprios, reversíveis, retries e revisões concorrentes',
+    'own saved and hidden entries are reversible with retries and concurrent revisions',
     async () => {
       const initial = await preference(reader, root);
       const usage = await globalUsage();
@@ -480,7 +480,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'referências salvas de respostas respeitam marcadores, sem copiar conteúdo ou enviar push',
+    'saved reply references respect markers without copying content or sending push',
     async () => {
       await inspector.query(
         'INSERT INTO hash_talk.push_subscriptions(account_id,device_id,endpoint,subscription,charge) VALUES($1,$2,$3,$4,1024)',
@@ -527,7 +527,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'maiores e atividade são distintas; ocultações pessoais não mudam rankings públicos',
+    'largest and activity are distinct; personal hiding cannot alter public rankings',
     async () => {
       const size = explorePage(
         await ranked({ order: 'size', period: 'week' }, null),
@@ -575,7 +575,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'capacidade global rejeita preferência nova sem deixar referência ou cobrança',
+    'global capacity rejects a new preference without retaining a reference or charge',
     async () => {
       const usage = await globalUsage(),
         limited = new Database(config.databaseUrl, usage + 1);
@@ -606,7 +606,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'Maiores pagina comunidades sem atividade; Trending exclui candidatas sem sinais',
+    'Largest paginates communities without activity; Trending excludes candidates without signals',
     async () => {
       const extra = Array.from({ length: 26 }, () => crypto.randomUUID());
       ids.push(...extra);
@@ -635,7 +635,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'HTTP público valida filtros e não admite listas privadas; sessão encerrada barra preferências',
+    'public HTTP validates filters and rejects private lists; ended session blocks preferences',
     async () => {
       const result = await fetch(
         `${origin}/api/communities/feed?community=${community}`,
@@ -686,7 +686,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'exclusão sintética elimina preferências/follows; @ reutilizado não herda referências',
+    'synthetic deletion removes preferences and follows; reused handle inherits no references',
     async () => {
       for (const table of [
         'device_events',

@@ -77,7 +77,7 @@ const assets = new Map(await loadWebAssets());
 if (process.env['HASH_TALK_FIXTURE_EMOJI_CONTROLS'] === '1')
   await emojiFixture(assets);
 const root = assets.get('/');
-if (!root) throw new Error('Build ausente.');
+if (!root) throw new Error('Build missing.');
 const html = new TextDecoder().decode(root.content);
 const app = html.match(/src="(\/app-[a-f0-9]+\.js)"/u)?.[1];
 if (!app) throw new Error('Build de app ausente.');

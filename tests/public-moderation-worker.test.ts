@@ -16,7 +16,7 @@ const job: PublicModerationClaim = {
   lease: crypto.randomUUID(),
 };
 const bind = () => Promise.resolve(() => Promise.resolve());
-await test('worker: sem scanner validado não consome nem aprova a fila', async () => {
+await test('worker: without a validated scanner it neither consumes nor approves the queue', async () => {
   const worker = new PublicModerationWorker({
     runner: null,
     bind,
@@ -32,7 +32,7 @@ await test('worker: sem scanner validado não consome nem aprova a fila', async 
   await worker.run();
   await worker.close();
 });
-await test('worker: inferência concorrente é compartilhada e aborto não confirma uma decisão tardia', async () => {
+await test('worker: concurrent inference is shared and abort cannot confirm a late decision', async () => {
   let enter: () => void = () => {
     throw new Error('Não inicializado.');
   };
@@ -87,5 +87,5 @@ await test('worker: inferência concorrente é compartilhada e aborto não confi
   assert.equal(claims, 1);
   assert.equal(failed, 1);
   assert.equal(finished, 0);
-  assert.throws(() => worker.start(), /encerrado/);
+  assert.throws(() => worker.start(), /stopped/);
 });

@@ -82,8 +82,8 @@ function validateAnimation(
     throw new AccountError(
       422,
       source.kind === 'gif'
-        ? 'GIF deve ter até 20 segundos.'
-        : `Vídeo deve ter até ${communityMediaLimits.video.seconds} segundos.`,
+        ? 'GIF must be at most 20 seconds long.'
+        : `Video must be at most ${communityMediaLimits.video.seconds} seconds long.`,
     );
 }
 function validateVideoFormat(shape: MediaShape): void {

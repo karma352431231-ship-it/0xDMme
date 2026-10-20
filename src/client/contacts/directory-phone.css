@@ -1,8 +1,8 @@
 /*
- * Contacts (Conversas) on phones.
+ * Contacts (Chats) on phones.
  */
 @media (max-width: 700px) {
-  /* Conversas */
+  /* Chats */
   #app-shell .directory-heading {
     height: 0;
     padding: 0;

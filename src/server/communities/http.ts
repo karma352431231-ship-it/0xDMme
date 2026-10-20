@@ -202,7 +202,7 @@ export function createCommunityHandler(read: {
           error:
             error instanceof AccountError
               ? error.message
-              : 'Comunidade indisponível. Tente novamente.',
+              : 'Community unavailable. Try again.',
         },
         head,
       );

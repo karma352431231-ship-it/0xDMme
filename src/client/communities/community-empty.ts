@@ -12,7 +12,7 @@ const suggestionCount = 4;
 /**
  * A community without posts invites the first one and points to other
  * communities active this week. There is no similarity data: suggestions are
- * the same public "em alta" list as Explorar, without the current community.
+ * the same public "trending" list as Explore, without the current community.
  */
 export function emptyCommunity(
   host: HTMLElement,

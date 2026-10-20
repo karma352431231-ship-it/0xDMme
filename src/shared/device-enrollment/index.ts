@@ -19,7 +19,7 @@ export function enrollmentCode(value: unknown): EnrollmentCode {
     !/^[a-f0-9]{64}$/u.test(secret) ||
     !Number.isFinite(Date.parse(expiresAt))
   )
-    throw new Error('Código de vinculação inválido.');
+    throw new Error('Invalid linking code.');
   return {
     version: 1,
     id: uuid(data['id']),
@@ -39,7 +39,7 @@ export function enrollmentUrl(code: EnrollmentCode, origin: string): string {
     url.protocol !== 'https:' &&
     !['localhost', '127.0.0.1'].includes(url.hostname)
   )
-    throw new Error('A vinculação exige HTTPS.');
+    throw new Error('Linking requires HTTPS.');
   url.hash = 'vincular=' + encodeURIComponent(enrollmentPayload(code));
   return url.href;
 }
@@ -47,7 +47,7 @@ export function readEnrollment(
   value: string,
   origin = 'https://0xdmme.app',
 ): EnrollmentCode {
-  if (value.length > 4096) throw new Error('Código de vinculação excedido.');
+  if (value.length > 4096) throw new Error('Linking code exceeds the limit.');
   if (/^https?:/u.test(value)) {
     const url = new URL(value);
     if (
@@ -56,10 +56,10 @@ export function readEnrollment(
       url.search ||
       !url.hash.startsWith('#vincular=')
     )
-      throw new Error('Link de vinculação inválido.');
+      throw new Error('Invalid linking link.');
     value = decodeURIComponent(url.hash.slice('#vincular='.length));
   }
-  if (value.length > 2048) throw new Error('Código de vinculação excedido.');
+  if (value.length > 2048) throw new Error('Linking code exceeds the limit.');
   const raw = value.startsWith('0xdmme-enroll:1:')
     ? value.slice('0xdmme-enroll:1:'.length)
     : value;
@@ -77,7 +77,7 @@ export function enrollmentBody(
 }
 function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
   if (!/^[a-f0-9]{64}$/u.test(secret))
-    throw new Error('Segredo de vinculação inválido.');
+    throw new Error('Invalid linking secret.');
   return Uint8Array.from(secret.match(/../gu) ?? [], (v) => parseInt(v, 16));
 }
 async function macKey(secret: string): Promise<CryptoKey> {
@@ -125,5 +125,5 @@ export async function verifyEnrollmentMac(
       ),
     ))
   )
-    throw new Error('O pedido não corresponde ao código compartilhado.');
+    throw new Error('The request does not match the shared code.');
 }

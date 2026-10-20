@@ -282,7 +282,7 @@ export class AccountPrivateProfile {
       this.host.renderSidebar();
     });
   }
-  /** Configurações iniciais: the same encrypted profile save as the form, with errors raised to the caller. */
+  /** Initial settings: the same encrypted profile save as the form, with errors raised to the caller. */
   async savePrivacy(changes: Partial<ProfilePreferences>): Promise<void> {
     const current = this.core.session,
       currentKey = this.key,

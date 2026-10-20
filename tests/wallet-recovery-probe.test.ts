@@ -40,7 +40,7 @@ function packetFile(packet: ProbePacket, name = 'ensaio.json'): File {
   });
 }
 
-await test('EVM: nova instância da mesma conta abre somente o pacote cifrado, sem estado secreto anterior', async () => {
+await test('EVM: new instance of the same account opens only the encrypted packet without previous secret state', async () => {
   const { context, signature, packet } = await evmPacket();
   const restored = evmWallet();
   const fresh = await restored.signMessage(recoveryMessage(context));
@@ -76,7 +76,7 @@ await test('EVM: nova instância da mesma conta abre somente o pacote cifrado, s
     signature: fresh,
   });
 });
-await test('Solana: duas instâncias Ed25519 determinísticas abrem o pacote sem chaves locais do ensaio', async () => {
+await test('Solana: two deterministic Ed25519 instances open the packet without local probe keys', async () => {
   const privateKey = new Uint8Array(32).fill(7);
   const identity = {
     ecosystem: 'solana' as const,
@@ -94,7 +94,7 @@ await test('Solana: duas instâncias Ed25519 determinísticas abrem o pacote sem
   );
   await openProbe({ packet, origin, identity, signature: second });
 });
-await test('conta Z não abre o pacote de Y, inclusive se declarar o endereço de Y', async () => {
+await test("account Z cannot open Y's packet even when claiming Y's address", async () => {
   const { packet, context } = await evmPacket();
   const outsider = evmWallet(2);
   const signature = await outsider.signMessage(recoveryMessage(context));
@@ -112,7 +112,7 @@ await test('conta Z não abre o pacote de Y, inclusive se declarar o endereço d
     /does not belong/,
   );
 });
-await test('assinaturas EVM diferentes e válidas da mesma conta falham na recuperação: determinismo não é garantido por validade', async () => {
+await test('different valid EVM signatures by the same account fail recovery: validity never guarantees determinism', async () => {
   const { wallet, context, signature, packet, identity } = await evmPacket();
   const alternative = secp256k1.sign(
     getBytes(hashMessage(recoveryMessage(context))),
@@ -134,7 +134,7 @@ await test('assinaturas EVM diferentes e válidas da mesma conta falham na recup
   );
   await openProbe({ packet, origin, identity, signature });
 });
-await test('adulteração de ciphertext, nonce e salt falha sem danificar o pacote original', async () => {
+await test('tampered ciphertext, nonce and salt fail without damaging the original packet', async () => {
   const { packet, signature, identity } = await evmPacket();
   for (const field of ['ciphertext', 'iv', 'salt'] as const) {
     const bytes = base64urlnopad.decode(packet[field]);
@@ -151,7 +151,7 @@ await test('adulteração de ciphertext, nonce e salt falha sem danificar o paco
   }
   await openProbe({ packet, origin, identity, signature });
 });
-await test('outra origem, outro ensaio e outro ecossistema não reutilizam uma assinatura como chave', async () => {
+await test('another origin, probe or ecosystem cannot reuse a signature as a key', async () => {
   const { packet, context, signature, identity } = await evmPacket();
   await assert.rejects(
     openProbe({ packet, origin: 'https://other.invalid', identity, signature }),
@@ -183,7 +183,7 @@ await test('outra origem, outro ensaio e outro ecossistema não reutilizam uma a
   );
   assert.notEqual(recoveryMessage(context), recoveryMessage(changed));
 });
-await test('assinatura comum de login não abre pacote exclusivo de recuperação', async () => {
+await test('ordinary login signature cannot open a recovery-only packet', async () => {
   const { packet, wallet, identity } = await evmPacket();
   const signature = await wallet.signMessage(
     'Login fictício com nonce e prazo',
@@ -193,7 +193,7 @@ await test('assinatura comum de login não abre pacote exclusivo de recuperaçã
     /does not belong/,
   );
 });
-await test('risco demonstrado: cópia da assinatura exclusiva abre o pacote sem nova interação com a wallet', async () => {
+await test('demonstrated risk: copied dedicated signature opens the packet without another wallet interaction', async () => {
   const { packet, signature } = await evmPacket();
   // The public origin in a message is data; it cannot prevent a generic signer
   // from signing that exact message elsewhere. No wallet object is used here.
@@ -204,7 +204,7 @@ await test('risco demonstrado: cópia da assinatura exclusiva abre o pacote sem 
     signature,
   });
 });
-await test('entrada externa é limitada e recusa campos secretos, versões estranhas e bytes não canônicos', async () => {
+await test('external input is bounded and rejects secret fields, unknown versions and non-canonical bytes', async () => {
   const { packet } = await evmPacket();
   assert.throws(() => readProbePacket(' '.repeat(4097)), /exceed/);
   for (const input of [
@@ -216,7 +216,7 @@ await test('entrada externa é limitada e recusa campos secretos, versões estra
   ])
     assert.throws(() => readProbePacket(JSON.stringify(input)));
 });
-await test('importar B sobre A troca o alvo: cada arquivo abre somente com sua conta, inclusive após nova troca para A', async () => {
+await test('importing B over A changes the target: each file opens only with its account, including after switching back to A', async () => {
   const first = await evmPacket(1);
   const second = await evmPacket(2);
   let stored = '';
@@ -260,7 +260,7 @@ await test('importar B sobre A troca o alvo: cada arquivo abre somente com sua c
     });
   }
 });
-await test('arquivos com o mesmo nome e a mesma conta ainda selecionam o pacote exato, sem reutilizar a assinatura do anterior', async () => {
+await test('files with the same name and account still select the exact packet without reusing the previous signature', async () => {
   const first = await evmPacket();
   const second = await evmPacket();
   const selection = new ProbePacketSelection({ origin, persist: () => {} });
@@ -283,7 +283,7 @@ await test('arquivos com o mesmo nome e a mesma conta ainda selecionam o pacote 
     signature: second.signature,
   });
 });
-await test('arquivo inválido, excessivo, de outra origem ou ilegível deixa nenhum alvo ativo e preserva o ciphertext anterior', async () => {
+await test('invalid, oversized, other-origin or unreadable file leaves no active target and preserves previous ciphertext', async () => {
   const { packet } = await evmPacket();
   const previous = JSON.stringify(packet);
   let stored = previous;
@@ -314,7 +314,7 @@ await test('arquivo inválido, excessivo, de outra origem ou ilegível deixa nen
     assert.equal(stored, previous);
   }
 });
-await test('falha ao guardar o arquivo válido não confirma importação nem recupera o pacote anterior', async () => {
+await test('failure to store a valid file neither confirms import nor recovers the previous packet', async () => {
   const first = await evmPacket();
   const second = await evmPacket(2);
   const selection = new ProbePacketSelection({
@@ -331,7 +331,7 @@ await test('falha ao guardar o arquivo válido não confirma importação nem re
   assert.equal(selection.active, null);
   assert.throws(() => selection.requireTarget(), /No active package/);
 });
-await test('selecionar arquivo invalida A antes de ler B; leitura tardia de operação interrompida não publica resultado', async () => {
+await test('file selection invalidates A before reading B; late interrupted read cannot publish its result', async () => {
   const first = await evmPacket();
   const second = await evmPacket(2);
   let stored = JSON.stringify(first.packet);
@@ -360,7 +360,7 @@ await test('selecionar arquivo invalida A antes de ler B; leitura tardia de oper
   assert.equal(selection.active, null);
   assert.deepEqual(readProbePacket(stored), first.packet);
 });
-await test('laboratório só serve GET local; não recebe assinaturas, não tem API/cofre nem fixture no modo real', async (t) => {
+await test('lab serves only local GET and receives no signatures, has no API or vault and no fixture in real mode', async (t) => {
   const server = await startWalletRecoveryProbe({ port: 0 });
   t.after(() => {
     server.close();

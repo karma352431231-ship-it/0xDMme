@@ -64,7 +64,7 @@ async function archive(
   for (const row of rows) await writer.add(row, () => {});
   return writer.finish(omitted, () => {});
 }
-await test('grupos e mídias reabrem como cópias independentes sem alvos de limpeza pessoal; faltas bloqueiam completude', async () => {
+await test('groups and media reopen as independent copies without personal cleanup targets; omissions block completeness', async () => {
   const a = fixture(),
     participant = await groupParticipant({
       accountId: a.session.accountId,
@@ -153,7 +153,7 @@ await test('grupos e mídias reabrem como cópias independentes sem alvos de lim
   );
   assert.throws(() => backupRecord({ ...message, type: 'status' }));
 });
-await test('arquivo acima de 3 MB abre em leitor limpo com chave histórica da conta; não depende de rede', async () => {
+await test('file above 3 MB opens in a clean reader with a historical account key and no network', async () => {
   const a = fixture(),
     rows = [record('x'.repeat(2_900_000)), record('y'.repeat(2_900_000))];
   const file = await archive(a, rows, ['Mídia não selecionada']);
@@ -180,7 +180,7 @@ await test('arquivo acima de 3 MB abre em leitor limpo com chave histórica da c
     globalThis.fetch = oldFetch;
   }
 });
-await test('chave incorreta, outra conta, adulteração, truncamento e bytes extras são rejeitados', async () => {
+await test('wrong key, other account, tampering, truncation and extra bytes are rejected', async () => {
   const a = fixture(),
     file = await archive(a, [record()]);
   await assert.rejects(
@@ -204,7 +204,7 @@ await test('chave incorreta, outra conta, adulteração, truncamento e bytes ext
   unsupported[7] = 50;
   await assert.rejects(BackupReader.open(a, new Blob([unsupported]), () => {}));
 });
-await test('permissões extras, duplicação, registros grandes e cancelamento não produzem backup válido', async () => {
+await test('extra permissions, duplication, large records and cancellation produce no valid backup', async () => {
   const a = fixture(),
     row = record(),
     writer = await BackupWriter.create(a);
@@ -225,7 +225,7 @@ await test('permissões extras, duplicação, registros grandes e cancelamento n
     /cancelado/u,
   );
 });
-await test('limpeza exige todas as mídias do descritor presentes e autenticadas; relatório mantém omissões', async () => {
+await test('cleanup requires all descriptor media present and authenticated; report preserves omissions', async () => {
   const a = fixture(),
     sealed = await sealFile(new Uint8Array([3, 4, 5])),
     id = crypto.randomUUID();
@@ -281,7 +281,7 @@ await test('limpeza exige todas as mídias do descritor presentes e autenticadas
   assert.equal(complete.complete, true);
 });
 
-await test('texto válido com controles não explode por escapes JSON; mídia com hash falso é rejeitada', async () => {
+await test('valid control text stays bounded despite JSON escapes; media with a false hash is rejected', async () => {
   const a = fixture(),
     row = record('\u0001'.repeat(2_000_000));
   const file = await archive(a, [row]);
@@ -301,7 +301,7 @@ await test('texto válido com controles não explode por escapes JSON; mídia co
   );
 });
 
-await test('backup independente conserva voz v2 e mídia de 90 segundos para outro aparelho, sem rede', async () => {
+await test('independent backup preserves voice v2 and 90-second media for another device without networking', async () => {
   const { voiceWav } = await import('../src/client/voice-audio/index.ts');
   const { attachmentContent } =
     await import('../src/shared/attachments/index.ts');
@@ -368,7 +368,7 @@ await test('backup independente conserva voz v2 e mídia de 90 segundos para out
   }
 });
 
-await test('backup do perfil conserva foto e preferências com hash, sem conceder permissão', async () => {
+await test('profile backup preserves photo and hashed preferences without granting permission', async () => {
   const profile = emptyProfile();
   profile.preferences.backupReminder = true;
   profile.photo = {
@@ -398,7 +398,7 @@ await test('backup do perfil conserva foto e preferências com hash, sem concede
     /profile|hash|differ|not match/iu,
   );
 });
-await test('lote do backup recusa resposta vazia, ordem trocada e falha simulada', () => {
+await test('backup batch rejects empty responses, reordered items and simulated failure', () => {
   const id = crypto.randomUUID();
   assert.throws(() => readBackupWindow({ rows: [], recovery: [] }, [id]));
   assert.throws(() =>
@@ -418,7 +418,7 @@ await test('lote do backup recusa resposta vazia, ordem trocada e falha simulada
   assert.equal(result.packets.size, 0);
 });
 
-await test('edições de grupo preservam o vínculo no registro de backup sem alterar registros antigos', () => {
+await test('group edits preserve the backup-record binding without changing old records', () => {
   const groupId = crypto.randomUUID(),
     sender = crypto.randomUUID(),
     root = crypto.randomUUID();

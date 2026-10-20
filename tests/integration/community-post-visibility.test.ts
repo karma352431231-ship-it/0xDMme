@@ -7,7 +7,7 @@ import { readWebConfiguration } from '../../src/server/web-configuration/index.t
 import { publicModerationPolicy } from '../../src/shared/public-moderation/index.ts';
 import { feedFilter } from '../../src/shared/community-discovery/index.ts';
 
-await test('bloqueio automático retira post e atividade derivada, preenche a paginação e conserva o registro após coleta', async (t) => {
+await test('automatic block removes post and derived activity, fills pagination and preserves the record after collection', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

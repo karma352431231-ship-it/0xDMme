@@ -24,7 +24,7 @@ export class DatabaseChanges {
     this.observer?.failed();
   }
   observe(observer: Observer): () => void {
-    if (this.observer) throw new Error('Observador de alterações já ativo.');
+    if (this.observer) throw new Error('Change observer is already active.');
     this.observer = observer;
     return () => {
       if (this.observer === observer) this.observer = null;

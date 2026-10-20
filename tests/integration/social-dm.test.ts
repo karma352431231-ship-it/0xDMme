@@ -53,7 +53,7 @@ import {
 import { createCommunityAccount } from './community-fixture.ts';
 import { groupParticipant } from '../fixtures/group-participant.ts';
 
-await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', async (t) => {
+await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -170,7 +170,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
       deviceName: 'DM device',
     });
   await t.test(
-    'DM pública abre sem aceite/follow e sem revelar dados do contato privado',
+    'public DM opens without acceptance or follow and exposes no private contact data',
     async () => {
       await inspector.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'approved')",
@@ -214,7 +214,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'pedidos/recusas antigos abrem uma vez, inclusive com abertura simultânea',
+    'old requests and rejections open once even with simultaneous opening',
     async () => {
       for (const state of ['pending', 'rejected']) {
         await inspector.query(
@@ -243,7 +243,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'diretório e tipos privados não podem entrar no contexto social',
+    'private directory and types cannot enter the social context',
     async () => {
       await assert.rejects(operate(alice, 'register', { event: alice.event }), {
         status: 400,
@@ -293,7 +293,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
       ciphertext: encode(wrappedSecret.bytes),
     };
   await t.test(
-    'cápsula de recuperação de DM é opaca, idempotente e isolada entre contas',
+    'DM recovery capsule is opaque, idempotent and isolated across accounts',
     async () => {
       assert.deepEqual(
         await operate(alice, 'secret-save', { capsule }),
@@ -347,7 +347,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     text: 'DM sintética https://0xdmme.app',
   });
   await t.test(
-    'publicação idempotente e recuperação usam SDK real e nenhuma identidade privada',
+    'idempotent publication and recovery use the real SDK without private identities',
     async () => {
       const beforeA = (
           await db.vault.page(alice.login.session, alice.directory, 0)
@@ -414,7 +414,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'cofre pessoal cheio recusa a DM antes da aceitação e reverte sua gravação',
+    'full personal vault rejects DM before acceptance and rolls back its write',
     async () => {
       const another = await am.encrypt({
         authority: a.authority,
@@ -449,7 +449,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'corte 8: GIF e voz transferem por partes, retomam sem duplicar cota e entram na limpeza pessoal',
+    'cut 8: GIF and voice transfer in parts, resume without duplicate quota and enter personal cleanup',
     async () => {
       const gif = Uint8Array.from(
         Buffer.from(
@@ -714,7 +714,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'edição pública exige autoria e texto, é idempotente e negocia leitura com clientes anteriores',
+    'public editing requires authorship and text, is idempotent and negotiates reads with earlier clients',
     async () => {
       const root = await am.encrypt({
         authority: a.authority,
@@ -827,7 +827,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'checks da lista pública consultam somente envios próprios e não marcam leitura',
+    'public-list checkmarks query only own sends and never mark reads',
     async () => {
       const before = await inspector.query(
         'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
@@ -854,7 +854,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'leitura de DM exige recebimento neste aparelho e consentimento, sem confundir ACK',
+    'DM reading requires receipt on this device and consent without confusing ACK',
     async () => {
       await assert.rejects(
         operate(bob, 'message-status', {
@@ -883,7 +883,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'snapshot não entrega corpo a aparelho sem consentimento; ACK distingue cópia já recebida',
+    'snapshot delivers no body to a device without consent; ACK distinguishes an already received copy',
     async () => {
       const snapshot = await operate(bob, 'personal-snapshot', {});
       const page = (await operate(bob, 'personal-page', {
@@ -951,7 +951,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'bloqueio social impede conteúdo/chaves sem mudar o contato privado',
+    'social blocking prevents content and keys without changing the private contact',
     async () => {
       await operate(bob, 'block', { peer: ap.id, blocked: true });
       await assert.rejects(
@@ -1021,7 +1021,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'capacidade global recusa nova conversa sem efeito parcial',
+    'global capacity rejects a new conversation without partial effects',
     async () => {
       const small = new Database(config.databaseUrl, 1),
         service = new MessageService(small, small.devices);
@@ -1054,7 +1054,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'bloquear um perfil sem solicitação não cria consentimento e permite desbloquear pela lista',
+    'blocking a profile without a request creates no consent and allows unblocking through the list',
     async () => {
       await operate(alice, 'block', { peer: op.id, blocked: true });
       assert.equal(
@@ -1096,7 +1096,7 @@ await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', a
     },
   );
   await t.test(
-    'recuperação privada revoga o aparelho antigo e atualiza a identidade social sem perder consentimento/histórico',
+    'private recovery revokes the old device and updates social identity without losing consent or history',
     async () => {
       const challenge = await account.challenge({
         address: alice.wallet.address,

@@ -306,7 +306,7 @@ export class PublicProfileStore {
           persist,
         );
       else await persist(null);
-      if (!updated) throw new Error('Avatar não persistido.');
+      if (!updated) throw new Error('Avatar was not persisted.');
       return this.view(client, updated);
     });
   }
@@ -356,7 +356,7 @@ export class PublicProfileStore {
     )
       return null;
     if (row.pendingType !== 'image/png' && row.pendingType !== 'image/jpeg')
-      throw new Error('Tipo do candidato público inválido.');
+      throw new Error('Invalid public candidate type.');
     return { type: row.pendingType, bytes: new Uint8Array(row.pendingAvatar) };
   }
   /** A known URI is not authorization: match accepted review, current target and bytes again. */

@@ -18,7 +18,7 @@ import {
   publicationQuote,
 } from '../src/client/activity/publications.ts';
 
-await test('edição termina na primeira hora original; badge de ingresso termina em dois dias, sem data inventada', () => {
+await test('editing ends at the original first hour; membership badge ends after two days without invented dates', () => {
   const time = Date.now(),
     created = new Date(time);
   assert.equal(withinPostEditWindow(created, time), true);
@@ -32,7 +32,7 @@ await test('edição termina na primeira hora original; badge de ingresso termin
   assert.equal(isNewMember(created, time + newMemberWindowMs), false);
   assert.equal(isNewMember(null, time), false);
 });
-await test('badges não admitem poderes, identidade privada ou identificadores falsos', () => {
+await test('badges reject powers, private identity and false identifiers', () => {
   const owner = { kind: 'owner', id: null, label: 'Owner' };
   assert.deepEqual(communityBadges([owner]), [owner]);
   for (const badge of [
@@ -43,7 +43,7 @@ await test('badges não admitem poderes, identidade privada ou identificadores f
   ])
     assert.throws(() => communityBadges([badge]));
 });
-await test('trocar/remover foto privada só altera o perfil compartilhável após confirmar', async () => {
+await test('changing or removing private photo alters the shareable profile only after confirmation', async () => {
   const profile = emptyProfile();
   profile.photo = {
     type: 'image/png',
@@ -64,7 +64,7 @@ await test('trocar/remover foto privada só altera o perfil compartilhável apó
   draft.clear();
   assert.ok(draft.value(profile.photo));
 });
-await test('falha de arquivo conserva o rascunho anterior e o perfil confirmado', async () => {
+await test('file failure preserves the previous draft and confirmed profile', async () => {
   const profile = emptyProfile(),
     draft = new PrivatePhotoDraft();
   const good = new File(
@@ -80,7 +80,7 @@ await test('falha de arquivo conserva o rascunho anterior e o perfil confirmado'
   assert.equal(draft.value(null), previous);
   assert.equal(profile.photo, null);
 });
-await test('prévias limitam caracteres e linhas e preservam texto curto e emoji inteiro', () => {
+await test('previews bound characters and lines and preserve short text and complete emoji', () => {
   assert.equal(postPreviewText('Curto 😄'), 'Curto 😄');
   assert.equal([...postPreviewText('😄'.repeat(601))].length, 600);
   assert.equal(postPreviewText('linha\n'.repeat(12)).split('\n').length, 8);
@@ -90,7 +90,7 @@ await test('prévias limitam caracteres e linhas e preservam texto curto e emoji
     prefix,
   );
 });
-await test('preferências ativas não mudam durante o rascunho e podem ser descartadas', () => {
+await test('active preferences remain unchanged during drafting and can be discarded', () => {
   const profile = emptyProfile(),
     draft = new PrivatePreferencesDraft();
   draft.set(profile.preferences, 'online', true);
@@ -102,7 +102,7 @@ await test('preferências ativas não mudam durante o rascunho e podem ser desca
   draft.commit(profile);
   assert.equal(profile.preferences.online, true);
 });
-await test('avisos distinguem posts de replies e nunca mostram texto oculto', () => {
+await test('notices distinguish posts from replies and never show hidden text', () => {
   assert.equal(publicationTitle('teste', 'post'), '@teste posted');
   assert.equal(publicationTitle('teste', 'reply'), '@teste replied');
   assert.equal(

@@ -10,7 +10,7 @@ import {
 import { readQrPayload } from '../src/client/device-qr/index.ts';
 import { requireWalletSession } from '../src/shared/account/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
-await test('QR e código de vinculação são equivalentes e a prova impede substituição do destinatário', async () => {
+await test('QR and linking code are equivalent and proof prevents recipient substitution', async () => {
   const identity = await createIdentity(crypto.randomUUID(), 'Sintético');
   const invitation = {
     version: 1 as const,
@@ -47,7 +47,7 @@ await test('QR e código de vinculação são equivalentes e a prova impede subs
     );
   await assert.rejects(verifyEnrollmentMac('f'.repeat(64), code, proof));
 });
-await test('acesso sensível exige confirmação real da wallet da sessão', () => {
+await test('sensitive access requires actual confirmation from the session wallet', () => {
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),

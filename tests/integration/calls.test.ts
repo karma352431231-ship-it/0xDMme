@@ -34,7 +34,7 @@ import { messageBody } from '../../src/shared/messages/index.ts';
 import { object } from '../../src/shared/account/index.ts';
 import { callSnapshot } from '../../src/shared/calls/index.ts';
 
-await test('chamadas: HTTP assinado, consentimento, preferência global, silêncio, revogação e ausência de persistência', async (t) => {
+await test('calls: signed HTTP, consent, global preference, mute, revocation and no persistence', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

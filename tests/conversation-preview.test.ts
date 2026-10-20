@@ -15,7 +15,7 @@ import { readDmDirectoryPreviews } from '../src/client/social-dm/directory-previ
 import { ChatNode } from './fixtures/chat-dom.ts';
 import { deferred } from './fixtures/deferred.ts';
 
-await test('última mensagem mostra texto e checks somente quando enviada; AM/PM independe do idioma', (t) => {
+await test('last message shows text and checkmarks only when sent; AM/PM is language-independent', (t) => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document'),
     language = currentLanguage();
   Object.defineProperty(globalThis, 'document', {
@@ -66,7 +66,7 @@ await test('última mensagem mostra texto e checks somente quando enviada; AM/PM
   assert.equal(copy.querySelectorAll('time').length, 1);
 });
 
-await test('troca de conta invalida prévia pendente; falha fecha as prévias sem simular sucesso', async () => {
+await test('account change invalidates pending preview; failure closes previews without simulating success', async () => {
   const pending =
     deferred<Map<string, ReturnType<typeof conversationPreview>>>();
   const loader = new ConversationPreviewLoader({
@@ -100,7 +100,7 @@ await test('troca de conta invalida prévia pendente; falha fecha as prévias se
   assert.equal(failed.values.size, 0);
 });
 
-await test('prévia privada usa o original atual e recibos próprios; não envia daily-read', async () => {
+await test('private preview uses the current original and own receipts without daily-read', async () => {
   const peer = crypto.randomUUID(),
     self = crypto.randomUUID(),
     id = crypto.randomUUID(),
@@ -165,7 +165,7 @@ await test('prévia privada usa o original atual e recibos próprios; não envia
   assert.equal(calls.includes('daily-read'), false);
 });
 
-await test('prévia pública escolhe a última enviada ou recebida e consulta checks em um único lote', async () => {
+await test('public preview selects the latest sent or received message and queries checkmarks in one batch', async () => {
   const peers = [crypto.randomUUID(), crypto.randomUUID()];
   const base = {
     type: 'dm-message' as const,

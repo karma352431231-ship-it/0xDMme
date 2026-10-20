@@ -71,9 +71,7 @@ export class CallPushQueue {
         if (prepared.has(key)) continue;
         const release = reserveOperationMemory(1_048_576);
         if (!release)
-          throw new Error(
-            'Orçamento temporário de avisos de chamada excedido.',
-          );
+          throw new Error('Temporary call notification budget exceeded.');
         prepared.set(key, {
           job,
           invitation,

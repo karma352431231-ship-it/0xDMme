@@ -1,4 +1,4 @@
-/** Acesso tipado aos controles das telas descartáveis de ensaio. */
+/** Typed access to controls on disposable probe screens. */
 export function element<T extends HTMLElement>(
   id: string,
   kind: { new (): T },

@@ -11,7 +11,7 @@
   margin: 0;
 }
 /*
- * Community settings: tabs (Geral, Tags, Moderação, Propriedade) show one
+ * Community settings: tabs (General, Tags, Moderation, Ownership) show one
  * group at a time; cards sit side by side on wide screens and stay compact.
  */
 .community-manage-tabs {

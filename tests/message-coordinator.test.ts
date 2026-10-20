@@ -297,7 +297,7 @@ await test('leaving cancels an opening already waiting for the current maintenan
   assert.ok(!f.calls.includes('open-panel'));
 });
 
-await test('tela prepara mensagens sem clique; ready e retorno de aba não reinicializam a sessão', async (t) => {
+await test('screen prepares messages without a click; ready and tab return cannot reinitialize the session', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -343,7 +343,7 @@ for (const selected of [false, true])
     await turn();
   });
 
-await test('abrir outra conversa marca sua leitura sem repetir a manutenção de todas as conversas', async (t) => {
+await test('opening another conversation marks it read without repeating maintenance for all conversations', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -364,7 +364,7 @@ await test('abrir outra conversa marca sua leitura sem repetir a manutenção de
   assert.ok(!calls.includes('pins'));
 });
 
-await test('janela sem reuso confere identidades antes de carregar o histórico', async (t) => {
+await test('window without reuse checks identities before loading history', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -383,7 +383,7 @@ await test('janela sem reuso confere identidades antes de carregar o histórico'
   assert.ok(calls.indexOf('pins') < calls.indexOf('synchronize'));
 });
 
-await test('trocar de aba com stream atualizado conserva a visão e a página em preparação', async (t) => {
+await test('returning to a tab with a current stream preserves the view and page being prepared', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.state.holdPage = true;
@@ -408,7 +408,7 @@ await test('trocar de aba com stream atualizado conserva a visão e a página em
   await turn();
 });
 
-await test('suspensão efetiva cancela preparação e fecha a visão; retomada reconecta e confere', async (t) => {
+await test('effective suspension cancels preparation and closes the view; resume reconnects and checks', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.state.holdPage = true;
@@ -438,7 +438,7 @@ await test('suspensão efetiva cancela preparação e fecha a visão; retomada r
   assert.ok(f.calls.slice(frozen).includes('live-start'));
 });
 
-await test('retorno com stream desatualizado fecha antes de reconectar, mesmo sem evento freeze', async (t) => {
+await test('return with a stale stream closes before reconnecting even without a freeze event', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -482,7 +482,7 @@ await test('a hidden hint waits without marking read and performs its current ch
   assert.ok(f.calls.slice(before).includes('probe'));
 });
 
-await test('queda de conexão e exclusão em hidden fecham a conversa imediatamente', async (t) => {
+await test('connection loss and hidden-page deletion close the conversation immediately', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();

@@ -13,7 +13,7 @@ import {
 import { searchGroupCopies } from '../src/client/groups/search.ts';
 import type { GroupView } from '../src/client/groups/reader.ts';
 
-await test('filtros separam arquivadas, favoritos, grupos e não lidas; fixadas ficam primeiro sem apagar o histórico pesquisável', () => {
+await test('filters separate archived, favorites, groups and unread; pinned entries lead without deleting searchable history', () => {
   const entries: ConversationEntry[] = [
     {
       id: 'ordinary',
@@ -73,7 +73,7 @@ await test('filtros separam arquivadas, favoritos, grupos e não lidas; fixadas 
   assert.equal(entries[0]?.id, 'ordinary');
   assert.equal(matchingConversations(entries, 'Removido')[0]?.id, 'removed');
 });
-await test('toque prolongado abre menu uma vez e consome o clique; rolagem, cancelamento e toque curto preservam a abertura normal', (t) => {
+await test('long press opens the menu once and consumes the click; scroll, cancel and short touch preserve normal opening', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let opened = 0;
   const gesture = new HoldGesture(() => {
@@ -96,7 +96,7 @@ await test('toque prolongado abre menu uma vez e consome o clique; rolagem, canc
   t.mock.timers.tick(600);
   assert.equal(opened, 1);
 });
-await test('atualizar contadores preserva menu; contato removido, identidade ou ações alteradas invalidam as opções antigas', () => {
+await test('counter updates preserve the menu; removed contacts, changed identity or actions invalidate old options', () => {
   const entry: ConversationEntry = {
     id: 'wallet',
     title: 'Contact',
@@ -127,7 +127,7 @@ await test('atualizar contadores preserva menu; contato removido, identidade ou 
   );
 });
 
-await test('busca de chats encontra nomes, wallets e grupos sem distinguir caixa; não altera a lista', () => {
+await test('chat search finds names, wallets and groups case-insensitively without changing the list', () => {
   const entries = [
     {
       id: 'alice',
@@ -178,7 +178,7 @@ function view(sequence: number, text: string): GroupView {
     unavailableMedia: [],
   };
 }
-await test('pesquisa de grupos inclui legenda dos anexos e avança para outro grupo', async () => {
+await test('group search includes attachment captions and advances to another group', async () => {
   const content = {
     version: 1,
     name: 'foto.jpg',
@@ -220,7 +220,7 @@ await test('pesquisa de grupos inclui legenda dos anexos e avança para outro gr
   assert.match(result.items[0]!.excerpt, /PALAVRA na legenda/u);
   assert.equal(result.next, null);
 });
-await test('pesquisa de grupos limita cada rodada e continua sem perder o grupo ou página', async () => {
+await test('group search bounds each round and continues without losing group or page', async () => {
   const read = (_group: string, before: number | null) => {
     const sequence = before === null ? 100 : before - 1;
     return Promise.resolve({
@@ -254,7 +254,7 @@ await test('pesquisa de grupos limita cada rodada e continua sem perder o grupo 
   );
   assert.equal(end.next, null);
 });
-await test('pesquisa não publica conteúdo após mudança de sessão e recusa cursor de grupo ausente', async () => {
+await test('search publishes no content after session change and rejects a cursor for a missing group', async () => {
   let changed = false;
   const context = {
     query: 'palavra',
@@ -283,7 +283,7 @@ await test('pesquisa não publica conteúdo após mudança de sessão e recusa c
   );
 });
 
-await test('fila de status mostra só contatos com status ativo, sem removidos nem grupos', () => {
+await test('status queue shows only contacts with active status, excluding removed contacts and groups', () => {
   const base = {
     detail: '',
     searchText: '',

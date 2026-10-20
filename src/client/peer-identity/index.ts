@@ -111,7 +111,7 @@ export class PeerIdentity {
   async loadCurrent(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     if (!this.sync.complete)
-      throw new Error('Identidades ainda não sincronizadas.');
+      throw new Error('Identities are not synchronized yet.');
     const entries = [...this.sync.currentHeads().values()].flat();
     const pending = entries.filter(
       (entry) =>

@@ -143,7 +143,7 @@ export class AuthenticationStore {
       [identity.address, identity.ecosystem, preferredId ?? randomUUID()],
     );
     const id = created.rows[0]?.id;
-    if (!id) throw new Error('Conta não persistida.');
+    if (!id) throw new Error('Account was not persisted.');
     if (typeof this.contentCapacity !== 'number')
       await assertContentCapacity(client, this.contentCapacity);
     return id;

@@ -38,7 +38,7 @@ import { prepareEvent } from '../../src/client/device-operations/index.ts';
 import { freshKeyring } from '../../src/client/device-operations/index.ts';
 import { createIdentity } from '../../src/client/device-keys/index.ts';
 
-await test('comunidades: criação aberta, privacidade, gestão, sanções, denúncias e capacidade transacional', async (t) => {
+await test('communities: open creation, privacy, management, sanctions, reports and transactional capacity', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
@@ -158,7 +158,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     error instanceof AccountError && error.status === status;
 
   await t.test(
-    'criação é gratuita, exige perfil explícito, recusa nomes iguais e retry conserva a comunidade',
+    'creation is free, requires an explicit profile, rejects duplicate names and preserves the community on retry',
     async () => {
       await assert.rejects(
         stranger.operate('create', {
@@ -258,7 +258,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
   );
 
   await t.test(
-    'leitura pública não exige conta; seguidores mostram apenas a identidade pública',
+    'public reading requires no account; followers expose only public identity',
     async () => {
       const result = await fetch(`${origin}/api/communities/${id}`);
       assert.equal(result.status, 200);
@@ -346,7 +346,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'gestão usa funções atuais, revisão concorrente e foto restrita; moderação não recebe dados privados',
+    'management uses current roles, concurrent revision and restricted photo; moderation receives no private data',
     async () => {
       await assert.rejects(
         change(participant, 'edit', {
@@ -446,7 +446,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'foto: autoria da análise, contestação restrita, substituição, capacidade líquida e descarte',
+    'photo: analysis authorship, restricted appeal, replacement, net capacity and disposal',
     async () => {
       const png = new Uint8Array(
           await readFile(
@@ -647,7 +647,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'sanções são reversíveis, impedem participação sem depender de seguir e permitem uma contestação',
+    'sanctions are reversible, block participation regardless of follow and allow one appeal',
     async () => {
       await assert.rejects(
         change(mod, 'sanction', {
@@ -778,7 +778,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'denúncias conservam acompanhamento e escondem o denunciante dos gestores e visitantes',
+    'reports retain tracking and hide the reporter from managers and visitors',
     async () => {
       const record = crypto.randomUUID();
       await participant.operate('report', {
@@ -828,7 +828,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'transferência exige aceite do ID correto; anterior perde a gestão; arquivo preserva leitura e registros',
+    'transfer requires acceptance by the correct ID; former owner loses management; archive preserves reading and records',
     async () => {
       await change(owner, 'transfer-offer', { target: participantProfile.id });
       const offered = await state(participant);
@@ -891,7 +891,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'HTTP de escrita exige origem/CSRF e assinatura; revogação impede gestão por aparelho anterior',
+    'HTTP writes require origin, CSRF and signature; revocation blocks management by the previous device',
     async () => {
       const payload = { id, following: true },
         proof = await owner.proof('follow', payload);
@@ -961,7 +961,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'listas são paginadas e capacidade global recusa novas gravações atomicamente, sem cota pessoal',
+    'lists are paginated and global capacity rejects new writes atomically without a personal quota',
     async () => {
       for (let i = 0; i < 25; i++) {
         const next = crypto.randomUUID();
@@ -1030,7 +1030,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'exclusão sintética arquiva comunidade e libera @ sem transferir propriedade/histórico',
+    'synthetic deletion archives the community and releases the handle without transferring ownership or history',
     async () => {
       const temporary = await create(),
         handle = `d_${suffix}`,

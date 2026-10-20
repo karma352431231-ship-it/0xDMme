@@ -51,7 +51,7 @@ export async function isolatedMediaProcess(
       try {
         const response = object(JSON.parse(result) as unknown);
         if (response['ok'] !== true || typeof response['output'] !== 'string')
-          throw new Error('Preparação falhou.');
+          throw new Error('Preparation failed.');
         settled = true;
         resolve(response['output']);
       } catch {

@@ -8,7 +8,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 import type { RecoveryFlow } from '../src/client/recovery-return/index.ts';
 import { deviceDatabase } from './fixtures/device-database.ts';
 
-await test('restauração não abre wallet; login abre somente sem chaves e pedido expirado deixa de bloquear atualização', async (t) => {
+await test('restoration never opens the wallet; login opens only without keys and expired request stops blocking updates', async (t) => {
   const window = new EventTarget();
   const records = new Map<string, string>();
   const replacements = {

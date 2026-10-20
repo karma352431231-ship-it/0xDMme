@@ -25,7 +25,7 @@ async function pair(t: TestContext) {
   return { relay, alice, bob };
 }
 
-await test('texto cifrado nos dois sentidos; relay não recebe a mensagem legível', async (t) => {
+await test('text is encrypted in both directions; relay never receives plaintext', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -39,7 +39,7 @@ await test('texto cifrado nos dois sentidos; relay não recebe a mensagem legív
   assert.equal(await alice.decrypt(reply), 'Resposta sintética');
 });
 
-await test('destinatário recebe depois de ficar offline, dentro da sessão em memória', async (t) => {
+await test('recipient receives after going offline within the in-memory session', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -54,7 +54,7 @@ await test('destinatário recebe depois de ficar offline, dentro da sessão em m
   );
 });
 
-await test('chave esperada errada impede envio, sem fallback', async (t) => {
+await test('wrong expected key prevents sending without fallback', async (t) => {
   const { alice } = await pair(t);
   await assert.rejects(alice.confirmPeer('chave falsa'), /does not match/);
   await assert.rejects(
@@ -63,7 +63,7 @@ await test('chave esperada errada impede envio, sem fallback', async (t) => {
   );
 });
 
-await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async (t) => {
+await test('tampered ciphertext is rejected by the cryptographic engine', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -83,7 +83,7 @@ await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async
   assert.equal(await bob.decrypt(event), 'Texto sintético íntegro');
 });
 
-await test('atribuir autoria falsa ao pacote não o transforma em mensagem autorizada', async (t) => {
+await test('false packet authorship cannot make an authorized message', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -95,21 +95,21 @@ await test('atribuir autoria falsa ao pacote não o transforma em mensagem autor
   );
 });
 
-await test('relay recusa texto legível e campos secretos em vez de armazená-los', () => {
+await test('relay rejects readable text and secret fields instead of storing them', () => {
   const relay = new ProbeRelay();
   assert.throws(
     () => relay.dispatch('alice', 'publish', '{"body":"texto aberto"}'),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   assert.throws(
     () =>
       relay.dispatch('alice', 'upload', '{"private_key":"segredo fictício"}'),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   assert.equal(relay.inspect().includes('segredo fictício'), false);
 });
 
-await test('outro cliente com chaves novas não lê os pacotes armazenados para Bob', async (t) => {
+await test('another client with new keys cannot read packets stored for Bob', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -139,7 +139,7 @@ await test('outro cliente com chaves novas não lê os pacotes armazenados para 
   );
 });
 
-await test('revogação rotaciona a sessão: Bob mantém passado e não abre novas mensagens', async (t) => {
+await test('revocation rotates the session: Bob retains the past and cannot open new messages', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -162,7 +162,7 @@ await test('revogação rotaciona a sessão: Bob mantém passado e não abre nov
   await assert.rejects(alice.confirmPeer(bob.fingerprint), /revoked/);
 });
 
-await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão antiga', async (t) => {
+await test('concurrent revocation and sending preserve order without using the old session', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -177,7 +177,7 @@ await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão
   await assert.rejects(bob.decrypt(event), /Message rejected/);
 });
 
-await test('repetir um ciphertext com novo identificador não produz uma segunda mensagem', async (t) => {
+await test('repeated ciphertext with a new identifier produces no second message', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -190,7 +190,7 @@ await test('repetir um ciphertext com novo identificador não produz uma segunda
   );
 });
 
-await test('diretório hostil não substitui a chave de criptografia com assinatura inválida', async (t) => {
+await test('hostile directory cannot replace the encryption key with an invalid signature', async (t) => {
   const { relay, alice, bob } = await pair(t);
   const attacked = new ProbeRelay();
   const observer = await ProbeClient.create('alice', (operation, body) =>

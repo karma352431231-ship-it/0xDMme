@@ -36,7 +36,7 @@ function responseFailure(status: number): Error {
   };
   return new Error(
     messages[status] ??
-      'A operação falhou. Confira a imagem ou a disponibilidade do ambiente.',
+      "The operation failed. Check the image or the environment's availability.",
   );
 }
 export class EvaluationApi {

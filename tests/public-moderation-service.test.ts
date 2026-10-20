@@ -12,7 +12,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-await test('moderação: limpeza concorrente compartilha trabalho e encerramento aguarda o lote em curso', async () => {
+await test('moderation: concurrent cleanup shares work and shutdown waits for the active batch', async () => {
   const entered = deferred<void>(),
     done = deferred<number>();
   let avatars = 0,
@@ -48,10 +48,10 @@ await test('moderação: limpeza concorrente compartilha trabalho e encerramento
   assert.equal(closed, true);
   await service.clean();
   assert.equal(avatars, 1);
-  assert.throws(() => service.start(), /encerrado/);
+  assert.throws(() => service.start(), /stopped/);
 });
 
-await test('moderação: erro de coleta é propagado e permite nova rodada sem sobrepor os lotes', async () => {
+await test('moderation: collection error propagates and allows another round without overlapping batches', async () => {
   let attempts = 0,
     photos = 0;
   const service = new PublicModerationService({
@@ -59,7 +59,7 @@ await test('moderação: erro de coleta é propagado e permite nova rodada sem s
       collectModeration: () => {
         attempts++;
         return attempts === 1
-          ? Promise.reject(new Error('Banco indisponível.'))
+          ? Promise.reject(new Error('Database unavailable.'))
           : Promise.resolve(0);
       },
     },
@@ -70,7 +70,7 @@ await test('moderação: erro de coleta é propagado e permite nova rodada sem s
       },
     },
   });
-  await assert.rejects(service.clean(), /Banco indisponível/);
+  await assert.rejects(service.clean(), /Database unavailable/);
   assert.equal(photos, 0);
   await service.clean();
   assert.equal(attempts, 2);

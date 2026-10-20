@@ -12,7 +12,7 @@ import {
 } from '../src/shared/group-quota/index.ts';
 import { vaultQuota } from '../src/shared/vault/index.ts';
 
-await test('frequência respeita as duas janelas, inclusive as bordas exatas', () => {
+await test('frequency respects both windows including exact boundaries', () => {
   const now = 4_000_000;
   assert.equal(groupCreationRetryAt({ now: 0, createdAt: [] }), 0);
   assert.equal(
@@ -40,7 +40,7 @@ await test('frequência respeita as duas janelas, inclusive as bordas exatas', (
     assert.throws(() => groupCreationRetryAt(input), AccountError);
 });
 
-await test('cotas não deslocam mídia para espaço de texto e recusam o primeiro byte excedente', () => {
+await test('quotas cannot move media into text space and reject the first excess byte', () => {
   assert.equal(vaultQuota, 1_000_000_000);
   assert.equal(groupQuota, 2_000_000_000);
   assert.equal(groupMediaQuota, 1_500_000_000);

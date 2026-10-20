@@ -72,7 +72,7 @@ export class ContactStore {
     authorization = false,
   ): void {
     const pending = this.pendingChanges.get(client);
-    if (!pending) throw new Error('Alteração exige transação coordenada.');
+    if (!pending) throw new Error('Change requires a coordinated transaction.');
     for (const account of accounts) pending.accounts.add(account);
     pending.authorization ||= authorization;
   }
@@ -80,7 +80,8 @@ export class ContactStore {
   removed(client: pg.PoolClient, accounts: readonly string[]): void {
     this.changed(client, accounts);
     const pending = this.pendingChanges.get(client);
-    if (!pending) throw new Error('Exclusão exige transação coordenada.');
+    if (!pending)
+      throw new Error('Deletion requires a coordinated transaction.');
     pending.removed = true;
   }
   private async transaction<T>(

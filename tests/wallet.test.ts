@@ -12,7 +12,7 @@ import {
 } from '../src/shared/wallet-identity/index.ts';
 import { approvalPathRequest } from '../src/shared/wallet-approval/index.ts';
 
-await test('links mobile limitam destino à entrada HTTPS própria sem fragmento ou token de sessão', () => {
+await test('mobile links restrict destination to own HTTPS entry without fragment or session token', () => {
   const ticket = 'a'.repeat(64);
   const origin = 'https://hash-talk.example';
   for (const wallet of ['MetaMask', 'Phantom', 'Backpack'] as const) {
@@ -50,7 +50,7 @@ await test('links mobile limitam destino à entrada HTTPS própria sem fragmento
     }),
   );
 });
-await test('MetaMask abre o destino HTTPS completo sem exigir decodificação dos delimitadores, em EVM e Solana', () => {
+await test('MetaMask opens the complete HTTPS destination without requiring delimiter decoding in EVM and Solana', () => {
   const ticket = 'b'.repeat(64);
   for (const ecosystem of ['evm', 'solana'] as const) {
     const link = walletBrowserUrl({
@@ -78,7 +78,7 @@ await test('MetaMask abre o destino HTTPS completo sem exigir decodificação do
     );
   }
 });
-await test('iPhone usa o handler do app instalado para MetaMask e Phantom, preservando o destino HTTPS próprio', () => {
+await test('iPhone uses the installed app handler for MetaMask and Phantom while preserving the own HTTPS destination', () => {
   for (const wallet of ['MetaMask', 'Phantom'] as const) {
     for (const ecosystem of ['evm', 'solana'] as const) {
       const link = walletBrowserUrl({
@@ -107,7 +107,7 @@ await test('iPhone usa o handler do app instalado para MetaMask e Phantom, prese
     }
   }
 });
-await test('Backpack Android recebe o destino próprio completo pela rota HTTPS v1, sem ref externo', () => {
+await test('Backpack Android receives the complete own destination through the HTTPS v1 route without external ref', () => {
   const ticket = 'c'.repeat(64);
   const prefix = 'https://backpack.app/ul/v1/browse/';
   for (const ecosystem of ['evm', 'solana'] as const) {
@@ -147,7 +147,7 @@ await test('Backpack Android recebe o destino próprio completo pela rota HTTPS 
     assert.equal(new URL(other).searchParams.get('ref'), 'https://0xdmme.app');
   }
 });
-await test('endereços Solana são Base58 de 32 bytes e EVM normaliza somente seu ecossistema', () => {
+await test('Solana addresses are 32-byte Base58 and EVM normalizes only its ecosystem', () => {
   const bytes = new Uint8Array(32).fill(42);
   const address = base58.encode(bytes);
   assert.deepEqual(solanaPublicKey(address), bytes);
@@ -159,7 +159,7 @@ await test('endereços Solana são Base58 de 32 bytes e EVM normaliza somente se
     '0x' + 'a'.repeat(40),
   );
 });
-await test('descobre outra wallet EIP-6963 e MetaMask Solana anunciada após a página abrir, rejeitando mensagem alterada', async (t) => {
+await test('discovers another EIP-6963 wallet and MetaMask Solana announced after page load and rejects altered messages', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const target = new EventTarget();
   Object.defineProperty(globalThis, 'window', {

@@ -9,6 +9,4 @@ await build({
   target: 'es2023',
   charset: 'utf8',
 });
-process.stdout.write(
-  'Medidor de console preparado em build/chat-lag-console.js.\n',
-);
+process.stdout.write('Console meter prepared at build/chat-lag-console.js.\n');

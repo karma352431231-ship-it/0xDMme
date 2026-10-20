@@ -18,7 +18,7 @@ const bookmark: FeedBookmark = {
   top: 1234,
   anchor: { id: 'post-de-origem', offset: -15 },
 };
-await test('abrir post conserva página, filtros e posição; retorno é consumido uma vez', () => {
+await test('opening a post preserves page, filters and position; return is consumed once', () => {
   const navigation = new FeedReturn();
   navigation.capture(bookmark);
   assert.equal(
@@ -32,7 +32,7 @@ await test('abrir post conserva página, filtros e posição; retorno é consumi
   );
   assert.equal(navigation.take(new URLSearchParams('view=following')), null);
 });
-await test('selecionar outro feed, navegar explicitamente ou recarregar descarta o retorno', () => {
+await test('selecting another feed, explicit navigation or reload discards the return', () => {
   const navigation = new FeedReturn();
   navigation.capture(bookmark);
   assert.equal(navigation.take(new URLSearchParams('view=feed')), null);
@@ -42,7 +42,7 @@ await test('selecionar outro feed, navegar explicitamente ou recarregar descarta
   assert.equal(new FeedReturn().target(), null);
 });
 
-await test('retorno por rolagem da página ancora o primeiro post visível, inclusive após mudança de altura', (t) => {
+await test('page-scroll return anchors the first visible post even after height changes', (t) => {
   const previousDocument = Object.getOwnPropertyDescriptor(
     globalThis,
     'document',
@@ -93,7 +93,7 @@ await test('retorno por rolagem da página ancora o primeiro post visível, incl
   restoreFeedPosition(container, saved);
   assert.equal(scroll.scrollTop, 680);
 });
-await test('filtros escolhidos ficam por visão no aparelho; valores inválidos voltam ao padrão', () => {
+await test('selected filters persist per view on the device; invalid values return to defaults', () => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
@@ -168,7 +168,7 @@ function holder() {
   return parent;
 }
 
-await test('página do feed guardada ao abrir perfil volta igual na mesma posição; outro feed ou prazo a descartam', (t) => {
+await test('feed page saved when opening a profile returns at the same position; another feed or deadline discards it', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const park = new FeedPark();
   const before = holder();

@@ -11,7 +11,7 @@ function storage() {
     },
   };
 }
-await test('entrar na caixa reconhece os IDs sem abrir itens; novos IDs continuam novos após sair', () => {
+await test('entering the inbox acknowledges IDs without opening items; new IDs stay new after leaving', () => {
   const data = storage(),
     seen = new ActivitySeen(data);
   seen.setAccount('a');
@@ -25,7 +25,7 @@ await test('entrar na caixa reconhece os IDs sem abrir itens; novos IDs continua
   reload.setAccount('a');
   assert.equal(reload.count([unopened.id, 'post:2']), 1);
 });
-await test('visto é isolado por conta e mudança de status/ID continua nova', () => {
+await test('seen state is account-specific and a changed status or ID remains new', () => {
   const data = storage(),
     seen = new ActivitySeen(data);
   seen.setSession({ accountId: 'a' });
@@ -37,7 +37,7 @@ await test('visto é isolado por conta e mudança de status/ID continua nova', (
   seen.setAccount(null);
   assert.equal(seen.count(['moderation:1:held']), 1);
 });
-await test('armazenamento bloqueado não impede reconhecimento nesta visita, nem aceita dados sem limites', () => {
+await test('blocked storage still allows acknowledgment during this visit and rejects unbounded data', () => {
   const seen = new ActivitySeen({
     getItem: () => {
       throw new Error('bloqueado');

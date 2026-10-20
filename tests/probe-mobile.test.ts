@@ -10,7 +10,7 @@ import {
   serveMobileCertificate,
 } from '../src/server/probe-mobile/index.ts';
 
-await test('listener mobile rejeita interface pública, curinga e token fraco', () => {
+await test('mobile listener rejects public interfaces, wildcard and weak token', () => {
   const mobile = {
     address: '192.168.1.20',
     cert: Buffer.alloc(0),
@@ -19,10 +19,13 @@ await test('listener mobile rejeita interface pública, curinga e token fraco', 
   };
   assert.equal(mobileOrigin(45102, mobile), 'https://192.168.1.20:45102');
   for (const address of ['0.0.0.0', '8.8.8.8', '172.32.0.1', '::1']) {
-    assert.throws(() => mobileOrigin(45102, { ...mobile, address }), /privada/);
+    assert.throws(
+      () => mobileOrigin(45102, { ...mobile, address }),
+      /private.network/,
+    );
     assert.throws(
       () => serveMobileCertificate(address, Buffer.alloc(0)),
-      /privada/,
+      /private.network/,
     );
   }
   assert.throws(() => mobileOrigin(45102, { ...mobile, accessToken: 'curto' }));
@@ -54,7 +57,7 @@ function exchange(port: number, path: string, headers: OutgoingHttpHeaders) {
   );
 }
 
-await test('origem e acesso temporário protegem API e assets antes da admissão', async () => {
+await test('origin and temporary access protect API and assets before admission', async () => {
   const origin = 'https://192.168.1.20:45102';
   const token = 'a'.repeat(43);
   const headers = { host: new URL(origin).host };

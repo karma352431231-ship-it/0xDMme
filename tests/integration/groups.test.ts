@@ -55,7 +55,7 @@ import { GroupAdmission } from '../../src/server/database/group-admission.ts';
 import { groupTextUsage } from '../../src/server/database/group-quota.ts';
 import { sign, digest, canonical } from '../../src/shared/devices/index.ts';
 
-await test('governança persistente: criação atômica, convites, transferência, remoção e frequência sobrevivem à exclusão', async (t) => {
+await test('persistent governance: atomic creation, invitations, transfer, removal and frequency survive deletion', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
@@ -285,7 +285,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     accept: true,
   });
   await t.test(
-    'inclusão direta e link revogável preservam autorização, períodos, bloqueio e cotas',
+    'direct addition and revocable link preserve authorization, periods, blocking and quotas',
     async () => {
       const admin = await user(),
         contactUser = await user(),
@@ -820,7 +820,7 @@ await test('governança persistente: criação atômica, convites, transferênci
   );
   assert.deepEqual(delivered.rows[0], { pending: 0, received: 2 });
   await t.test(
-    'nome cifrado é publicado apenas por administradores e não conta como mensagem não lida',
+    'encrypted name is published only by administrators and never counts as an unread message',
     async () => {
       const make = async (u: User, m: MessageCrypto) =>
         m.encryptGroup({
@@ -871,7 +871,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     },
   );
   await t.test(
-    'controles do grupo preservam privacidade, silêncio e recebimento antes da leitura',
+    'group controls preserve privacy, mute and receipt before reading',
     async () => {
       const scope = { groupId: joined.groupId, head: groupHead },
         ids = [encrypted.packet.id];
@@ -976,7 +976,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     keys: null,
   });
   await t.test(
-    'edição e exclusão próprias usam delta, preservam outras mensagens e rejeitam terceiros',
+    'own edits and deletions use deltas, preserve other messages and reject third parties',
     async () => {
       const scope = { groupId: joined.groupId, head: groupHead };
       const original = await sender.encryptGroup({
@@ -1141,7 +1141,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     },
   );
   await t.test(
-    'original admite até 64 edições e recusa a próxima sem modificar o snapshot',
+    'original accepts up to 64 edits and rejects the next without changing the snapshot',
     async () => {
       const make = (
         text: string,
@@ -1325,7 +1325,7 @@ await test('governança persistente: criação atômica, convites, transferênci
     message(messages, member, 'group-vault-clear', mediaScope),
   );
   await t.test(
-    'limpeza avisa por 24h, congela os mais antigos, mantém texto e não inventa entrega',
+    'cleanup gives 24h notice, freezes the oldest, preserves text and never invents delivery',
     async () => {
       // Synthetic rows cover the current threshold without allocating the media quota on disk.
       const synthetic = Array.from(
@@ -1477,7 +1477,7 @@ await test('governança persistente: criação atômica, convites, transferênci
   assert.equal((directory['directories'] as unknown[]).length, 2);
   assert.equal((directory['recovery'] as unknown[]).length, 2);
   await t.test(
-    'criação gratuita supera o antigo teto e transferência não exige saldo ou vagas',
+    'free creation exceeds the old cap and transfer requires neither balance nor slots',
     async () => {
       for (let i = 0; i < 3; i++) {
         // Simulate elapsed time only for this synthetic account; preserve the real frequency checks.

@@ -35,7 +35,7 @@ function sources(overrides: Partial<ActivitySources> = {}): ActivitySources {
   };
 }
 
-await test('contador soma pedidos, convites, respostas e transferências', async () => {
+await test('counter adds requests, invitations, replies and transfers', async () => {
   const counts: number[] = [];
   const activity = startActivity(sources(), {
     countChanged: (count) => counts.push(count),
@@ -45,7 +45,7 @@ await test('contador soma pedidos, convites, respostas e transferências', async
   assert.equal(counts.at(-1), 4);
 });
 
-await test('uma fonte com falha não esconde as demais', async () => {
+await test('one failed source cannot hide the others', async () => {
   const counts: number[] = [];
   const activity = startActivity(
     sources({ requests: () => Promise.reject(new Error('Sem conexão')) }),
@@ -56,7 +56,7 @@ await test('uma fonte com falha não esconde as demais', async () => {
   assert.equal(counts.at(-1), 2);
 });
 
-await test('sem sessão nada é lido e trocar de conta zera o contador', async () => {
+await test('no session means no reads and switching accounts clears the counter', async () => {
   let reads = 0;
   const counts: number[] = [];
   const activity = startActivity(
@@ -76,7 +76,7 @@ await test('sem sessão nada é lido e trocar de conta zera o contador', async (
   assert.equal(counts.at(-1), 0);
 });
 
-await test('filtros: Pedidos reúne o que espera resposta e Respostas só as respostas das comunidades', () => {
+await test('filters: Requests groups pending responses and Replies contains only community replies', () => {
   for (const [filter, groups] of [
     [
       'all',
@@ -98,7 +98,7 @@ await test('filtros: Pedidos reúne o que espera resposta e Respostas só as res
     assert.deepEqual(activityGroups(filter), groups);
 });
 
-await test('resposta aparece direto na Atividade; ocultas e excluídas não mostram texto', () => {
+await test('reply appears directly in Activity; hidden and deleted replies expose no text', () => {
   for (const [preview, expected] of [
     [null, ''],
     [{ text: 'Concordo!', media: false, status: 'visible' }, 'Concordo!'],
@@ -115,7 +115,7 @@ await test('resposta aparece direto na Atividade; ocultas e excluídas não most
     assert.equal(replyQuote(preview), expected);
 });
 
-await test('avisos já lidos permanecem no histórico e não entram no contador', async () => {
+await test('read notifications remain in history and are excluded from the counter', async () => {
   const counts: number[] = [];
   const activity = startActivity(
     sources({

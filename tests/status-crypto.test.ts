@@ -14,7 +14,7 @@ import {
   statusAudienceHead,
   statusEnvelopeHash,
 } from '../src/shared/status/index.ts';
-await test('status usa SDK real e cápsula individual sem expor outros contatos; audiência, origem e 24h são verificáveis', async (t) => {
+await test('status uses the real SDK and an individual capsule without exposing other contacts; audience, origin and 24h are verifiable', async (t) => {
   const author = await groupParticipant(),
     viewer = await groupParticipant(),
     outsider = await groupParticipant();

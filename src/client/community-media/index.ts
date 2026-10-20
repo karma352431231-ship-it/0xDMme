@@ -159,7 +159,7 @@ async function upload(
   }
   if (state.status !== 'ready')
     throw new Error(
-      state.error ?? 'Mídia ainda não preparada. Retome o envio.',
+      state.error ?? 'Media is not ready yet. Resume the upload.',
     );
   return source.id;
 }

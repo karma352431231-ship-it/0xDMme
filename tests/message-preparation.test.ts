@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { HistoryPreparation } from '../src/client/messages/preparation.ts';
 
-await test('preparação concluída fica ociosa até nova atividade, sem reiniciar na manutenção de presença', () => {
+await test('completed preparation stays idle until new activity without restarting for presence maintenance', () => {
   const preparation = new HistoryPreparation();
   const direct = preparation.next()!;
   assert.equal(direct.kind, 'direct');
@@ -17,7 +17,7 @@ await test('preparação concluída fica ociosa até nova atividade, sem reinici
   assert.equal(preparation.next()?.kind, 'direct');
 });
 
-await test('páginas parciais alternam áreas; cancelamento/falha deixa a mesma página pendente', () => {
+await test('partial pages alternate areas; cancellation or failure keeps the same page pending', () => {
   const preparation = new HistoryPreparation();
   const direct = preparation.next()!;
   assert.deepEqual(preparation.next(), direct);
@@ -30,7 +30,7 @@ await test('páginas parciais alternam áreas; cancelamento/falha deixa a mesma 
   assert.equal(preparation.pending, false);
 });
 
-await test('aviso durante uma página ou mudança de sessão não é perdido por uma conclusão antiga', () => {
+await test('notice during a page or session change cannot be lost through an old completion', () => {
   const preparation = new HistoryPreparation();
   const old = preparation.next()!;
   preparation.request();

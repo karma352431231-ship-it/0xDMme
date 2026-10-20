@@ -233,6 +233,15 @@ SOURCE_TEXT_MODULES = frozenset({
     'social-history.ts', 'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts',
     'status-media.ts', 'status.ts', 'upload-admission.ts', 'vault-quota.ts', 'vault.ts',
 })
+# Exact reviewed runtime diagnostics; schema and runtime contracts remain fixed.
+RUNTIME_DIAGNOSTICS_BEFORE = '4c54956dc6ab04e6c29c04f317b54d93f307b886'
+RUNTIME_DIAGNOSTICS_REVIEWED = 'edc3d95e6f3c8b94866bd8470ebe0b447599ad03'
+RUNTIME_DIAGNOSTICS_MODULES = frozenset({
+    'authentication.ts', 'changes.ts', 'community-badges.ts',
+    'community-post-visibility.ts', 'contacts.ts', 'content-capacity.ts', 'daily.ts',
+    'group-quota.ts', 'index.ts', 'personal-quota.ts', 'public-moderation.ts',
+    'public-profile.ts', 'social-dm.ts', 'status.ts', 'work-signals.ts',
+})
 # Measured signed feed/follower read correction; pin the full database trees.
 # All 91 migrations, write paths, timeouts and runtime remain exact.
 COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
@@ -478,6 +487,7 @@ def database_code_reviewed(candidate, live):
           'profile-follower-counts.ts', 'profile-ranking.ts'},
          ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
         (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
+        (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:

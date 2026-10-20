@@ -10,7 +10,7 @@ import { promisify } from 'node:util';
 import { frontendSource } from '../src/tools/frontend-source.ts';
 import { loadWebAssets } from '../src/server/web-host/index.ts';
 
-await test('pacote portátil preserva fontes e licenças exatas, sem metadados privados do Mac', async (t) => {
+await test('portable package preserves exact sources and licenses without private Mac metadata', async (t) => {
   const root = process.cwd(),
     temporary = await mkdtemp(join(tmpdir(), '0xdmme-source-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
@@ -88,11 +88,11 @@ await test('source packaging preserves more than 1024 files and rejects an unbou
   await grow(2049);
   await assert.rejects(
     frontendSource(temporary, new Set([input])),
-    /Quantidade de fontes excedida/u,
+    /Source count exceeds the limit/u,
   );
 });
 
-await test('fontes maiores que 2 MiB são empacotadas e servidas sem relaxar o limite de outros assets', async (t) => {
+await test('source files above 2 MiB are packaged and served without relaxing other asset limits', async (t) => {
   const temporary = await mkdtemp(join(tmpdir(), '0xdmme-large-source-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const execute = promisify(execFile);
@@ -131,5 +131,5 @@ await test('fontes maiores que 2 MiB são empacotadas e servidas sem relaxar o l
   await writeFile(join(temporary, 'oversized.js'), archive);
   manifest.push({ path: '/oversized.js', type: 'text/javascript' });
   await writeFile(join(temporary, 'assets.json'), JSON.stringify(manifest));
-  await assert.rejects(loadWebAssets(root), /Asset excedido/u);
+  await assert.rejects(loadWebAssets(root), /Asset exceeds the limit/u);
 });

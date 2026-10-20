@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { test } from 'node:test';
 import { parseObject } from '../src/shared/crypto-probe/index.ts';
 
-await test('Semaphore gera prova real; alteração, membro removido, contexto e replay concorrente falham', async () => {
+await test('Semaphore generates real proof; tampering, removed member, context and concurrent replay fail', async () => {
   const { stdout } = await promisify(execFile)(
     process.execPath,
     ['src/tools/zk-probe.ts'],

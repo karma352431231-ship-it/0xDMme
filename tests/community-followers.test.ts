@@ -6,7 +6,7 @@ import {
 } from '../src/shared/community-followers/index.ts';
 import { AccountError } from '../src/shared/account/index.ts';
 import { knownFollowersText } from '../src/client/communities/followers.ts';
-await test('lista de seguidores limita página e aceita apenas identidades públicas e abas conhecidas', () => {
+await test('follower list bounds pages and accepts only public identities and known tabs', () => {
   const profile = { id: crypto.randomUUID(), handle: 'pessoa', avatar: null },
     page = { items: [profile], total: 1, next: null };
   assert.deepEqual(communityFollowers(page), page);
@@ -31,7 +31,7 @@ await test('lista de seguidores limita página e aceita apenas identidades públ
   );
   assert.throws(() => communityFollowerTab('private'), AccountError);
 });
-await test('frase de perfis em comum cita até dois e conta os demais que a pessoa segue', () => {
+await test('mutual-profile sentence names up to two and counts the other profiles the reader follows', () => {
   const people = ['ana', 'bia', 'caio'].map((handle) => ({
     id: crypto.randomUUID(),
     handle,

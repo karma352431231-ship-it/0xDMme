@@ -2,7 +2,7 @@
  * Contacts column on wide screens (desktop density).
  */
 @media (min-width: 1280px) {
-  /* Contatos */
+  /* Contacts */
   #app-shell .directory-heading {
     padding: 16px 16px 10px;
   }

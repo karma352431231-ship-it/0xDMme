@@ -38,7 +38,7 @@ import {
   prepareEvent,
 } from '../../src/client/device-operations/index.ts';
 
-await test('perfil público: concorrência, consentimento, sessão/aparelho, mídia restrita e reutilização após exclusão', async (t) => {
+await test('public profile: concurrency, consent, session/device, restricted media and reuse after deletion', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
@@ -200,7 +200,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
   const badStatus = (status: number) => (error: unknown) =>
     error instanceof AccountError && error.status === status;
   await t.test(
-    'criação é explícita, sem copiar perfil privado; nome é único/fixo e retry preserva ID',
+    'creation is explicit without copying private profile; name is unique and fixed and retry preserves ID',
     async () => {
       assert.equal(await first.operate('state', {}), null);
       await assert.rejects(
@@ -250,7 +250,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
   const owner = firstOwn ? first : second,
     other = firstOwn ? second : first;
   await t.test(
-    'HTTP público lê sem conta e contém apenas o allowlist; mutações exigem origem e CSRF',
+    'public HTTP reads without an account and returns only the allowlist; mutations require origin and CSRF',
     async () => {
       const read = await fetch(
         `${origin}/api/public-profiles/${handle.toUpperCase()}`,
@@ -309,7 +309,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'mais de 240 consultas públicas e autenticadas mantêm conteúdo e isolamento entre contas',
+    'more than 240 public and authenticated queries preserve content and account isolation',
     async () => {
       const expected = await publicProfiles.read(handle),
         readers = await Promise.all(
@@ -340,7 +340,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'foto é candidata restrita, versionada e cobrada só na capacidade global',
+    'photo is a restricted, versioned candidate charged only to global capacity',
     async () => {
       const png = new Uint8Array(
         await readFile(
@@ -419,7 +419,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'avatar: análise e contestação assinadas, substituição, coleta e capacidade líquida',
+    'avatar: signed analysis and appeal, replacement, collection and net capacity',
     async () => {
       const png = new Uint8Array(
         await readFile(
@@ -630,7 +630,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'avatar publicado: regra atual, hash e alvo; URI conhecida não libera pendente ou imagem alterada',
+    'published avatar requires current rule, hash and target; known URI cannot release pending or altered images',
     async () => {
       const person = await create(),
         handle = `u_${crypto.randomUUID().slice(0, 8)}`;
@@ -756,7 +756,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'assinatura não pode trocar payload/contexto; sessão encerrada e aparelho revogado são recusados',
+    'signature cannot change payload or context; ended session and revoked device are rejected',
     async () => {
       const proof = await other.proof('state', {});
       await assert.rejects(
@@ -826,7 +826,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
-    'exclusão sintética libera @, e nova conta recebe outro ID público',
+    'synthetic deletion releases the handle and a new account receives another public ID',
     async () => {
       const previous = await publicProfiles.read(handle);
       await inspector.query(

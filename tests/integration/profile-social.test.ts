@@ -38,7 +38,7 @@ import {
   rootPostContent,
 } from './community-fixture.ts';
 
-await test('perfil social: métricas, comunidades públicas, follows, feeds e banner moderado', async (t) => {
+await test('social profile: metrics, public communities, follows, feeds and moderated banner', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -196,7 +196,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     communityPost = await create(stranger, followedCommunity),
     selfReply = await create(owner, otherCommunity, root);
   await t.test(
-    'público: idade, métricas e todas as comunidades seguidas; não inclui dados privados',
+    'public: age, metrics and all followed communities without private data',
     async () => {
       await owner.operate('follow', { id: followedCommunity, following: true });
       let summary = profileSummary(await profiles.summary(identity.handle));
@@ -242,7 +242,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'administração pública: dono e moderador sem follow, bloqueios e função revogada',
+    'public administration: owner and moderator without follow, blocks and revoked role',
     async () => {
       const state = (await owner.operate('state', { id: otherCommunity })) as {
         community: { revision: number };
@@ -324,7 +324,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'seguidores em comum: direção correta, paginação e bloqueios em ambos os lados',
+    'mutual followers: correct direction, pagination and blocks on both sides',
     async () => {
       // This test exercises follower pagination, not 25 concurrent login admissions.
       const people: Awaited<ReturnType<typeof make>>[] = [];
@@ -453,7 +453,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'seguir: reversível, retries, concorrência, auto-follow e feed em comunidade não seguida',
+    'following: reversible, retries, concurrency, self-follow and feed in an unfollowed community',
     async () => {
       const payload = { target: identity.id, following: true, revision: 0 };
       const concurrent = await Promise.all([
@@ -530,7 +530,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'banner: pendente fechado, aprovação vinculada aos bytes, remoção e falha de sessão',
+    'banner: pending access closed, approval bound to bytes, removal and session failure',
     async () => {
       const bytes = new Uint8Array(
         await readFile(
@@ -572,7 +572,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'banner: resultado antigo não reabre remoção; prazo fecha leitura e coleta libera bytes',
+    'banner: old result cannot reverse removal; deadline closes reads and collection releases bytes',
     async () => {
       const bytes = await readFile(
         new URL('../../src/client/app/icon-192.png', import.meta.url),
@@ -639,7 +639,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'exclusão fecha métricas e respostas do perfil/feed sem copiar histórico',
+    'deletion closes metrics and profile/feed responses without copying history',
     async () => {
       await owner.operate('discovery-preference-set', {
         id: otherCommunity,
@@ -682,7 +682,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'descrição: texto puro público ao salvar, revisão entre aparelhos e limpeza',
+    'description: public plain text on save, cross-device revision and cleanup',
     async () => {
       assert.equal((await profiles.summary(identity.handle)).description, '');
       assert.deepEqual(
@@ -727,7 +727,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'página cheia de respostas aninhadas projeta ancestrais em lotes e vincula cursor ao perfil/aba',
+    'full page of nested replies projects ancestors in batches and binds cursor to profile and tab',
     async () => {
       const replies: string[] = [];
       for (let index = 0; index < 25; index++) {
@@ -790,7 +790,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     },
   );
   await t.test(
-    'compartilhamento: referência única, CAS, votos privados, bloqueio e remoção do original',
+    'sharing: unique reference, CAS, private votes, blocking and original removal',
     async () => {
       const sharer = await make();
       const sharerProfile = await sharer.publicIdentity(

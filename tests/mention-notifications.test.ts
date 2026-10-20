@@ -18,7 +18,7 @@ const item = {
   createdAt: '2026-10-12T12:00:00.000Z',
   read: false,
 };
-await test('menções validam contexto público e destinos próprios sem campos privados', () => {
+await test('mentions validate public context and own destinations without private fields', () => {
   assert.equal(
     mentionNotificationPage({ items: [{ ...item, text: '👨‍👩‍👧‍👦' }], next: null })
       .items[0]?.text,

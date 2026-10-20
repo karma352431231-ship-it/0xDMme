@@ -129,7 +129,7 @@ function showResult(dialog: HTMLDialogElement, problems: string[]): void {
 }
 
 /**
- * Configurações iniciais. `confirm` runs inside the submit gesture, so the
+ * Initial settings. `confirm` runs inside the submit gesture, so the
  * browser can show the notification permission prompt; it returns the
  * problems to list. Closing without saving keeps every current setting.
  */

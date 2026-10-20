@@ -23,7 +23,7 @@ function raster(payload: string): ImageData {
     }
   return { width, height: width, data, colorSpace: 'srgb' };
 }
-await test('QR transporta pedido completo com chaves e nome UTF-8 e confirmação, sem autorizar ao ler', async () => {
+await test('QR carries the complete request with keys, UTF-8 name and confirmation without authorizing on scan', async () => {
   const identity = await createIdentity(
     crypto.randomUUID(),
     'Telefone São Luís',
@@ -67,7 +67,7 @@ await test('QR transporta pedido completo com chaves e nome UTF-8 e confirmaçã
   assert.equal(decodeQrFrame(empty), null);
 });
 
-await test('câmera libera tracks ao ler, cancelar, expirar e quando a permissão chega tarde', async (t) => {
+await test('camera releases tracks on scan, cancellation, expiration and late permission', async (t) => {
   const receipt = 'abc01234'.repeat(4);
   const image = raster(qrReceipt(receipt));
   const canvas = {
@@ -181,7 +181,7 @@ await test('câmera libera tracks ao ler, cancelar, expirar e quando a permissã
   assert.equal(video.srcObject, null);
 });
 
-await test('QR de vinculação abre HTTPS e guarda a capacidade somente no fragmento', async () => {
+await test('linking QR opens HTTPS and keeps the capability only in the fragment', async () => {
   const { enrollmentUrl, readEnrollment, enrollmentPayload } =
     await import('../src/shared/device-enrollment/index.ts');
   const code = {

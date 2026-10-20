@@ -139,7 +139,7 @@ function readAttachment(
     (row['version'] !== 1 && row['version'] !== 2) ||
     typeof row['image'] !== 'boolean'
   )
-    throw new Error('Conteúdo de anexo inválido.');
+    throw new Error('Invalid attachment content.');
   const { file, thumbnail, type } = attachmentMedia(row, images),
     voice = attachmentVoice(row, file, thumbnail, type);
   return {
@@ -166,7 +166,7 @@ function attachmentMedia(
     throw new Error('Invalid thumbnail.');
   const type = boundedText(row['type'], 100);
   if (row['image'] && !images.includes(type))
-    throw new Error('Formato de imagem não permitido.');
+    throw new Error('Image format not allowed.');
   return { file, thumbnail, type };
 }
 function attachmentVoice(
@@ -183,7 +183,7 @@ function attachmentVoice(
     type !== 'audio/wav' ||
     file.ref.bytes !== 44 + voice.samples * 2
   )
-    throw new Error('Descritor de voz inválido.');
+    throw new Error('Invalid voice descriptor.');
   return voice;
 }
 export function contentRefs(content: AttachmentContent): AttachmentRef[] {

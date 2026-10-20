@@ -13,7 +13,7 @@ function link(host: HTMLElement, text: string, href: string): void {
 
 /**
  * Follow control shared by the profile page and its preview card. Visitors
- * without a session or public profile are pointed to Perfil; the owner sees
+ * without a session or public profile are pointed to Profile; the owner sees
  * the edit link instead.
  */
 export async function followControl(

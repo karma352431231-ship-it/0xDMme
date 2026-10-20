@@ -23,7 +23,7 @@ const value = () => ({
   owner: profile,
   followers: 0,
 });
-await test('comunidades preservam texto Unicode, recusam controles invisíveis e limitam entradas', () => {
+await test('communities preserve Unicode text, reject invisible controls and bound inputs', () => {
   assert.deepEqual(
     communityMeta({
       name: ' Memes 😄 ',
@@ -49,7 +49,7 @@ await test('comunidades preservam texto Unicode, recusam controles invisíveis e
   );
   assert.throws(() => communityText('x'.repeat(2001), 2000), AccountError);
 });
-await test('respostas públicas e páginas recusam vínculo privado, fotos sem aprovação e listas enormes', () => {
+await test('public responses and pages reject private bindings, unapproved photos and huge lists', () => {
   const data = value();
   assert.deepEqual(community(data), data);
   for (const field of ['accountId', 'wallet', 'pendingPhoto', 'transfer_to'])
@@ -76,7 +76,7 @@ await test('respostas públicas e páginas recusam vínculo privado, fotos sem a
     AccountError,
   );
 });
-await test('estado próprio valida funções, sanções e denúncias sem identidade do denunciante', () => {
+await test('own state validates roles, sanctions and reports without reporter identity', () => {
   const data = {
     community: value(),
     role: 'participant',
@@ -111,7 +111,7 @@ await test('estado próprio valida funções, sanções e denúncias sem identid
     AccountError,
   );
 });
-await test('prova de comunidade não se transfere entre conta, aparelho, operação ou alvo', () => {
+await test('community proof cannot transfer across account, device, operation or target', () => {
   const account = crypto.randomUUID(),
     device = crypto.randomUUID(),
     proof = { directory: 'a'.repeat(64), payload: { id: crypto.randomUUID() } };

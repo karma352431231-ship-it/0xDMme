@@ -31,7 +31,7 @@ async function groupUsage(
         Number(value) < 0,
     )
   )
-    throw new Error('Cota de grupo indisponível.');
+    throw new Error('Group quota unavailable.');
   return {
     text: Number(row.text),
     media: Number(row.media),

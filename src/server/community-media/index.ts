@@ -245,7 +245,7 @@ export class CommunityMediaService {
           writer,
           error instanceof AccountError
             ? error.message
-            : 'Preparação indisponível. Retome o envio.',
+            : 'Preparation unavailable. Resume the upload.',
         );
       })
       .finally(() => {
@@ -255,7 +255,7 @@ export class CommunityMediaService {
     this.jobs.set(id, job);
     // A database outage in the release path is logged without payloads and does not leave an unhandled rejection.
     void job.catch(() => {
-      process.stderr.write('Falha ao finalizar preparação pública.\n');
+      process.stderr.write('Failed to finalize public media preparation.\n');
     });
     return { ...current, status: 'processing' };
   }

@@ -6,7 +6,7 @@ import {
 } from '../src/shared/external-video/index.ts';
 
 const id = 'M7lc1UVf-VE';
-await test('player aceita somente IDs canônicos de URLs HTTPS do YouTube', () => {
+await test('player accepts only canonical IDs from HTTPS YouTube URLs', () => {
   for (const link of [
     `https://youtu.be/${id}?si=tracking`,
     `https://www.youtube.com/watch?v=${id}&list=ignored`,
@@ -30,7 +30,7 @@ await test('player aceita somente IDs canônicos de URLs HTTPS do YouTube', () =
   ])
     assert.equal(youtubeVideoId(link), null);
 });
-await test('posts mantêm no máximo três players distintos e aceitam links entre parênteses', () => {
+await test('posts retain at most three distinct players and accept parenthesized links', () => {
   assert.deepEqual(
     externalVideoIds(
       `(${`https://youtu.be/${id}`}). https://youtube.com/watch?v=${id}`,

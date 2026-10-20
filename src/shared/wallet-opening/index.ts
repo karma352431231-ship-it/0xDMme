@@ -69,7 +69,7 @@ export async function openingRequest(value: unknown): Promise<OpeningRequest> {
     ...(Object.hasOwn(data, 'language') ? { language: data['language'] } : {}),
   });
   if ((await openingTicket(receiver)) !== transfer.ticket)
-    throw new Error('O destino da abertura foi alterado.');
+    throw new Error('The opening destination was changed.');
   return {
     transfer,
     nonce: receiver.nonce,

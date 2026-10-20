@@ -32,20 +32,19 @@ export function decode(
     character.charCodeAt(0),
   );
   if (bytes.length > maximum || encode(bytes) !== encoded)
-    throw new Error('Codificação não canônica.');
+    throw new Error('Non-canonical encoding.');
   return bytes;
 }
 
 function exactBytes(value: unknown, length: number): string {
-  if (decode(value, length).length !== length)
-    throw new Error('Tamanho inválido.');
+  if (decode(value, length).length !== length) throw new Error('Invalid size.');
   return text(value);
 }
 
-/** Valida somente o envelope público. Nunca aceita chave ou histórico legível. */
+/** Validates only the public envelope. Never accepts a key or readable history. */
 export function parseEnvelope(serialized: string): VaultEnvelope {
   if (new TextEncoder().encode(serialized).length > maxVaultBytes)
-    throw new Error('Cofre excede o limite do ensaio.');
+    throw new Error('Vault exceeds the probe limit.');
   const value = parseObject(serialized);
   onlyKeys(value, [
     'format',
@@ -58,7 +57,7 @@ export function parseEnvelope(serialized: string): VaultEnvelope {
     'ciphertext',
   ]);
   if (value.format !== vaultFormat || value.version !== 1)
-    throw new Error('Formato de cofre não suportado.');
+    throw new Error('Unsupported vault format.');
   const revision = value.revision;
   if (
     typeof revision !== 'number' ||
@@ -68,7 +67,7 @@ export function parseEnvelope(serialized: string): VaultEnvelope {
     throw new Error('Invalid revision.');
   const ciphertext = text(value.ciphertext, 44_000);
   if (decode(ciphertext, 32_016).length < 16)
-    throw new Error('Cofre incompleto.');
+    throw new Error('Incomplete vault.');
   return {
     format: vaultFormat,
     version: 1,

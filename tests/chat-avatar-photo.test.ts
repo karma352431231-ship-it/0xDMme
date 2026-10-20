@@ -111,7 +111,7 @@ await test('zoom toggles fit/full size; Escape, navigation and session reset clo
   f.photo.clear();
 });
 
-await test('avatar público amplia os bytes já recebidos, não recarrega em repaint e fecha ao trocar de foto', async (t) => {
+await test('public avatar enlarges received bytes without reloading on repaint and closes on photo change', async (t) => {
   const f = fixture(t),
     id = crypto.randomUUID();
   f.fetch.mock.mockImplementation(() =>

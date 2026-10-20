@@ -46,7 +46,7 @@ async function seedOwner(client: pg.Client, index: number) {
   );
   return { profile, community };
 }
-await test('055→058 preserva dados históricos, adiciona só follows ausentes e confere ledger real', async (t) => {
+await test('055→058 preserves historical data, adds only missing follows and checks the real ledger', async (t) => {
   const url = new URL(process.env['HASH_TALK_DATABASE_URL'] ?? '');
   if (
     !['127.0.0.1', 'localhost'].includes(url.hostname) ||

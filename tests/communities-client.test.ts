@@ -71,7 +71,7 @@ const result = () => ({
   sanction: null,
   transfer: null,
 });
-await test('troca de sessão durante assinatura de comunidade impede envio com autoridade antiga', async (t) => {
+await test('session change during community signing blocks sending with old authority', async (t) => {
   const first = session();
   let started: () => void = () => {
     throw new Error('Não iniciado.');
@@ -106,7 +106,7 @@ await test('troca de sessão durante assinatura de comunidade impede envio com a
   await assert.rejects(pending, /Session changed/);
   assert.equal(fetch.mock.callCount(), 0);
 });
-await test('resposta atrasada não restaura comunidade de outra sessão; estado recusa campos privados', async (t) => {
+await test("late response cannot restore another session's community; state rejects private fields", async (t) => {
   const first = session(),
     controller = new Communities(
       access(first, () => Promise.resolve('assinatura-sintetica')),
@@ -173,7 +173,7 @@ function voteState(value: CommunityPost, position: number) {
     vote: { position, revision: 7 },
   };
 }
-await test('botões de voto usam revisão atual, alternam posição e retiram o voto repetido', async () => {
+await test('vote buttons use the current revision, switch position and remove repeated votes', async () => {
   const value = post();
   for (const [current, clicked, expected] of [
     [0, 1, 1],
@@ -202,7 +202,7 @@ await test('botões de voto usam revisão atual, alternam posição e retiram o 
     ]);
   }
 });
-await test('trocar de página durante consulta privada impede voto ou preferência posterior', async () => {
+await test('page change during a private query blocks subsequent votes or preferences', async () => {
   const value = post();
   for (const kind of ['vote', 'preference'] as const) {
     let valid = true;
@@ -226,7 +226,7 @@ await test('trocar de página durante consulta privada impede voto ou preferênc
     assert.equal(operations.length, 1);
   }
 });
-await test('salvar e ocultar preservam a outra preferência privada e a revisão corrente', async () => {
+await test('save and hide preserve the other private preference and current revision', async () => {
   const value = post();
   for (const key of ['saved', 'hidden'] as const) {
     const writes: Record<string, unknown>[] = [];
@@ -253,7 +253,7 @@ await test('salvar e ocultar preservam a outra preferência privada e a revisão
     ]);
   }
 });
-await test('foto do feed aceita projeção pública da comunidade e recusa outra identidade ou campos privados', () => {
+await test('feed photo accepts the public community projection and rejects other identities or private fields', () => {
   const value = post(),
     avatar = publicAvatarPath(
       'community-photo',
@@ -281,7 +281,7 @@ await test('foto do feed aceita projeção pública da comunidade e recusa outra
   assert.throws(() => parse({ ...group, wallet: 'privada' }));
 });
 
-await test('seta do post volta à lista de origem; sem origem, à comunidade', () => {
+await test('post arrow returns to the source list or, without a source, to the community', () => {
   const community = crypto.randomUUID();
   assert.equal(
     postReturnTarget('view=feed', community),
@@ -297,7 +297,7 @@ await test('seta do post volta à lista de origem; sem origem, à comunidade', (
   );
 });
 
-await test('rota abre a configuração só com comunidade; telas desconhecidas e lista antiga caem no feed', () => {
+await test('route opens settings only with a community; unknown screens and legacy list fall back to feed', () => {
   const id = crypto.randomUUID();
   assert.equal(communityView('manage', id), 'manage');
   assert.equal(communityView('manage', null), 'feed');
@@ -308,7 +308,7 @@ await test('rota abre a configuração só com comunidade; telas desconhecidas e
   assert.equal(communityView('explore', null), 'explore');
 });
 
-await test('partes próximas reusam só o contexto de assinatura; cada pedido continua assinado', async (t) => {
+await test('adjacent parts reuse only the signing context; every request stays signed', async (t) => {
   const account = session();
   let checks = 0,
     signatures = 0;
@@ -343,7 +343,7 @@ await test('partes próximas reusam só o contexto de assinatura; cada pedido co
   );
 });
 
-await test('contexto de partes expira e não é usado por operações normais', async (t) => {
+await test('part context expires and is not used for normal operations', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const account = session();
   let checks = 0;
@@ -369,7 +369,7 @@ await test('contexto de partes expira e não é usado por operações normais', 
   assert.equal(checks, 3);
 });
 
-await test('recusa do diretório invalida partes; retomada exige nova conferência e nenhuma parte sem assinatura', async (t) => {
+await test('directory rejection invalidates parts; resuming requires a new check and every part requires a signature', async (t) => {
   const account = session();
   let checks = 0,
     head = 'b'.repeat(64);
@@ -420,7 +420,7 @@ await test('recusa do diretório invalida partes; retomada exige nova conferênc
   assert.equal(requests, 3);
 });
 
-await test('cache de partes tem orçamento de usos e mudança de aparelho exige nova assinatura', async (t) => {
+await test('part cache has a usage budget and device changes require a new signature', async (t) => {
   const account = session();
   let checks = 0;
   const base = access(account, () => Promise.resolve('synthetic'));

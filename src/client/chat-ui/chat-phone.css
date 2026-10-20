@@ -2,7 +2,7 @@
  * Open conversation on phones.
  */
 @media (max-width: 700px) {
-  /* Conversa aberta */
+  /* Open chat */
   #app-shell .chat-panel .chat-feedback[data-state='ok'] {
     display: none;
   }

@@ -92,7 +92,7 @@ await test('new encrypted contact records validate their source without retainin
   );
   assert.throws(() => addressBookEntry({ ...entry, addedVia: 'wallet' }));
 });
-await test('agenda normaliza EVM, separa ecossistemas e não aceita carteiras malformadas', async () => {
+await test('directory normalizes EVM, separates ecosystems and rejects malformed wallets', async () => {
   assert.deepEqual(
     walletContact({
       ...wallet,
@@ -113,7 +113,7 @@ await test('agenda normaliza EVM, separa ecossistemas e não aceita carteiras ma
   assert.equal(await walletEntity(entry), await walletEntity(wallet));
   assert.notEqual(await walletEntity(entry), await walletEntity(solana));
 });
-await test('endereço completo identifica o ecossistema com a mesma validação canônica e preserva Solana', () => {
+await test('full address identifies the ecosystem with the same canonical validation and preserves Solana', () => {
   const addresses = [
     wallet,
     {
@@ -143,7 +143,7 @@ await test('endereço completo identifica o ecossistema com a mesma validação 
   ])
     assert.throws(() => walletContactFromAddress(invalid), /Invalid wallet/u);
 });
-await test('convite fica no fragmento, não autoriza dispositivo e rejeita origem/campos/QR indevidos', () => {
+await test('invitation stays in the fragment, grants no device authority and rejects invalid origins, fields and QR codes', () => {
   const invite = { owner: accountId, token: 'a'.repeat(64) };
   const link = invitationLink('https://0xdmme.app', invite);
   assert.equal(new URL(link).search, '');
@@ -166,7 +166,7 @@ await test('convite fica no fragmento, não autoriza dispositivo e rejeita orige
   assert.throws(() => readQrPayload(link, 'link'));
   assert.throws(() => readQrPayload('javascript:alert(1)', 'invitation'));
 });
-await test('permissões assinadas ficam vinculadas a conta, aparelho, operação, revisão e alvo', async () => {
+await test('signed permissions bind account, device, operation, revision and target', async () => {
   const identity = await createIdentity(deviceId, 'Sintético');
   const proof = {
     directory: 'b'.repeat(64),
@@ -190,7 +190,7 @@ await test('permissões assinadas ficam vinculadas a conta, aparelho, operação
   ])
     await assert.rejects(verify(identity.public.signing, signature, changed));
 });
-await test('wallet, apelido e identidade só entram no cofre como conteúdo e manifesto cifrados', async () => {
+await test('wallet, alias and identity enter the vault only as encrypted content and manifest', async () => {
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
@@ -234,7 +234,7 @@ await test('wallet, apelido e identidade só entram no cofre como conteúdo e ma
   assert.equal((await openManifest(key, commit)).label, entry.alias);
 });
 
-await test('referência já fixada detecta troca de identidade, rollback e head divergente', () => {
+await test('pinned reference detects identity changes, rollback and divergent heads', () => {
   const known = {
     identity: 'a'.repeat(64),
     directory: 'b'.repeat(64),
@@ -262,7 +262,7 @@ await test('referência já fixada detecta troca de identidade, rollback e head 
   );
 });
 
-await test('bloquear um contato da caixa de solicitações envia somente ecossistema/endereço, sem campos extras', async (t) => {
+await test('blocking a contact from requests sends only ecosystem and address without extra fields', async (t) => {
   const { Contacts } = await import('../src/client/contacts/controller.ts');
   const identity = await createIdentity(deviceId, 'Sintético');
   const key = await crypto.subtle.generateKey(
@@ -343,7 +343,7 @@ await test('bloquear um contato da caixa de solicitações envia somente ecossis
   );
 });
 
-await test('minha identidade pública coincide com a referência verificada pelo contato; cadeia adulterada é recusada', async (t) => {
+await test('own public identity matches the contact-verified reference; tampered chain is rejected', async (t) => {
   const { Contacts } = await import('../src/client/contacts/controller.ts');
   const identity = await createIdentity(deviceId, 'Sintético'),
     recovery = await createRecovery(accountId, newSecret());

@@ -13,7 +13,7 @@ import { mentionNotificationPage } from '../../src/shared/mention-notifications/
 import { createCommunityAccount } from './community-fixture.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 
-await test('notificações de menção são privadas, idempotentes e respeitam edições, bloqueios, exclusão e mídia oculta', async (t) => {
+await test('mention notifications are private, idempotent and respect edits, blocks, deletion and hidden media', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

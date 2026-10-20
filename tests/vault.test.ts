@@ -33,7 +33,7 @@ import {
 } from '../src/shared/vault/index.ts';
 import type { VaultChange } from '../src/shared/vault/index.ts';
 
-await test('cofre: recuperação abre blocos históricos; assinatura, AAD e limites não aceitam adulterações', async (t) => {
+await test('vault: recovery opens historical blocks; signature, AAD and limits reject tampering', async (t) => {
   const accountId = crypto.randomUUID();
   const a = await createIdentity(crypto.randomUUID(), 'A');
   const b = await createIdentity(crypto.randomUUID(), 'B');
@@ -88,7 +88,7 @@ await test('cofre: recuperação abre blocos históricos; assinatura, AAD e limi
     key,
     sign: (proof) => sign(a.signing, proof),
   });
-  await t.test('formato, reserva e restauração autorizada', async () => {
+  await t.test('format, reservation and authorized restoration', async () => {
     assert.deepEqual(await verifyCommit(commit, link), commit);
     await verifySuccessor(null, commit);
     assert.ok(operationBytes(commit) > bytes.length + 4096);
@@ -106,7 +106,7 @@ await test('cofre: recuperação abre blocos históricos; assinatura, AAD e limi
     );
   });
   await t.test(
-    'assinatura e cadeia vinculam conta, aparelho, época, sequência e ciphertext',
+    'signature and chain bind account, device, epoch, sequence and ciphertext',
     async () => {
       for (const mutated of [
         { ...commit, accountId: crypto.randomUUID() },
@@ -142,7 +142,7 @@ await test('cofre: recuperação abre blocos históricos; assinatura, AAD e limi
     },
   );
   await t.test(
-    'revogação conserva histórico e isola chaves de novos blocos',
+    'revocation preserves history and isolates new block keys',
     async () => {
       const nextRing = freshKeyring(accountId, ring);
       const revoked = await prepareEvent({
@@ -183,7 +183,7 @@ await test('cofre: recuperação abre blocos históricos; assinatura, AAD e limi
     },
   );
   await t.test(
-    'plaintext tem teto real de 3 MB e parser rejeita formatos ambíguos',
+    'plaintext has a real 3 MB limit and parser rejects ambiguous formats',
     async () => {
       assert.equal(
         (await sealBlock(key, identity, 'x'.repeat(3_000_000))).length,

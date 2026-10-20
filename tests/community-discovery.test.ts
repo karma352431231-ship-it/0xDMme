@@ -17,7 +17,7 @@ const filter = () => ({
   community: null,
   tag: null,
 });
-await test('descoberta valida filtros explícitos e não aceita campos de identidades privadas', () => {
+await test('discovery validates explicit filters and rejects private identity fields', () => {
   assert.deepEqual(feedFilter(filter()), filter());
   for (const patch of [
     { scope: 'person' },
@@ -32,7 +32,7 @@ await test('descoberta valida filtros explícitos e não aceita campos de identi
     AccountError,
   );
 });
-await test('cursor associa filtros, limites e desempate; placares negativos são válidos', () => {
+await test('cursor binds filters, limits and tie-breaking; negative scores are valid', () => {
   const key = discoveryKey(feedFilter(filter())),
     time = new Date().toISOString(),
     cursor = {
@@ -57,14 +57,14 @@ await test('cursor associa filtros, limites e desempate; placares negativos são
     AccountError,
   );
 });
-await test('períodos ancorados têm 24h/7d/30d sem depender de fuso ou horário de verão', () => {
+await test('anchored periods use 24h/7d/30d independently of time zones and daylight saving', () => {
   const anchor = '2026-10-06T12:00:00.000Z';
   assert.equal(discoveryWindow('day', anchor), '2026-10-05T12:00:00.000Z');
   assert.equal(discoveryWindow('week', anchor), '2026-09-29T12:00:00.000Z');
   assert.equal(discoveryWindow('month', anchor), '2026-09-06T12:00:00.000Z');
   assert.equal(discoveryWindow('all', anchor), null);
 });
-await test('respostas e preferências não expõem estado de outras contas nem aceitam vazamento de campos', () => {
+await test('responses and preferences expose no other account state and reject leaking fields', () => {
   assert.deepEqual(
     postPreference({ saved: true, hidden: false, revision: 1 }),
     { saved: true, hidden: false, revision: 1 },

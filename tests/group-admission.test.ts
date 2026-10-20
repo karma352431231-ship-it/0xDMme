@@ -85,7 +85,7 @@ async function grant(p: Participant, state: GroupEvent): Promise<GroupLink> {
   link.signature = await sign(p.signing, groupLinkProof(link));
   return link;
 }
-await test('admin adiciona diretamente; membro não adiciona, não promove nem libera histórico anterior', async () => {
+await test('admin adds directly; member cannot add, promote or release previous history', async () => {
   const owner = await groupParticipant(),
     member = await groupParticipant(),
     third = await groupParticipant(),
@@ -121,7 +121,7 @@ await test('admin adiciona diretamente; membro não adiciona, não promove nem l
     }),
   );
 });
-await test('entrada por link exige concessão assinada, âncora válida e emissor ainda administrador', async () => {
+await test('link entry requires a signed grant, valid anchor and sender who is still an administrator', async () => {
   const owner = await groupParticipant(),
     member = await groupParticipant(),
     first = await genesis(owner),
@@ -160,7 +160,7 @@ await test('entrada por link exige concessão assinada, âncora válida e emisso
   };
   await assert.rejects(verifyGroupTransition({ ...input, previous }));
 });
-await test('eventos antigos conservam bytes canônicos; segredo do link não entra no evento', async () => {
+await test('old events preserve canonical bytes; link secret never enters the event', async () => {
   const owner = await groupParticipant(),
     member = await groupParticipant(),
     first = await genesis(owner);

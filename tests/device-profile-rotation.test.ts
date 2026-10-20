@@ -65,7 +65,7 @@ function checkpointDatabase(records: Map<string, unknown>): IDBFactory {
   } as unknown as IDBFactory;
 }
 
-await test('perfil em edição não pode ser salvo com chave anterior depois de revogação observada', async (t) => {
+await test('profile being edited cannot be saved with an old key after observed revocation', async (t) => {
   const accountId = crypto.randomUUID();
   const owner = await createIdentity(crypto.randomUUID(), 'Mac');
   const revoked = await createIdentity(crypto.randomUUID(), 'Revogado');
@@ -192,7 +192,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
   );
   assert.equal(requests.length, 3);
   await t.test(
-    'recuperação com lista desatualizada exige nova conferência antes de alterar chaves',
+    'recovery with a stale list requires rechecking before changing keys',
     async () => {
       const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
       Object.defineProperty(globalThis, 'navigator', {

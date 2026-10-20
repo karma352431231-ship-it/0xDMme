@@ -49,7 +49,7 @@ export class PublicModerationService {
   }
   start(): void {
     if (this.stop.signal.aborted)
-      throw new Error('Serviço de moderação pública encerrado.');
+      throw new Error('Public moderation service stopped.');
     this.consumers.start();
   }
   async close(): Promise<void> {

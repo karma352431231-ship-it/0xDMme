@@ -526,7 +526,7 @@ function mountProfileSettings(content: HTMLElement): void {
   );
   if (vaultSettings) mountVault(vaultSettings);
 }
-/** Same vault and backup cards as #vault, now also inside Perfil → Cofre e backup. */
+/** Same vault and backup cards as #vault, now also inside Profile → Vault and backup. */
 function mountVault(container: HTMLElement): void {
   vault.mount(container);
   const backupContainer = document.createElement('div');
@@ -668,7 +668,7 @@ function loadSessionExtras(accountId: string): void {
   refreshStatusAuthors(true);
 }
 let statusAuthorsAt = 0;
-/** Rings and the status row; at most once a minute when returning to Conversas. */
+/** Rings and the status row; at most once a minute when returning to Chats. */
 function refreshStatusAuthors(force = false): void {
   if (!connectedAccount || !devices.authorized()) return;
   if (!force && Date.now() - statusAuthorsAt < 60_000) return;

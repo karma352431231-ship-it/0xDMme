@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { DmWork } from '../src/client/communities/dm-work.ts';
 import { deferred } from './fixtures/deferred.ts';
 
-await test('troca de DM espera IO anterior e substitui navegação antiga, sem ignorar a última abertura', async () => {
+await test('DM change waits for previous IO and replaces old navigation without ignoring the latest opening', async () => {
   const queue = new DmWork(),
     held = deferred<void>(),
     calls: string[] = [];
@@ -27,7 +27,7 @@ await test('troca de DM espera IO anterior e substitui navegação antiga, sem i
   assert.deepEqual(calls, ['first', 'latest']);
   assert.equal(queue.busy, false);
 });
-await test('falha libera a execução seguinte e repete somente o trabalho explicitamente solicitado', async () => {
+await test('failure releases the next run and repeats only explicitly requested work', async () => {
   const queue = new DmWork();
   await assert.rejects(
     queue.run(() => Promise.reject(new Error('falha'))),
