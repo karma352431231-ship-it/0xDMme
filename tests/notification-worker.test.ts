@@ -166,7 +166,7 @@ await test('unavailable push consumes no jobs; eligibility is revalidated and re
   }
 });
 
-await test('public alert deduplication scope is authorized and rotates with the signed-in session', async () => {
+await test('private push inspection never returns public content or identity', async () => {
   const job = pushJob();
   const session = {
     accountId: job.account_id,
@@ -174,41 +174,30 @@ await test('public alert deduplication scope is authorized and rotates with the 
     csrf: 'a'.repeat(64),
   } as AccountSession;
   let allowed = true;
-  const publicPreview = {
-    author: { id: crypto.randomUUID(), handle: 'author', avatar: null },
-    post: crypto.randomUUID(),
-    community: crypto.randomUUID(),
-    text: 'Public reply',
-    reply: true,
-    followed: false,
-  };
   const store = {
     pushState: () =>
       Promise.resolve({ registered: true, calls: false, showCalls: false }),
     check: () => Promise.resolve(allowed),
-    publicPreview: () => Promise.resolve(publicPreview),
+    publicPreview: () => {
+      throw new Error('Public content must not be queried for private push.');
+    },
   } as unknown as DailyStore;
   const devices = {
     current: () => Promise.resolve({ head: 'b'.repeat(64) }),
   } as unknown as DeviceStore;
   const service = new NotificationService({ store, devices, config: null });
   try {
-    const first = await service.inspectPush(session);
-    assert.match(first.publicScope!, /^[a-f0-9]{64}$/u);
-    assert.notEqual(first.publicScope, session.csrf);
-    assert.equal(
-      (await service.inspectPush(session)).publicScope,
-      first.publicScope,
-    );
-    const next = await service.inspectPush({
-      ...session,
-      csrf: 'c'.repeat(64),
+    assert.deepEqual(await service.inspectPush(session), {
+      allowed: true,
+      call: false,
+      showCall: false,
     });
-    assert.notEqual(next.publicScope, first.publicScope);
     allowed = false;
-    const denied = await service.inspectPush(session);
-    assert.equal(denied.publicScope, undefined);
-    assert.equal(denied.publicPreview, undefined);
+    assert.deepEqual(await service.inspectPush(session), {
+      allowed: false,
+      call: false,
+      showCall: false,
+    });
   } finally {
     await service.close();
   }

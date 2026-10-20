@@ -433,7 +433,6 @@ export class Database {
       pool: this.pool,
       contacts: this.contacts,
       capacity: contentCapacity,
-      profiles: this.publicProfiles,
       readAllocations: writers.reads,
     });
     this.messageRecovery = new MessageRecoveryStore(

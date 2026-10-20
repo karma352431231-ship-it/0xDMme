@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -25,7 +24,6 @@ export type PushSend = (
   delivery?: PushDelivery,
 ) => Promise<void>;
 import { WorkScheduler } from '../work-scheduler/index.ts';
-import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { CallPushQueue } from './call-push.ts';
 import type { CallInvitation } from './call-push.ts';
 import { PushDispatcher } from './dispatcher.ts';
@@ -182,8 +180,6 @@ export class NotificationService {
     allowed: boolean;
     call: boolean;
     showCall: boolean;
-    publicPreview?: PublicNotificationPreview;
-    publicScope?: string;
   }> {
     const current = await this.devices.current(session.accountId);
     if (!current) return { allowed: false, call: false, showCall: false };
@@ -194,21 +190,7 @@ export class NotificationService {
       state.calls &&
       (await this.incoming(session, current.head));
     const allowed = call || (await this.store.check(authority));
-    const publicPreview =
-      allowed && !call ? await this.store.publicPreview(authority) : null;
-    return {
-      allowed,
-      call,
-      showCall: call && state.showCalls,
-      ...(publicPreview
-        ? {
-            publicPreview,
-            publicScope: createHash('sha256')
-              .update(session.csrf)
-              .digest('hex'),
-          }
-        : {}),
-    };
+    return { allowed, call, showCall: call && state.showCalls };
   }
   start(): void {
     if (this.config) this.scheduler.start();

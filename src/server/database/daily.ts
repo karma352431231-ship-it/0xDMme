@@ -1,12 +1,7 @@
 import { privatePushEligible } from './push-private-activity.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
-import {
-  publicNotificationCandidates,
-  readPublicNotificationPreview,
-} from './public-notification-preview.ts';
 import { AccountError } from '../../shared/account/index.ts';
-import type { PublicProfileStore } from './public-profile.ts';
 import type {
   DailyPreferences,
   PushRegistration,
@@ -25,27 +20,23 @@ import type {
 } from './push-jobs.ts';
 const messagesEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.messages)`;
 const callsEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.calls)`;
-const communityEligible = `EXISTS(${publicNotificationCandidates('s.account_id')})`;
-const eligible = `(${messagesEnabled} AND (${privatePushEligible} OR ${communityEligible}))`;
+const eligible = `(${messagesEnabled} AND ${privatePushEligible})`;
 const authorizedDevice = `EXISTS(SELECT 1 FROM hash_talk.device_directories d,jsonb_array_elements(d.event->'devices') member WHERE d.account_id=s.account_id AND member->>'id'=s.device_id::text)`;
 export class DailyStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   private readonly readAllocations: MessageReadAllocations | undefined;
-  private readonly profiles: Pick<PublicProfileStore, 'readById'>;
   constructor(input: {
     pool: pg.Pool;
     contacts: ContactStore;
     capacity: ContentCapacity;
-    profiles: Pick<PublicProfileStore, 'readById'>;
     readAllocations: MessageReadAllocations | undefined;
   }) {
     this.pool = input.pool;
     this.contacts = input.contacts;
     this.capacity = input.capacity;
     this.readAllocations = input.readAllocations;
-    this.profiles = input.profiles;
   }
   private async budget(c: pg.PoolClient, account: string): Promise<void> {
     await assertVaultQuota(c, account);
@@ -221,10 +212,6 @@ export class DailyStore {
       );
       await this.budget(c, a.session.accountId);
     });
-  }
-  async publicPreview(a: ContactAuthority) {
-    if (!(await this.check(a))) return null;
-    return readPublicNotificationPreview(this.contacts, a, this.profiles);
   }
   async check(a: ContactAuthority): Promise<boolean> {
     return this.contacts.withMessageRead(a, async (c) => {

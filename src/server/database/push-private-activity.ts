@@ -1,5 +1,5 @@
 /** Fixed SQL, scoped to the authenticated push subscription alias s. Reused by
- * eligibility and presentation so mixed private/public wakeups stay generic. */
+ * private message eligibility; public activity never authorizes Web Push. */
 const individualEligible = `EXISTS(SELECT 1 FROM hash_talk.message_packets m
   LEFT JOIN hash_talk.conversation_controls cc ON cc.account_id=s.account_id AND cc.peer=m.sender
   WHERE m.recipient=s.account_id AND m.body IS NOT NULL AND m.kind<>'profile' AND m.relation IS NULL

@@ -365,13 +365,12 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
       const watched = await create(author, 'Com sininho'),
         watchedReply = await create(author, 'Reply com sininho', root.id);
       const alerts = await notices();
-      assert.equal(await db.daily.check(pushAuthority), true);
-      const preview = await db.daily.publicPreview(pushAuthority);
-      assert.ok(preview);
-      assert.equal(preview.author.handle, authorId.handle);
-      assert.ok(preview.text.includes('sininho'));
-      assert.equal(preview.followed, true);
-      await assertMixedPushIsGeneric(db, inspector, {
+      assert.equal(
+        await db.daily.check(pushAuthority),
+        false,
+        'Public posts and replies are in-app only',
+      );
+      await assertPrivatePushEligibility(db, inspector, {
         sender: author.login.session.accountId,
         recipient: reader.login.session.accountId,
         authority: pushAuthority,
@@ -380,13 +379,13 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
         'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
         [reader.login.session.accountId, reader.login.session.deviceId],
       );
-      assert.equal(queued.rows[0]?.pending, true);
+      assert.equal(queued.rows[0]?.pending, false);
       await db.daily.configurePush(pushAuthority, {
         messages: false,
         calls: true,
         showCalls: false,
       });
-      assert.equal(await db.daily.publicPreview(pushAuthority), null);
+      assert.equal(await db.daily.check(pushAuthority), false);
       await db.daily.configurePush(pushAuthority, {
         messages: true,
         calls: true,
@@ -425,7 +424,7 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
         revision: block.revision,
       });
       assert.equal((await notices()).items.length, 0);
-      assert.equal(await db.daily.publicPreview(pushAuthority), null);
+      assert.equal(await db.daily.check(pushAuthority), false);
       await assert.rejects(
         reader.operate('post-public', { id, post: watched.id }),
         bad(404),
@@ -502,13 +501,13 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
 });
 
 /** Synthetic transport rows isolate classification; no real E2EE content is inserted. */
-async function assertMixedPushIsGeneric(
+async function assertPrivatePushEligibility(
   db: Database,
   inspector: pg.Client,
   input: {
     sender: string;
     recipient: string;
-    authority: Parameters<Database['daily']['publicPreview']>[0];
+    authority: Parameters<Database['daily']['check']>[0];
   },
 ): Promise<void> {
   const id = crypto.randomUUID();
@@ -528,18 +527,14 @@ async function assertMixedPushIsGeneric(
       ],
     );
     assert.equal(await db.daily.check(input.authority), true);
-    assert.equal(
-      await db.daily.publicPreview(input.authority),
-      null,
-      'An unread private message cannot be presented as a stale public reply',
-    );
     await inspector.query(
       'INSERT INTO hash_talk.conversation_controls(account_id,peer,muted_until) VALUES($1,$2,$3)',
       [input.recipient, input.sender, Date.now() + 60000],
     );
-    assert.ok(
-      await db.daily.publicPreview(input.authority),
-      'A muted private conversation cannot hide eligible public activity',
+    assert.equal(
+      await db.daily.check(input.authority),
+      false,
+      'Muted private messages cannot authorize push because public activity is unread',
     );
   } finally {
     await inspector.query('DELETE FROM hash_talk.message_packets WHERE id=$1', [

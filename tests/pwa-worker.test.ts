@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { publicNotificationText } from '../src/shared/public-notification/index.ts';
 
 interface WorkerEvent {
   notification?: { close(): void; data?: unknown };
@@ -30,14 +29,13 @@ function pushInspection(options: {
   pushCall?: boolean;
   showCall?: boolean;
   publicPreview?: unknown;
-  publicScope?: string;
 }) {
   return {
     allowed: options.pushAllowed ?? false,
     call: options.pushCall ?? false,
     showCall: options.showCall ?? true,
     publicPreview: options.publicPreview,
-    publicScope: options.publicScope ?? 'a'.repeat(64),
+    publicScope: 'a'.repeat(64),
   };
 }
 
@@ -50,8 +48,6 @@ async function worker(
     pushAllowed?: boolean;
     openClient?: boolean;
     publicPreview?: unknown;
-    publicScope?: string;
-    alertCache?: Map<string, Response>;
     pushCheckFails?: boolean;
     pushSound?: string;
     language?: string;
@@ -69,13 +65,10 @@ async function worker(
   const callbacks = new Map<string, (event: WorkerEvent) => void>();
   const cache = new Map<string, Response>();
   const stores = new Map<string, Map<string, Response>>([
-    ['0xdmme-public-alerts', new Map()],
     ['unrelated-project-cache', new Map()],
     ['hash-talk-shell-older', new Map()],
     ['hash-talk-shell-old', new Map()],
   ]);
-  if (options.alertCache)
-    stores.set('0xdmme-public-alerts', options.alertCache);
   const deleted: string[] = [];
   let writes = 0;
   let activations = 0;
@@ -559,101 +552,35 @@ await test('update reuses public WASM only when its hash matches the build and p
   assert.ok(altered.stores.has('unrelated-project-cache'));
 });
 
-await test('public push shows validated author and preview with monochrome symbol and internal link', async () => {
+await test('public data cannot appear in an authorized private push alert', async () => {
   const publicPreview = {
-    author: {
-      id: crypto.randomUUID(),
-      handle: 'sintetico',
-      avatar: null as string | null,
-    },
-    post: crypto.randomUUID(),
+    author: { id: crypto.randomUUID(), handle: 'public_author', avatar: null },
     community: crypto.randomUUID(),
-    text: 'Pequena prévia pública',
+    post: crypto.randomUUID(),
+    text: 'Public reply must stay in the app',
     reply: true,
-    followed: false,
-  };
-  publicPreview.author.avatar = `/api/public-media/avatar/${publicPreview.author.id}/${crypto.randomUUID()}`;
-  const scope = await worker({ pushAllowed: true, publicPreview });
-  await scope.dispatch('push');
-  const notification = scope.notifications[0]!;
-  assert.match(notification.title, /@sintetico replied/u);
-  assert.equal(notification.options.icon, publicPreview.author.avatar);
-  assert.equal(notification.options.body, publicPreview.text);
-  assert.equal(notification.options.badge, '/notification-badge.png');
-  await scope.dispatch('notificationclick', {
-    notification: { close() {}, data: notification.options.data as unknown },
-  });
-  assert.deepEqual(scope.opened, [
-    `${scope.origin}/communities/id/${publicPreview.community}/posts/${publicPreview.post}`,
-  ]);
-  await scope.dispatch('notificationclick', {
-    notification: {
-      close() {},
-      data: {
-        href: `/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
-      },
-    },
-  });
-  assert.equal(scope.opened[1], scope.opened[0]);
-  const blocked = await worker({ pushAllowed: false, publicPreview });
-  await blocked.dispatch('push');
-  assert.equal(blocked.notifications.length, 0);
-  const invalid = await worker({
-    pushAllowed: true,
-    publicPreview: {
-      ...publicPreview,
-      author: { ...publicPreview.author, wallet: 'private' },
-    },
-  });
-  await invalid.dispatch('push');
-  assert.equal(invalid.notifications.length, 0);
-});
-
-await test('posts and replies from followed profiles show the author photo and handle, one alert per post', async () => {
-  const author = crypto.randomUUID(),
-    review = crypto.randomUUID();
-  const publicPreview = {
-    author: {
-      id: author,
-      handle: 'followed',
-      avatar: `/api/public-media/avatar/${author}/${review}`,
-    },
-    post: crypto.randomUUID(),
-    community: crypto.randomUUID(),
-    text: 'Oui Madamme',
-    reply: false,
     followed: true,
   };
   const scope = await worker({ pushAllowed: true, publicPreview });
   await scope.dispatch('push');
   const notification = scope.notifications[0]!;
-  assert.equal(notification.title, '@followed');
-  assert.equal(notification.options.body, 'Oui Madamme');
-  assert.equal(notification.options.icon, publicPreview.author.avatar);
-  assert.equal(notification.options.tag, `0xdmme-post-${publicPreview.post}`);
-  const plain = await worker({
-    pushAllowed: true,
-    publicPreview: {
-      ...publicPreview,
-      reply: true,
-      author: { ...publicPreview.author, avatar: null },
-    },
+  assert.equal(notification.title, '0xDMme');
+  assert.equal(
+    notification.options.body,
+    'New activity. Open the app to sync.',
+  );
+  assert.equal(notification.options.icon, '/icon-192.png');
+  assert.equal(notification.options.tag, '0xdmme-activity');
+  await scope.dispatch('notificationclick', {
+    notification: { close() {}, data: notification.options.data as unknown },
   });
-  await plain.dispatch('push');
-  assert.equal(plain.notifications[0]?.title, '@followed');
-  assert.equal(plain.notifications[0]?.options.icon, '/icon-192.png');
-  const foreign = await worker({
-    pushAllowed: true,
-    publicPreview: {
-      ...publicPreview,
-      author: { ...publicPreview.author, avatar: 'https://example.com/a.png' },
-    },
-  });
-  await foreign.dispatch('push');
-  assert.equal(foreign.notifications.length, 0);
+  assert.deepEqual(scope.opened, [scope.origin + '/chats']);
+  const denied = await worker({ pushAllowed: false, publicPreview });
+  await denied.dispatch('push');
+  assert.equal(denied.notifications.length, 0);
 });
 
-await test('Chinese background alerts localize app text without translating public content', async () => {
+await test('Chinese private alerts localize the generic message and preserve call controls', async () => {
   const generic = await worker({ pushAllowed: true, language: 'zh-CN' });
   await generic.dispatch('push');
   assert.equal(generic.notifications[0]?.title, '0xDMme');
@@ -671,37 +598,6 @@ await test('Chinese background alerts localize app text without translating publ
     call.notifications[0]?.options.body,
     '收到语音来电。请打开应用接听。',
   );
-  const preview = {
-    author: {
-      id: crypto.randomUUID(),
-      handle: 'sintetico',
-      avatar: null as string | null,
-    },
-    post: crypto.randomUUID(),
-    community: crypto.randomUUID(),
-    text: publicNotificationText('', ''),
-    reply: true,
-    followed: false,
-  };
-  assert.equal(preview.text, '');
-  const media = await worker({
-    pushAllowed: true,
-    publicPreview: preview,
-    language: 'zh-CN',
-  });
-  await media.dispatch('push');
-  assert.equal(media.notifications[0]?.title, '@sintetico 回复了 · 0xDMme');
-  assert.equal(media.notifications[0]?.options.body, '新的媒体发布。');
-  const content = await worker({
-    pushAllowed: true,
-    publicPreview: { ...preview, text: 'New media publication.' },
-    language: 'zh-CN',
-  });
-  await content.dispatch('push');
-  assert.equal(
-    content.notifications[0]?.options.body,
-    'New media publication.',
-  );
   const invalid = await worker({ pushAllowed: true, language: 'pt-BR' });
   await invalid.dispatch('push');
   assert.equal(invalid.notifications.length, 0);
@@ -717,80 +613,4 @@ await test('verified push wakes same-origin open pages without notification cont
   const denied = await worker({ pushAllowed: false, openClient: true });
   await denied.dispatch('push');
   assert.equal(denied.clientMessages.length, 0);
-});
-
-await test('aggregate pushes never repeat a displayed public reply as a new chat message, including worker restart', async () => {
-  const preview = {
-    author: { id: crypto.randomUUID(), handle: 'reply_author', avatar: null },
-    community: crypto.randomUUID(),
-    post: crypto.randomUUID(),
-    text: 'Old public reply',
-    reply: true,
-    followed: false,
-  };
-  const scope = await worker({
-    pushAllowed: true,
-    publicPreview: preview,
-    openClient: true,
-  });
-  await Promise.all([scope.dispatch('push'), scope.dispatch('push')]);
-  assert.equal(
-    scope.notifications.filter((item) => item.options.body === preview.text)
-      .length,
-    1,
-  );
-  assert.equal(scope.notifications[1]?.options.tag, '0xdmme-activity');
-  assert.equal(scope.notifications[1]?.options.icon, '/icon-192.png');
-  const restarted = await worker({
-    pushAllowed: true,
-    publicPreview: preview,
-    alertCache: scope.stores.get('0xdmme-public-alerts')!,
-  });
-  await restarted.dispatch('push');
-  assert.equal(restarted.notifications[0]?.options.tag, '0xdmme-activity');
-  restarted.pushResult.publicPreview = {
-    ...preview,
-    post: crypto.randomUUID(),
-    text: 'New public reply',
-  };
-  await restarted.dispatch('push');
-  assert.equal(restarted.notifications[1]?.options.body, 'New public reply');
-  restarted.pushResult.publicScope = 'b'.repeat(64);
-  restarted.pushResult.publicPreview = preview;
-  await restarted.dispatch('push');
-  assert.equal(
-    restarted.notifications[2]?.options.body,
-    preview.text,
-    'A different signed-in session has independent alerts',
-  );
-  const stored = [
-    ...restarted.stores.get('0xdmme-public-alerts')!.values(),
-  ][0]!;
-  const history = await stored.clone().text();
-  assert.equal(history.includes(preview.text), false);
-  assert.equal(history.includes(preview.author.id), false);
-});
-
-await test('public alert bookkeeping stays bounded and does not mark posts read', async () => {
-  const preview = {
-    author: { id: crypto.randomUUID(), handle: 'author', avatar: null },
-    community: crypto.randomUUID(),
-    post: crypto.randomUUID(),
-    text: 'Public content',
-    reply: true,
-    followed: false,
-  };
-  const scope = await worker({ pushAllowed: true, publicPreview: preview });
-  for (let index = 0; index < 40; index++) {
-    scope.pushResult.publicPreview = { ...preview, post: crypto.randomUUID() };
-    await scope.dispatch('push');
-  }
-  const saved = [...scope.stores.get('0xdmme-public-alerts')!.values()][0]!;
-  const history = (await saved.clone().json()) as { posts: string[] };
-  assert.equal(history.posts.length, 32);
-  assert.equal(
-    scope.networkRequests(),
-    40,
-    'Only the authenticated push inspection is requested',
-  );
 });
