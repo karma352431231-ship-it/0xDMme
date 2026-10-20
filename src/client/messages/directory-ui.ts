@@ -54,6 +54,7 @@ interface DirectoryView {
   openContact: (contact: AddressBookEntry) => void;
   openGroup: (group: Groups['entries'][number]) => void;
   changed: (available: boolean) => void;
+  unreadChanged?: (count: number) => void;
   presence: () => void;
   /** Covers row initials with the contact's private card photo. */
   peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
@@ -302,6 +303,12 @@ export class MessageDirectoryUi {
         authors: activeStatusAuthors(entries),
       });
     const sorted = filteredConversations(entries, this.filter);
+    this.options.unreadChanged?.(
+      entries.reduce(
+        (sum, entry) => sum + (entry.hidden ? 0 : (entry.unread ?? 0)),
+        0,
+      ),
+    );
     renderDirectory(list, sorted, {
       menu: this.options.menu,
       ...this.emptyState(),

@@ -8,6 +8,7 @@ import type { MessageRelation } from '../../shared/daily/index.ts';
 import { projectDmMessages } from './presentation.ts';
 import { synchronizeDmHistory } from './history-sync.ts';
 import { readDmDirectoryPreviews } from './directory-previews.ts';
+import { dmUnreadCursors, dmUnreadCount, markDmRead } from './unread.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { relatedDmHistory } from '../local-history/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -634,6 +635,33 @@ export class SocialDms {
   }
   async messageStates(input: { peer: string; read: string[]; own: string[] }) {
     return dmMessageStates(await this.request('message-status', input));
+  }
+  async unread(peers: readonly string[]): Promise<number> {
+    const generation = this.generation;
+    return this.access.withVault(false, async (a) => {
+      const cursors = await dmUnreadCursors({
+        a,
+        peers,
+        guard: () => this.guard(generation),
+      });
+      const count = dmUnreadCount(
+        await this.privateApi(a, generation)('unread', { peers }),
+        cursors,
+      );
+      this.guard(generation);
+      return count;
+    });
+  }
+  async markRead(peer: string, sequence: number): Promise<void> {
+    const generation = this.generation;
+    await this.access.withVault(true, (a) =>
+      markDmRead({
+        a,
+        peer,
+        sequence,
+        guard: () => this.guard(generation),
+      }),
+    );
   }
   async read(peer: string, before: number | null) {
     await this.synchronizeHistory();

@@ -31,7 +31,7 @@ const bundle = await build({
         }));
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
           contents:
-            'export function startSocialDmUi() { return { setSession() {}, leave() {}, canActivate() { return true; } }; }',
+            'export function startSocialDmUi() { return { setSession() {}, ready() {}, leave() {}, canActivate() { return true; } }; }',
           loader: 'js',
         }));
       },
@@ -256,9 +256,11 @@ function fixture(
     {} as Parameters<typeof startCommunities>[1],
     {} as Parameters<typeof startCommunities>[2],
     {
-      inspect: () => Promise.resolve(null),
-      set: () =>
-        Promise.resolve({ following: false, notify: false, revision: 0 }),
+      profiles: {
+        inspect: () => Promise.resolve(null),
+        set: () =>
+          Promise.resolve({ following: false, notify: false, revision: 0 }),
+      },
     },
   );
   const host = new CommunityNode('main');

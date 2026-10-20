@@ -21,6 +21,7 @@ export const socialDmOperations = [
   'dm-received',
   'dm-message-status',
   'dm-preview-status',
+  'dm-unread',
   'dm-secret-get',
   'dm-secret-save',
   'dm-attachment-reserve',
@@ -108,6 +109,7 @@ export class SocialDmService {
       },
       'dm-message-status': (a, d) => db.socialHistory.reads.status(a, d),
       'dm-preview-status': (a, d) => db.socialHistory.reads.preview(a, d),
+      'dm-unread': (a, d) => db.socialHistory.reads.unread(a, d),
       'dm-received': async (a, d) => {
         keys(d, ['items']);
         if (!Array.isArray(d['items']) || d['items'].length > 16)

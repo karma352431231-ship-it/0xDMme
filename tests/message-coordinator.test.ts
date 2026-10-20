@@ -19,6 +19,29 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('returning to the mobile directory retains the verified preview; authority loss and page departure clear it', async (t) => {
+  const f = coordinatorFixture(t);
+  await f.messages.openContact(peer('preview-peer'));
+  await turn();
+  assert.equal(
+    f.previews().get('preview-peer')?.text,
+    'Latest received message',
+  );
+  f.state.chatVisible = false;
+  f.messages.viewChanged();
+  assert.equal(
+    f.previews().get('preview-peer')?.text,
+    'Latest received message',
+  );
+  f.emit('authorization');
+  assert.equal(f.previews().size, 0);
+  f.state.chatVisible = true;
+  await f.messages.openContact(peer('preview-peer'));
+  await turn();
+  f.messages.leave();
+  assert.equal(f.previews().size, 0);
+});
+
 for (const mode of ['edit', 'reply'] as const)
   await test(`canceling a private ${mode} clears only an edit draft and preserves the original`, async (t) => {
     const f = coordinatorFixture(t);

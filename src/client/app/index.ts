@@ -47,6 +47,8 @@ import {
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
+import { startMobileConversation } from './mobile-conversation.ts';
+import { startConversationBadges } from './conversation-badges.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
@@ -85,10 +87,11 @@ let currentHash = '';
 let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
+  mobileConversation?.open();
   if (pageKey(appAddress()) !== 'conversas') {
     navigateApp('#chats');
-    route();
   }
+  route();
   element('app-shell').dataset['chatOpen'] = 'true';
   rightColumn?.showChat();
   element('workspace').scrollTop = 0;
@@ -121,12 +124,14 @@ const publicProfiles = startPublicProfile(
   externalMedia,
   (host, detail, signal) => communities.previewModeration(host, detail, signal),
 );
-const communities = startCommunities(
-  devices,
-  vault.sync,
-  externalMedia,
-  publicProfiles.follows,
-);
+const conversationBadgeHost = document.getElementById('app-shell');
+const conversationBadge = conversationBadgeHost
+  ? startConversationBadges(conversationBadgeHost)
+  : () => {};
+const communities = startCommunities(devices, vault.sync, externalMedia, {
+  profiles: publicProfiles.follows,
+  unreadChanged: (count) => conversationBadge('public', count),
+});
 // Ranking beside the feed and the Chat | Communities switch (16/10/2026).
 // The wallet approval document has no app shell and gets neither.
 const appShell = document.getElementById('app-shell');
@@ -188,17 +193,17 @@ const messages = startMessages(devices, vault.sync, {
   playback,
   openConversation,
   openContact: (contact: AddressBookEntry) => {
-    navigateApp('#contacts');
-    route();
-    contacts.showContact(contact);
+    contacts.showContact(contact, element('app-shell'));
   },
   directoryChanged: (available) => {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
   },
+  unreadChanged: (count) => conversationBadge('private', count),
   directorySettled: (session) => sessionBoot.settled(session),
   representatives,
   liveEvent: (event) => {
+    communities.dmEvent(event);
     calls.event(event);
     if (event === 'call') return;
     statuses.event(event);
@@ -715,26 +720,40 @@ conversationContent.addEventListener('click', (event) => {
     event.target instanceof Element &&
     event.target.closest('[data-chat-back]')
   ) {
+    if (mobileConversation?.close()) return;
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
   }
 });
-document
-  .querySelector('[data-route=conversas]')
-  ?.addEventListener('click', () => {
+document.querySelectorAll('[data-route=conversas]').forEach((link) =>
+  link.addEventListener('click', () => {
+    if (mobileConversation?.close()) return;
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
-  });
+  }),
+);
 if (!account.approvalPage)
   startAppNavigation(() => {
     currentHash = appAddress();
     panels?.canonicalized(currentHash);
   });
-window.addEventListener('hashchange', route);
+const mobileConversation = account.approvalPage
+  ? null
+  : startMobileConversation({
+      shell: element('app-shell'),
+      scope: (scope) => panels?.setContactScope(scope),
+      changed: () => messages.viewChanged(),
+    });
+window.addEventListener('hashchange', () => {
+  contacts.closeContact();
+  route();
+  mobileConversation?.restore();
+});
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
+mobileConversation?.restore();
 connection();
 
 function setPublicSession(session: AccountSession | null): void {

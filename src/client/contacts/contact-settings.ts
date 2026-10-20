@@ -17,6 +17,7 @@ export class ContactSettings {
   private epoch = 0;
   private status = '';
   private draft = '';
+  private ready = false;
   private readonly ports: {
     book: AddressBook;
     sync: Pick<VaultSync, 'heads' | 'pending'>;
@@ -44,16 +45,33 @@ export class ContactSettings {
     this.versions = [];
     this.draft = '';
     this.status = '';
+    this.ready = false;
   }
   async open(contact: AddressBookEntry): Promise<void> {
     this.clear();
     const epoch = this.epoch;
-    this.editing = await this.latest(contact, epoch);
-    this.contact = this.editing?.contact ?? contact;
-    this.draft = this.contact.alias;
-    this.status = '';
+    this.contact = contact;
+    this.draft = contact.alias;
+    this.status = t('Updating contacts…');
     this.render();
     this.dialog?.showModal();
+    try {
+      const editing = await this.latest(contact, epoch);
+      this.guard(epoch);
+      this.editing = editing;
+      this.contact = this.editing?.contact ?? contact;
+      this.draft = this.contact.alias;
+      this.status = '';
+      this.ready = true;
+    } catch (error: unknown) {
+      if (epoch !== this.epoch) return;
+      this.status = translatedError(
+        error instanceof Error
+          ? error.message
+          : 'Operation unavailable. Check the state before retrying.',
+      );
+    }
+    this.render();
     this.dialog
       ?.querySelector<HTMLInputElement>('[data-contact-alias]')
       ?.focus();
@@ -126,6 +144,9 @@ export class ContactSettings {
       '[data-contact-alias]',
     )!;
     if (document.activeElement !== alias) alias.value = this.draft;
+    alias.disabled = !this.ready;
+    this.dialog!.querySelector<HTMLButtonElement>('[type="submit"]')!.disabled =
+      !this.ready;
     this.dialog!.querySelector('[data-contact-settings-status]')!.textContent =
       this.status;
     this.renderVersions();
@@ -198,7 +219,7 @@ export class ContactSettings {
     this.guard(epoch);
   }
   private async save(): Promise<void> {
-    if (!this.contact || !this.dialog) return;
+    if (!this.ready || !this.contact || !this.dialog) return;
     const epoch = this.epoch;
     const field = this.dialog.querySelector<HTMLInputElement>(
       '[data-contact-alias]',

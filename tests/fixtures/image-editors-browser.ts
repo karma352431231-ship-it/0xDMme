@@ -53,9 +53,11 @@ function mountFixture() {
     return ui;
   }
   const ui = startCommunities(access, new VaultSync(access), privacy, {
-    inspect: () => Promise.resolve(null),
-    set: () =>
-      Promise.resolve({ following: false, notify: false, revision: 0 }),
+    profiles: {
+      inspect: () => Promise.resolve(null),
+      set: () =>
+        Promise.resolve({ following: false, notify: false, revision: 0 }),
+    },
   });
   ui.setSession(session);
   ui.mount(

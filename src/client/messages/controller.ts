@@ -1265,7 +1265,10 @@ export class Messages {
       peer: messagePeer(a.session.accountId, item),
       own: item.sender === a.session.accountId,
       text,
-      state: item.queue_active ? messageStates.accepted : receivedState,
+      state:
+        item.sender === a.session.accountId
+          ? messageStates.accepted
+          : receivedState,
     };
   }
   private async decryptPacket(c: {

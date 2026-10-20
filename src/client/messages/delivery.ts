@@ -5,11 +5,11 @@ interface DeliveryView {
   id: string;
   hash: string;
   state: string;
+  own: boolean;
   archived?: boolean;
 }
 interface DeliveryState {
   hash: string;
-  pending: boolean;
   received: boolean;
 }
 type DeliveryApi = (
@@ -41,7 +41,6 @@ export async function readDelivery<T extends DeliveryView>(input: {
         throw new Error('Invalid delivery state.');
       states.set(String(row['id']), {
         hash: String(row['hash']),
-        pending: row['queue_active'],
         received: row['recipient_received'],
       });
     }
@@ -58,9 +57,12 @@ function projectDelivery<T extends DeliveryView>(
   if (!state || state.hash !== view.hash)
     throw new Error('Delivery state does not match.');
   if (view.state === messageStates.suspended) return view;
+  // A verified incoming copy is already on this device. Other device queues
+  // do not undo either that fact or a recipient's first confirmed receipt.
+  const received = !view.own || state.received;
   return {
     ...view,
-    delivery: state.received ? ('received' as const) : ('accepted' as const),
-    state: state.pending ? messageStates.accepted : messageStates.received,
+    delivery: received ? ('received' as const) : ('accepted' as const),
+    state: received ? messageStates.received : messageStates.accepted,
   };
 }

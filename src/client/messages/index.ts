@@ -78,6 +78,7 @@ export function startMessages(
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
     directoryChanged: (available: boolean) => void;
+    unreadChanged?: (count: number) => void;
     directorySettled?: (session: AccountSession | null) => void;
     representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
@@ -271,6 +272,7 @@ export function startMessages(
       void synchronization.open(() => groups.open(group));
     },
     changed: options.directoryChanged,
+    unreadChanged: (count) => options.unreadChanged?.(count),
     presence: renderPresence,
   });
   function selectGroup(): void {
@@ -452,6 +454,13 @@ export function startMessages(
   const peerTitle = (peer: ConversationPeer) =>
     agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
+    readConfirmed: async (peer) => {
+      const current = generation;
+      const state = await daily.state(peer);
+      if (current !== generation) return;
+      states.set(peer, state);
+      renderContacts();
+    },
     peerPhoto: showPeerPhoto,
     node,
     context: () => ({
@@ -1300,9 +1309,27 @@ export function startMessages(
     if (!result) throw new Error(message);
     return result;
   }
-  function suspend(reason: 'pause' | 'invalidate' = 'pause'): void {
+  function releaseConversation(reason: 'pause' | 'directory'): void {
+    directoryUi.pause();
+    externalAbort.abort();
+    historyUi.clearMedia();
+    externalAbort = new AbortController();
+    suspend(reason);
+    groups.leave();
+    if (voice.active)
+      void voice.stop(
+        t(
+          'Navigation interrupted recording; the excerpt is preserved for review when returning to the conversation.',
+        ),
+      );
+    attachments.clearMedia();
+    attachments.pausePreview();
+  }
+  function suspend(
+    reason: 'pause' | 'invalidate' | 'directory' = 'pause',
+  ): void {
     synchronization.cancelOpening();
-    previews.clear();
+    if (reason !== 'directory') previews.clear();
     renderContacts();
     stopPreload();
     menu.close();
@@ -1682,24 +1709,10 @@ export function startMessages(
       !voice.active &&
       !attachments.selected?.voice &&
       groups.canActivate(),
-    leave(): void {
-      directoryUi.pause();
-      externalAbort.abort();
-      historyUi.clearMedia();
-      externalAbort = new AbortController();
-      suspend();
-      groups.leave();
-      if (voice.active)
-        void voice.stop(
-          t(
-            'Navigation interrupted recording; the excerpt is preserved for review when returning to the conversation.',
-          ),
-        );
-      attachments.clearMedia();
-      attachments.pausePreview();
-    },
+    leave: () => releaseConversation('pause'),
     viewChanged(): void {
-      if (!conversationVisible()) this.leave();
+      if (!conversationVisible()) releaseConversation('directory');
+      else this.ready();
     },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;

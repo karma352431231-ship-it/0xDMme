@@ -49,6 +49,7 @@
 @import '../scrollbars/scrollbars.css';
 @import './theme.css';
 @import './shell-layout.css';
+@import './conversation-badges.css';
 @import './rail.css';
 @import '../contacts/directory-desktop.css';
 @import '../chat-ui/chat-desktop.css';

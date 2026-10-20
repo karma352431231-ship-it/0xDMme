@@ -81,6 +81,9 @@ const bundle = await build({
 
 class DmNode extends CommunityNode {
   isConnected = true;
+  getClientRects(): object[] {
+    return this.hidden ? [] : [{}];
+  }
   focus() {}
   get firstChild() {
     return this.children[0] ?? null;
@@ -179,6 +182,8 @@ export function dmCoordinatorFixture(t: TestContext) {
         pending: () => Promise.resolve(null),
         mediaDraft: () => Promise.resolve(false),
         directoryPreviews: () => Promise.resolve(new Map()),
+        messageStates: () => Promise.resolve([]),
+        markRead: asyncNoop,
         copies: () => Promise.resolve({ items: [], next: null }),
       });
     },

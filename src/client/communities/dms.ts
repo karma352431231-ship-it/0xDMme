@@ -1,7 +1,8 @@
 import { EmojiPicker } from '../emoji/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
-import { clearDmChecks, refreshDmChecks } from './dm-checks.ts';
+import { clearDmChecks } from './dm-checks.ts';
+import { readVisibleDm } from './dm-read.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -35,6 +36,8 @@ import {
   paintDmDirectoryPreviews,
 } from './dm-directory.ts';
 import { LiveUpdates } from '../message-live/index.ts';
+import { DmUnreadUpdates } from './dm-unread-updates.ts';
+import type { LiveEvent } from '../message-live/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
 
@@ -45,8 +48,17 @@ export function startSocialDmUi(
   access: VaultAccess,
   sync: VaultSync,
   privacy: ExternalMediaConsent,
+  unreadChanged: (count: number) => void = () => {},
 ) {
   const controller = new SocialDms(access, sync);
+  const unread = new DmUnreadUpdates({
+    page: async (after) => {
+      const page = await controller.list(after);
+      return { peers: page.items.map((row) => row.peer.id), next: page.next };
+    },
+    count: (peers) => controller.unread(peers),
+    changed: unreadChanged,
+  });
   const publicDirectory = new DmDirectory({
     list: () => controller.list(null),
     previews: (peers) => controller.directoryPreviews(peers),
@@ -245,6 +257,7 @@ export function startSocialDmUi(
     return old === generation && expected === verification;
   }
   async function reload(): Promise<void> {
+    unread.request();
     if (!container) {
       await publicDirectory.refresh();
       return;
@@ -458,15 +471,21 @@ export function startSocialDmUi(
     renderHistory(current, page, { selected, localMedia: !writable });
     current.history.hidden = false;
     composer.update(composerState());
+    const usable = () =>
+      old === generation &&
+      expected === verification &&
+      writable &&
+      document.visibilityState === 'visible' &&
+      current.history.isConnected &&
+      current.history.getClientRects().length > 0;
     if (writable)
-      await refreshDmChecks({
+      await readVisibleDm({
         history: current.history,
         controller,
         peer: selected,
-        items: page.items,
-        reactionReads: page.reactionReads,
-        usable: () =>
-          old === generation && writable && current.history.isConnected,
+        page,
+        usable,
+        changed: () => unread.request(),
       });
   }
   function options(
@@ -666,6 +685,13 @@ export function startSocialDmUi(
     messageId = crypto.randomUUID();
   }
   return {
+    ready: () => unread.start(),
+    event(event: LiveEvent): void {
+      if (event === 'call') return;
+      if (['authorization', 'revoked', 'ended', 'invalidated'].includes(event))
+        unread.invalidate();
+      unread.request();
+    },
     mount(node: HTMLElement, id: string | null, local = false): void {
       leave();
       container = node;
@@ -708,6 +734,7 @@ export function startSocialDmUi(
       session = value;
       ownProfile = null;
       controller.setSession(value);
+      unread.reset(value !== null);
       node?.replaceChildren();
     },
     canActivate: () => !busy && !composer.active,

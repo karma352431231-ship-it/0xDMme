@@ -25,6 +25,7 @@ import {
   classificationSettings,
 } from './classification.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
+import type { LiveEvent } from '../message-live/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
@@ -81,9 +82,13 @@ export function startCommunities(
   access: VaultAccess,
   sync: VaultSync,
   privacy: ExternalMediaConsent,
-  profiles: FeedProfileFollows,
+  options: {
+    profiles: FeedProfileFollows;
+    unreadChanged?: (count: number) => void;
+  },
 ) {
-  const dms = startSocialDmUi(access, sync, privacy);
+  const { profiles } = options;
+  const dms = startSocialDmUi(access, sync, privacy, options.unreadChanged);
   const controller = new Communities(access);
   registerHoverCard(
     communityHoverProvider({ controller, signedIn: () => session !== null }),
@@ -744,6 +749,7 @@ export function startCommunities(
     }
   }
   function ready(): void {
+    dms.ready();
     if (mounted)
       void run(
         async () => {
@@ -823,6 +829,7 @@ export function startCommunities(
       dms.leave();
       dmOwner = null;
     },
+    dmEvent: (event: LiveEvent) => dms.event(event),
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
     /** Bounded inbox history for Atividade, including durable read state. */

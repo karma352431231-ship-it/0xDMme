@@ -738,9 +738,11 @@ export function startContacts(
       await contacts.respond(accountId, accept);
       if (mounted?.isConnected) await refresh();
     },
-    showContact(contact: AddressBookEntry): void {
-      void run(() => contactSettings.open(contact));
+    showContact(contact: AddressBookEntry, container?: HTMLElement): void {
+      if (container) contactSettings.mount(container);
+      void contactSettings.open(contact);
     },
+    closeContact: () => contactSettings.clear(),
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();

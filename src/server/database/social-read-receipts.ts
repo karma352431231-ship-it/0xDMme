@@ -1,6 +1,7 @@
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { SocialDmStore, SocialContext } from './social-dm.ts';
+import { socialUnread } from './social-unread.ts';
 
 function messageIds(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 16)
@@ -12,6 +13,9 @@ export class SocialReadReceipts {
   private readonly social: SocialDmStore;
   constructor(social: SocialDmStore) {
     this.social = social;
+  }
+  unread(authority: ContactAuthority, data: Record<string, unknown>) {
+    return socialUnread({ social: this.social, authority, data });
   }
   async status(authority: ContactAuthority, data: Record<string, unknown>) {
     keys(data, ['peer', 'read', 'own']);

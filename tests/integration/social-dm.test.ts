@@ -833,6 +833,30 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
         'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
         [packet.id],
       );
+      const sequence = Number(
+        (
+          await inspector.query<{ sequence: string }>(
+            'SELECT sequence::text FROM hash_talk.social_messages WHERE id=$1',
+            [packet.id],
+          )
+        ).rows[0]!.sequence,
+      );
+      const unread = (await operate(bob, 'unread', { peers: [ap.id] })) as {
+        peer: string;
+        sequences: number[];
+      }[];
+      assert.equal(unread[0]?.peer, ap.id);
+      assert.ok(unread[0]?.sequences.includes(sequence));
+      assert.deepEqual(
+        await operate(outsider, 'unread', { peers: [ap.id, bp.id] }),
+        [],
+      );
+      await assert.rejects(
+        operate(bob, 'unread', {
+          peers: Array.from({ length: 17 }, () => ap.id),
+        }),
+        { status: 400 },
+      );
       const own = (await operate(alice, 'preview-status', {
         own: [packet.id],
       })) as { id: string; read: boolean }[];
@@ -954,6 +978,7 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
     'social blocking prevents content and keys without changing the private contact',
     async () => {
       await operate(bob, 'block', { peer: ap.id, blocked: true });
+      assert.deepEqual(await operate(bob, 'unread', { peers: [ap.id] }), []);
       await assert.rejects(
         operate(alice, 'message-status', {
           peer: bp.id,

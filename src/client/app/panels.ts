@@ -344,6 +344,7 @@ export function startPanels(input: {
     );
   }
   return {
+    setContactScope: setScope,
     /** A resolved public name updates the remembered route without remounting drafts. */
     canonicalized(address: string): void {
       const route = splitTarget(address);
@@ -378,7 +379,7 @@ export function startPanels(input: {
       const href = wide.matches
         ? splitHref({ layout, target: panelTarget, dm: null })
         : '#chats';
-      if (appAddress() !== href) navigateApp(href);
+      if (appAddress() !== href) navigateApp(href, history.state);
     },
     sessionChanged(): void {
       if (shell.dataset['contactScope'] === 'public')

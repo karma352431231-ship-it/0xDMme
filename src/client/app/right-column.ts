@@ -7,8 +7,8 @@ export type RightColumn = 'chat' | RankingScope;
  * Split screen (16/10/2026): the right column shows the conversation or the
  * communities ranking; since 19/10/2026 the user ranking is a third choice
  * beside Communities. It starts on Chat; opening a conversation returns to
- * Chat; a new message never switches the view, it only adds to the badge on
- * Chat. The badge sums the unread counters the conversation list shows.
+ * Chat; a new message never switches the view. Unread badges belong to the
+ * Private/Public directory choices.
  */
 export function startRightColumn(options: {
   shell: HTMLElement;
@@ -33,10 +33,6 @@ export function startRightColumn(options: {
     communities: choice(t('right-column.communities')),
     users: choice(t('right-column.users')),
   };
-  const badge = document.createElement('span');
-  badge.className = 'right-switch-badge';
-  badge.hidden = true;
-  chat.append(badge);
   track.append(...Object.values(choices));
   options.shell.append(bar);
   let current: RightColumn = 'chat';
@@ -50,7 +46,6 @@ export function startRightColumn(options: {
   for (const [id, button] of Object.entries(choices))
     button.addEventListener('click', () => show(id as RightColumn));
   show('chat');
-  watchUnread(badge);
   return {
     showChat: () => show('chat'),
     followRanking: (scope) => {
@@ -64,26 +59,4 @@ function choice(label: string): HTMLButtonElement {
   button.type = 'button';
   button.textContent = label;
   return button;
-}
-
-/** Presentation only: reads the counters already rendered in the list. */
-function watchUnread(badge: HTMLElement): void {
-  const list = document.querySelector<HTMLElement>('[data-message-contacts]');
-  if (!list) return;
-  let queued = false;
-  const paint = () => {
-    queued = false;
-    let total = 0;
-    list.querySelectorAll('.conversation-unread').forEach((node) => {
-      total += Number.parseInt(node.textContent ?? '', 10) || 0;
-    });
-    badge.hidden = total === 0;
-    badge.textContent = total > 99 ? '99+' : String(total);
-  };
-  new MutationObserver(() => {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(paint);
-  }).observe(list, { subtree: true, childList: true, characterData: true });
-  paint();
 }
