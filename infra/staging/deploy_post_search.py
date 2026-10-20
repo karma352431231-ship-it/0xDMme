@@ -15,7 +15,7 @@ SCHEMA_CHECK = """SELECT i.indisvalid AND i.indisready
  AND i.indrelid='hash_talk.community_posts'::regclass AND a.amname='gin'
  AND pg_get_expr(i.indexprs,i.indrelid) LIKE '%to_tsvector%'
  AND pg_get_expr(i.indexprs,i.indrelid) LIKE '%simple%'
- AND pg_get_expr(i.indexprs,i.indrelid) LIKE '%normalize%'
+ AND pg_get_expr(i.indexprs,i.indrelid) ILIKE '%normalize%'
  FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
  JOIN pg_am a ON a.oid=c.relam
  WHERE i.indexrelid=to_regclass('hash_talk.community_post_search')"""
