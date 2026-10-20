@@ -61,7 +61,7 @@ await test('session replacement during a pending-text restore prevents publishin
   await assert.rejects(controller.pendingTexts(peer, ['stale']), /[Ss]ession/u);
 });
 
-await test('reabrir janela confirmada compartilha uma conferência de autoridade entre snapshot, entrega e confirmação', async () => {
+await test('reopening a confirmed window shares one authority check across snapshot, delivery and confirmation', async () => {
   const { controller, data, add, peer } = resumeFixture();
   await add('Já confirmada');
   await controller.synchronize();
@@ -72,7 +72,7 @@ await test('reabrir janela confirmada compartilha uma conferência de autoridade
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Já confirmada');
 });
 
-await test('troca de sessão durante a preparação do perfil impede conferir ou enviar dados pela nova conta', async () => {
+await test('session change during profile preparation prevents checking or sending through the new account', async () => {
   const { controller, data, session, peer } = resumeFixture();
   data.beforeLocalRead = (name) => {
     if (name.startsWith('profile-sent:'))
@@ -90,7 +90,7 @@ await test('troca de sessão durante a preparação do perfil impede conferir ou
   assert.equal(data.requests.length, 0);
 });
 
-await test('envio após selecionar janela retida exige identidades atuais antes de distribuir chaves ou publicar', async () => {
+await test('sending after selecting a retained window requires current identities before key distribution or publication', async () => {
   const { controller, data, peer } = resumeFixture();
   controller.pending = () =>
     Promise.resolve([{ id: crypto.randomUUID(), peer }]);
@@ -107,7 +107,7 @@ await test('envio após selecionar janela retida exige identidades atuais antes 
   assert.equal(data.requests.length, 0);
 });
 
-await test('retomadas sem mudança conferem estado/entrega e confirmam sem reler índice ou conteúdo', async () => {
+await test('unchanged resumes check state and delivery and confirm without rereading index or content', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Mensagem já carregada');
   await controller.synchronize();
@@ -128,7 +128,7 @@ await test('retomadas sem mudança conferem estado/entrega e confirmam sem reler
   assert.equal(data.cacheReads.length, 1);
 });
 
-await test('mensagem nova exige atualização, preserva janela antiga e reutiliza seu conteúdo verificado', async () => {
+await test('new message requires an update, preserves the old window and reuses its verified content', async () => {
   const { controller, data, add } = resumeFixture();
   const first = await add('Primeira');
   await controller.synchronize();
@@ -153,7 +153,7 @@ await test('mensagem nova exige atualização, preserva janela antiga e reutiliz
   assert.equal(data.requests.filter((op) => op === 'page').length, 2);
 });
 
-await test('mudança durante a pausa não reabre a visão anterior antes da atualização completa', async () => {
+await test('change during pause cannot reopen the previous view before a complete update', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Antiga');
   await controller.synchronize();
@@ -166,7 +166,7 @@ await test('mudança durante a pausa não reabre a visão anterior antes da atua
   assert.equal(data.frames.at(-1)?.length, 2);
 });
 
-await test('exclusão/invalidação e troca de sessão descartam o reuso mesmo se o snapshot retornado for igual', async () => {
+await test('deletion, invalidation and session change discard reuse even if the returned snapshot matches', async () => {
   for (const invalidate of ['hide', 'close', 'session'] as const) {
     const { controller, data, add, session } = resumeFixture();
     await add('Histórico confirmado');
@@ -183,7 +183,7 @@ await test('exclusão/invalidação e troca de sessão descartam o reuso mesmo s
   }
 });
 
-await test('falha na conferência ou confirmação fecha o histórico e impede fallback para a janela retida', async () => {
+await test('check or confirmation failure closes history and blocks fallback to the retained window', async () => {
   for (const operation of ['snapshot', 'delivery', 'confirm']) {
     const { controller, data, add } = resumeFixture();
     await add('Histórico confirmado');
@@ -201,7 +201,7 @@ await test('falha na conferência ou confirmação fecha o histórico e impede f
   }
 });
 
-await test('pausa durante a confirmação cancela a publicação e não transforma dados em andamento em histórico reutilizável', async () => {
+await test('pause during confirmation cancels publication and cannot turn in-progress data into reusable history', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Ainda em conferência');
   let release: (() => void) | undefined;
@@ -223,7 +223,7 @@ await test('pausa durante a confirmação cancela a publicação e não transfor
   assert.equal(data.frames.at(-1), null);
 });
 
-await test('alternar conversas confirmadas confere snapshot e entrega sem reler índice, relações ou cache', async () => {
+await test('switching confirmed conversations checks snapshot and delivery without rereading index, relations or cache', async () => {
   const { controller, data, add, peer } = resumeFixture();
   const other = crypto.randomUUID();
   await add('Primeira conversa');
@@ -251,7 +251,7 @@ await test('alternar conversas confirmadas confere snapshot e entrega sem reler 
   assert.equal(data.cacheReads.length, 2);
 });
 
-await test('a sondagem fornece o snapshot para a carga seguinte sem repetir o pedido', async () => {
+await test('probe provides the snapshot for the next load without repeating the request', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Nova');
   assert.equal(await controller.probe(), true);
@@ -260,7 +260,7 @@ await test('a sondagem fornece o snapshot para a carga seguinte sem repetir o pe
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Nova');
 });
 
-await test('preparação sem conversa selecionada deixa todo o conteúdo pronto antes do primeiro clique', async () => {
+await test('preparation with no selected conversation makes all content ready before the first click', async () => {
   const { controller, data, add, peer } = resumeFixture();
   const other = crypto.randomUUID();
   await add('Primeira conversa');
@@ -283,7 +283,7 @@ await test('preparação sem conversa selecionada deixa todo o conteúdo pronto 
   assert.ok(!data.requests.includes('backup-window'));
 });
 
-await test('exclusão e falha descartam também as outras conversas guardadas', async () => {
+await test('deletion and failure also discard other retained conversations', async () => {
   for (const cause of ['hide', 'confirm'] as const) {
     const { controller, data, add, peer } = resumeFixture();
     const other = crypto.randomUUID();
@@ -307,7 +307,7 @@ await test('exclusão e falha descartam também as outras conversas guardadas', 
   }
 });
 
-await test('candidato de outra conversa com snapshot antigo só reaparece após atualizar e confirmar', async () => {
+await test("another conversation's candidate with an old snapshot returns only after update and confirmation", async () => {
   const { controller, data, add, peer } = resumeFixture();
   const other = crypto.randomUUID();
   await add('Primeira');
@@ -327,7 +327,7 @@ await test('candidato de outra conversa com snapshot antigo só reaparece após 
   );
 });
 
-await test('snapshot mudado entre sondagem e carga recusa publicação mesmo com conteúdo preparado', async () => {
+await test('snapshot changed between probe and load rejects publication even with prepared content', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Fictícia');
   assert.equal(await controller.probe(), true);
@@ -336,7 +336,7 @@ await test('snapshot mudado entre sondagem e carga recusa publicação mesmo com
   assert.equal(data.frames.at(-1), null);
 });
 
-await test('histórico grande continua o índice parcialmente conferido ao retomar em vez de reiniciar', async () => {
+await test('large history continues its partially checked index on resume instead of restarting', async () => {
   const { controller, data, add, peer } = resumeFixture();
   for (let index = 0; index < 144; index++) await add(`Fictícia ${index}`);
   await assert.rejects(controller.synchronize(), /partially verified/);
@@ -350,7 +350,7 @@ await test('histórico grande continua o índice parcialmente conferido ao retom
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Fictícia 128');
 });
 
-await test('editar uma mensagem consulta só o delta, reutiliza conteúdo e conserva a outra conversa confirmada', async () => {
+await test('editing one message queries only the delta, reuses content and preserves another confirmed conversation', async () => {
   const { controller, data, add, peer } = resumeFixture(),
     other = crypto.randomUUID();
   const original = await add('Original');
@@ -390,7 +390,7 @@ await test('editar uma mensagem consulta só o delta, reutiliza conteúdo e cons
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Outra conversa');
 });
 
-await test('preparação completa consulta apenas alterações e não relê mensagens intactas', async () => {
+await test('complete preparation queries only changes without rereading intact messages', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Preservada');
   controller.select(null);
@@ -410,7 +410,7 @@ await test('preparação completa consulta apenas alterações e não relê mens
   assert.deepEqual(data.cacheReads.slice(reads), [`cache:${added.id}`]);
 });
 
-await test('falha ao apagar mantém o gate fechado e descarta os candidatos retidos', async () => {
+await test('deletion failure keeps the gate closed and discards retained candidates', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Confirmada');
   await controller.synchronize();

@@ -65,7 +65,7 @@ await test('every contact row opens its settings without a three-dot menu, inclu
   assert.equal(opened, 1);
 });
 
-await test('busca local usa nomes e wallets da página carregada sem alterar identidade ou dados', () => {
+await test('local search uses loaded page names and wallets without changing identity or data', () => {
   const peer: Peer = {
     accountId: crypto.randomUUID(),
     ecosystem: 'evm',
@@ -79,7 +79,7 @@ await test('busca local usa nomes e wallets da página carregada sem alterar ide
   assert.equal(peer.address, '0x' + 'a'.repeat(40));
 });
 
-await test('busca por Solana não normaliza o endereço guardado e agenda aceita apelido sem acento', () => {
+await test('Solana search preserves the stored address and directory accepts an unaccented alias', () => {
   const peer: Peer = {
     accountId: crypto.randomUUID(),
     ecosystem: 'solana',

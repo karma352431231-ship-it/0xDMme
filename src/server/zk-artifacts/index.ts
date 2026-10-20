@@ -14,7 +14,7 @@ function validate(name: ArtifactName, bytes: Uint8Array): void {
     createHash('sha256').update(bytes).digest('hex') !== expected.sha256
   )
     throw new Error(
-      'Artefato ZK ausente ou sem a integridade esperada. Execute probe:zk:prepare.',
+      'ZK artifact missing or failed integrity verification. Run probe:zk:prepare.',
     );
 }
 
@@ -31,7 +31,7 @@ export function artifactPaths() {
   };
 }
 
-/** Único passo com rede externa; uso privado posterior é inteiramente local. */
+/** Only step with external networking; subsequent private use is entirely local. */
 export async function prepareArtifacts(): Promise<void> {
   await mkdir(directory, { recursive: true });
   for (const artifact of zkArtifacts) {
@@ -51,13 +51,13 @@ export async function prepareArtifacts(): Promise<void> {
       redirect: 'error',
     });
     if (!response.ok || !response.body)
-      throw new Error('Download do artefato ZK rejeitado.');
+      throw new Error('ZK artifact download rejected.');
     const chunks: Uint8Array[] = [];
     let size = 0;
     for await (const chunk of response.body) {
       size += chunk.length;
       if (size > artifact.bytes)
-        throw new Error('Artefato ZK excede o tamanho fixado.');
+        throw new Error('ZK artifact exceeds the pinned size.');
       chunks.push(chunk);
     }
     const bytes = Buffer.concat(chunks);

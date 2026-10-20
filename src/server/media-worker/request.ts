@@ -19,7 +19,7 @@ export function mediaWorkerRequest(value: unknown): MediaProcessRequest | null {
     Number(input['maximumBytes']) < 1 ||
     Number(input['maximumBytes']) > 100_000_000
   )
-    throw new Error('Pedido de mídia inválido.');
+    throw new Error('Invalid media request.');
   return {
     binary: input['binary'] === 'ffmpeg' ? 'ffmpeg' : 'ffprobe',
     args,
@@ -28,10 +28,10 @@ export function mediaWorkerRequest(value: unknown): MediaProcessRequest | null {
 }
 function workerArgs(value: unknown): string[] {
   if (!Array.isArray(value) || !value.length || value.length > 128)
-    throw new Error('Argumentos inválidos.');
+    throw new Error('Invalid arguments.');
   return value.map((arg: unknown) => {
     if (typeof arg !== 'string' || arg.length > 1024 || arg.includes('\0'))
-      throw new Error('Argumento inválido.');
+      throw new Error('Invalid argument.');
     return arg;
   });
 }
@@ -41,7 +41,7 @@ export async function verifyWorkerPaths(
   request: MediaProcessRequest,
 ): Promise<string[]> {
   const paths = mediaCommandPaths(request);
-  if (!paths.length || paths.length > 2) throw new Error('Caminhos inválidos.');
+  if (!paths.length || paths.length > 2) throw new Error('Invalid paths.');
   let id: string | null = null;
   for (const path of paths) {
     const directory = dirname(path),
@@ -51,9 +51,9 @@ export async function verifyWorkerPaths(
       (id && id !== candidate) ||
       !['source', 'result', 'thumbnail'].includes(basename(path))
     )
-      throw new Error('Caminho fora da mídia pública.');
+      throw new Error('Path is outside public media.');
     if ((await realpath(directory)) !== directory)
-      throw new Error('Diretório irregular.');
+      throw new Error('Invalid directory.');
     id = candidate;
     await verifyRegularFile(path);
   }
@@ -63,8 +63,7 @@ export async function verifyWorkerPaths(
 async function verifyRegularFile(path: string): Promise<void> {
   try {
     const stat = await lstat(path);
-    if (!stat.isFile() || stat.nlink !== 1)
-      throw new Error('Arquivo irregular.');
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid file.');
   } catch (error: unknown) {
     if (!(
       error instanceof Error &&

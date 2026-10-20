@@ -21,10 +21,10 @@ export async function frontendMatrixSources(
     metadata.isSymbolicLink() ||
     metadata.size > 40 * 1024 * 1024
   )
-    throw new Error('Fontes Matrix excedidas ou irregulares.');
+    throw new Error('Matrix source exceeds the limit or is invalid.');
   const content = await readFile(path);
   if (createHash('sha256').update(content).digest('hex') !== sourceHash)
-    throw new Error('Fontes Matrix alteradas sem revisão.');
+    throw new Error('Matrix source changed without review.');
   const pkg: unknown = JSON.parse(
     await readFile(
       resolve(
@@ -40,7 +40,7 @@ export async function frontendMatrixSources(
     !('version' in pkg) ||
     pkg.version !== version
   )
-    throw new Error('Versão Matrix exige nova revisão de fontes.');
+    throw new Error('Matrix version requires a new source review.');
   const assets = new Map<string, Uint8Array>(),
     names: string[] = [];
   for (let start = 0; start < content.length; start += 2 * 1024 * 1024) {

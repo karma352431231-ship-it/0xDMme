@@ -44,7 +44,7 @@ import {
   sealProfile,
 } from '../../src/client/account-profile/index.ts';
 
-await test('dispositivos persistentes: login isolado, vínculo único, conflito, recuperação, autorização e HTTP', async (t) => {
+await test('persistent devices: isolated login, single linking, conflict, recovery, authorization and HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -145,7 +145,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
     profile: null,
   });
   await t.test(
-    'perfil legado iniciado antes da configuração não atravessa a nova autorização',
+    'legacy profile started before setup cannot bypass new authorization',
     async () => {
       const profile = await sealProfile({
         accountId: first.session.accountId,
@@ -214,7 +214,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
   });
 
   await t.test(
-    'conta conectada sem chave não autoriza aparelho; código adulterado e campos secretos são recusados',
+    'connected account without a key cannot authorize a device; tampered code and secret fields are rejected',
     async () => {
       assert.equal(second.session.historyAuthorized, false);
       await assert.rejects(devices.inspect(second.session, code));
@@ -258,7 +258,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
     profile: null,
   });
   await t.test(
-    'cancelamento e prazo assinado impedem reativar um código antigo',
+    'cancellation and signed deadline prevent reactivating an old code',
     async () => {
       const target = await login();
       const identity = await createIdentity(
@@ -296,7 +296,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
     },
   );
   await t.test(
-    'vinculação concorrente tem um único commit, e código reaproveitado falha',
+    'concurrent linking commits once and reused code fails',
     async () => {
       await devices.inspect(first.session, code);
       const results = await Promise.allSettled([
@@ -339,7 +339,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
     ),
   });
   await t.test(
-    'perfil exige prova atual; login pendente e endpoint legado não podem sobrescrevê-lo',
+    'profile requires current proof; pending login and legacy endpoint cannot overwrite it',
     async () => {
       const third = await login();
       await assert.rejects(
@@ -395,7 +395,7 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
     profile: rotatedProfile,
   });
   await t.test(
-    'revogação e perfil são atômicos, sessões encerram e novo segredo não abre com chave revogada',
+    'revocation and profile are atomic; sessions end and revoked key cannot open the new secret',
     async () => {
       await assert.rejects(
         devices.commit(first.session, {
@@ -435,47 +435,53 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
       );
     },
   );
-  await t.test('código expirado falha sem alterar diretório', async () => {
-    const target = await login();
-    const identity = await createIdentity(target.session.deviceId, 'Expirado');
-    const pending = {
-      ...code,
-      id: crypto.randomUUID(),
-      device: identity.public,
-    };
-    await devices.start(target.session, {
-      code: pending,
-      signature: await sign(identity.signing, linkProof(pending)),
-    });
-    await inspector.query(
-      "UPDATE hash_talk.device_links SET expires_at=now()-interval '1 second' WHERE id=$1",
-      [pending.id],
-    );
-    const event = await prepareEvent({
-      accountId: first.session.accountId,
-      previous: revoked,
-      kind: 'link',
-      signer: first.session.deviceId,
-      signing: firstIdentity.signing,
-      root: recovery.root,
-      identities: [firstIdentity.public, identity.public],
-      ring: rotated,
-      linkId: pending.id,
-      profile: null,
-    });
-    await assert.rejects(
-      devices.commit(first.session, { event, profile: null }),
-    );
-    assert.equal(
-      (await database.devices.current(first.session.accountId))?.revision,
-      3,
-    );
-  });
+  await t.test(
+    'expired code fails without changing the directory',
+    async () => {
+      const target = await login();
+      const identity = await createIdentity(
+        target.session.deviceId,
+        'Expirado',
+      );
+      const pending = {
+        ...code,
+        id: crypto.randomUUID(),
+        device: identity.public,
+      };
+      await devices.start(target.session, {
+        code: pending,
+        signature: await sign(identity.signing, linkProof(pending)),
+      });
+      await inspector.query(
+        "UPDATE hash_talk.device_links SET expires_at=now()-interval '1 second' WHERE id=$1",
+        [pending.id],
+      );
+      const event = await prepareEvent({
+        accountId: first.session.accountId,
+        previous: revoked,
+        kind: 'link',
+        signer: first.session.deviceId,
+        signing: firstIdentity.signing,
+        root: recovery.root,
+        identities: [firstIdentity.public, identity.public],
+        ring: rotated,
+        linkId: pending.id,
+        profile: null,
+      });
+      await assert.rejects(
+        devices.commit(first.session, { event, profile: null }),
+      );
+      assert.equal(
+        (await database.devices.current(first.session.accountId))?.revision,
+        3,
+      );
+    },
+  );
   let previous = revoked;
   const active = [{ logged: first, identity: firstIdentity }];
-  for (const choice of ['nenhum', 'alguns', 'todos'] as const) {
+  for (const choice of ['none', 'some', 'all'] as const) {
     await t.test(
-      `recuperação limpa revoga ${choice}: sessões e novas chaves seguem a escolha`,
+      `clean recovery revokes ${choice}: sessions and new keys follow the choice`,
       async () => {
         const clean = await login();
         const identity = await createIdentity(
@@ -486,9 +492,9 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
         const restored = await recoverSecrets(previous, secret);
         const next = freshKeyring(clean.session.accountId, restored.ring);
         const selected =
-          choice === 'nenhum'
+          choice === 'none'
             ? []
-            : choice === 'alguns'
+            : choice === 'some'
               ? [active[0]!.identity.public.id]
               : active.map((item) => item.identity.public.id);
         const preserved = await sealProfile({
@@ -571,47 +577,44 @@ await test('dispositivos persistentes: login isolado, vínculo único, conflito,
       },
     );
   }
-  await t.test(
-    'o fluxo de autoridade também se vincula a uma conta Solana',
-    async () => {
-      const key = ed25519.utils.randomPrivateKey();
-      const address = base58.encode(ed25519.getPublicKey(key));
-      const challenge = await account.challenge({
-        ecosystem: 'solana',
-        address,
-        chainId: 'solana:mainnet',
-        deviceId: crypto.randomUUID(),
-      });
-      const logged = await account.login(
-        {
-          id: challenge.id,
-          signature: base58.encode(
-            ed25519.sign(new TextEncoder().encode(challenge.message), key),
-          ),
-        },
-        challenge.browserToken,
-      );
-      ids.push(logged.session.accountId);
-      const identity = await createIdentity(logged.session.deviceId, 'Solana');
-      const root = await createRecovery(logged.session.accountId, newSecret());
-      const event = await prepareEvent({
-        accountId: logged.session.accountId,
-        previous: null,
-        kind: 'initialize',
-        signer: 'recovery',
-        signing: root.signing,
-        root: root.root,
-        identities: [identity.public],
-        ring: freshKeyring(logged.session.accountId),
-        profile: null,
-      });
-      await devices.commit(logged.session, { event, profile: null });
-      assert.equal(
-        (await database.devices.current(logged.session.accountId))?.revision,
-        1,
-      );
-    },
-  );
+  await t.test('authority flow also binds to a Solana account', async () => {
+    const key = ed25519.utils.randomPrivateKey();
+    const address = base58.encode(ed25519.getPublicKey(key));
+    const challenge = await account.challenge({
+      ecosystem: 'solana',
+      address,
+      chainId: 'solana:mainnet',
+      deviceId: crypto.randomUUID(),
+    });
+    const logged = await account.login(
+      {
+        id: challenge.id,
+        signature: base58.encode(
+          ed25519.sign(new TextEncoder().encode(challenge.message), key),
+        ),
+      },
+      challenge.browserToken,
+    );
+    ids.push(logged.session.accountId);
+    const identity = await createIdentity(logged.session.deviceId, 'Solana');
+    const root = await createRecovery(logged.session.accountId, newSecret());
+    const event = await prepareEvent({
+      accountId: logged.session.accountId,
+      previous: null,
+      kind: 'initialize',
+      signer: 'recovery',
+      signing: root.signing,
+      root: root.root,
+      identities: [identity.public],
+      ring: freshKeyring(logged.session.accountId),
+      profile: null,
+    });
+    await devices.commit(logged.session, { event, profile: null });
+    assert.equal(
+      (await database.devices.current(logged.session.accountId))?.revision,
+      1,
+    );
+  });
 });
 
 async function waitForAccountLock(inspector: pg.Client): Promise<void> {

@@ -55,7 +55,7 @@ const result = () => ({
   revision: 1,
   pendingAvatar: null,
 });
-await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional para o nome', async (t) => {
+await test('creating a handle waits for external-media choice without an additional name dialog', async (t) => {
   for (const [name, value] of Object.entries({
     document: { querySelectorAll: () => [] },
     window: new EventTarget(),
@@ -120,7 +120,7 @@ await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional par
   assert.equal(privacy.permitted('video'), false);
   ui.leave();
 });
-await test('configurações só avisam quando a análise mantém o arquivo fora do público', () => {
+await test('settings show notices only when analysis keeps the file out of public access', () => {
   const shown = [
     'rejected',
     'held',
@@ -137,7 +137,7 @@ await test('configurações só avisam quando a análise mantém o arquivo fora 
     [...shown],
   );
 });
-await test('análises anteriores substituem a página sem acumular avisos; cursor é assinado e sessão limpa a navegação', async (t) => {
+await test('previous analyses replace the page without accumulating notices; cursor is signed and session clears navigation', async (t) => {
   const own = session(),
     controller = new PublicProfiles(
       access(own, () => Promise.resolve('assinatura-sintetica')),
@@ -176,7 +176,7 @@ await test('análises anteriores substituem a página sem acumular avisos; curso
   controller.setSession(null);
   assert.equal(controller.moderationAfter, null);
 });
-await test('aviso atrasado de análise não reaparece após troca de conta', async (t) => {
+await test('late analysis notice cannot reappear after account change', async (t) => {
   const first = session(),
     controller = new PublicProfiles(
       access(first, () => Promise.resolve('assinatura-sintetica')),
@@ -215,7 +215,7 @@ await test('aviso atrasado de análise não reaparece após troca de conta', asy
   await assert.rejects(pending, /Session changed/);
   assert.deepEqual(controller.notices, []);
 });
-await test('resposta atrasada do perfil público não repõe identidade após troca de conta', async (t) => {
+await test('late public-profile response cannot restore identity after account change', async (t) => {
   const first = session(),
     controller = new PublicProfiles(
       access(first, () => Promise.resolve('assinatura-sintetica')),
@@ -244,7 +244,7 @@ await test('resposta atrasada do perfil público não repõe identidade após tr
   await assert.rejects(pending, /Session changed/);
   assert.equal(controller.profile, null);
 });
-await test('troca de sessão durante assinatura impede o envio e campos privados são recusados', async (t) => {
+await test('session change during signing blocks sending and private fields are rejected', async (t) => {
   const first = session();
   let complete: (signature: string) => void = () => {
     throw new Error('Assinatura não preparada.');
@@ -285,7 +285,7 @@ await test('troca de sessão durante assinatura impede o envio e campos privados
   assert.equal(clean.profile, null);
 });
 
-await test('atalho com foto pública não mistura iniciais; sem foto mantém fallback e a troca limpa os bytes', async (t) => {
+await test('public-photo shortcut never mixes initials; no photo keeps fallback and switching clears bytes', async (t) => {
   const { startOwnProfileShortcut } =
     await import('../src/client/public-profile/own-shortcut.ts');
   const { publicAvatarPath } =

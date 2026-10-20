@@ -27,7 +27,7 @@ const post = () => ({
   score: 0,
   replies: 0,
 });
-await test('posts validam texto, tags em lista sem repetição, até cinco, e orçamento de entrada', () => {
+await test('posts validate text, up to five distinct ordered tags and input budget', () => {
   assert.deepEqual(
     postContent({ title: '', text: ' Olá\r\nGalera! ', tags: [] }),
     { title: '', text: 'Olá\nGalera!', tags: [] },
@@ -57,7 +57,7 @@ await test('posts validam texto, tags em lista sem repetição, até cinco, e or
     AccountError,
   );
 });
-await test('páginas de posts têm cursor estável e recusam campos privados ou marcadores com texto retido', () => {
+await test('post pages have stable cursors and reject private fields or markers retaining text', () => {
   const value = post();
   assert.deepEqual(communityPost(value), value);
   for (const patch of [
@@ -97,7 +97,7 @@ await test('páginas de posts têm cursor estável e recusam campos privados ou 
     AccountError,
   );
 });
-await test('links são navegação HTTP(S) explícita; esquemas executáveis, credenciais e controles não viram links', () => {
+await test('links require explicit HTTP(S) navigation; executable schemes, credentials and controls never become links', () => {
   assert.equal(
     postLink('https://example.com/a?b=2'),
     'https://example.com/a?b=2',
@@ -113,7 +113,7 @@ await test('links são navegação HTTP(S) explícita; esquemas executáveis, cr
   ])
     assert.equal(postLink(link), null);
 });
-await test('árvore, votos privados e avisos recusam referências incoerentes ou dados fora do contrato', async () => {
+await test('tree, private votes and notifications reject inconsistent references and data outside the contract', async () => {
   const { postVote, replyNotificationPage, replyPreview } =
     await import('../src/shared/community-posts/index.ts');
   const value = post();

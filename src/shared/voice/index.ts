@@ -13,7 +13,7 @@ export function voiceMetadata(input: unknown): VoiceMetadata {
   keys(row, ['samples', 'sampleRate']);
   const samples = integer(row['samples'], voiceSamples);
   if (!samples || row['sampleRate'] !== voiceRate)
-    throw new Error('Duração ou formato da mensagem de voz inválido.');
+    throw new Error('Invalid voice message duration or format.');
   return { samples, sampleRate: voiceRate };
 }
 export function voiceDuration(voice: VoiceMetadata): string {
@@ -27,7 +27,7 @@ export function validateVoice(
 ): void {
   const voice = voiceMetadata(metadata);
   if (bytes.length !== 44 + voice.samples * 2)
-    throw new Error('Tamanho da mensagem de voz divergente.');
+    throw new Error('Voice message size mismatch.');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const text = (offset: number, length: number) =>
     new TextDecoder().decode(bytes.subarray(offset, offset + length));
@@ -46,5 +46,5 @@ export function validateVoice(
     view.getUint32(40, true) === bytes.length - 44,
   ];
   if (!fields.every(Boolean))
-    throw new Error('Formato da mensagem de voz não permitido.');
+    throw new Error('Voice message format not allowed.');
 }

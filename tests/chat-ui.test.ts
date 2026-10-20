@@ -8,7 +8,7 @@ import {
   updateMessageStates,
 } from '../src/client/chat-ui/index.ts';
 
-await test('sincronização bloqueia envio mesmo com texto ou anexo pronto', () => {
+await test('synchronization blocks sending even with text or an attachment ready', () => {
   for (const content of [
     { text: 'Mensagem de teste', attachment: false },
     { text: '', attachment: true },
@@ -24,7 +24,7 @@ await test('sincronização bloqueia envio mesmo com texto ou anexo pronto', () 
   }
 });
 
-await test('gravação ativa não oferece envio; prévia pronta oferece enviar sem exigir legenda', () => {
+await test('active recording cannot send; ready preview allows sending without a caption', () => {
   assert.deepEqual(
     composerState({
       text: 'Legenda',
@@ -54,7 +54,7 @@ await test('gravação ativa não oferece envio; prévia pronta oferece enviar s
   );
 });
 
-await test('sincronização que oculta o histórico preserva a posição de leitura ao reabrir', () => {
+await test('synchronization hiding history preserves reading position on reopen', () => {
   // Only the scroll geometry is needed; no browser/crypto emulation.
   const history = {
     hidden: false,
@@ -76,7 +76,7 @@ await test('sincronização que oculta o histórico preserva a posição de leit
   assert.equal(history.scrollTop, 140);
 });
 
-await test('quem já estava no fim acompanha mensagens novas; quem subiu continua lendo', () => {
+await test('readers at the bottom follow new messages; readers above keep their position', () => {
   const history = {
     hidden: false,
     scrollTop: 750,
@@ -96,7 +96,7 @@ await test('quem já estava no fim acompanha mensagens novas; quem subiu continu
   assert.equal(history.scrollTop, 80);
 });
 
-await test('trocar de conversa não reutiliza a posição antiga antes de ocultar o histórico', () => {
+await test('conversation change cannot reuse the old position before hiding history', () => {
   const history = {
     hidden: false,
     scrollTop: 140,
@@ -115,7 +115,7 @@ await test('trocar de conversa não reutiliza a posição antiga antes de oculta
   restore();
   assert.equal(history.scrollTop, 1500);
 });
-await test('recibos alteram somente os checks; mídia, bolha e posição de leitura permanecem', () => {
+await test('receipts update only checkmarks; media, bubble and reading position remain', () => {
   const media = {},
     body = {},
     actions = {},
@@ -157,7 +157,7 @@ await test('recibos alteram somente os checks; mídia, bolha e posição de leit
   assert.equal(history.scrollTop, 170);
 });
 
-await test('Enter envia, Shift+Enter quebra linha; teclado de toque só envia com Ctrl/Cmd', (t) => {
+await test('Enter sends, Shift+Enter adds a line; touch keyboards require Ctrl/Cmd to send', (t) => {
   let touch = false;
   Object.defineProperty(globalThis, 'matchMedia', {
     configurable: true,

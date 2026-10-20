@@ -115,7 +115,7 @@ function fixture(t: TestContext) {
     now: () => now,
   };
 }
-await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade; recusa encerra em todos', (t) => {
+await test('first answer wins; other tabs and devices lose authority; rejection ends all', (t) => {
   const f = fixture(t),
     call = f.start();
   f.offer(call.id);
@@ -177,7 +177,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
   assert.equal(f.sync(f.callee), null);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revelam estados diferentes', (t) => {
+await test('busy, offline, blocked, silent and disabled-preference states remain indistinguishable', (t) => {
   const f = fixture(t);
   for (const patch of [
     { allowed: false },
@@ -209,7 +209,7 @@ await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revel
   f.state.endAccounts([f.callee.session.accountId]);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('toque expira em 60s, conexão em 20s e duração conectada não tem limite artificial', (t) => {
+await test('ringing expires in 60s, connection in 20s and connected duration has no artificial limit', (t) => {
   const f = fixture(t);
   f.start();
   for (let i = 0; i < 11; i++) {
@@ -246,7 +246,7 @@ await test('toque expira em 60s, conexão em 20s e duração conectada não tem 
   f.state.clean();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('aparelhos inscritos podem acordar durante o convite, recebem oferta apenas uma vez e primeiro atendimento vence', (t) => {
+await test('subscribed devices may wake during the invitation, receive one offer and honor the first answer', (t) => {
   const f = fixture(t),
     recipient = authority(),
     sibling = authority(recipient.session.accountId);
@@ -305,7 +305,7 @@ await test('aparelhos inscritos podem acordar durante o convite, recebem oferta 
     /[Uu]navailable/u,
   );
 });
-await test('convite para aparelho fechado não sobrevive a cancelamento, perda da lease ou 60 segundos', (t) => {
+await test('invitation to a closed device cannot survive cancellation, lease loss or 60 seconds', (t) => {
   const f = fixture(t),
     recipient = authority();
   const start = () =>
@@ -342,7 +342,7 @@ await test('convite para aparelho fechado não sobrevive a cancelamento, perda d
   assert.equal(f.sync(recipient), null);
   assert.equal(f.state.usage.packets, 0);
 });
-await test('replay, novos participantes, negociação fora de ordem e orçamento são rejeitados', (t) => {
+await test('replay, new participants, out-of-order negotiation and budget overruns are rejected', (t) => {
   const f = fixture(t),
     call = f.start();
   const outsider = authority();
@@ -381,7 +381,7 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
   f.state.close();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('fechar mídia é terminal no heartbeat; contador transitório impede replay após a lease expirar', (t) => {
+await test('closing media is terminal for heartbeat; transient counter blocks replay after lease expiration', (t) => {
   const f = fixture(t),
     call = f.start();
   f.offer(call.id);
@@ -481,7 +481,7 @@ const sdp = [
   'a=sendrecv',
   'a=rtpmap:111 opus/48000/2',
 ].join('\r\n');
-await test('SDP não transporta endereços locais/relacionados e recusa host/STUN/vídeo/sem fingerprint', () => {
+await test('SDP carries no local or related addresses and rejects host/STUN/video/missing fingerprint', () => {
   const clean = relaySdp(sdp);
   assert.ok(!clean.includes('192.168.1.3'));
   assert.ok(!clean.includes('43210'));
@@ -498,7 +498,7 @@ await test('SDP não transporta endereços locais/relacionados e recusa host/STU
     relayCandidate('candidate:1 1 udp 1 host.local 9 typ relay'),
   );
 });
-await test('TURN usa credenciais temporárias sem identidade; configuração parcial não vira relay aberto', () => {
+await test('TURN uses temporary anonymous credentials; partial configuration cannot become an open relay', () => {
   const config = readTurnConfiguration({
     HASH_TALK_TURN_URLS:
       'turn:turn.example:3478?transport=udp,turns:turn.example:5349?transport=tcp',

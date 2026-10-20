@@ -20,7 +20,7 @@ function requireSame(before: BigIntStats, after: BigIntStats): void {
     before.mtimeNs !== after.mtimeNs ||
     before.ctimeNs !== after.ctimeNs
   )
-    throw new Error('Objeto alterado durante a leitura.');
+    throw new Error('Object changed while reading.');
 }
 
 async function verify(
@@ -39,13 +39,13 @@ async function verify(
       Math.min(buffer.length, length - offset),
       offset,
     );
-    if (!bytesRead) throw new Error('Objeto incompleto.');
+    if (!bytesRead) throw new Error('Incomplete object.');
     hash.update(buffer.subarray(0, bytesRead));
     offset += bytesRead;
   }
   requireSame(input.stat, await file.stat({ bigint: true }));
   if (hash.digest('hex') !== input.hash)
-    throw new Error('Integridade do objeto inválida.');
+    throw new Error('Invalid object integrity.');
 }
 
 async function* slices(
@@ -64,7 +64,7 @@ async function* slices(
       Math.min(buffer.length, range.end - offset + 1),
       offset,
     );
-    if (!bytesRead) throw new Error('Objeto incompleto.');
+    if (!bytesRead) throw new Error('Incomplete object.');
     requireSame(stat, await file.stat({ bigint: true }));
     offset += bytesRead;
     // The next filesystem read must not overwrite a chunk held by backpressure.
@@ -80,7 +80,7 @@ export async function verifiedMediaFile(
   try {
     const stat = await file.stat({ bigint: true });
     if (stat.size !== BigInt(input.bytes))
-      throw new Error('Objeto de mídia irregular.');
+      throw new Error('Invalid media object.');
     await verify(file, { stat, hash: input.hash, signal: input.signal });
     input.signal.throwIfAborted();
     return {

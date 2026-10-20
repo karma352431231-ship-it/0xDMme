@@ -13,7 +13,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import { applyLanguage } from '../language/index.ts';
 import { currentLanguage } from '../../shared/i18n/index.ts';
 
-/** Connects Configurações iniciais to the modules that own each setting. */
+/** Connects Initial settings to the modules that own each setting. */
 export function startAccountSettings(input: {
   languageBlocked: () => string | null;
   access: VaultAccess;

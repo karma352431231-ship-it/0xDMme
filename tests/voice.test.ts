@@ -26,7 +26,7 @@ function pcm(rate: number, input: Float32Array, size: number): Int16Array {
   converter.flush((chunk) => chunks.push(chunk));
   return Int16Array.from(chunks.flatMap((chunk) => [...chunk]));
 }
-await test('PCM mantém duração e amostras ao dividir callbacks de 44,1/48/96 kHz; satura sem overflow', () => {
+await test('PCM preserves duration and samples across 44.1/48/96 kHz callbacks and saturates without overflow', () => {
   for (const rate of [8000, 16000, 44100, 48000, 96000]) {
     const input = Float32Array.from(
       { length: rate },
@@ -43,7 +43,7 @@ await test('PCM mantém duração e amostras ao dividir callbacks de 44,1/48/96 
   assert.throws(() => new VoicePcm(192000));
   assert.throws(() => pcm(16000, new Float32Array([NaN]), 1));
 });
-await test('90 segundos geram WAV canônico abaixo de 3 MB; cabeçalho, duração e dados extras são recusados', () => {
+await test('90 seconds produce canonical WAV below 3 MB; invalid header, duration and extra data are rejected', () => {
   const converter = new VoicePcm(16000),
     chunks: Int16Array[] = [];
   converter.append(new Float32Array(voiceSamples + 1000).fill(0.25), (chunk) =>
@@ -102,7 +102,7 @@ function recording() {
   });
   return { voice, devices, previews };
 }
-await test('parar e interromper preservam trecho para prévia; cancelar apaga PCM sem criar envio', async () => {
+await test('stop and interruption preserve the segment for preview; cancellation erases PCM without creating a send', async () => {
   const { voice, devices, previews } = recording();
   await voice.start();
   const first = devices[0];
@@ -133,7 +133,7 @@ await test('parar e interromper preservam trecho para prévia; cancelar apaga PC
   assert.equal(previews.length, 2);
   assert.ok(cancelled.every((value) => value === 0));
 });
-await test('permissão negada e resposta antiga após cancelamento não ressuscitam gravação nem encerram uma nova', async () => {
+await test('denied permission and old response after cancellation neither resurrect recording nor end a new one', async () => {
   const { voice, devices, previews } = recording();
   let finish: (() => void) | undefined;
   const started = voice.start();
@@ -181,7 +181,7 @@ await test('permissão negada e resposta antiga após cancelamento não ressusci
   assert.equal(previews.length, 0);
 });
 
-await test('voz v2 usa cifra real de anexo, preserva v1 e recusa descritores incompatíveis', async () => {
+await test('voice v2 uses real attachment encryption, preserves v1 and rejects incompatible descriptors', async () => {
   const bytes = voiceWav([new Int16Array(voiceRate)]),
     voice = { samples: voiceRate, sampleRate: voiceRate },
     sealed = await sealFile(bytes);

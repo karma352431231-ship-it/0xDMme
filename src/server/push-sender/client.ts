@@ -15,10 +15,10 @@ export function readPushClientConfiguration(
     socketPath = env['HASH_TALK_PUSH_SOCKET'],
     token = env['HASH_TALK_PUSH_TOKEN'];
   if (env['HASH_TALK_PUSH_PRIVATE_KEY'])
-    throw new Error('VAPID privada pertence somente ao emissor.');
+    throw new Error('Private VAPID key belongs only to the sender.');
   if (!publicKey && !socketPath && !token) return null;
   if (!publicKey || !/^[A-Za-z0-9_-]{87}$/u.test(publicKey))
-    throw new Error('Chave pública push inválida.');
+    throw new Error('Invalid push public key.');
   validatePushSocket(socketPath);
   validatePushToken(token);
   return { publicKey, socketPath: socketPath!, token: token! };
@@ -29,11 +29,11 @@ export function validatePushSocket(input: string | undefined): void {
     !/^\/[A-Za-z0-9_/.-]{1,98}$/u.test(input) ||
     input.includes('..')
   )
-    throw new Error('Socket push inválido.');
+    throw new Error('Invalid push socket.');
 }
 export function validatePushToken(input: string | undefined): void {
   if (!input || !/^[A-Za-z0-9_-]{43}$/u.test(input))
-    throw new Error('Credencial interna push inválida.');
+    throw new Error('Invalid internal push credential.');
 }
 /** Unix socket only: web never falls back to direct HTTPS or retains private VAPID. */
 export function dispatchPush(
@@ -72,7 +72,7 @@ export function dispatchPush(
             return;
           }
           reject(
-            Object.assign(new Error('Emissor push indisponível.'), {
+            Object.assign(new Error('Push sender unavailable.'), {
               statusCode: response.statusCode ?? 503,
             }),
           );

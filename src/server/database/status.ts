@@ -154,7 +154,7 @@ export class StatusStore {
       await assertVaultQuota(client, a.session.accountId);
       await assertContentCapacity(client, this.services.capacity);
       const row = result.rows[0];
-      if (!row) throw new Error('Publicação não persistida.');
+      if (!row) throw new Error('Post was not persisted.');
       return this.summary(row);
     });
   }
@@ -284,7 +284,7 @@ export class StatusStore {
       input.row.author,
     );
     const contentHash = input.envelopes[0]?.contentHash;
-    if (!contentHash) throw new Error('Audiência vazia.');
+    if (!contentHash) throw new Error('Empty audience.');
     if (input.row.content_hash && input.row.content_hash !== contentHash)
       unavailable();
     for (const e of input.envelopes) {
@@ -372,7 +372,7 @@ export class StatusStore {
         [id, publishedAt, expires],
       );
       const saved = result.rows[0];
-      if (!saved) throw new Error('Data de publicação não persistida.');
+      if (!saved) throw new Error('Post timestamp was not persisted.');
       return this.summary(saved);
     });
   }

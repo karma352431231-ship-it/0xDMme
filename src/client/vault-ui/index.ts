@@ -12,7 +12,7 @@ import { rememberLocator } from '../vault-storage/index.ts';
 export function startVault(access: VaultAccess) {
   const sync = new VaultSync(access);
   let mounted: HTMLElement | null = null;
-  // Compact meter at the top of Perfil; filled by the same usage query as the card.
+  // Compact meter at the top of Profile; filled by the same usage query as the card.
   let meter: HTMLElement | null = null;
   let busy = false;
   let known = false;

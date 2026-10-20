@@ -9,7 +9,7 @@ import {
 } from '../src/shared/status/index.ts';
 import { backupTarget } from '../src/shared/backups/index.ts';
 
-await test('status congela a audiência aprovada, mudanças afetam os próximos e bloqueio impede leitura', () => {
+await test('status freezes the approved audience, changes affect future statuses and blocking prevents reading', () => {
   const author = crypto.randomUUID(),
     first = crypto.randomUUID(),
     hidden = crypto.randomUUID(),
@@ -41,7 +41,7 @@ await test('status congela a audiência aprovada, mudanças afetam os próximos 
   assert.equal(statusExpiresAt(1000), 1000 + statusLifetime);
 });
 
-await test('status não é um item permitido no backup e audiência não aceita identidades repetidas', () => {
+await test('status is excluded from backups and audience rejects duplicate identities', () => {
   const author = crypto.randomUUID(),
     peer = crypto.randomUUID();
   assert.throws(() =>

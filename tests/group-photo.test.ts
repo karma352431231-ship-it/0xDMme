@@ -9,7 +9,7 @@ import {
 } from '../src/shared/group-messages/index.ts';
 import { backupRecord } from '../src/client/backup-records/index.ts';
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
-await test('avatar é restrito em formato, bytes, pixels e metadados; perfil antigo e remoção explícita permanecem distintos', () => {
+await test('avatar is bounded by format, bytes, pixels and metadata; legacy profile and explicit removal remain distinct', () => {
   const photo = fixtureGroupPhoto();
   assert.equal(groupTitle({ version: 1, title: 'Grupo', photo }), 'Grupo');
   assert.equal(groupProfilePhoto({ version: 1, title: 'Grupo' }), undefined);
@@ -41,10 +41,10 @@ await test('avatar é restrito em formato, bytes, pixels e metadados; perfil ant
   ]);
   assert.throws(
     () => groupPhoto({ type: 'image/jpeg', base64: encode(metadata) }),
-    /metadados/u,
+    /metadata/u,
   );
 });
-await test('backup existente conserva o avatar no texto do perfil sem alterar seu formato', () => {
+await test('existing backup preserves the avatar in profile text without changing its format', () => {
   const text = JSON.stringify({
     version: 1,
     title: 'Grupo',

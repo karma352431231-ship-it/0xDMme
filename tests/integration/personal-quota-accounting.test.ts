@@ -307,7 +307,7 @@ async function verifyQuotaBoundaries(
           );
           await assert.rejects(
             vaultUsage(inspector, fixture.first),
-            /Cota indisponível/u,
+            /Quota unavailable/u,
           );
           const mutation =
             table === 'account_quota_usage'

@@ -3,7 +3,7 @@ export function readPreparationProfile(
 ): 'development' {
   const profile = environment['HASH_TALK_PROFILE'] ?? 'development';
   if (profile !== 'development') {
-    throw new Error('Esta base aceita somente o perfil development.');
+    throw new Error('This setup only accepts the development profile.');
   }
   return profile;
 }

@@ -63,6 +63,17 @@ await test('server errors retain the reason, numeric details and coarse diagnost
     '简介最多允许 500 个字符。',
   );
   assert.equal(translatedError('Device not authorized.'), '设备未获授权。');
+  for (const [message, expected] of [
+    ['Invalid call invitation.', '通话邀请无效。'],
+    [
+      'Media is not ready yet. Resume the upload.',
+      '媒体尚未准备好。请继续上传。',
+    ],
+    ['Invalid Solana address.', 'Solana 地址无效。'],
+    ['Video must be at most 120 seconds long.', '视频时长不得超过 120 秒。'],
+  ]) {
+    assert.equal(translatedError(message!), expected);
+  }
   assert.equal(
     translatedError('This message has reached 64 edits.'),
     '此消息已达到 64 次编辑。',

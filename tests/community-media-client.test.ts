@@ -7,7 +7,7 @@ import {
 import { communityMediaPartBytes } from '../src/shared/community-media/index.ts';
 import type { CommunityMediaState } from '../src/shared/community-media/index.ts';
 import { bytesHash } from '../src/shared/vault/index.ts';
-await test('cliente público aplica quantidade/mistura antes do envio e retoma partes recebidas', async () => {
+await test('public client enforces quantity and mixing before upload and resumes received parts', async () => {
   const bytes = new Uint8Array(communityMediaPartBytes + 10).fill(5),
     file = new File([bytes], 'sintetico.gif', { type: 'image/gif' });
   const source = {
@@ -69,7 +69,7 @@ await test('cliente público aplica quantidade/mistura antes do envio e retoma p
   );
   validateMediaSelection(Array.from({ length: 3 }, () => file));
 });
-await test('troca de contexto durante preparação interrompe o envio seguinte', async () => {
+await test('context change during preparation interrupts the next upload', async () => {
   let valid = true;
   const access = {
     community: crypto.randomUUID(),

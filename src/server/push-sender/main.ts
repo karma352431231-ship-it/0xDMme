@@ -7,7 +7,7 @@ import { preparePushSocket } from './socket.ts';
 let started: ReturnType<typeof createPushSender> | undefined;
 try {
   const config = readPushConfiguration(process.env);
-  if (!config) throw new Error('VAPID ausente.');
+  if (!config) throw new Error('VAPID missing.');
   const socketPath = process.env['HASH_TALK_PUSH_SOCKET'];
   const token = process.env['HASH_TALK_PUSH_TOKEN'];
   validatePushSocket(socketPath);
@@ -34,7 +34,7 @@ try {
 } catch {
   started?.close();
   process.stderr.write(
-    'Emissor push não iniciado; confira configuração privada.\n',
+    'Push sender did not start; check the private configuration.\n',
   );
   process.exitCode = 1;
 }

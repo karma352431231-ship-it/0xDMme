@@ -47,7 +47,7 @@ import {
   sealCommit,
 } from '../../src/client/vault-crypto/index.ts';
 
-await test('cofre persistente: reservas, isolamento, concorrência, falhas, quota e HTTP', async (t) => {
+await test('persistent vault: reservations, isolation, concurrency, failures, quota and HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo necessário.');
@@ -228,7 +228,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
   }
   const first = await prepare({ previous: null, value: 'base' });
   await t.test(
-    'reserva antecede bytes; aceitação é idempotente e não duplica cota',
+    'reservation precedes bytes; acceptance is idempotent and cannot duplicate quota',
     async () => {
       await assert.rejects(
         vault.operate('upload', a.session, {
@@ -261,7 +261,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     },
   );
   await t.test(
-    'conta/aparelho pendente, CSRF, origem e upload sem reserva são rejeitados',
+    'pending account or device, CSRF, origin and unreserved upload are rejected',
     async () => {
       await assert.rejects(
         vault.operate('object', outsider.session, { id: first.commit.id }),
@@ -318,7 +318,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     useB: true,
   });
   await t.test(
-    'concorrência conserva vencedor confirmado e edição concorrente pode formar outra versão',
+    'concurrency preserves the confirmed winner and concurrent editing may create another version',
     async () => {
       await Promise.all([
         vault.operate('reserve', a.session, { commit: concurrentA.commit }),
@@ -364,7 +364,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     prepare: (value) => prepare({ previous: last, value }),
   });
   await t.test(
-    'upload interrompido/corrompido e reinício não promovem dados incompletos',
+    'interrupted or corrupt upload and restart cannot promote incomplete data',
     async () => {
       const next = await prepare({ previous: last, value: 'retomável' });
       await vault.operate('reserve', a.session, { commit: next.commit });
@@ -398,7 +398,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
       await writeFile(join(directory, next.commit.block.hash), 'corrupt');
       await assert.rejects(
         vault.operate('object', a.session, { id: next.commit.id }),
-        /Integridade|Objeto/,
+        /integrity|object/,
       );
       await writeFile(join(directory, next.commit.block.hash), next.bytes);
       assert.equal(
@@ -412,7 +412,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     },
   );
   await t.test(
-    'reserva cheia é recusada atomicamente sem apagar versões aceitas; leituras não cobram',
+    'full reservation is rejected atomically without deleting accepted versions; reads incur no charge',
     async () => {
       const next = await prepare({
         previous: last,
@@ -487,7 +487,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     },
   );
   await t.test(
-    'limpeza de reserva abandonada preserva aceitos, upload ativo e rascunho retomável',
+    'abandoned reservation cleanup preserves accepted items, active upload and resumable draft',
     async () => {
       const expired = await prepare({
         previous: last,
@@ -545,7 +545,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     },
   );
   await t.test(
-    'capacidade global conta uso real, serializa contas e libera apenas reservas descartadas',
+    'global capacity counts actual usage, serializes accounts and releases only discarded reservations',
     async () => {
       const otherIdentity = await createIdentity(
         outsider.session.deviceId,
@@ -733,7 +733,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
   );
   const rotated = freshKeyring(a.session.accountId, ring);
   await t.test(
-    'revogação cancela upload concorrente e recuperação abre todas as versões confirmadas',
+    'revocation cancels concurrent upload and recovery opens all confirmed versions',
     async () => {
       const next = await prepare({
         previous: last,
@@ -807,7 +807,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
     },
   );
   await t.test(
-    'backup: limpeza de versão conserva cadeia/checkpoint e recusa acesso ao objeto',
+    'backup: version cleanup preserves chain and checkpoint and rejects object access',
     async () => {
       const service = new MessageService(database, database.devices, objects);
       const current = await database.devices.current(a.session.accountId);

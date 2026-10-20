@@ -201,18 +201,20 @@ const authored = [
 async function collect(root: string, path: string): Promise<string[]> {
   const absolute = resolve(root, path);
   if (!absolute.startsWith(`${root}${sep}`))
-    throw new Error('Fonte fora da raiz permitida.');
+    throw new Error('Source is outside the allowed root.');
   const info = await lstat(absolute);
-  if (info.isSymbolicLink()) throw new Error('Links não são fontes públicas.');
+  if (info.isSymbolicLink())
+    throw new Error('Links are not public source files.');
   if (info.isFile()) return [relative(root, absolute)];
-  if (!info.isDirectory()) throw new Error('Fonte irregular.');
+  if (!info.isDirectory()) throw new Error('Invalid source.');
   const entries = await readdir(absolute);
-  if (entries.length > 256) throw new Error('Diretório de fontes excedido.');
+  if (entries.length > 256)
+    throw new Error('Source directory exceeds the limit.');
   const files: string[] = [];
   for (const entry of entries.sort()) {
     files.push(...(await collect(root, `${path}/${entry}`)));
     if (files.length > maximumSourceFiles)
-      throw new Error('Quantidade de fontes excedida.');
+      throw new Error('Source count exceeds the limit.');
   }
   return files;
 }
@@ -279,7 +281,7 @@ export async function frontendSource(
   const included = new Set(files);
   verifyInputs(root, inputs, included);
   if (included.size > maximumSourceFiles)
-    throw new Error('Quantidade de fontes excedida.');
+    throw new Error('Source count exceeds the limit.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   // Plain ustar: the same files without per-file extended metadata (macOS
   // xattrs, ACLs, sub-second times) or machine-specific owner names.
@@ -321,6 +323,6 @@ function verifyInputs(
         path.startsWith('node_modules/')) &&
       !included.has(path)
     )
-      throw new Error('Fonte incorporada está ausente do pacote: ' + path);
+      throw new Error('Embedded source is missing from the package: ' + path);
   }
 }

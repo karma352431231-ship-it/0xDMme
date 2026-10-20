@@ -24,12 +24,12 @@ function solanaSigningKey(address: string) {
   const key = solanaPublicKey(address);
   const point = ed25519.Point.fromBytes(key, false);
   if (point.isSmallOrder() || !point.isTorsionFree())
-    throw new Error('Chave inválida.');
+    throw new Error('Invalid key.');
   return key;
 }
 function connectedChain(network: Ecosystem, value: unknown): string | number {
   if (network === 'solana') {
-    if (value !== 'solana:mainnet') throw new Error('Rede inválida.');
+    if (value !== 'solana:mainnet') throw new Error('Invalid network.');
     return value;
   }
   if (
@@ -38,7 +38,7 @@ function connectedChain(network: Ecosystem, value: unknown): string | number {
     value < 1 ||
     value > 2_147_483_647
   )
-    throw new Error('Rede inválida.');
+    throw new Error('Invalid network.');
   return value;
 }
 export function loginIdentity(input: unknown): {
@@ -128,12 +128,12 @@ function solanaBinding(
     parsed.expirationTime !== challenge.expiresAt.toISOString() ||
     challenge.expiresAt.getTime() <= Date.now()
   )
-    throw new Error('Vínculo inválido.');
+    throw new Error('Invalid binding.');
   if (
     parsed.resources?.length !== 1 ||
     parsed.resources[0] !== `urn:uuid:${challenge.deviceId}`
   )
-    throw new Error('Dispositivo inválido.');
+    throw new Error('Invalid device.');
 }
 
 function verifySolana(

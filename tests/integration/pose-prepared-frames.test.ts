@@ -9,7 +9,7 @@ import { classifyPreparedFrames } from '../../src/server/public-moderation/index
 import type { PreparedRgbaDetector } from '../../src/server/public-moderation/index.ts';
 import { readMediaRuntime } from '../../src/server/community-media/index.ts';
 
-await test('RGBA original e contextual: todos os frames, alpha, geometria e detalhe anterior à redução', async (t) => {
+await test('original and contextual RGBA: all frames, alpha, geometry and detail before reduction', async (t) => {
   const runtime = readMediaRuntime(process.env);
   if (!runtime) {
     t.skip('Configure FFmpeg/ffprobe para fixtures sintéticas.');

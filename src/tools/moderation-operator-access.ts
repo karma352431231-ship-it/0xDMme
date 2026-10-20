@@ -19,7 +19,7 @@ async function privateDirectory(directory: string): Promise<number> {
     (await realpath(directory)) !== directory
   )
     throw new Error(
-      'Diretório privado do operador requer proprietário atual e modo 0700.',
+      'Private operator directory requires the current owner and mode 0700.',
     );
   return uid;
 }
@@ -31,7 +31,7 @@ function privateConfiguration(stat: Stats, uid: number): void {
     stat.size > 4096
   )
     throw new Error(
-      'Configuração do operador requer arquivo próprio, regular, modo 0600 e até 4 KiB.',
+      'Operator configuration requires an owned regular file, mode 0600 and at most 4 KiB.',
     );
 }
 function configuration(value: unknown): OperatorConfiguration {
@@ -43,12 +43,12 @@ function configuration(value: unknown): OperatorConfiguration {
       new URL(input['databaseUrl']).protocol,
     )
   )
-    throw new Error('Banco do operador inválido.');
+    throw new Error('Invalid operator database.');
   if (
     typeof input['objectDirectory'] !== 'string' ||
     !isAbsolute(input['objectDirectory'])
   )
-    throw new Error('Diretório de objetos do operador inválido.');
+    throw new Error('Invalid operator object directory.');
   return {
     databaseUrl: input['databaseUrl'],
     objectDirectory: input['objectDirectory'],

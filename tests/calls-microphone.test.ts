@@ -12,7 +12,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-await test('cancelar durante a permissão do microfone interrompe o áudio concedido depois, sem abrir conexão', async (t) => {
+await test('cancellation during microphone permission stops audio granted later without opening a connection', async (t) => {
   function replace(target: object, name: string, value: unknown) {
     const previous = Object.getOwnPropertyDescriptor(target, name);
     Object.defineProperty(target, name, { value, configurable: true });
@@ -64,7 +64,7 @@ await test('cancelar durante a permissão do microfone interrompe o áudio conce
   assert.equal(rtc.state, 'idle');
 });
 
-await test('bloqueio de autoplay depois do encerramento não altera a chamada seguinte', async (t) => {
+await test('autoplay rejection after shutdown cannot alter the next call', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const { promise, reject } = deferred<void>();
   Object.defineProperty(globalThis, 'document', {

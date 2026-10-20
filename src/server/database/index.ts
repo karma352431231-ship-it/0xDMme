@@ -544,7 +544,7 @@ export class Database {
             [version, checksum],
           );
         } else if (existing.rows[0]?.checksum !== checksum) {
-          throw new Error('Migração aplicada difere da versão local.');
+          throw new Error('Applied migration differs from the local version.');
         }
       }
       await client.query('COMMIT');
@@ -562,7 +562,7 @@ export class Database {
       'SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version',
     );
     if (result.rows.length !== migrations.length)
-      throw new Error('Esquema do worker incompatível.');
+      throw new Error('Incompatible worker schema.');
     for (const [offset, filename] of migrations.entries()) {
       const sql = await readFile(
         new URL(`./migrations/${filename}`, import.meta.url),
@@ -573,7 +573,7 @@ export class Database {
         result.rows[offset]?.checksum !==
           createHash('sha256').update(sql).digest('hex')
       )
-        throw new Error('Migração do worker incompatível.');
+        throw new Error('Incompatible worker migration.');
     }
   }
   async healthy(): Promise<boolean> {
@@ -594,7 +594,7 @@ export class Database {
       'SELECT installation_id FROM hash_talk.service_metadata WHERE singleton = true',
     );
     const identity = result.rows[0]?.installation_id;
-    if (!identity) throw new Error('Estado persistente ausente.');
+    if (!identity) throw new Error('Persistent state missing.');
     return identity;
   }
 
@@ -633,7 +633,7 @@ export class Database {
       !snapshot ||
       Object.values(snapshot).some((value) => !Number.isFinite(value))
     )
-      throw new Error('Métricas indisponíveis.');
+      throw new Error('Metrics unavailable.');
     return {
       ...snapshot,
       poolConnections:

@@ -38,7 +38,7 @@ const subscription = {
     auth: randomBytes(16).toString('base64url'),
   },
 };
-await test('web aceita somente configuração do socket e rejeita VAPID privada/configuração parcial', () => {
+await test('web accepts only socket configuration and rejects private VAPID or partial configuration', () => {
   const env = {
     HASH_TALK_PUSH_PUBLIC_KEY: keys.publicKey,
     HASH_TALK_PUSH_SOCKET: '/private/tmp/push.sock',
@@ -58,7 +58,7 @@ await test('web aceita somente configuração do socket e rejeita VAPID privada/
   ])
     assert.throws(() => readPushClientConfiguration(bad));
 });
-await test('contrato push não admite conteúdo, identificadores, destino privado, convite vencido ou prazo ilimitado', () => {
+await test('push contract rejects content, identifiers, private destination, expired invitation and unbounded deadline', () => {
   const input = { subscription, expiresAt: 150_000, urgency: 'high' };
   assert.deepEqual(pushDispatch(input, 100_000), input);
   for (const bad of [
@@ -82,7 +82,7 @@ await test('contrato push não admite conteúdo, identificadores, destino privad
     pushPreferences({ messages: true, calls: 1, showCalls: false }),
   );
 });
-await test('emissor por socket autentica, valida os pedidos, transmite só inscrição/prazo e propaga inscrição expirada', async (t) => {
+await test('socket sender authenticates, validates requests, transmits only subscription and deadline and propagates expired subscription', async (t) => {
   const directory = await mkdtemp(temporaryPrefix),
     socketPath = join(directory, 'sender.sock');
   let sent = 0,
@@ -111,7 +111,7 @@ await test('emissor por socket autentica, valida os pedidos, transmite só inscr
     server.listen(socketPath, resolve);
   });
   const config = { publicKey: keys.publicKey, socketPath, token };
-  await assert.rejects(preparePushSocket(socketPath), /já está ativo/u);
+  await assert.rejects(preparePushSocket(socketPath), /already active/u);
   const delivery = { urgency: 'high' as const, expiresAt: Date.now() + 59_000 };
   await assert.rejects(
     dispatchPush(
@@ -169,7 +169,7 @@ await test('emissor por socket autentica, valida os pedidos, transmite só inscr
     'chave incompatível é recusada antes da conexão externa',
   );
 });
-await test('envio externo conserva payload genérico, separa coalescência urgente e limita timeout/TTL ao convite', async (t) => {
+await test('external delivery preserves generic payload, separates urgent coalescing and bounds timeout and TTL to the invitation', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100_000 });
   const capture: typeof webpush.sendNotification = (s, payload, options) => {
     assert.deepEqual(s, subscription);
@@ -194,7 +194,7 @@ await test('envio externo conserva payload genérico, separa coalescência urgen
   );
 });
 await test(
-  'reinício recupera socket órfão próprio e preserva arquivo comum',
+  'restart recovers its own orphan socket and preserves regular files',
   { timeout: 10_000 },
   async (t) => {
     const directory = await mkdtemp(temporaryPrefix),
@@ -220,7 +220,7 @@ await test(
     await preparePushSocket(socketPath);
     await assert.rejects(lstat(socketPath), { code: 'ENOENT' });
     await writeFile(socketPath, 'Preservar');
-    await assert.rejects(preparePushSocket(socketPath), /não pertence/u);
+    await assert.rejects(preparePushSocket(socketPath), /does not belong/u);
     assert.equal(await readFile(socketPath, 'utf8'), 'Preservar');
   },
 );

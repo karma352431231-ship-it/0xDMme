@@ -23,7 +23,7 @@ import { postState } from '../../src/shared/community-posts/index.ts';
 import { explorePage } from '../../src/shared/community-discovery/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
 
-await test('rankings: métricas exatas, votos agregados, eventos, recuperação e publicação', async (t) => {
+await test('rankings: exact metrics, aggregate votes, events, recovery and publication', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -142,7 +142,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     );
   }
   await t.test(
-    'medição respeita o prazo com JIT forçado e devolve a conexão após sucesso ou erro',
+    'measurement respects its deadline with forced JIT and returns the connection after success or error',
     async () => {
       await inspector.query('SET jit=on');
       await inspector.query('SET jit_above_cost=0');
@@ -186,7 +186,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'únicos não somam horários, conversa exclui auto-resposta e três autores entram em novas',
+    'unique counts do not add time slots, conversation excludes self-replies and three authors qualify as new',
     async () => {
       await refresh();
       const result = await page(),
@@ -214,7 +214,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'coleta respeita a âncora de uma rodada em andamento na fronteira dos 14 dias',
+    'collection respects the ongoing round anchor at the 14-day boundary',
     async () => {
       const at = (
         await inspector.query<{ at: Date }>(
@@ -253,7 +253,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'voto recente em post antigo, retry e reversão não multiplicam positivos',
+    'recent vote on an old post, retry and reversal cannot multiply positive counts',
     async () => {
       await inspector.query(
         "UPDATE hash_talk.community_posts SET created_at=clock_timestamp()-interval '10 days' WHERE id=$1",
@@ -364,7 +364,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'rollback não deixa pendência nem sinal; exclusão do original retira respostas',
+    'rollback leaves no pending work or signal; deleting the original removes replies',
     async () => {
       const before = await inspector.query<{ revision: string }>(
         'SELECT revision::text FROM hash_talk.community_ranking_state WHERE community_id=$1',
@@ -405,7 +405,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'leitores reutilizam geração; paginação conserva snapshot e cursor expirado exige reinício',
+    'readers reuse a generation; pagination preserves the snapshot and expired cursor requires restart',
     async () => {
       const extra: string[] = Array.from({ length: 30 }, () =>
         crypto.randomUUID(),
@@ -462,7 +462,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'aceite local mede publicação, atualização afetada e leitura com universo de 1.000 comunidades',
+    'local acceptance measures publication, affected updates and reads across 1,000 communities',
     async () => {
       const extra = Array.from({ length: 1000 - ids.length }, () =>
         crypto.randomUUID(),
@@ -558,7 +558,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'cache tem orçamento próprio, expira cursores sob pressão e não trunca candidatos',
+    'cache has its own budget, expires cursors under pressure and never truncates candidates',
     async () => {
       const pool = new pg.Pool({
         connectionString: config.databaseUrl,
@@ -902,7 +902,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
   );
   // Start deadline-driven work only after deterministic source/cache fixtures.
   await t.test(
-    'vencimentos reais atualizam métricas e novidade sem evento nem fallback',
+    'real expirations update metrics and novelty without an event or fallback',
     async () => {
       const id = crypto.randomUUID();
       ids.push(id);
@@ -943,7 +943,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'evento confirmado acorda produtor e recuperação encontra trabalho sem sinal',
+    'confirmed event wakes the producer and recovery finds work without a signal',
     async () => {
       await db.workSignals.start();
       worker.start();

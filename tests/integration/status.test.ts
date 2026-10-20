@@ -36,7 +36,7 @@ import {
   statusEnvelope,
 } from '../../src/shared/status/index.ts';
 import { partLimit } from '../../src/shared/attachments/index.ts';
-await test('status persistente: audiência congelada, novo contato, bloqueio, foto cifrada, expiração e coleta fora do backup', async (t) => {
+await test('persistent status: frozen audience, new contact, blocking, encrypted photo, expiration and collection outside backup', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

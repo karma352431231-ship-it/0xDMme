@@ -14,18 +14,18 @@ function start() {
   const recording = new Recording();
   const stopHooks: (() => void)[] = [];
   const panel = document.createElement('aside');
-  panel.setAttribute('aria-label', 'Medidor local de sincronização');
+  panel.setAttribute('aria-label', 'Local synchronization meter');
   panel.style.cssText =
     'position:fixed;top:8px;right:8px;z-index:2147483647;padding:12px;border:1px solid GrayText;background:Canvas;color:CanvasText;font:13px system-ui;max-width:260px;box-shadow:0 2px 8px GrayText;';
   const label = document.createElement('div');
-  label.textContent = '0xDMme · medidor local ativo (até 10 min)';
+  label.textContent = '0xDMme · local meter active (up to 10 min)';
   const marker = document.createElement('button');
   marker.type = 'button';
-  marker.textContent = 'Marcar demora';
+  marker.textContent = 'Mark delay';
   marker.onclick = () => recording.record('manual-marker');
   const done = document.createElement('button');
   done.type = 'button';
-  done.textContent = 'Parar e baixar relatório';
+  done.textContent = 'Stop and download report';
   panel.append(label, marker, done);
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -36,9 +36,9 @@ function start() {
       clearTimeout(deadline);
       for (const hook of stopHooks.reverse()) hook();
       recording.stop();
-      label.textContent = 'Captura encerrada · relatório apenas local';
+      label.textContent = 'Capture ended · local report only';
       marker.disabled = true;
-      done.textContent = 'Baixar relatório';
+      done.textContent = 'Download report';
     }
     return recording.report();
   }
@@ -86,12 +86,14 @@ function start() {
 }
 
 if (!['0xdmme.app', 'localhost', '127.0.0.1'].includes(location.hostname))
-  throw new Error('Execute o medidor somente no 0xDMme ou no teste local.');
+  throw new Error(
+    'Run the meter only on 0xDMme or the local test environment.',
+  );
 const host = window as DiagnosticWindow;
 if (host.__0xdmmeLag?.report().active)
-  throw new Error('O medidor já está ativo nesta aba.');
+  throw new Error('The meter is already active in this tab.');
 host.__0xdmmeLag?.remove();
 host.__0xdmmeLag = start();
 console.info(
-  'Medidor local ativo. Reproduza a demora e use Parar e baixar relatório. Não recarregue a página durante a captura.',
+  'Local meter active. Reproduce the delay and use Stop and download report. Do not reload the page during capture.',
 );

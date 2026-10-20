@@ -23,7 +23,7 @@ export function backupTarget(value: unknown): BackupTarget {
   const d = object(value);
   keys(d, ['kind', 'id', 'hash']);
   if (!['vault', 'message', 'dm-message'].includes(String(d['kind'])))
-    throw new Error('Tipo de seleção inválido.');
+    throw new Error('Invalid selection type.');
   return {
     kind: d['kind'] as BackupTarget['kind'],
     id: uuid(d['id']),
@@ -38,12 +38,12 @@ export function cleanupSelection(proof: MessageProof): {
   const d = proof.payload;
   keys(d, ['backup', 'revision', 'items']);
   if (!Array.isArray(d['items']) || !d['items'].length || d['items'].length > 8)
-    throw new Error('Limpeza exige de um a oito itens por lote.');
+    throw new Error('Cleanup requires one to eight items per batch.');
   const items = d['items']
     .map(backupTarget)
     .sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`));
   if (new Set(items.map((i) => `${i.kind}:${i.id}`)).size !== items.length)
-    throw new Error('Seleção repetida.');
+    throw new Error('Duplicate selection.');
   return {
     backup: fingerprint(d['backup']),
     revision: integer(d['revision'], 128),
@@ -88,7 +88,7 @@ export async function verifyRemoval(
         i.hash === removal.hash,
     )
   )
-    throw new Error('Limpeza pessoal não autenticada.');
+    throw new Error('Personal cleanup is not authenticated.');
   await verify(
     signer.signing,
     proof.signature,

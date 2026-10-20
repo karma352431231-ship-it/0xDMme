@@ -5,7 +5,7 @@ import {
   PublicSearchRequests,
 } from '../src/client/public-search/query.ts';
 import { searchMentions } from '../src/client/public-mentions/index.ts';
-await test('busca pública aceita @ e nome normalizado e recusa termos inválidos', () => {
+await test('public search accepts handles and normalized names and rejects invalid terms', () => {
   assert.equal(publicSearchQuery(' @Ana '), 'ana');
   assert.equal(
     publicSearchQuery(' IDEIAS   &   Conversas '),
@@ -15,7 +15,7 @@ await test('busca pública aceita @ e nome normalizado e recusa termos inválido
   assert.throws(() => publicSearchQuery('a'.repeat(101)));
   assert.throws(() => publicSearchQuery('an\u0000'));
 });
-await test('trocar a busca ou fechar descarta respostas atrasadas e mantém falhas atuais visíveis', async () => {
+await test('search change or dismissal discards late responses and keeps current failures visible', async () => {
   const pending = new Map<string, (result: string[]) => void>();
   const source = new PublicSearchRequests<string[]>(
     (query) => new Promise((resolve) => pending.set(query, resolve)),
@@ -37,7 +37,7 @@ await test('trocar a busca ou fechar descarta respostas atrasadas e mantém falh
     /HTTP indisponível/u,
   );
 });
-await test('pesquisa consulta somente endpoints públicos sem cookie e respeita seu limite de resultados', async (t) => {
+await test('search queries only public endpoints without cookies and respects the result limit', async (t) => {
   const requests: {
     path: string;
     credentials: RequestCredentials | undefined;

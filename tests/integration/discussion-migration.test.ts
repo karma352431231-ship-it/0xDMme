@@ -46,7 +46,7 @@ async function seedOwner(client: pg.Client, index: number) {
   );
   return { profile, community };
 }
-await test('061→062 preserva dados, recompõe diversidade e recusa corrupção de contadores/ledger', async (t) => {
+await test('061→062 preserves data, rebuilds diversity and rejects corrupt counters or ledger', async (t) => {
   const url = new URL(process.env['HASH_TALK_DATABASE_URL'] ?? '');
   if (
     !['127.0.0.1', 'localhost'].includes(url.hostname) ||

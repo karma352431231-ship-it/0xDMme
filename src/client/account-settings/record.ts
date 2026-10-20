@@ -25,7 +25,7 @@ export interface PrivacyChoices {
   readReceipts: boolean;
   backupReminder: boolean;
 }
-/** Everything Configurações iniciais sets at once. */
+/** Everything Initial settings sets at once. */
 export interface SettingsPack {
   settings: AccountSettings;
   privacy: PrivacyChoices;
@@ -54,7 +54,7 @@ export function accountSettings(value: unknown): AccountSettings {
   };
 }
 
-/** A change made in Configurações, applied over the account copy. */
+/** A change made in Settings, applied over the account copy. */
 export function withChange(
   current: AccountSettings,
   change: PreferenceChange,

@@ -9743,4 +9743,208 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Only text can be used to edit a message.',
     '只能使用文本编辑消息。',
   ],
+  'Vault changed during the call.': [
+    'Vault changed during the call.',
+    '通话期间保险库已更改。',
+  ],
+  'Online call authorization unavailable.': [
+    'Online call authorization unavailable.',
+    '在线通话授权不可用。',
+  ],
+  'Call authorization expired.': [
+    'Call authorization expired.',
+    '通话授权已过期。',
+  ],
+  'Media is not ready yet. Resume the upload.': [
+    'Media is not ready yet. Resume the upload.',
+    '媒体尚未准备好。请继续上传。',
+  ],
+  'Could not save. Reopen the private link and try again.': [
+    'Could not save. Reopen the private link and try again.',
+    '无法保存。请重新打开私密链接并重试。',
+  ],
+  "The operation failed. Check the image or the environment's availability.": [
+    "The operation failed. Check the image or the environment's availability.",
+    '操作失败。请检查图片或环境是否可用。',
+  ],
+  'Identities are not synchronized yet.': [
+    'Identities are not synchronized yet.',
+    '身份尚未同步。',
+  ],
+  'Community unavailable. Try again.': [
+    'Community unavailable. Try again.',
+    '社区不可用。请重试。',
+  ],
+  'Preparation unavailable. Resume the upload.': [
+    'Preparation unavailable. Resume the upload.',
+    '准备功能不可用。请继续上传。',
+  ],
+  'GIF must be at most 20 seconds long.': [
+    'GIF must be at most 20 seconds long.',
+    'GIF 时长不得超过 20 秒。',
+  ],
+  'Community owner': ['Community owner', '社区所有者'],
+  'New member': ['New member', '新成员'],
+  'Invalid object.': ['Invalid object.', '对象无效。'],
+  'Public profile unavailable. Try again.': [
+    'Public profile unavailable. Try again.',
+    '公开资料不可用。请重试。',
+  ],
+  'Invalid attachment content.': [
+    'Invalid attachment content.',
+    '附件内容无效。',
+  ],
+  'Image format not allowed.': [
+    'Image format not allowed.',
+    '不支持此图片格式。',
+  ],
+  'Invalid voice descriptor.': [
+    'Invalid voice descriptor.',
+    '语音描述信息无效。',
+  ],
+  'Invalid selection type.': ['Invalid selection type.', '选择类型无效。'],
+  'Cleanup requires one to eight items per batch.': [
+    'Cleanup requires one to eight items per batch.',
+    '每批清理必须包含一到八项。',
+  ],
+  'Duplicate selection.': ['Duplicate selection.', '选择重复。'],
+  'Personal cleanup is not authenticated.': [
+    'Personal cleanup is not authenticated.',
+    '个人清理未通过身份验证。',
+  ],
+  'Invalid call invitation.': ['Invalid call invitation.', '通话邀请无效。'],
+  'Invalid call capability.': [
+    'Invalid call capability.',
+    '通话权限凭证无效。',
+  ],
+  'Use a 0xDMme invitation link from this origin.': [
+    'Use a 0xDMme invitation link from this origin.',
+    '请使用来自此站点的 0xDMme 邀请链接。',
+  ],
+  'Invalid invitation.': ['Invalid invitation.', '邀请无效。'],
+  'Invalid private contact.': ['Invalid private contact.', '私密联系人无效。'],
+  'Field not allowed.': ['Field not allowed.', '不允许此字段。'],
+  'Write up to 16 KB of text.': [
+    'Write up to 16 KB of text.',
+    '请输入不超过 16 KB 的文本。',
+  ],
+  'Invalid daily content.': ['Invalid daily content.', '日常内容无效。'],
+  'Invalid linking code.': ['Invalid linking code.', '关联码无效。'],
+  'Linking requires HTTPS.': ['Linking requires HTTPS.', '关联需要 HTTPS。'],
+  'Linking code exceeds the limit.': [
+    'Linking code exceeds the limit.',
+    '关联码超出限制。',
+  ],
+  'Invalid linking link.': ['Invalid linking link.', '关联链接无效。'],
+  'Invalid linking secret.': ['Invalid linking secret.', '关联密钥无效。'],
+  'The request does not match the shared code.': [
+    'The request does not match the shared code.',
+    '请求与共享的关联码不匹配。',
+  ],
+  'GIF is incomplete, invalid or exceeds the processing budget.': [
+    'GIF is incomplete, invalid or exceeds the processing budget.',
+    'GIF 不完整、无效或超出处理预算。',
+  ],
+  'Invalid group name.': ['Invalid group name.', '群组名称无效。'],
+  'Invalid group photo.': ['Invalid group photo.', '群组照片无效。'],
+  'Group photo must be resized and have no metadata.': [
+    'Group photo must be resized and have no metadata.',
+    '群组照片必须缩小并移除元数据。',
+  ],
+  "Image exceeds this device's pixel budget.": [
+    "Image exceeds this device's pixel budget.",
+    '图片超出此设备的像素预算。',
+  ],
+  'Use a PNG, JPEG or WebP photo. Other formats can be sent as a file.': [
+    'Use a PNG, JPEG or WebP photo. Other formats can be sent as a file.',
+    '请使用 PNG、JPEG 或 WebP 照片。其他格式可以作为文件发送。',
+  ],
+  'Invalid PNG.': ['Invalid PNG.', 'PNG 无效。'],
+  'An animated image is not a photo.': [
+    'An animated image is not a photo.',
+    '动态图不是照片。',
+  ],
+  'Invalid JPEG.': ['Invalid JPEG.', 'JPEG 无效。'],
+  'JPEG dimensions missing.': ['JPEG dimensions missing.', '缺少 JPEG 尺寸。'],
+  'Invalid WebP.': ['Invalid WebP.', 'WebP 无效。'],
+  'Invalid result.': ['Invalid result.', '结果无效。'],
+  'Invalid coverage.': ['Invalid coverage.', '覆盖范围无效。'],
+  'Invalid scores.': ['Invalid scores.', '评分无效。'],
+  'Invalid distribution.': ['Invalid distribution.', '分布无效。'],
+  'Invalid identification.': ['Invalid identification.', '标识无效。'],
+  'Invalid budget.': ['Invalid budget.', '预算无效。'],
+  'Choose your assessment for this image.': [
+    'Choose your assessment for this image.',
+    '请选择对此图片的评估。',
+  ],
+  'Invalid format.': ['Invalid format.', '格式无效。'],
+  'Invalid accounting.': ['Invalid accounting.', '计量数据无效。'],
+  'Photo is not prepared.': ['Photo is not prepared.', '照片尚未准备好。'],
+  'Invalid key/signature.': ['Invalid key/signature.', '密钥或签名无效。'],
+  'Voice message has no authenticated descriptor.': [
+    'Voice message has no authenticated descriptor.',
+    '语音消息缺少已验证的描述信息。',
+  ],
+  'Invalid DM image.': ['Invalid DM image.', '私信图片无效。'],
+  'Invalid DM GIF.': ['Invalid DM GIF.', '私信 GIF 无效。'],
+  'Invalid DM photo.': ['Invalid DM photo.', '私信照片无效。'],
+  'Media size mismatch.': ['Media size mismatch.', '媒体大小不匹配。'],
+  'Invalid voice message.': ['Invalid voice message.', '语音消息无效。'],
+  'Invalid received photo.': ['Invalid received photo.', '收到的照片无效。'],
+  'Non-canonical encoding.': ['Non-canonical encoding.', '编码不符合规范。'],
+  'Invalid size.': ['Invalid size.', '大小无效。'],
+  'Vault exceeds the probe limit.': [
+    'Vault exceeds the probe limit.',
+    '保险库超出测试限制。',
+  ],
+  'Unsupported vault format.': [
+    'Unsupported vault format.',
+    '不支持此保险库格式。',
+  ],
+  'Incomplete vault.': ['Incomplete vault.', '保险库不完整。'],
+  'Invalid voice message duration or format.': [
+    'Invalid voice message duration or format.',
+    '语音消息时长或格式无效。',
+  ],
+  'Voice message size mismatch.': [
+    'Voice message size mismatch.',
+    '语音消息大小不匹配。',
+  ],
+  'Voice message format not allowed.': [
+    'Voice message format not allowed.',
+    '不支持此语音消息格式。',
+  ],
+  'Invalid return browser.': ['Invalid return browser.', '返回浏览器无效。'],
+  'Invalid Solana address.': ['Invalid Solana address.', 'Solana 地址无效。'],
+  'Invalid address.': ['Invalid address.', '地址无效。'],
+  'Invalid EVM address.': ['Invalid EVM address.', 'EVM 地址无效。'],
+  'The opening destination was changed.': [
+    'The opening destination was changed.',
+    '打开目标已更改。',
+  ],
+  'Identities changed during the call. Try again.': [
+    'Identities changed during the call. Try again.',
+    '通话期间身份已更改。请重试。',
+  ],
+  'Call invitation mismatch.': [
+    'Call invitation mismatch.',
+    '通话邀请不匹配。',
+  ],
+  'Message belongs to another pair.': [
+    'Message belongs to another pair.',
+    '消息属于其他会话双方。',
+  ],
+  'Video must be at most {0} seconds long.': [
+    'Video must be at most {0} seconds long.',
+    '视频时长不得超过 {0} 秒。',
+  ],
+  'Incomplete image.': ['Incomplete image.', '图片不完整。'],
+  'Truncated PNG.': ['Truncated PNG.', 'PNG 数据被截断。'],
+  'Truncated JPEG.': ['Truncated JPEG.', 'JPEG 数据被截断。'],
+  'Gallery exceeds the limit.': [
+    'Gallery exceeds the limit.',
+    '图库超出限制。',
+  ],
+  'Duplicate cases.': ['Duplicate cases.', '案例重复。'],
+  'profile.mutual-and': [' and ', '和'],
 };

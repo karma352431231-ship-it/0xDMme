@@ -18,7 +18,7 @@ function storage(value: string | null | Error) {
   };
 }
 
-await test('tema salvo no aparelho volta para Preto quando ausente, inválido ou ilegível', () => {
+await test('missing, invalid or unreadable device theme falls back to Black', () => {
   const cases: [string | null | Error, string, boolean][] = [
     [null, 'black', false],
     ['black', 'black', false],
@@ -34,7 +34,7 @@ await test('tema salvo no aparelho volta para Preto quando ausente, inválido ou
   }
 });
 
-await test('aplicar o tema marca a raiz e a cor da barra do navegador', () => {
+await test('applying the theme marks the root and browser bar color', () => {
   const meta = {
     content: '',
     setAttribute: (_: string, v: string) => void (meta.content = v),
@@ -64,7 +64,7 @@ function literalColors(source: string): string[] {
   );
 }
 
-await test('verificação de cores distingue seletores de valores e examina regras aninhadas', () => {
+await test('color check distinguishes selectors from values and inspects nested rules', () => {
   assert.deepEqual(
     literalColors(
       '#feed-panel, #fff { color: var(--text); background: transparent; }',
@@ -79,7 +79,7 @@ await test('verificação de cores distingue seletores de valores e examina regr
   );
 });
 
-await test('componentes usam somente tokens de tema, sem cores literais', async () => {
+await test('components use only theme tokens without literal colors', async () => {
   const base = new URL('../src/client/', import.meta.url);
   const offenders: string[] = [];
   for (const entry of await readdir(base, { recursive: true })) {

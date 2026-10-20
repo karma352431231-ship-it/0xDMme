@@ -43,5 +43,5 @@ await promisify(execFile)(
   { timeout: 10_000, maxBuffer: 4096 },
 );
 process.stdout.write(
-  'Avaliação experimental: interface e fontes correspondentes locais preparadas.\n',
+  'Experimental evaluation: local interface and corresponding source prepared.\n',
 );

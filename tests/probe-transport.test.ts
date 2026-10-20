@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { boundedResponse } from '../src/client/probe-transport/index.ts';
 import { maxResponseBytes } from '../src/shared/crypto-probe/index.ts';
 
-await test('corpo grande é interrompido antes de alimentar JSON/motor criptográfico', async () => {
+await test('large body is interrupted before feeding JSON or the cryptographic engine', async () => {
   let canceled = false;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -17,7 +17,7 @@ await test('corpo grande é interrompido antes de alimentar JSON/motor criptogr�
   assert.equal(canceled, true);
 });
 
-await test('UTF-8 malformado e status de erro não são apresentados como sucesso', async () => {
+await test('malformed UTF-8 and error status are never presented as success', async () => {
   await assert.rejects(boundedResponse(new Response(new Uint8Array([0xff]))));
   await assert.rejects(
     boundedResponse(new Response('{}', { status: 403 })),

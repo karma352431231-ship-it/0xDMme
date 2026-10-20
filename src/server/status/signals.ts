@@ -11,7 +11,7 @@ export class StatusSignals {
       fallbackMs: 0,
       work: () => this.drain(),
       failed: () => {
-        process.stderr.write('Avisos de status indisponíveis.\n');
+        process.stderr.write('Status notifications unavailable.\n');
       },
     });
   }

@@ -1,4 +1,4 @@
-/* Configurações iniciais and the push offer for other devices. */
+/* Initial settings and the push offer for other devices. */
 .settings-pack {
   width: min(36rem, calc(100vw - 2rem));
   max-height: calc(100dvh - 2rem);

@@ -16,7 +16,7 @@ const defaults = {
   recent: [],
 };
 
-await test('catálogo completo mantém variantes Unicode válidas e arte com proveniência fixada', () => {
+await test('complete catalog preserves valid Unicode variants and art with pinned provenance', () => {
   assert.equal(catalog.rows.length, 3963);
   for (const row of catalog.rows) assert.ok(validReaction(row[0]), row[0]);
   for (const emoji of [
@@ -118,7 +118,7 @@ await test('Chinese emoji names and local search cover the complete repertoire w
   assert.ok(chinese.find('🫪')?.[1]);
 });
 
-await test('paginação limita DOM e recentes respeitam ordem/limite da sessão', () => {
+await test('pagination bounds DOM and recents respect session order and limit', () => {
   const first = catalog.search(defaults),
     second = catalog.search({ ...defaults, offset: 72 });
   assert.equal(first.entries.length, 72);
@@ -146,7 +146,7 @@ await test('paginação limita DOM e recentes respeitam ordem/limite da sessão'
     32,
   );
 });
-await test('inserção conserva Unicode, seleção e texto adjacente sem trocar símbolos compostos', () => {
+await test('insertion preserves Unicode, selection and adjacent text without replacing compound symbols', () => {
   const text = 'antes 😃 depois';
   const result = insertEmoji(text, 6, 8, '👩🏽‍💻');
   assert.equal(result.text, 'antes 👩🏽‍💻 depois');

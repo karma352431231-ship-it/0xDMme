@@ -5,7 +5,7 @@ import {
   postViewsPage,
 } from '../src/shared/community-views/index.ts';
 
-await test('visualizações: lotes limitados, marca própria e contagem pública sem identidade', () => {
+await test('views: bounded batches, own marker and anonymous public count', () => {
   const item = {
     community: crypto.randomUUID(),
     post: crypto.randomUUID(),

@@ -185,7 +185,7 @@
   background-color: var(--surface);
   color: var(--text);
 }
-/* Previews in Perfil → Aparência show each theme regardless of the active one. */
+/* Previews in Profile → Appearance show each theme regardless of the active one. */
 [data-theme-preview] .appearance-swatch {
   background: linear-gradient(135deg, #0a0f22 50%, #4f7dff 50%);
 }

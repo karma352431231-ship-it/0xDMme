@@ -17,14 +17,16 @@ function privateIPv4(address: string): boolean {
   return first === 172 && second !== undefined && second >= 16 && second <= 31;
 }
 
-/** LAN privada explícita; nunca transforma o laboratório em listener público. */
+/** Explicit private LAN; never turns the lab into a public listener. */
 export function mobileOrigin(port: number, mobile: MobileListener): string {
   if (!privateIPv4(mobile.address))
-    throw new Error('O listener mobile exige IPv4 de rede privada.');
+    throw new Error(
+      'The mobile listener requires a private-network IPv4 address.',
+    );
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
-    throw new Error('Porta mobile inválida.');
+    throw new Error('Invalid mobile port.');
   if (!/^[A-Za-z0-9_-]{43}$/u.test(mobile.accessToken))
-    throw new Error('Token temporário inválido.');
+    throw new Error('Invalid temporary token.');
   return `https://${mobile.address}:${port}`;
 }
 
@@ -40,7 +42,7 @@ export function allowedProbeOrigin(
   );
 }
 
-/** Cookie HttpOnly cobre também assets e tokens sintéticos da API. */
+/** HttpOnly cookie also covers assets and synthetic API tokens. */
 export function authorizeMobile(
   request: IncomingMessage,
   response: ServerResponse,
@@ -65,9 +67,10 @@ export function authorizeMobile(
   return cookies.includes(`__Host-hash-talk-probe=${accessToken}`);
 }
 
-/** Bootstrap HTTP serve somente o certificado público, sem assets ou API. */
+/** HTTP bootstrap serves only the public certificate, without assets or API. */
 export function serveMobileCertificate(address: string, certificate: Buffer) {
-  if (!privateIPv4(address)) throw new Error('Bootstrap exige rede privada.');
+  if (!privateIPv4(address))
+    throw new Error('Bootstrap requires a private network.');
   const port = 45103;
   const server = createServer((request, response) => {
     response.setHeader('Cache-Control', 'no-store');

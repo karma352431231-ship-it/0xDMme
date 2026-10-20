@@ -22,7 +22,7 @@ export async function frontendVendorSource(root: string): Promise<Uint8Array> {
       !('version' in data) ||
       data.version !== '0.8.4'
     )
-      throw new Error('Fontes da biblioteca exigem nova revisão de versão.');
+      throw new Error('Library source requires a new version review.');
   }
   const path = resolve(root, directory, 'preferred-source.tar.xz');
   const metadata = await lstat(path);
@@ -31,9 +31,9 @@ export async function frontendVendorSource(root: string): Promise<Uint8Array> {
     metadata.isSymbolicLink() ||
     metadata.size > 2 * 1024 * 1024
   )
-    throw new Error('Arquivo de fontes da biblioteca inválido.');
+    throw new Error('Invalid library source archive.');
   const content = await readFile(path);
   if (createHash('sha256').update(content).digest('hex') !== digest)
-    throw new Error('Fontes da biblioteca alteradas sem revisão.');
+    throw new Error('Library source changed without review.');
   return content;
 }

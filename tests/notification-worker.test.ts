@@ -11,7 +11,7 @@ import type {
 import { deferred, waitForBoundary } from './fixtures/deferred.ts';
 import { pushJob } from './fixtures/push-job.ts';
 
-await test('push drena mais de um lote e preserva chegada de trabalho durante envio', async () => {
+await test('push drains more than one batch and preserves work arriving during delivery', async () => {
   const jobs: PushJob[] = Array.from({ length: 35 }, () => ({
     account_id: crypto.randomUUID(),
     device_id: crypto.randomUUID(),
@@ -113,7 +113,7 @@ await test('new device notifications progress while an unrelated slow send is pe
     await service.close();
   }
 });
-await test('push indisponível não consome trabalhos; elegibilidade é revalidada e retries permanecem limitados', async () => {
+await test('unavailable push consumes no jobs; eligibility is revalidated and retries stay bounded', async () => {
   const job = {
     account_id: crypto.randomUUID(),
     device_id: crypto.randomUUID(),

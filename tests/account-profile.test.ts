@@ -26,7 +26,7 @@ import {
 } from '../src/client/wallet/index.ts';
 import type { EvmProvider } from '../src/client/wallet/index.ts';
 
-await test('perfil cifrado autentica conta e revisão, rejeita chave errada e alteração', async () => {
+await test('encrypted profile authenticates account and revision and rejects wrong keys and tampering', async () => {
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
@@ -58,7 +58,7 @@ await test('perfil cifrado autentica conta e revisão, rejeita chave errada e al
   );
 });
 
-await test('foto de 3 MB é cifrada como bytes sem reduzir teto por expansão base64', async () => {
+await test('3 MB photo is encrypted as bytes without reducing the limit for base64 expansion', async () => {
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
@@ -78,7 +78,7 @@ await test('foto de 3 MB é cifrada como bytes sem reduzir teto por expansão ba
   );
 });
 
-await test('conversão Base64 conserva limites e codificação canônica, inclusive padding Matrix', () => {
+await test('Base64 conversion preserves limits and canonical encoding, including Matrix padding', () => {
   for (const values of [[0], [255], [255, 255], [0, 1, 255], [1, 2, 3, 4]]) {
     const bytes = new Uint8Array(values),
       encoded = Buffer.from(bytes).toString('base64');
@@ -113,14 +113,14 @@ await test('conversão Base64 conserva limites e codificação canônica, inclus
   }
 });
 
-await test('fronteiras rejeitam sessão com autorização inventada e nomes de controle', () => {
+await test('boundaries reject invented session authorization and control characters in names', () => {
   assert.equal(displayName('  Jose\u0301  '), 'José');
   assert.throws(() => displayName('nome\nindevido'));
   assert.throws(() => displayName('a'.repeat(81)));
   assert.throws(() => accountSession({ historyAuthorized: true }));
 });
 
-await test('conector usa somente contas, rede e personal_sign; nunca solicita transação', async () => {
+await test('connector uses only accounts, network and personal_sign and never requests a transaction', async () => {
   const calls: string[] = [];
   const address = `0x${'1'.repeat(40)}`;
   const instance: EvmProvider = {
@@ -167,7 +167,7 @@ await test('conector usa somente contas, rede e personal_sign; nunca solicita tr
   );
 });
 
-await test('perfil histórico com último acesso ligado permanece legível, mas o campo fica inativo', () => {
+await test('historical profile with last-seen enabled remains readable while the field stays inactive', () => {
   const profile = emptyProfile();
   profile.preferences.lastSeen = true;
   const reopened = decodePrivateProfile(JSON.stringify(profile));

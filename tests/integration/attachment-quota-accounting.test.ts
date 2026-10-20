@@ -416,7 +416,7 @@ async function verifyBoundaries(t: TestContext, context: AttachmentContext) {
         );
         await assert.rejects(
           vaultUsage(writer, fixture.first),
-          /Cota indisponível/u,
+          /Quota unavailable/u,
         );
         await assert.rejects(
           writer.query(

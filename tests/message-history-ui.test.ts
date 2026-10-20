@@ -338,7 +338,7 @@ await test('an unchanged GIF message keeps its DOM when another message arrives;
   assert.equal(f.history.children[0]!.dataset['message'], 'later');
 });
 
-await test('atualização em hidden conserva os nós e recursos até voltar; exclusão fecha mesmo em hidden', (t) => {
+await test('hidden updates preserve nodes and resources until return; deletion closes even while hidden', (t) => {
   const f = fixture(t);
   f.ui.render([row('first')]);
   const original = f.history.children[0],
@@ -359,7 +359,7 @@ await test('atualização em hidden conserva os nós e recursos até voltar; exc
   assert.equal(f.history.children.length, 0);
 });
 
-await test('edição, reação e exclusão preservam nós de mensagens não afetadas', (t) => {
+await test('editing, reaction and deletion preserve unaffected message nodes', (t) => {
   const f = fixture(t),
     original = { ...row('target', true), author: 'author' },
     other = row('other');
@@ -406,7 +406,7 @@ await test('edição, reação e exclusão preservam nós de mensagens não afet
   assert.equal(f.history.children[0], otherNode);
 });
 
-await test('uma resposta atualiza sua citação se a original mudar, conservando as demais bolhas', (t) => {
+await test('reply updates its quotation when the original changes and preserves other bubbles', (t) => {
   const f = fixture(t),
     original = row(crypto.randomUUID()),
     other = row('other'),

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { pageKey, pageContent } from '../src/client/app/pages.ts';
 
-await test('links antigos de configurações e retornos da wallet abrem o Perfil', () => {
+await test('legacy settings links and wallet returns open Profile', () => {
   for (const fragment of [
     '#perfil',
     '#configuracoes',
@@ -12,7 +12,7 @@ await test('links antigos de configurações e retornos da wallet abrem o Perfil
     assert.equal(pageKey(fragment), 'perfil');
 });
 
-await test('âncora de acessibilidade não navega e rotas desconhecidas não expõem páginas herdadas', () => {
+await test('accessibility anchor does not navigate and unknown routes expose no legacy pages', () => {
   assert.equal(pageKey('#workspace'), null);
   for (const fragment of ['', '#desconhecida', '#constructor', '#__proto__'])
     assert.equal(pageKey(fragment), 'conversas');
@@ -21,7 +21,7 @@ await test('âncora de acessibilidade não navega e rotas desconhecidas não exp
   assert.equal(pageKey('#comunidades?id=identificador'), 'comunidades');
 });
 
-await test('Perfil sem login monta apenas a entrada; configurações aparecem com sessão', () => {
+await test('logged-out Profile mounts only the login entry; settings require a session', () => {
   assert.equal(pageContent('perfil', false), '');
   assert.match(pageContent('perfil', true), /data-device-settings/u);
   assert.equal(

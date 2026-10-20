@@ -6,7 +6,7 @@ import { EmojiPicker } from '../src/client/emoji/index.ts';
 import type { ExternalMediaConsent } from '../src/client/external-media/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
-await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou carregar terceiros antes do toque', async (t) => {
+await test('selecting a GIF in post or reply changes only the draft without publishing or loading third parties before touch', async (t) => {
   const document = Object.assign(communityDocument(), {
       body: new CommunityNode('body'),
     }),

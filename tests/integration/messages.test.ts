@@ -85,7 +85,7 @@ import {
   profileCard,
 } from '../../src/client/message-profile/index.ts';
 import { object } from '../../src/shared/account/index.ts';
-await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, exclusão, bloqueio, cotas e aparelhos', async (t) => {
+await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, blocking, quotas and devices', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
@@ -363,7 +363,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   const accepted = await packet('Conteúdo sintético privado'),
     hash = await digest(JSON.stringify(accepted));
   await t.test(
-    'somente consentimento e assinatura atuais admitem conteúdo; confirmação falsa não altera a fila',
+    'only current consent and signature admit content; false confirmation cannot change the queue',
     async () => {
       await assert.rejects(op(outsider, 'publish', { packet: accepted }));
       const corrupt = { ...accepted, signature: 'A'.repeat(86) + '==' };
@@ -392,7 +392,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'prévia privada retorna última mensagem própria ou recebida sem marcar leitura e isola contas',
+    'private preview returns the latest own or received message without marking it read and isolates accounts',
     async () => {
       const before = await inspector.query(
         'SELECT * FROM hash_talk.message_reads WHERE message_id=$1',
@@ -445,7 +445,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'reenvio idempotente não duplica mensagem, referências ou cobrança; pacote não contém texto legível',
+    'idempotent resend duplicates no message, references or charge; packet contains no plaintext',
     async () => {
       const before = await inspector.query<Record<string, unknown>>(
         'SELECT charge,recipient_charge,body FROM hash_talk.message_packets WHERE id=$1',
@@ -464,7 +464,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'chave Olm recebida é gravada pelo SDK; replay após confirmação não recria envelope',
+    'SDK persists the received Olm key; replay after confirmation cannot recreate an envelope',
     async () => {
       const inbox = object(await op(bob, 'matrix-inbox')),
         items = inbox['items'] as { sequence: number; event: unknown }[];
@@ -493,7 +493,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'ACK do celular conserva pendência do computador e não cobra novamente o histórico',
+    "phone ACK preserves the computer's pending delivery without charging history again",
     async () => {
       const recovered = await openRecoveryKey(bobKey, await authority(bob)),
         archive = accepted.archives[1];
@@ -547,7 +547,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   });
   await publish(pending);
   await t.test(
-    'backup: limpeza imediata é pessoal, autenticada, idempotente e preserva entrega ao outro participante',
+    'backup: immediate cleanup is personal, authenticated, idempotent and preserves delivery to the other participant',
     async () => {
       const p = await packet(
         'Backup sintético enquanto o computador está offline',
@@ -707,7 +707,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   });
   await publish(photo);
   await t.test(
-    'SSE real exige assinatura atual, libera slots HTTP e avisa remetente/destinatário após persistência',
+    'real SSE requires current signature, frees HTTP slots and notifies sender and recipient after persistence',
     async () => {
       let origin = 'http://127.0.0.1';
       const live = new MessageLive(db.changes),
@@ -855,7 +855,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'registro de avisos em transação descartada não publica eventos',
+    'notification registration in a discarded transaction publishes no events',
     async () => {
       const observed: unknown[] = [],
         stop = db.changes.observe({
@@ -882,7 +882,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'voz v2 via Megolm/cofre chega a outro aparelho cifrada, sob demanda e recuperável sem sessão antiga',
+    'voice v2 via Megolm and vault reaches another device encrypted, on demand and recoverable without the old session',
     async () => {
       const bytes = voiceWav([new Int16Array(voiceRate).fill(1234)]),
         voice = { samples: voiceRate, sampleRate: voiceRate },
@@ -976,7 +976,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'rota exige origem, sessão e CSRF antes do corpo; preserva publicação grande e idempotente',
+    'route requires origin, session and CSRF before reading the body and preserves large idempotent publication',
     async () => {
       let origin = 'http://127.0.0.1';
       const account = createAccountHandler({
@@ -1133,7 +1133,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'anexos retomam partes duráveis, sobrevivem reinício e recuperam sem sessão antiga; exclusão libera objetos',
+    'attachments resume durable parts, survive restart and recover without the old session; deletion releases objects',
     async () => {
       const bytes = new Uint8Array(600_000).fill(37),
         sealed = await sealFile(bytes),
@@ -1409,7 +1409,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'reservas de anexos contam ambos os cofres/global antes do upload; temporários expiram sem afetar aceitos',
+    'attachment reservations charge both vaults and global capacity before upload; temporary expiration preserves accepted items',
     async () => {
       const sealed = await sealFile(new Uint8Array([6, 7, 8])),
         message = crypto.randomUUID(),
@@ -1508,7 +1508,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'reabertura do servidor conserva fila e aparelho sem sessões anteriores recupera mensagem',
+    'server reopen preserves the queue and a device without previous sessions recovers the message',
     async () => {
       sender.close();
       await db.close();
@@ -1575,7 +1575,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'bloqueio suspende pendência; desbloquear não restaura consentimento',
+    'blocking suspends pending delivery; unblocking cannot restore consent',
     async () => {
       await contactChange(bob, 'block', {
         wallet: {
@@ -1607,7 +1607,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'exclusão autenticada funciona bloqueado, remove arquivo automático dos dois lados e invalida snapshot',
+    'authenticated deletion works while blocked, removes both automatic copies and invalidates the snapshot',
     async () => {
       const snapshot = await op(bob, 'snapshot');
       await assert.rejects(
@@ -1650,7 +1650,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'novo consentimento retoma a mesma mensagem, sem nova aceitação ou TTL',
+    'new consent resumes the same message without new acceptance or TTL',
     async () => {
       await approve(alice, bob);
       const stored = await op(computer, 'object', {
@@ -1670,7 +1670,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'foto de perfil de 3 MB permanece privada e recuperável no mesmo protocolo',
+    '3 MB profile photo remains private and recoverable through the same protocol',
     async () => {
       const decoder = await machine(computer),
         secret = await openRecoveryKey(bobKey, await authority(computer));
@@ -1706,7 +1706,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'capacidade pessoal/global recusa antes da aceitação e desfaz pacote/referências',
+    'personal and global capacity reject before acceptance and undo packet and references',
     async () => {
       const constrained = new Database(config.databaseUrl, 1),
         limited = new MessageService(constrained, constrained.devices);
@@ -1759,7 +1759,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'revogação barra acesso imediatamente e aposenta só a referência escolhida',
+    'revocation immediately blocks access and retires only the chosen reference',
     async () => {
       const previous = bob.events.at(-1)!;
       bob.ring = freshKeyring(bob.session.accountId, bob.ring);
@@ -1801,7 +1801,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'remetente apaga antes da chegada e nenhuma cópia automática volta a ser entregue',
+    'sender deletes before arrival and no automatic copy is delivered again',
     async () => {
       const pHash = await digest(JSON.stringify(pending));
       await op(alice, 'delete', {
@@ -1828,7 +1828,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'bloco 10: privacidade independente, contadores, push, relações e revogação',
+    'block 10: independent privacy, counters, push, relations and revocation',
     async (dailyTest) => {
       const dana = await create(),
         eve = await create();
@@ -1874,7 +1874,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         keys: { p256dh: vapid.publicKey, auth: 'a'.repeat(22) },
       };
       await dailyTest.test(
-        'push coalescido não confirma entrega; mute e bloqueio impedem novos alertas',
+        'coalesced push never confirms delivery; mute and blocking prevent new alerts',
         async () => {
           await op(eve, 'daily-subscribe', { subscription });
           await assert.rejects(
@@ -1947,7 +1947,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'online e leitura são independentes; último acesso legado não é coletado; ACK não é leitura',
+        'online and read state are independent; legacy last-seen is not collected; ACK is not a read',
         async () => {
           let state = object(
             await op(dana, 'daily-state', { peer: eve.session.accountId }),
@@ -2056,7 +2056,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'edição exige autor/identidade originais e exclusão remove as cópias automáticas relacionadas',
+        'edit requires original author and identity; deletion removes related automatic copies',
         async () => {
           const relation = {
             id: p.id,
@@ -2237,7 +2237,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'diário limita revisões, cobra metadados e recusa cursor antigo, limpeza e transação desfeita',
+        'daily state bounds revisions, charges metadata and rejects old cursors, cleanup and rolled-back transactions',
         async () => {
           const before = object(await op(dana, 'snapshot')),
             account = dana.session.accountId,
@@ -2311,7 +2311,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'limpeza pessoal oculta alterações apenas da própria conta; dois recibos retiram também suas cifras',
+        'personal cleanup hides changes only for the own account; two receipts also remove its ciphertexts',
         async () => {
           const original = await make('Original para backup'),
             hash = await digest(JSON.stringify(original));
@@ -2382,7 +2382,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'aparelho revogado não consulta sinais nem recebe push, mesmo com inscrição antiga',
+        'revoked device cannot query signals or receive push even with an old subscription',
         async () => {
           const other = await link(eve);
           await op(other, 'daily-subscribe', {
@@ -2422,7 +2422,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
-    'exportação atravessa o limite de 32 mensagens em lotes assinados e confirma apenas hashes válidos',
+    'export crosses the 32-message limit in signed batches and confirms only valid hashes',
     async () => {
       const a = await create(),
         b = await create(),

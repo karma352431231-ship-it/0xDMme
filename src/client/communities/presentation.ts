@@ -143,8 +143,12 @@ function authorBadges(identity: HTMLElement, post: CommunityPost): void {
         : { owner: '👑', moderator: '🛡️', new: '🌱' }[badge.kind],
       'community-author-badge',
     );
-    mark.title = badge.label;
-    mark.setAttribute('aria-label', badge.label);
+    const label =
+      badge.kind === 'custom'
+        ? badge.label
+        : t(badge.kind === 'moderator' ? 'Moderator' : 'New member');
+    mark.title = label;
+    mark.setAttribute('aria-label', label);
     mark.dataset['kind'] = badge.kind;
     identity.append(mark);
   }

@@ -6,7 +6,7 @@ import {
 } from '../src/client/message-controls/index.ts';
 
 await test(
-  'controle invalida a própria página uma vez e outras abas recebem o aviso sem eco cancelar a mutação local',
+  'control invalidates its page once and notifies other tabs without an echo cancelling the local mutation',
   { timeout: 2000 },
   async (t) => {
     Object.defineProperty(globalThis, 'window', {

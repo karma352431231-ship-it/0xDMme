@@ -145,7 +145,7 @@ for (const scenario of architectureCases) {
   });
 }
 
-await test('interfaces públicas de módulos continuam permitidas', (t) => {
+await test('public module interfaces remain allowed', (t) => {
   const directory = fixture(t, {
     'src/server/messages/index.ts':
       "export { value } from '../vault/index.ts';\n",
@@ -162,7 +162,7 @@ await test('interfaces públicas de módulos continuam permitidas', (t) => {
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
-await test('ESLint bloqueia função com cinco parâmetros', (t) => {
+await test('ESLint blocks a function with five parameters', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts':
       'export function sum(a: number, b: number, c: number, d: number, e: number) { return a + b + c + d + e; }\n',
@@ -173,7 +173,7 @@ await test('ESLint bloqueia função com cinco parâmetros', (t) => {
   );
 });
 
-await test('lint com tipos bloqueia promise sem tratamento', (t) => {
+await test('type-aware lint blocks an unhandled promise', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts': 'Promise.resolve(1);\n',
   });
@@ -183,7 +183,7 @@ await test('lint com tipos bloqueia promise sem tratamento', (t) => {
   );
 });
 
-await test('TypeScript strict bloqueia tipos incompatíveis', (t) => {
+await test('strict TypeScript blocks incompatible types', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts': 'export const invalid: number = "text";\n',
   });
@@ -193,7 +193,7 @@ await test('TypeScript strict bloqueia tipos incompatíveis', (t) => {
   assert.match(result.stdout, /TS2322/);
 });
 
-await test('lint exige extensão relativa para execução nativa no Node', (t) => {
+await test('lint requires relative extensions for native Node execution', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts': "export { value } from './value';\n",
     'src/server/value.ts': 'export const value = 1;\n',
@@ -204,7 +204,7 @@ await test('lint exige extensão relativa para execução nativa no Node', (t) =
   );
 });
 
-await test('formatação incorreta faz a checagem falhar', (t) => {
+await test('incorrect formatting fails the check', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts': 'export const value={a:1}\n',
   });

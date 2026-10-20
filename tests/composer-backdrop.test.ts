@@ -33,7 +33,7 @@ function fixture() {
   return { dialog, abort, gesture, closes: () => closes };
 }
 
-await test('fechar pelo fundo consome o clique mesmo quando o rascunho exige confirmação', () => {
+await test('backdrop dismissal consumes the click even when a draft requires confirmation', () => {
   const view = fixture();
   const click = view.gesture(50, 50);
   assert.equal(view.closes(), 1);
@@ -44,7 +44,7 @@ await test('fechar pelo fundo consome o clique mesmo quando o rascunho exige con
   view.abort.abort();
 });
 
-await test('padding, arrastar para fora, botão secundário e gesto cancelado não descartam o compositor', () => {
+await test('padding, dragging outside, secondary button and cancelled gesture preserve the composer', () => {
   const view = fixture();
   for (const [start, finish, button] of [
     [120, 120, 0],
@@ -61,7 +61,7 @@ await test('padding, arrastar para fora, botão secundário e gesto cancelado n�
   view.abort.abort();
 });
 
-await test('sair da tela encerra os handlers de fechamento e não consome cliques futuros', () => {
+await test('leaving the screen ends dismissal handlers without consuming future clicks', () => {
   const view = fixture();
   view.abort.abort();
   assert.equal(view.gesture(50, 50).defaultPrevented, false);

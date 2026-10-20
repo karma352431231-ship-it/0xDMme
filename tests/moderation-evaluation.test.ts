@@ -10,7 +10,7 @@ import {
   evaluationRound,
 } from '../src/shared/moderation-evaluation/index.ts';
 
-await test('resultado experimental valida distribuição e não concede decisão de publicação', () => {
+await test('experimental result validates distribution and grants no publication decision', () => {
   const result = {
     model: 'viddexa/nsfw-detection-2-nano',
     modelHash: evaluationModelHash,
@@ -46,7 +46,7 @@ const calibrationCase = {
   reference: 'uncertain',
 };
 
-await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associada ao caso', async () => {
+await test('client checks bytes, MIME and hash before displaying the case image', async () => {
   const originalFetch = globalThis.fetch;
   const bytes = new TextEncoder().encode('own-image');
   const entry = evaluationCase({
@@ -94,7 +94,7 @@ await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associa
     globalThis.fetch = originalFetch;
   }
 });
-await test('galeria valida identidade, referência explícita e orçamento total sem confundir casos', () => {
+await test('gallery validates identity, explicit reference and total budget without mixing cases', () => {
   assert.deepEqual(evaluationCase(calibrationCase), calibrationCase);
   assert.throws(() => evaluationReference(''));
   for (const changes of [

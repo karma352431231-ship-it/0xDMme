@@ -403,7 +403,7 @@ export async function admitGroupNotification(
 ): Promise<void> {
   if (input.kind === 'profile') return;
   if (input.accounts.length > 200)
-    throw new Error('Audiência de grupo excedida.');
+    throw new Error('Group audience limit exceeded.');
   await client.query(
     `UPDATE hash_talk.push_subscriptions s SET pending=true,generation=generation+1,attempts=0,next_attempt=now() WHERE s.account_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR s.account_id<>$2) AND NOT EXISTS(SELECT 1 FROM hash_talk.group_controls c WHERE c.account_id=s.account_id AND c.group_id=$3 AND c.muted_until>(extract(epoch FROM now())*1000)::bigint)`,
     [input.accounts, input.sender, input.groupId],

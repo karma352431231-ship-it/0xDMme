@@ -100,7 +100,7 @@
 .directory-tools p {
   line-height: 1.6;
 }
-/* The same list is "Contatos" in the desktop panel and "Conversas" as the phone tab. */
+/* The same list is "Contacts" in the desktop panel and "Chats" as the phone tab. */
 .directory-heading .label-narrow {
   display: none;
 }

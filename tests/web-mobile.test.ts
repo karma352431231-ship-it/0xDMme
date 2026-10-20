@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mobileWebAddress } from '../src/server/web-mobile/index.ts';
 
-await test('base web mobile recusa endereços públicos, hosts, wildcard e IPv6', () => {
+await test('mobile web setup rejects public addresses, hosts, wildcard and IPv6', () => {
   for (const address of [
     '0.0.0.0',
     '127.0.0.1',

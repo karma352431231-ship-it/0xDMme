@@ -99,7 +99,7 @@ export class CallIdentity {
           const value = await work(a, last);
           this.guard(g);
           if (stamp !== this.stamp())
-            throw new Error('Cofre alterado durante a chamada.');
+            throw new Error('Vault changed during the call.');
           return { value, events, stamp };
         },
         { priority: 'interactive' },
@@ -119,7 +119,7 @@ export class CallIdentity {
       this.checkpoint = this.stamp();
       return result.value;
     }
-    throw new Error('Identidades mudaram durante a chamada. Tente novamente.');
+    throw new Error('Identities changed during the call. Try again.');
   }
   private async legacy<T>(
     peer: string,

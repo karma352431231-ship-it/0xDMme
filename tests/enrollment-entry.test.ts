@@ -35,7 +35,7 @@ class Dialog extends EventTarget {
     this.removed = true;
   }
 }
-await test('QR abre confirmação sem autenticar; consentimento conecta e remove capacidade da URL', async (t) => {
+await test('QR opens confirmation without authentication; consent connects and removes the URL capability', async (t) => {
   const origin = 'https://0xdmme.app';
   const code = {
     version: 1 as const,

@@ -43,7 +43,7 @@ import {
   rootPostContent,
 } from './community-fixture.ts';
 
-await test('corte 5: árvore, votos e avisos diretos com autorização e persistência', async (t) => {
+await test('cut 5: tree, votes and direct notifications with authorization and persistence', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -183,7 +183,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     keys: { p256dh: 'a'.repeat(87), auth: 'b'.repeat(22) },
   });
   await t.test(
-    'reply não exige follow; retry não duplica filho, notificação ou push; apenas destinatário direto',
+    'reply requires no follow; retry duplicates no child, notification or push; only direct recipient',
     async () => {
       const before = await vaultUsage(
         inspector,
@@ -303,7 +303,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'push comum acorda após commit e uma nova resposta não herda a espera após sucesso',
+    'ordinary push wakes after commit and a new reply inherits no delay after success',
     async () => {
       const testRoot = crypto.randomUUID(),
         testCommunity = crypto.randomUUID();
@@ -356,7 +356,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'árvore não atravessa comunidades, não aceita pai ausente nem muda pai em retry',
+    'tree cannot cross communities, accept a missing parent or change parent on retry',
     async () => {
       await assert.rejects(
         create(author, crypto.randomUUID(), root, other),
@@ -737,7 +737,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'paginação de irmãos e notificações não perde/repete itens; leitura é privada/idempotente',
+    'sibling and notification pagination neither loses nor repeats items; reading is private and idempotent',
     async () => {
       for (let i = 0; i < communityPageSize + 2; i++)
         await create(author, crypto.randomUUID(), root);
@@ -782,7 +782,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'falta de capacidade reverte reply, contador, voto, aviso e push na mesma transação',
+    'capacity shortage rolls back reply, counter, vote, notification and push in one transaction',
     async () => {
       const limited = new Database(config.databaseUrl, 1);
       const service = new CommunityService(
@@ -828,7 +828,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'sanção/arquivo impedem novos replies/votos; exclusão própria e avisos continuam acessíveis',
+    'sanction and archive block new replies and votes; own deletion and notifications remain accessible',
     async () => {
       let current = communityState(
         await owner.operate('state', { id: community }),
@@ -888,7 +888,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'ocultar/excluir preserva árvore e marcadores; texto restrito e histórico não entram no público',
+    'hide and delete preserve tree and markers; restricted text and history stay out of public responses',
     async () => {
       let current = await state(author, reply);
       const record = crypto.randomUUID();
@@ -975,7 +975,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'exclusão sintética retira o voto; @ reutilizado não herda autoria nem avisos',
+    'synthetic deletion removes the vote; reused handle inherits neither authorship nor notifications',
     async () => {
       const previous = (await communities.post(community, root)).score;
       for (const table of [
@@ -1004,7 +1004,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'recuperação conserva avisos e voto por conta; revogação recusa o aparelho anterior',
+    'recovery preserves notifications and account votes; revocation rejects the previous device',
     async () => {
       const oldProof = await owner.proof('post-notifications', { after: null });
       const challenge = await account.challenge({
@@ -1078,7 +1078,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'sessão encerrada não lê avisos nem grava interações com prova antiga',
+    'ended session cannot read notifications or write interactions with old proof',
     async () => {
       await account.logout(author.login.sessionToken);
       await assert.rejects(notices(author), bad(401));

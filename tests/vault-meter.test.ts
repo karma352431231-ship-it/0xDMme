@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageSize } from '../src/client/vault-ui/index.ts';
 
-await test('medidor do cofre mostra MB abaixo de 1 GB e GB a partir dele', () => {
+await test('vault meter shows MB below 1 GB and GB from that point onward', () => {
   const cases: [number, string][] = [
     [0, '0 MB'],
     [2_340_000, '2.3 MB'],

@@ -2,7 +2,7 @@
  * Conversation column on wide screens (desktop density).
  */
 @media (min-width: 1280px) {
-  /* Conversa: flush column, compact header, bubbles and composer. */
+  /* Chat: flush column, compact header, bubbles and composer. */
   #app-shell[data-page='conversas'] main {
     padding: 0;
   }

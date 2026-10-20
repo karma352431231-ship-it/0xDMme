@@ -46,8 +46,8 @@ try {
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
   const recoveryDocument = assets.get('/recovery.html')?.content;
-  if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
-  if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
+  if (!recoveryDocument) throw new Error('Recovery document missing.');
+  if (!approvalDocument) throw new Error('Approval document missing.');
   const moderation = await readPoseModerationConfiguration(process.env);
   database = new Database(
     config.databaseUrl,
@@ -93,7 +93,7 @@ try {
       config.origin,
     ),
   });
-  if (!(await database.healthy())) throw new Error('Banco indisponível.');
+  if (!(await database.healthy())) throw new Error('Database unavailable.');
   const live = new MessageLive(database.changes);
   const calls = new CallService({
     store: database.calls,
@@ -220,7 +220,7 @@ try {
     ];
     await database?.close();
     if (results.some((result) => result.status === 'rejected'))
-      throw new Error('Desligamento incompleto.');
+      throw new Error('Incomplete shutdown.');
   };
   const shutdown = () => {
     if (closing) return;
@@ -229,7 +229,7 @@ try {
     deadline.unref();
     void stopApplication?.()
       .catch(() => {
-        process.stderr.write('Falha no desligamento local.\n');
+        process.stderr.write('Local shutdown failed.\n');
         process.exitCode = 1;
       })
       .finally(() => {
@@ -237,26 +237,26 @@ try {
       });
   };
   host.server.on('error', () => {
-    process.stderr.write('Falha no serviço web local.\n');
+    process.stderr.write('Local web service failed.\n');
     process.exitCode = 1;
     shutdown();
   });
   await database.workSignals.start().catch(() => {
-    process.stderr.write('Sinalização indisponível; reconexão agendada.\n');
+    process.stderr.write('Signaling unavailable; reconnection scheduled.\n');
   });
   background?.start();
   notifications.start();
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
   process.stdout.write(
-    `0xDMme: ambiente ${config.profile} em ${config.origin}. Use somente dados fictícios.\n`,
+    `0xDMme: ${config.profile} environment at ${config.origin}. Use only synthetic data.\n`,
   );
 } catch {
   await (stopApplication ? stopApplication() : database?.close())?.catch(
     () => {},
   );
   process.stderr.write(
-    'Base local não iniciada. Confira configuração, build e banco exclusivo do 0xDMme.\n',
+    'Local setup did not start. Check the configuration, build and dedicated 0xDMme database.\n',
   );
   process.exitCode = 1;
 }

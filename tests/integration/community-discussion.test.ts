@@ -21,7 +21,7 @@ import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
 
-await test('feed e discussão: elegibilidade, representantes, diversidade e árvore pública', async (t) => {
+await test('feed and discussion: eligibility, representatives, diversity and public tree', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo necessário.');
@@ -194,7 +194,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     repeated = await create(followed, root);
   const nested = await create(owner, popular);
   await t.test(
-    'descendentes distintos vencem mensagens repetidas; próprio autor não acrescenta atividade',
+    'distinct descendants outweigh repeated messages; the original author adds no activity',
     async () => {
       await create(stranger, popular);
       for (let i = 0; i < 6; i++) await create(owner, repeated);
@@ -213,7 +213,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     },
   );
   await t.test(
-    'leitura assinada dos ramos conserva votos privados sem expor o leitor publicamente',
+    'signed branch reading preserves private votes without publicly exposing the reader',
     async () => {
       await reader.operate('post-vote', {
         id: community,
@@ -243,7 +243,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
   await follow(identities[1]!.id);
   await follow(identities[2]!.id);
   await t.test(
-    'Destaques exige votos/participantes, com ou sem follow, e Seguindo preserva original + reply mais antigo',
+    'Highlights requires votes and participants regardless of follow; Following preserves original and oldest reply',
     async () => {
       const general = await feed();
       assert.ok(general.items.some((item) => item.post.id === popular));
@@ -261,7 +261,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     },
   );
   await t.test(
-    'limiar de cinco votos é líquido e representante é único por original/autor em toda a paginação',
+    'five-vote threshold is net and representative is unique per original and author across pagination',
     async () => {
       await upvotes([low, repeated]);
       await people[5]!.operate('post-vote', {
@@ -351,7 +351,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     },
   );
   await t.test(
-    'cursores paginam datas empatadas sem repetir e ficam vinculados ao pai/ordem; HTTP valida entrada',
+    'cursors paginate tied dates without repetition and bind parent and order; HTTP validates input',
     async () => {
       const parent = await create(owner),
         ids: string[] = [];
@@ -392,7 +392,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     },
   );
   await t.test(
-    'excluir/ocultar/restaurar muda engajamento sem apagar descendentes; retries não duplicam',
+    'delete, hide and restore change engagement without deleting descendants; retries cannot duplicate',
     async () => {
       const before = await stats(popular),
         child = (await replies(nested, 'oldest')).items[0]!;
@@ -443,7 +443,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     },
   );
   await t.test(
-    'backfill recompõe dados existentes e cobrança incremental é liberada ao excluir conta',
+    'backfill rebuilds existing data and incremental charge is released on account deletion',
     async () => {
       const before = await stats(popular);
       await sql.query('BEGIN');

@@ -62,7 +62,8 @@ try {
   );
   const summary = {
     date: new Date().toISOString(),
-    environment: 'Node; fixtures e relay em memória; não mede celular ou rede',
+    environment:
+      'Node; in-memory fixtures and relay; does not measure mobile devices or networks',
     initializeTwoClientsMs: initializeMs,
     firstSendWithKeyExchangeMs: encryptMs[0],
     medianSend512BytesMs: median(encryptMs.slice(1)),
@@ -80,7 +81,7 @@ try {
     JSON.stringify(summary, null, 2) + '\n',
   );
   process.stdout.write(
-    'Medições sintéticas gravadas somente em .local/BLOCO_01_MEDIDAS_NODE.json.\n',
+    'Synthetic measurements saved only to .local/BLOCO_01_MEDIDAS_NODE.json.\n',
   );
 } finally {
   for (const client of clients) client.close();

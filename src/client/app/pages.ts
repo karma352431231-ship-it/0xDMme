@@ -74,7 +74,7 @@ export function saveSettingsSection(storage: SectionStorage, id: string): void {
   }
 }
 
-/** `#settings?section=<id>` opens that category, e.g. "Editar perfil público". */
+/** `#settings?section=<id>` opens that category, e.g. "Edit public profile". */
 export function requestedSettingsSection(hash: string): string | null {
   return routeParams(hash).get('section');
 }

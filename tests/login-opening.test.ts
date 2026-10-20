@@ -148,7 +148,7 @@ function globals(t: TestContext) {
 for (const ecosystem of ['evm', 'solana'] as const)
   for (const name of ['MetaMask', 'Phantom', 'Backpack'] as const)
     await test(
-      `${name}/${ecosystem}: primeira passagem entrega prova cifrada e libera configurações sem abrir wallet novamente`,
+      `${name}/${ecosystem}: first pass delivers encrypted proof and unlocks settings without reopening the wallet`,
       { timeout: 10000 },
       async (t) => {
         const { records, window, document } = globals(t),
@@ -325,7 +325,7 @@ for (const ecosystem of ['evm', 'solana'] as const)
       },
     );
 
-await test('abertura rejeita troca de destinatário, sessão, wallet, replay e retorno ausente após reinício', async (t) => {
+await test('opening rejects changed recipient, session or wallet, replay and missing return after restart', async (t) => {
   globals(t);
   const user = session(),
     receiver = await prepareLoginOpening('MetaMask');
@@ -383,7 +383,7 @@ await test('abertura rejeita troca de destinatário, sessão, wallet, replay e r
   assert.throws(() => server.confirmation('browser', user, ticket));
 });
 
-await test('restaurar sessão anterior não apaga o pedido novo recusado por sua vinculação de sessão', async (t) => {
+await test('restoring an earlier session cannot erase the new request rejected by its session binding', async (t) => {
   globals(t);
   const receiver = await prepareLoginOpening('MetaMask');
   const ticket = await openingTicket(receiver);
@@ -395,7 +395,7 @@ await test('restaurar sessão anterior não apaga o pedido novo recusado por sua
   assert.equal(await loginOpeningTicket(), ticket);
 });
 
-await test('ACK tardio e cancelamento antigo não removem o pedido substituto; expiração não é renovada pela leitura', async (t) => {
+await test('late ACK and old cancellation cannot remove the replacement request; reading cannot renew expiration', async (t) => {
   const { records } = globals(t);
   const receiver = await prepareLoginOpening('Phantom');
   const ticket = await openingTicket(receiver);

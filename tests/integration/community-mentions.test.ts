@@ -19,7 +19,7 @@ import {
   rootPostContent,
 } from './community-fixture.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-await test('nomes únicos concorrentes, datas e menções persistem sem trocar a identidade por reutilização de @', async (t) => {
+await test('concurrent unique names, dates and mentions persist without changing identity on handle reuse', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

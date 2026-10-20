@@ -100,7 +100,7 @@ export class CollectionApi {
       throw new Error(
         typeof code === 'string' && messages[code]
           ? messages[code]
-          : 'Não foi possível salvar. Reabra o link privado e tente novamente.',
+          : 'Could not save. Reopen the private link and try again.',
       );
     }
     return response;

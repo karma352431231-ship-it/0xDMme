@@ -167,7 +167,7 @@ export interface DailyText {
 const prefix = '\u001e0xdmme:1:';
 export function encodeDailyText(value: DailyText): string {
   if (new TextEncoder().encode(value.text).length > 16000)
-    throw new Error('Escreva até 16 KB de texto.');
+    throw new Error('Write up to 16 KB of text.');
   return (
     prefix +
     JSON.stringify({
@@ -187,7 +187,7 @@ export function decodeDailyText(value: string): DailyText {
     typeof d['forwarded'] !== 'boolean' ||
     new TextEncoder().encode(d['text']).length > 16000
   )
-    throw new Error('Conteúdo diário inválido.');
+    throw new Error('Invalid daily content.');
   return {
     text: d['text'],
     reply: d['reply'] === null ? null : uuid(d['reply']),

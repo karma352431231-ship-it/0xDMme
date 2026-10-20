@@ -53,14 +53,14 @@ export class PublicModerationOperator {
       bytes.length !== current.result.bytes ||
       createHash('sha256').update(bytes).digest('hex') !== current.resultHash
     )
-      throw new Error('Candidato público divergente.');
+      throw new Error('Public candidate mismatch.');
     const thumbnail = await this.files.digest(
       current.id,
       'thumbnail',
       current.result.thumbnailBytes,
     );
     if (thumbnail !== current.thumbnailHash)
-      throw new Error('Miniatura divergente.');
+      throw new Error('Thumbnail mismatch.');
     return { type: current.result.type, bytes };
   }
   review(input: {

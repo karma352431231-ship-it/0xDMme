@@ -57,7 +57,7 @@ function connection() {
   });
   return { pending, wallet, params };
 }
-await test('prova nativa conecta e assina pelo contrato NaCl sem transação ou sessão de conta', () => {
+await test('native proof connects and signs through the NaCl contract without transaction or account session', () => {
   const { pending, wallet, params } = connection();
   const connect = new URL(pending.link);
   assert.equal(
@@ -111,7 +111,7 @@ await test('prova nativa conecta e assina pelo contrato NaCl sem transação ou 
     /signTransaction|signAndSendTransaction|secret|handoff/u,
   );
 });
-await test('prova nativa recusa troca de estado, prazo renovado, campos duplicados e resposta de outra etapa', () => {
+await test("native proof rejects changed state, renewed deadline, duplicate fields and another stage's response", () => {
   const { pending, params } = connection();
   const wrong = new URLSearchParams(params);
   wrong.set('state', base58.encode(sodium.randombytes_buf(32)));
@@ -135,7 +135,7 @@ await test('prova nativa recusa troca de estado, prazo renovado, campos duplicad
   if (next.complete) throw new Error('Etapa incorreta.');
   assert.throws(() => receiveProbe(next.state, params, origin));
 });
-await test('canal nativo rejeita alteração de cifra, peer inválido, sessão de outra origem e assinatura de outra chave', () => {
+await test('native channel rejects altered ciphertext, invalid peer, other-origin session and signature by another key', () => {
   const { pending, wallet, params } = connection();
   const corrupt = new URLSearchParams(params);
   const data = base58.decode(corrupt.get('data') ?? '');
@@ -165,7 +165,7 @@ await test('canal nativo rejeita alteração de cifra, peer inválido, sessão d
     ),
   );
 });
-await test('prova limita URLs à origem própria e só expõe chaves públicas e cifras no protocolo', () => {
+await test('proof restricts URLs to its own origin and exposes only public keys and ciphertexts in the protocol', () => {
   for (const candidate of [
     'javascript:alert(1)',
     'https://0xdmme.app/other',

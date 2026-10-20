@@ -24,7 +24,7 @@ const transport: MessageTransport = (operation) =>
           ? { response: { one_time_keys: {}, failures: {} } }
           : { response: {} },
   );
-await test('DM pelo @ reutiliza Megolm com identidade/chaves próprias e não recupera com chave privada', async (t) => {
+await test('handle DM reuses Megolm with its own identity and keys and cannot recover with the private key', async (t) => {
   await initAsync();
   const privatePeer = await groupParticipant(),
     sender = await groupParticipant({ deviceName: 'DM device' }),

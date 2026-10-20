@@ -67,7 +67,7 @@ async function assertHistoryReadable(
   );
 }
 
-await test('autoridade das DMs registra em ambos os idiomas e preserva identidades locais de tentativas recusadas', async (context) => {
+await test('DM authority registers in both languages and preserves local identities from rejected attempts', async (context) => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB'),
     language = currentLanguage();
   Object.defineProperty(globalThis, 'indexedDB', {
@@ -82,7 +82,7 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
   for (const language of ['en', 'zh-CN'] satisfies AppLanguage[]) {
     for (const cached of [false, true]) {
       await context.test(
-        `${language}: ${cached ? 'identidade traduzida já salva' : 'primeiro registro'}`,
+        `${language}: ${cached ? 'saved translated identity' : 'first record'}`,
         async () => {
           setActiveLanguage(language);
           const profile = crypto.randomUUID(),
@@ -133,7 +133,7 @@ await test('autoridade das DMs registra em ambos os idiomas e preserva identidad
   }
   for (const collision of [false, true]) {
     await context.test(
-      `recuperação ${collision ? 'com colisão de alias' : 'com identidade traduzida salva'}`,
+      `recovery ${collision ? 'with alias collision' : 'with saved translated identity'}`,
       async () => {
         const profile = crypto.randomUUID(),
           firstAlias = crypto.randomUUID(),

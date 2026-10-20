@@ -13,7 +13,7 @@ import {
   groupCleanupNotice,
 } from '../src/shared/group-retention/index.ts';
 
-await test('limpeza começa em 90%, seleciona mídia antiga até 70% e não antecipa as 24 horas', () => {
+await test('cleanup starts at 90%, selects old media down to 70% and never shortens 24 hours', () => {
   assert.equal(mediaCleanupRequired(groupMediaWarning - 1), 0);
   assert.equal(
     mediaCleanupRequired(groupMediaWarning),
@@ -68,7 +68,7 @@ await test('limpeza começa em 90%, seleciona mídia antiga até 70% e não ante
   assert.equal(first.selected[0]?.id, objects[0]?.id);
 });
 
-await test('seleção não aceita sequências repetidas, bytes inválidos nem lotes ilimitados', () => {
+await test('selection rejects repeated sequences, invalid bytes and unbounded batches', () => {
   const one = { id: crypto.randomUUID(), sequence: 1, bytes: 10 };
   for (const items of [
     [one, one],

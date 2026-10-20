@@ -12,14 +12,17 @@ try {
   assert.equal(result.removedMemberAccepted, false);
   const verifier = new ProbeZkVerifier(result.root);
   const afterRemoval = new ProbeZkVerifier(result.removedRoot);
-  await assert.rejects(afterRemoval.accept(result.proof), /Contexto/);
+  await assert.rejects(
+    afterRemoval.accept(result.proof),
+    /Invalid authorization context/,
+  );
   await assert.rejects(
     verifier.accept({ ...result.proof, scope: '4202' }),
-    /Contexto/,
+    /Invalid authorization context/,
   );
   await assert.rejects(
     verifier.accept({ ...result.proof, privateKey: 'campo proibido' }),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   const competing = await Promise.allSettled([
     verifier.accept(result.proof),
@@ -29,7 +32,7 @@ try {
     competing.filter((entry) => entry.status === 'fulfilled').length,
     1,
   );
-  await assert.rejects(verifier.accept(result.proof), /repetida/);
+  await assert.rejects(verifier.accept(result.proof), /Repeated proof/);
   const summary = {
     valid: true,
     tamperRejected: true,
@@ -40,11 +43,11 @@ try {
     verifyMs: result.verifyMs,
     proofBytes: Buffer.byteLength(JSON.stringify(result.proof)),
   };
-  // snarkjs mantém workers próprios; processo exclusivo tem ciclo de vida limitado.
+  // snarkjs maintains its own workers; the dedicated process has a bounded lifecycle.
   process.stdout.write(JSON.stringify(summary), () => process.exit(0));
 } catch {
   process.stderr.write(
-    'Ensaio ZK falhou. Nenhuma autorização foi integrada ao produto.\n',
+    'ZK probe failed. No authorization was integrated into the product.\n',
     () => process.exit(1),
   );
 }

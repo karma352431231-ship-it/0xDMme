@@ -189,7 +189,7 @@ function assertInvitation(c: Parameters<typeof assertDescription>[0]): void {
     c.invitation &&
     (view.caller || !view.invitation || view.signal || view.sequence !== 0)
   )
-    throw new Error('Convite de chamada divergente.');
+    throw new Error('Call invitation mismatch.');
 }
 function assertNegotiation(
   d: CallDescription,

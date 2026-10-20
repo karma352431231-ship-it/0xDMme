@@ -710,7 +710,7 @@ export function startContacts(
   }
   return {
     ready,
-    /** Who may request a conversation, read from the server; used by Configurações iniciais. */
+    /** Who may request a conversation, read from the server; used by Initial settings. */
     async discovery(): Promise<DiscoveryMode> {
       await contacts.refresh();
       return contacts.state.mode;
@@ -722,7 +722,7 @@ export function startContacts(
       await contacts.configure(mode, contacts.state.inviteHash);
       render();
     },
-    /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
+    /** Received requests for Activity; same signed API and checks as Contacts → Requests. */
     async incomingRequests(): Promise<readonly Peer[]> {
       const previousRevision = contacts.state.revision;
       const incoming = await contacts.snapshot({ preservePages: true });

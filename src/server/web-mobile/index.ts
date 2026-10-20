@@ -52,7 +52,7 @@ export async function readMobileWebConfiguration() {
     Date.parse(certificate.validTo) <= Date.now() ||
     Date.parse(certificate.validFrom) > Date.now()
   )
-    throw new Error('Certificado mobile inválido ou expirado.');
+    throw new Error('Invalid or expired mobile certificate.');
   const publicKey = certificate.publicKey.export({
     type: 'spki',
     format: 'der',
@@ -65,7 +65,7 @@ export async function readMobileWebConfiguration() {
     publicKey.length !== suppliedKey.length ||
     !timingSafeEqual(publicKey, suppliedKey)
   )
-    throw new Error('Chave TLS incorreta.');
+    throw new Error('Incorrect TLS key.');
   return {
     address,
     port: 45112,
@@ -80,7 +80,7 @@ export async function recordMobileWebEntry(origin: string): Promise<void> {
   await mkdir(root, { recursive: true, mode: 0o700 });
   await writeFile(
     new URL('WEB_MOBILE_ACESSO.md', root),
-    `# Base web mobile temporária\n\nURL: ${origin}/#configuracoes\n\nSomente dados sintéticos. Banco exclusivo de testes. Listener limitado a uma hora.\n`,
+    `# Temporary mobile web setup\n\nURL: ${origin}/#configuracoes\n\nSynthetic data only. Dedicated test database. Listener limited to one hour.\n`,
     { mode: 0o600 },
   );
 }

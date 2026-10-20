@@ -853,7 +853,7 @@ export function startCommunities(
     async markRepliesRead(replies: readonly string[]): Promise<void> {
       await controller.request('post-notifications-read', { replies });
     },
-    /** Pending community transfers, as listed in Comunidades → Transferências. */
+    /** Pending community transfers, as listed in Communities → Transfers. */
     async pendingTransfers(): Promise<readonly Community[]> {
       return (await controller.list('invitations', null)).items;
     },

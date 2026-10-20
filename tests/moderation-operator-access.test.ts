@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readOperatorConfiguration } from '../src/tools/moderation-operator-access.ts';
 
-await test('operador: configuração só do proprietário, privada e sem links simbólicos', async () => {
+await test('operator: owner-only private configuration without symbolic links', async () => {
   const root = await realpath(
       await mkdtemp(join(tmpdir(), '0xdmme-operator-access-')),
     ),
@@ -38,7 +38,7 @@ await test('operador: configuração só do proprietário, privada e sem links s
       path,
       JSON.stringify({ ...config, objectDirectory: './objects' }),
     );
-    await assert.rejects(readOperatorConfiguration(root), /objetos/);
+    await assert.rejects(readOperatorConfiguration(root), /object/);
     await unlink(path);
     const external = join(root, 'other.json');
     await writeFile(external, JSON.stringify(config), { mode: 0o600 });

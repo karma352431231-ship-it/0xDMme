@@ -8,7 +8,7 @@ import type {
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import { SocialDms } from '../src/client/social-dm/index.ts';
 
-await test('DM cancela antes do envio se a sessão muda durante assinatura; não usa autoridade de outra conta', async (t) => {
+await test("DM cancels before sending if the session changes during signing and never uses another account's authority", async (t) => {
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),

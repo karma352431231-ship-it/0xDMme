@@ -18,7 +18,7 @@ import { messageTransport } from './fixtures/message-transport.ts';
 import { object } from '../src/shared/account/index.ts';
 
 await initAsync();
-await test('envio completa a consulta rastreada do SDK antes de estabelecer sessões e conserva recuperação real', async (t) => {
+await test('sending completes the SDK tracked query before establishing sessions and preserves real recovery', async (t) => {
   const sender = await groupParticipant(),
     peer = await groupParticipant();
   const fixture = messageTransport();
@@ -94,7 +94,7 @@ await test('envio completa a consulta rastreada do SDK antes de estabelecer sess
   assert.equal(checked, 2);
 });
 
-await test('prepare só atende consultas da própria conta; fila de outro usuário não é despachada sem contexto', async (t) => {
+await test("prepare serves only own-account queries; another user's queue requires context before dispatch", async (t) => {
   const sender = await groupParticipant(),
     foreign = matrixUser(crypto.randomUUID());
   const fixture = messageTransport(),
@@ -123,7 +123,7 @@ await test('prepare só atende consultas da própria conta; fila de outro usuár
   assert.deepEqual(fixture.queries, [[matrixUser(sender.accountId)]]);
 });
 
-await test('consulta automática também recusa chave Matrix adulterada', async (t) => {
+await test('automatic query also rejects a tampered Matrix key', async (t) => {
   const sender = await groupParticipant(),
     fixture = messageTransport();
   const machine = await MessageCrypto.create({

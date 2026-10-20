@@ -34,7 +34,7 @@ export async function preparePushSocket(path: string): Promise<void> {
     throw error;
   }
   if (!stat.isSocket() || stat.uid !== process.getuid?.())
-    throw new Error('Arquivo de socket não pertence ao emissor.');
-  if (await listening(path)) throw new Error('Emissor já está ativo.');
+    throw new Error('Socket file does not belong to the sender.');
+  if (await listening(path)) throw new Error('Sender is already active.');
   await unlink(path);
 }

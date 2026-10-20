@@ -49,11 +49,11 @@ export async function postAuthorBadges(
   for (const row of found.rows) {
     const values: CommunityBadge[] = [];
     if (row.owner)
-      values.push({ id: null, kind: 'owner', label: 'Dono da comunidade' });
+      values.push({ id: null, kind: 'owner', label: 'Community owner' });
     else if (row.moderator)
       values.push({ id: null, kind: 'moderator', label: 'Moderator' });
     else if (isNewMember(row.joined))
-      values.push({ id: null, kind: 'new', label: 'Novo membro' });
+      values.push({ id: null, kind: 'new', label: 'New member' });
     values.push(
       ...row.custom.map((badge) => ({ ...badge, kind: 'custom' as const })),
     );

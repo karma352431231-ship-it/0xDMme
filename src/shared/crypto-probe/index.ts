@@ -28,7 +28,7 @@ export function peer(role: Role): Role {
 
 export function record(value: unknown): JsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('Objeto inválido.');
+    throw new Error('Invalid object.');
   }
   return value as JsonObject;
 }
@@ -50,7 +50,7 @@ export function text(value: unknown, maximum = 16_384): string {
 
 export function onlyKeys(value: JsonObject, allowed: readonly string[]): void {
   if (Object.keys(value).some((key) => !allowed.includes(key))) {
-    throw new Error('Campo não permitido.');
+    throw new Error('Field not allowed.');
   }
 }
 

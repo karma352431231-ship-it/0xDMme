@@ -19,7 +19,7 @@ export function backgroundMode(
 ): 'embedded' | 'isolated' {
   const value = environment['HASH_TALK_BACKGROUND_MODE'] ?? 'embedded';
   if (value !== 'embedded' && value !== 'isolated')
-    throw new Error('Modo dos workers inválido.');
+    throw new Error('Invalid worker mode.');
   return value;
 }
 export async function createBackgroundWorker(
@@ -73,7 +73,7 @@ export async function embeddedBackground(
         workers.map((worker) => worker.close()),
       );
       if (results.some((result) => result.status === 'rejected'))
-        throw new Error('Workers não encerraram.');
+        throw new Error('Workers did not stop.');
     },
   };
 }

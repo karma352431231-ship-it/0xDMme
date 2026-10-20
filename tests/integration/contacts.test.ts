@@ -29,7 +29,7 @@ import { digest, eventHash, sign } from '../../src/shared/devices/index.ts';
 import { object } from '../../src/shared/account/index.ts';
 import { verifyContactConcurrency } from './contact-concurrency-fixture.ts';
 import { verifyContactPairConcurrency } from './contact-pair-concurrency-fixture.ts';
-await test('contatos persistentes: descoberta, consentimento, bloqueio, ausência de tetos e HTTP', async (t) => {
+await test('persistent contacts: discovery, consent, blocking, no caps and HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -281,7 +281,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     peer: { session: b.session, directory: await eventHash(b.event) },
   });
   await t.test(
-    'modo conservador oculta cadastro; apenas aparelhos autorizados consultam; ecossistema/endereço são exatos',
+    'conservative mode hides registration; only authorized devices query; ecosystem and address are exact',
     async () => {
       assert.equal(await op(a, 'discover', b.wallet), null);
       await assert.rejects(op(pending, 'state'));
@@ -307,7 +307,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'convite revogável só permite solicitar e não revela foto; somente destinatário aceita; cruzamento não aprova',
+    'revocable invitation only allows requesting and reveals no photo; only recipient accepts; crossing requests cannot approve',
     async () => {
       const token = 'a'.repeat(64);
       await configure(b, 'invite', await digest(token));
@@ -376,7 +376,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     other: [await authority(c), await authority(d)],
   });
   await t.test(
-    'bloqueio vale no servidor, cancela aprovação bilateral e não é revertido por estado antigo/desbloqueio',
+    'server enforces blocking, cancels bilateral approval and rejects old-state or unblock restoration',
     async () => {
       const stale = await rev(b);
       await blocked(b, a, true);
@@ -413,7 +413,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'rejeitar impede repetição; destinatário pode iniciar pedido inverso; bloqueio remove pedidos dos dois lados',
+    "rejection prevents repetition; recipient may initiate the reverse request; blocking removes both sides' requests",
     async () => {
       await configure(c);
       await request(a, c);
@@ -433,7 +433,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'bloqueio antes do cadastro e metadados sem apelido nem contadores diários',
+    'blocking before registration and metadata without aliases or daily counters',
     async () => {
       const unknown = { ecosystem: 'evm', address: '0x' + 'e'.repeat(40) };
       await op(a, 'block', {
@@ -464,7 +464,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'recebidas excedem antigo teto, pedidos concorrentes são idempotentes e todas as páginas continuam acessíveis',
+    'received requests exceed the old cap, concurrent requests are idempotent and all pages remain accessible',
     async () => {
       const target = await create();
       await configure(target);
@@ -486,7 +486,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'relações e bloqueios excedem antigos tetos por conta; mais de 32 novas solicitações no mesmo dia são aceitas',
+    'relations and blocks exceed old account caps; more than 32 new requests in one day are accepted',
     async () => {
       const sender = await create();
       const recipients: User[] = [];
@@ -541,7 +541,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'controles, bloqueios e relações excedem antigos tetos globais sem alterar descoberta ou consentimento',
+    'controls, blocks and relations exceed old global caps without changing discovery or consent',
     async () => {
       const fresh = await create();
       // Synthetic persisted state crosses the former thresholds without
@@ -604,7 +604,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     },
   );
   await t.test(
-    'HTTP exige origem, CSRF, sessão e assinatura; sessão encerrada invalida autorização antiga',
+    'HTTP requires origin, CSRF, session and signature; ended session invalidates old authorization',
     async () => {
       const p = await proof(a, 'state', {});
       async function http(headers: Record<string, string>, input: unknown = p) {

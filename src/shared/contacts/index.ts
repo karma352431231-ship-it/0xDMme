@@ -93,9 +93,9 @@ export function readInvitation(text: string, origin: string): Invitation {
     url.search ||
     contactInvitationValue(url.hash) === null
   )
-    throw new Error('Use um link de convite do 0xDMme desta origem.');
+    throw new Error('Use a 0xDMme invitation link from this origin.');
   const parts = contactInvitationValue(url.hash)!.split('.');
-  if (parts.length !== 2) throw new Error('Convite inválido.');
+  if (parts.length !== 2) throw new Error('Invalid invitation.');
   return invitation({ owner: parts[0], token: parts[1] });
 }
 export interface ContactProof {
@@ -171,7 +171,7 @@ function addressBookFormat(
   const addedVia = data['addedVia'];
   if (data['version'] === 2 && (addedVia === 'wallet' || addedVia === 'invite'))
     return { version: 2, addedVia };
-  throw new Error('Contato privado inválido.');
+  throw new Error('Invalid private contact.');
 }
 export function addressBookEntry(value: unknown): AddressBookEntry {
   const data = object(value);
@@ -189,7 +189,7 @@ export function addressBookEntry(value: unknown): AddressBookEntry {
   ];
   keys(data, format.version === 2 ? [...fields, 'addedVia'] : fields);
   if (typeof data['removed'] !== 'boolean')
-    throw new Error('Contato privado inválido.');
+    throw new Error('Invalid private contact.');
   return {
     ...walletContact({
       ecosystem: data['ecosystem'],

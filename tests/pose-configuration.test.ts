@@ -5,7 +5,7 @@ import {
   readPoseModerationConfiguration,
 } from '../src/server/public-moderation/index.ts';
 
-await test('aceite privado exige hash exato, caminhos completos e processador; sem configuração permanece desativado', async () => {
+await test('private approval requires exact hash, full paths and processor; absent configuration stays disabled', async () => {
   assert.equal(await readPoseModerationConfiguration({}), null);
   const identity = await poseModelIdentity();
   const environment = {
@@ -32,7 +32,7 @@ await test('aceite privado exige hash exato, caminhos completos e processador; s
     );
 });
 
-await test('aceite anterior preserva aprovações, mas não substitui a identidade da nova análise', async () => {
+await test('previous approval preserves approvals without replacing the new analysis identity', async () => {
   const identity = await poseModelIdentity();
   const predecessor =
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74';
@@ -58,7 +58,7 @@ await test('aceite anterior preserva aprovações, mas não substitui a identida
   );
 });
 
-await test('dois aceites exatos permitem a troca e o rollback sem aceitar pipeline divergente', async () => {
+await test('two exact approvals allow switching and rollback without accepting a mismatched pipeline', async () => {
   const identity = await poseModelIdentity();
   const environment = {
     HASH_TALK_MODERATION_ACCEPTED_HASH:
@@ -82,7 +82,7 @@ await test('dois aceites exatos permitem a troca e o rollback sem aceitar pipeli
   );
 });
 
-await test('lista exata preserva as duas gerações aprovadas, exige atual e recusa outros pipelines', async () => {
+await test('exact list preserves both approved generations, requires the current one and rejects other pipelines', async () => {
   const identity = await poseModelIdentity();
   const previous = [
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
@@ -119,7 +119,7 @@ await test('lista exata preserva as duas gerações aprovadas, exige atual e rec
     );
 });
 
-await test('aceite do próximo detector preserva as três gerações e exige identidade exata sem duplicações', async () => {
+await test('next-detector approval preserves three generations and requires exact identity without duplication', async () => {
   const identity = await poseModelIdentity();
   const predecessors = [
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
@@ -169,7 +169,7 @@ await test('aceite do próximo detector preserva as três gerações e exige ide
     );
 });
 
-await test('correção contextual conserva quatro aceites históricos e exige aceite exato do próximo', async () => {
+await test('contextual correction preserves four historical approvals and requires exact approval of the next', async () => {
   const identity = await poseModelIdentity();
   const predecessors = [
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',

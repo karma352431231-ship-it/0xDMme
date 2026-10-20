@@ -66,7 +66,7 @@ function firstMedia(post: CommunityPost | undefined): string | undefined {
   return post?.media?.[0]?.id;
 }
 
-await test('mídia das comunidades: cadeia real, autorização, vínculo atômico, capacidade e limpeza', async (t) => {
+await test('community media: real chain, authorization, atomic binding, capacity and cleanup', async (t) => {
   const ffmpeg = process.env['HASH_TALK_MEDIA_FFMPEG'],
     ffprobe = process.env['HASH_TALK_MEDIA_FFPROBE'];
   if (!ffmpeg || !ffprobe) {
@@ -319,7 +319,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     before = await usage();
   const post = crypto.randomUUID();
   await t.test(
-    'upload e preparação por HTTP, reenvio idempotente e leituras restritas',
+    'HTTP upload and preparation, idempotent resend and restricted reads',
     async () => {
       await reserve(input);
       await reserve(input);
@@ -363,7 +363,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'finalização do upload não bloqueia a mídia enquanto espera a contabilidade da postagem',
+    'upload finalization cannot block media while waiting for post accounting',
     async () => {
       await media.clean();
       await inspector.query(
@@ -396,7 +396,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'HTTP transfere 100 MB em 382 partes e outro usuário no mesmo endereço sem teto de 60 pedidos',
+    'HTTP transfers 100 MB in 382 parts and serves another user at the same address without a 60-request cap',
     async () => {
       // Synthetic bytes exercise durable transport, without decoding a fake video.
       const data = Buffer.alloc(communityMediaLimits.video.source, 9),
@@ -442,7 +442,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'post sem legenda, retries e nenhuma referência/URL/miniatura pública',
+    'post without a caption, retries and no public reference, URL or thumbnail',
     async () => {
       const content = {
         title: 'Mídia sintética',
@@ -519,7 +519,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'GIFs e vídeo reais; conjuntos, substituição e replies usam o contrato comum',
+    'real GIFs and video; sets, replacements and replies use the common contract',
     async () => {
       const animation = await readFile(gif),
         clip = await readFile(video);
@@ -590,7 +590,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'expiração limpa somente uploads não vinculados; falha nunca fica pronta',
+    'expiration cleans only unbound uploads; failure never becomes ready',
     async () => {
       const invalid = descriptor(
         'photo',
@@ -626,7 +626,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'análise vincula resultado e miniatura; descarte conserva texto do autor e original excluído mantém o reply restrito',
+    'analysis binds result and thumbnail; disposal preserves author text and deleted original keeps the reply restricted',
     async () => {
       const attached = await inspector.query<{
         id: string;
@@ -721,7 +721,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
             )
           ).rows[0]!.charge,
         );
-      await assert.rejects(media.clean(), /Objeto irregular/);
+      await assert.rejects(media.clean(), /Invalid object/);
       assert.equal(await globalUsage(), before);
       assert.equal(
         (
@@ -814,7 +814,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'mídia aprovada é pública em posts, replies e feed; ocultação, corrupção e exclusão fecham os bytes',
+    'approved media is public in posts, replies and feed; hiding, corruption and deletion close access to bytes',
     async (publicTest) => {
       const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' },
         accepted = new Database(config.databaseUrl, 3_000_000_000, [model]),
@@ -1112,7 +1112,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           return notice;
         }
         await publicTest.test(
-          'vídeo fica público durante análise; recusa, incerteza e falha revogam os bytes',
+          'video is public during analysis; rejection, uncertainty and failure revoke access to bytes',
           async () => {
             for (const verdict of ['reject', 'hold', 'failed'] as const) {
               const item = await uploadedVideo();
@@ -1251,7 +1251,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           },
         );
         await publicTest.test(
-          'hash, modelo e prazo inválidos fecham vídeo provisório; foto nunca usa essa liberação',
+          'invalid hash, model and deadline close provisional video; photos never use this release',
           async () => {
             const item = await uploadedVideo(),
               job = await db.publicModeration.claim(model);
@@ -1319,7 +1319,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           },
         );
         await publicTest.test(
-          'nova política preserva vídeo provisório, mas não reabre um vídeo já recusado',
+          'new policy preserves provisional video without reopening rejected video',
           async () => {
             for (const rejected of [false, true]) {
               const item = await uploadedVideo();
@@ -1399,7 +1399,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'reserva recusa falta de capacidade com rollback e libera somente após coleta',
+    'reservation rejects insufficient capacity with rollback and releases only after collection',
     async () => {
       const usage = await inspector.query<{ bytes: string }>(
         'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
@@ -1433,7 +1433,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'reserva antiga amplia resultado atomicamente, falta de capacidade preserva bytes e retry não duplica cobrança',
+    'old reservation expands the result atomically; insufficient capacity preserves bytes and retry cannot duplicate charges',
     async () => {
       const data = await readFile(video),
         candidate = descriptor('video', data);
@@ -1505,7 +1505,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'partes persistidas retomam após interrupção e cancelamento coleta sem aceitar mídia',
+    'persisted parts resume after interruption and cancellation collects without accepting media',
     async () => {
       const data = Buffer.alloc(communityMediaPartBytes + 100, 9),
         candidate = descriptor('video', data);
@@ -1547,7 +1547,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'aparelho revogado entre escrita e confirmação não confirma bytes',
+    'device revoked between writing and confirmation cannot confirm bytes',
     async () => {
       const candidate = descriptor('photo', bytes);
       await reserve(candidate);

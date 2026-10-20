@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { updateBlockReason } from '../src/client/app/update-readiness.ts';
 
-await test('atualização ignora painéis privados desconectados e preserva bloqueios reais com destino explícito', () => {
+await test('update ignores disconnected private panels and preserves real blocks with an explicit destination', () => {
   let authenticated = false;
   let deviceReason: string | null = null;
   const ready = { canActivate: () => true },

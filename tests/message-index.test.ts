@@ -23,7 +23,7 @@ function row(sequence: number, deleted = false) {
     status: 'pending',
   };
 }
-await test('rodadas limitadas continuam o mesmo snapshot sem liberar índice parcial; alteração reinicia', async () => {
+await test('bounded rounds continue the same snapshot without releasing a partial index; changes restart', async () => {
   const index = new MessageIndex();
   const rows = Array.from({ length: 144 }, (_, i) => row(i + 1, i === 16));
   const checked: number[] = [];
@@ -59,7 +59,7 @@ await test('rodadas limitadas continuam o mesmo snapshot sem liberar índice par
   );
   assert.deepEqual(checked, [17, 17]);
 });
-await test('índice adulterado não avança; foto excluída não faz reaparecer uma versão anterior', async () => {
+await test('tampered index cannot advance; deleted photo cannot resurrect a previous version', async () => {
   const index = new MessageIndex();
   const profile = { ...row(1), kind: 'profile' };
   const gone = { ...row(2, true), kind: 'profile' };
@@ -87,7 +87,7 @@ await test('índice adulterado não avança; foto excluída não faz reaparecer 
   );
 });
 
-await test('navegação reutiliza um índice completo de todas as conversas; alterações e exclusões exigem conferência atual', async () => {
+await test('navigation reuses a complete conversation index; changes and deletions require current verification', async () => {
   const index = new MessageIndex(),
     other = crypto.randomUUID();
   const rows = Array.from({ length: 40 }, (_, i) => ({
@@ -133,7 +133,7 @@ await test('navegação reutiliza um índice completo de todas as conversas; alt
   );
 });
 
-await test('catálogo que excede seu orçamento refaz a conferência da nova conversa sem devolver janela incompleta', async () => {
+await test('catalog exceeding its budget rechecks the new conversation without returning an incomplete window', async () => {
   const index = new MessageIndex(),
     ids = Array.from({ length: 270 }, () => crypto.randomUUID());
   const rows = Array.from({ length: 4320 }, (_, i) => ({
@@ -173,7 +173,7 @@ await test('catálogo que excede seu orçamento refaz a conferência da nova con
   assert.equal(pages - before, 270);
 });
 
-await test('preparação confirmada deixa todas as janelas prontas sem refazer páginas ao abri-las', async () => {
+await test('confirmed preparation leaves all windows ready without rebuilding pages on opening', async () => {
   const index = new MessageIndex(),
     other = crypto.randomUUID();
   const rows = Array.from({ length: 24 }, (_, i) => ({
@@ -210,7 +210,7 @@ await test('preparação confirmada deixa todas as janelas prontas sem refazer p
   }
 });
 
-await test('delta de exclusão verifica só a removida; edição e outra conversa não refazem páginas', async () => {
+await test('deletion delta checks only the removed item; edits and another conversation cannot rebuild pages', async () => {
   const index = new MessageIndex(),
     other = crypto.randomUUID(),
     target = row(1),
@@ -268,7 +268,7 @@ await test('delta de exclusão verifica só a removida; edição e outra convers
   assert.deepEqual(index.changesFor(second)?.peers, [recipient]);
 });
 
-await test('delta fora da conta ou resposta incompleta não avança o índice nem ignora exclusões', async () => {
+await test('delta outside the account or incomplete response cannot advance the index or skip deletions', async () => {
   for (const invalid of [
     'participant',
     'duplicate',

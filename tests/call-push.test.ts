@@ -16,7 +16,7 @@ const job: PushJob = {
     keys: { p256dh: 'a'.repeat(87), auth: 'a'.repeat(22) },
   },
 };
-await test('avisos de chamada saem imediatamente, só após autorização/consentimento e nunca alteram marcador durável', async () => {
+await test('call notifications leave immediately only after authorization and consent and never change the durable marker', async () => {
   let allowed = true,
     subscribed = true,
     sent = 0;
@@ -127,7 +127,10 @@ await test('call batch pressure is atomic and recovery releases success and fail
     },
   );
   try {
-    await assert.rejects(queue.enqueue(invite(jobs)), /Orçamento temporário/);
+    await assert.rejects(
+      queue.enqueue(invite(jobs)),
+      /Temporary call notification budget/,
+    );
     assert.equal(sends, 0);
     const released = reserveOperationMemory(available);
     assert.ok(released);
@@ -257,7 +260,7 @@ await test('expiry releases a replacement while an older active send still owns 
   assert.ok(release);
   release();
 });
-await test('falhas têm duas tentativas no máximo, cancelamento/expiração impedem retry e inscrição 410 é removida', async (t) => {
+await test('failures have at most two attempts; cancellation and expiration block retries and a 410 removes the subscription', async (t) => {
   t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: 100_000 });
   let attempts = 0,
     removed = 0,

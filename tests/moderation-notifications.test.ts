@@ -22,7 +22,7 @@ function controller(): PublicProfiles {
     withLocalVault: () => Promise.reject(new Error('Não usado')),
   });
 }
-await test('aviso explica a remoção e distingue falha/incerteza de recusa; sucesso e espera não acusam o autor', () => {
+await test('notice explains removal and distinguishes failure or uncertainty from rejection; success and waiting never accuse the author', () => {
   const refused = moderationNotification(notice);
   assert.match(refused!.title, /removed from public view/u);
   assert.match(refused!.reason, /detected explicit content/u);
@@ -37,7 +37,7 @@ await test('aviso explica a remoção e distingue falha/incerteza de recusa; suc
     /uncertain/u,
   );
 });
-await test('ler um aviso é limitado ao aparelho/conta, e uma mudança de status gera novo aviso', async (t) => {
+await test('notice read is device- and account-specific and a status change creates a new notice', async (t) => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
@@ -63,7 +63,7 @@ await test('ler um aviso é limitado ao aparelho/conta, e uma mudança de status
   );
   assert.equal((await notifications.read())[0]?.read, false);
 });
-await test('resposta de moderação da conta anterior não reaparece após troca de sessão', async (t) => {
+await test("previous account's moderation response cannot reappear after session change", async (t) => {
   const source = controller();
   let finish: (value: unknown) => void = () => undefined;
   t.mock.method(

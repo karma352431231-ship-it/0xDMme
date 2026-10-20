@@ -53,7 +53,8 @@ export async function readDirectoryPreviews(options: {
     const read = new Set<unknown>(receipts);
     options.guard();
     for (const row of dailyViews(delivered)) {
-      if (!peers.includes(row.peer)) throw new Error('Mensagem de outro par.');
+      if (!peers.includes(row.peer))
+        throw new Error('Message belongs to another pair.');
       result.set(
         row.peer,
         conversationPreview({

@@ -24,7 +24,7 @@ function validateDatabase(databaseUrl: string): URL {
     database.search !== '' ||
     database.hash !== ''
   )
-    throw new Error('Banco deve ser exclusivo e local.');
+    throw new Error('Database must be dedicated and local.');
   return database;
 }
 
@@ -36,7 +36,7 @@ function validateStagingDatabase(database: URL): void {
     !database.password
   )
     throw new Error(
-      'Banco de staging deve usar seu cluster e role exclusivos.',
+      'Staging database must use its dedicated cluster and role.',
     );
 }
 
@@ -46,15 +46,17 @@ function webEndpoint(
 ): Pick<WebConfiguration, 'port' | 'origin' | 'socketPath'> {
   const portText =
     environment['HASH_TALK_PORT'] ?? (staging ? '45113' : '45100');
-  if (!/^[1-9]\d{3,4}$/u.test(portText)) throw new Error('Porta inválida.');
+  if (!/^[1-9]\d{3,4}$/u.test(portText)) throw new Error('Invalid port.');
   const port = Number(portText);
-  if (port > 65535) throw new Error('Porta inválida.');
+  if (port > 65535) throw new Error('Invalid port.');
   if (!staging) return { port, origin: `http://127.0.0.1:${port}` };
   if (
     environment['HASH_TALK_PUBLIC_ORIGIN'] !== 'https://0xdmme.app' ||
     port !== 45113
   )
-    throw new Error('Staging exige origem canônica HTTPS e porta exclusiva.');
+    throw new Error(
+      'Staging requires the canonical HTTPS origin and a dedicated port.',
+    );
   return {
     port,
     origin: 'https://0xdmme.app',
@@ -72,7 +74,9 @@ function objectDirectory(
       (staging ? `${root}/content` : '.local/objects'),
   );
   if (!directory.startsWith(`${root}${sep}`))
-    throw new Error('Objetos devem ficar no diretório privado do ambiente.');
+    throw new Error(
+      "Objects must stay in the environment's private directory.",
+    );
   return directory;
 }
 
@@ -82,7 +86,7 @@ export function readWebConfiguration(
   const staging = environment['HASH_TALK_PROFILE'] === 'staging';
   if (!staging) readPreparationProfile(environment);
   const databaseUrl = environment['HASH_TALK_DATABASE_URL'];
-  if (!databaseUrl) throw new Error('Banco local não configurado.');
+  if (!databaseUrl) throw new Error('Local database is not configured.');
   const database = validateDatabase(databaseUrl);
   if (staging) validateStagingDatabase(database);
   return {
@@ -100,7 +104,7 @@ function gifConfiguration(
   const key = environment['HASH_TALK_KLIPY_API_KEY'];
   if (key === undefined || key === '') return {};
   if (!/^[A-Za-z0-9]{32,128}$/u.test(key))
-    throw new Error('Chave KLIPY inválida.');
+    throw new Error('Invalid KLIPY key.');
   return { gifSearchKey: key };
 }
 function accountConfiguration(
@@ -111,20 +115,20 @@ function accountConfiguration(
     ? '3000000000'
     : (environment['HASH_TALK_ACCOUNT_CAPACITY_BYTES'] ?? '3000000000');
   if (!/^[1-9]\d{8,14}$/u.test(capacityText))
-    throw new Error('Orçamento de contas inválido.');
+    throw new Error('Invalid account budget.');
   const accountCapacityBytes = Number(capacityText);
   if (
     !Number.isSafeInteger(accountCapacityBytes) ||
     accountCapacityBytes < 300_000_000
   )
-    throw new Error('Orçamento de contas inválido.');
+    throw new Error('Invalid account budget.');
   const walletConnectProjectId =
     environment['HASH_TALK_WALLETCONNECT_PROJECT_ID'];
   if (
     walletConnectProjectId !== undefined &&
     !/^[a-f0-9]{32}$/u.test(walletConnectProjectId)
   )
-    throw new Error('Project ID WalletConnect inválido.');
+    throw new Error('Invalid WalletConnect project ID.');
   return {
     contentCapacity: staging
       ? { mode: 'volume', directory: '/opt/0xdmme/release' }
