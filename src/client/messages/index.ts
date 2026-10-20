@@ -479,12 +479,8 @@ export function startMessages(
     check: () => requestRefresh('probe'),
   });
   const visits = new ConnectedConversationVisits<ConversationPeer>({
-    available: () =>
-      live.current &&
-      navigator.onLine &&
-      synchronization.foregroundReady &&
-      !continuity.suspended &&
-      !textQueue.pending,
+    connected: () => live.current && navigator.onLine && !continuity.suspended,
+    available: () => synchronization.foregroundReady && !textQueue.pending,
     backgroundReady: () => synchronization.backgroundReady,
     reusable: (peer) =>
       !peer.localOnly && controller.canRestore(peer.accountId),
@@ -1058,6 +1054,7 @@ export function startMessages(
       await controller.openArchive(peer.accountId);
       return;
     }
+    if (visits.restore()) return;
     await synchronizeVisible();
     await controller.savePins();
     // Opening one conversation only needs its read receipts. Account-wide

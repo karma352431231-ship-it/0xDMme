@@ -74,6 +74,34 @@ await test('switching retained conversations projects immediately and coalesces 
   assert.equal(f.state.restorablePeers.size, 0);
 });
 
+await test('a retained opening queued behind an active owner reuses history after that owner finishes', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  f.emit('ready');
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.calls.length = 0;
+  f.state.holdContacts = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.ok(f.calls.includes('contacts'));
+  f.state.restorablePeers.add('queued-retained');
+  f.calls.length = 0;
+  const opening = f.messages.openContact(peer('queued-retained'));
+  await turn();
+  assert.ok(!f.calls.includes('restore:queued-retained'));
+  f.contactLoad.resolve();
+  await opening;
+  assert.ok(f.calls.includes('restore:queued-retained'));
+  assert.ok(!f.calls.includes('probe'));
+  assert.ok(!f.calls.includes('synchronize'));
+});
+
 await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

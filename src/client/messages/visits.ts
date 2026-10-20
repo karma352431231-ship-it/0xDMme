@@ -1,6 +1,7 @@
 import { MessageWarmup } from './warmup.ts';
 
 interface VisitPorts<T> {
+  connected: () => boolean;
   available: () => boolean;
   backgroundReady: () => boolean;
   reusable: (peer: T) => boolean;
@@ -36,9 +37,17 @@ export class ConnectedConversationVisits<T> {
     });
   }
   open(peer: T): boolean {
-    if (!this.ports.available() || !this.ports.reusable(peer)) return false;
+    if (
+      !this.ports.connected() ||
+      !this.ports.available() ||
+      !this.ports.reusable(peer)
+    )
+      return false;
     this.ports.select(peer);
-    if (!this.ports.restore()) return false;
+    return this.restore();
+  }
+  restore(): boolean {
+    if (!this.ports.connected() || !this.ports.restore()) return false;
     this.checks.queue();
     return true;
   }
