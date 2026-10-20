@@ -1,7 +1,6 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { AccountError } from '../../shared/account/index.ts';
 import { MessageWarmup } from './warmup.ts';
-import { HistoryPreparation } from './preparation.ts';
+import { MessageInbox } from './inbox.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
@@ -49,11 +48,7 @@ export class MessageSynchronization {
   private closed = false;
   private interactiveChange = false;
   private maintenance: Promise<void> | null = null;
-  private preloadTimer: ReturnType<typeof setTimeout> | null = null;
-  private preloadAbort: AbortController | null = null;
-  private preloadRunning = false;
-  private preloadRetryAt = 0;
-  private readonly preparation = new HistoryPreparation();
+  private readonly inbox: MessageInbox;
   private automaticAttempts = 0;
   private lastTransferAttempt = 0;
   private readonly opening = new ConversationOpening();
@@ -62,11 +57,24 @@ export class MessageSynchronization {
 
   constructor(options: SynchronizationOperations) {
     this.options = options;
+    this.inbox = new MessageInbox({
+      ready: () => this.canPreload(),
+      generation: () => options.state().generation,
+      current: (generation) => this.current(generation),
+      direct: (signal) => options.preloadDirect(signal),
+      groups: (signal) => options.preloadGroups(signal),
+      pause: () => options.pause(),
+      changed: () => this.updates.resume(),
+      failed: (error) => {
+        this.report(error, t('Could not prepare conversation history.'));
+        options.status();
+      },
+    });
     this.updates = new LiveUpdates({
       available: () =>
         this.canSynchronize() &&
         options.state().connected &&
-        !this.preloadRunning &&
+        !this.inbox.running &&
         !options.state().liveConnecting,
       run: (update) => {
         const work: VaultWorkOptions =
@@ -92,10 +100,10 @@ export class MessageSynchronization {
       this.interactiveChange ||= work.priority === 'interactive';
     this.updates.resume();
     this.followup.resume();
-    this.schedulePreload();
+    this.inbox.resume();
   }
   prepareHistory(): void {
-    this.preparation.request();
+    this.inbox.request();
   }
   request(update: LiveUpdate = 'refresh', work: VaultWorkOptions = {}): void {
     if (work.priority === 'interactive' && this.options.state().visible)
@@ -116,11 +124,9 @@ export class MessageSynchronization {
     this.interactiveChange = false;
     this.cancelOpening();
     this.updates.clear();
-    this.stopPreload();
     this.automaticAttempts = 0;
     this.lastTransferAttempt = 0;
-    this.preloadRetryAt = 0;
-    this.prepareHistory();
+    this.inbox.reset();
   }
   close(): void {
     this.closed = true;
@@ -219,11 +225,9 @@ export class MessageSynchronization {
     this.resume();
   }
   stopPreload(): void {
-    if (this.preloadTimer !== null) clearTimeout(this.preloadTimer);
-    this.preloadTimer = null;
-    this.preloadAbort?.abort();
-    this.options.pause();
+    this.inbox.pause();
   }
+
   private canSynchronize(): boolean {
     const state = this.options.state();
     return this.foregroundReady && state.visible && !state.textPending;
@@ -243,75 +247,6 @@ export class MessageSynchronization {
     const state = this.options.state();
     return this.canSynchronize() && state.connected && !state.startupPending;
   }
-  private schedulePreload(): void {
-    if (
-      this.preloadRunning ||
-      this.preloadTimer !== null ||
-      !this.canPreload() ||
-      !this.preparation.pending
-    )
-      return;
-    this.enqueuePreload();
-  }
-  private enqueuePreload(): void {
-    this.preloadTimer = setTimeout(
-      () => {
-        this.preloadTimer = null;
-        void this.preloadHistory();
-      },
-      Math.max(1000, this.preloadRetryAt - Date.now()),
-    );
-  }
-  private async preloadHistory(): Promise<void> {
-    if (!this.canPreload() || this.preloadRunning) return;
-    this.preloadRunning = true;
-    const abort = new AbortController(),
-      current = this.options.state().generation;
-    this.preloadAbort = abort;
-    try {
-      await this.preloadBranch(abort.signal, current);
-    } catch (error: unknown) {
-      if (!abort.signal.aborted && this.current(current)) {
-        this.report(error, t('Could not prepare conversation history.'));
-        this.options.status();
-        // A concurrent snapshot change needs another current read, not the
-        // minute backoff reserved for rate limits and operational failures.
-        this.preloadRetryAt =
-          Date.now() +
-          (error instanceof AccountError && error.status === 409
-            ? 1000
-            : 61000);
-      }
-    } finally {
-      this.preloadRunning = false;
-      if (this.preloadAbort === abort) this.preloadAbort = null;
-      this.updates.resume();
-      this.continuePreload(current);
-    }
-  }
-  private continuePreload(current: number): void {
-    if (
-      !this.current(current) ||
-      !this.canPreload() ||
-      !this.preparation.pending
-    )
-      return;
-    // A completed branch stays complete until foreground/live work arrives.
-    this.enqueuePreload();
-  }
-  private async preloadBranch(
-    signal: AbortSignal,
-    current: number,
-  ): Promise<void> {
-    const turn = this.preparation.next();
-    if (!turn) return;
-    const pending = await (turn.kind === 'groups'
-      ? this.options.preloadGroups(signal)
-      : this.options.preloadDirect(signal));
-    if (signal.aborted || !this.current(current)) return;
-    this.preparation.complete(turn, pending);
-  }
-
   private async checkChanges(work: VaultWorkOptions): Promise<void> {
     const current = this.options.state().generation;
     await this.checkAutomatically(async () => {
