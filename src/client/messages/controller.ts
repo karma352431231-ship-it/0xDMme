@@ -290,6 +290,7 @@ export class Messages {
     }
   }
   setSession(session: AccountSession | null): void {
+    this.conversations.setProfile(session);
     if (
       session?.accountId !== this.session?.accountId ||
       session?.csrf !== this.session?.csrf ||
@@ -352,6 +353,7 @@ export class Messages {
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
     this.probedSnapshot = null;
+    this.conversations.hint();
     this.visibility.hint();
   }
   setLiveConnected(connected: boolean): void {
@@ -387,6 +389,10 @@ export class Messages {
     if (candidate) this.oldest = candidate.oldest;
   }
   private rememberConversation(): void {
+    if (this.confirmed)
+      this.conversations.confirm(
+        JSON.parse(this.confirmed.snapshot) as unknown,
+      );
     if (!this.selected || this.before !== null || !this.confirmed) return;
     this.conversations.remember(this.selected, {
       ...this.confirmed,
@@ -1904,6 +1910,7 @@ export class Messages {
   }
   async remove(view: MessageView): Promise<void> {
     this.removed();
+    notifyMessageControls('other-tabs');
     const generation = this.generation;
     try {
       await this.access.withVault(false, (a) =>
@@ -1918,6 +1925,7 @@ export class Messages {
       if (generation === this.generation) this.hide();
       throw error;
     }
+    notifyMessageControls('other-tabs');
   }
   async search(query: string, after: string | null) {
     const generation = this.generation,

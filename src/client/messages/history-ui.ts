@@ -20,6 +20,7 @@ import { checksIcon, messageChecks } from '../message-status/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
+import { messageRowKeys } from './row-keys.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emojiText } from '../emoji/index.ts';
 import type { AttachmentUi } from '../attachment-ui/index.ts';
@@ -150,12 +151,17 @@ export class MessageHistoryUi {
     if (update === 'pending') return;
     if (update === 'history') {
       if (this.views === null) this.options.attachments.clearMedia();
+      const views = dailyViews(this.views ?? []),
+        keys = messageRowKeys(
+          views,
+          this.options.context().selected?.localOnly,
+        );
       this.externalRows.render(
         history,
         [
-          ...dailyViews(this.views ?? []).map((view) => ({
+          ...views.map((view) => ({
             id: view.id,
-            key: this.rowKey(view),
+            key: keys.get(view.id)!,
             render: (signal: AbortSignal) => this.renderMessage(view, signal),
           })),
           ...this.outgoingRows(),
@@ -171,30 +177,6 @@ export class MessageHistoryUi {
       verified: this.views ?? [],
       retry: this.options.retryOutgoing ?? (() => {}),
     });
-  }
-  private rowKey(view: DailyView<MessageView>): string {
-    const original = view.content.reply
-      ? dailyViews(this.views ?? []).find(
-          (row) => row.id === view.content.reply,
-        )
-      : null;
-    return JSON.stringify([
-      view.kind,
-      view.hash,
-      view.text,
-      view.content,
-      view.reactions,
-      view.ownReaction,
-      view.sentAt,
-      view.edited,
-      view.archived,
-      view.own,
-      view.peer,
-      view.author,
-      view.state === 'Suspensa',
-      original?.content.text.slice(0, 120),
-      this.options.context().selected?.localOnly,
-    ]);
   }
   renderStates(): void {
     updateMessageStates(

@@ -120,6 +120,59 @@ await test('A to B to A remains reusable through directory-only pauses while the
   assert.equal(f.data.requests.length, requests);
 });
 
+await test('a live hint blocks retained navigation until the current snapshot is authenticated again', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('Verified first conversation');
+  await f.add('Verified second conversation', other);
+  await f.controller.synchronize();
+  f.controller.select(other);
+  await f.controller.synchronize();
+  f.controller.hint();
+  assert.equal(f.controller.canRestore(f.peer), false);
+  assert.equal(f.controller.canRestore(other), false);
+  assert.equal(await f.controller.probe(), false);
+  assert.equal(f.controller.canRestore(f.peer), true);
+  f.controller.select(f.peer);
+  const requests = f.data.requests.length;
+  assert.equal(f.controller.restoreSelected(), true);
+  assert.equal(f.data.requests.length, requests);
+});
+
+await test('same-session profile name and revision changes invalidate navigation without resetting the account', async () => {
+  const f = resumeFixture();
+  f.controller.setLiveConnected(true);
+  await f.add('Verified conversation');
+  await f.controller.synchronize();
+  f.controller.setSession({ ...f.session });
+  assert.equal(f.controller.canRestore(f.peer), true);
+  const updated = {
+    ...f.session,
+    profileRevision: f.session.profileRevision + 1,
+  };
+  f.controller.setSession(updated);
+  assert.equal(f.controller.canRestore(f.peer), false);
+  await f.controller.synchronize();
+  assert.equal(f.controller.canRestore(f.peer), true);
+  f.controller.setSession({ ...updated, name: 'Updated synthetic profile' });
+  assert.equal(f.controller.canRestore(f.peer), false);
+});
+
+await test('a newly verified different snapshot cannot restore an older conversation window', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('Verified earlier conversation');
+  await f.controller.synchronize();
+  f.data.snapshot.revision++;
+  await f.add('New snapshot conversation', other);
+  f.controller.select(other);
+  await f.controller.synchronize();
+  assert.equal(f.controller.canRestore(f.peer), false);
+  assert.equal(f.controller.canRestore(other), true);
+});
+
 for (const cause of [
   'pause',
   'removed',

@@ -1,4 +1,5 @@
 import { canonical } from '../../shared/devices/index.ts';
+import type { AccountSession } from '../../shared/account/index.ts';
 interface ConversationView {
   text: string;
 }
@@ -21,6 +22,28 @@ export class ConfirmedConversations<T extends ConversationView> {
   private rows = 0;
   private connected = false;
   private epoch = 0;
+  private pending = false;
+  private profile = '';
+
+  setProfile(session: AccountSession | null): void {
+    const profile = canonical([
+      session?.name ?? null,
+      session?.profileRevision ?? null,
+    ]);
+    if (profile !== this.profile) this.clear();
+    this.profile = profile;
+  }
+
+  hint(): void {
+    this.pending = true;
+  }
+  confirm(snapshot: unknown): void {
+    const current = canonical(snapshot);
+    for (const [peer, window] of this.windows)
+      if (canonical(JSON.parse(window.value.snapshot) as unknown) !== current)
+        this.remove(peer);
+    this.pending = false;
+  }
 
   connection(connected: boolean): void {
     if (!connected) this.invalidateReuse();
@@ -31,13 +54,16 @@ export class ConfirmedConversations<T extends ConversationView> {
   }
   reusable(peer: string): ConfirmedConversation<T> | null {
     const window = this.windows.get(peer);
-    return this.connected && window?.epoch === this.epoch ? window.value : null;
+    return this.connected && !this.pending && window?.epoch === this.epoch
+      ? window.value
+      : null;
   }
 
   clear(): void {
     this.windows.clear();
     this.bytes = 0;
     this.rows = 0;
+    this.pending = false;
   }
   advance(from: unknown, snapshot: unknown, peers: readonly string[]): void {
     const affected = new Set(peers);

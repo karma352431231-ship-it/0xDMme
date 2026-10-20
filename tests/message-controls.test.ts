@@ -43,6 +43,20 @@ await test(
       1,
       'O eco da própria página cancelaria a exclusão em andamento.',
     );
+    const remoteOnly = new Promise<unknown>((resolve) => {
+      other.addEventListener(
+        'message',
+        (event) => resolve(event.data as unknown),
+        { once: true },
+      );
+    });
+    notifyMessageControls('other-tabs');
+    assert.equal(await remoteOnly, 'changed');
+    assert.equal(
+      local,
+      1,
+      'A locally concealed deletion must not trigger a full local reset',
+    );
     const incoming = new Promise<void>((resolve) => {
       window.addEventListener('0xdmme-test-control', () => resolve(), {
         once: true,

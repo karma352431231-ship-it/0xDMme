@@ -54,6 +54,20 @@ and cancellable while the current maintenance owner finishes. Eligible memory
 restoration then runs before entering the foreground synchronization state;
 an unavailable window still uses the normal blocking verification path.
 
+The `codex/chat-conversation-reuse` integration retains the current scheduler,
+connected-epoch cache, removal gate and per-row media cleanup instead of
+introducing a second cache or restoring the older screen coordinator. A live
+change hint blocks navigation reuse until authenticated snapshot confirmation;
+windows for a different snapshot are discarded. A same-session profile name or
+revision change also invalidates reuse so an older profile is not reused on
+navigation. Existing count, row and byte budgets remain unchanged.
+
+Message row identity is owned by `messages/row-keys.ts`. Receipt-only updates
+retain rows, while edits, deletions and changed reply excerpts update only the
+affected presentation and release its media resources. The deleting tab alerts
+other tabs without resetting its own in-flight deletion. All incoming branch
+regressions use the current English-source presentation and lifecycle contracts.
+
 ## Attachment processing
 
 The reported error comes from the worker error handler, rather than a rejection

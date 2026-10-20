@@ -1679,6 +1679,7 @@ export function startMessages(
     setSession(value: AccountSession | null): void {
       if (sameSession(value)) {
         session = value;
+        controller.setSession(value);
         daily.setSession(value);
         groups.setSession(value);
         return;
