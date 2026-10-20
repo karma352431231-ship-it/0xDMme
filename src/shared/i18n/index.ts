@@ -1,5 +1,6 @@
 import { catalog } from './catalog.ts';
 import { errorTemplates } from './error-templates.ts';
+import { legacyErrorSource } from './legacy-errors.ts';
 
 export const languages = [
   { id: 'en', label: 'English' },
@@ -78,7 +79,7 @@ export function t(
 export function translatedError(message: string): string {
   const source = Object.hasOwn(catalog, message)
     ? message
-    : sourceByTranslation.get(message);
+    : (sourceByTranslation.get(message) ?? legacyErrorSource(message));
   if (source) return t(source);
   for (const entry of errorPatterns) {
     const match = entry.pattern.exec(message);

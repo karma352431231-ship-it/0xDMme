@@ -9947,4 +9947,53 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Duplicate cases.': ['Duplicate cases.', '案例重复。'],
   'profile.mutual-and': [' and ', '和'],
+  'Media metadata exceeds the limit.': [
+    'Media metadata exceeds the limit.',
+    '媒体元数据超出限制。',
+  ],
+  'Media inspection incomplete.': [
+    'Media inspection incomplete.',
+    '媒体检查不完整。',
+  ],
+  'Invalid media sequence.': ['Invalid media sequence.', '媒体序列无效。'],
+  'Media sequence is empty or exceeds the limit.': [
+    'Media sequence is empty or exceeds the limit.',
+    '媒体序列为空或超出限制。',
+  ],
+  'Media decoding incomplete.': [
+    'Media decoding incomplete.',
+    '媒体解码不完整。',
+  ],
+  'Media analysis coverage is incomplete.': [
+    'Media analysis coverage is incomplete.',
+    '媒体分析覆盖不完整。',
+  ],
+  'Invalid media frame.': ['Invalid media frame.', '媒体帧无效。'],
+  'Media sequence exceeds the limit.': [
+    'Media sequence exceeds the limit.',
+    '媒体序列超出限制。',
+  ],
+  'Invalid media analysis dimensions.': [
+    'Invalid media analysis dimensions.',
+    '媒体分析尺寸无效。',
+  ],
+  'Invalid prepared media.': ['Invalid prepared media.', '已准备的媒体无效。'],
+  'Invalid media analysis coverage.': [
+    'Invalid media analysis coverage.',
+    '媒体分析覆盖无效。',
+  ],
+  'Media analysis model or policy mismatch.': [
+    'Media analysis model or policy mismatch.',
+    '媒体分析模型或策略不匹配。',
+  ],
+  'Prepared media mismatch.': [
+    'Prepared media mismatch.',
+    '已准备的媒体不匹配。',
+  ],
+  'Public analysis unavailable.': [
+    'Public analysis unavailable.',
+    '公开内容分析不可用。',
+  ],
+  'Invalid media duration.': ['Invalid media duration.', '媒体时长无效。'],
+  'Invalid media frame rate.': ['Invalid media frame rate.', '媒体帧率无效。'],
 };
