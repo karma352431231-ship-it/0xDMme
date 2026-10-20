@@ -3,7 +3,9 @@ from pathlib import Path
 import json
 import os
 import subprocess
+import shutil
 import sys
+import tempfile
 import urllib.parse
 
 root, phase, record = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
@@ -36,7 +38,16 @@ if phase == 'before':
     record.write_text(json.dumps(directory.snapshot()))
     record.chmod(0o600)
 elif phase == 'after':
-    directory.verify_migration(root, json.loads(record.read_text()))
+    # This historical rehearsal ends at 093, even after newer migrations are
+    # added. Supply that exact source sequence to the unchanged release guard.
+    with tempfile.TemporaryDirectory(prefix='0xdmme-directory-sources-') as temporary:
+        candidate = Path(temporary)
+        migrations = candidate / 'src/server/database/migrations'
+        migrations.mkdir(parents=True)
+        for path in (root / 'src/server/database/migrations').glob('*.sql'):
+            if int(path.name[:3]) <= 93:
+                shutil.copyfile(path, migrations / path.name)
+        directory.verify_migration(candidate, json.loads(record.read_text()))
 else:
     raise RuntimeError('Unknown test phase.')
 print(json.dumps({'phase': phase, 'verified': True}))

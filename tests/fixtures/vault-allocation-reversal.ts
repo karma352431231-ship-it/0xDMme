@@ -33,7 +33,11 @@ export async function rehearseAllocationReversal(input: {
   const { client, sources, predecessor } = input,
     before = await globalSourceSnapshot(client, sources),
     total = await globalBytes(client),
-    names = [...sources.map((s) => s.name), 'community_ranking_entries'];
+    names = [
+      ...sources.map((s) => s.name),
+      'community_ranking_entries',
+      'contact_invitations',
+    ];
   for (const name of names) assert.match(name, /^[a-z_]+$/u);
   await client.query('BEGIN');
   try {
