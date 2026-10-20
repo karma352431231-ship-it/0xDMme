@@ -304,6 +304,26 @@ await test('Discover starts at 24 hours and respects an explicit period choice',
   assert.ok(fixture.requests.length >= 2);
 });
 
+await test('a ranking publication during an existing read reconciles the new snapshot afterward', async (t) => {
+  const fixture = discoveryFixture({ view: 'explore' });
+  t.after(() => fixture.ui.leave());
+  await settled(fixture);
+  const wait = deferred<unknown>();
+  const previous = structuredClone(fixture.state.ranking);
+  fixture.state.reply = () => wait.promise;
+  const pending = fixture.ui.refresh();
+  await Promise.resolve();
+  const publication = fixture.published();
+  fixture.state.reply = null;
+  fixture.state.ranking.generation = crypto.randomUUID();
+  fixture.state.ranking.items[0]!.community.name = 'Newly published community';
+  wait.resolve(previous);
+  await pending;
+  await publication;
+  await settled(fixture);
+  assert.ok(fixture.host.textContent.includes('Newly published community'));
+});
+
 for (const language of ['en', 'zh-CN'] as const) {
   await test(`account ranking owns windows, bounded pages, errors and public identity in ${language}`, async (t) => {
     const fixture = discoveryFixture({ view: 'explore', language });
@@ -319,6 +339,10 @@ for (const language of ['en', 'zh-CN'] as const) {
     const accountPanel = host.querySelector('.account-ranking')!;
     assert.equal(accountPanel.hidden, false);
     assert.ok(accountPanel.textContent.includes('@synthetic_author'));
+    assert.equal(
+      accountPanel.querySelector('.account-ranking-restart')!.hidden,
+      true,
+    );
     // FOMO row: bio under the nick, followers over the relevance growth.
     assert.ok(accountPanel.textContent.includes('Synthetic bio'));
     const growth = accountPanel.querySelector('.ranking-side-growth')!;
@@ -327,6 +351,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     const oldRow = accountPanel.querySelector('.account-ranking-row');
     await ui.refresh();
     assert.equal(accountPanel.querySelector('.account-ranking-row'), oldRow);
+    state.accounts.generation = crypto.randomUUID();
     const cursor = JSON.stringify({
       generation: state.accounts.generation,
       rank: 1,
@@ -335,6 +360,11 @@ for (const language of ['en', 'zh-CN'] as const) {
     });
     state.accounts.next = cursor;
     await ui.refresh();
+    assert.equal(accountPanel.querySelector('.account-ranking-row'), oldRow);
+    assert.equal(
+      accountPanel.querySelector('.account-ranking-more')!.hidden,
+      false,
+    );
     state.accounts.items = [
       {
         ...state.accounts.items[0]!,
@@ -368,6 +398,14 @@ for (const language of ['en', 'zh-CN'] as const) {
       state.accountRequests.at(-1)!.searchParams.get('period'),
       'week',
     );
+    state.accountReply = () =>
+      Promise.reject(new Error('Ranking updated; reload the list.'));
+    await ui.refresh();
+    assert.equal(
+      accountPanel.querySelector('.account-ranking-restart')!.hidden,
+      false,
+    );
+    state.accountReply = null;
     button(accountPanel, fixture.t('ranking.reload')).click();
     await settled(fixture);
     assert.equal(state.accountRequests.at(-1)!.searchParams.get('after'), null);
@@ -389,5 +427,75 @@ for (const language of ['en', 'zh-CN'] as const) {
     wait.resolve({ ...fixture.state.accounts, items: [] });
     await settled(fixture);
     assert.ok(panel.textContent.includes('@synthetic_author'));
+  });
+}
+
+for (const language of ['en', 'zh-CN'] as const) {
+  await test(`user orders keep independent filters and Following uses the signed account in ${language}`, async (t) => {
+    const fixture = discoveryFixture({
+      view: 'explore',
+      language,
+      signedIn: true,
+    });
+    t.after(() => fixture.ui.leave());
+    await settled(fixture);
+    button(fixture.host, fixture.t('ranking.users')).click();
+    await settled(fixture);
+    const panel = fixture.host.querySelector('.account-ranking')!;
+    assert.equal(
+      fixture.state.accountRequests.at(-1)!.searchParams.get('order'),
+      'trending',
+    );
+    assert.ok(
+      !panel
+        .querySelectorAll('button')
+        .some((node) => node.textContent === fixture.t('ranking.new')),
+    );
+    for (const [label, order] of [
+      ['ranking.biggest', 'size'],
+      ['ranking.trending', 'trending'],
+    ] as const) {
+      button(panel, fixture.t(label)).click();
+      await settled(fixture);
+      assert.equal(
+        fixture.state.accountRequests.at(-1)!.searchParams.get('order'),
+        order,
+      );
+      assert.equal(
+        fixture.state.accountRequests.at(-1)!.searchParams.get('after'),
+        null,
+      );
+    }
+    const before = fixture.state.accountRequests.length;
+    fixture.state.request = (operation, data) => {
+      assert.equal(operation, 'discovery-accounts');
+      assert.deepEqual(JSON.parse(JSON.stringify(data)), {
+        period: 'day',
+        after: null,
+      });
+      return Promise.resolve(fixture.state.accounts);
+    };
+    button(panel, fixture.t('ranking.following')).click();
+    await settled(fixture);
+    assert.equal(fixture.state.accountRequests.length, before);
+    assert.ok(fixture.state.operations.includes('discovery-accounts'));
+    assert.equal(panel.querySelector('.ranking-periods')!.hidden, true);
+    assert.equal(panel.querySelector('.ranking-side-growth'), null);
+    button(panel, fixture.t('ranking.biggest')).click();
+    await settled(fixture);
+    assert.equal(panel.querySelector('.ranking-periods')!.hidden, false);
+  });
+  await test(`Following does not show another account's list when signed out in ${language}`, async (t) => {
+    const fixture = discoveryFixture({ view: 'explore', language });
+    t.after(() => fixture.ui.leave());
+    await settled(fixture);
+    button(fixture.host, fixture.t('ranking.users')).click();
+    await settled(fixture);
+    const panel = fixture.host.querySelector('.account-ranking')!;
+    button(panel, fixture.t('ranking.following')).click();
+    await settled(fixture);
+    assert.ok(panel.textContent.includes(fixture.t('ranking.sign-in')));
+    assert.equal(panel.querySelector('.account-ranking-row'), null);
+    assert.ok(!fixture.state.operations.includes('discovery-accounts'));
   });
 }

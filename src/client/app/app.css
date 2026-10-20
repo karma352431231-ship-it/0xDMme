@@ -68,6 +68,7 @@
 @import '../devices/device-cards.css';
 @import './card-forms.css';
 @import '../contacts/conversation-list.css';
+@import '../conversation-preview/preview.css';
 @import '../message-search/search-dialog.css';
 @import '../chat-ui/message-content.css';
 @import '../backups/backup-card.css';

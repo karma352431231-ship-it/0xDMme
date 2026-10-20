@@ -30,6 +30,10 @@ const bundle = await build({
     {
       name: 'discovery-browser-boundaries',
       setup(builder) {
+        builder.onResolve({ filter: /\/ranking-live\.ts$/ }, () => ({
+          path: 'ranking-live',
+          namespace: 'fixture',
+        }));
         builder.onResolve({ filter: /\/public-search\/index\.ts$/ }, () => ({
           path: 'search',
           namespace: 'fixture',
@@ -43,9 +47,11 @@ const bundle = await build({
         );
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({
           contents:
-            path === 'search'
-              ? 'export function mountPublicSearchToolbar() {}'
-              : `export function showPublicAvatar(host, input) { return fixtureMedia(host, input.signal); }
+            path === 'ranking-live'
+              ? 'export function watchRankingUpdates(options) { fixtureRanking(options); }'
+              : path === 'search'
+                ? 'export function mountPublicSearchToolbar() {}'
+                : `export function showPublicAvatar(host, input) { return fixtureMedia(host, input.signal); }
                  export function showPublicPostMedia(host, media, signal) { return fixtureMedia(host, signal); }
                  export function publicAvatarBlob() { throw new Error('Unexpected byte read'); }
                  export function publicPostMediaBlob() { throw new Error('Unexpected byte read'); }`,
@@ -185,6 +191,10 @@ export function discoveryFixture(options: FixtureOptions = {}) {
   const requests: { after: string | null; order: string }[] = [];
   const intervals = new Map<number, () => void>();
   const media = new Map<CommunityNode, AbortSignal>();
+  const rankingUpdates: {
+    refresh: () => Promise<void>;
+    signal: AbortSignal;
+  }[] = [];
   let intervalId = 0;
   const state = {
     feed: feed(),
@@ -282,6 +292,13 @@ export function discoveryFixture(options: FixtureOptions = {}) {
       media.set(node, signal);
       return () => media.delete(node);
     },
+    fixtureRanking: (options: {
+      enabled: boolean;
+      refresh: () => Promise<void>;
+      signal: AbortSignal;
+    }) => {
+      if (options.enabled) rankingUpdates.push(options);
+    },
   };
   runInNewContext(source, context);
   const exported = context['discoveryUi'] as {
@@ -314,6 +331,12 @@ export function discoveryFixture(options: FixtureOptions = {}) {
     requests,
     intervals,
     media,
+    published: () =>
+      Promise.all(
+        rankingUpdates
+          .filter((entry) => !entry.signal.aborted)
+          .map((entry) => entry.refresh()),
+      ),
     mount,
     t: exported.t,
     scroll(top: number) {

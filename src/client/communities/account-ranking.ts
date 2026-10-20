@@ -4,13 +4,17 @@ import {
   translatedError,
 } from '../../shared/i18n/index.ts';
 import { accountRankingPage } from '../../shared/account-ranking/index.ts';
-import type { AccountRankingEntry } from '../../shared/account-ranking/index.ts';
+import type {
+  AccountRankingEntry,
+  AccountRankingOrder,
+} from '../../shared/account-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { mentionPlainText } from '../../shared/public-mentions/index.ts';
+import { accountOrderControls } from './account-ranking-controls.ts';
 import { growthLabel } from './ranking-side-growth.ts';
 
 /** Windows offered by both rankings, labelled in the current language. */
@@ -25,8 +29,18 @@ export function rankingPeriods(): readonly (readonly [
   ];
 }
 
+export interface AccountRankingSource {
+  signedIn?: () => boolean;
+  following?: (period: RankingPeriod, after: string | null) => Promise<unknown>;
+  orderChanged?: (order: AccountRankingOrder) => void;
+}
+
 /** Owns account paging and media; community discovery only selects this panel. */
 export class AccountRankingView {
+  readonly controls: HTMLElement;
+  private order: AccountRankingOrder = 'trending';
+  private readonly source: AccountRankingSource;
+  private readonly restart: HTMLButtonElement;
   readonly element = el('section', '', 'account-ranking');
   private readonly list = el('ol', '', 'account-ranking-list');
   private readonly status = el('p', '', 'ranking-side-status');
@@ -42,8 +56,10 @@ export class AccountRankingView {
   private epoch = 0;
   private lifetime: AbortController | null = null;
   private readonly signal: AbortSignal;
-  constructor(signal: AbortSignal) {
+  constructor(signal: AbortSignal, source: AccountRankingSource = {}) {
     this.signal = signal;
+    this.source = source;
+    this.controls = accountOrderControls((order) => this.setOrder(order));
     this.status.setAttribute('role', 'status');
     this.more.type = 'button';
     this.more.textContent = t('Next page');
@@ -56,6 +72,8 @@ export class AccountRankingView {
       t('ranking.reload'),
       'account-ranking-restart',
     );
+    this.restart = restart;
+    restart.hidden = true;
     restart.type = 'button';
     restart.addEventListener('click', () => {
       this.resetPage();
@@ -71,6 +89,28 @@ export class AccountRankingView {
       },
       { once: true },
     );
+  }
+  setOrder(order: AccountRankingOrder): void {
+    if (this.order === order) return;
+    this.order = order;
+    this.resetPage();
+    this.source.orderChanged?.(order);
+    void this.refresh();
+  }
+  reset(): void {
+    this.resetPage();
+  }
+  published(): Promise<void> {
+    this.epoch++;
+    this.busy = false;
+    this.pageLifetime.abort();
+    this.pageLifetime = new AbortController();
+    this.after = this.pageAfter = null;
+    this.pageOffset = 0;
+    return this.refresh();
+  }
+  following(): boolean {
+    return this.order === 'following';
   }
   refresh(): Promise<void> {
     return this.load(false);
@@ -95,28 +135,38 @@ export class AccountRankingView {
     this.list.replaceChildren();
     this.offset = 0;
     this.more.hidden = true;
+    this.restart.hidden = true;
+    this.status.textContent = '';
+  }
+  private allowFollowing(): boolean {
+    if (!this.following() || this.source.signedIn?.()) return true;
+    this.resetPage();
+    this.status.textContent = t('ranking.sign-in');
+    return false;
   }
   private async load(append: boolean): Promise<void> {
     if (this.busy || this.signal.aborted) return;
+    if (!this.allowFollowing()) return;
     this.busy = true;
     this.more.disabled = true;
     const epoch = this.epoch;
     try {
       const page = await this.readPage(append);
       if (!this.current(epoch)) return;
-      const identity = JSON.stringify([page.generation, page.items, page.next]);
-      if (!append && identity === this.generation) return;
+      const identity = JSON.stringify([
+        page.items,
+        append ? this.offset : this.pageOffset,
+        this.order,
+        currentLanguage(),
+      ]);
+      if (!append && identity === this.generation) {
+        this.updatePageState(page);
+        return;
+      }
       this.generation = identity;
       this.applyPage(page, append);
     } catch (error: unknown) {
-      if (this.current(epoch)) {
-        this.status.textContent =
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('ranking.unavailable');
-        this.after = null;
-        this.more.hidden = true;
-      }
+      this.showFailure(error, epoch);
     } finally {
       if (epoch === this.epoch) {
         this.busy = false;
@@ -124,9 +174,30 @@ export class AccountRankingView {
       }
     }
   }
+  private showFailure(error: unknown, epoch: number): void {
+    if (this.current(epoch)) {
+      this.status.textContent =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('ranking.unavailable');
+      this.after = null;
+      this.more.hidden = true;
+      this.restart.hidden = false;
+    }
+  }
   private async readPage(append: boolean) {
-    const query = new URLSearchParams({ period: this.period });
+    const query = new URLSearchParams({
+      period: this.period,
+      order: this.order,
+    });
     const after = append ? this.after : this.pageAfter;
+    if (this.following()) {
+      if (!this.source.following)
+        throw new Error('Feed restricted to your own account.');
+      return accountRankingPage(
+        await this.source.following(this.period, after),
+      );
+    }
     if (after) query.set('after', after);
     return accountRankingPage(
       await communityRead(
@@ -149,6 +220,10 @@ export class AccountRankingView {
     }
     this.render(page.items);
 
+    this.updatePageState(page);
+  }
+  private updatePageState(page: ReturnType<typeof accountRankingPage>): void {
+    this.restart.hidden = true;
     this.after = page.next;
     this.more.hidden = !this.after;
     this.status.textContent = this.offset ? '' : t('ranking.empty');
@@ -164,7 +239,7 @@ export class AccountRankingView {
     const signal = AbortSignal.any([this.signal, this.lifetime.signal]);
     for (const item of items) {
       const row = el('li'),
-        { link, avatar } = accountRow(item, ++this.offset);
+        { link, avatar } = accountRow(item, ++this.offset, this.following());
       row.append(link);
       this.list.append(row);
       if (item.profile.avatar)
@@ -182,7 +257,11 @@ export class AccountRankingView {
  * its price; followers on the right like a market cap, with the relevance
  * growth below them. The received counters stay in the row's tooltip.
  */
-function accountRow(item: AccountRankingEntry, rank: number) {
+function accountRow(
+  item: AccountRankingEntry,
+  rank: number,
+  following: boolean,
+) {
   const link = el('a', '', 'account-ranking-row'),
     avatar = communityAvatar(item.profile.handle),
     copy = el('span', '', 'account-ranking-copy'),
@@ -199,11 +278,15 @@ function accountRow(item: AccountRankingEntry, rank: number) {
   }).format(item.followers);
   numbers.append(
     el('strong', t('ranking.followers {0}', [followers])),
-    growthLabel({
-      participants: item.score,
-      previous: item.previousScore,
-      title: 'ranking.relevance-growth-title',
-    }),
+    ...(following
+      ? []
+      : [
+          growthLabel({
+            participants: item.score,
+            previous: item.previousScore,
+            title: 'ranking.relevance-growth-title',
+          }),
+        ]),
   );
   link.append(
     el('span', String(rank), 'ranking-side-rank'),
@@ -235,12 +318,18 @@ export function rankingScopes(
   host: HTMLElement,
   communities: HTMLElement,
   signal: AbortSignal,
+  source: AccountRankingSource = {},
 ) {
-  const accounts = new AccountRankingView(signal),
+  const accounts = new AccountRankingView(signal, {
+      ...source,
+      orderChanged: (order) => {
+        periods.hidden = order === 'following';
+        source.orderChanged?.(order);
+      },
+    }),
     bar = el('nav', '', 'ranking-scopes');
-  accounts.element.prepend(
-    periodButtons((period) => accounts.setPeriod(period)),
-  );
+  const periods = periodButtons((period) => accounts.setPeriod(period));
+  accounts.element.prepend(accounts.controls, periods);
   bar.setAttribute('aria-label', t('ranking.scope'));
   accounts.element.hidden = true;
   let active = false;
@@ -265,7 +354,11 @@ export function rankingScopes(
     bar.append(button);
   }
   host.append(bar, communities, accounts.element);
-  return { active: () => active, refresh: () => accounts.refresh() };
+  return {
+    active: () => active,
+    refresh: () => accounts.refresh(),
+    published: () => accounts.published(),
+  };
 }
 
 function periodButtons(selected: (period: RankingPeriod) => void) {
@@ -291,8 +384,9 @@ export function mountDiscoveryRanking(
   host: HTMLElement,
   view: string,
   signal: AbortSignal,
+  source: AccountRankingSource = {},
 ) {
   if (view !== 'explore') return { element: host, scope: null };
   const element = el('div', '', 'ranking-community-pane');
-  return { element, scope: rankingScopes(host, element, signal) };
+  return { element, scope: rankingScopes(host, element, signal, source) };
 }

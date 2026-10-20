@@ -127,11 +127,14 @@ try {
       publicProfiles,
     ),
     communities: createCommunityHandler({
+      rankingSignals: database.workSignals,
       origin: mobile.origin,
       views: (input) => database!.communityViews.observe(input),
       shareClicks: (input) => database!.communityViews.shareClicks(input),
-      accounts: (period, after) =>
-        database!.communityRanking.accountsPage(period, after),
+      accounts: (period, after, order) =>
+        database!.communityRanking.accountsPage(period, after, {
+          order: order ?? 'trending',
+        }),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),
       list: (after) => communities.list(after),

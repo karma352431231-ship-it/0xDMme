@@ -1,3 +1,4 @@
+export { RankingLive } from './live.ts';
 import type { CommunityRankingStore, WorkSignals } from '../database/index.ts';
 import { WorkScheduler } from '../work-scheduler/index.ts';
 

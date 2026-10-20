@@ -1,3 +1,4 @@
+import { watchRankingUpdates } from './ranking-live.ts';
 import { rankingScopes, mountDiscoveryRanking } from './account-ranking.ts';
 import { renderFeedCard } from './feed-card.ts';
 import { renderCommunityRanking } from './ranking-view.ts';
@@ -56,9 +57,9 @@ export function startCommunityDiscovery(
     paging: HTMLElement | null = null,
     feedback: HTMLElement | null = null;
   let generation = 0,
-    busy = false,
     signedIn = false,
     abort = new AbortController();
+  let busy: Promise<void> | null = null;
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
     order: FeedOrder = 'mixed',
@@ -91,28 +92,29 @@ export function startCommunityDiscovery(
         HTMLButtonElement | HTMLSelectElement | HTMLInputElement
       >('button,select,input')
       .forEach((node) => {
-        node.disabled = busy;
+        node.disabled = Boolean(busy);
       });
   }
-  async function run(work: () => Promise<void>): Promise<void> {
-    if (busy) return;
+  function run(work: () => Promise<void>): Promise<void> {
+    if (busy) return busy;
     const old = generation;
-    busy = true;
+    busy = Promise.resolve()
+      .then(work)
+      .catch((error: unknown) => {
+        snapshot.clear();
+        if (old === generation && feedback)
+          feedback.textContent =
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Feed unavailable.');
+      })
+      .finally(() => {
+        busy = null;
+        disabled();
+        if (old !== generation && mounted) ready();
+      });
     disabled();
-    try {
-      await work();
-    } catch (error: unknown) {
-      snapshot.clear();
-      if (old === generation && feedback)
-        feedback.textContent =
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Feed unavailable.');
-    } finally {
-      busy = false;
-      disabled();
-      if (old !== generation && mounted) ready();
-    }
+    return busy;
   }
   function filters(): void {
     if (!mounted) return;
@@ -500,9 +502,24 @@ export function startCommunityDiscovery(
       view = options.view;
       signedIn = options.signedIn;
       initialFilters(options.bookmark);
-      const ranking = mountDiscoveryRanking(container, view, abort.signal);
+      const ranking = mountDiscoveryRanking(container, view, abort.signal, {
+        signedIn: () => signedIn,
+        following: (period, after) =>
+          controller.request('discovery-accounts', { period, after }),
+      });
       rankingScope = ranking.scope;
       mounted = ranking.element;
+      watchRankingUpdates({
+        enabled: view === 'explore',
+        signal: abort.signal,
+        visible: () => container.isConnected && !container.hidden,
+        refresh: async () => {
+          await busy;
+          if (mounted !== ranking.element) return;
+          if (ranking.scope?.active()) await ranking.scope.published();
+          else await run(reload);
+        },
+      });
       const titles: Record<string, string> = {
         feed: t('Feed'),
         following: t('follow.following'),

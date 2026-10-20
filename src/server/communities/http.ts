@@ -1,5 +1,10 @@
+import { RankingLive } from '../community-ranking/index.ts';
+import type { WorkSignals } from '../database/index.ts';
 import { accountRankingLookup } from './account-ranking.ts';
-import type { AccountRankingPage } from '../../shared/account-ranking/index.ts';
+import type {
+  AccountRankingPage,
+  AccountRankingOrder,
+} from '../../shared/account-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communitySlug } from '../../shared/community-address/index.ts';
 import { upvoterLookup } from './upvotes.ts';
@@ -46,6 +51,7 @@ import type {
 } from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
+  rankingSignals?: Pick<WorkSignals, 'subscribe'>;
   upvoters?: (
     id: string,
     post: string,
@@ -63,6 +69,7 @@ export function createCommunityHandler(read: {
   accounts?: (
     period: RankingPeriod,
     after: string | null,
+    order?: AccountRankingOrder,
   ) => Promise<AccountRankingPage>;
   readAddress?: (slug: string) => Promise<Community>;
   read: (id: string) => Promise<Community>;
@@ -91,6 +98,9 @@ export function createCommunityHandler(read: {
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
+  const live = read.rankingSignals
+    ? new RankingLive(read.rankingSignals)
+    : null;
   function send(
     response: ServerResponse,
     status: number,
@@ -178,23 +188,36 @@ export function createCommunityHandler(read: {
       await read.read(uuid(address.pathname.slice('/api/communities/'.length))),
     );
   }
+  function serveRankingEvents(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): boolean {
+    if (request.url !== '/api/communities/ranking-events' || !live)
+      return false;
+    if (request.method !== 'GET')
+      throw new AccountError(405, 'Invalid method.');
+    budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
+    live.open(response);
+    return true;
+  }
+  function allowedMethods(request: IncomingMessage): string {
+    if (request.url === '/api/communities/ranking-events') return 'GET';
+    return (request.url === '/api/communities/views' && read.views) ||
+      (request.url === '/api/communities/share-clicks' && read.shareClicks)
+      ? 'POST'
+      : 'GET, HEAD';
+  }
   async function handle(
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
     const head = request.method === 'HEAD';
     try {
+      if (serveRankingEvents(request, response)) return;
       send(response, 200, await lookup(request), head);
     } catch (error: unknown) {
       if (error instanceof AccountError && error.status === 405)
-        response.setHeader(
-          'Allow',
-          (request.url === '/api/communities/views' && read.views) ||
-            (request.url === '/api/communities/share-clicks' &&
-              read.shareClicks)
-            ? 'POST'
-            : 'GET, HEAD',
-        );
+        response.setHeader('Allow', allowedMethods(request));
       send(
         response,
         error instanceof AccountError ? error.status : 503,
@@ -325,5 +348,11 @@ export function createCommunityHandler(read: {
     }
     throw new AccountError(404, 'Post unavailable.');
   }
-  return { handle, close: () => budget.close() };
+  return {
+    handle,
+    close: () => {
+      live?.close();
+      budget.close();
+    },
+  };
 }

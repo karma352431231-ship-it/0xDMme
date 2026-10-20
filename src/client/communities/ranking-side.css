@@ -286,3 +286,17 @@
   margin-right: 5px;
   vertical-align: 1px;
 }
+
+#app-shell .right-switch-track button {
+  position: relative;
+}
+#app-shell .right-switch-track button + button::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--line-strong);
+  pointer-events: none;
+}

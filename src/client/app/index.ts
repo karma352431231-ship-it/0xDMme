@@ -304,8 +304,7 @@ const account = startAccount({
     calls.setSession(session);
     statuses.setSession(session);
     representatives.setSession(session);
-    publicProfiles.setSession(session);
-    communities.setSession(session);
+    setPublicSession(session);
     activity.setSession(session);
     callLog.reset();
     if (!session) sessionExtrasFor = '';
@@ -737,3 +736,9 @@ window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
 connection();
+
+function setPublicSession(session: AccountSession | null): void {
+  publicProfiles.setSession(session);
+  communities.setSession(session);
+  rankingSide?.setSession(session);
+}

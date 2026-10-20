@@ -21,6 +21,9 @@ import {
 import type { PublicProfile } from '../../src/shared/public-profile/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import { explorePage } from '../../src/shared/community-discovery/index.ts';
+import { sign } from '../../src/shared/devices/index.ts';
+import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
+import { accountRankingPage } from '../../src/shared/account-ranking/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
 
 await test('rankings: exact metrics, aggregate votes, events, recovery and publication', async (t) => {
@@ -34,7 +37,11 @@ await test('rankings: exact metrics, aggregate votes, events, recovery and publi
       origin: 'http://127.0.0.1:45124',
     }),
     devices = new DeviceService(db.devices),
-    profiles = new PublicProfileService(db.publicProfiles, db.devices);
+    profiles = new PublicProfileService(
+      db.publicProfiles,
+      db.devices,
+      db.profileSocial,
+    );
   const communities = new CommunityService(
     db.communities,
     db.devices,
@@ -940,6 +947,158 @@ await test('rankings: exact metrics, aggregate votes, events, recovery and publi
       }
       assert.equal(expired, true);
       assert.ok(!(await page('new')).items.some((r) => r.community.id === id));
+    },
+  );
+  await t.test(
+    'user discovery includes inactive profiles, orders the whole generation and isolates Following cursors',
+    async () => {
+      const people: {
+        actor: Awaited<ReturnType<typeof make>>;
+        profile: PublicProfile;
+      }[] = [];
+      for (let index = 0; index < 27; index++) {
+        const actor = await make();
+        const profile = await actor.publicIdentity(
+          `directory_${crypto.randomUUID().slice(0, 8)}`,
+        );
+        people.push({ actor, profile });
+      }
+      const largest = people[0]!;
+      async function follow(
+        actor: typeof owner,
+        target: string,
+        following = true,
+        revision = 0,
+      ) {
+        const proof = {
+          directory: actor.directory,
+          payload: { target, following, revision },
+        };
+        return profiles.operate('follow', actor.login.session, {
+          ...proof,
+          signature: await sign(
+            actor.identity.signing,
+            publicProfileBody(
+              actor.login.session.accountId,
+              actor.login.session.deviceId,
+              'follow',
+              proof,
+            ),
+          ),
+        });
+      }
+      for (const person of people.slice(1, 4))
+        await follow(person.actor, largest.profile.id);
+      for (const person of people) await follow(owner, person.profile.id);
+      await refresh();
+      const size = await db.communityRanking.accountsPage('day', null, {
+        order: 'size',
+      });
+      assert.equal(size.items[0]!.profile.id, largest.profile.id);
+      assert.equal(size.items[0]!.followers, 4);
+      assert.equal(size.items[0]!.score, 0);
+      assert.ok(size.next);
+      const second = await db.communityRanking.accountsPage('day', size.next, {
+        order: 'size',
+      });
+      assert.ok(
+        !second.items.some((item) =>
+          size.items.some((first) => first.profile.id === item.profile.id),
+        ),
+      );
+      await assert.rejects(
+        db.communityRanking.accountsPage('day', size.next, {
+          order: 'trending',
+        }),
+        /different filters/u,
+      );
+      const mine = accountRankingPage(
+        await owner.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.equal(mine.items.length, 24);
+      assert.ok(
+        mine.items.every((item) =>
+          people.some((p) => p.profile.id === item.profile.id),
+        ),
+      );
+      assert.ok(mine.next);
+      await assert.rejects(
+        users[1]!.operate('discovery-accounts', {
+          period: 'day',
+          after: mine.next,
+        }),
+        /different filters/u,
+      );
+      const others = accountRankingPage(
+        await users[1]!.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.equal(others.items.length, 0);
+      for (const [actor, target] of [
+        [publicUsers[0]!.id, largest.profile.id],
+        [largest.profile.id, publicUsers[0]!.id],
+      ]) {
+        await inspector.query(
+          'INSERT INTO hash_talk.social_blocks(actor,target,blocked,revision) VALUES($1,$2,true,1)',
+          [actor, target],
+        );
+        const blocked = accountRankingPage(
+          await owner.operate('discovery-accounts', {
+            period: 'day',
+            after: null,
+          }),
+        );
+        assert.ok(
+          !blocked.items.some((item) => item.profile.id === largest.profile.id),
+        );
+        await inspector.query(
+          'DELETE FROM hash_talk.social_blocks WHERE actor=$1 AND target=$2',
+          [actor, target],
+        );
+      }
+      await follow(owner, largest.profile.id, false, 1);
+      const unfollowed = accountRankingPage(
+        await owner.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.ok(
+        !unfollowed.items.some(
+          (item) => item.profile.id === largest.profile.id,
+        ),
+      );
+      await assert.rejects(
+        db.communityRanking.accountsPage('day', null, { order: 'following' }),
+        /own account/u,
+      );
+      await inspector.query('LISTEN hash_talk_ranking_published');
+      const events: unknown[] = [];
+      const notified = (event: unknown) => events.push(event);
+      inspector.on('notification', notified);
+      try {
+        await follow(people[4]!.actor, largest.profile.id);
+        await refresh();
+        for (let attempt = 0; attempt < 20 && !events.length; attempt++)
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.ok(events.length, 'A committed generation wakes live readers.');
+        assert.equal(
+          (
+            await db.communityRanking.accountsPage('day', null, {
+              order: 'size',
+            })
+          ).items[0]!.followers,
+          4,
+        );
+      } finally {
+        inspector.off('notification', notified);
+        await inspector.query('UNLISTEN hash_talk_ranking_published');
+      }
     },
   );
   await t.test(

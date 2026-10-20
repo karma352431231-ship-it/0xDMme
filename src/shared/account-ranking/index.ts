@@ -1,4 +1,4 @@
-import { keys, object, uuid } from '../account/index.ts';
+import { AccountError, keys, object, uuid } from '../account/index.ts';
 import { communityArray } from '../communities/index.ts';
 import { profileDescriptionText } from '../profile-social/index.ts';
 import { postCount, postTime } from '../community-posts/index.ts';
@@ -65,4 +65,11 @@ export function accountRankingPage(value: unknown): AccountRankingPage {
       };
     }),
   };
+}
+
+export type AccountRankingOrder = 'trending' | 'size' | 'following';
+export function accountRankingOrder(value: unknown): AccountRankingOrder {
+  if (value !== 'trending' && value !== 'size' && value !== 'following')
+    throw new AccountError(400, 'Invalid ordering.');
+  return value;
 }

@@ -1,7 +1,4 @@
 import type pg from 'pg';
-import { AccountError } from '../../shared/account/index.ts';
-import { exploreCursor } from '../../shared/community-discovery/index.ts';
-import { communityPageSize } from '../../shared/communities/index.ts';
 import {
   accountRankingScore,
   rankingVersion,
@@ -9,25 +6,23 @@ import {
   rankingPeriods,
 } from '../../shared/community-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
-import type { AccountRankingPage } from '../../shared/account-ranking/index.ts';
 import { measurePostSignals } from './post-ranking-signals.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { PublicProfileStore } from './public-profile.ts';
-import { readFollowerCounts } from './profile-follower-counts.ts';
+import { readProfileRankingPage } from './profile-ranking-page.ts';
+import type { ProfileRankingSelection } from './profile-ranking-page.ts';
 
 type Reader = Pick<pg.PoolClient, 'query'>;
-interface StoredPeriod {
-  views: number;
-  upvotes: number;
-  shares: number;
-  comments: number;
-  previousScore: number;
-}
 const publicEntryMetrics = `jsonb_build_object(
-  'views',s.metrics->p.period->'current'->'views','upvotes',s.metrics->p.period->'current'->'upvotes',
-  'shares',s.metrics->p.period->'current'->'shares','comments',s.metrics->p.period->'current'->'comments',
-  'previousScore',s.metrics->p.period->'previousScore')`;
+  'views',coalesce(s.metrics->p.period->'current'->'views','0'::jsonb),
+  'upvotes',coalesce(s.metrics->p.period->'current'->'upvotes','0'::jsonb),
+  'shares',coalesce(s.metrics->p.period->'current'->'shares','0'::jsonb),
+  'comments',coalesce(s.metrics->p.period->'current'->'comments','0'::jsonb),
+  'previousScore',coalesce(s.metrics->p.period->'previousScore','0'::jsonb))`;
+const publicationSource = `FROM hash_talk.public_profiles profile
+  LEFT JOIN hash_talk.profile_ranking_state s ON s.profile_id=profile.id
+  CROSS JOIN (VALUES('day'),('week'),('month')) p(period)`;
 /** Profile projection participates in the existing producer's atomic generation. */
 export class ProfileRankingStore {
   private readonly pool: pg.Pool;
@@ -137,10 +132,11 @@ export class ProfileRankingStore {
   }
   async publish(client: Reader, generation: string): Promise<void> {
     await client.query(
-      `INSERT INTO hash_talk.profile_ranking_entries(generation,profile_id,period,score,metrics)
-      SELECT $1,s.profile_id,p.period,(s.metrics->p.period->>'score')::bigint,${publicEntryMetrics}
-      FROM hash_talk.profile_ranking_state s CROSS JOIN (VALUES('day'),('week'),('month')) p(period)
-      WHERE s.metrics IS NOT NULL AND (s.metrics->p.period->>'score')::bigint>0`,
+      `INSERT INTO hash_talk.profile_ranking_entries(generation,profile_id,period,score,metrics,followers)
+      SELECT $1,profile.id,p.period,coalesce((s.metrics->p.period->>'score')::bigint,0),${publicEntryMetrics},
+      coalesce(f.followers,0)
+      ${publicationSource}
+      LEFT JOIN (SELECT target,count(*) AS followers FROM hash_talk.public_profile_follows WHERE following GROUP BY target) f ON f.target=profile.id`,
       [generation],
     );
   }
@@ -148,7 +144,7 @@ export class ProfileRankingStore {
     const result = await client.query<{
       bytes: string;
     }>(`SELECT coalesce(sum(256+octet_length((${publicEntryMetrics})::text)),0)::text AS bytes
-      FROM hash_talk.profile_ranking_state s CROSS JOIN (VALUES('day'),('week'),('month')) p(period) WHERE s.metrics IS NOT NULL AND (s.metrics->p.period->>'score')::bigint>0`);
+      ${publicationSource}`);
     return Number(result.rows[0]!.bytes);
   }
   async deadline(client: Reader): Promise<Date | null> {
@@ -162,103 +158,17 @@ export class ProfileRankingStore {
       (SELECT e.generation,e.period,e.profile_id FROM hash_talk.profile_ranking_entries e JOIN hash_talk.community_ranking_generations g
       ON g.id=e.generation WHERE g.expires_at<=clock_timestamp() LIMIT 256)`);
   }
-  async page(
+  page(
     period: RankingPeriod,
     after: string | null,
-  ): Promise<AccountRankingPage> {
-    const key = `accounts/${period}`,
-      cursor = exploreCursor(after, key);
-    const result = await this.pool.query<{
-      id: string;
-      cutoff: Date;
-      expires_at: Date;
-      entries: {
-        profile_id: string;
-        handle: string;
-        score: string;
-        metrics: StoredPeriod;
-      }[];
-    }>(
-      `WITH head AS (SELECT id,cutoff,expires_at FROM hash_talk.community_ranking_generations
-        WHERE published AND version=$2 AND metrics_version=$3 AND expires_at>clock_timestamp()
-        AND ($1::uuid IS NULL OR id=$1) ORDER BY sequence DESC LIMIT 1), ranked AS (
-        SELECT e.profile_id,p.handle,e.score::text,e.metrics FROM head g JOIN hash_talk.profile_ranking_entries e ON e.generation=g.id
-        JOIN hash_talk.public_profiles p ON p.id=e.profile_id WHERE e.period=$4 AND e.score>0
-        AND ($5::bigint IS NULL OR (e.score,e.profile_id)<($5,$6::uuid))
-        ORDER BY e.score DESC,e.profile_id DESC LIMIT $7)
-        SELECT g.*,coalesce((SELECT jsonb_agg(r ORDER BY r.score::bigint DESC,r.profile_id DESC) FROM ranked r),'[]'::jsonb) AS entries FROM head g`,
-      pageParameters(period, cursor),
-    );
-    const head = result.rows[0];
-    if (!head)
-      throw new AccountError(
-        cursor ? 409 : 503,
-        cursor
-          ? 'Ranking updated; reload the list.'
-          : 'Ranking being prepared. Try again.',
-      );
-    const rows = head.entries.slice(0, communityPageSize),
-      last = rows.at(-1);
-    const { profiles, descriptions, followers } = await this.people(
-      rows.map((r) => r.profile_id),
-    );
-    return {
-      generation: head.id,
-      cutoff: head.cutoff.toISOString(),
-      expiresAt: head.expires_at.toISOString(),
-      next:
-        head.entries.length > communityPageSize && last
-          ? JSON.stringify({
-              filter: key,
-              generation: head.id,
-              rank: Number(last.score),
-              id: last.profile_id,
-            })
-          : null,
-      items: rows.map((row) => ({
-        profile: profiles.find((p) => p.id === row.profile_id) ?? {
-          id: row.profile_id,
-          handle: row.handle,
-          avatar: null,
-        },
-        description: descriptions.get(row.profile_id) ?? '',
-        followers: followers.get(row.profile_id) ?? 0,
-        score: Number(row.score),
-        previousScore: row.metrics.previousScore,
-        views: row.metrics.views,
-        upvotes: row.metrics.upvotes,
-        shares: row.metrics.shares,
-        comments: row.metrics.comments,
-      })),
-    };
+    selection: ProfileRankingSelection = {},
+  ) {
+    return readProfileRankingPage({
+      client: this.pool,
+      profiles: this.profiles,
+      period,
+      after,
+      ...selection,
+    });
   }
-  /** Public identity, bio and follower total of one page, read by their owners. */
-  private async people(ids: string[]) {
-    if (!this.profiles)
-      return {
-        profiles: [],
-        descriptions: new Map<string, string>(),
-        followers: new Map<string, number>(),
-      };
-    return {
-      profiles: await this.profiles.readMany(this.pool, ids),
-      descriptions: await this.profiles.descriptions.readMany(this.pool, ids),
-      followers: await readFollowerCounts(this.pool, ids),
-    };
-  }
-}
-
-function pageParameters(
-  period: RankingPeriod,
-  cursor: ReturnType<typeof exploreCursor>,
-) {
-  return [
-    cursor?.generation ?? null,
-    rankingVersion,
-    rankingMetricVersion,
-    period,
-    cursor?.rank ?? null,
-    cursor?.id ?? null,
-    communityPageSize + 1,
-  ];
 }

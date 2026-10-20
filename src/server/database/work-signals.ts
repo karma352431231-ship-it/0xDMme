@@ -4,6 +4,7 @@ import type { DatabaseChanges } from './changes.ts';
 
 const topics = [
   'ranking',
+  'ranking-published',
   'push',
   'backups',
   'attachments',
