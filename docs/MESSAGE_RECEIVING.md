@@ -118,7 +118,8 @@ are separate modules. Further hotspot cuts remain listed above. Background Web
 Push delivery and existing private call controls are unchanged; the owner has
 not selected the proposed per-device open/closed-app preference.
 
-This correction stays on `codex/chat-preview-notificacoes`, as requested. The
+This correction stays on `codex/chat-preview-notifications`. The owner requires
+branch names in English; this replaces the earlier Portuguese branch name. The
 existing deployment command accepts the existing on-demand `check.yml` workflow
 for the exact pushed task-branch commit; main still requires push-triggered CI.
 The same repository, latest-run, SHA, branch, workflow and success checks remain.
