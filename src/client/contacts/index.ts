@@ -738,6 +738,12 @@ export function startContacts(
       container: HTMLElement,
       mode: 'contacts' | 'settings' = 'contacts',
     ): void {
+      // A tab return reattaches the same view. Its events, loaded pages and
+      // current search remain owned by this session's contact controller.
+      if (mounted === container) {
+        render();
+        return;
+      }
       const formValues = [
         '[data-book-address]',
         '[data-book-alias]',

@@ -81,6 +81,7 @@ export function startCommunityDiscovery(
   // Nodes the communities page placed before this feed; the rest belong to it.
   let foreign = new Set<Node>();
   const park = new FeedPark();
+  let tabBookmark: FeedBookmark | null = null;
   const mediaCleanup = new Set<() => void>();
   function clearMedia(): void {
     for (const cleanup of mediaCleanup) cleanup();
@@ -422,13 +423,21 @@ export function startCommunityDiscovery(
     // Right after the page switch resets the workspace scroll, before any paint.
     queueMicrotask(() => {
       if (mounted === container)
-        restoreFeedPosition(container, saved, abort.signal);
+        restoreFeedPosition(
+          container,
+          saved,
+          AbortSignal.any([abort.signal, refreshAbort.signal]),
+        );
     });
     void run(async () => {
       after = displayedAfter;
       rankOffset = displayedRank;
       if ((await load()) && mounted)
-        restoreFeedPosition(mounted, saved, abort.signal);
+        restoreFeedPosition(
+          mounted,
+          saved,
+          AbortSignal.any([abort.signal, refreshAbort.signal]),
+        );
     });
   }
   function teardown(): void {
@@ -475,6 +484,26 @@ export function startCommunityDiscovery(
       (['explore', 'feed'].includes(view) ? 'day' : 'all');
     exploreOrder = saved.explore ?? 'trending';
   }
+  function bookmark(): FeedBookmark | null {
+    if (!mounted || !['feed', 'following'].includes(view)) return null;
+    return {
+      view,
+      order,
+      period,
+      after: displayedAfter,
+      ...feedPosition(mounted),
+    };
+  }
+  function returningBookmark(options: {
+    view: string;
+    bookmark?: FeedBookmark | null;
+  }): FeedBookmark | null {
+    const saved =
+      options.bookmark ??
+      (tabBookmark?.view === options.view ? tabBookmark : null);
+    tabBookmark = null;
+    return saved;
+  }
   return {
     mount(
       container: HTMLElement,
@@ -489,7 +518,7 @@ export function startCommunityDiscovery(
       foreign = new Set(container.childNodes);
       const kept = park.resume(
         container,
-        options.bookmark ?? null,
+        returningBookmark(options),
         options.signedIn,
       );
       if (kept) {
@@ -561,20 +590,24 @@ export function startCommunityDiscovery(
       startPage(options.bookmark);
     },
     leave,
+    visitView: (): string => tabBookmark?.view ?? 'feed',
+    /** Keep the current bounded page across in-app tabs, without persisting content. */
+    pause(): void {
+      const saved = bookmark();
+      if (saved) {
+        tabBookmark = saved;
+        park.request(saved, true);
+      }
+      leave();
+    },
     /** A profile link in this feed was followed: keep the page for the way back. */
     keep: (bookmark: FeedBookmark) => park.request(bookmark),
     /** Session change: a kept page never outlives the account that saw it. */
-    discard: () => park.release(),
-    bookmark(): FeedBookmark | null {
-      if (!mounted || !['feed', 'following'].includes(view)) return null;
-      return {
-        view,
-        order,
-        period,
-        after: displayedAfter,
-        ...feedPosition(mounted),
-      };
+    discard(): void {
+      tabBookmark = null;
+      park.release();
     },
+    bookmark,
     refresh,
     /** The active Feed/Discover tab again: the pill when deep in the feed, else a reload. */
     tabAgain: () => (feedRefresh?.tabAgain() ? Promise.resolve() : run(reload)),

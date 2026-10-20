@@ -277,6 +277,16 @@ await test('feed photo loads full bytes on entering the viewport and releases th
   const { CommunityNode, communityDocument } =
     await import('./fixtures/community-dom.ts');
   const document = communityDocument();
+  const create = document.createElement;
+  const ratios: string[] = [];
+  document.createElement = (tag) =>
+    Object.assign(create(tag), {
+      style: {
+        setProperty: (name: string, value: string) => {
+          if (name === '--picture-ratio') ratios.push(value);
+        },
+      },
+    });
   let visible: (entries: Array<{ isIntersecting: boolean }>) => void = () => {},
     disconnected = false;
   const saved = ['document', 'IntersectionObserver'].map(
@@ -336,6 +346,12 @@ await test('feed photo loads full bytes on entering the viewport and releases th
       stop.signal,
     );
     assert.equal(paths.length, 0);
+    assert.deepEqual(ratios, ['1.25']);
+    assert.ok(
+      host
+        .querySelector('figure')!
+        .className.includes('community-public-picture'),
+    );
     visible([{ isIntersecting: true }]);
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(paths.length, 1);

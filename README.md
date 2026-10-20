@@ -43,6 +43,8 @@ Local PostgreSQL metrics: `npm run observe:database`, with the same private `.en
 
 ## Documentation
 
+- [Media and app-tab continuity](docs/MEDIA_AND_NAVIGATION.md): image proportions,
+  removable draft attachments and browser-visit state.
 - [Localization](docs/I18N.md): official languages and how app text is added.
 - [Licenses](LICENSES.md): frontend distribution and third-party components.
 - [Frontend corresponding sources](docs/FRONTEND_SOURCES.md): contents of the source download and how to rebuild the frontend.

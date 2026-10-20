@@ -11,6 +11,11 @@ export function mountPublicPicture(
     load: (signal: AbortSignal) => Promise<Blob>;
   },
 ): () => void {
+  slot.classList.add('community-public-picture');
+  slot.style.setProperty(
+    '--picture-ratio',
+    String(media.result.width / media.result.height),
+  );
   const button = document.createElement('button'),
     image = document.createElement('img'),
     caption = document.createElement('span'),

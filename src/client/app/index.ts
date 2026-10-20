@@ -55,6 +55,7 @@ import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 import { mountLanguageSettings, startLanguage } from '../language/index.ts';
 import { SessionBoot } from './session-boot.ts';
+import { NavigationVisits } from './navigation-visits.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -83,6 +84,7 @@ document
   .forEach((host) => mountPublicSearch(host, new AbortController().signal));
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
+const navigationVisits = new NavigationVisits();
 let currentHash = '';
 let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
@@ -292,6 +294,7 @@ const account = startAccount({
   saveProfile: (session, profile, key) =>
     devices.saveProfile(session, profile, key),
   changed: (session) => {
+    navigationVisits.setSession(session);
     connectedAccount = session;
     sessionBoot.setSession(session);
     const shell = document.getElementById('app-shell');
@@ -340,7 +343,7 @@ const panels = account.approvalPage
           communities.mount(container, null, params);
         },
         leaveFeed: () => {
-          communities.leave();
+          communities.pause();
         },
         openDm: (container, id, local) => {
           communities.openDm(container, id, local);
@@ -432,6 +435,12 @@ function route(): void {
     currentHash = appAddress();
     return;
   }
+  navigationVisits.save(
+    currentPage,
+    element('page-content'),
+    element('workspace'),
+  );
+  if (currentPage !== key) communities.pause();
   currentPage = key;
   currentHash = appAddress();
   element('app-shell').dataset['page'] = key;
@@ -440,11 +449,13 @@ function route(): void {
   // Templates are static authored content. No user/server input enters HTML.
   profileAuthenticated = !!connectedAccount;
   element('page-content').innerHTML = pageContent(key, profileAuthenticated);
+  if (key === 'contatos')
+    navigationVisits.restoreContacts(element('page-content'));
   if (key === 'conversas')
     element('page-content').append(conversationContent, publicChat);
   mountAccountPanels(key);
   mountFeature(key);
-  element('workspace').scrollTop = 0;
+  navigationVisits.restorePosition(key, element('workspace'));
   document
     .querySelectorAll<HTMLAnchorElement>('nav a[data-route]')
     .forEach((link) => {
@@ -552,7 +563,7 @@ function mountFeature(key: PageKey): void {
       routeParams(appAddress()),
     );
   if (key === 'conversas') {
-    messages.ready();
+    messages.resume();
     refreshStatusAuthors();
   }
   mountActivity(key, content);

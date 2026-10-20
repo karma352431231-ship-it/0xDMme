@@ -1,4 +1,3 @@
-import { t } from '../../shared/i18n/index.ts';
 import { openFile, sealFile } from '../attachment-crypto/index.ts';
 import {
   imageShape,
@@ -46,9 +45,10 @@ scope.addEventListener('message', (event) => {
     .catch(() => {
       scope.postMessage(
         {
-          error: t(
+          // Translate at the UI boundary. Loading the complete UI catalog in
+          // every short-lived decoder/crypto worker wastes mobile memory.
+          error:
             'Could not process the attachment. Check its format, size, pixels and browser support.',
-          ),
         },
         [],
       );

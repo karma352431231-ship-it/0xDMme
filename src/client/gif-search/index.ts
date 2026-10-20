@@ -13,6 +13,7 @@ import {
  */
 import { gifMessageUrl } from './links.ts';
 export { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
+export { mountGifDraft } from './draft.ts';
 export { showExternalGif, showGifText, renderGif } from './presentation.ts';
 export interface GifResult {
   id: string;

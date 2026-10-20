@@ -1701,13 +1701,26 @@ export function startMessages(
       if (!navigatingToConversation && session && navigator.onLine)
         requestRefresh();
     },
+    /** App-tab return: the directory is still live and loaded. Only the
+     * selected history needs its normal authorization/snapshot check. */
+    resume(): void {
+      if (!session || !navigator.onLine) return;
+      live.start();
+      if (!navigatingToConversation)
+        void synchronization.open(() =>
+          groups.selected ? groups.refresh() : refreshSelected(),
+        );
+      synchronization.resume();
+    },
     canActivate: () =>
       !synchronization.busy &&
       !textQueue.unsaved &&
       !voice.active &&
       !attachments.selected?.voice &&
       groups.canActivate(),
-    leave: () => releaseConversation('pause'),
+    // In-app navigation closes/rechecks history, while keeping the directory
+    // previews that are already retained when the conversation is hidden.
+    leave: () => releaseConversation('directory'),
     viewChanged(): void {
       if (!conversationVisible()) releaseConversation('directory');
       else this.ready();
