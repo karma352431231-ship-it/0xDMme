@@ -5,6 +5,7 @@ import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
+import { ConnectedConversationVisits } from './visits.ts';
 import { TextSendQueue } from './text-send.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -315,6 +316,7 @@ export function startMessages(
   const live = new LiveMessages({
     access,
     changed: () => {
+      controller.setLiveConnected(live.current);
       continuity.changed();
       options.liveState?.(live.current);
       const label = node('[data-message-live]');
@@ -475,6 +477,25 @@ export function startMessages(
     stop: () => live.stop(),
     reconnect: () => live.retry(),
     check: () => requestRefresh('probe'),
+  });
+  const visits = new ConnectedConversationVisits<ConversationPeer>({
+    available: () =>
+      live.current &&
+      navigator.onLine &&
+      synchronization.foregroundReady &&
+      !continuity.suspended &&
+      !textQueue.pending,
+    backgroundReady: () => synchronization.backgroundReady,
+    reusable: (peer) =>
+      !peer.localOnly && controller.canRestore(peer.accountId),
+    select: selectPeer,
+    restore: () => controller.restoreSelected(),
+    background: (step) => synchronization.background(step),
+    check: async () => {
+      await refreshChangedSelected();
+      await historyUi.markRead(daily);
+    },
+    failed: () => controller.hide(),
   });
   /** The name the conversation list shows: saved alias, profile name, then the address. */
   const peerTitle = (peer: ConversationPeer) =>
@@ -642,6 +663,7 @@ export function startMessages(
   function status(): void {
     textQueue.resume();
     startupWarmup.resume();
+    visits.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
@@ -1004,6 +1026,8 @@ export function startMessages(
   }
   function requestPeer(peer: ConversationPeer): Promise<void> {
     if (reopenSelectedPeer(peer)) return Promise.resolve();
+    if (!voice.active && !attachments.selected?.voice && visits.open(peer))
+      return Promise.resolve();
     const current = generation;
     const clear = directoryUi.openingPeer(peer.accountId);
     return synchronization
@@ -1325,6 +1349,7 @@ export function startMessages(
   function suspend(
     reason: 'pause' | 'invalidate' | 'directory' = 'pause',
   ): void {
+    visits.reset();
     synchronization.cancelOpening();
     if (reason !== 'directory') previews.clear();
     renderContacts();
@@ -1656,6 +1681,7 @@ export function startMessages(
         return;
       }
       generation++;
+      visits.reset();
       textQueue.reset();
       outgoing.reset();
       continuity.reset();

@@ -8,17 +8,31 @@ export interface ConfirmedConversation<T> {
   oldest: number | null;
 }
 
-/** Session-only candidates, never authority to display a conversation. The caller
- * must authenticate the snapshot and confirm it again before publishing rows.
+/** Session-only verified candidates. Immediate display is allowed only within
+ * the same uninterrupted live epoch; other candidates need a fresh check.
  * Keep at most 16 conversations, 4096 rows and 8 MiB of estimated text/storage.
  * Persistent copies remain encrypted under their existing quota. */
 export class ConfirmedConversations<T extends ConversationView> {
   private readonly windows = new Map<
     string,
-    { value: ConfirmedConversation<T>; bytes: number }
+    { value: ConfirmedConversation<T>; bytes: number; epoch: number | null }
   >();
   private bytes = 0;
   private rows = 0;
+  private connected = false;
+  private epoch = 0;
+
+  connection(connected: boolean): void {
+    if (!connected) this.invalidateReuse();
+    this.connected = connected;
+  }
+  invalidateReuse(): void {
+    this.epoch++;
+  }
+  reusable(peer: string): ConfirmedConversation<T> | null {
+    const window = this.windows.get(peer);
+    return this.connected && window?.epoch === this.epoch ? window.value : null;
+  }
 
   clear(): void {
     this.windows.clear();
@@ -58,7 +72,11 @@ export class ConfirmedConversations<T extends ConversationView> {
       value.snapshot.length * 2,
     );
     if (bytes > 8 * 1024 * 1024 || value.views.length > 4096) return;
-    this.windows.set(peer, { value, bytes });
+    this.windows.set(peer, {
+      value,
+      bytes,
+      epoch: this.connected ? this.epoch : null,
+    });
     this.bytes += bytes;
     this.rows += value.views.length;
     this.trim();

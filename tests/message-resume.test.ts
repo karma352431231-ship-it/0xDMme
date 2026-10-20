@@ -73,6 +73,61 @@ await test('reopening a confirmed window validates delivery and its snapshot wit
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Já confirmada');
 });
 
+await test('connected session restores a previously confirmed conversation immediately without authority or history IO', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('Previously verified first conversation');
+  await f.add('Previously verified second conversation', other);
+  await f.controller.synchronize();
+  f.controller.select(other);
+  await f.controller.synchronize();
+  for (const selected of [f.peer, other, f.peer]) {
+    assert.equal(f.controller.canRestore(selected), true);
+    const calls = f.data.requests.length,
+      reads = f.data.authorityReads;
+    f.controller.select(selected);
+    assert.equal(f.controller.restoreSelected(), true);
+    assert.equal(f.data.frames.at(-1)?.[0]?.peer, selected);
+    assert.equal(f.data.requests.length, calls);
+    assert.equal(f.data.authorityReads, reads);
+  }
+  assert.equal(
+    await f.controller.probe(),
+    false,
+    'Background revalidation remains available',
+  );
+});
+
+for (const cause of [
+  'pause',
+  'removed',
+  'hide',
+  'disconnect',
+  'session',
+  'failure',
+] as const)
+  await test(`retained conversation cannot bypass the gate after ${cause}`, async () => {
+    const f = resumeFixture();
+    f.controller.setLiveConnected(true);
+    await f.add('Validated only in the original connected epoch');
+    await f.controller.synchronize();
+    assert.equal(f.controller.canRestore(f.peer), true);
+    if (cause === 'disconnect') {
+      f.controller.setLiveConnected(false);
+      f.controller.setLiveConnected(true);
+    } else if (cause === 'session')
+      f.controller.setSession({ ...f.session, csrf: 'e'.repeat(64) });
+    else if (cause === 'failure') {
+      f.data.failure = 'delivery';
+      await assert.rejects(f.controller.probe());
+    } else f.controller[cause]();
+    assert.equal(f.controller.canRestore(f.peer), false);
+    f.controller.select(f.peer);
+    assert.equal(f.controller.restoreSelected(), false);
+    assert.equal(f.data.frames.at(-1), null);
+  });
+
 await test('session change during profile preparation prevents checking or sending through the new account', async () => {
   const { controller, data, session, peer } = resumeFixture();
   data.beforeLocalRead = (name) => {

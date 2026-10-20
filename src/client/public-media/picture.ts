@@ -1,8 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { openImageViewer } from '../image-viewer/index.ts';
+import { retainedPublicMedia } from './retained.ts';
+import type { RetainedPublicMedia } from './retained.ts';
 
-/** Full approved photos/GIFs near the screen, released when scrolling away. No stretched thumbnail. */
+/** Load near the screen and retain visited media until cleanup or memory pressure. */
 export function mountPublicPicture(
   slot: HTMLElement,
   media: PublicPostMedia,
@@ -42,8 +44,11 @@ export function mountPublicPicture(
     stopped = false,
     pending: AbortController | null = null,
     url: string | null = null,
+    retained: RetainedPublicMedia | null = null,
     closeViewer: (() => void) | null = null;
   function unload(): void {
+    retained?.release();
+    retained = null;
     pending?.abort();
     pending = null;
     closeViewer?.();
@@ -73,6 +78,11 @@ export function mountPublicPicture(
       image.src = url;
       image.hidden = false;
       caption.textContent = '';
+      retained = retainedPublicMedia.keep({
+        bytes: blob.size,
+        visible,
+        dispose: unload,
+      });
     } catch {
       if (usable(signal)) {
         caption.textContent = t('Image unavailable.');
@@ -103,8 +113,14 @@ export function mountPublicPicture(
       : new IntersectionObserver(
           (entries) => {
             visible = entries.some((entry) => entry.isIntersecting);
+            retained?.visibility(visible);
             if (visible) void load();
-            else unload();
+            else {
+              pending?.abort();
+              pending = null;
+              closeViewer?.();
+              closeViewer = null;
+            }
           },
           { rootMargin: '200px' },
         );
@@ -115,6 +131,10 @@ export function mountPublicPicture(
     options.signal.removeEventListener('abort', stop);
   };
   options.signal.addEventListener('abort', stop, { once: true });
+  if (options.signal.aborted) {
+    stop();
+    return stop;
+  }
   if (observer) observer.observe(slot);
   else {
     visible = true;

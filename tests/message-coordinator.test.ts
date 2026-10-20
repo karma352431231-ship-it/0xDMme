@@ -42,6 +42,38 @@ await test('opening an uncached conversation does not restart completed account 
   assert.ok(f.calls.filter((call) => call === 'preload').length > before);
 });
 
+await test('switching retained conversations projects immediately and coalesces checks outside foreground sync', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  f.emit('ready');
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.state.restorablePeers.add('first');
+  f.state.restorablePeers.add('second');
+  f.calls.length = 0;
+  for (const selected of ['first', 'second', 'first'])
+    await f.messages.openContact(peer(selected));
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('restore:')),
+    ['restore:first', 'restore:second', 'restore:first'],
+  );
+  assert.ok(!f.calls.includes('probe'));
+  assert.ok(!f.calls.includes('synchronize'));
+  assert.equal(
+    f.input.disabled,
+    false,
+    'Retained navigation does not block the composer for a history request',
+  );
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'probe').length, 1);
+  assert.equal(f.calls.filter((call) => call === 'read').length, 1);
+  f.lose();
+  assert.equal(f.state.restorablePeers.size, 0);
+});
+
 await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

@@ -41,6 +41,7 @@ const real = new Set([
   './outgoing-text.ts',
   './profile-broadcast.ts',
   './activity.ts',
+  './visits.ts',
   '../conversation-preview/index.ts',
 ]);
 const bundle = await build({
@@ -116,6 +117,7 @@ export function coordinatorFixture(
     groupSelected: false,
     groupPending: false,
     probeChanged: false,
+    restorablePeers: new Set<string>(),
     signals: [] as AbortSignal[],
   };
   let emit: (event: LiveEvent) => void = () => {};
@@ -130,6 +132,7 @@ export function coordinatorFixture(
     pageShow: (event: { persisted: boolean }) => void;
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
+  let selectedPeer: string | null = null;
   let choose: (mode: 'reply' | 'edit', view: MessageView) => void = () => {};
   let clickPeer: (
     peer: Parameters<ReturnType<typeof startMessages>['openContact']>[0],
@@ -262,18 +265,32 @@ export function coordinatorFixture(
     return {
       ...base,
       pause: () => {
+        state.restorablePeers.clear();
         calls.push('pause');
         publish(null);
       },
       removed: () => {
+        state.restorablePeers.clear();
         calls.push('removed');
         publish(null);
       },
       hide: () => {
+        state.restorablePeers.clear();
         calls.push('hide');
         publish(null);
       },
       hint: () => calls.push('hint'),
+      setLiveConnected: (connected: boolean) => {
+        if (!connected) state.restorablePeers.clear();
+      },
+      canRestore: (peer: string) => state.restorablePeers.has(peer),
+      restoreSelected: () => {
+        if (!selectedPeer || !state.restorablePeers.has(selectedPeer))
+          return false;
+        calls.push('restore:' + selectedPeer);
+        publish([]);
+        return true;
+      },
       pauseSynchronization: () => calls.push('abort-direct'),
       initialize: () => {
         calls.push('initialize');
@@ -327,6 +344,7 @@ export function coordinatorFixture(
         return state.holdPage ? page.promise : Promise.resolve(false);
       },
       select: (peer: string | null) => {
+        selectedPeer = peer;
         calls.push('select:' + String(peer));
         publish(null);
       },

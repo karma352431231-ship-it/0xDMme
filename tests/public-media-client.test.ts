@@ -152,7 +152,7 @@ await test('media page keeps four active reads; leaving cancels queued items', a
   assert.equal(result[11]?.status, 'rejected');
 });
 
-await test('video loads on entering the viewport and releases bytes on leaving without an open or download click', async (t) => {
+await test('visited feed video keeps its source and position across scrolling and releases on departure', async (t) => {
   const { showPublicPostMedia } =
     await import('../src/client/public-media/index.ts');
   const { CommunityNode, communityDocument } =
@@ -257,7 +257,18 @@ await test('video loads on entering the viewport and releases bytes on leaving w
     assert.equal(host.querySelectorAll('a').length, 0);
     assert.equal(host.textContent.includes('Abrir vídeo'), false);
     visible([{ isIntersecting: false }]);
-    assert.equal(revoked.length, 1);
+    assert.equal(revoked.length, 0);
+    const loaded = video.src;
+    video.currentTime = 17;
+    visible([{ isIntersecting: true }]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(video.src, loaded);
+    assert.equal(video.currentTime, 17);
+    assert.equal(
+      requested,
+      2,
+      'Returning must not fetch the video or poster again',
+    );
     cleanup();
     assert.equal(revoked.length, 2);
     assert.equal(disconnected, true);
@@ -271,7 +282,7 @@ await test('video loads on entering the viewport and releases bytes on leaving w
   }
 });
 
-await test('feed photo loads full bytes on entering the viewport and releases them on leaving; click remains available', async (t) => {
+await test('visited feed photo returns without hiding its source or downloading again and releases on departure', async (t) => {
   const { showPublicPostMedia } =
     await import('../src/client/public-media/index.ts');
   const { CommunityNode, communityDocument } =
@@ -362,9 +373,13 @@ await test('feed photo loads full bytes on entering the viewport and releases th
       'Zoom in on image',
     );
     visible([{ isIntersecting: false }]);
-    assert.equal(host.querySelector('img')!.hidden, true);
-    assert.deepEqual(revoked, ['blob:photo']);
+    assert.equal(host.querySelector('img')!.hidden, false);
+    assert.deepEqual(revoked, []);
+    visible([{ isIntersecting: true }]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(paths.length, 1, 'Returning must not fetch the image again');
     cleanup();
+    assert.deepEqual(revoked, ['blob:photo']);
     assert.equal(disconnected, true);
   } finally {
     for (const [key, descriptor] of saved) {

@@ -70,3 +70,34 @@ after publication must include the complete A→B→A and 65-second idle sequenc
 above. Synthetic regressions establish request reduction and gate behavior,
 not real-browser timing. Current maintenance still finishes its active safe
 operation before a requested opening takes SDK ownership.
+
+## Connected-session navigation approval — 20 October 2026
+
+The owner reported that the deployed correction still displayed synchronization
+on every switch. That correction reduced requests but intentionally retained an
+online gate for every reopen. The owner then explicitly approved immediate
+display of already validated history during the same connected session,
+accepting the interval before a remote update reaches the app. This supersedes
+the per-reopen gate above for these retained candidates only.
+
+Confirmed conversations now record the live connection epoch in which they were
+validated. Navigation can publish an eligible complete window without authority,
+storage or network work. Its selected-history check and read receipts coalesce
+in the existing background scheduler, outside the foreground syncing state.
+Normal live updates and periodic recovery remain active. Foreground mutations
+and current SDK work retain their exclusive lifetime; an occupied engine may
+still delay a requested opening until its current safe operation finishes.
+
+Stream loss, browser suspension or navigation pause invalidate immediate reuse.
+Removals, authorization changes, session replacement and verification failures
+discard eligibility. Reconnecting alone cannot make an old candidate eligible;
+it needs a new authenticated verification. First opens, older pages and evicted
+windows still use the blocking history path. The existing 16-conversation,
+4096-row and 8 MiB candidate budgets remain unchanged.
+
+`messages/visits.ts` owns the new navigation/background scheduling responsibility;
+the screen adds wiring only. Actual-controller tests cover zero-IO reprojection
+and every invalidation boundary, while coordinator tests cover immediate
+selection, an enabled composer and one background check for a navigation burst.
+Real-device timing and the unexplained idle trigger still require a new capture;
+synthetic results do not establish either latency or stream behavior on Opera.

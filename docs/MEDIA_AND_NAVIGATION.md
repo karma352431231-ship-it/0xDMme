@@ -26,6 +26,27 @@ No decrypted content is added to persistent browser storage. A reload or the
 mobile OS discarding the page still requires startup. Existing encrypted local
 history remains owned by its original modules.
 
+## Revisiting feed media and connected conversations — 20 October 2026
+
+The owner requested that scrolling back to a loaded photo, uploaded GIF or video
+reuse its source. Mounted media now retain their object URLs, and videos pause
+off screen without resetting playback position. Inactive media share a least
+recently visited RAM budget of 128 MiB and 48 files. Visible media are excluded
+from that inactive budget so memory pressure does not interrupt playback; a
+single approved video can be 100 MB. Actual decoded browser memory is separate.
+Pressure evicts old inactive files, which may need another download. Disposing
+the media mount or replacing a post releases its retained media immediately.
+No disk cache, HTTP cache change, external GIF copy or retention rule is added.
+
+The owner explicitly approved immediate reuse of a fully validated private
+conversation during the same uninterrupted connected session, with background
+updates. This supersedes the requirement to perform another online history
+gate on every conversation switch for eligible retained windows. A remote
+change not yet delivered may briefly remain in the displayed retained history.
+First opens, session replacement, suspension, stream loss, removals and
+authorization notices retain their blocking checks. This approval does not
+authorize reuse across reconnects or persistent decrypted history.
+
 ## Attachment processing
 
 The reported error comes from the worker error handler, rather than a rejection

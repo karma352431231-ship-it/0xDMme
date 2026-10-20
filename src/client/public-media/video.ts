@@ -1,7 +1,9 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
+import { retainedPublicMedia } from './retained.ts';
+import type { RetainedPublicMedia } from './retained.ts';
 
-/** Keep full video bytes only while the player is near the viewport. Playback stays user initiated. */
+/** Retain visited players within the shared RAM budget. Playback stays user initiated. */
 export function mountPublicVideo(
   slot: HTMLElement,
   media: PublicPostMedia,
@@ -34,8 +36,11 @@ export function mountPublicVideo(
     current: AbortController | null = null,
     resultUrl: string | null = null,
     posterUrl: string | null = null,
+    retained: RetainedPublicMedia | null = null,
     position = 0;
   function unload(): void {
+    retained?.release();
+    retained = null;
     current?.abort();
     current = null;
     if (resultUrl && Number.isFinite(video.currentTime))
@@ -45,6 +50,9 @@ export function mountPublicVideo(
     video.load();
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     resultUrl = null;
+    if (posterUrl) URL.revokeObjectURL(posterUrl);
+    posterUrl = null;
+    video.removeAttribute('poster');
   }
   function usable(signal: AbortSignal): boolean {
     return !signal.aborted && !stopped;
@@ -76,6 +84,11 @@ export function mountPublicVideo(
       resultUrl = URL.createObjectURL(blob);
       video.src = resultUrl;
       video.load();
+      retained = retainedPublicMedia.keep({
+        bytes: blob.size + media.result.thumbnailBytes,
+        visible,
+        dispose: unload,
+      });
     } catch {
       if (usable(signal)) {
         caption.textContent = t('Video unavailable. Try again.');
@@ -97,8 +110,13 @@ export function mountPublicVideo(
   const observer = new IntersectionObserver(
     (entries) => {
       visible = entries.some((entry) => entry.isIntersecting);
+      retained?.visibility(visible);
       if (visible) void load();
-      else unload();
+      else {
+        current?.abort();
+        current = null;
+        video.pause();
+      }
     },
     { rootMargin: '200px' },
   );
@@ -108,7 +126,6 @@ export function mountPublicVideo(
     stopped = true;
     observer.disconnect();
     unload();
-    if (posterUrl) URL.revokeObjectURL(posterUrl);
     options.signal.removeEventListener('abort', cleanup);
   };
   options.signal.addEventListener('abort', cleanup, { once: true });

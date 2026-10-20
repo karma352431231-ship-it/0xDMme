@@ -309,9 +309,9 @@ export class Messages {
     this.index.reset();
     this.offlineIndex.reset();
   }
-  /** Hide during a normal pause, retaining only a fully confirmed window.
-   * probe() must authenticate the current snapshot before publishing it again. */
+  /** A pause ends immediate reuse; candidates still support a fresh probe. */
   pause(): void {
+    this.conversations.invalidateReuse();
     this.pinsGeneration = -1;
     this.probedSnapshot = null;
     this.pauseSynchronization();
@@ -320,6 +320,7 @@ export class Messages {
   /** A removal hint carries no IDs. Block content access immediately while
    * retaining verified candidates for the authenticated incremental response. */
   removed(): void {
+    this.conversations.clear();
     this.pauseSynchronization();
     this.confirmed = null;
     this.probedSnapshot = null;
@@ -339,6 +340,24 @@ export class Messages {
   hint(): void {
     this.probedSnapshot = null;
     this.visibility.hint();
+  }
+  setLiveConnected(connected: boolean): void {
+    this.conversations.connection(connected);
+  }
+  canRestore(peer: string): boolean {
+    return this.session !== null && this.conversations.reusable(peer) !== null;
+  }
+  /** Reproject only a fully verified window from this connected session.
+   * The next background probe still validates its current server snapshot. */
+  restoreSelected(): boolean {
+    const candidate = this.selected
+      ? this.conversations.reusable(this.selected)
+      : null;
+    if (!candidate || candidate !== this.confirmed) return false;
+    const token = this.visibility.refresh();
+    this.visibility.stage(token, candidate.views);
+    this.visibility.complete(token);
+    return true;
   }
   select(peer: string | null, older = false): void {
     this.pauseSynchronization();
