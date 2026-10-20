@@ -256,6 +256,9 @@ REQUIRED_COMMUNITY_TOPICS_BEFORE = '8d94f34ca6637cec6518a53d095a50c7af19a9b0'
 REQUIRED_COMMUNITY_TOPICS_REVIEWED = 'b086ad511cd3338a5246f7f6752ca250be7892ff'
 OWNER_REVIEW_MEDIA_BEFORE = '28b851b29ff11883511f5992083969534f7f7733'
 OWNER_REVIEW_MEDIA_REVIEWED = 'e4f9bfa8f35b4636e4ab8dfda720608962868817'
+# Bounded public inbox metadata; all applied migrations remain byte-identical.
+CONVERSATION_FLOW_BEFORE = '8edc9aae0bfa6e4c0939d3834c50960bd1721dfa'
+CONVERSATION_FLOW_REVIEWED = '4f03719b2e82209f23e0760b65aaf24f67494b67'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -453,6 +456,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'social-read-receipts.ts', 'social-unread.ts'}, CONVERSATION_FLOW_BEFORE, CONVERSATION_FLOW_REVIEWED),
         ({'communities.ts'}, COMMUNITY_READER_BEFORE, COMMUNITY_READER_REVIEWED),
         ({'community-interactions.ts', 'community-posts.ts', 'profile-notifications.ts', 'public-notice-wake.ts'},
          AUTOMATIC_ACTIVITY_BEFORE, AUTOMATIC_ACTIVITY_REVIEWED),
