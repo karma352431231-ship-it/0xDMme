@@ -13,7 +13,7 @@ export async function retrySnapshotRead<T>(
     return read();
   }
 }
-function snapshotChanged(error: unknown): boolean {
+export function snapshotChanged(error: unknown): boolean {
   return (
     error instanceof ApiResponseError &&
     error.status === 409 &&

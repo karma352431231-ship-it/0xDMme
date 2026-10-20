@@ -19,6 +19,29 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('opening an uncached conversation does not restart completed account inboxes; live activity still does', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.state.probeChanged = true;
+  const before = f.calls.filter((call) => call === 'preload').length;
+  await f.messages.openContact(peer('uncached'));
+  for (let tick = 0; tick < 3; tick++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.equal(f.calls.filter((call) => call === 'preload').length, before);
+  f.emit('changed');
+  for (let tick = 0; tick < 8; tick++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.filter((call) => call === 'preload').length > before);
+});
+
 await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

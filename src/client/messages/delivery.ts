@@ -1,7 +1,7 @@
 import { object } from '../../shared/account/index.ts';
 import { messageStates } from '../message-state/index.ts';
 
-interface DeliveryView {
+export interface DeliveryView {
   id: string;
   hash: string;
   state: string;

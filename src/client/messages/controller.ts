@@ -4,6 +4,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
+import { probeConfirmed } from './confirmed-probe.ts';
 import { readDelivery } from './delivery.ts';
 import { readDirectoryPreviews } from './directory-previews.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
@@ -992,9 +993,7 @@ export class Messages {
         views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
         this.before;
       this.visibility.stage(token, views);
-      await this.confirmVisible(token, staged.snapshot, generation, {
-        options,
-      });
+      await this.confirmVisible(token, staged.snapshot, generation, options);
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       this.verified.remember(staged.snapshot, staged.window, staged.liveViews);
@@ -1014,13 +1013,12 @@ export class Messages {
     token: number,
     snapshot: unknown,
     generation: number,
-    work: { authority?: VaultAuthority; options?: VaultWorkOptions } = {},
+    options: VaultWorkOptions = {},
   ): Promise<void> {
     await this.visibility.confirm(token, async () => {
       const check = (a: VaultAuthority) =>
         messageApi(a, 'confirm', { snapshot }, () => this.guard(generation));
-      if (work.authority) await check(work.authority);
-      else await this.access.withVault(false, check, work.options);
+      await this.access.withVault(false, check, options);
       this.guard(generation);
     });
   }
@@ -1730,26 +1728,26 @@ export class Messages {
       return await this.access.withVault(
         false,
         async (authority) => {
-          const snapshot = await messageApi(authority, 'snapshot', {}, () =>
-            this.guard(generation),
-          );
-          this.guard(generation);
-          if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
-            const views = await this.refreshDelivery(
-              snapshot,
-              generation,
-              this.confirmed.views,
-              authority,
+          const api = (operation: string, payload: Record<string, unknown>) =>
+            messageApi(authority, operation, payload, () =>
+              this.guard(generation),
             );
-            this.visibility.stage(token, views);
-            await this.confirmVisible(token, snapshot, generation, {
-              authority,
+          if (this.confirmed) {
+            const views = await probeConfirmed({
+              candidate: this.confirmed,
+              api,
+              visibility: this.visibility,
+              token,
             });
             this.guard(generation);
-            this.confirmed = { snapshot: JSON.stringify(snapshot), views };
-            this.rememberConversation();
-            return false;
+            if (views) {
+              this.confirmed = { ...this.confirmed, views };
+              this.rememberConversation();
+              return false;
+            }
           }
+          const snapshot = await api('snapshot', {});
+          this.guard(generation);
           this.confirmed = null;
           this.probedSnapshot = snapshot;
           this.visibility.discard(token);

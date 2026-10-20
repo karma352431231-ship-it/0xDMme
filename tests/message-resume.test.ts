@@ -62,7 +62,7 @@ await test('session replacement during a pending-text restore prevents publishin
   await assert.rejects(controller.pendingTexts(peer, ['stale']), /[Ss]ession/u);
 });
 
-await test('reopening a confirmed window shares one authority check across snapshot, delivery and confirmation', async () => {
+await test('reopening a confirmed window validates delivery and its snapshot with one current authority', async () => {
   const { controller, data, add, peer } = resumeFixture();
   await add('Já confirmada');
   await controller.synchronize();
@@ -118,11 +118,7 @@ await test('unchanged resumes check state and delivery and confirm without rerea
     assert.equal(data.frames.at(-1), null);
     const before = data.requests.length;
     assert.equal(await controller.probe(), false);
-    assert.deepEqual(data.requests.slice(before), [
-      'snapshot',
-      'delivery',
-      'confirm',
-    ]);
+    assert.deepEqual(data.requests.slice(before), ['delivery']);
     assert.equal(data.frames.at(-1)?.[0]?.text, 'Mensagem já carregada');
   }
   assert.equal(data.requests.filter((op) => op === 'page').length, 1);
@@ -190,11 +186,11 @@ await test('check or confirmation failure closes history and blocks fallback to 
     await add('Histórico confirmado');
     await controller.synchronize();
     controller.pause();
+    if (operation !== 'delivery') controller.hide();
     data.failure = operation;
-    await assert.rejects(
-      controller.probe(),
-      /Not authorized|No verified local authorization/,
-    );
+    await assert.rejects(async () => {
+      if (await controller.probe()) await controller.synchronize();
+    }, /Not authorized|No verified local authorization/);
     assert.equal(data.frames.at(-1), null);
     data.failure = null;
     assert.equal(await controller.probe(), true);
@@ -240,11 +236,7 @@ await test('switching confirmed conversations checks snapshot and delivery witho
     assert.equal(data.frames.at(-1), null);
     const before = data.requests.length;
     assert.equal(await controller.probe(), false);
-    assert.deepEqual(data.requests.slice(before), [
-      'snapshot',
-      'delivery',
-      'confirm',
-    ]);
+    assert.deepEqual(data.requests.slice(before), ['delivery']);
     assert.equal(data.frames.at(-1)?.[0]?.peer, selected);
   }
   assert.equal(data.requests.filter((op) => op === 'page').length, 1);
@@ -285,7 +277,7 @@ await test('preparation with no selected conversation makes all content ready be
 });
 
 await test('deletion and failure also discard other retained conversations', async () => {
-  for (const cause of ['hide', 'confirm'] as const) {
+  for (const cause of ['hide', 'delivery'] as const) {
     const { controller, data, add, peer } = resumeFixture();
     const other = crypto.randomUUID();
     await add('Primeira');
@@ -295,7 +287,7 @@ await test('deletion and failure also discard other retained conversations', asy
     await controller.synchronize();
     if (cause === 'hide') controller.hide();
     else {
-      data.failure = 'confirm';
+      data.failure = 'delivery';
       await assert.rejects(
         controller.probe(),
         /Not authorized|No verified local authorization/,
@@ -386,11 +378,7 @@ await test('editing one message queries only the delta, reuses content and prese
   controller.select(other);
   const navigation = data.requests.length;
   assert.equal(await controller.probe(), false);
-  assert.deepEqual(data.requests.slice(navigation), [
-    'snapshot',
-    'delivery',
-    'confirm',
-  ]);
+  assert.deepEqual(data.requests.slice(navigation), ['delivery']);
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Outra conversa');
 });
 

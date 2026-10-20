@@ -1174,7 +1174,6 @@ export function startMessages(
     if (!conversationMounted('[data-direct-conversation]')) return;
     if (await controller.probe(work)) {
       await controller.loadPins(work);
-      synchronization.prepareHistory();
       await controller.synchronize(work);
     }
   }
