@@ -9998,6 +9998,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Invalid media frame rate.': ['Invalid media frame rate.', '媒体帧率无效。'],
   'ranking.biggest': ['Biggest', '最大'],
   'Create new invitation': ['Create new invitation', '创建新邀请'],
+  'People who know your wallet address can send you a chat invitation': [
+    'People who know your wallet address can send you a chat invitation',
+    '知道你钱包地址的人可以向你发送聊天邀请',
+  ],
   'Invitation ready: one use, valid for 24 hours. Previous invitations remain valid.':
     [
       'Invitation ready: one use, valid for 24 hours. Previous invitations remain valid.',

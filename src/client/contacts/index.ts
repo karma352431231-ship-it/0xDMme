@@ -600,6 +600,7 @@ export function startContacts(
   };
   function clear(): void {
     generation++;
+    discovery.clear();
     contactSettings.clear();
     camera?.stop();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();

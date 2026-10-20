@@ -1,8 +1,8 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { DiscoveryMode } from '../../shared/contacts/index.ts';
 
-const modes = ['invite', 'wallet', 'contacts'] as const;
-function descriptions(mode: DiscoveryMode): {
+const modes = ['invite', 'wallet'] as const;
+function descriptions(mode: (typeof modes)[number]): {
   title: string;
   hint: string;
   explanation: string;
@@ -15,24 +15,19 @@ function descriptions(mode: DiscoveryMode): {
         'Only people with an unused invitation can find your private account and request a chat. Each invitation expires after 24 hours and allows one request. New invitations are independent; you still choose whether to accept.',
       ),
     };
-  if (mode === 'wallet')
-    return {
-      title: t('By exact wallet address or invitation'),
-      hint: t('Let people find your exact wallet'),
-      explanation: t(
-        'Anyone with your complete wallet address or active invitation link can find your private account and request a chat. You must accept before they can message you. This does not publish your wallet in a directory.',
-      ),
-    };
   return {
-    title: t('Approved contacts only'),
-    hint: t('Stop new chat requests'),
+    title: t('By exact wallet address or invitation'),
+    hint: t(
+      'People who know your wallet address can send you a chat invitation',
+    ),
     explanation: t(
-      'Only contacts you have already approved can chat with you. New requests are disabled, including requests through your invitation link or exact wallet address. Existing contacts stay approved.',
+      'Anyone with your complete wallet address or active invitation link can find your private account and request a chat. You must accept before they can message you. This does not publish your wallet in a directory.',
     ),
   };
 }
 
-/** Native radios retain keyboard navigation; explanations also open by touch. */
+/** Native radios retain keyboard navigation. Mouse explanations require a
+ * continuous one-second hover; keyboard focus uses the same delay. */
 export class DiscoveryChoices {
   private selected: DiscoveryMode = 'invite';
   private fields = new Map<DiscoveryMode, HTMLInputElement>();
@@ -42,11 +37,17 @@ export class DiscoveryChoices {
     return this.selected;
   }
   set value(mode: DiscoveryMode) {
+    // An existing restrictive legacy setting is preserved until the owner
+    // explicitly chooses one of the two visible options and saves it.
     this.selected = mode;
     for (const [value, field] of this.fields) field.checked = value === mode;
   }
-  mount(container: HTMLElement): void {
+  clear(): void {
     this.closeTip?.();
+    this.closeTip = null;
+  }
+  mount(container: HTMLElement): void {
+    this.clear();
     this.fields.clear();
     const host = container.querySelector('[data-discovery-choices]');
     if (!host) return;
@@ -59,7 +60,7 @@ export class DiscoveryChoices {
     host.replaceChildren(group);
     this.value = this.selected;
   }
-  private choice(mode: DiscoveryMode): HTMLElement {
+  private choice(mode: (typeof modes)[number]): HTMLElement {
     const copy = descriptions(mode),
       row = document.createElement('div'),
       label = document.createElement('label'),
@@ -67,7 +68,6 @@ export class DiscoveryChoices {
       text = document.createElement('span'),
       title = document.createElement('strong'),
       hint = document.createElement('small'),
-      help = document.createElement('button'),
       tip = document.createElement('div');
     row.className = 'discovery-choice';
     field.type = 'radio';
@@ -82,61 +82,38 @@ export class DiscoveryChoices {
     hint.textContent = copy.hint;
     text.append(title, hint);
     label.append(field, text);
-    help.type = 'button';
-    help.className = 'discovery-help';
-    help.textContent = 'i';
-    help.setAttribute('aria-label', t('Explain: {0}', [copy.title]));
-    help.setAttribute('aria-controls', `discovery-tip-${mode}`);
     tip.id = `discovery-tip-${mode}`;
     tip.className = 'discovery-tip';
     tip.setAttribute('role', 'tooltip');
     tip.textContent = copy.explanation;
-    this.bindTip({ row, help, tip });
-    row.append(label, help, tip);
+    this.bindTip(row, tip);
+    row.append(label, tip);
     return row;
   }
-  private bindTip(input: {
-    row: HTMLElement;
-    help: HTMLButtonElement;
-    tip: HTMLElement;
-  }): void {
-    const { row, help, tip } = input;
-    let pinned = false,
-      hovered = false;
+  private bindTip(row: HTMLElement, tip: HTMLElement): void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const close = (): void => {
-      pinned = false;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
       tip.hidden = true;
-      help.setAttribute('aria-expanded', 'false');
     };
-    const open = (): void => {
-      this.closeTip?.();
+    const schedule = (): void => {
+      this.clear();
       this.closeTip = close;
-      tip.hidden = false;
-      help.setAttribute('aria-expanded', 'true');
+      timer = setTimeout(() => {
+        timer = null;
+        tip.hidden = false;
+      }, 1000);
     };
     close();
     row.addEventListener('pointerenter', (event) => {
-      if (event.pointerType !== 'mouse') return;
-      hovered = true;
-      open();
+      if (event.pointerType === 'mouse') schedule();
     });
-    row.addEventListener('pointerleave', () => {
-      hovered = false;
-      if (!pinned && !row.contains(document.activeElement)) close();
+    row.addEventListener('pointerleave', close);
+    row.addEventListener('focusin', () => {
+      if (row.querySelector(':focus-visible')) schedule();
     });
-    row.addEventListener('focusin', open);
-    row.addEventListener('focusout', (event) => {
-      if (event.relatedTarget && row.contains(event.relatedTarget as Node))
-        return;
-      if (!hovered) close();
-    });
-    help.addEventListener('click', () => {
-      if (pinned) close();
-      else {
-        open();
-        pinned = true;
-      }
-    });
+    row.addEventListener('focusout', close);
     row.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') close();
     });

@@ -35,3 +35,20 @@ This implementation is on `codex/message-alerts-and-contact-invites`, based on t
 currently published notification release. Activation of the 093→094 migration
 requires its own owner review, exact-commit CI and backup/rollback verification
 through the existing deployment command. This task has not changed the VPS.
+
+On 20 October 2026, the owner also approved applying this migration and later
+explicitly requested integration into main and VPS activation. The existing
+executor now requires `--contact-invitations` for the exact 093→094 transition;
+this flag cannot be combined with other infrastructure changes. It pins the
+published predecessor and reviewed database sources, preserves contacts and
+personal quota, verifies the expected 256-byte global delta per migrated grant,
+and reuses private backup validation and phase-aware recovery. Own writers stop
+for the migration; shared services and dependencies stay unchanged.
+
+Private discovery now presents only invitation and exact-wallet choices. The
+wallet hint explains, in English and Simplified Chinese, that knowing the wallet
+address permits sending a chat invitation; approval is still required for chat.
+Help icons are removed. Explanations require one second of continuous mouse
+hover or keyboard focus, cancel on leave/Escape, and do not open on touch. A
+previously stored contacts-only restriction is preserved until its owner
+explicitly chooses and saves one of the two visible options.

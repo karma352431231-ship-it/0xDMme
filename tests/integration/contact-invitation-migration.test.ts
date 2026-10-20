@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { test } from 'node:test';
 import pg from 'pg';
 import { Database } from '../../src/server/database/index.ts';
@@ -84,6 +86,20 @@ await test('093 to 094 bounds legacy invitations without changing approved conta
   const after = await accounting(client, owner!);
   assert.equal(BigInt(after.global), BigInt(before.global) + 256n);
   assert.equal(after.personal, before.personal);
+  // The real migrator records this same transaction timestamp for 094.
+  await client.query(
+    'UPDATE hash_talk.schema_migrations SET applied_at=now() WHERE version=94',
+  );
+  const { stdout } = await promisify(execFile)('python3', [
+    '-c',
+    "import sys,json;sys.path.insert(0,'infra/staging');import deploy_contact_invitations as m;print(json.dumps([m.SCHEMA_CHECK,m.COUNTER_CHECKS,m.GLOBAL_CHECK]))",
+  ]);
+  const checks = JSON.parse(stdout) as string[];
+  for (const sql of checks) {
+    const checked = await client.query(sql);
+    if (sql.startsWith('SELECT'))
+      assert.deepEqual(Object.values(checked.rows[0] as object), [true]);
+  }
 });
 
 async function accounting(client: pg.Client, owner: string) {

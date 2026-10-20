@@ -13,7 +13,7 @@
 .discovery-choice {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 12px;
@@ -56,18 +56,6 @@
 .discovery-choice small {
   color: var(--text-muted);
   font-size: var(--fs-small);
-}
-#app-shell .discovery-help {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin: 0;
-  padding: 0;
-  border-radius: 50%;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  cursor: help;
 }
 .discovery-tip {
   position: absolute;
