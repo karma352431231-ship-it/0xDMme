@@ -43,16 +43,16 @@ const reserved = new Set([
 ]);
 
 export function publicHandle(value: unknown): string {
-  if (typeof value !== 'string') throw new AccountError(400, '@ inválido.');
+  if (typeof value !== 'string') throw new AccountError(400, 'Invalid handle.');
   const handle = value.trim().replace(/^@/u, '').toLowerCase();
   if (!/^[a-z0-9_]{3,30}$/u.test(handle) || !/[a-z0-9]/u.test(handle))
-    throw new AccountError(400, 'Use 3–30 letras sem acento, números ou _.');
+    throw new AccountError(400, 'Use 3–30 unaccented letters, numbers or _.');
   return handle;
 }
 export function claimableHandle(value: unknown): string {
   const handle = publicHandle(value);
   if (reserved.has(handle.replaceAll('_', '')))
-    throw new AccountError(400, 'Este @ é reservado pelo aplicativo.');
+    throw new AccountError(400, 'This handle is reserved by the app.');
   return handle;
 }
 
@@ -79,7 +79,7 @@ export function publicProfile(value: unknown): PublicProfile {
 }
 export function profileRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
-    throw new AccountError(400, 'Revisão inválida.');
+    throw new AccountError(400, 'Invalid revision.');
   return value;
 }
 export function ownPublicProfile(value: unknown): OwnPublicProfile | null {
@@ -97,7 +97,7 @@ export function publicProfileProof(value: unknown) {
   keys(data, ['directory', 'payload', 'signature']);
   const directory = boundedText(data['directory'], 64);
   if (!/^[a-f0-9]{64}$/u.test(directory))
-    throw new AccountError(400, 'Diretório inválido.');
+    throw new AccountError(400, 'Invalid directory.');
   return {
     directory,
     payload: object(data['payload']),

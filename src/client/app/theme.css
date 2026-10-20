@@ -1,6 +1,6 @@
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*
- * Color tokens for the three approved themes (docs/UI_PAINEIS_E_TEMAS.md).
+ * Color tokens for the three approved themes.
  * Components use only these variables; the brand gradient is reserved for the
  * mark, unread counters, status rings and the active area. Preto is the default
  * when no valid explicit preference exists.
@@ -185,7 +185,7 @@
   background-color: var(--surface);
   color: var(--text);
 }
-/* Previews in Perfil → Aparência show each theme regardless of the active one. */
+/* Previews in Profile → Appearance show each theme regardless of the active one. */
 [data-theme-preview] .appearance-swatch {
   background: linear-gradient(135deg, #0a0f22 50%, #4f7dff 50%);
 }

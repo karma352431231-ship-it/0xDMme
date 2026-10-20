@@ -16,7 +16,7 @@ function identities(): PeerIdentity {
   };
   return new PeerIdentity(new VaultSync(access));
 }
-await test('avisos repetidos conferem o índice sem baixar identidades já autenticadas; novo registro é validado', async () => {
+await test('repeated notices check the index without downloading authenticated identities again; new record is validated', async () => {
   const peer = await groupParticipant();
   const entry: VaultEntry = {
     change: {
@@ -77,16 +77,16 @@ await test('avisos repetidos conferem o índice sem baixar identidades já auten
       commit: { ...entry.commit, id: crypto.randomUUID(), sequence: 2 },
     },
   ]);
-  await assert.rejects(identity.load(), /Identidades fixadas em conflito/u);
+  await assert.rejects(identity.load(), /Pinned identities conflict/u);
   assert.equal(opened, 2);
   assert.equal(identity.get(peer.accountId)?.directory, peer.head);
 });
-await test('troca de conta invalida conferência pendente; raiz diferente da identidade fixada é recusada', async () => {
+await test('account change invalidates pending verification; root differing from the pinned identity is rejected', async () => {
   const peer = await groupParticipant(),
     pins = identities();
   const pending = pins.remember(peer.accountId, [peer.directory]);
   pins.clear();
-  await assert.rejects(pending, /Sessão alterada/u);
+  await assert.rejects(pending, /Session changed/u);
   assert.equal(pins.get(peer.accountId), null);
   await pins.remember(peer.accountId, [peer.directory]);
   const replacement = await groupParticipant({ accountId: peer.accountId });
@@ -100,7 +100,7 @@ await test('troca de conta invalida conferência pendente; raiz diferente da ide
   );
   assert.equal(pins.get(peer.accountId)?.directory, peer.head);
 });
-await test('diretórios de grupo usam lotes limitados e recusam repetição ou cápsulas excedidas', async () => {
+await test('group directories use bounded batches and reject repetition or oversized capsules', async () => {
   const peers = await Promise.all(
       Array.from({ length: 33 }, () => groupParticipant()),
     ),
@@ -143,7 +143,7 @@ await test('diretórios de grupo usam lotes limitados e recusam repetição ou c
       load: () =>
         Promise.resolve({ directories: [directory, directory], recovery: [] }),
     }),
-    /repetido/u,
+    /[Dd]uplicate|repeated/u,
   );
   await assert.rejects(
     readDirectories({
@@ -152,11 +152,11 @@ await test('diretórios de grupo usam lotes limitados e recusam repetição ou c
       load: () =>
         Promise.resolve({ directories: [directory], recovery: [{}, {}] }),
     }),
-    /incompletos/u,
+    /incomplete/u,
   );
 });
 
-await test('preparação cede entre gravações de identidades sem perder o pin já preservado', async () => {
+await test('preparation yields between identity writes without losing the preserved pin', async () => {
   const peers = await Promise.all([groupParticipant(), groupParticipant()]);
   const abort = new AbortController();
   let writes = 0;

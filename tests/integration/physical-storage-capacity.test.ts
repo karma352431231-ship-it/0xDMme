@@ -114,7 +114,7 @@ async function verifyGrowth(t: TestContext, c: CapacityContext) {
             error instanceof AccountError &&
             error.status === 503 &&
             error.message ===
-              'Capacidade global ocupada pelos dados usados ou uploads em andamento. Retome depois.',
+              'Global capacity occupied by stored data or ongoing uploads. Resume later.',
         ),
       );
       volume.failed = false;

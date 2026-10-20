@@ -15,7 +15,7 @@ export function communityTargetPicker(
   container: HTMLElement,
   actions: CommunityActions,
 ): () => PublicProfile {
-  const handle = communityField(container, t('@ do perfil público'), {
+  const handle = communityField(container, t('Public profile handle'), {
     maximum: 31,
   });
   const result = communityElement('p');
@@ -25,7 +25,7 @@ export function communityTargetPicker(
     selected = null;
     result.textContent = '';
   });
-  communityButton(container, t('Buscar perfil'), () =>
+  communityButton(container, t('Find profile'), () =>
     actions.query(async () => {
       selected = null;
       const requested = handle.value;
@@ -45,14 +45,14 @@ export function communityTargetPicker(
       if (handle.value !== requested) return;
       selected = profile;
       result.textContent = t(
-        'Perfil selecionado: @{0}. Confira antes de confirmar.',
+        'Selected profile: @{0}. Check before confirming.',
         [selected.handle],
       );
     }),
   );
   return () => {
     if (!selected)
-      throw new Error('Busque e confira o perfil antes de continuar.');
+      throw new Error('Find and check the profile before continuing.');
     return selected;
   };
 }

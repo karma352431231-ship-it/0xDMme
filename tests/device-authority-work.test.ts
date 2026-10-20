@@ -109,7 +109,7 @@ await test('pending authority jobs have a bounded budget and do not run under a 
   );
   await assert.rejects(
     queue.run(() => Promise.resolve()),
-    /Aguarde/,
+    /Wait/,
   );
   gate.resolve();
   await Promise.all([running, ...waiting]);
@@ -143,7 +143,7 @@ await test('pending authority jobs have a bounded budget and do not run under a 
   } as AccountSession);
   const activeGate = deferred<void>();
   const active = controller.run(() => activeGate.promise);
-  const activeRejected = assert.rejects(active, /Sessão alterada/);
+  const activeRejected = assert.rejects(active, /Session changed/);
   let oldAction = false;
   const stale = controller.run(
     () => {
@@ -152,7 +152,7 @@ await test('pending authority jobs have a bounded budget and do not run under a 
     },
     { priority: 'interactive' },
   );
-  const staleRejected = assert.rejects(stale, /Sessão alterada/);
+  const staleRejected = assert.rejects(stale, /Session changed/);
   controller.setSession(null);
   activeGate.resolve();
   await Promise.all([activeRejected, staleRejected]);

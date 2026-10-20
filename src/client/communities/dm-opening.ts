@@ -28,7 +28,7 @@ export async function openDmConversation(
   options: VaultWorkOptions = {},
 ): Promise<SocialRelation> {
   const value = await source.state(peer, options);
-  if (!usable()) throw new DOMException('DM encerrada.', 'AbortError');
+  if (!usable()) throw new DOMException('DM ended.', 'AbortError');
   if (
     value &&
     (value.state === 'approved' ||

@@ -2,19 +2,19 @@ import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
 
 /**
- * Appearance (docs/UI_PAINEIS_E_TEMAS.md): the theme choice and how names and
+ * Appearance: the theme choice and how names and
  * avatars are shown. The theme is kept on this device; with a connected account,
  * account-settings copies it to the encrypted vault, never to the server in clear.
  */
 export const themePreferenceKey = '0xdmme:theme';
 
 export const themes = [
-  { id: 'navy', label: t('Azul'), hint: t('Cor da marca'), chrome: '#0a0f22' },
-  { id: 'black', label: t('Preto'), hint: t('Preto puro'), chrome: '#000000' },
+  { id: 'navy', label: t('Blue'), hint: t('Brand color'), chrome: '#0a0f22' },
+  { id: 'black', label: t('Black'), hint: t('Pure black'), chrome: '#000000' },
   {
     id: 'white',
-    label: t('Branco'),
-    hint: t('Fundo claro'),
+    label: t('White'),
+    hint: t('Light background'),
     chrome: '#f4f6fb',
   },
 ] as const;
@@ -43,13 +43,13 @@ export function storedTheme(storage: PreferenceStorage = browserStorage): {
     }
     return {
       theme: defaultTheme,
-      problem: t('Tema salvo inválido. Usando Preto; escolha outro abaixo.'),
+      problem: t('Invalid saved theme. Using Black; choose another below.'),
     };
   } catch {
     return {
       theme: defaultTheme,
       problem: t(
-        'Este navegador não permite ler o tema salvo. Usando Preto nesta abertura.',
+        'This browser cannot read the saved theme. Using Black for this visit.',
       ),
     };
   }
@@ -80,7 +80,7 @@ export function startAppearance(storage: PreferenceStorage = browserStorage): {
       problem = '';
     } catch {
       problem = t(
-        'Não foi possível salvar neste aparelho. O tema vale até fechar o app.',
+        'Could not save on this device. The theme applies until you close the app.',
       );
     }
     const feedback = mounted?.querySelector<HTMLElement>(

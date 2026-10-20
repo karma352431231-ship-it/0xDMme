@@ -25,7 +25,7 @@ export function readPushConfiguration(
     !privateKey ||
     !/^[A-Za-z0-9_-]{43}$/u.test(privateKey)
   )
-    throw new Error('Chaves VAPID inválidas.');
+    throw new Error('Invalid VAPID keys.');
   const subject = 'https://0xdmme.app';
   webpush.getVapidHeaders(
     'https://web.push.apple.com',
@@ -82,7 +82,7 @@ export async function sendPush(
   pushRegistration(subscription);
   const remaining = delivery.expiresAt - Date.now();
   const ttl = Math.floor(remaining / 1000);
-  if (ttl <= 0 || ttl > 60) throw new Error('Aviso push expirado.');
+  if (ttl <= 0 || ttl > 60) throw new Error('Push notification expired.');
   const agent = new Agent({
     keepAlive: false,
     lookup(host, options, callback) {
@@ -95,7 +95,7 @@ export async function sendPush(
           ? address.every((a) => publicPushAddress(a.address))
           : publicPushAddress(address);
         if (!valid) {
-          callback(new Error('Destino push indisponível.'), '', 4);
+          callback(new Error('Push destination unavailable.'), '', 4);
           return;
         }
         callback(null, address, family);

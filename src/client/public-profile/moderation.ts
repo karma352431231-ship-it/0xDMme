@@ -6,28 +6,26 @@ import type {
 } from '../../shared/public-moderation/index.ts';
 
 const labels: Record<PublicModerationStatus, string> = {
-  pending: t('Aguardando análise. O arquivo continua restrito.'),
-  analyzing: t('Análise em andamento. O arquivo continua restrito.'),
-  approved: t('Análise concluída: conteúdo permitido.'),
+  pending: t('Awaiting analysis. The file remains restricted.'),
+  analyzing: t('Analysis in progress. The file remains restricted.'),
+  approved: t('Analysis completed: content allowed.'),
   rejected: t(
-    'A análise recusou este arquivo por indicação de conteúdo explícito.',
+    'Analysis rejected this file because it detected explicit content.',
   ),
   held: t(
-    'Análise incerta. O arquivo continua restrito e pode ser contestado.',
+    'Analysis uncertain. The file remains restricted and can be appealed.',
   ),
-  failed: t(
-    'Não foi possível concluir a análise. O arquivo continua restrito.',
-  ),
-  discarding: t('Prazo encerrado. O arquivo está sendo descartado.'),
-  expired: t('O arquivo não aprovado foi descartado ao encerrar o prazo.'),
-  removed: t('Análise encerrada por troca, remoção ou atualização da regra.'),
+  failed: t('Could not complete analysis. The file remains restricted.'),
+  discarding: t('Deadline passed. The file is being discarded.'),
+  expired: t('The unapproved file was discarded at the deadline.'),
+  removed: t('Analysis ended due to replacement, removal or a rule update.'),
 };
 const kinds = {
-  avatar: t('Foto do perfil'),
-  'profile-banner': t('Banner do perfil'),
-  'community-photo': t('Foto da comunidade'),
-  'community-banner': t('Banner da comunidade'),
-  'post-media': t('Mídia de post ou resposta'),
+  avatar: t('Profile photo'),
+  'profile-banner': t('Profile banner'),
+  'community-photo': t('Community photo'),
+  'community-banner': t('Community banner'),
+  'post-media': t('Post or reply media'),
 };
 export function renderModeration(
   container: HTMLElement | null,
@@ -49,18 +47,18 @@ export function renderModeration(
     if (notice.warning) {
       const warning = document.createElement('p');
       warning.textContent = t(
-        'Advertência registrada: seu vídeo foi removido do público por conteúdo impróprio.',
+        'Warning recorded: your video was removed from public view for inappropriate content.',
       );
       article.append(warning);
     }
     if (notice.appeal) {
       const appeal = document.createElement('p');
-      appeal.textContent = t('Contestação: {0}', [notice.appeal]);
+      appeal.textContent = t('Appeal: {0}', [notice.appeal]);
       article.append(appeal);
     }
     if (notice.decision) {
       const decision = document.createElement('p');
-      decision.textContent = t('Revisão: {0}', [notice.decision]);
+      decision.textContent = t('Revision: {0}', [notice.decision]);
       article.append(decision);
     }
     if (
@@ -72,10 +70,10 @@ export function renderModeration(
       const date = new Date(notice.expiresAt).toLocaleString(currentLanguage());
       deadline.textContent = notice.afterPublication
         ? t(
-            'Sem aprovação até {0}, o vídeo deixa de ficar público e o arquivo será descartado.',
+            'Without approval by {0}, the video stops being public and the file will be discarded.',
             [date],
           )
-        : t('Sem aprovação, o arquivo será descartado até {0}.', [date]);
+        : t('Without approval, the file will be discarded by {0}.', [date]);
       article.append(deadline);
     }
     if (canAppeal(notice)) article.append(appealForm(notice, options));
@@ -89,7 +87,7 @@ function moderationLabel(notice: PublicModerationNotice): string {
     notice.afterPublication &&
     ['pending', 'analyzing'].includes(notice.status)
   )
-    return t('Vídeo enviado. Análise em segundo plano pendente.');
+    return t('Video uploaded. Background analysis pending.');
   return labels[notice.status];
 }
 function canAppeal(notice: PublicModerationNotice): boolean {
@@ -110,15 +108,13 @@ function appealForm(
     label = document.createElement('label'),
     input = document.createElement('textarea'),
     button = document.createElement('button');
-  label.textContent = t(
-    'Explique por que este arquivo atende às regras públicas',
-  );
+  label.textContent = t('Explain why this file follows the public rules');
   input.required = true;
   input.maxLength = 2_000;
   input.disabled = options.busy;
   label.append(input);
   button.type = 'submit';
-  button.textContent = t('Contestar análise');
+  button.textContent = t('Appeal analysis');
   button.disabled = options.busy;
   form.append(label, button);
   form.addEventListener('submit', (event) => {

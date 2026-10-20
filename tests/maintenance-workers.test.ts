@@ -5,7 +5,7 @@ import { WorkConsumers } from '../src/server/work-scheduler/index.ts';
 import type { WorkTopic } from '../src/server/database/index.ts';
 import { backgroundMode } from '../src/server/background/index.ts';
 
-await test('coletores: falha independente, drenagem por lote, prazo e sinal durante trabalho sem fallback', async () => {
+await test('collectors: independent failure, batch draining, deadline and signal during work without fallback', async () => {
   const listeners = new Map<WorkTopic, (() => void)[]>();
   const signals = {
     subscribe: (topic: WorkTopic, listener: () => void) => {
@@ -62,7 +62,7 @@ await test('coletores: falha independente, drenagem por lote, prazo e sinal dura
   await consumers.close();
   assert.equal(listeners.get('status')?.length, 0);
 });
-await test('workers: modo explícito evita executar cópias no web isolado', () => {
+await test('workers: explicit mode avoids running copies inside the isolated web process', () => {
   assert.equal(backgroundMode({}), 'embedded');
   assert.equal(
     backgroundMode({ HASH_TALK_BACKGROUND_MODE: 'isolated' }),

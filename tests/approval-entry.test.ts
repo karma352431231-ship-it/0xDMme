@@ -28,11 +28,11 @@ function validated(value: unknown) {
   try {
     return walletApprovalRequest(value);
   } catch {
-    throw new AccountError(400, 'Pedido inválido.');
+    throw new AccountError(400, 'Invalid request.');
   }
 }
 
-await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade nova e bloqueia navegação de APIs entre sites', async (t) => {
+await test('entry validates fields, cleans the URL, bounds the cookie, preserves the new capability and blocks cross-site API navigation', async (t) => {
   const origin = 'https://0xdmme.app';
   let expires = Date.now() + 120_000;
   const consumed = new Set<string>();
@@ -51,7 +51,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
           request.ecosystem !== expected ||
           consumed.has(request.ticket)
         )
-          throw new AccountError(401, 'Pedido inválido.');
+          throw new AccountError(401, 'Invalid request.');
         return Promise.resolve({
           request,
           expiresAt: new Date(expires).toISOString(),

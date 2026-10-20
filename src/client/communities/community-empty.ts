@@ -12,7 +12,7 @@ const suggestionCount = 4;
 /**
  * A community without posts invites the first one and points to other
  * communities active this week. There is no similarity data: suggestions are
- * the same public "em alta" list as Explorar, without the current community.
+ * the same public "trending" list as Explore, without the current community.
  */
 export function emptyCommunity(
   host: HTMLElement,
@@ -25,11 +25,11 @@ export function emptyCommunity(
 ): void {
   const card = el('section', '', 'community-empty');
   card.append(
-    el('h3', t('Nenhuma postagem ainda')),
-    el('p', t('Comece a conversa nesta comunidade.')),
+    el('h3', t('No posts yet')),
+    el('p', t('Start the conversation in this community.')),
   );
   if (options.compose) {
-    const start = el('button', t('Escrever a primeira postagem'), 'primary');
+    const start = el('button', t('Write the first post'), 'primary');
     start.type = 'button';
     start.addEventListener('click', options.compose);
     card.append(start);
@@ -57,7 +57,7 @@ async function suggestions(
   if (!items.length || options.signal.aborted || !card.isConnected) return;
   const list = el('div', '', 'community-empty-suggestions');
   for (const item of items) list.append(row(item, options.signal));
-  card.append(el('h4', t('Outras comunidades em alta')), list);
+  card.append(el('h4', t('Other trending communities')), list);
 }
 
 function row(item: Community, signal: AbortSignal): HTMLElement {
@@ -71,7 +71,7 @@ function row(item: Community, signal: AbortSignal): HTMLElement {
       'small',
       t('{0} {1}', [
         item.followers,
-        item.followers === 1 ? t('seguidor') : t('seguidores'),
+        item.followers === 1 ? t('follower') : t('followers'),
       ]),
     ),
   );

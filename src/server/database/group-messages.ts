@@ -44,7 +44,7 @@ interface PacketRow {
   relation: unknown;
 }
 function unavailable(): never {
-  throw new AccountError(403, 'Mensagem fora da participação autorizada.');
+  throw new AccountError(403, 'Message outside authorized membership.');
 }
 export class GroupMessageStore {
   readonly updates: GroupMessageUpdates;
@@ -139,7 +139,7 @@ export class GroupMessageStore {
       row.sender !== input.packet.sender ||
       row.group_id !== input.packet.groupId
     )
-      throw new AccountError(409, 'Mensagem de grupo repetida divergente.');
+      throw new AccountError(409, 'Repeated group message does not match.');
     if (!groupCanRead(input.state, input.packet.sender, row.epoch))
       unavailable();
     return true;
@@ -160,7 +160,7 @@ export class GroupMessageStore {
     )
       throw new AccountError(
         409,
-        'Participação mudou antes da aceitação. Atualize e cifre novamente.',
+        'Membership changed before acceptance. Refresh and encrypt again.',
       );
     if (
       input.packet.kind === 'profile' &&
@@ -180,7 +180,7 @@ export class GroupMessageStore {
     if (input.provided) {
       const bundle = groupKeys(input.provided);
       if ((await groupKeysHash(bundle)) !== input.packet.keyHash)
-        throw new AccountError(400, 'Referência de recuperação divergente.');
+        throw new AccountError(400, 'Recovery reference does not match.');
       return bundle;
     }
     const rows = await client.query<{ body: unknown }>(
@@ -190,7 +190,7 @@ export class GroupMessageStore {
     if (!rows.rows[0])
       throw new AccountError(
         409,
-        'Envie a recuperação desta sessão antes de continuar.',
+        'Send recovery for this session before continuing.',
       );
     return groupKeys(rows.rows[0].body);
   }
@@ -209,7 +209,7 @@ export class GroupMessageStore {
     if (rows.rows[0]?.count !== requests.length)
       throw new AccountError(
         409,
-        'Diretório ou recuperação de participante mudou. Atualize antes de reenviar.',
+        'Participant directory or recovery changed. Refresh before resending.',
       );
   }
   private async saveBundle(
@@ -219,7 +219,7 @@ export class GroupMessageStore {
     const body = JSON.stringify(bundle),
       charge = Buffer.byteLength(body) + 512;
     if (charge > 2_200_000)
-      throw new AccountError(413, 'Recuperação de grupo excedida.');
+      throw new AccountError(413, 'Group recovery exceeds the limit.');
     await client.query(
       'INSERT INTO hash_talk.group_key_sets(hash,group_id,epoch,sender,body,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT DO NOTHING',
       [
@@ -239,7 +239,7 @@ export class GroupMessageStore {
     const body = JSON.stringify(input.packet),
       charge = Buffer.byteLength(body) + 512 + input.state.members.length * 16;
     if (charge > 4_300_000)
-      throw new AccountError(413, 'Mensagem de grupo excedida.');
+      throw new AccountError(413, 'Group message exceeds the limit.');
     const pending = input.state.members
       .filter((m) => m.accountId !== input.packet.sender)
       .map((m) => m.accountId);
@@ -295,7 +295,7 @@ export class GroupMessageStore {
       );
       if (!row.rows[0]) return false;
       if (row.rows[0].hash !== input.hash)
-        throw new AccountError(409, 'Mensagem repetida divergente.');
+        throw new AccountError(409, 'Repeated message does not match.');
       return true;
     });
   }

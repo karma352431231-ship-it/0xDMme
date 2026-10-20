@@ -23,7 +23,7 @@ export interface PublicPostMedia {
 }
 export function publicPostMedia(value: unknown): PublicPostMedia[] {
   if (!Array.isArray(value) || value.length > 4)
-    throw new AccountError(400, 'Mídia pública inválida.');
+    throw new AccountError(400, 'Invalid public media.');
   const result = value.map((item: unknown) => {
     const data = object(item);
     keys(data, ['id', 'review', 'result']);
@@ -34,7 +34,7 @@ export function publicPostMedia(value: unknown): PublicPostMedia[] {
     };
   });
   if (new Set(result.map((item) => item.id)).size !== result.length)
-    throw new AccountError(400, 'Mídia pública repetida.');
+    throw new AccountError(400, 'Duplicate public media.');
   communityMediaKindsSet(result.map((item) => item.result.kind));
   return result;
 }
@@ -59,7 +59,7 @@ export function publicAvatar(
 ): string | null {
   if (value === null) return null;
   if (typeof value !== 'string')
-    throw new AccountError(400, 'Avatar público inválido.');
+    throw new AccountError(400, 'Invalid public avatar.');
   const parts = value.split('/');
   if (
     parts.length !== 6 ||
@@ -69,6 +69,6 @@ export function publicAvatar(
     parts[4] !== target ||
     value !== publicAvatarPath(kind, target, parts[5] ?? '')
   )
-    throw new AccountError(400, 'Referência de avatar inválida.');
+    throw new AccountError(400, 'Invalid avatar reference.');
   return value;
 }

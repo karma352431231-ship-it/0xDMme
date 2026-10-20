@@ -29,7 +29,7 @@
   #app-shell[data-page='comunidades'] main {
     padding: 8px 12px 96px;
   }
-  /* Feed and Ranking are named by the tabs; DMs @ live in Conversas → Públicos. */
+  /* Feed and Ranking are named by the tabs; handle DMs live in Chats → Public. */
   #app-shell[data-page='comunidades']
     :has(> .community-feed-filters)
     > .community-heading,

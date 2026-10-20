@@ -77,7 +77,7 @@ export interface GroupEncryptedMessage {
 }
 function positive(value: unknown): number {
   const number = revision(value);
-  if (!number) throw new AccountError(400, 'Época ou revisão inválida.');
+  if (!number) throw new AccountError(400, 'Invalid epoch or revision.');
   return number;
 }
 export function groupDestination(value: unknown): GroupDestination {
@@ -115,7 +115,7 @@ export function groupPacket(value: unknown): GroupPacket {
       data['kind'] !== 'attachment' &&
       data['kind'] !== 'profile')
   )
-    throw new AccountError(400, 'Pacote de grupo inválido.');
+    throw new AccountError(400, 'Invalid group package.');
   const packet: GroupPacket = {
     version: 1,
     id: uuid(data['id']),
@@ -137,10 +137,7 @@ export function groupPacket(value: unknown): GroupPacket {
       : {}),
   };
   if (packet.deviceId !== packet.content.device_id)
-    throw new AccountError(
-      400,
-      'Destinatários ou origem de grupo divergentes.',
-    );
+    throw new AccountError(400, 'Recipients or group origin do not match.');
   return packet;
 }
 export function groupKeys(value: unknown): GroupKeys {
@@ -159,7 +156,7 @@ export function groupKeys(value: unknown): GroupKeys {
     'signature',
   ]);
   if (data['version'] !== 1)
-    throw new AccountError(400, 'Recuperação de grupo inválida.');
+    throw new AccountError(400, 'Invalid group recovery.');
   const bundle: GroupKeys = {
     version: 1,
     groupId: uuid(data['groupId']),
@@ -178,7 +175,7 @@ export function groupKeys(value: unknown): GroupKeys {
       canonical(bundle.archives.map((a) => a.accountId)) ||
     !bundle.destinations.some((d) => d.accountId === bundle.sender)
   )
-    throw new AccountError(400, 'Recuperação não corresponde à audiência.');
+    throw new AccountError(400, 'Recovery does not match the audience.');
   return bundle;
 }
 export function groupKeysProof(bundle: GroupKeys): string {
@@ -195,7 +192,7 @@ export async function verifyGroupKeys(
 ): Promise<GroupKeys> {
   const bundle = groupKeys(input),
     sender = bundle.destinations.find((d) => d.accountId === bundle.sender);
-  if (!sender) throw new AccountError(403, 'Origem da recuperação ausente.');
+  if (!sender) throw new AccountError(403, 'Recovery origin missing.');
   await verifyOrigin(
     { ...bundle, ...sender, accountId: bundle.sender },
     senderEvent,
@@ -206,7 +203,7 @@ export async function verifyGroupKeys(
     bundle.binding.accountId !== bundle.sender ||
     bundle.binding.deviceId !== bundle.deviceId
   )
-    throw new AccountError(403, 'Vínculo de recuperação divergente.');
+    throw new AccountError(403, 'Recovery binding does not match.');
   return bundle;
 }
 async function verifyOrigin(
@@ -227,7 +224,7 @@ async function verifyOrigin(
     senderEvent.revision !== input.authorityRevision ||
     (await eventHash(senderEvent)) !== input.directory
   )
-    throw new AccountError(403, 'Mensagem de grupo sem autoridade verificada.');
+    throw new AccountError(403, 'Group message lacks verified authority.');
   await verify(signer.signing, input.signature, proof);
 }
 function destinations(value: unknown): GroupDestination[] {
@@ -236,14 +233,11 @@ function destinations(value: unknown): GroupDestination[] {
     !value.length ||
     value.length > groupParticipantLimit
   )
-    throw new AccountError(400, 'Audiência de grupo inválida.');
+    throw new AccountError(400, 'Invalid group audience.');
   const result = value.map(groupDestination),
     accounts = result.map((d) => d.accountId);
   if (canonical(accounts) !== canonical([...new Set(accounts)].sort()))
-    throw new AccountError(
-      400,
-      'Audiência de grupo repetida ou fora de ordem.',
-    );
+    throw new AccountError(400, 'Group audience duplicated or out of order.');
   return result;
 }
 function archives(value: unknown): RoomKeyArchive[] {
@@ -252,12 +246,12 @@ function archives(value: unknown): RoomKeyArchive[] {
     !value.length ||
     value.length > groupParticipantLimit
   )
-    throw new AccountError(400, 'Recuperação de grupo inválida.');
+    throw new AccountError(400, 'Invalid group recovery.');
   return value.map(roomKeyArchive);
 }
 function checkedSignature(value: unknown): string {
   if (base64(value, 64).length !== 64)
-    throw new AccountError(400, 'Assinatura de grupo inválida.');
+    throw new AccountError(400, 'Invalid group signature.');
   return value as string;
 }
 export function groupPacketProof(packet: GroupPacket): string {
@@ -282,7 +276,7 @@ export async function verifyGroupPacket(
     binding.public.keys[`curve25519:${packet.deviceId}`] !==
       packet.content.sender_key
   )
-    throw new AccountError(403, 'Chave Matrix de grupo divergente.');
+    throw new AccountError(403, 'Group Matrix key does not match.');
   return packet;
 }
 /** Verifies the exact event/audience used to encrypt, independently of transport routing. */
@@ -297,7 +291,10 @@ export async function assertGroupPacketPeriod(
     (await groupEventHash(state)) !== packet.head ||
     !groupCanRead(state, packet.sender, packet.epoch)
   )
-    throw new AccountError(403, 'Mensagem de outro período de participação.');
+    throw new AccountError(
+      403,
+      'Message belongs to another membership period.',
+    );
   await assertGroupKeysPeriod(bundle, state);
   if (
     packet.keyHash !== (await groupKeysHash(bundle)) ||
@@ -306,7 +303,7 @@ export async function assertGroupPacketPeriod(
     packet.deviceId !== bundle.deviceId ||
     canonical(packet.binding) !== canonical(bundle.binding)
   )
-    throw new AccountError(403, 'Mensagem e recuperação de grupo divergentes.');
+    throw new AccountError(403, 'Group message and recovery do not match.');
 }
 export async function assertGroupKeysPeriod(
   bundle: GroupKeys,
@@ -319,7 +316,7 @@ export async function assertGroupKeysPeriod(
   )
     throw new AccountError(
       403,
-      'Recuperação de outro período de participação.',
+      'Recovery belongs to another membership period.',
     );
   if (
     canonical(state.members.map((m) => m.accountId)) !==
@@ -327,7 +324,7 @@ export async function assertGroupKeysPeriod(
   )
     throw new AccountError(
       403,
-      'Mensagem não corresponde aos membros autorizados.',
+      'Message does not match the authorized members.',
     );
 }
 export function groupTitle(input: unknown): string {
@@ -338,7 +335,7 @@ export function groupTitle(input: unknown): string {
     !value['title'].trim() ||
     value['title'].length > 160
   )
-    throw new Error('Nome de grupo inválido.');
+    throw new Error('Invalid group name.');
   return value['title'].trim();
 }
 
@@ -354,7 +351,7 @@ export type { GroupPhoto } from './profile.ts';
 export function groupEditRelation(value: unknown): MessageRelation {
   const relation = messageRelation(value);
   if (relation.type !== 'edit')
-    throw new AccountError(400, 'Ação de grupo inválida.');
+    throw new AccountError(400, 'Invalid group action.');
   return relation;
 }
 
@@ -368,6 +365,6 @@ function groupRelationFields(data: Record<string, unknown>): {
 } {
   if (data['relation'] === undefined) return {};
   if (data['kind'] !== 'text')
-    throw new AccountError(400, 'Somente texto pode editar uma mensagem.');
+    throw new AccountError(400, 'Only text can be used to edit a message.');
   return { relation: groupEditRelation(data['relation']) };
 }

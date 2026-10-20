@@ -21,7 +21,7 @@ export type ContentCapacity = number | AdaptiveContentCapacity;
 export function contentCapacityUnavailable(): AccountError {
   return new AccountError(
     503,
-    'Capacidade global ocupada pelos dados usados ou uploads em andamento. Retome depois.',
+    'Global capacity occupied by stored data or ongoing uploads. Resume later.',
   );
 }
 
@@ -33,13 +33,13 @@ export async function lockContentUsage(
     'SELECT hash_talk.guard_content_usage() AS valid',
   );
   if (guard.rows[0]?.valid !== true)
-    throw new Error('Contagem global indisponível.');
+    throw new Error('Global count unavailable.');
   const result = await client.query<{ bytes: string }>(
     'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
   );
   const bytes = Number(result.rows[0]?.bytes);
   if (!Number.isSafeInteger(bytes) || bytes < 0)
-    throw new Error('Contagem global indisponível.');
+    throw new Error('Global count unavailable.');
   return bytes;
 }
 

@@ -8,7 +8,7 @@ export function profileFollows(controller: Pick<PublicProfiles, 'perform'>) {
   return {
     async inspect(target: string): Promise<ProfileFollow | null> {
       const own = ownPublicProfile(await controller.perform('state', {}));
-      if (!own) throw new Error('Crie seu perfil público para seguir.');
+      if (!own) throw new Error('Create your public profile to follow.');
       if (own.profile.id === target) return null;
       return profileFollow(
         await controller.perform('follow-state', { target }),

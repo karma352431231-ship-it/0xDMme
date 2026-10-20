@@ -63,7 +63,7 @@ export class AttachmentReservations {
       [input.message],
     );
     if (message.rowCount)
-      throw new AccountError(409, 'Mensagem já aceita ou apagada.');
+      throw new AccountError(409, 'Message already accepted or deleted.');
     // Legacy accounting must lock its ledger before byte owners. Adopted growth
     // uses the complete bound plan and durable physical credit instead.
     if (!this.allocations) await lockContentUsage(client);
@@ -111,7 +111,7 @@ export class AttachmentReservations {
         canonical(row.descriptor) !== canonical(ref) ||
         row.status === 'deleting'
       )
-        throw new AccountError(409, 'Reserva de anexo divergente.');
+        throw new AccountError(409, 'Attachment reservation does not match.');
     }
   }
   private async expectSelection(
@@ -123,7 +123,7 @@ export class AttachmentReservations {
       [input.message, input.refs.map((ref) => ref.id)],
     );
     if (other.rowCount)
-      throw new AccountError(409, 'Referências do envio divergentes.');
+      throw new AccountError(409, 'Send references do not match.');
   }
   private async insert(
     client: pg.PoolClient,

@@ -1,6 +1,12 @@
 import { AccountError } from '../../shared/account/index.ts';
-import { accountRankingPage } from '../../shared/account-ranking/index.ts';
-import type { AccountRankingPage } from '../../shared/account-ranking/index.ts';
+import {
+  accountRankingPage,
+  accountRankingOrder,
+} from '../../shared/account-ranking/index.ts';
+import type {
+  AccountRankingPage,
+  AccountRankingOrder,
+} from '../../shared/account-ranking/index.ts';
 import { rankingPeriod } from '../../shared/community-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 
@@ -11,19 +17,28 @@ export async function accountRankingLookup(
     | ((
         period: RankingPeriod,
         after: string | null,
+        order?: AccountRankingOrder,
       ) => Promise<AccountRankingPage>)
     | undefined,
 ): Promise<AccountRankingPage> {
-  if (!read) throw new AccountError(404, 'Descoberta indisponível.');
+  if (!read) throw new AccountError(404, 'Discovery unavailable.');
   const query = address.searchParams;
   if (
     [...query.keys()].some(
       (key) =>
-        !['period', 'after'].includes(key) || query.getAll(key).length !== 1,
+        !['period', 'after', 'order'].includes(key) ||
+        query.getAll(key).length !== 1,
     )
   )
-    throw new AccountError(400, 'Filtros inválidos.');
+    throw new AccountError(400, 'Invalid filters.');
+  const order = accountRankingOrder(query.get('order') ?? 'trending');
+  if (order === 'following')
+    throw new AccountError(403, 'Feed restricted to your own account.');
   return accountRankingPage(
-    await read(rankingPeriod(query.get('period') ?? 'day'), query.get('after')),
+    await read(
+      rankingPeriod(query.get('period') ?? 'day'),
+      query.get('after'),
+      order,
+    ),
   );
 }

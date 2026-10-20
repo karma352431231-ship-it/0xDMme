@@ -28,7 +28,7 @@ export interface DmView {
 
 function part<T extends HTMLElement>(root: HTMLElement, selector: string): T {
   const node = root.querySelector<T>(selector);
-  if (!node) throw new Error('Conversa pelo @ incompleta.');
+  if (!node) throw new Error('Handle conversation incomplete.');
   return node;
 }
 
@@ -84,11 +84,11 @@ export function dmStateLabel(
   value: SocialRelation | null,
   local: boolean,
 ): string {
-  if (local) return t('Cópia neste aparelho');
-  if (!value || value.state === 'none') return t('Sem conversa ainda');
-  if (value.blocked) return t('Bloqueada');
-  if (!value.canSend) return t('DM indisponível.');
-  return t('Mensagem pública pelo @');
+  if (local) return t('Copy on this device');
+  if (!value || value.state === 'none') return t('No conversations yet');
+  if (value.blocked) return t('Blocked');
+  if (!value.canSend) return t('DM unavailable.');
+  return t('Message via @');
 }
 
 /** Only local copies or unavailable/blocked peers replace the composer. */
@@ -96,11 +96,10 @@ export function dmComposerGate(input: {
   value: SocialRelation | null;
   local: boolean;
 }): string | null {
-  if (input.local)
-    return t('Cópia local. Conecte para sincronizar e enviar mensagens.');
+  if (input.local) return t('Local copy. Connect to sync and send messages.');
   return input.value?.canSend && !input.value.blocked
     ? null
-    : t('DM indisponível.');
+    : t('DM unavailable.');
 }
 
 /** A message bubble; attachments are filled by the media renderer. */
@@ -128,13 +127,13 @@ export function dmBubble(
   row.setAttribute(
     'aria-label',
     input.own
-      ? t('Mensagem enviada por você')
-      : t('Mensagem recebida de @{0}', [input.handle]),
+      ? t('Message sent by you')
+      : t('Message received from @{0}', [input.handle]),
   );
   const time = messageTime(item.sentAt),
     meta = el('small', '', 'message-meta');
   if (time) meta.append(time);
-  if (item.edited) meta.append(el('span', t('Editada')));
+  if (item.edited) meta.append(el('span', t('Edited')));
   row.append(meta);
   if (item.kind !== 'text') return { row, stop: () => undefined };
   const text = el('p');

@@ -49,7 +49,7 @@ async function pause(ms: number, signal: AbortSignal): Promise<void> {
     }, ms);
     function abort() {
       clearTimeout(timer);
-      reject(new Error('Envio interrompido.'));
+      reject(new Error('Send interrupted.'));
     }
     signal.addEventListener('abort', abort, { once: true });
   });
@@ -73,7 +73,7 @@ export function validateMediaSelection(files: File[]): void {
     const kind = selectedMediaKind(file),
       limit = kind === 'photo' ? 20_000_000 : communityMediaLimits[kind].source;
     if (!file.size || file.size > limit)
-      throw new Error(`Arquivo excede ${limit / 1_000_000} MB.`);
+      throw new Error(`File exceeds ${limit / 1_000_000} MB.`);
   }
 }
 async function request(
@@ -83,7 +83,7 @@ async function request(
 ): Promise<unknown> {
   const deadline = Date.now() + 180_000;
   while (true) {
-    if (!access.valid()) throw new Error('Sessão ou comunidade alterada.');
+    if (!access.valid()) throw new Error('Session or community changed.');
     access.signal.throwIfAborted();
     try {
       return await access.request(operation, { id: access.community, ...data });
@@ -151,9 +151,7 @@ async function upload(
   while (state.status === 'processing') {
     onProgress(null);
     if (Date.now() > deadline)
-      throw new Error(
-        'Preparação ainda em andamento. Tente novamente para retomar.',
-      );
+      throw new Error('Preparation still in progress. Try again to resume.');
     await pause(1000, access.signal);
     state = communityMediaState(
       await request(access, 'media-status', { media: source.id }),
@@ -161,7 +159,7 @@ async function upload(
   }
   if (state.status !== 'ready')
     throw new Error(
-      state.error ?? 'Mídia ainda não preparada. Retome o envio.',
+      state.error ?? 'Media is not ready yet. Resume the upload.',
     );
   return source.id;
 }
@@ -175,7 +173,7 @@ export async function uploadCommunityMedia(
   const result: string[] = [],
     pending = await request(access, 'media-pending', {});
   if (!Array.isArray(pending) || pending.length > 32)
-    throw new Error('Estado de uploads inválido.');
+    throw new Error('Invalid uploads state.');
   const candidates = pending.map(communityMediaState);
   for (const file of files) {
     const prepared = await preparedSource(file);
@@ -228,8 +226,8 @@ function renderPreviews(
       close.type = 'button';
       close.className = 'media-picker-remove';
       close.textContent = t('×');
-      close.setAttribute('aria-label', t('Remover {0}', [file.name]));
-      close.title = t('Remover');
+      close.setAttribute('aria-label', t('Remove {0}', [file.name]));
+      close.title = t('Remove');
       close.addEventListener('click', () => remove(index));
       tile.append(preview, close);
       return tile;
@@ -263,8 +261,8 @@ export function mediaEditor(
   pick.type = 'button';
   pick.className = 'media-picker-button';
   pick.innerHTML = clipIcon;
-  pick.setAttribute('aria-label', t('Anexar fotos, GIFs ou vídeo'));
-  pick.title = t('Até 4 fotos, 3 GIFs ou 1 vídeo');
+  pick.setAttribute('aria-label', t('Attach photos, GIFs or video'));
+  pick.title = t('Up to 4 photos, 3 GIFs or 1 video');
   const previews = document.createElement('div');
   previews.className = 'media-picker-previews';
   previews.hidden = true;
@@ -275,7 +273,7 @@ export function mediaEditor(
   const removeLabel = document.createElement('label');
   removeLabel.append(
     remove,
-    document.createTextNode(t('Remover a mídia atual')),
+    document.createTextNode(t('Remove current media')),
   );
   field.append(input, pick, status);
   if (ids.length) container.append(removeLabel);
@@ -309,7 +307,7 @@ export function mediaEditor(
       showToast(
         error instanceof Error
           ? translatedError(error.message)
-          : t('Seleção inválida.'),
+          : t('Invalid selection.'),
       );
     }
   });
@@ -330,7 +328,7 @@ export function mediaEditor(
         status.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Envio de mídia indisponível. Tente novamente.');
+            : t('Media upload unavailable. Try again.');
       throw error;
     }
   };
@@ -367,7 +365,7 @@ export function restrictedMedia(
   for (const id of ids) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = t('Ver minha mídia preparada (restrita)');
+    button.textContent = t('View my prepared media (restricted)');
     container.append(button);
     button.addEventListener('click', () => {
       button.disabled = true;
@@ -377,7 +375,7 @@ export function restrictedMedia(
             button.textContent =
               e instanceof Error
                 ? translatedError(e.message)
-                : t('Prévia indisponível.');
+                : t('Preview unavailable.');
         })
         .finally(() => {
           button.disabled = false;
@@ -387,7 +385,7 @@ export function restrictedMedia(
       const state = communityMediaState(
         await request(access, 'media-status', { media }),
       );
-      if (!state.result) throw new Error('Arquivo ainda em preparação.');
+      if (!state.result) throw new Error('File still being prepared.');
       const blob = await download(access, media, state);
       if (stopped || !access.valid()) return;
       const url = URL.createObjectURL(blob);
@@ -400,7 +398,7 @@ export function restrictedMedia(
       if (node instanceof HTMLVideoElement) {
         node.controls = true;
         node.preload = 'metadata';
-      } else node.alt = t('Mídia preparada restrita ao autor');
+      } else node.alt = t('Prepared media restricted to the author');
       node.src = url;
       button.replaceWith(node);
     }
@@ -435,7 +433,7 @@ async function download(
         result.bytes - index * communityMediaPartBytes,
       )
     )
-      throw new Error('Mídia incompleta.');
+      throw new Error('Media incomplete.');
     chunks.push(Uint8Array.from(bytes));
   }
   return new Blob(chunks, { type: result.type });

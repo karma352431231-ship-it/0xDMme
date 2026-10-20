@@ -68,13 +68,13 @@ export function contactMenu(
   trigger.type = close.type = 'button';
   trigger.className = 'contact-menu-trigger';
   trigger.innerHTML = chatIcon('more');
-  trigger.setAttribute('aria-label', t('Opções de {0}', [name]));
+  trigger.setAttribute('aria-label', t('Options for {0}', [name]));
   trigger.setAttribute('aria-haspopup', 'dialog');
   menu.className = 'contact-menu';
   bindMenuBackdrop(menu);
-  menu.setAttribute('aria-label', t('Opções de {0}', [name]));
+  menu.setAttribute('aria-label', t('Options for {0}', [name]));
   heading.textContent = name;
-  close.textContent = t('Fechar');
+  close.textContent = t('Close');
   close.className = 'contact-menu-close';
   close.type = 'button';
   close.addEventListener('click', () => menu.close());

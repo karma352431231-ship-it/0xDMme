@@ -197,8 +197,8 @@ function outgoingBubble(input: {
     const quote = document.createElement('small');
     quote.textContent =
       input.quote === undefined
-        ? t('Resposta: mensagem original fora desta página ou indisponível.')
-        : t('Em resposta: {0}', [input.quote.slice(0, 120)]);
+        ? t('Reply: original message is outside this page or unavailable.')
+        : t('Replying to: {0}', [input.quote.slice(0, 120)]);
     article.append(quote);
   }
   emojiText(text, content.text);

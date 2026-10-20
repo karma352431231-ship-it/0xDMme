@@ -33,7 +33,7 @@ function startingCursor(raw: unknown, current: DmHistorySnapshot): number {
   )
     return 0;
   const after = socialRevision(value['after']);
-  if (after > current.anchor) throw new Error('Diretório de DMs retrocedeu.');
+  if (after > current.anchor) throw new Error('DM directory rolled back.');
   return after;
 }
 
@@ -55,8 +55,7 @@ export async function synchronizeDmHistory(options: {
   let after = startingCursor(held, current),
     gap = false;
   for (let round = 0; after < current.anchor; round++) {
-    if (round === 64)
-      throw new Error('Continue sincronizando o histórico de DMs.');
+    if (round === 64) throw new Error('Continue syncing DM history.');
     const page = await options.page(current, after);
     options.guard();
     gap ||= page.unavailable.length > 0;
@@ -65,14 +64,14 @@ export async function synchronizeDmHistory(options: {
       break;
     }
     if (page.next <= after || page.next > current.anchor)
-      throw new Error('Paginação de remoções divergente.');
+      throw new Error('Removal pagination does not match.');
     after = page.next;
   }
   const latest = snapshot(await options.snapshot());
   options.guard();
   if (JSON.stringify(latest) !== JSON.stringify(current))
     throw new Error(
-      'Histórico de DMs mudou durante a leitura. Retome a sincronização.',
+      'DM history changed while reading. Resume synchronization.',
     );
   const next: DmHistoryCursor = { ...current, version: 3, after };
   if (!gap && !sameCursor(held, next)) await options.save(next);

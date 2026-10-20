@@ -27,14 +27,14 @@ export function communityNavigation(
   // Creating has its own back arrow and no list menu.
   if (options.view === 'create') return;
   const tools = el('nav', '', 'community-tools');
-  tools.setAttribute('aria-label', t('Acessos de comunidades'));
+  tools.setAttribute('aria-label', t('Community access'));
   if (options.selected) {
-    const back = link(tools, t('Voltar ao feed'), '#communities?view=feed');
+    const back = link(tools, t('Back to feed'), '#communities?view=feed');
     back.classList.add('feed-back-link');
     iconLabel(back, 'back');
   }
   const menu = el('details', '', 'community-more'),
-    summary = el('summary', t('Mais opções'));
+    summary = el('summary', t('More options'));
   iconLabel(summary, 'more');
   menu.append(summary);
   menu.append(moreChoices(options));
@@ -52,25 +52,25 @@ function moreChoices(options: {
   manage?: string | null;
 }): HTMLElement {
   const choices = el('nav');
-  choices.setAttribute('aria-label', t('Listas e gestão de comunidades'));
+  choices.setAttribute('aria-label', t('Community lists and management'));
   if (options.manage)
     iconLabel(
       link(
         choices,
-        t('Gerenciar comunidade'),
+        t('Manage community'),
         `#communities?id=${options.manage}&view=manage`,
       ),
       'shield',
     );
   if (!options.signedIn) {
-    link(choices, t('Entrar pelo Perfil'), '#settings');
+    link(choices, t('Sign in through Profile'), '#settings');
     return choices;
   }
   for (const [key, title, icon] of [
-    ['saved', t('Salvos'), 'bookmark'],
-    ['hidden', t('Ocultos'), 'hide'],
-    ['replies', t('Respostas ao seu conteúdo'), 'reply'],
-    ['invitations', t('Transferências'), 'transfer'],
+    ['saved', t('Saved'), 'bookmark'],
+    ['hidden', t('Hidden'), 'hide'],
+    ['replies', t('Replies to your content'), 'reply'],
+    ['invitations', t('Transfers'), 'transfer'],
   ] as const)
     iconLabel(link(choices, title, `#communities?view=${key}`), icon);
   return choices;
@@ -88,11 +88,15 @@ function createCommunityButton(): HTMLDetailsElement {
   summary.title = t('community.create-menu');
   iconLabel(summary, 'plus');
   const choices = el('div', '', 'community-create-choices');
-  const post = el('button', t('Postar'), 'community-create-choice');
+  const post = el(
+    'button',
+    t('community.post-action'),
+    'community-create-choice',
+  );
   post.type = 'button';
   post.dataset['communityCompose'] = '';
   iconLabel(post, 'pencil');
-  const create = el('a', t('Criar comunidade'), 'community-create-choice');
+  const create = el('a', t('Create community'), 'community-create-choice');
   create.href = '#communities?view=create';
   iconLabel(create, 'community');
   choices.append(post, create);
@@ -110,19 +114,19 @@ export function communityDirectoryNavigation(
   selected: string | null,
 ): void {
   const head = el('header', '', 'community-directory-head');
-  head.append(el('h2', t('Comunidades')));
+  head.append(el('h2', t('Communities')));
   const tabs = el('nav', '', 'community-directory-tabs');
-  tabs.setAttribute('aria-label', t('Comunidades ou mensagens pelo @'));
+  tabs.setAttribute('aria-label', t('Communities or handle messages'));
   for (const [key, title] of [
-    ['feed', t('Comunidades')],
-    ['dms', t('Mensagens @')],
+    ['feed', t('Communities')],
+    ['dms', t('Handle messages')],
   ] as const) {
     link(tabs, title, `#communities?view=${key}`);
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
   const nav = el('nav', '', 'community-directory-nav');
-  nav.setAttribute('aria-label', t('Navegação de comunidades'));
+  nav.setAttribute('aria-label', t('Community navigation'));
   for (const [key, title, icon] of [
     ['feed', t('Feed'), 'layers'],
     ['explore', t('Ranking'), 'compass'],
@@ -137,7 +141,7 @@ export function communityDirectoryNavigation(
     head,
     tabs,
     nav,
-    el('h2', view === 'dms' ? t('Mensagens @') : t('Seguidas')),
+    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
   );
 }
 

@@ -7,7 +7,7 @@ const window = (text = 'Fictícia') => ({
   views: [{ text }],
   oldest: 1,
 });
-await test('orçamento remove a conversa menos usada e não mantém uma janela maior que o limite', () => {
+await test('budget removes the least-used conversation and never retains a window above the limit', () => {
   const cache = new ConfirmedConversations<{ text: string }>();
   for (let index = 0; index < 16; index++)
     cache.remember(String(index), window());
@@ -20,7 +20,7 @@ await test('orçamento remove a conversa menos usada e não mantém uma janela m
   cache.clear();
   assert.equal(cache.read('0'), null);
 });
-await test('texto, metadados e substituição de janelas respeitam orçamento agregado', () => {
+await test('text, metadata and window replacement respect the aggregate budget', () => {
   const cache = new ConfirmedConversations<{ text: string }>();
   const large = window('a'.repeat(2 * 1024 * 1024));
   cache.remember('first', large);
@@ -33,7 +33,7 @@ await test('texto, metadados e substituição de janelas respeitam orçamento ag
   assert.ok(cache.read('third'));
 });
 
-await test('alterações confirmadas invalidam apenas a conversa afetada e avançam as demais', () => {
+await test('confirmed changes invalidate only the affected conversation and advance the others', () => {
   const cache = new ConfirmedConversations<{ text: string }>(),
     from = { revision: 1 },
     next = { revision: 2 };

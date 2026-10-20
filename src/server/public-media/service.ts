@@ -70,7 +70,7 @@ export class PublicMediaService {
             : this.stores.communities.releasedPhoto(target, review);
     const content = await read();
     if (!content || !(await read()))
-      throw new AccountError(404, 'Mídia pública indisponível.');
+      throw new AccountError(404, 'Public media unavailable.');
     return content;
   }
   async media(
@@ -80,10 +80,10 @@ export class PublicMediaService {
     signal: AbortSignal,
   ): Promise<{ type: string; file: VerifiedMediaFile }> {
     if (!this.stores.media || !this.files)
-      throw new AccountError(503, 'Mídia pública indisponível.');
+      throw new AccountError(503, 'Public media unavailable.');
     signal.throwIfAborted();
     const candidate = await this.stores.media.releasedMedia(target, review);
-    if (!candidate) throw new AccountError(404, 'Mídia pública indisponível.');
+    if (!candidate) throw new AccountError(404, 'Public media unavailable.');
     const descriptor = releasedFile(candidate, thumbnail);
     const handle = await this.files.openRead(
       candidate.id,
@@ -102,7 +102,7 @@ export class PublicMediaService {
         current.resultHash !== candidate.resultHash ||
         current.thumbnailHash !== candidate.thumbnailHash
       )
-        throw new AccountError(404, 'Mídia pública indisponível.');
+        throw new AccountError(404, 'Public media unavailable.');
       signal.throwIfAborted();
       await file.check();
       return { type: descriptor.type, file };

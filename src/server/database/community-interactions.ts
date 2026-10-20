@@ -51,14 +51,14 @@ export async function requireReplyTarget(
   )
     throw new AccountError(
       409,
-      'Conteúdo excluído ou oculto não aceita novas interações.',
+      'Deleted or hidden content does not accept new interactions.',
     );
   if (row.root_id) {
     const root = await loadPost(context, row.root_id);
     if (root.deleted || root.active_removal)
       throw new AccountError(
         409,
-        'Postagem excluída ou oculta não aceita novas interações.',
+        'Deleted or hidden posts do not accept new interactions.',
       );
   }
 }
@@ -79,10 +79,7 @@ export async function setPostVote(
   ) ?? { position: 0, revision: 0 };
   if (old.revision === revision + 1 && old.position === position) return;
   if (old.revision !== revision)
-    throw new AccountError(
-      409,
-      'Seu voto mudou. Recarregue antes de continuar.',
-    );
+    throw new AccountError(409, 'Your vote changed. Reload before continuing.');
   if (old.position === position) return;
   await context.client.query(
     `INSERT INTO hash_talk.community_votes(profile_id,post_id,position,revision,voted_at) VALUES($1,$2,$3,1,clock_timestamp()) ON CONFLICT(profile_id,post_id) DO UPDATE SET position=$3,revision=hash_talk.community_votes.revision+1,voted_at=clock_timestamp()`,

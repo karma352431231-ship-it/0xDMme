@@ -365,7 +365,7 @@ function scope(options: {
   };
 }
 
-await test('sessão de 160 dias permanece conectada entre timers e expira apenas no prazo completo', async () => {
+await test('160-day session stays connected across timers and expires only at the full deadline', async () => {
   const clock = { now: Date.now() };
   const lifetime = 160 * 24 * 60 * 60 * 1000;
   const expiresAt = clock.now + lifetime;
@@ -400,7 +400,7 @@ await test('sessão de 160 dias permanece conectada entre timers e expira apenas
   browser.dispose();
 });
 
-await test('restaurar sessão abre somente chaves locais; novo login pode solicitar a wallet', async () => {
+await test('restoring a session opens only local keys; a new login may request the wallet', async () => {
   const modes: string[] = [];
   const restored = {
     accountId: randomUUID(),
@@ -433,7 +433,7 @@ await test('restaurar sessão abre somente chaves locais; novo login pode solici
   browser.dispose();
 });
 
-await test('sessão anterior não oculta o pedido assinado nem sua confirmação ao restaurar a aba', async () => {
+await test('previous session preserves the signed request and its confirmation when restoring the tab', async () => {
   const restored = deferred<Response>();
   const browser = scope({
     sessionResponse: restored.promise,
@@ -467,7 +467,7 @@ await test('sessão anterior não oculta o pedido assinado nem sua confirmação
   browser.dispose();
 });
 
-await test('prompt que resolve após prazo não cria desafio e não acumula pedidos', async () => {
+await test('a prompt resolved after its deadline creates no challenge and accumulates no requests', async () => {
   const accounts = deferred<unknown>();
   const browser = scope({ accounts: accounts.promise });
   await tick();
@@ -486,7 +486,7 @@ await test('prompt que resolve após prazo não cria desafio e não acumula pedi
   browser.dispose();
 });
 
-await test('troca de conta durante assinatura invalida login antes de enviá-lo', async () => {
+await test('account change during signing invalidates login before submission', async () => {
   const signature = deferred<unknown>();
   const browser = scope({ signature: signature.promise });
   await tick();
@@ -501,7 +501,7 @@ await test('troca de conta durante assinatura invalida login antes de enviá-lo'
   browser.dispose();
 });
 
-await test('resposta autenticada tardia após mudança é revogada sem abrir perfil privado', async () => {
+await test('late authenticated response after a change is revoked without opening the private profile', async () => {
   const login = deferred<unknown>();
   const browser = scope({ login: login.promise });
   await tick();
@@ -519,7 +519,7 @@ await test('resposta autenticada tardia após mudança é revogada sem abrir per
 
 const approvalHash = `#configuracoes?ticket=${'a'.repeat(64)}&wallet=MetaMask&ecosystem=evm`;
 
-await test('entrada de aprovação aceita assinatura sem criar sessão independente e orienta retorno manual', async () => {
+await test('approval entry accepts a signature without an independent session and explains manual return', async () => {
   const signed = deferred<unknown>();
   const browser = scope({
     pathname: '/wallet.html',
@@ -558,7 +558,7 @@ await test('entrada de aprovação aceita assinatura sem criar sessão independe
   browser.dispose();
 });
 
-await test('pedido salvo antes de limpar URL sobrevive reabertura sem marcador, sem renovar prazo nem autenticar', async () => {
+await test('request saved before URL cleanup survives reopening without a marker, renewed deadline or authentication', async () => {
   const clock = { now: Date.now() };
   const first = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
   await tick();
@@ -595,7 +595,7 @@ await test('pedido salvo antes de limpar URL sobrevive reabertura sem marcador, 
   reopened.dispose();
 });
 
-await test('prazo local encerra pedido ao retomar e ao reabrir; novo fragmento inválido não recupera anterior', async () => {
+await test('local deadline closes the request on resume and reopen; invalid new fragment cannot recover the previous request', async () => {
   const clock = { now: Date.now() };
   const live = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
   await tick();
@@ -639,7 +639,7 @@ await test('prazo local encerra pedido ao retomar e ao reabrir; novo fragmento i
   expired.dispose();
 });
 
-await test('armazenamento bloqueado mantém só pedido recebido em memória, sem recuperar pedido ou abrir sessão', async () => {
+await test('blocked storage keeps only the received request in memory without recovery or a session', async () => {
   const browser = scope({
     pathname: '/wallet.html',
     hash: approvalHash,
@@ -656,7 +656,7 @@ await test('armazenamento bloqueado mantém só pedido recebido em memória, sem
   browser.dispose();
 });
 
-await test('registro corrompido, excedido ou com prazo adulterado nunca inicia autenticação', async () => {
+await test('corrupt, oversized or deadline-tampered record never starts authentication', async () => {
   const clock = { now: Date.now() };
   const first = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
   await tick();
@@ -695,7 +695,7 @@ await test('registro corrompido, excedido ou com prazo adulterado nunca inicia a
   }
 });
 
-await test('app normal não recupera pedido temporário da entrada de aprovação', async () => {
+await test('normal app never recovers the temporary approval-entry request', async () => {
   const first = scope({ pathname: '/wallet.html', hash: approvalHash });
   await tick();
   first.dispose();
@@ -716,7 +716,7 @@ await test('app normal não recupera pedido temporário da entrada de aprovaçã
   normal.dispose();
 });
 
-await test('assinatura aceita de pedido anterior não apaga nem confirma um novo pedido', async () => {
+await test('accepted signature for an earlier request neither deletes nor confirms a new request', async () => {
   const signed = deferred<unknown>();
   const browser = scope({
     pathname: '/wallet.html',
@@ -740,7 +740,7 @@ await test('assinatura aceita de pedido anterior não apaga nem confirma um novo
   browser.dispose();
 });
 
-await test('aprovação sem ticket ou com ticket inválido não restaura sessão nem faz login comum', async () => {
+await test('approval with a missing or invalid ticket neither restores a session nor performs normal login', async () => {
   for (const hash of [
     '',
     '#configuracoes?ticket=invalid&wallet=MetaMask&ecosystem=evm',
@@ -764,7 +764,7 @@ await test('aprovação sem ticket ou com ticket inválido não restaura sessão
   }
 });
 
-await test('marcador de diagnóstico expirado ou inválido nunca prova recebimento nem recupera pedido', async () => {
+await test('expired or invalid diagnostic marker neither proves receipt nor recovers a request', async () => {
   for (const xdmmeApprovalDiagnostic of [
     Date.now() - 1,
     Date.now() + 600_000,
@@ -787,7 +787,7 @@ await test('marcador de diagnóstico expirado ou inválido nunca prova recebimen
   }
 });
 
-await test('falha HTTP do desafio informa somente categoria e etapa, sem assinatura, sessão ou retorno', async () => {
+await test('challenge HTTP failure reports only category and stage, without signature, session or return data', async () => {
   const browser = scope({
     pathname: '/wallet.html',
     hash: approvalHash,
@@ -800,7 +800,7 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   assert.match(browser.diagnostic.textContent, /failure=HTTP-403/u);
   assert.doesNotMatch(
     browser.diagnostic.textContent,
-    /Pedido rejeitado|a{64}|0x|https:/u,
+    /Request rejected|a{64}|0x|https:/u,
   );
   assert.deepEqual(browser.requests, ['/api/account/handoff-challenge']);
   assert.equal(browser.providerRequests.includes('personal_sign'), false);
@@ -810,7 +810,7 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   browser.dispose();
 });
 
-await test('página reutilizada aceita novo fragmento e descarta resposta tardia de restauração de sessão', async () => {
+await test('reused page accepts a new fragment and discards a late session-restoration response', async () => {
   const restoring = deferred<Response>();
   const browser = scope({ sessionResponse: restoring.promise });
   browser.incoming();
@@ -830,7 +830,7 @@ await test('página reutilizada aceita novo fragmento e descarta resposta tardia
   browser.dispose();
 });
 
-await test('diagnóstico distingue pedido ausente, inválido, recarga após fragmento e falha de limpeza sem revelar dados', async () => {
+await test('diagnostics distinguish missing and invalid requests, reload after fragment and cleanup failure without exposing data', async () => {
   const cases = [
     { options: { hash: '' }, stage: 'pedido-ausente', input: 'sem-fragmento' },
     {
@@ -884,7 +884,7 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
     if (input.startsWith('entrada-rejeitada')) {
       assert.doesNotMatch(
         browser.intro.textContent,
-        /Pedido ausente ou perdido/u,
+        /Request missing or lost/u,
       );
       assert.equal(browser.approve.hidden, true);
       assert.deepEqual(browser.providerRequests, []);
@@ -911,7 +911,7 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
   }
 });
 
-await test('novo pedido durante desafio descarta resposta antiga sem abrir prompt de assinatura ou voltar ao navegador', async () => {
+await test('new request during a challenge discards the old response without a signature prompt or browser return', async () => {
   const challenge = deferred<unknown>();
   const browser = scope({
     pathname: '/wallet.html',
@@ -943,7 +943,7 @@ function approvalDocumentPayload(ecosystem = 'evm', remaining = 60_000) {
   });
 }
 
-await test('documento final conserva o pedido sem mudar URL, sem sessão de armazenamento e sem conectar automaticamente', async () => {
+await test('final document preserves the request without URL changes, session storage or automatic connection', async () => {
   for (const ecosystem of ['evm', 'solana']) {
     const browser = scope({
       pathname: '/wallet-approval',
@@ -977,7 +977,7 @@ await test('documento final conserva o pedido sem mudar URL, sem sessão de arma
   }
 });
 
-await test('documento final com cookie ausente ou recusado não restaura pedido anterior nem chama provider', async () => {
+await test('final document with a missing or rejected cookie neither restores the previous request nor calls the provider', async () => {
   const previous = scope({ pathname: '/wallet.html', hash: approvalHash });
   await tick();
   previous.dispose();
@@ -1001,7 +1001,7 @@ await test('documento final com cookie ausente ou recusado não restaura pedido 
   }
 });
 
-await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remove ticket antes de qualquer RPC', async () => {
+await test('document delivers Backpack EVM/Solana without a fragment or cookie and removes the ticket before any RPC', async () => {
   for (const ecosystem of ['evm', 'solana']) {
     const browser = scope({
       pathname: `/wallet-entry/${'a'.repeat(64)}/${ecosystem}/Backpack`,
@@ -1047,7 +1047,7 @@ await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remo
   }
 });
 
-await test('documento ausente, inválido ou expirado não recupera pedido antigo nem cookie e nunca conecta', async () => {
+await test('missing, invalid or expired document never recovers an old request or cookie and never connects', async () => {
   const previous = scope({ pathname: '/wallet.html', hash: approvalHash });
   await tick();
   previous.dispose();
@@ -1076,7 +1076,7 @@ await test('documento ausente, inválido ou expirado não recupera pedido antigo
   }
 });
 
-await test('rejeição documental chega sem redirecionamento ou fragmento e não recupera pedido nem conecta', async () => {
+await test('document rejection arrives without a redirect or fragment and neither recovers a request nor connects', async () => {
   for (const [reason, category] of [
     ['parameters', 'entrada-rejeitada-parametros'],
     ['unavailable', 'entrada-rejeitada-pedido'],
@@ -1114,7 +1114,7 @@ function cookieApprovalResponse(ticket = 'b'.repeat(64), remaining = 60_000) {
   });
 }
 
-await test('URL limpa recupera pedido pelo cookie sem armazenamento novo, sessão ou assinatura automática', async () => {
+await test('clean URL recovers the request through the cookie without new storage, session or automatic signing', async () => {
   const browser = scope({
     pathname: '/wallet.html',
     hash: '#configuracoes',
@@ -1140,7 +1140,7 @@ await test('URL limpa recupera pedido pelo cookie sem armazenamento novo, sessã
   browser.dispose();
 });
 
-await test('recuperação por cookie substitui registro antigo; cancelamento não recupera pedido obsoleto', async () => {
+await test('cookie recovery replaces the old record; cancellation cannot recover an obsolete request', async () => {
   const first = scope({ pathname: '/wallet.html', hash: approvalHash });
   await tick();
   first.dispose();
@@ -1165,7 +1165,7 @@ await test('recuperação por cookie substitui registro antigo; cancelamento nã
     pathname: '/wallet.html',
     hash: '#configuracoes',
     approvalResponse: Promise.resolve(
-      Response.json({ error: 'Pedido expirou.' }, { status: 401 }),
+      Response.json({ error: 'Request expired.' }, { status: 401 }),
     ),
   });
   await tick();
@@ -1175,7 +1175,7 @@ await test('recuperação por cookie substitui registro antigo; cancelamento nã
   failed.dispose();
 });
 
-await test('resposta tardia do cookie não substitui fragmento novo nem revive tela encerrada', async () => {
+await test('late cookie response neither replaces a new fragment nor revives a closed screen', async () => {
   for (const action of ['replace', 'dispose']) {
     const response = deferred<Response>();
     const browser = scope({
@@ -1204,7 +1204,7 @@ await test('resposta tardia do cookie não substitui fragmento novo nem revive t
   }
 });
 
-await test('prazo inválido do cookie bloqueia aprovação; expiração local suspensa é conferida no foco', async () => {
+await test('invalid cookie deadline blocks approval; suspended local expiration is checked on focus', async () => {
   for (const remaining of [-1, 300_001]) {
     const browser = scope({
       pathname: '/wallet.html',
@@ -1234,7 +1234,7 @@ await test('prazo inválido do cookie bloqueia aprovação; expiração local su
   browser.dispose();
 });
 
-await test('assinatura aceita mostra somente aviso de retorno manual, inclusive para pedido antigo do Chrome', async () => {
+await test('accepted signature shows only manual return guidance, including an earlier Chrome request', async () => {
   const now = Date.now();
   const signed = deferred<unknown>();
   const response = Response.json({
@@ -1285,7 +1285,7 @@ await test('assinatura aceita mostra somente aviso de retorno manual, inclusive 
 });
 
 await test(
-  'entrada mobile assina login e prova privada na mesma wallet, sem sessão ou segunda navegação',
+  'mobile entry signs login and private proof in the same wallet without a session or second navigation',
   { timeout: 10000 },
   async () => {
     const signer = new Wallet(`0x${'1'.padStart(64, '0')}`);

@@ -33,14 +33,14 @@ export class StatusPreferences {
         JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
       );
       if (value['version'] !== 1 || !Array.isArray(value['excluded']))
-        throw new Error('Preferência de status inválida.');
+        throw new Error('Invalid status preference.');
       for (const account of value['excluded']) this.excluded.add(uuid(account));
     }
   }
   async save(excluded: ReadonlySet<string>): Promise<void> {
     await this.sync.refresh();
     if (!this.sync.complete)
-      throw new Error('Conclua a sincronização antes de salvar a privacidade.');
+      throw new Error('Finish syncing before saving privacy settings.');
     const values = [...excluded].map(uuid).sort();
     await this.sync.save({
       change: {

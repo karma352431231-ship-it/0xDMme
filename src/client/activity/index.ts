@@ -71,8 +71,8 @@ function relativeTime(iso: string): string {
     Math.floor((Date.now() - Date.parse(iso)) / 60_000),
   );
   if (minutes < 1) return t('activity.now');
-  if (minutes < 60) return t('há {0} min', [minutes]);
-  if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
+  if (minutes < 60) return t('{0} min ago', [minutes]);
+  if (minutes < 1440) return t('{0} h ago', [Math.floor(minutes / 60)]);
   return new Date(iso).toLocaleDateString(currentLanguage());
 }
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -108,7 +108,7 @@ export function startActivity(
       feedback =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível carregar.');
+          : t('Could not load.');
       render();
     },
   });
@@ -173,7 +173,7 @@ export function startActivity(
       feedback =
         error instanceof Error
           ? translatedError(error.message)
-          : t('A ação não foi concluída.');
+          : t('The action was not completed.');
     } finally {
       busy = false;
     }
@@ -263,22 +263,22 @@ export function startActivity(
       row({
         avatar: { label: peer.name || peer.address, seed: peer.address },
         title: displayName(peer.name || peer.address),
-        detail: t('Quer conversar · {0} · {1}', [
+        detail: t('Wants to chat · {0} · {1}', [
           peer.ecosystem.toUpperCase(),
           shortAddress(peer.address),
         ]),
         actions: [
           button(
-            t('Aceitar'),
+            t('Accept'),
             () => sources.respondRequest(peer.accountId, true),
-            t('Contato aprovado nos dois sentidos.'),
+            t('Contact approved in both directions.'),
             true,
           ),
           button(
-            t('Recusar'),
+            t('Decline'),
             () => sources.respondRequest(peer.accountId, false),
             t(
-              'Pedido recusado. A mesma identidade não pode repetir este pedido.',
+              'Request declined. The same identity cannot repeat this request.',
             ),
           ),
         ],
@@ -290,25 +290,25 @@ export function startActivity(
       row({
         title:
           invite.kind === 'invite'
-            ? t('{0} convidou você para um grupo', [invite.actor])
-            : t('{0} ofereceu a propriedade de um grupo', [invite.actor]),
+            ? t('{0} invited you to a group', [invite.actor])
+            : t('{0} offered you ownership of a group', [invite.actor]),
         detail:
           invite.kind === 'invite'
-            ? t('Entrar mostra o grupo na sua lista de conversas.')
-            : t('A administração só muda depois do seu aceite.'),
+            ? t('Joining adds the group to your conversation list.')
+            : t('Administration only changes after you accept.'),
         actions: [
           button(
-            invite.kind === 'invite' ? t('Entrar') : t('Aceitar propriedade'),
+            invite.kind === 'invite' ? t('Sign in') : t('Accept ownership'),
             () => sources.respondGroupInvite(invite.id, true),
             invite.kind === 'invite'
-              ? t('Você entrou no grupo.')
-              : t('Propriedade aceita.'),
+              ? t('You joined the group.')
+              : t('Ownership accepted.'),
             true,
           ),
           button(
-            t('Recusar'),
+            t('Decline'),
             () => sources.respondGroupInvite(invite.id, false),
-            t('Convite recusado.'),
+            t('Invitation declined.'),
           ),
         ],
       }),
@@ -335,7 +335,7 @@ export function startActivity(
         detail: relativeTime(reply.createdAt),
         actions: [
           noticeLink({
-            label: t('Abrir'),
+            label: t('Open'),
             href: `#communities?id=${reply.community}&post=${reply.reply}`,
             read: reply.read === true,
             acknowledge: () => sources.markRepliesRead([reply.reply]),
@@ -354,8 +354,8 @@ export function startActivity(
       row({
         avatar: { label: community.name, seed: community.id },
         title: community.name,
-        detail: t('Transferência de comunidade aguardando você'),
-        actions: [link(t('Ver'), '#communities?view=invitations')],
+        detail: t('Community transfer awaiting you'),
+        actions: [link(t('View'), '#communities?view=invitations')],
       }),
     );
   }
@@ -364,7 +364,7 @@ export function startActivity(
       row({
         avatar: { label: call.label, seed: call.peer },
         title: displayName(call.label),
-        detail: t('Chamada de voz não atendida · {0}', [
+        detail: t('Missed voice call · {0}', [
           new Date(call.at).toLocaleString(currentLanguage()),
         ]),
         actions: [],
@@ -375,14 +375,10 @@ export function startActivity(
     publicationPreview.clear();
     if (!host) return;
     const heading = element('header', '', 'activity-heading');
-    heading.append(element('h2', t('Atividade')));
+    heading.append(element('h2', t('Activity')));
     if (session)
       heading.append(
-        button(
-          t('Atualizar'),
-          () => Promise.resolve(),
-          t('Atividade atualizada.'),
-        ),
+        button(t('Refresh'), () => Promise.resolve(), t('Activity updated.')),
       );
     const status = element('p', feedback, 'activity-feedback');
     status.setAttribute('role', 'status');
@@ -391,7 +387,7 @@ export function startActivity(
       host.append(
         element(
           'p',
-          t('Entre na conta para ver pedidos, convites e publicações.'),
+          t('Sign in to see requests, invitations and publications.'),
           'activity-empty',
         ),
       );
@@ -406,17 +402,17 @@ export function startActivity(
     if (groups.length) host.append(...groups);
     else
       host.append(
-        pingNotice('sleepy', t('Nada novo por aqui.'), 'activity-empty'),
+        pingNotice('sleepy', t('Nothing new here.'), 'activity-empty'),
       );
   }
   function filters(): HTMLElement {
     const nav = element('nav', '', 'activity-filters');
-    nav.setAttribute('aria-label', t('Filtrar atividade'));
+    nav.setAttribute('aria-label', t('Filter activity'));
     for (const [key, label] of [
-      ['all', t('Tudo')],
-      ['requests', t('Pedidos')],
-      ['replies', t('Publicações')],
-      ['mentions', t('Menções')],
+      ['all', t('All')],
+      ['requests', t('Requests')],
+      ['replies', t('Publications')],
+      ['mentions', t('Mentions')],
     ] as const) {
       const choice = element('button', label);
       choice.type = 'button';
@@ -434,7 +430,7 @@ export function startActivity(
     return [
       [
         'requests',
-        section(t('Pedidos de conversa'), snapshot.requests, requestRows()),
+        section(t('Conversation requests'), snapshot.requests, requestRows()),
       ],
       [
         'calls',
@@ -444,11 +440,9 @@ export function startActivity(
           callRows(),
           snapshot.calls.items.length
             ? button(
-                t('Limpar'),
+                t('Clear'),
                 () => sources.clearMissedCalls(),
-                t(
-                  'Chamadas perdidas removidas da lista em todos os aparelhos.',
-                ),
+                t('Missed calls removed from the list on all devices.'),
               )
             : undefined,
         ),
@@ -456,7 +450,7 @@ export function startActivity(
       [
         'moderation',
         section(
-          t('Moderação automática'),
+          t('Automated moderation'),
           snapshot.moderation,
           moderationRows(snapshot.moderation.items, {
             acknowledge: async (id) => {
@@ -475,14 +469,14 @@ export function startActivity(
       [
         'mentions',
         section(
-          t('Menções a você'),
+          t('Mentions of you'),
           snapshot.mentions,
           mentionRows(snapshot.mentions.items, {
             preview: (text) => publicationPreview.text(text),
             signal: publicationPreview.signal,
             open: async (id) => {
               if (!sources.markMentionsRead)
-                throw new Error('Leitura de menção indisponível.');
+                throw new Error('Mention read unavailable.');
               await sources.markMentionsRead([id]);
             },
             current: () =>
@@ -492,15 +486,11 @@ export function startActivity(
       ],
       [
         'invites',
-        section(t('Convites de grupo'), snapshot.invites, inviteRows()),
+        section(t('Group invitations'), snapshot.invites, inviteRows()),
       ],
       [
         'replies',
-        section(
-          t('Publicações nas comunidades'),
-          snapshot.replies,
-          replyRows(),
-        ),
+        section(t('Community publications'), snapshot.replies, replyRows()),
       ],
       [
         'upvotes',
@@ -523,11 +513,7 @@ export function startActivity(
       ],
       [
         'transfers',
-        section(
-          t('Transferências de comunidade'),
-          snapshot.transfers,
-          transferRows(),
-        ),
+        section(t('Community transfers'), snapshot.transfers, transferRows()),
       ],
     ];
   }

@@ -44,7 +44,7 @@ export async function localPutWithin(input: {
     !Number.isSafeInteger(maximum) ||
     maximum < 0
   )
-    throw new Error('Orçamento local inválido.');
+    throw new Error('Invalid local budget.');
   return transaction(scope, (store, done) => {
     const old = store.get([scope, name]),
       usage = store.get([scope, 'usage']);
@@ -193,6 +193,6 @@ export async function localStoreKey(
     }
   }
   const value = base64(await openLocal(authority, row), 32);
-  if (value.length !== 32) throw new Error('Chave de armazenamento inválida.');
+  if (value.length !== 32) throw new Error('Invalid storage key.');
   return Uint8Array.from(value);
 }

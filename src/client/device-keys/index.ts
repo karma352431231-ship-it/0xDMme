@@ -80,7 +80,7 @@ export async function checkIdentity(identity: LocalIdentity): Promise<void> {
     identity.signing.extractable ||
     identity.wrapping.extractable
   )
-    throw new Error('Chaves locais inválidas.');
+    throw new Error('Invalid local keys.');
   const probe = crypto.randomUUID();
   await verify(
     identity.public.signing,
@@ -95,12 +95,12 @@ export async function checkIdentity(identity: LocalIdentity): Promise<void> {
       'probe'
     ] !== probe
   )
-    throw new Error('Chave local incompatível.');
+    throw new Error('Incompatible local key.');
 }
 export async function aesKey(secret: string): Promise<CryptoKey> {
   const bytes = base64(secret, 32);
   if (bytes.length !== 32)
-    throw new Error('Chave de recuperação deve conter 256 bits aleatórios.');
+    throw new Error('The recovery key must contain 256 random bits.');
   try {
     return await crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, [
       'encrypt',
@@ -116,7 +116,7 @@ async function sealAes(
   context: unknown[],
 ): Promise<{ iv: string; ciphertext: string }> {
   const plaintext = encoder.encode(JSON.stringify(value));
-  if (plaintext.length > 8000) throw new Error('Segredo excede o formato.');
+  if (plaintext.length > 8000) throw new Error('Secret exceeds the format.');
   const iv = crypto.getRandomValues(new Uint8Array(12));
   try {
     return {
@@ -234,9 +234,9 @@ export function keyring(
     data['keys'].length !== expected.epoch ||
     expected.epoch > directoryLimit
   )
-    throw new Error('Segredos pertencem a outra versão ou conta.');
+    throw new Error('Secrets belong to another version or account.');
   const secrets = (data['keys'] as unknown[]).map((value) => {
-    if (base64(value, 32).length !== 32) throw new Error('Segredo inválido.');
+    if (base64(value, 32).length !== 32) throw new Error('Invalid secret.');
     return value as string;
   });
   return {
@@ -264,7 +264,7 @@ export async function deviceSecrets(
         }),
       )
   )
-    throw new Error('Aparelho revogado ou chave não autorizada.');
+    throw new Error('Device revoked or key not authorized.');
   return keyring(
     await openFrom(
       identity.wrapping,
@@ -354,9 +354,7 @@ export async function recoverSecrets(
     );
     return { ring, signing };
   } catch {
-    throw new Error(
-      'Recuperação rejeitada: chave, conta ou integridade inválida.',
-    );
+    throw new Error('Recovery rejected: invalid key, account or integrity.');
   }
 }
 function recoveryContext(
@@ -364,7 +362,7 @@ function recoveryContext(
   wallet?: WalletRecovery,
 ): unknown[] {
   if (wallet && walletRecovery(wallet).accountId !== accountId)
-    throw new Error('Configuração pertence a outra conta.');
+    throw new Error('Settings belong to another account.');
   return wallet
     ? ['0xdmme-recovery-root', 2, accountId, walletRecovery(wallet)]
     : ['0xdmme-recovery-root', 1, accountId];
@@ -379,7 +377,7 @@ async function recoveryKey(secret: string | CryptoKey): Promise<CryptoKey> {
     !secret.usages.includes('encrypt') ||
     !secret.usages.includes('decrypt')
   )
-    throw new Error('Chave de recuperação inválida.');
+    throw new Error('Invalid recovery key.');
   return secret;
 }
 export async function signEvent(

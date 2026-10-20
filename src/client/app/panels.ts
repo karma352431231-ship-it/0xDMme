@@ -1,5 +1,5 @@
 import { appAddress, navigateApp } from '../app-navigation/index.ts';
-/** Desktop panel arrangement (docs/UI_PAINEIS_E_TEMAS.md); a device-only preference. */
+/** Desktop panel arrangement; a device-only preference. */
 import { appRoute } from '../../shared/app-routes/index.ts';
 import {
   communityTarget,
@@ -18,7 +18,7 @@ import type {
 export { communityTarget, panelLayouts } from './panel-route.ts';
 export type { PanelLayout, CommunityTarget } from './panel-route.ts';
 export const layoutPreferenceKey = '0xdmme:layout';
-/** all: Contatos | Conversa | Feed · nochat: Contatos | Feed · solo: Contatos | Conversa. */
+/** all: Contacts | Chat | Feed · nochat: Contacts | Feed · solo: Contacts | Chat. */
 
 /** Attributes that mark clickable layout controls. */
 export const panelControlAttributes = [
@@ -57,7 +57,7 @@ export function withChat(layout: PanelLayout): PanelLayout {
   return layout === 'nochat' ? 'all' : layout;
 }
 
-/** The “Conversa ao lado” toggle only switches the chat column. */
+/** The “Chat beside” toggle only switches the chat column. */
 export function toggledChat(layout: PanelLayout): PanelLayout {
   return layout === 'nochat' ? 'all' : 'nochat';
 }
@@ -76,7 +76,7 @@ export interface PanelCommunities {
 type Scope = 'private' | 'public';
 
 /**
- * Desktop workspace: Contatos | Conversa | Feed with a collapsible chat column.
+ * Desktop workspace: Contacts | Chat | Feed with a collapsible chat column.
  * Below 1280 px the feed stays on its own page; below 701 px mobile navigation is unchanged.
  */
 export function startPanels(input: {
@@ -344,6 +344,7 @@ export function startPanels(input: {
     );
   }
   return {
+    setContactScope: setScope,
     /** A resolved public name updates the remembered route without remounting drafts. */
     canonicalized(address: string): void {
       const route = splitTarget(address);
@@ -378,7 +379,7 @@ export function startPanels(input: {
       const href = wide.matches
         ? splitHref({ layout, target: panelTarget, dm: null })
         : '#chats';
-      if (appAddress() !== href) navigateApp(href);
+      if (appAddress() !== href) navigateApp(href, history.state);
     },
     sessionChanged(): void {
       if (shell.dataset['contactScope'] === 'public')

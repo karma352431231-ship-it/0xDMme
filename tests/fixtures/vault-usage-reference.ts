@@ -49,6 +49,6 @@ export async function referenceVaultUsage(
     [accountId],
   );
   const bytes = Number(result.rows[0]?.bytes);
-  if (!Number.isSafeInteger(bytes)) throw new Error('Cota indisponível.');
+  if (!Number.isSafeInteger(bytes)) throw new Error('Quota unavailable.');
   return bytes;
 }

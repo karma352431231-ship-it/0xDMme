@@ -14,14 +14,14 @@ export function groupDirectoryRequest(data: Record<string, unknown>) {
     !data['accounts'].length ||
     data['accounts'].length > 16
   )
-    throw new AccountError(400, 'Lote de participantes inválido.');
+    throw new AccountError(400, 'Invalid participant batch.');
   const accounts = data['accounts'].map((input: unknown) => {
     const row = object(input);
     keys(row, ['accountId', 'after']);
     return { accountId: uuid(row['accountId']), after: revision(row['after']) };
   });
   if (new Set(accounts.map((r) => r.accountId)).size !== accounts.length)
-    throw new AccountError(400, 'Participantes repetidos.');
+    throw new AccountError(400, 'Duplicate participants.');
   return {
     groupId: uuid(data['groupId']),
     head: fingerprint(data['head']),

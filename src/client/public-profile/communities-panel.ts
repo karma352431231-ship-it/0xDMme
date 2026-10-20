@@ -42,12 +42,12 @@ export function profileCommunities(
   const compact = element('div', '', 'profile-communities-compact'),
     list = element('ul', '', 'profile-communities-list'),
     footer = element('div', '', 'profile-communities-footer'),
-    more = button(t('Mais comunidades'), 'profile-communities-more'),
-    less = button(t('Mostrar menos'), 'profile-communities-less'),
+    more = button(t('More communities'), 'profile-communities-more'),
+    less = button(t('Show less'), 'profile-communities-less'),
     toggle = button('', 'profile-communities-toggle');
   footer.append(more, less);
   list.hidden = footer.hidden = true;
-  host.replaceChildren(element('h2', t('Comunidades')), compact, list, footer);
+  host.replaceChildren(element('h2', t('Communities')), compact, list, footer);
   const loaded: Community[] = [];
   let next: string | null = null;
   const avatar = (group: Community) => {
@@ -72,7 +72,7 @@ export function profileCommunities(
   }
   function fillCompact(total: number): void {
     if (!loaded.length) {
-      compact.append(element('p', t('Nenhuma comunidade seguida.')));
+      compact.append(element('p', t('No followed communities.')));
       return;
     }
     if (loaded.length <= namedCount && next === null) {
@@ -93,10 +93,10 @@ export function profileCommunities(
     toggle.textContent =
       hidden > 0
         ? `+${hidden.toLocaleString(currentLanguage())}`
-        : t('Ver nomes');
+        : t('View names');
     toggle.setAttribute(
       'aria-label',
-      t('Ver a lista das {0} comunidades', [
+      t('View the list of {0} communities', [
         total.toLocaleString(currentLanguage()),
       ]),
     );

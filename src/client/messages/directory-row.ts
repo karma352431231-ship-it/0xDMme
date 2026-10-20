@@ -78,7 +78,7 @@ export class ConversationRow {
       this.button.append(this.unread);
     }
     text(this.unread, count > 99 ? '99+' : String(count));
-    attribute(this.unread, 'aria-label', t('{0} mensagens não lidas', [count]));
+    attribute(this.unread, 'aria-label', t('{0} unread messages', [count]));
   }
   private updateAvatar(entry: ConversationEntry): void {
     const appearance = JSON.stringify([
@@ -97,7 +97,7 @@ export class ConversationRow {
     }
     const classes = `conversation-avatar ${entry.kind}${entry.status ? ' has-status' : ''}`;
     if (this.avatar.className !== classes) this.avatar.className = classes;
-    const statusLabel = entry.status ? t('Status ativo') : '';
+    const statusLabel = entry.status ? t('Active status') : '';
     if (statusLabel) attribute(this.avatar, 'title', statusLabel);
     else if (this.statusLabel === this.avatar.getAttribute('title'))
       this.avatar.removeAttribute('title');
@@ -121,7 +121,7 @@ export class ConversationRow {
     attribute(
       this.trigger!,
       'aria-label',
-      t('Opções de {0}', [this.entry.title]),
+      t('Options for {0}', [this.entry.title]),
     );
     menu.bind(this.wrapper!, this.entry, this.trigger!);
   }

@@ -51,7 +51,7 @@ function authority(parsed: ParsedMessage, origin: string): void {
     parsed.uri !== origin ||
     parsed.version !== '1'
   )
-    throw new Error('Contexto SIWE inválido.');
+    throw new Error('Invalid SIWE context.');
 }
 
 export function verifyLoginSignature(
@@ -65,16 +65,16 @@ export function verifyLoginSignature(
     parsed.expirationTime !== challenge.expiresAt.toISOString() ||
     challenge.expiresAt.getTime() <= Date.now()
   )
-    throw new Error('Desafio expirado.');
+    throw new Error('Challenge expired.');
   if (
     parsed.requestId !== challenge.id ||
     parsed.resources?.[0] !== `urn:uuid:${challenge.deviceId}` ||
     parsed.address.toLowerCase() !== challenge.address
   )
-    throw new Error('Vínculo SIWE inválido.');
+    throw new Error('Invalid SIWE binding.');
   if (
     verifyMessage(challenge.message, signature).toLowerCase() !==
     challenge.address
   )
-    throw new Error('Assinatura inválida.');
+    throw new Error('Invalid signature.');
 }

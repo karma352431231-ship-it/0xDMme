@@ -8,7 +8,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 import type { RecoveryFlow } from '../src/client/recovery-return/index.ts';
 import { deviceDatabase } from './fixtures/device-database.ts';
 
-await test('restauração não abre wallet; login abre somente sem chaves e pedido expirado deixa de bloquear atualização', async (t) => {
+await test('restoration never opens the wallet; login opens only without keys and expired request stops blocking updates', async (t) => {
   const window = new EventTarget();
   const records = new Map<string, string>();
   const replacements = {
@@ -46,7 +46,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
     historyAuthorized: false,
     walletConfirmed: true,
   };
-  const identity = await createIdentity(session.deviceId, 'Teste');
+  const identity = await createIdentity(session.deviceId, 'Test');
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
@@ -60,7 +60,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
   const flow: RecoveryFlow = {
     mode: 'initialize',
     config,
-    name: 'Teste',
+    name: 'Test',
     revoked: [],
     revision: 0,
     head: null,

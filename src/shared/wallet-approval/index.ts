@@ -35,7 +35,7 @@ export function approvalPathRequest(
 export function returnBrowser(value: unknown): ReturnBrowser {
   if (value === undefined || value === 'default') return 'default';
   if (value === 'chrome') return 'chrome';
-  throw new Error('Navegador de retorno inválido.');
+  throw new Error('Invalid return browser.');
 }
 export interface WalletApprovalRequest {
   ticket: string;
@@ -59,7 +59,7 @@ export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
     typeof wallet !== 'string' ||
     !['MetaMask', 'Phantom', 'Backpack'].includes(wallet)
   )
-    throw new Error('Pedido de wallet inválido.');
+    throw new Error('Invalid wallet request.');
   return {
     ticket,
     wallet: wallet as WalletName,

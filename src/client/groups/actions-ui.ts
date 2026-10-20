@@ -48,7 +48,7 @@ export class GroupActionsUi {
   }
   private show(title: string, content: string): HTMLDialogElement {
     if (this.busy || this.options.isBusy())
-      throw new Error('Aguarde a atualização atual.');
+      throw new Error('Wait for the current update.');
     this.reset();
     const dialog = document.createElement('dialog');
     dialog.className = 'group-dialog group-actions-dialog';
@@ -77,7 +77,7 @@ export class GroupActionsUi {
     if (!dialog || this.busy || this.options.isBusy()) return;
     this.busy = true;
     this.buttons(dialog, true);
-    this.feedback(dialog, t('Processando…'));
+    this.feedback(dialog, t('Processing…'));
     try {
       await this.options.run(async () => {
         try {
@@ -102,7 +102,7 @@ export class GroupActionsUi {
     if (node) node.textContent = text;
   }
   showCreate(): void {
-    const dialog = this.show(t('Criar grupo privado'), t('html.c392c59440f2'));
+    const dialog = this.show(t('Create private group'), t('html.c392c59440f2'));
     const titleInput =
       dialog.querySelector<HTMLInputElement>('input[name=title]');
     titleInput?.addEventListener('input', () => {
@@ -126,10 +126,7 @@ export class GroupActionsUi {
     });
   }
   showJoin(url = ''): void {
-    const dialog = this.show(
-      t('Entrar em grupo privado'),
-      t('html.9012ccf1c0d4'),
-    );
+    const dialog = this.show(t('Join private group'), t('html.9012ccf1c0d4'));
     const input = dialog.querySelector('input');
     if (input) input.value = url;
     dialog.querySelector('form')?.addEventListener('submit', (event) => {
@@ -139,7 +136,7 @@ export class GroupActionsUi {
           'join',
           input?.value.trim() ?? '',
         );
-        if (typeof id !== 'string') throw new Error('Entrada não confirmada.');
+        if (typeof id !== 'string') throw new Error('Sign-in not confirmed.');
         await this.options.refresh();
         await this.options.open(id);
         dialog.close();
@@ -149,11 +146,8 @@ export class GroupActionsUi {
   showManage(): void {
     const selected = this.options.controller.selected;
     if (!selected || selected.localOnly)
-      throw new Error('Abra um grupo conectado primeiro.');
-    const dialog = this.show(
-      t('Adicionar participantes'),
-      t('html.ea146116f72c'),
-    );
+      throw new Error('Open a connected group first.');
+    const dialog = this.show(t('Add participants'), t('html.ea146116f72c'));
     dialog
       .querySelector<HTMLInputElement>('[data-contact-search]')
       ?.addEventListener('input', () => this.filterContacts(dialog));
@@ -178,7 +172,7 @@ export class GroupActionsUi {
         }
         this.feedback(
           dialog,
-          t('Link revogado. Quem já entrou continua no grupo.'),
+          t('Link revoked. Existing members remain in the group.'),
         );
       });
     });
@@ -190,7 +184,7 @@ export class GroupActionsUi {
     const page = await this.contacts.list('approved', more),
       group = this.options.controller.selected;
     if (this.dialog !== dialog) return;
-    if (!group) throw new Error('O grupo foi fechado.');
+    if (!group) throw new Error('The group was closed.');
     const list = dialog.querySelector('[data-contacts]');
     if (!more) {
       this.people.clear();
@@ -219,9 +213,7 @@ export class GroupActionsUi {
     const list = dialog.querySelector('[data-contacts]');
     this.feedback(
       dialog,
-      !list?.children.length && !next
-        ? t('Nenhum contato disponível para adicionar.')
-        : '',
+      !list?.children.length && !next ? t('No contacts available to add.') : '',
     );
   }
   private contact(dialog: HTMLDialogElement, peer: Peer): void {
@@ -237,18 +229,18 @@ export class GroupActionsUi {
       this.people.identity(
         peer.accountId,
         peer.name || peer.address,
-        t('Contato'),
+        t('Contact'),
       ),
     );
     const add = document.createElement('span');
     add.className = 'group-add-label';
-    add.textContent = t('Adicionar');
+    add.textContent = t('Add');
     button.append(add);
     button.addEventListener('click', () => {
       void this.perform(async () => {
         await this.options.controller.admission('add', peer.accountId);
         item.remove();
-        this.feedback(dialog, t('Contato adicionado ao grupo.'));
+        this.feedback(dialog, t('Contact added to the group.'));
         await this.options.refresh();
       });
     });
@@ -269,7 +261,7 @@ export class GroupActionsUi {
   }
   private async share(dialog: HTMLDialogElement): Promise<void> {
     const link = await this.options.controller.admission('link');
-    if (typeof link !== 'string') throw new Error('Link não confirmado.');
+    if (typeof link !== 'string') throw new Error('Link not confirmed.');
     const input = dialog.querySelector<HTMLInputElement>('[data-invitation]');
     if (input) {
       dialog.querySelector<HTMLElement>('[data-invitation-label]')!.hidden =
@@ -279,9 +271,9 @@ export class GroupActionsUi {
     }
     try {
       await navigator.clipboard.writeText(link);
-      this.feedback(dialog, t('Link copiado.'));
+      this.feedback(dialog, t('Link copied.'));
     } catch {
-      this.feedback(dialog, t('Link pronto. Copie o endereço acima.'));
+      this.feedback(dialog, t('Link ready. Copy the address above.'));
     }
   }
 }
@@ -289,7 +281,7 @@ export class GroupActionsUi {
 function errorMessage(error: unknown): string {
   return error instanceof Error
     ? translatedError(error.message)
-    : t('Operação não confirmada. Tente novamente.');
+    : t('Operation not confirmed. Try again.');
 }
 
 export function showGroupManagement(

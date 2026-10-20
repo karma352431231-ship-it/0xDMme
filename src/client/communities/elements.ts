@@ -48,7 +48,7 @@ export function communityButton(
           'p',
           error instanceof Error
             ? translatedError(error.message)
-            : t('Operação indisponível.'),
+            : t('Operation unavailable.'),
         );
         output.setAttribute('role', 'status');
         container.append(output);

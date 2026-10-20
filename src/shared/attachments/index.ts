@@ -20,13 +20,13 @@ export const chatFileLimit = 10_000_000;
 /** Fixed catalog messages for the two product limits. */
 export function oversizedFileMessage(maximum: number): string {
   return maximum > fileLimit
-    ? 'Arquivo vazio ou acima do limite de 10 MB. Escolha outro arquivo.'
-    : 'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.';
+    ? 'File empty or larger than 10 MB. Choose another file.'
+    : 'File empty or larger than 3 MB. Choose another file.';
 }
 export function fileLimitMessage(maximum: number): string {
   return maximum > fileLimit
-    ? 'Arquivo deve ter até 10 MB.'
-    : 'Arquivo deve ter até 3 MB.';
+    ? 'The file must be no larger than 10 MB.'
+    : 'The file must be no larger than 3 MB.';
 }
 export const thumbnailLimit = 96_000;
 export const partLimit = 262_144;
@@ -63,13 +63,13 @@ export function attachmentRef(
     !Array.isArray(row['parts']) ||
     row['parts'].length !== Math.ceil(bytes / partLimit)
   )
-    throw new AccountError(400, 'Partes de anexo inválidas.');
+    throw new AccountError(400, 'Invalid attachment parts.');
   const parts = row['parts'].map((raw, index) => {
     const part = object(raw);
     keys(part, ['hash', 'bytes']);
     const length = integer(part['bytes'], partLimit);
     if (length !== Math.min(partLimit, bytes - index * partLimit))
-      throw new AccountError(400, 'Tamanho de parte divergente.');
+      throw new AccountError(400, 'Part size does not match.');
     return { hash: fingerprint(part['hash']), bytes: length };
   });
   return { id: uuid(row['id']), hash: fingerprint(row['hash']), bytes, parts };
@@ -79,12 +79,12 @@ export function attachmentRefs(
   maximum = fileLimit,
 ): AttachmentRef[] {
   if (!Array.isArray(input) || !input.length || input.length > 2)
-    throw new AccountError(400, 'Referências de anexo inválidas.');
+    throw new AccountError(400, 'Invalid attachment references.');
   const refs = input.map((row, index) =>
     attachmentRef(row, index ? thumbnailLimit : maximum),
   );
   if (new Set(refs.map((r) => r.id)).size !== refs.length)
-    throw new AccountError(400, 'Referência repetida.');
+    throw new AccountError(400, 'Duplicate reference.');
   return refs;
 }
 export async function verifyAttachmentPart(
@@ -99,7 +99,7 @@ export async function verifyAttachmentPart(
     part.bytes !== bytes.length ||
     (await bytesHash(bytes)) !== part.hash
   )
-    throw new AccountError(400, 'Parte de anexo adulterada ou incompleta.');
+    throw new AccountError(400, 'Attachment part tampered with or incomplete.');
 }
 function privateFile(input: unknown, maximum: number): PrivateFile {
   const row = object(input);
@@ -139,7 +139,7 @@ function readAttachment(
     (row['version'] !== 1 && row['version'] !== 2) ||
     typeof row['image'] !== 'boolean'
   )
-    throw new Error('Conteúdo de anexo inválido.');
+    throw new Error('Invalid attachment content.');
   const { file, thumbnail, type } = attachmentMedia(row, images),
     voice = attachmentVoice(row, file, thumbnail, type);
   return {
@@ -163,10 +163,10 @@ function attachmentMedia(
         ? null
         : privateFile(row['thumbnail'], thumbnailLimit);
   if ((!row['image'] && thumbnail) || thumbnail?.ref.id === file.ref.id)
-    throw new Error('Miniatura inválida.');
+    throw new Error('Invalid thumbnail.');
   const type = boundedText(row['type'], 100);
   if (row['image'] && !images.includes(type))
-    throw new Error('Formato de imagem não permitido.');
+    throw new Error('Image format not allowed.');
   return { file, thumbnail, type };
 }
 function attachmentVoice(
@@ -183,7 +183,7 @@ function attachmentVoice(
     type !== 'audio/wav' ||
     file.ref.bytes !== 44 + voice.samples * 2
   )
-    throw new Error('Descritor de voz inválido.');
+    throw new Error('Invalid voice descriptor.');
   return voice;
 }
 export function contentRefs(content: AttachmentContent): AttachmentRef[] {

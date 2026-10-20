@@ -4,10 +4,10 @@ const server = await startWalletRecoveryProbe({
   synthetic: process.argv.includes('--synthetic'),
 });
 process.stdout.write(
-  'Ensaio local: http://127.0.0.1:45107 — encerra em 30 minutos.\n',
+  'Local probe: http://127.0.0.1:45107 — closes in 30 minutes.\n',
 );
 if (process.argv.includes('--synthetic'))
-  process.stdout.write('Modo fictício: nenhuma wallet real é usada.\n');
+  process.stdout.write('Synthetic mode: no real wallet is used.\n');
 const close = () => {
   server.close();
   server.closeAllConnections();

@@ -24,7 +24,7 @@ export async function isolatedMediaProcess(
       : { operation: 'health' },
   );
   if (Buffer.byteLength(payload) > 65_536)
-    throw new AccountError(422, 'Pedido de preparação excede o orçamento.');
+    throw new AccountError(422, 'Preparation request exceeds the budget.');
   return new Promise<string>((resolve, reject) => {
     const socket = createConnection(path);
     socket.setEncoding('utf8');
@@ -33,7 +33,7 @@ export async function isolatedMediaProcess(
     const fail = (): void => {
       if (settled) return;
       settled = true;
-      reject(new AccountError(503, 'Processador isolado indisponível.'));
+      reject(new AccountError(503, 'Isolated processor unavailable.'));
       socket.destroy();
     };
     const abort = (): void => fail();
@@ -51,7 +51,7 @@ export async function isolatedMediaProcess(
       try {
         const response = object(JSON.parse(result) as unknown);
         if (response['ok'] !== true || typeof response['output'] !== 'string')
-          throw new Error('Preparação falhou.');
+          throw new Error('Preparation failed.');
         settled = true;
         resolve(response['output']);
       } catch {

@@ -177,7 +177,7 @@ await test('prova grava canal antes de abrir a wallet e cancelar apaga o registr
   assert.match(late.controls.status.textContent, /Proof not completed/u);
 });
 
-await test('retomar a página rearma prazo original e expiração apaga o canal', async () => {
+await test('page resume rearms the original deadline and expiration deletes the channel', async () => {
   const view = await page();
   view.controls.start.dispatchEvent(new Event('click'));
   view.window.dispatchEvent(new Event('pagehide'));
@@ -193,7 +193,7 @@ await test('retomar a página rearma prazo original e expiração apaga o canal'
   assert.match(view.controls.status.textContent, /Proof expired/u);
 });
 
-await test('registro expirado ao abrir é removido sem navegar para a wallet', async () => {
+await test('record expired on opening is removed without wallet navigation', async () => {
   const now = Date.now();
   const state = beginProbe(origin, now - probeLifetime).state;
   const view = await page({
@@ -205,7 +205,7 @@ await test('registro expirado ao abrir é removido sem navegar para a wallet', a
   assert.equal(view.controls.launch.hidden, true);
 });
 
-await test('armazenamento bloqueado falha antes de iniciar conexão', async () => {
+await test('blocked storage fails before starting a connection', async () => {
   const view = await page({ blocked: true });
   assert.equal(view.controls.start.disabled, true);
   assert.equal(view.controls.launch.hidden, true);

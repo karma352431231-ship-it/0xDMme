@@ -24,12 +24,12 @@ function solanaSigningKey(address: string) {
   const key = solanaPublicKey(address);
   const point = ed25519.Point.fromBytes(key, false);
   if (point.isSmallOrder() || !point.isTorsionFree())
-    throw new Error('Chave inválida.');
+    throw new Error('Invalid key.');
   return key;
 }
 function connectedChain(network: Ecosystem, value: unknown): string | number {
   if (network === 'solana') {
-    if (value !== 'solana:mainnet') throw new Error('Rede inválida.');
+    if (value !== 'solana:mainnet') throw new Error('Invalid network.');
     return value;
   }
   if (
@@ -38,7 +38,7 @@ function connectedChain(network: Ecosystem, value: unknown): string | number {
     value < 1 ||
     value > 2_147_483_647
   )
-    throw new Error('Rede inválida.');
+    throw new Error('Invalid network.');
   return value;
 }
 export function loginIdentity(input: unknown): {
@@ -69,7 +69,7 @@ export function loginIdentity(input: unknown): {
       deviceId: uuid(data['deviceId']),
     };
   } catch {
-    throw new AccountError(400, 'Identidade ou rede da wallet inválida.');
+    throw new AccountError(400, 'Invalid wallet identity or network.');
   }
 }
 export function challengeMessage(input: {
@@ -115,7 +115,7 @@ function solanaContext(challenge: LoginChallenge, origin: string): void {
     parsed.version !== '1' ||
     parsed.chainId !== 'solana:mainnet'
   )
-    throw new Error('Contexto inválido.');
+    throw new Error('Invalid context.');
   solanaBinding(parsed, challenge);
 }
 function solanaBinding(
@@ -128,12 +128,12 @@ function solanaBinding(
     parsed.expirationTime !== challenge.expiresAt.toISOString() ||
     challenge.expiresAt.getTime() <= Date.now()
   )
-    throw new Error('Vínculo inválido.');
+    throw new Error('Invalid binding.');
   if (
     parsed.resources?.length !== 1 ||
     parsed.resources[0] !== `urn:uuid:${challenge.deviceId}`
   )
-    throw new Error('Dispositivo inválido.');
+    throw new Error('Invalid device.');
 }
 
 function verifySolana(
@@ -151,7 +151,7 @@ function verifySolana(
       zip215: false,
     })
   )
-    throw new Error('Assinatura inválida.');
+    throw new Error('Invalid signature.');
 }
 export function verifyChallenge(
   challenge: LoginChallenge,
@@ -160,15 +160,15 @@ export function verifyChallenge(
 ): void {
   try {
     if (typeof signature !== 'string' || signature.length > 132)
-      throw new Error('Assinatura inválida.');
+      throw new Error('Invalid signature.');
     if (challenge.ecosystem === 'evm') {
       if (!/^0x[0-9a-fA-F]{130}$/u.test(signature))
-        throw new Error('Assinatura inválida.');
+        throw new Error('Invalid signature.');
       verifyLoginSignature(challenge, signature, origin);
     } else {
       verifySolana(challenge, signature, origin);
     }
   } catch {
-    throw new AccountError(401, 'Assinatura de login inválida ou expirada.');
+    throw new AccountError(401, 'Sign-in signature invalid or expired.');
   }
 }

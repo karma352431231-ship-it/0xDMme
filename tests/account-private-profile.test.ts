@@ -10,7 +10,7 @@ class PreferenceInput extends EventTarget {
   checked = false;
   value = '';
 }
-await test('foto privada salva automaticamente sem confirmar preferências em edição', async (t) => {
+await test('private photo saves automatically without confirming preferences being edited', async (t) => {
   const core = createCore();
   core.session = {
     accountId: crypto.randomUUID(),

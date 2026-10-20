@@ -19,15 +19,15 @@ try {
     storageReservations,
   });
   if (Buffer.byteLength(snapshot) > 16_384)
-    throw new Error('Métricas excedidas.');
+    throw new Error('Metrics exceed the limit.');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await writeFile(pending, snapshot, { flag: 'wx', mode: 0o600 });
   await rename(pending, new URL('database.json', directory));
   process.stdout.write(
-    'Métricas agregadas gravadas somente em .local/metrics/database.json.\n',
+    'Aggregate metrics saved only to .local/metrics/database.json.\n',
   );
 } catch {
-  process.stderr.write('Não foi possível obter métricas do banco local.\n');
+  process.stderr.write('Could not obtain local database metrics.\n');
   process.exitCode = 1;
 } finally {
   await database?.close();

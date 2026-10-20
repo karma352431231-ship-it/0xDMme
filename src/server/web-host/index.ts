@@ -29,7 +29,7 @@ function assetEntry(entry: unknown): { path: string; type: string } {
     typeof entry.type !== 'string' ||
     !/^\/[a-zA-Z0-9.-]+$/u.test(entry.path)
   )
-    throw new Error('Asset inválido.');
+    throw new Error('Invalid asset.');
   return { path: entry.path, type: entry.type };
 }
 
@@ -38,7 +38,7 @@ function checkAssetSize(path: string, size: number): void {
   if (/^\/source-[a-f0-9]{16}\.tar\.gz$/u.test(path)) return;
   const maximum =
     path === '/matrix-crypto-18.9.0.wasm' ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
-  if (size > maximum) throw new Error('Asset excedido.');
+  if (size > maximum) throw new Error('Asset exceeds the limit.');
 }
 
 export async function loadWebAssets(
@@ -48,7 +48,7 @@ export async function loadWebAssets(
     await readFile(new URL('assets.json', root), 'utf8'),
   );
   if (!Array.isArray(manifest) || manifest.length > 64)
-    throw new Error('Build inválido.');
+    throw new Error('Invalid build.');
   const assets = new Map<string, WebAsset>();
   const encodings: { path: string; br: string }[] = [];
   for (const value of manifest as unknown[]) {
@@ -65,7 +65,7 @@ export async function loadWebAssets(
   }
   linkBrotliAssets(encodings, assets);
   if (!assets.has('/') || !assets.has('/sw.js'))
-    throw new Error('Build incompleto.');
+    throw new Error('Incomplete build.');
   return assets;
 }
 

@@ -15,7 +15,7 @@ export async function storePublicReport(
     reason = communityText(data['reason'], 1000),
     kind = data['kind'];
   if (kind !== 'post' && kind !== 'profile')
-    throw new AccountError(400, 'Tipo de denúncia inválido.');
+    throw new AccountError(400, 'Invalid report type.');
   const previous = await context.client.query<{
     reporter: string;
     target: string;
@@ -34,7 +34,7 @@ export async function storePublicReport(
   });
   if (old) return { saved: true };
   if (kind === 'profile' && target === context.actor.id)
-    throw new AccountError(400, 'Escolha outro perfil para denunciar.');
+    throw new AccountError(400, 'Choose another profile to report.');
   await requireReportTarget(context.client, { kind, target });
   await context.client.query(
     'INSERT INTO hash_talk.public_reports(id,reporter,target,kind,reason) VALUES($1,$2,$3,$4,$5)',
@@ -58,7 +58,7 @@ async function requireReportTarget(
           [input.target],
         );
   if (!found.rowCount)
-    throw new AccountError(404, 'Alvo da denúncia indisponível.');
+    throw new AccountError(404, 'Report target unavailable.');
 }
 function validateReportReplay(
   old:
@@ -73,5 +73,5 @@ function validateReportReplay(
     old.kind !== expected.kind ||
     old.reason !== expected.reason
   )
-    throw new AccountError(409, 'Identificador de denúncia já usado.');
+    throw new AccountError(409, 'Report identifier already used.');
 }

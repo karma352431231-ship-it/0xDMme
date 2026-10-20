@@ -1,9 +1,9 @@
 import { maxResponseBytes } from '../../shared/crypto-probe/index.ts';
 
-/** Limite vale também durante a leitura do corpo, antes de JSON/WASM. */
+/** The limit also applies while reading the body, before JSON/WASM. */
 export async function boundedResponse(response: Response): Promise<string> {
   if (!response.ok || !response.body)
-    throw new Error('Resposta do ensaio rejeitada.');
+    throw new Error('Test response rejected.');
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let bytes = 0;
@@ -15,7 +15,7 @@ export async function boundedResponse(response: Response): Promise<string> {
       bytes += chunk.value.length;
       if (bytes > maxResponseBytes) {
         await reader.cancel();
-        throw new Error('Resposta excede o orçamento do ensaio.');
+        throw new Error('Response exceeds the test budget.');
       }
       body += decoder.decode(chunk.value, { stream: true });
     }

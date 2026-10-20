@@ -262,14 +262,19 @@ async function verifyHybridAdmission(
   await t.test(
     'legacy admission subtracts a live credit whose source row is still uncommitted',
     async () => {
+      // Reservation counters use the UUID's first byte. These independent
+      // transactions need distinct buckets so source-row admission can proceed.
       await owners(c, async () => {
         await insertVaultReservation(
           c.writer,
-          await bindVaultAllocation(c, { client: c.writer }),
+          await bindVaultAllocation(c, {
+            client: c.writer,
+            id: '0a' + crypto.randomUUID().slice(2),
+          }),
         );
         await insertVaultReservation(c.reader, {
           account: c.fixture.second,
-          id: crypto.randomUUID(),
+          id: '0b' + crypto.randomUUID().slice(2),
         });
         c.room.bytes -=
           (await c.capacity.allocationHeadroom(c.reader)) - 10000n;

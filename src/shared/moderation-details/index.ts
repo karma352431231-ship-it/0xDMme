@@ -47,7 +47,7 @@ function context(value: unknown): ModeratedPostContext | null {
     typeof data['reply'] !== 'boolean' ||
     typeof data['deleted'] !== 'boolean'
   )
-    throw new AccountError(400, 'Contexto de análise inválido.');
+    throw new AccountError(400, 'Invalid analysis context.');
   return {
     id: uuid(data['id']),
     community: uuid(data['community']),
@@ -60,7 +60,7 @@ function context(value: unknown): ModeratedPostContext | null {
 }
 function policy(value: unknown): PublicModerationPolicyVersion {
   if (value !== publicModerationPolicy && value !== '0xdmme-public-explicit-v1')
-    throw new AccountError(400, 'Política de análise inválida.');
+    throw new AccountError(400, 'Invalid analysis policy.');
   return value;
 }
 function automaticVerdict(
@@ -72,7 +72,7 @@ function automaticVerdict(
     value !== 'reject' &&
     value !== 'hold'
   )
-    throw new AccountError(400, 'Resultado de análise inválido.');
+    throw new AccountError(400, 'Invalid analysis result.');
   return value;
 }
 function frames(value: unknown): number | null {
@@ -83,7 +83,7 @@ function frames(value: unknown): number | null {
     value < 1 ||
     value > 60001
   )
-    throw new AccountError(400, 'Quantidade de quadros inválida.');
+    throw new AccountError(400, 'Invalid frame quantity.');
   return value;
 }
 export function publicModerationDetails(

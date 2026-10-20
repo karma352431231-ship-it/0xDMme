@@ -42,7 +42,7 @@ export class RequestBudget {
     else entry.requests++;
     if (challenge) entry.challenges++;
     if (this.budgetExceeded(entry, read))
-      throw new AccountError(429, 'Muitos pedidos. Aguarde.');
+      throw new AccountError(429, 'Too many requests. Please wait.');
   }
   private budgetExceeded(entry: BudgetEntry, read: boolean): boolean {
     if (read)
@@ -65,7 +65,7 @@ export class RequestBudget {
     }
     if (!entry) {
       if (this.entries.size >= this.capacity)
-        throw new AccountError(429, 'Muitos pedidos. Aguarde.');
+        throw new AccountError(429, 'Too many requests. Please wait.');
       entry = { expires: now + 60_000, requests: 0, challenges: 0, reads: 0 };
       this.entries.set(key, entry);
       this.scheduleCleanup();

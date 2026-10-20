@@ -91,14 +91,15 @@ export class MessageStore {
         existing.sender !== authority.session.accountId ||
         existing.hash !== hash
       )
-        throw new AccountError(409, 'Identificador de mensagem já utilizado.');
+        throw new AccountError(409, 'Message identifier already used.');
       const removed = await client.query(
         "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
         [authority.session.accountId, id, originalId(existing, id)],
       );
       if (removed.rowCount)
-        throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
-      if (!existing.body) throw new AccountError(410, 'Mensagem já apagada.');
+        throw new AccountError(410, 'Message removed from the personal vault.');
+      if (!existing.body)
+        throw new AccountError(410, 'Message already deleted.');
       return true;
     });
   }
@@ -116,7 +117,10 @@ export class MessageStore {
           packet.deviceId !== authority.session.deviceId ||
           packet.senderDirectory !== authority.directory
         )
-          throw new AccountError(403, 'Remetente de outra conta ou aparelho.');
+          throw new AccountError(
+            403,
+            'Sender belongs to another account or device.',
+          );
         const existing = await this.record(client, packet.id);
         if (existing) {
           if (
@@ -126,7 +130,7 @@ export class MessageStore {
           )
             throw new AccountError(
               409,
-              'Mensagem concorrente divergente ou apagada.',
+              'Concurrent message differs or was deleted.',
             );
           return { status: 'accepted', hash };
         }
@@ -194,7 +198,7 @@ export class MessageStore {
     if (removed.rowCount)
       throw new AccountError(
         410,
-        'Mensagem original removida do cofre pessoal.',
+        'Original message removed from the personal vault.',
       );
     const count = await c.query<{ count: number }>(
       "SELECT count(*)::integer AS count FROM hash_talk.message_packets WHERE relation->>'id'=$1",
@@ -203,7 +207,7 @@ export class MessageStore {
     if ((count.rows[0]?.count ?? 0) >= 64)
       throw new AccountError(
         413,
-        'Esta mensagem atingiu 64 alterações; envie uma nova mensagem.',
+        'This message reached 64 changes; send a new message.',
       );
   }
   private async currentDirectories(
@@ -230,7 +234,7 @@ export class MessageStore {
     )
       throw new AccountError(
         409,
-        'Aparelhos mudaram durante o envio. Refaça a cifragem.',
+        'Devices changed during sending. Encrypt again.',
       );
     return [directoryEvent(sender.event), directoryEvent(recipient.event)];
   }
@@ -255,7 +259,7 @@ export class MessageStore {
       if (!key || !event || key.epoch !== event.epoch)
         throw new AccountError(
           409,
-          'Preservação recuperável não preparada para a época atual.',
+          'Recoverable preservation not prepared for the current epoch.',
         );
     }
   }
@@ -277,7 +281,7 @@ export class MessageStore {
       !row ||
       ![row.sender, row.recipient].includes(authority.session.accountId)
     )
-      throw new AccountError(404, 'Mensagem indisponível.');
+      throw new AccountError(404, 'Message unavailable.');
   }
   private async bump(
     client: pg.PoolClient,
@@ -304,9 +308,9 @@ export class MessageStore {
           !participants.includes(row.sender) ||
           !participants.includes(row.recipient)
         )
-          throw new AccountError(404, 'Mensagem própria indisponível.');
+          throw new AccountError(404, 'Own message unavailable.');
         if (row.hash !== hash)
-          throw new AccountError(409, 'Conteúdo da exclusão divergente.');
+          throw new AccountError(409, 'Deletion content does not match.');
         if (!row.available) return;
         await this.removals?.remove(client, {
           accountId: authority.session.accountId,
@@ -340,18 +344,21 @@ export class MessageStore {
           !participants.includes(row.sender) ||
           !participants.includes(row.recipient)
         )
-          throw new AccountError(404, 'Mensagem indisponível.');
+          throw new AccountError(404, 'Message unavailable.');
         if (!row.available || row.hash !== hash)
           throw new AccountError(
             409,
-            'Mensagem apagada ou confirmação divergente.',
+            'Message deleted or confirmation does not match.',
           );
         const removed = await client.query(
           "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
           [authority.session.accountId, id, row.original_id],
         );
         if (removed.rowCount)
-          throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
+          throw new AccountError(
+            410,
+            'Message removed from the personal vault.',
+          );
         const { accountId, deviceId } = authority.session;
         const updated = await client.query(
           "UPDATE hash_talk.message_references SET status='received' WHERE message_id=$1 AND account_id=$2 AND device_id=$3 AND status='pending'",
@@ -416,7 +423,7 @@ export class MessageStore {
       [authority.session.accountId],
     );
     const row = result.rows[0];
-    if (!row) throw new Error('Estado de mensagens ausente.');
+    if (!row) throw new Error('Message state missing.');
     return {
       revision: Number(row.revision),
       contacts: row.contacts,
@@ -431,7 +438,7 @@ export class MessageStore {
     if (canonical(snapshot) !== canonical(await this.state(client, authority)))
       throw new AccountError(
         409,
-        'Mensagens ou permissões mudaram. Sincronize novamente.',
+        'Messages or permissions changed. Sync again.',
       );
   }
   async page(
@@ -517,10 +524,7 @@ export class MessageStore {
           [input.accountId, authority.session.accountId],
         );
         if (input.through > (result.rows[0]?.revision ?? 0))
-          throw new AccountError(
-            403,
-            'Diretório fora do histórico autorizado.',
-          );
+          throw new AccountError(403, 'Directory outside authorized history.');
       }
       const events = await client.query<{ event: unknown }>(
         'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision>$2 AND revision<=$3 ORDER BY revision LIMIT 8',
@@ -580,14 +584,14 @@ function assertRelationTarget(
 ): void {
   const relation = packet.relation!;
   if (!target || !target.body)
-    throw new AccountError(409, 'Mensagem original indisponível.');
+    throw new AccountError(409, 'Original message unavailable.');
   if (
     target.body.relation ||
     target.hash !== relation.hash ||
     target.sender !== relation.author ||
     !sameParticipants(target, packet)
   )
-    throw new AccountError(409, 'Mensagem original divergente.');
+    throw new AccountError(409, 'Original message does not match.');
   assertActionOwner(packet, target.body);
 }
 function sameParticipants(
@@ -602,10 +606,10 @@ function assertActionOwner(
   original: MessagePacket,
 ): void {
   if (packet.kind !== 'text' || original.kind === 'profile')
-    throw new AccountError(403, 'Alteração não permitida.');
+    throw new AccountError(403, 'Change not allowed.');
   if (
     packet.relation?.type === 'edit' &&
     (original.sender !== packet.sender || original.kind !== 'text')
   )
-    throw new AccountError(403, 'Somente o autor pode editar texto.');
+    throw new AccountError(403, 'Only the author can edit text.');
 }

@@ -30,6 +30,6 @@ export function groupAttachmentApi(
         id: data['id'],
         index: data['index'],
       });
-    throw new Error('Operação de mídia de grupo inválida.');
+    throw new Error('Invalid group media operation.');
   };
 }

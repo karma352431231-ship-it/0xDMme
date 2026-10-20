@@ -41,7 +41,7 @@ const relation = {
   author: original.author,
   type: 'edit' as const,
 };
-await test('cartões de perfil atualizam a identidade sem criar mensagens em uma conversa nova', () => {
+await test('profile cards update identity without creating messages in a new conversation', () => {
   const card = {
     ...original,
     id: crypto.randomUUID(),
@@ -55,7 +55,7 @@ await test('cartões de perfil atualizam a identidade sem criar mensagens em uma
   );
   assert.equal(card.text.includes('Teste 1'), true);
 });
-await test('reação admite um emoji composto e variantes; rejeita texto, múltiplos emojis e controles; última reação substitui a anterior', () => {
+await test('reactions accept compound emoji and variants, reject text, multiple emoji and controls, and replace the previous reaction', () => {
   const variants = [
     '🦋',
     '👍🏽',
@@ -115,12 +115,12 @@ await test('reação admite um emoji composto e variantes; rejeita texto, múlti
             relation: { ...relation, type: 'reaction' as const },
           },
         ]),
-      /Reação inválida/,
+      /Invalid reaction/,
     );
   }
   assert.equal(validReaction(''), true);
 });
-await test('checks só mostram verde com leitura compartilhada, cinza com ACK destinatário e nenhum estado remoto na cópia offline', () => {
+await test('checkmarks are green only with shared reads, gray with recipient ACK and have no remote state in offline copies', () => {
   assert.deepEqual(
     messageChecks({ own: true, delivery: 'accepted', read: false }),
     {
@@ -147,7 +147,7 @@ await test('checks só mostram verde com leitura compartilhada, cinza com ACK de
     null,
   );
 });
-await test('som inicia ligado; só escolha explícita persiste desligamento; bloqueio do navegador não altera preferência', async () => {
+await test('sound starts enabled; only an explicit choice persists disabling it; browser blocking preserves preference', async () => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
@@ -197,7 +197,7 @@ await test('som inicia ligado; só escolha explícita persiste desligamento; blo
   await reopened.dispose();
   assert.equal(values.get(soundPreferenceKey), 'true');
 });
-await test('privado sobe e grupo desce na marimba; ligação mantém bipe; alertas seguidos se agrupam em três segundos', () => {
+await test('private marimba rises and group marimba falls; calls keep their beep; consecutive alerts group within three seconds', () => {
   const strikes: { frequency: number; at: number }[] = [];
   let disconnected = 0;
   const node = () => ({
@@ -260,7 +260,7 @@ await test('privado sobe e grupo desce na marimba; ligação mantém bipe; alert
     Date.now = realNow;
   }
 });
-await test('falha de armazenamento informa que o desligamento de som só vale nesta abertura', async () => {
+await test('storage failure explains that sound is disabled only for this opening', async () => {
   const sound = new NotificationSound({
     getItem: () => null,
     setItem: () => {
@@ -271,7 +271,7 @@ await test('falha de armazenamento informa que o desligamento de som só vale ne
   assert.equal(sound.enabled, false);
   assert.match(sound.notice, /did not allow saving/);
 });
-await test('ações cifradas preservam texto legado, resposta e encaminhamento; edição e reação respeitam autoria e versão', () => {
+await test('encrypted actions preserve legacy text, replies and forwards; edits and reactions enforce authorship and version', () => {
   assert.deepEqual(decodeDailyText('Legado'), {
     text: 'Legado',
     reply: null,
@@ -315,7 +315,7 @@ await test('ações cifradas preservam texto legado, resposta e encaminhamento; 
   assert.equal(dailyViews([edit, react]).length, 0);
   assert.throws(
     () => dailyViews([original, { ...edit, author: crypto.randomUUID() }]),
-    /outro autor/,
+    /another author/,
   );
   assert.throws(
     () =>
@@ -323,19 +323,19 @@ await test('ações cifradas preservam texto legado, resposta e encaminhamento; 
         original,
         { ...edit, relation: { ...relation, hash: 'b'.repeat(64) } },
       ]),
-    /divergente/,
+    /differ|not match/,
   );
   assertRemovalIdentity(original, original);
   assert.throws(
     () => assertRemovalIdentity({ ...original, relation }, original),
-    /já autenticada/,
+    /already authenticated/,
   );
   assert.throws(
     () => assertRemovalIdentity({ ...edit, hash: 'b'.repeat(64) }, edit),
-    /já autenticada/,
+    /already authenticated/,
   );
 });
-await test('push só admite origens fixas, chaves limitadas e destinos públicos; payload é genérico e cifrado pela biblioteca', () => {
+await test('push accepts only fixed origins, bounded keys and public destinations; the library encrypts a generic payload', () => {
   const ecdh = createECDH('prime256v1');
   ecdh.generateKeys();
   const subscription = {
@@ -396,7 +396,7 @@ await test('push só admite origens fixas, chaves limitadas e destinos públicos
     readPushConfiguration({ HASH_TALK_PUSH_PUBLIC_KEY: keys.publicKey }),
   );
 });
-await test('backup conserva o vínculo de ações sem ativar permissões; busca normaliza apenas localmente', () => {
+await test('backup preserves action bindings without enabling permissions; search normalizes only locally', () => {
   const row = {
     type: 'message',
     id: crypto.randomUUID(),
@@ -441,7 +441,7 @@ function settingsEntry(entity: string, sequence: number): VaultEntry {
     },
   };
 }
-await test('organização conserva silêncio concorrente e uma nova escolha resolve os ramos sem abrir outra conversa', async () => {
+await test('organization preserves concurrent mute and a new choice resolves branches without opening another conversation', async () => {
   const first = settingsEntry(original.peer, 1),
     sibling = settingsEntry(original.peer, 2),
     other = settingsEntry(crypto.randomUUID(), 3),
@@ -499,7 +499,7 @@ await test('organização conserva silêncio concorrente e uma nova escolha reso
     pinned: true,
   });
 });
-await test('favoritos cifrados resolvem seus próprios ramos, preservam preferências legadas e não retornam após mudança de sessão', async () => {
+await test('encrypted favorites resolve their own branches, preserve legacy preferences and cannot return after session change', async () => {
   const id = original.peer,
     preference = settingsEntry(id, 1),
     first = settingsEntry(id, 2),
@@ -584,10 +584,10 @@ await test('favoritos cifrados resolvem seus próprios ramos, preservam preferê
     historyAuthorized: false,
   });
   release();
-  await assert.rejects(loading, /Sessão alterada/);
+  await assert.rejects(loading, /Session changed/);
   assert.equal(blocked.favorite(id), false);
   content.set(pendingEntry.commit.id, JSON.stringify({ favorite: 'sim' }));
-  await assert.rejects(daily.loadSettings([id]), /Favorito inválido/);
+  await assert.rejects(daily.loadSettings([id]), /Invalid favorite/);
 });
 function archiveFixture(settingsId = original.peer) {
   const entry = settingsEntry(settingsId, 1);
@@ -642,13 +642,13 @@ function archiveFixture(settingsId = original.peer) {
   };
   return { daily, state };
 }
-await test('arquivar silencia sem prazo; retomar exige desarquivar; mute de 24 horas mantém o prazo solicitado', async () => {
+await test('archiving mutes indefinitely; resuming requires unarchiving; 24-hour mute preserves the requested deadline', async () => {
   const { daily, state } = archiveFixture();
   await daily.organize(original.peer, { archived: true });
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   assert.equal(daily.conversation(original.peer).archived, true);
-  await assert.rejects(daily.mute(original.peer, 0), /Desarquive/);
-  await assert.rejects(daily.mute(original.peer, 86400000), /Desarquive/);
+  await assert.rejects(daily.mute(original.peer, 0), /Unarchive/);
+  await assert.rejects(daily.mute(original.peer, 86400000), /Unarchive/);
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   await daily.organize(original.peer, { archived: false });
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
@@ -659,7 +659,7 @@ await test('arquivar silencia sem prazo; retomar exige desarquivar; mute de 24 h
   await daily.mute(original.peer, 0);
   assert.equal(state.mutedUntil, 0);
 });
-await test('wallet arquivada passa a silenciar ao ser aprovada e impede retomar alertas até desarquivar', async () => {
+await test('archived wallet becomes muted on approval and cannot resume alerts until unarchived', async () => {
   const settingsId = crypto.randomUUID(),
     { daily, state } = archiveFixture(settingsId);
   await daily.organize(settingsId, { archived: true }, { mutePeer: null });
@@ -672,7 +672,7 @@ await test('wallet arquivada passa a silenciar ao ser aprovada e impede retomar 
   assert.equal(approved.mutedUntil, Number.MAX_SAFE_INTEGER);
   await assert.rejects(
     daily.mute(original.peer, 0, { settingsId }),
-    /Desarquive/,
+    /Unarchive/,
   );
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   await daily.organize(
@@ -684,7 +684,7 @@ await test('wallet arquivada passa a silenciar ao ser aprovada e impede retomar 
   await daily.mute(original.peer, 0, { settingsId });
   assert.equal(state.mutedUntil, 0);
 });
-await test('falha de mute impede arquivamento; falha de salvar não religa alertas nem simula arquivamento', async () => {
+await test('mute failure prevents archiving; save failure neither enables alerts nor simulates archiving', async () => {
   const { daily, state } = archiveFixture();
   state.failMute = true;
   await assert.rejects(
@@ -697,7 +697,7 @@ await test('falha de mute impede arquivamento; falha de salvar não religa alert
   state.failSave = true;
   await assert.rejects(
     daily.organize(original.peer, { archived: true }),
-    /Alertas silenciados.*não foi salvo/,
+    /Alerts were muted.*not saved/,
   );
   assert.equal(state.writes, 0);
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);

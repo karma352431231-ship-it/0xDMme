@@ -45,7 +45,7 @@ export function showExternalGif(
     consent: options.privacy,
     kind: 'gifs',
     signal: options.signal,
-    label: t('Mostrar GIF'),
+    label: t('Show GIF'),
     automatic: true,
     render: (target) => renderGif(target, url),
   });
@@ -64,7 +64,7 @@ export function renderGif(host: HTMLElement, url: string): void {
     () => {
       if (!host.isConnected) return;
       const status = document.createElement('small');
-      status.textContent = t('GIF indisponível agora.');
+      status.textContent = t('GIF currently unavailable.');
       status.setAttribute('role', 'status');
       host.replaceChildren(status);
     },

@@ -22,7 +22,7 @@ export async function readProfileMutuals(input: {
     [target],
   );
   if (!exists.rowCount)
-    throw new AccountError(404, 'Perfil público indisponível.');
+    throw new AccountError(404, 'Public profile unavailable.');
   const result = await input.client.query<{ total: string; ids: string[] }>(
     `WITH eligible AS (
       SELECT mine.target AS id FROM hash_talk.public_profile_follows mine

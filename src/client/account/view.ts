@@ -66,17 +66,20 @@ export class AccountView {
     const label = document.getElementById('account-label');
     if (label)
       label.textContent =
-        session?.name || (session ? t('Minha conta') : t('Entrar na conta'));
+        session?.name ||
+        (session ? t('My account') : t('Sign in to your account'));
     const wallet = document.getElementById('account-wallet');
     if (wallet)
       wallet.textContent = session
         ? `${session.address.slice(0, 6)}…${session.address.slice(-4)}`
-        : t('Login por wallet ou vinculação');
+        : t('Sign in with wallet or device linking');
     const copy = document.getElementById('copy-wallet');
     if (copy) copy.hidden = !session;
     const feedback = document.getElementById('account-profile-feedback');
     if (feedback)
-      feedback.textContent = this.core.busy ? t('Aguarde…') : this.core.status;
+      feedback.textContent = this.core.busy
+        ? t('Please wait…')
+        : this.core.status;
     this.profile.renderPhoto();
   }
   bindSidebar(): void {
@@ -100,12 +103,14 @@ export class AccountView {
     void navigator.clipboard
       .writeText(session.address)
       .then(() => {
-        this.core.status = this.core.profileStatus = t('Wallet copiada.');
+        this.core.status = this.core.profileStatus = t(
+          'Wallet address copied.',
+        );
         this.render();
       })
       .catch(() => {
         this.core.status = this.core.profileStatus = t(
-          'Não foi possível copiar a wallet.',
+          'Could not copy the wallet address.',
         );
         this.render();
       });
@@ -135,11 +140,11 @@ export class AccountView {
     if (candidate)
       candidate.textContent = pending?.address
         ? t(
-            'Endereço verificado ({0}): {1}. Confirme somente se é a conta que você escolheu.',
+            'Verified address ({0}): {1}. Only confirm if this is the account you chose.',
             [pending.ecosystem, pending.address],
           )
         : t(
-            'Aguardando assinatura na wallet. Volte ao navegador que abriu o pedido.',
+            'Waiting for a wallet signature. Return to the browser that opened the request.',
           );
     const confirm = this.find<HTMLButtonElement>('[data-wallet-confirm]');
     if (confirm) confirm.hidden = !pending?.address;
@@ -178,7 +183,7 @@ export class AccountView {
   }
   private renderIdentity(current: AccountSession): void {
     const label = this.find('[data-profile-name]');
-    if (label) label.textContent = current.name || t('Minha conta');
+    if (label) label.textContent = current.name || t('My account');
     const address = this.find('[data-account-address]');
     if (address) {
       // Short form on screen; the full address stays in the title and in Copiar.
@@ -190,6 +195,6 @@ export class AccountView {
       address.title = t('Wallet {0}: {1}', [network, current.address]);
     }
     const identity = this.find('[data-account-id]');
-    if (identity) identity.textContent = t('Conta: {0}', [current.accountId]);
+    if (identity) identity.textContent = t('Account: {0}', [current.accountId]);
   }
 }

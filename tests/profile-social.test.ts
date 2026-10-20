@@ -22,7 +22,7 @@ const summary = {
   communities: 0,
   followers: 0,
 };
-await test('página pública preserva idade desconhecida e rejeita dados privados ou banner de outro alvo', () => {
+await test("public page preserves unknown age and rejects private data or another target's banner", () => {
   assert.deepEqual(profileSummary(summary), summary);
   assert.throws(
     () => profileSummary({ ...summary, wallet: 'privada' }),
@@ -46,7 +46,7 @@ await test('página pública preserva idade desconhecida e rejeita dados privado
   );
   assert.throws(() => profileSummary({ ...summary, posts: -1 }), AccountError);
 });
-await test('relações rejeitam revisões negativas e campos extras; abas não incluem listas privadas', () => {
+await test('relations reject negative revisions and extra fields; tabs exclude private lists', () => {
   assert.deepEqual(profileFollow({ following: false, revision: 0 }), {
     following: false,
     revision: 0,
@@ -68,7 +68,7 @@ await test('relações rejeitam revisões negativas e campos extras; abas não i
     AccountError,
   );
 });
-await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz excluída não expõe a discussão', () => {
+await test('profile reply requires correct community, root and parent; deleted root exposes no discussion', () => {
   const community = crypto.randomUUID(),
     root = crypto.randomUUID(),
     reply = crypto.randomUUID();
@@ -77,7 +77,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
     community,
     author: profile,
     title: 'Original',
-    text: 'Texto',
+    text: 'Text',
     tags: [],
     createdAt: '2026-10-10T12:00:00.000Z',
     editedAt: null,
@@ -91,7 +91,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
   };
   const entry = {
     post: { ...post, id: reply, title: '', parent: root, root },
-    community: { id: community, name: 'Comunidade' },
+    community: { id: community, name: 'Community' },
     context: { root: post, parent: post },
   };
   assert.equal(
@@ -137,7 +137,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
     AccountError,
   );
 });
-await test('descrição do perfil aceita texto e emoji, normaliza quebras e recusa controles ocultos', () => {
+await test('profile description accepts text and emoji, normalizes line breaks and rejects hidden controls', () => {
   for (const [input, expected] of [
     ['  Olá 👋🏽  ', 'Olá 👋🏽'],
     ['a\r\nb', 'a\nb'],
@@ -159,7 +159,7 @@ await test('descrição do perfil aceita texto e emoji, normaliza quebras e recu
     assert.throws(() => profileDescriptionText(input), AccountError);
 });
 
-await test('seguidores em comum são paginados, sem campos privados, duplicatas ou contagens falsas', async () => {
+await test('mutual followers are paginated without private fields, duplicates or false counts', async () => {
   const { mutualFollowers } =
     await import('../src/shared/profile-social/index.ts');
   const page = { items: [profile], total: 2, next: profile.id };

@@ -8,6 +8,7 @@ import type { MessageRelation } from '../../shared/daily/index.ts';
 import { projectDmMessages } from './presentation.ts';
 import { synchronizeDmHistory } from './history-sync.ts';
 import { readDmDirectoryPreviews } from './directory-previews.ts';
+import { dmUnreadCursors, dmUnreadCount, markDmRead } from './unread.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { relatedDmHistory } from '../local-history/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -130,14 +131,14 @@ export class SocialDms {
   }
   private guard(generation: number): void {
     if (generation !== this.generation || !this.session)
-      throw new Error('Sessão das DMs alterada.');
+      throw new Error('DM session changed.');
   }
   private privateApi(authority: VaultAuthority, generation: number): SocialApi {
     if (
       authority.session.accountId !== this.session?.accountId ||
       authority.session.deviceId !== this.session.deviceId
     )
-      throw new Error('Autoridade de outra conta ou aparelho.');
+      throw new Error('Authority belongs to another account or device.');
     return (operation, payload) =>
       messageApi(authority, `dm-${operation}`, payload, () =>
         this.guard(generation),
@@ -200,7 +201,7 @@ export class SocialDms {
     const deadline = Date.now() + 60_000;
     do {
       if (Date.now() > deadline)
-        throw new Error('Sincronização do cofre das DMs não terminou.');
+        throw new Error('DM vault synchronization did not finish.');
       await this.sync.refresh(options);
       this.guard(generation);
     } while (!this.sync.complete);
@@ -214,7 +215,7 @@ export class SocialDms {
       );
     if (entries.length > 1)
       throw new Error(
-        'Recuperação das DMs tem versões concorrentes. Preserve as cópias antes de resolver.',
+        'DM recovery has concurrent versions. Preserve copies before resolving.',
       );
     if (entries[0]) {
       const data = object(
@@ -225,12 +226,12 @@ export class SocialDms {
       this.guard(generation);
       keys(data, ['secret']);
       if (base64(data['secret'], 32).length !== 32)
-        throw new Error('Segredo das DMs inválido.');
+        throw new Error('Invalid DM secret.');
       return this.preserveSecret(data['secret'] as string, options);
     }
     if (directory.events.length)
       throw new Error(
-        'Segredo das DMs ausente do cofre. Restaure seu cofre antes de continuar.',
+        'DM secret missing from the vault. Restore your vault before continuing.',
       );
     const secret = newSecret();
     await this.sync.save(
@@ -259,8 +260,7 @@ export class SocialDms {
       block: { hash: String(d['hash']), bytes: socialRevision(d['bytes']) },
       bytes: Uint8Array.from(bytes),
     });
-    if (base64(secret, 32).length !== 32)
-      throw new Error('Segredo das DMs inválido.');
+    if (base64(secret, 32).length !== 32) throw new Error('Invalid DM secret.');
     return secret;
   }
   private async preserveSecret(
@@ -360,7 +360,7 @@ export class SocialDms {
     relation?: MessageRelation,
   ): Promise<void> {
     if (!text.trim() || new TextEncoder().encode(text).length > 3_000_000)
-      throw new Error('Texto vazio ou excedido.');
+      throw new Error('Text empty or over the limit.');
     const name = relation
       ? `${relation.type === 'edit' ? 'dm-edit' : 'dm-react'}:${peer}:${relation.id}`
       : `dm-send:${peer}`;
@@ -383,7 +383,7 @@ export class SocialDms {
           );
           if (held['hash'] !== hash)
             throw new Error(
-              'Há um envio pendente com outro texto. Retome o texto original antes de enviar uma alteração.',
+              'A send is pending with different text. Resume the original text before sending a change.',
             );
           packet = socialPacket(held['packet']);
         } else {
@@ -448,7 +448,7 @@ export class SocialDms {
       raw = await api('recovery-peer', { accountId: peer });
     if (raw === null)
       throw new Error(
-        'O destinatário precisa abrir Mensagens pelo @ neste app para preparar sua recuperação E2EE.',
+        'The recipient must open Handle messages in this app to prepare E2EE recovery.',
       );
     return machine.encrypt({
       authority,
@@ -478,7 +478,7 @@ export class SocialDms {
           packet = socialPacket(held['packet']);
         this.guard(generation);
         if (typeof held['text'] !== 'string' || packet.recipient !== peer)
-          throw new Error('Rascunho de DM inválido.');
+          throw new Error('Invalid DM draft.');
         return { id: packet.id, text: held['text'] };
       },
       options,
@@ -524,18 +524,18 @@ export class SocialDms {
         const item = object(value),
           id = uuid(item['id']);
         if (item['packet'] === undefined) {
-          unavailable.push(t('dm-message:{0} indisponível', [id]));
+          unavailable.push(t('dm-message:{0} unavailable', [id]));
           continue;
         }
         const packet = socialPacket(item['packet']);
         if (packet.id !== id)
-          throw new Error('Mensagem histórica de outra DM.');
+          throw new Error('Historical message belongs to another DM.');
         const peer = profiles.get(
           packet.sender === context.authority.session.accountId
             ? packet.recipient
             : packet.sender,
         );
-        if (!peer) throw new Error('Perfil público histórico da DM ausente.');
+        if (!peer) throw new Error('Historical public DM profile missing.');
         const record = await this.decode(context, {
           packet,
           hash: String(item['hash']),
@@ -574,14 +574,14 @@ export class SocialDms {
         context.authority.session.accountId,
       )
     )
-      throw new Error('Mensagem de DM adulterada ou de outro contexto.');
+      throw new Error('DM tampered with or from another context.');
     const archive = packet.archives.find(
       (a) => a.accountId === context.authority.session.accountId,
     );
-    if (!archive) throw new Error('Recuperação da DM ausente.');
+    if (!archive) throw new Error('DM recovery missing.');
     const events = await this.senderHistory(context, packet);
     const event = events[packet.senderRevision - 1];
-    if (!event) throw new Error('Autoridade histórica da DM ausente.');
+    if (!event) throw new Error('Historical DM authority missing.');
     const raw =
       input.recovery.find((value) => object(value)['id'] === archive.keyId) ??
       (await context.api('recovery-key', { id: archive.keyId }));
@@ -628,11 +628,11 @@ export class SocialDms {
           }),
         );
         if (!Array.isArray(row['events']) || row['events'].length > 8)
-          throw new Error('Histórico da identidade de DM inválido.');
+          throw new Error('Invalid DM identity history.');
         events.push(...row['events'].map(socialDirectory));
         if (events.length === row['through']) break;
         if (!row['events'].length || page === 15)
-          throw new Error('Histórico de identidade de DM incompleto.');
+          throw new Error('DM identity history incomplete.');
       }
       await pinSocialHistory(packet.sender, events);
     }
@@ -662,14 +662,14 @@ export class SocialDms {
     target: Extract<BackupRecord, { type: 'dm-message' }>,
     text: string,
   ): Promise<void> {
-    if (!text.trim()) throw new Error('Texto vazio ou excedido.');
+    if (!text.trim()) throw new Error('Text empty or over the limit.');
     if (
       !target.own ||
       target.kind !== 'text' ||
       target.relation ||
       target.peer.id !== peer
     )
-      throw new Error('Edição por outro autor.');
+      throw new Error('Edit by another author.');
     const content = decodeDailyText(target.text);
     await this.send(
       peer,
@@ -689,6 +689,40 @@ export class SocialDms {
   ) {
     return dmMessageStates(
       await this.request('message-status', input, options),
+    );
+  }
+  async unread(peers: readonly string[]): Promise<number> {
+    const generation = this.generation;
+    return this.access.withVault(false, async (a) => {
+      const cursors = await dmUnreadCursors({
+        a,
+        peers,
+        guard: () => this.guard(generation),
+      });
+      const count = dmUnreadCount(
+        await this.privateApi(a, generation)('unread', { peers }),
+        cursors,
+      );
+      this.guard(generation);
+      return count;
+    });
+  }
+  async markRead(
+    peer: string,
+    sequence: number,
+    options: VaultWorkOptions = {},
+  ): Promise<void> {
+    const generation = this.generation;
+    await this.access.withVault(
+      true,
+      (a) =>
+        markDmRead({
+          a,
+          peer,
+          sequence,
+          guard: () => this.guard(generation),
+        }),
+      options,
     );
   }
   async read(
@@ -775,7 +809,7 @@ export class SocialDms {
         ) !== canonical(snapshot)
       )
         throw new Error(
-          'Histórico de DMs mudou durante a leitura. Retome a sincronização.',
+          'DM history changed while reading. Resume synchronization.',
         );
       this.guard(generation);
       return previews;
@@ -866,7 +900,7 @@ export class SocialDms {
         )
       )
         throw new Error(
-          'Há mídia pendente. Envie ou cancele antes de escolher outra.',
+          'Media pending. Send or cancel it before choosing more.',
         );
       await localPut(scope, `outbox:${id}`, { pending: true }, 512);
       try {
@@ -910,7 +944,7 @@ export class SocialDms {
           scope,
           `dm-media-draft:${peer}`,
         );
-        if (!row) throw new Error('Escolha mídia para enviar.');
+        if (!row) throw new Error('Choose media to send.');
         const draft = object(JSON.parse(await openLocal(a, row)) as unknown),
           media = socialMedia(draft['media']),
           id = uuid(draft['id']),
@@ -1013,13 +1047,13 @@ export class SocialDms {
     sealed = false,
     localOnly = false,
   ): Promise<Uint8Array<ArrayBuffer>> {
-    if (!row.media) throw new Error('Mensagem sem mídia.');
+    if (!row.media) throw new Error('Message has no media.');
     const content = socialAttachment(
         JSON.parse(row.text) as unknown,
         row.media,
       ),
       file = thumbnail ? content.thumbnail : content.file;
-    if (!file) throw new Error('Miniatura ausente.');
+    if (!file) throw new Error('Thumbnail missing.');
     const generation = this.generation;
     return this.access.withVault(localOnly || !navigator.onLine, async (a) => {
       const bytes = await this.mediaCipher(a, {
@@ -1066,7 +1100,7 @@ export class SocialDms {
         imported.hash !== file.ref.hash ||
         imported.thumbnail !== thumbnail
       )
-        throw new Error('Mídia importada de outra DM.');
+        throw new Error('Imported media belongs to another DM.');
       return Uint8Array.from(base64(imported.bytes, 3_000_000));
     }
     await retainAttachment(dmMediaScope(a.session.accountId), row.id);
@@ -1097,7 +1131,7 @@ function personalPage(value: unknown): {
     !Array.isArray(raw['recovery']) ||
     raw['recovery'].length > 16
   )
-    throw new Error('Página pessoal de DMs inválida.');
+    throw new Error('Invalid personal DM page.');
   return {
     next: raw['next'],
     items: raw['items'],
@@ -1111,7 +1145,7 @@ async function receiveSocialInbox(
 ): Promise<void> {
   const data = object(await api('matrix-inbox', {}));
   if (!Array.isArray(data['items']) || data['items'].length > 16)
-    throw new Error('Caixa de chaves de DMs inválida.');
+    throw new Error('Invalid DM key box.');
   const rows = data['items'].map((value) => object(value));
   const received = await machine.receive(
     rows.map((row) => row['event']),

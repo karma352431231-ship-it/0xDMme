@@ -39,7 +39,7 @@ export function openingReceiver(value: unknown): OpeningReceiver {
     !/^[a-f0-9]{64}$/u.test(nonce) ||
     !['MetaMask', 'Phantom', 'Backpack'].includes(String(wallet))
   )
-    throw new Error('Destino de abertura inválido.');
+    throw new Error('Invalid opening destination.');
   return {
     receiver,
     nonce,
@@ -69,7 +69,7 @@ export async function openingRequest(value: unknown): Promise<OpeningRequest> {
     ...(Object.hasOwn(data, 'language') ? { language: data['language'] } : {}),
   });
   if ((await openingTicket(receiver)) !== transfer.ticket)
-    throw new Error('O destino da abertura foi alterado.');
+    throw new Error('The opening destination was changed.');
   return {
     transfer,
     nonce: receiver.nonce,

@@ -6,9 +6,7 @@ function deadline<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
       () =>
-        reject(
-          new Error('O microfone não respondeu a tempo. Tente novamente.'),
-        ),
+        reject(new Error('The microphone did not respond in time. Try again.')),
       milliseconds,
     );
     void promise.then(resolve, reject).finally(() => clearTimeout(timer));
@@ -33,7 +31,7 @@ export class BrowserCapture implements VoiceCapture {
       typeof AudioWorkletNode === 'undefined'
     )
       throw new Error(
-        'Gravação de voz indisponível neste navegador. Use uma versão atual em HTTPS.',
+        'Voice recording unavailable in this browser. Use an updated browser over HTTPS.',
       );
     // Construct/resume synchronously from the record button's gesture (including iOS).
     const context = new AudioContext({ latencyHint: 'interactive' });
@@ -72,16 +70,16 @@ export class BrowserCapture implements VoiceCapture {
     node.port.onmessage = (event: MessageEvent<unknown>) =>
       this.receive(event.data);
     node.onprocessorerror = () =>
-      this.interrupt(t('O processamento do microfone foi interrompido.'));
+      this.interrupt(t('Microphone processing was interrupted.'));
     for (const track of stream.getAudioTracks()) {
       track.addEventListener(
         'ended',
-        () => this.interrupt(t('O microfone foi desconectado.')),
+        () => this.interrupt(t('The microphone was disconnected.')),
         { once: true },
       );
       track.addEventListener(
         'mute',
-        () => this.interrupt(t('O sistema interrompeu o microfone.')),
+        () => this.interrupt(t('The system interrupted the microphone.')),
         { once: true },
       );
     }
@@ -93,10 +91,10 @@ export class BrowserCapture implements VoiceCapture {
     if (this.closed) return;
     await deadline(context.resume(), 5000);
     if (context.state !== 'running')
-      throw new Error('O navegador não liberou a gravação. Tente novamente.');
+      throw new Error('The browser did not allow recording. Try again.');
     context.onstatechange = () => {
       if (context.state !== 'running')
-        this.interrupt(t('O navegador suspendeu o microfone.'));
+        this.interrupt(t('The browser suspended the microphone.'));
     };
   }
   private receive(value: unknown): void {
@@ -143,9 +141,7 @@ export class BrowserCapture implements VoiceCapture {
       void context
         .close()
         .catch(() =>
-          this.events.interrupted(
-            t('Não foi possível encerrar o contexto do microfone.'),
-          ),
+          this.events.interrupted(t('Could not close the microphone context.')),
         );
     }
   }

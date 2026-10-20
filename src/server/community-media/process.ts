@@ -24,7 +24,7 @@ export async function verifyMediaBudget(
       AbortSignal.timeout(10_000),
     );
     if (output !== '0xdmme-media-worker-v1')
-      throw new Error('Worker de mídia divergente.');
+      throw new Error('Media worker mismatch.');
     return;
   }
   if (!runtime || process.platform !== 'linux') return;
@@ -35,18 +35,16 @@ async function verifyLocalBudget(): Promise<void> {
     .split('\n')
     .find((line) => line.startsWith('0::'));
   if (!entry)
-    throw new Error(
-      'Processador exige orçamento de memória verificável no Linux.',
-    );
+    throw new Error('Processor requires a verifiable memory budget on Linux.');
   const root = '/sys/fs/cgroup';
   let path = resolve(root, entry.slice(3).replace(/^\//u, ''));
   while (path.startsWith(root)) {
     const value = await memoryLimit(path, root);
     if (value !== 'max' && !/^[1-9]\d*$/u.test(value))
-      throw new Error('Limite de memória do processador inválido.');
+      throw new Error('Invalid processor memory limit.');
     if (value !== 'max' && Number(value) < 8_589_934_592)
       throw new Error(
-        'Processador exige revisão do orçamento do serviço: limite herdado inferior a 8 GiB.',
+        'Processor requires a service budget review: inherited limit is below 8 GiB.',
       );
     if (path === root) break;
     path = dirname(path);
@@ -75,9 +73,9 @@ export function readMediaRuntime(
     socket = env['HASH_TALK_MEDIA_SOCKET'];
   if (!ffmpeg && !ffprobe && !socket) return null;
   if (!absoluteBinary(ffmpeg) || !absoluteBinary(ffprobe))
-    throw new Error('Configure executáveis absolutos do processador.');
+    throw new Error('Configure absolute paths for processor executables.');
   if (socket && !isAbsolute(socket))
-    throw new Error('Configure socket absoluto do processador.');
+    throw new Error('Configure an absolute processor socket path.');
   return {
     ffmpeg,
     ffprobe,
@@ -159,14 +157,14 @@ function runLocalMediaProcess(
         reject(
           new AccountError(
             503,
-            'Processador indisponível ou interrompido. Retome o envio.',
+            'Processor unavailable or interrupted. Resume the upload.',
           ),
         );
       else if (code !== 0 || overflow)
         reject(
           new AccountError(
             422,
-            'Não foi possível preparar a mídia dentro dos limites. Confira o arquivo.',
+            'Could not prepare media within the limits. Check the file.',
           ),
         );
       else resolve(output);

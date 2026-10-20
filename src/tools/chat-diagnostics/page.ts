@@ -4,7 +4,7 @@ function chatState() {
   const status = document.querySelector('[data-message-status]');
   const history = document.querySelector<HTMLElement>('[data-message-history]');
   return {
-    syncing: ['Sincronizando…', 'Syncing…', '正在同步…'].includes(
+    syncing: ['Syncing…', 'Syncing…', '正在同步…'].includes(
       status?.textContent ?? '',
     ),
     historyPresent: history !== null,

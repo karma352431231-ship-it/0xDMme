@@ -74,7 +74,7 @@ export class MessageVisibility<T> {
     this.assert(token);
     if ((version ?? this.startedVersion) !== this.changeVersion) {
       if (version === undefined)
-        throw new Error('Conferência de mensagens substituída por novo aviso.');
+        throw new Error('Message verification superseded by a new notice.');
       return false;
     }
     const rows = this.staged;
@@ -94,9 +94,7 @@ export class MessageVisibility<T> {
         await check();
         if (this.complete(token, version)) return;
       }
-      throw new Error(
-        'Novas atualizações durante a conferência. Sincronize novamente.',
-      );
+      throw new Error('New updates arrived during verification. Sync again.');
     } catch (error: unknown) {
       this.fail(token);
       throw error;
@@ -107,6 +105,6 @@ export class MessageVisibility<T> {
   }
   private assert(token: number): void {
     if (this.token !== token || token !== this.generation)
-      throw new Error('Sincronização de mensagens substituída.');
+      throw new Error('Message synchronization superseded.');
   }
 }

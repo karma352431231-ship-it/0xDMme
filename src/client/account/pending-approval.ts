@@ -17,12 +17,12 @@ function deadline(createdAt: unknown, expiresAt: unknown) {
     !Number.isSafeInteger(expiresAt) ||
     expiresAt !== createdAt + lifetime
   )
-    throw new Error('Prazo inválido.');
+    throw new Error('Invalid deadline.');
   return { createdAt, expiresAt };
 }
 
 function decoded(value: string): PendingApproval {
-  if (value.length > 512) throw new Error('Registro excedido.');
+  if (value.length > 512) throw new Error('Record exceeds the limit.');
   const data: unknown = JSON.parse(value);
   if (
     typeof data !== 'object' ||
@@ -32,7 +32,7 @@ function decoded(value: string): PendingApproval {
     !('expiresAt' in data) ||
     Object.keys(data).length !== 3
   )
-    throw new Error('Registro inválido.');
+    throw new Error('Invalid record.');
   return {
     request: walletApprovalRequest(data.request),
     ...deadline(data.createdAt, data.expiresAt),

@@ -26,7 +26,7 @@ const source = (
   bytes,
   hash: 'a'.repeat(64),
 });
-await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legenda opcional', () => {
+await test('public media: sets per post/reply, bytes per file and optional caption', () => {
   communityMediaSet(Array.from({ length: 4 }, () => source('photo')));
   communityMediaSet(Array.from({ length: 3 }, () => source('gif')));
   communityMediaSet([source('video')]);
@@ -51,7 +51,7 @@ await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legen
   );
   // A titled post may have no text; nothing at all is refused.
   assert.equal(
-    postContent({ title: 'Título', text: '', tags: [], media: [] }).text,
+    postContent({ title: 'Title', text: '', tags: [], media: [] }).text,
     '',
   );
   assert.throws(() =>
@@ -61,7 +61,7 @@ await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legen
     postContent({ title: '', text: '', tags: [], media: [media, media] }),
   );
 });
-await test('validação efetiva recusa duração excedida, animação disfarçada e resultado fora do contrato', () => {
+await test('effective validation rejects excess duration, disguised animation and results outside the contract', () => {
   const shape = {
     codec: 'h264',
     format: 'mov,mp4,m4a,3gp,3g2,mj2',
@@ -106,7 +106,7 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
   assert.throws(() => communityMediaResult({ ...result, fps: 31 }));
   assert.throws(() => readMediaRuntime({ HASH_TALK_MEDIA_FFMPEG: './ffmpeg' }));
 });
-await test('objetos de mídia: montagem limitada, hash integral, retomada e limpeza só da reserva', async () => {
+await test('media objects: bounded assembly, full hash, resume and reservation-only cleanup', async () => {
   const root = await realpath(
       await mkdtemp(join(tmpdir(), '0xdmme-media-unit-')),
     ),
@@ -149,7 +149,7 @@ await test('objetos de mídia: montagem limitada, hash integral, retomada e limp
   }
 });
 
-await test('resultado acima de 25 MB mantém hash integral e última parte para a leitura restrita', async () => {
+await test('result above 25 MB preserves the full hash and final part for restricted reading', async () => {
   const root = await realpath(
     await mkdtemp(join(tmpdir(), '0xdmme-large-result-')),
   );

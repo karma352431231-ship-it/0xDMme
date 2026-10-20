@@ -38,10 +38,10 @@ export class SettingsRecord {
       )
       .sort((a, b) => b.commit.sequence - a.commit.sequence);
     if (heads.length > 16)
-      throw new Error('Configurações da conta com versões demais no cofre.');
+      throw new Error('Too many account settings versions in the vault.');
     return heads;
   }
-  /** `null` when the account never confirmed Configurações iniciais. */
+  /** `null` when the account never confirmed Initial settings. */
   async load(accountId: string): Promise<AccountSettings | null> {
     // `complete` describes the local checkpoint, which can be empty while
     // another reader is still pulling the account's records from the server.
@@ -51,11 +51,11 @@ export class SettingsRecord {
       if (this.sync.complete) break;
     }
     if (!this.sync.complete)
-      throw new Error('O cofre ainda está carregando as configurações.');
+      throw new Error('The vault is still loading settings.');
     const newest = (await this.heads(accountId))[0];
     if (!newest) return null;
     // Opening failures propagate. Content that does not validate is offered
-    // again in Configurações iniciais and superseded by the next save.
+    // again in Initial settings and superseded by the next save.
     const raw = await this.sync.open(newest.commit.id);
     try {
       return accountSettings(JSON.parse(raw) as unknown);

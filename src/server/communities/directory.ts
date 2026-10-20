@@ -15,7 +15,7 @@ function single(address: URL, allowed: string): string | null {
       (key) => key !== allowed || address.searchParams.getAll(key).length !== 1,
     )
   )
-    throw new AccountError(400, 'Filtros inválidos.');
+    throw new AccountError(400, 'Invalid filters.');
   return address.searchParams.get(allowed);
 }
 export async function directoryLookup(

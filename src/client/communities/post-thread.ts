@@ -58,9 +58,9 @@ export class PostThread {
   }
   async mount(container: HTMLElement, parent: CommunityPost): Promise<void> {
     this.order = parent.parent ? 'votes' : 'discussed';
-    this.host.setAttribute('aria-label', t('Discussão da postagem'));
+    this.host.setAttribute('aria-label', t('Post discussion'));
     const toolbar = el('div', '', 'post-thread-toolbar');
-    const heading = el('h3', t('Respostas'), 'community-thread-heading');
+    const heading = el('h3', t('Replies'), 'community-thread-heading');
     if (parent.replies)
       heading.append(el('span', String(parent.replies), 'activity-count'));
     toolbar.append(heading);
@@ -74,7 +74,7 @@ export class PostThread {
     this.ordering.replaceChildren();
     discoveryMenu(
       this.ordering,
-      t('Ordenar comentários'),
+      t('Sort comments'),
       {
         value: this.order,
         options: discussionOrders.map(
@@ -146,15 +146,15 @@ export class PostThread {
     for (const post of page.items) this.row(this.replies, post, 0);
     if (!page.items.length)
       this.replies.append(
-        el('p', t('Ainda não há respostas.'), 'community-thread-empty'),
+        el('p', t('No replies yet.'), 'community-thread-empty'),
       );
     this.paging.replaceChildren();
     if (after)
-      button(this.paging, t('Voltar ao início'), () =>
+      button(this.paging, t('Back to start'), () =>
         this.actions.run(() => this.page(parent, null)),
       );
     if (page.next)
-      button(this.paging, t('Ver outros comentários'), () =>
+      button(this.paging, t('View other comments'), () =>
         this.actions.run(() => this.page(parent, page.next)),
       );
   }
@@ -172,7 +172,7 @@ export class PostThread {
   private continue(container: HTMLElement, post: CommunityPost): void {
     link(
       container,
-      t('Continuar este fio →'),
+      t('Continue this thread →'),
       `#communities?id=${this.actions.community}&post=${post.id}`,
     );
   }
@@ -184,13 +184,13 @@ export class PostThread {
     const wrap = el('section', '', 'post-thread-branch'),
       children = el('div', '', 'post-thread-children'),
       controls = el('div', '', 'post-thread-more');
-    wrap.setAttribute('aria-label', t('Respostas a este comentário'));
+    wrap.setAttribute('aria-label', t('Replies to this comment'));
     if (depth >= 4) wrap.classList.add('post-thread-deep');
     const toggle = button(
       wrap,
-      t('＋ Ver {0} {1}', [
+      t('＋ View {0} {1}', [
         parent.replies,
-        parent.replies === 1 ? t('resposta') : t('respostas'),
+        parent.replies === 1 ? t('reply') : t('replies'),
       ]),
       () => this.actions.run(() => this.toggle(branch)),
     );
@@ -224,7 +224,7 @@ export class PostThread {
       branch.next = null;
       branch.loaded = false;
       branch.children.hidden = true;
-      branch.toggle.textContent = t('＋ Ver {0} respostas', [
+      branch.toggle.textContent = t('＋ View {0} replies', [
         branch.parent.replies,
       ]);
       branch.toggle.setAttribute('aria-expanded', 'false');
@@ -254,7 +254,7 @@ export class PostThread {
       await this.more(branch, pending);
       if (!this.valid()) return;
       branch.children.hidden = false;
-      branch.toggle.textContent = t('− Recolher respostas');
+      branch.toggle.textContent = t('− Collapse replies');
       branch.toggle.setAttribute('aria-expanded', 'true');
       if (branch.queue.length || branch.next) pending.push(branch);
     }
@@ -307,7 +307,7 @@ export class PostThread {
       branch.children.append(
         el(
           'p',
-          t('Não há outras respostas disponíveis para exibir.'),
+          t('No more replies available to display.'),
           'community-thread-empty',
         ),
       );
@@ -320,7 +320,7 @@ export class PostThread {
       1,
       branch.parent.replies - branch.children.children.length,
     );
-    button(branch.controls, t('＋ Ver {0} outras respostas', [remaining]), () =>
+    button(branch.controls, t('＋ View {0} more replies', [remaining]), () =>
       this.actions.run(() => this.expand(branch)),
     );
   }

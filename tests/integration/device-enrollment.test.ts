@@ -41,7 +41,7 @@ import {
 import { accountSession } from '../../src/shared/account/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 
-await test('vinculação sem wallet, uso único, autorização automática e confirmação sensível persistida', async (t) => {
+await test('wallet-free linking, single use, automatic authorization and persisted sensitive confirmation', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

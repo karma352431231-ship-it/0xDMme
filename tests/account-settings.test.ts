@@ -80,7 +80,7 @@ class FakeSync {
   }
 }
 
-await test('registro da conta aceita só o formato conhecido', () => {
+await test('account record accepts only the known format', () => {
   assert.throws(() => accountSettings({ ...base, language: 'zh-CN' }));
   assert.deepEqual(accountSettings(base), base);
   for (const invalid of [
@@ -94,7 +94,7 @@ await test('registro da conta aceita só o formato conhecido', () => {
     assert.throws(() => accountSettings(invalid));
 });
 
-await test('perfil pronto troca privacidade e avisos, mas mantém tema, som e lembrete de backup', () => {
+await test('ready profile changes privacy and notifications while preserving theme, sound and backup reminder', () => {
   const current = {
     settings: { ...base, theme: 'white' as const, sound: false },
     privacy: {
@@ -124,7 +124,7 @@ await test('perfil pronto troca privacidade e avisos, mas mantém tema, som e le
   assert.equal(reserved.discovery, 'invite');
 });
 
-await test('mudanças feitas em Configurações entram na cópia da conta', () => {
+await test('changes in Settings enter the account copy', () => {
   const changed = withChange(base, { theme: 'black', pushEnabled: true });
   assert.equal(changed.theme, 'black');
   assert.equal(changed.push.enabled, true);
@@ -139,7 +139,7 @@ await test('mudanças feitas em Configurações entram na cópia da conta', () =
   assert.equal(sameSettings(base, withChange(base, { sound: true })), true);
 });
 
-await test('cofre guarda um registro por conta e a gravação substitui versões concorrentes', async () => {
+await test('vault stores one record per account and saving replaces concurrent versions', async () => {
   const sync = new FakeSync();
   const record = new SettingsRecord(sync);
   const account = crypto.randomUUID();
@@ -160,7 +160,7 @@ await test('cofre guarda um registro por conta e a gravação substitui versões
   assert.equal(await record.load(crypto.randomUUID()), null);
 });
 
-await test('checkpoint local completo não esconde configurações já salvas no servidor', async () => {
+await test('complete local checkpoint cannot hide settings already saved on the server', async () => {
   const account = crypto.randomUUID();
   const remote = new FakeSync();
   await new SettingsRecord(remote).save(account, { ...base, theme: 'white' });
@@ -181,7 +181,7 @@ await test('checkpoint local completo não esconde configurações já salvas no
   assert.equal(local.refreshes, 1);
 });
 
-await test('falha ao consultar um cofre com checkpoint completo não vira configuração ausente', async () => {
+await test('query failure with a complete vault checkpoint does not imply missing settings', async () => {
   const sync = new FakeSync();
   sync.refresh = () => Promise.reject(new Error('Sincronização indisponível.'));
   await assert.rejects(
@@ -190,7 +190,7 @@ await test('falha ao consultar um cofre com checkpoint completo não vira config
   );
 });
 
-await test('conteúdo inválido volta a oferecer as configurações; cofre incompleto não decide', async () => {
+await test('invalid content offers setup again; an incomplete vault cannot decide', async () => {
   const sync = new FakeSync();
   const record = new SettingsRecord(sync);
   const account = crypto.randomUUID();
@@ -204,7 +204,7 @@ await test('conteúdo inválido volta a oferecer as configurações; cofre incom
     sync.refreshes++;
     return Promise.resolve();
   };
-  await assert.rejects(record.load(account), /ainda está carregando/u);
+  await assert.rejects(record.load(account), /still loading/u);
   assert.equal(sync.refreshes - before, 6);
 });
 
@@ -308,7 +308,7 @@ await test('language follows the account and an explicit change waits for the va
   await settle();
   assert.equal(await languageRecord.load(account.accountId), 'en');
   controller.setSession(null);
-  await assert.rejects(controller.saveLanguage('zh-CN'), /Abra sua conta/u);
+  await assert.rejects(controller.saveLanguage('zh-CN'), /Open your account/u);
 });
 
 await test('changing account while adopting its language cannot apply the old settings', async () => {
@@ -392,10 +392,13 @@ await test('changing account during a language write prevents a stale successful
     await save(input);
     controller.setSession(null);
   };
-  await assert.rejects(controller.saveLanguage('zh-CN'), /A conta mudou/u);
+  await assert.rejects(
+    controller.saveLanguage('zh-CN'),
+    /The account changed/u,
+  );
 });
 
-await test('outro aparelho aplica a cópia da conta e só grava quando algo muda', async () => {
+await test('another device applies the account copy and writes only when something changes', async () => {
   const sync = new FakeSync();
   const account = session();
   await new SettingsRecord(sync).save(account.accountId, {
@@ -428,7 +431,7 @@ await test('outro aparelho aplica a cópia da conta e só grava quando algo muda
   assert.equal(fake.calls.length, 3);
 });
 
-await test('trocar de conta descarta a cópia anterior e mudanças sem sessão não são gravadas', async () => {
+await test('account change discards the previous copy and changes without a session are not saved', async () => {
   const sync = new FakeSync();
   const first = session();
   await new SettingsRecord(sync).save(first.accountId, base);

@@ -49,7 +49,7 @@ export class ConversationSearch {
   }
   private node<T extends HTMLElement>(selector: string): T {
     const node = this.dialog.querySelector<T>(selector);
-    if (!node) throw new Error('Pesquisa incompleta.');
+    if (!node) throw new Error('Search incomplete.');
     return node;
   }
   update(entries: readonly ConversationEntry[]): void {
@@ -77,7 +77,7 @@ export class ConversationSearch {
     this.node('[data-search-messages]').replaceChildren();
     this.node('[data-search-next]').hidden = true;
     this.node('[data-search-notice]').textContent = t(
-      'Digite para encontrar uma conversa ou busque palavras nas mensagens.',
+      'Type to find a conversation or search for words in messages.',
     );
   }
   private renderChats(): void {
@@ -96,7 +96,7 @@ export class ConversationSearch {
         }),
       );
     if (!matches.length)
-      host.textContent = t('Nenhuma conversa carregada corresponde à busca.');
+      host.textContent = t('No loaded conversations match the search.');
   }
   private async find(more: boolean): Promise<void> {
     if (this.busy) return;
@@ -109,7 +109,7 @@ export class ConversationSearch {
     this.node<HTMLButtonElement>('button[type="submit"]').disabled = true;
     this.node('[data-search-next]').hidden = true;
     this.node('[data-search-notice]').textContent = t(
-      'Buscando neste aparelho…',
+      'Searching on this device…',
     );
     try {
       const page = await this.search(query, this.next);
@@ -119,8 +119,8 @@ export class ConversationSearch {
       this.node('[data-search-next]').hidden = page.next === null;
       this.node('[data-search-notice]').textContent =
         page.next === null
-          ? t('Busca concluída nas cópias disponíveis neste aparelho.')
-          : t('Há mais histórico para consultar. Continue a busca.');
+          ? t('Search completed in copies available on this device.')
+          : t('More history is available. Continue searching.');
     } catch (error: unknown) {
       this.failed(error, generation);
     } finally {
@@ -133,7 +133,7 @@ export class ConversationSearch {
     this.node('[data-search-notice]').textContent =
       error instanceof Error
         ? translatedError(error.message)
-        : t('Não foi possível pesquisar.');
+        : t('Could not search.');
   }
   private renderMessages(page: SearchPage): void {
     const host = this.node('[data-search-messages]');
@@ -142,7 +142,7 @@ export class ConversationSearch {
       const title = document.createElement('strong');
       title.textContent =
         this.entries.find((entry) => entry.id === item.peer)?.title ??
-        t('Conversa do histórico local');
+        t('Local history conversation');
       const text = document.createElement('p');
       text.textContent = item.excerpt;
       row.append(title, text);
@@ -151,11 +151,7 @@ export class ConversationSearch {
     }
     if (!host.children.length && page.next === null)
       host.replaceChildren(
-        pingNotice(
-          'puzzled',
-          t('Nenhuma mensagem encontrada.'),
-          'search-empty',
-        ),
+        pingNotice('puzzled', t('No messages found.'), 'search-empty'),
       );
   }
   private appendOpen(row: HTMLElement, peer: string): void {
@@ -163,7 +159,7 @@ export class ConversationSearch {
     if (!entry) return;
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = t('Abrir conversa');
+    button.textContent = t('Open conversation');
     button.addEventListener('click', () => {
       this.close();
       entry.open();

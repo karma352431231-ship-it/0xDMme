@@ -43,13 +43,13 @@ export class ObjectStore {
   async initialize(): Promise<void> {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     if ((await realpath(this.directory)) !== this.directory)
-      throw new Error('Diretório de objetos não pode usar links simbólicos.');
+      throw new Error('Object directory must not use symbolic links.');
     await access(this.directory, constants.R_OK | constants.W_OK);
     await mkdir(this.staging, { mode: 0o700 }).catch((error: unknown) => {
       if (!isExisting(error)) throw error;
     });
     if ((await realpath(this.staging)) !== this.staging)
-      throw new Error('Staging inválido.');
+      throw new Error('Invalid staging.');
     await this.cleanStaging();
   }
 
@@ -61,11 +61,11 @@ export class ObjectStore {
     for await (const entry of entries) {
       count++;
       if (!/^pending-[a-f0-9-]{36}$/u.test(entry.name))
-        throw new Error('Staging exige revisão local.');
+        throw new Error('Staging requires local review.');
       const path = resolve(this.staging, entry.name);
       const stat = await lstat(path);
       if (!stat.isFile() || stat.size > maximumBytes)
-        throw new Error('Temporário inválido.');
+        throw new Error('Invalid temporary file.');
       // Only unaccepted temporary uploads. Never age/delete final objects.
       if (stat.mtimeMs < olderThan) await unlink(path);
       if (count % 32 === 0) await setImmediate();
@@ -80,7 +80,7 @@ export class ObjectStore {
         id,
       )
     )
-      throw new Error('Identificador de anexo inválido.');
+      throw new Error('Invalid attachment identifier.');
     const child = new ObjectStore(resolve(this.directory, `attachment-${id}`));
     await child.initialize();
     await child.cleanStaging(Number.POSITIVE_INFINITY);
@@ -102,17 +102,17 @@ export class ObjectStore {
   }
   /** Distinct from personal media even when a caller repeats an attachment UUID. */
   async groupMedia(groupId: string): Promise<ObjectStore> {
-    if (!validUuid.test(groupId)) throw new Error('Grupo de objetos inválido.');
+    if (!validUuid.test(groupId)) throw new Error('Invalid object group.');
     const child = new ObjectStore(resolve(this.directory, `group-${groupId}`));
     await child.initialize();
     return child;
   }
   async readGroupMedia(groupId: string): Promise<ObjectStore> {
-    if (!validUuid.test(groupId)) throw new Error('Grupo de objetos inválido.');
+    if (!validUuid.test(groupId)) throw new Error('Invalid object group.');
     const path = resolve(this.directory, `group-${groupId}`);
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de grupo inválido.');
+      throw new Error('Invalid group directory.');
     return new ObjectStore(path);
   }
   async discardGroupMedia(
@@ -134,7 +134,7 @@ export class ObjectStore {
   }
   async statusMedia(statusId: string): Promise<ObjectStore> {
     if (!validUuid.test(statusId))
-      throw new Error('Publicação de objetos inválida.');
+      throw new Error('Invalid object publication.');
     const child = new ObjectStore(
       resolve(this.directory, `status-${statusId}`),
     );
@@ -143,11 +143,11 @@ export class ObjectStore {
   }
   async readStatusMedia(statusId: string): Promise<ObjectStore> {
     if (!validUuid.test(statusId))
-      throw new Error('Publicação de objetos inválida.');
+      throw new Error('Invalid object publication.');
     const path = resolve(this.directory, `status-${statusId}`),
       stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de status inválido.');
+      throw new Error('Invalid status directory.');
     return new ObjectStore(path);
   }
   async discardStatusMedia(
@@ -172,12 +172,12 @@ export class ObjectStore {
     kind: 'group' | 'status',
     id: string,
   ): Promise<void> {
-    if (!validUuid.test(id)) throw new Error('Escopo de objetos inválido.');
+    if (!validUuid.test(id)) throw new Error('Invalid object scope.');
     const path = resolve(this.directory, `${kind}-${id}`);
     try {
       const stat = await lstat(path);
       if (!stat.isDirectory() || (await realpath(path)) !== path)
-        throw new Error('Diretório de objetos inválido.');
+        throw new Error('Invalid object directory.');
     } catch (error: unknown) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
         return;
@@ -186,7 +186,7 @@ export class ObjectStore {
     const entries = await opendir(path);
     for await (const entry of entries)
       if (entry.name !== '.staging')
-        throw new Error('Escopo ainda contém objetos.');
+        throw new Error('Scope still contains objects.');
     await this.removeAttachmentFiles(path, false);
     await rmdir(path);
     await this.synchronizeDirectory();
@@ -197,11 +197,11 @@ export class ObjectStore {
         id,
       )
     )
-      throw new Error('Identificador de anexo inválido.');
+      throw new Error('Invalid attachment identifier.');
     const path = resolve(this.directory, `attachment-${id}`);
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de anexo inválido.');
+      throw new Error('Invalid attachment directory.');
     return new ObjectStore(path);
   }
   async discardAttachment(id: string): Promise<void> {
@@ -210,12 +210,12 @@ export class ObjectStore {
         id,
       )
     )
-      throw new Error('Identificador de anexo inválido.');
+      throw new Error('Invalid attachment identifier.');
     const path = resolve(this.directory, `attachment-${id}`);
     try {
       const stat = await lstat(path);
       if (!stat.isDirectory() || (await realpath(path)) !== path)
-        throw new Error('Diretório de anexo inválido.');
+        throw new Error('Invalid attachment directory.');
     } catch (error: unknown) {
       if (
         error instanceof Error &&
@@ -251,7 +251,7 @@ export class ObjectStore {
           ? /^pending-[a-f0-9-]{36}$/u.test(entry.name)
           : validIdentifier.test(entry.name);
         if (!valid || !entry.isFile())
-          throw new Error('Objeto de anexo irregular.');
+          throw new Error('Invalid attachment object.');
         await unlink(file).catch(requireMissing);
       }
       if (count % 32 === 0) await setImmediate();
@@ -268,7 +268,7 @@ export class ObjectStore {
   }
 
   async read(identifier: string): Promise<Uint8Array> {
-    if (!validIdentifier.test(identifier)) throw new Error('Objeto inválido.');
+    if (!validIdentifier.test(identifier)) throw new Error('Invalid object.');
     const file = await open(
       resolve(this.directory, identifier),
       constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -276,15 +276,15 @@ export class ObjectStore {
     try {
       const stat = await file.stat();
       if (!stat.isFile() || stat.size === 0 || stat.size > maximumBytes)
-        throw new Error('Objeto inválido.');
+        throw new Error('Invalid object.');
       // Bound allocation even if another process changes the file after stat.
       const bytes = Buffer.alloc(stat.size);
       const read = await file.read(bytes, 0, stat.size, 0);
       const after = await file.stat();
       if (read.bytesRead !== stat.size || after.size !== stat.size)
-        throw new Error('Objeto alterado durante a leitura.');
+        throw new Error('Object changed while reading.');
       if (createHash('sha256').update(bytes).digest('hex') !== identifier)
-        throw new Error('Integridade do objeto inválida.');
+        throw new Error('Invalid object integrity.');
       return bytes;
     } finally {
       await file.close();
@@ -302,11 +302,11 @@ export class ObjectStore {
 
   async put(ciphertext: Uint8Array): Promise<string> {
     if (ciphertext.byteLength === 0 || ciphertext.byteLength > maximumBytes)
-      throw new Error('Tamanho de objeto inválido.');
+      throw new Error('Invalid object size.');
     // The caller already holds its input. Reserve the immutable snapshot,
     // collision-verification read and filesystem bookkeeping before copying.
     const release = reserveOperationMemory(ciphertext.byteLength * 2 + 65_536);
-    if (!release) throw new Error('Armazenamento ocupado.');
+    if (!release) throw new Error('Storage busy.');
     try {
       return await this.writeObject(Uint8Array.from(ciphertext));
     } finally {
@@ -325,7 +325,7 @@ export class ObjectStore {
     return this.discardObject(identifier);
   }
   private async discardObject(identifier: string): Promise<void> {
-    if (!validIdentifier.test(identifier)) throw new Error('Objeto inválido.');
+    if (!validIdentifier.test(identifier)) throw new Error('Invalid object.');
     await unlink(resolve(this.directory, identifier)).catch(
       (error: unknown) => {
         if (!(

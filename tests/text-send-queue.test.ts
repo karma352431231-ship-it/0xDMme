@@ -209,7 +209,7 @@ await test('admission is bounded and typing defers background reads for one quie
   });
   t.after(() => q.reset());
   for (let n = 0; n < 32; n++) q.enqueue(draft(String(n)));
-  assert.throws(() => q.enqueue(draft('overflow')), /Aguarde/u);
+  assert.throws(() => q.enqueue(draft('overflow')), /Wait/u);
   assert.equal(q.full, true);
   q.reset();
   q.deferBackground();

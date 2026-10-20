@@ -27,7 +27,7 @@ export class WorkScheduler {
     this.keepAlive = options.keepAlive ?? false;
   }
   start(): void {
-    if (this.stopped) throw new Error('Consumidor encerrado.');
+    if (this.stopped) throw new Error('Consumer stopped.');
     if (this.started) return;
     this.started = true;
     if (this.fallbackMs > 0) {
@@ -131,7 +131,7 @@ export class WorkConsumers {
             return task.next();
           },
           failed: () => {
-            process.stderr.write(`Manutenção ${task.topic} pendente.\n`);
+            process.stderr.write(`Maintenance ${task.topic} pending.\n`);
           },
         }),
     );
@@ -148,6 +148,6 @@ export class WorkConsumers {
       this.workers.map((worker) => worker.close()),
     );
     if (results.some((result) => result.status === 'rejected'))
-      throw new Error('Consumidor não encerrou.');
+      throw new Error('Consumer did not stop.');
   }
 }

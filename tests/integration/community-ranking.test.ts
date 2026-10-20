@@ -21,9 +21,12 @@ import {
 import type { PublicProfile } from '../../src/shared/public-profile/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import { explorePage } from '../../src/shared/community-discovery/index.ts';
+import { sign } from '../../src/shared/devices/index.ts';
+import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
+import { accountRankingPage } from '../../src/shared/account-ranking/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
 
-await test('rankings: métricas exatas, votos agregados, eventos, recuperação e publicação', async (t) => {
+await test('rankings: exact metrics, aggregate votes, events, recovery and publication', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -34,7 +37,11 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       origin: 'http://127.0.0.1:45124',
     }),
     devices = new DeviceService(db.devices),
-    profiles = new PublicProfileService(db.publicProfiles, db.devices);
+    profiles = new PublicProfileService(
+      db.publicProfiles,
+      db.devices,
+      db.profileSocial,
+    );
   const communities = new CommunityService(
     db.communities,
     db.devices,
@@ -142,7 +149,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     );
   }
   await t.test(
-    'medição respeita o prazo com JIT forçado e devolve a conexão após sucesso ou erro',
+    'measurement respects its deadline with forced JIT and returns the connection after success or error',
     async () => {
       await inspector.query('SET jit=on');
       await inspector.query('SET jit_above_cost=0');
@@ -186,7 +193,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'únicos não somam horários, conversa exclui auto-resposta e três autores entram em novas',
+    'unique counts do not add time slots, conversation excludes self-replies and three authors qualify as new',
     async () => {
       await refresh();
       const result = await page(),
@@ -214,7 +221,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'coleta respeita a âncora de uma rodada em andamento na fronteira dos 14 dias',
+    'collection respects the ongoing round anchor at the 14-day boundary',
     async () => {
       const at = (
         await inspector.query<{ at: Date }>(
@@ -253,7 +260,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'voto recente em post antigo, retry e reversão não multiplicam positivos',
+    'recent vote on an old post, retry and reversal cannot multiply positive counts',
     async () => {
       await inspector.query(
         "UPDATE hash_talk.community_posts SET created_at=clock_timestamp()-interval '10 days' WHERE id=$1",
@@ -364,7 +371,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'rollback não deixa pendência nem sinal; exclusão do original retira respostas',
+    'rollback leaves no pending work or signal; deleting the original removes replies',
     async () => {
       const before = await inspector.query<{ revision: string }>(
         'SELECT revision::text FROM hash_talk.community_ranking_state WHERE community_id=$1',
@@ -405,7 +412,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'leitores reutilizam geração; paginação conserva snapshot e cursor expirado exige reinício',
+    'readers reuse a generation; pagination preserves the snapshot and expired cursor requires restart',
     async () => {
       const extra: string[] = Array.from({ length: 30 }, () =>
         crypto.randomUUID(),
@@ -462,7 +469,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'aceite local mede publicação, atualização afetada e leitura com universo de 1.000 comunidades',
+    'local acceptance measures publication, affected updates and reads across 1,000 communities',
     async () => {
       const extra = Array.from({ length: 1000 - ids.length }, () =>
         crypto.randomUUID(),
@@ -558,7 +565,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'cache tem orçamento próprio, expira cursores sob pressão e não trunca candidatos',
+    'cache has its own budget, expires cursors under pressure and never truncates candidates',
     async () => {
       const pool = new pg.Pool({
         connectionString: config.databaseUrl,
@@ -902,7 +909,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
   );
   // Start deadline-driven work only after deterministic source/cache fixtures.
   await t.test(
-    'vencimentos reais atualizam métricas e novidade sem evento nem fallback',
+    'real expirations update metrics and novelty without an event or fallback',
     async () => {
       const id = crypto.randomUUID();
       ids.push(id);
@@ -943,7 +950,159 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'evento confirmado acorda produtor e recuperação encontra trabalho sem sinal',
+    'user discovery includes inactive profiles, orders the whole generation and isolates Following cursors',
+    async () => {
+      const people: {
+        actor: Awaited<ReturnType<typeof make>>;
+        profile: PublicProfile;
+      }[] = [];
+      for (let index = 0; index < 27; index++) {
+        const actor = await make();
+        const profile = await actor.publicIdentity(
+          `directory_${crypto.randomUUID().slice(0, 8)}`,
+        );
+        people.push({ actor, profile });
+      }
+      const largest = people[0]!;
+      async function follow(
+        actor: typeof owner,
+        target: string,
+        following = true,
+        revision = 0,
+      ) {
+        const proof = {
+          directory: actor.directory,
+          payload: { target, following, revision },
+        };
+        return profiles.operate('follow', actor.login.session, {
+          ...proof,
+          signature: await sign(
+            actor.identity.signing,
+            publicProfileBody(
+              actor.login.session.accountId,
+              actor.login.session.deviceId,
+              'follow',
+              proof,
+            ),
+          ),
+        });
+      }
+      for (const person of people.slice(1, 4))
+        await follow(person.actor, largest.profile.id);
+      for (const person of people) await follow(owner, person.profile.id);
+      await refresh();
+      const size = await db.communityRanking.accountsPage('day', null, {
+        order: 'size',
+      });
+      assert.equal(size.items[0]!.profile.id, largest.profile.id);
+      assert.equal(size.items[0]!.followers, 4);
+      assert.equal(size.items[0]!.score, 0);
+      assert.ok(size.next);
+      const second = await db.communityRanking.accountsPage('day', size.next, {
+        order: 'size',
+      });
+      assert.ok(
+        !second.items.some((item) =>
+          size.items.some((first) => first.profile.id === item.profile.id),
+        ),
+      );
+      await assert.rejects(
+        db.communityRanking.accountsPage('day', size.next, {
+          order: 'trending',
+        }),
+        /different filters/u,
+      );
+      const mine = accountRankingPage(
+        await owner.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.equal(mine.items.length, 24);
+      assert.ok(
+        mine.items.every((item) =>
+          people.some((p) => p.profile.id === item.profile.id),
+        ),
+      );
+      assert.ok(mine.next);
+      await assert.rejects(
+        users[1]!.operate('discovery-accounts', {
+          period: 'day',
+          after: mine.next,
+        }),
+        /different filters/u,
+      );
+      const others = accountRankingPage(
+        await users[1]!.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.equal(others.items.length, 0);
+      for (const [actor, target] of [
+        [publicUsers[0]!.id, largest.profile.id],
+        [largest.profile.id, publicUsers[0]!.id],
+      ]) {
+        await inspector.query(
+          'INSERT INTO hash_talk.social_blocks(actor,target,blocked,revision) VALUES($1,$2,true,1)',
+          [actor, target],
+        );
+        const blocked = accountRankingPage(
+          await owner.operate('discovery-accounts', {
+            period: 'day',
+            after: null,
+          }),
+        );
+        assert.ok(
+          !blocked.items.some((item) => item.profile.id === largest.profile.id),
+        );
+        await inspector.query(
+          'DELETE FROM hash_talk.social_blocks WHERE actor=$1 AND target=$2',
+          [actor, target],
+        );
+      }
+      await follow(owner, largest.profile.id, false, 1);
+      const unfollowed = accountRankingPage(
+        await owner.operate('discovery-accounts', {
+          period: 'day',
+          after: null,
+        }),
+      );
+      assert.ok(
+        !unfollowed.items.some(
+          (item) => item.profile.id === largest.profile.id,
+        ),
+      );
+      await assert.rejects(
+        db.communityRanking.accountsPage('day', null, { order: 'following' }),
+        /own account/u,
+      );
+      await inspector.query('LISTEN hash_talk_ranking_published');
+      const events: unknown[] = [];
+      const notified = (event: unknown) => events.push(event);
+      inspector.on('notification', notified);
+      try {
+        await follow(people[4]!.actor, largest.profile.id);
+        await refresh();
+        for (let attempt = 0; attempt < 20 && !events.length; attempt++)
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.ok(events.length, 'A committed generation wakes live readers.');
+        assert.equal(
+          (
+            await db.communityRanking.accountsPage('day', null, {
+              order: 'size',
+            })
+          ).items[0]!.followers,
+          4,
+        );
+      } finally {
+        inspector.off('notification', notified);
+        await inspector.query('UNLISTEN hash_talk_ranking_published');
+      }
+    },
+  );
+  await t.test(
+    'confirmed event wakes the producer and recovery finds work without a signal',
     async () => {
       await db.workSignals.start();
       worker.start();

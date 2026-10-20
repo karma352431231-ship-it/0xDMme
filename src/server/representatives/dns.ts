@@ -9,10 +9,7 @@ export class DnsDomainResolver implements DomainResolver {
   private active = 0;
   async matches(domain: string, record: string): Promise<boolean> {
     if (this.active >= 2)
-      throw new AccountError(
-        429,
-        'Verificação de domínio ocupada. Tente novamente.',
-      );
+      throw new AccountError(429, 'Domain verification busy. Try again.');
     const name = `_0xdmme.${domainName(domain)}`;
     const resolver = new Resolver({ timeout: 2000, tries: 1 });
     this.active++;
@@ -24,7 +21,7 @@ export class DnsDomainResolver implements DomainResolver {
         records.length > 32 ||
         records.flat().reduce((n, v) => n + v.length, 0) > 16_384
       )
-        throw new Error('Resposta DNS excedida.');
+        throw new Error('DNS response exceeds the limit.');
       return records.some((chunks) => chunks.join('') === record);
     } catch (error: unknown) {
       if (
@@ -33,7 +30,7 @@ export class DnsDomainResolver implements DomainResolver {
         ['ENODATA', 'ENOTFOUND'].includes(String(error.code))
       )
         return false;
-      throw new AccountError(503, 'Não foi possível confirmar o DNS agora.');
+      throw new AccountError(503, 'Could not confirm DNS now.');
     } finally {
       clearTimeout(timer);
       this.active--;

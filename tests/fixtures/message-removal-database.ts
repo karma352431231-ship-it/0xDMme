@@ -168,20 +168,23 @@ export async function seedRemovalBatch(
       ),
     ],
     ids = packets.map((e) => e.packet.id);
-  await c.inspector.query(
-    `INSERT INTO hash_talk.message_references(message_id,account_id,device_id,status)
+  // Prepare the same large history in bounded statements. The actual cleanup
+  // below remains a single operation under the original database deadlines.
+  for (let offset = 0; offset < ids.length; offset += 16)
+    await c.inspector.query(
+      `INSERT INTO hash_talk.message_references(message_id,account_id,device_id,status)
     SELECT id,$2::uuid,device,CASE WHEN device=$4::uuid THEN 'pending' ELSE 'revoked' END FROM unnest($1::uuid[]) id CROSS JOIN unnest($3::uuid[]) device
     UNION ALL SELECT id,$5::uuid,device,CASE WHEN device=$6::uuid THEN 'pending' ELSE 'revoked' END FROM unnest($1::uuid[]) id CROSS JOIN unnest($7::uuid[]) device`,
-    [
-      ids,
-      input.pair.sender.session.accountId,
-      devices,
-      input.pair.sender.session.deviceId,
-      input.pair.recipient.session.accountId,
-      input.pair.recipient.session.deviceId,
-      recipientDevices,
-    ],
-  );
+      [
+        ids.slice(offset, offset + 16),
+        input.pair.sender.session.accountId,
+        devices,
+        input.pair.sender.session.deviceId,
+        input.pair.recipient.session.accountId,
+        input.pair.recipient.session.deviceId,
+        recipientDevices,
+      ],
+    );
   return {
     rootIds,
     ids,

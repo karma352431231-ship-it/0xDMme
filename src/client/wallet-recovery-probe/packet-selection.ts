@@ -37,7 +37,7 @@ export class ProbePacketSelection {
   requireTarget(): ProbeTarget {
     if (!this.target)
       throw new ProbeError(
-        'Nenhum pacote ativo. Importe um arquivo válido ou crie um ensaio.',
+        'No active package. Import a valid file or create a test.',
       );
     return this.target;
   }
@@ -71,7 +71,7 @@ export class ProbePacketSelection {
     this.clear();
     if (file.size > maxPacketBytes)
       throw new ProbeError(
-        'O arquivo do ensaio deve ter até 4 KiB. Nenhum pacote está ativo.',
+        'The test file must be no larger than 4 KiB. No package is active.',
       );
     const text = await file.text();
     current();

@@ -32,7 +32,7 @@ export function postSharing(
   });
   if (button instanceof HTMLAnchorElement) button.href = '#settings';
   if (!(button instanceof HTMLButtonElement) || !access) {
-    button.setAttribute('aria-label', t('Entre pelo Perfil para compartilhar'));
+    button.setAttribute('aria-label', t('Sign in through Profile to share'));
     return;
   }
   button.type = 'button';
@@ -40,11 +40,9 @@ export function postSharing(
     button.setAttribute('aria-pressed', String(shared));
     button.setAttribute(
       'aria-label',
-      shared
-        ? t('Retirar compartilhamento do meu perfil')
-        : t('Compartilhar no meu perfil'),
+      shared ? t('Remove share from my profile') : t('Share on my profile'),
     );
-    button.title = shared ? t('Compartilhado') : t('Compartilhar');
+    button.title = shared ? t('Shared') : t('Share');
   };
   paint(access.shared ?? false);
   button.addEventListener('click', () => {

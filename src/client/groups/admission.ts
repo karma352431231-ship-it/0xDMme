@@ -102,7 +102,7 @@ export class GroupAdmissions {
       invitation = readGroupInvitation(url);
     const api: AttachmentApi = (op, data) => {
       if (op !== 'group-history' && op !== 'group-directory')
-        throw new Error('Consulta de convite inválida.');
+        throw new Error('Invalid invitation lookup.');
       return c.api(
         op === 'group-history' ? 'group-link-history' : 'group-link-directory',
         { ...data, token: invitation.token },
@@ -157,7 +157,7 @@ export class GroupAdmissions {
       !groupManager(anchor, link.actor) ||
       !groupManager(state, link.actor)
     )
-      throw new Error('Convite de grupo inválido.');
+      throw new Error('Invalid group invitation.');
     const head = await groupEventHash(state);
     const directories = await readDirectories({
       accounts: [link.actor],
@@ -167,7 +167,7 @@ export class GroupAdmissions {
     });
     const directory = directories.get(link.actor)?.events.at(-1);
     if (!directory || (await eventHash(directory)) !== link.directory)
-      throw new Error('O link precisa ser renovado pelo administrador.');
+      throw new Error('The administrator must renew the link.');
     await verifyGroupLink(link, directory);
   }
   private async commit(event: GroupEvent, token?: string): Promise<void> {
@@ -181,7 +181,7 @@ export class GroupAdmissions {
       result['status'] !== 'saved' ||
       result['head'] !== (await groupEventHash(event))
     )
-      throw new Error('Entrada no grupo não confirmada.');
+      throw new Error('Joining the group was not confirmed.');
     await new GroupCache(this.c.authority, event.groupId).preserve(event);
   }
 }

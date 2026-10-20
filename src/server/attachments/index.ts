@@ -106,8 +106,7 @@ export class AttachmentService {
   ): Promise<unknown> {
     // Bounded chunks can coexist while memory headroom remains available.
     const release = reserveOperationMemory(partLimit * 8);
-    if (!release)
-      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
+    if (!release) throw new AccountError(429, 'Transfers busy. Resume later.');
     try {
       return await this.execute(a, operation, d, snapshot);
     } finally {
@@ -143,7 +142,7 @@ export class AttachmentService {
     }
     if (operation === 'attachment-get') {
       if (this.messages && !snapshot)
-        throw new AccountError(400, 'Estado de mensagens ausente.');
+        throw new AccountError(400, 'Message state missing.');
       return this.read(a, d, snapshot);
     }
     return this.write(a, operation, d);
@@ -171,7 +170,7 @@ export class AttachmentService {
         for (const part of lease.ref.parts)
           digest.update(await objects.read(part.hash));
         if (digest.digest('hex') !== lease.ref.hash)
-          throw new AccountError(400, 'Anexo integral divergente.');
+          throw new AccountError(400, 'Full attachment does not match.');
       }
       await this.store.finish(a, { id, writer: lease.writer, index });
     } catch (error: unknown) {
@@ -200,7 +199,7 @@ export class AttachmentService {
       await this.messages.confirmSnapshot(a, snapshot);
     const ref = await this.store.readable(a, input),
       part = ref.parts[input.index];
-    if (!part) throw new AccountError(400, 'Parte inexistente.');
+    if (!part) throw new AccountError(400, 'Part does not exist.');
     const bytes = await (
       await this.objects.readAttachment(input.id)
     ).read(part.hash);

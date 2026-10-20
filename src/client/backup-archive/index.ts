@@ -73,7 +73,7 @@ function header(input: unknown): Header {
   const epoch = integer(d['epoch'], 128);
   const bytes = base64(w['ciphertext'], 256);
   if (d['version'] !== 1 || !epoch || bytes.length !== integer(w['bytes'], 256))
-    throw new Error('Formato de backup não suportado.');
+    throw new Error('Unsupported backup format.');
   return {
     version: 1,
     id: uuid(d['id']),
@@ -201,22 +201,22 @@ export class BackupWriter {
   abort(): void {
     this.finished = true;
     void this.output.dispose().catch(() => {
-      console.warn(t('Limpeza do arquivo temporário de backup pendente.'));
+      console.warn(t('Temporary backup file cleanup pending.'));
     });
     this.records.length = 0;
     this.ids.clear();
   }
   async add(input: BackupRecord, guard: () => void): Promise<void> {
     guard();
-    if (this.finished) throw new Error('Backup já encerrado.');
+    if (this.finished) throw new Error('Backup already ended.');
     const row = backupRecord(input),
       identity = recordKey(row);
     if (this.ids.has(identity) || this.records.length >= backupItemLimit)
-      throw new Error('Registros repetidos ou seleção excedida.');
+      throw new Error('Duplicate records or selection over the limit.');
     const bytes = serializeRecord(row);
     try {
       if (bytes.length > backupRecordLimit)
-        throw new Error('Registro de backup excedido.');
+        throw new Error('Backup record exceeds the limit.');
       const start = this.index;
       for (let offset = 0; offset < bytes.length; offset += backupChunk) {
         guard();
@@ -238,7 +238,7 @@ export class BackupWriter {
   }
   private async append(kind: number, bytes: Uint8Array): Promise<void> {
     if (this.index >= backupFrameLimit - 1 && kind === 1)
-      throw new Error('Partes de backup excedidas.');
+      throw new Error('Backup parts exceed the limit.');
     const sealed = await cipher(
         this.key,
         { h: this.h, index: this.index, kind },
@@ -246,7 +246,7 @@ export class BackupWriter {
       ),
       p = prefix(kind, sealed.length);
     if (this.size + p.length + sealed.length > backupLimit)
-      throw new Error('Backup excede o limite de 4 GiB por arquivo.');
+      throw new Error('Backup exceeds the 4 GiB per-file limit.');
     const frame = new Uint8Array(p.length + sealed.length);
     frame.set(p);
     frame.set(sealed, p.length);
@@ -258,9 +258,9 @@ export class BackupWriter {
   async finish(omitted: string[], guard: () => void): Promise<Blob> {
     guard();
     if (this.finished || !this.records.length)
-      throw new Error('Nenhum conteúdo foi incluído.');
+      throw new Error('No content included.');
     if (omitted.length > backupItemLimit)
-      throw new Error('Relatório excedido.');
+      throw new Error('Report exceeds the limit.');
     const report: BackupReport = {
       version: 1,
       created: new Date().toISOString(),
@@ -271,7 +271,7 @@ export class BackupWriter {
     const bytes = encoder.encode(JSON.stringify(report));
     try {
       if (bytes.length > backupReportLimit)
-        throw new Error('Relatório de backup excedido.');
+        throw new Error('Backup report exceeds the limit.');
       await this.append(2, bytes);
       guard();
       this.finished = true;
@@ -331,16 +331,18 @@ export class BackupReader {
     guard: () => void,
   ): Promise<BackupReader> {
     if (file.size < 64 || file.size > backupLimit)
-      throw new Error('Backup vazio ou acima de 1 GiB.');
+      throw new Error('Backup empty or larger than 1 GiB.');
     const start = await read(file, 0, 12);
     if (!magic.every((b, i) => start[i] === b))
-      throw new Error('Arquivo de backup não suportado.');
+      throw new Error('Unsupported backup file.');
     const length = new DataView(start.buffer).getUint32(8);
-    if (length > 4096 || length < 100) throw new Error('Cabeçalho inválido.');
+    if (length > 4096 || length < 100) throw new Error('Invalid header.');
     const raw = decoder.decode(await read(file, 12, length)),
       h = header(JSON.parse(raw) as unknown);
     if (canonical(h) !== raw || h.accountId !== a.session.accountId)
-      throw new Error('Backup de outra conta ou cabeçalho inválido.');
+      throw new Error(
+        'Backup belongs to another account or has an invalid header.',
+      );
     const secret = base64(
       await openBlock(
         await a.key(h.epoch),
@@ -349,7 +351,7 @@ export class BackupReader {
       ),
       32,
     );
-    if (secret.length !== 32) throw new Error('Chave de backup inválida.');
+    if (secret.length !== 32) throw new Error('Invalid backup key.');
     let key: CryptoKey;
     try {
       key = await crypto.subtle.importKey(
@@ -369,7 +371,7 @@ export class BackupReader {
     return result;
   }
   async read(index: number): Promise<BackupRecord> {
-    if (this.closed) throw new Error('Backup fechado.');
+    if (this.closed) throw new Error('Backup closed.');
     const info = recordInfoAt(this.report, index);
     const bytes = new Uint8Array(info.bytes);
     let offset = 0;
@@ -382,7 +384,7 @@ export class BackupReader {
           await read(this.file, frame.offset, frame.length),
         );
         if (offset + opened.length > bytes.length)
-          throw new Error('Item excedido.');
+          throw new Error('Item exceeds the limit.');
         bytes.set(opened, offset);
         offset += opened.length;
         opened.fill(0);
@@ -394,7 +396,7 @@ export class BackupReader {
         row.id !== info.id ||
         row.hash !== info.hash
       )
-        throw new Error('Item divergente do relatório.');
+        throw new Error('Item differs from the report.');
       return row;
     } finally {
       bytes.fill(0);
@@ -425,15 +427,15 @@ export class BackupReader {
       (row.type === 'account' || row.type === 'dm-identity') &&
       (await bytesHash(encoder.encode(row.value))) !== row.hash
     )
-      throw new Error('Perfil de backup adulterado.');
+      throw new Error('Backup profile tampered with.');
     if (row.type === 'group') {
       if ((await groupSnapshotHash(row)) !== row.hash)
-        throw new Error('Metadados de grupo adulterados.');
+        throw new Error('Group metadata tampered with.');
       groups.add(row.state.groupId);
     }
     if (isMediaRecord(row)) {
       if ((await bytesHash(base64(row.bytes, chatFileLimit))) !== row.hash)
-        throw new Error('Mídia de backup adulterada.');
+        throw new Error('Backup media tampered with.');
       media.add(
         row.type === 'dm-media'
           ? `dm:${row.self}:${row.message}:${row.id}:${row.hash}`
@@ -449,7 +451,7 @@ export class BackupReader {
     media: ReadonlySet<string>,
   ): void {
     if (row.own !== (row.sender === this.h.accountId))
-      throw new Error('Origem de grupo diverge da conta do backup.');
+      throw new Error('Group origin differs from the backup account.');
     if (!groups.has(row.groupId)) this.groupsComplete = false;
     if (row.kind !== 'attachment') return;
     const content = attachmentContent(JSON.parse(row.text) as unknown);
@@ -474,19 +476,19 @@ async function read(
   offset: number,
   length: number,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  if (offset + length > file.size) throw new Error('Backup truncado.');
+  if (offset + length > file.size) throw new Error('Backup truncated.');
   return new Uint8Array(
     await file.slice(offset, offset + length).arrayBuffer(),
   );
 }
 function recordInfoAt(report: BackupReport, index: number): RecordInfo {
   const info = report.records[index];
-  if (!info) throw new Error('Item de backup ausente.');
+  if (!info) throw new Error('Backup item missing.');
   return info;
 }
 function dataFrameAt(frames: Frame[], index: number): Frame {
   const frame = frames[index];
-  if (!frame || frame.kind !== 1) throw new Error('Parte de backup ausente.');
+  if (!frame || frame.kind !== 1) throw new Error('Backup part missing.');
   return frame;
 }
 async function verifyRecordBytes(
@@ -495,7 +497,7 @@ async function verifyRecordBytes(
   info: RecordInfo,
 ): Promise<void> {
   if (offset !== info.bytes || (await bytesHash(bytes)) !== info.digest)
-    throw new Error('Item corrompido.');
+    throw new Error('Corrupted item.');
 }
 function frameLength(p: Uint8Array): { kind: number; length: number } {
   const kind = p[0],
@@ -505,7 +507,7 @@ function frameLength(p: Uint8Array): { kind: number; length: number } {
     length < 29 ||
     length > (kind === 1 ? backupChunk : backupReportLimit) + 28
   )
-    throw new Error('Parte de backup inválida.');
+    throw new Error('Invalid backup part.');
   return { kind, length };
 }
 async function scan(input: {
@@ -521,7 +523,7 @@ async function scan(input: {
   while (offset < input.file.size) {
     input.guard();
     if (frames.length >= backupFrameLimit)
-      throw new Error('Partes de backup excedidas.');
+      throw new Error('Backup parts exceed the limit.');
     const { kind, length } = frameLength(await read(input.file, offset, 5));
     const plaintext = await decipher(
       input.key,
@@ -543,7 +545,7 @@ async function scan(input: {
     plaintext.fill(0);
     root = next;
   }
-  throw new Error('Relatório final ausente.');
+  throw new Error('Final report missing.');
 }
 function finishScan(c: {
   plaintext: Uint8Array;
@@ -555,13 +557,13 @@ function finishScan(c: {
 }) {
   try {
     if (c.offset !== c.file.size)
-      throw new Error('Dados após o encerramento do backup.');
+      throw new Error('Data after backup completion.');
     const report = parseReport(
       JSON.parse(decoder.decode(c.plaintext)) as unknown,
       c.frames.length - 1,
     );
     if (report.root !== c.root)
-      throw new Error('Backup incompleto ou reordenado.');
+      throw new Error('Backup incomplete or reordered.');
     return { frames: c.frames, report, hash: c.hash };
   } finally {
     c.plaintext.fill(0);
@@ -577,7 +579,7 @@ function reportFields(d: Record<string, unknown>): {
     typeof d['created'] !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}T.{12,24}Z$/u.test(d['created'])
   )
-    throw new Error('Relatório inválido.');
+    throw new Error('Invalid report.');
   const records = d['records'],
     omitted = d['omitted'];
   if (
@@ -585,13 +587,13 @@ function reportFields(d: Record<string, unknown>): {
     !records.length ||
     records.length > backupItemLimit
   )
-    throw new Error('Registros excedidos.');
+    throw new Error('Records exceed the limit.');
   if (
     !Array.isArray(omitted) ||
     omitted.length > backupItemLimit ||
     omitted.some((v) => typeof v !== 'string' || v.length > 160)
   )
-    throw new Error('Relatório de omissões inválido.');
+    throw new Error('Invalid omissions report.');
   return { created: d['created'], records, omitted: omitted as string[] };
 }
 function parseInfo(value: unknown): RecordInfo {
@@ -611,7 +613,7 @@ function parseInfo(value: unknown): RecordInfo {
       'dm-identity',
     ].includes(String(r['type']))
   )
-    throw new Error('Registro não suportado.');
+    throw new Error('Unsupported record.');
   return {
     type: r['type'] as BackupRecord['type'],
     id: uuid(r['id']),
@@ -638,12 +640,12 @@ function parseReport(input: unknown, frames: number): BackupReport {
       result.bytes === 0 ||
       result.parts !== Math.ceil(result.bytes / backupChunk)
     )
-      throw new Error('Registros repetidos, omitidos ou excedidos.');
+      throw new Error('Records duplicated, omitted or over the limit.');
     ids.add(id);
     next += result.parts;
     return result;
   });
-  if (next !== frames) throw new Error('Partes não relacionadas no relatório.');
+  if (next !== frames) throw new Error('Unrelated parts in the report.');
   return {
     version: 1,
     created: fields.created,

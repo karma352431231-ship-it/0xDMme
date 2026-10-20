@@ -28,8 +28,7 @@ export class CommunityFollowerStore {
       'SELECT owner FROM hash_talk.communities WHERE id=$1',
       [id],
     );
-    if (!exists.rowCount)
-      throw new AccountError(404, 'Comunidade indisponível.');
+    if (!exists.rowCount) throw new AccountError(404, 'Community unavailable.');
     if (tab === 'known' && !viewer) return { items: [], total: 0, next: null };
     const result = await input.client.query<{ total: string; ids: string[] }>(
       `WITH eligible AS (

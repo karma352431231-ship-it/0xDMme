@@ -23,7 +23,7 @@ type Operation = (
 function decision(data: Record<string, unknown>, field: string): boolean {
   const value = data[field];
   if (typeof value !== 'boolean')
-    throw new AccountError(400, 'Decisão inválida.');
+    throw new AccountError(400, 'Invalid decision.');
   return value;
 }
 export class ContactService {
@@ -94,8 +94,7 @@ export class ContactService {
     const action = Object.hasOwn(this.operations, operation)
       ? this.operations[operation]
       : undefined;
-    if (!action)
-      throw new AccountError(404, 'Operação de contato não encontrada.');
+    if (!action) throw new AccountError(404, 'Contact operation not found.');
     const proof = contactProof(input),
       current = await this.devices.current(session.accountId);
     const signer =
@@ -104,7 +103,7 @@ export class ContactService {
         (d) => d.id === session.deviceId,
       );
     if (!signer || current?.head !== proof.directory)
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     await verify(
       signer.signing,
       proof.signature,

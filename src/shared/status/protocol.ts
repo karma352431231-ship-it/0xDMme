@@ -51,12 +51,12 @@ export interface StatusEnvelope {
 }
 function positive(input: unknown, max = Number.MAX_SAFE_INTEGER): number {
   const result = integer(input, max);
-  if (!result) throw new AccountError(400, 'Revisão de status inválida.');
+  if (!result) throw new AccountError(400, 'Invalid status revision.');
   return result;
 }
 function bytes(input: unknown, size: number): string {
   if (base64(input, size).length !== size)
-    throw new AccountError(400, 'Chave ou assinatura de status inválida.');
+    throw new AccountError(400, 'Invalid status key or signature.');
   return input as string;
 }
 export function statusPacket(input: unknown): StatusPacket {
@@ -78,13 +78,13 @@ export function statusPacket(input: unknown): StatusPacket {
     ...(d['kind'] === 'photo' ? ['attachments'] : []),
   ]);
   if (d['version'] !== 1 || (d['kind'] !== 'text' && d['kind'] !== 'photo'))
-    throw new AccountError(400, 'Status inválido.');
+    throw new AccountError(400, 'Invalid status.');
   const content = megolmContent(d['content']);
   if (
     content['sender_key'] !== matrixBase64(d['senderKey'], 32) ||
     content['device_id'] !== d['deviceId']
   )
-    throw new AccountError(400, 'Origem de status divergente.');
+    throw new AccountError(400, 'Status origin does not match.');
   return {
     version: 1,
     id: uuid(d['id']),
@@ -118,7 +118,7 @@ export function statusEnvelope(input: unknown): StatusEnvelope {
     'signature',
   ]);
   if (d['version'] !== 1)
-    throw new AccountError(400, 'Destinatário de status inválido.');
+    throw new AccountError(400, 'Invalid status recipient.');
   const r = object(d['recipient']);
   keys(r, ['accountId', 'directory', 'authorityRevision', 'archive']);
   const recipient = {
@@ -128,7 +128,7 @@ export function statusEnvelope(input: unknown): StatusEnvelope {
     archive: roomKeyArchive(r['archive']),
   };
   if (recipient.accountId !== recipient.archive.accountId)
-    throw new AccountError(400, 'Destinatário de status divergente.');
+    throw new AccountError(400, 'Status recipient does not match.');
   return {
     version: 1,
     id: uuid(d['id']),
@@ -143,10 +143,10 @@ export function statusEnvelope(input: unknown): StatusEnvelope {
 }
 export function statusEnvelopes(input: unknown): StatusEnvelope[] {
   if (!Array.isArray(input) || !input.length || input.length > 16)
-    throw new AccountError(400, 'Página de destinatários inválida.');
+    throw new AccountError(400, 'Invalid recipient page.');
   const result = input.map(statusEnvelope);
   if (new Set(result.map((r) => r.recipient.accountId)).size !== result.length)
-    throw new AccountError(400, 'Destinatário repetido.');
+    throw new AccountError(400, 'Duplicate recipient.');
   return result;
 }
 function proof(domain: string, input: StatusPacket | StatusEnvelope): string {
@@ -185,7 +185,7 @@ async function signing(
     event.revision !== input.authorityRevision ||
     (await eventHash(event)) !== input.directory
   )
-    throw new AccountError(403, 'Status sem autoridade de origem.');
+    throw new AccountError(403, 'Status lacks source authority.');
   return signer.signing;
 }
 export async function verifyStatusPacket(

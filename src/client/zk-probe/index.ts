@@ -9,7 +9,7 @@ export async function generateSyntheticProof(artifacts: {
 }) {
   const members = Array.from({ length: 8 }, () => new Identity());
   const member = members[0];
-  if (!member) throw new Error('Grupo sintético incompleto.');
+  if (!member) throw new Error('Synthetic group incomplete.');
   const group = new Group(members.map((identity) => identity.commitment));
   const started = performance.now();
   const proof = await generateProof(

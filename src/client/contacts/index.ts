@@ -60,7 +60,7 @@ export function startContacts(
     busy = false,
     generation = 0,
     offset = 0;
-  let status = t('Conecte e autorize o aparelho para sincronizar.');
+  let status = t('Connect and authorize the device to sync.');
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
@@ -104,7 +104,7 @@ export function startContacts(
         status =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Operação indisponível. Confira o estado antes de repetir.');
+            : t('Operation unavailable. Check the state before retrying.');
     } finally {
       busy = false;
       render();
@@ -112,9 +112,9 @@ export function startContacts(
     }
   }
   function render(): void {
-    text('[data-contact-status]', busy ? t('Atualizando contatos…') : status);
-    text('[data-contact-editor-status]', busy ? t('Processando…') : status);
-    text('[data-contact-invite-status]', busy ? t('Processando…') : status);
+    text('[data-contact-status]', busy ? t('Updating contacts…') : status);
+    text('[data-contact-editor-status]', busy ? t('Processing…') : status);
+    text('[data-contact-invite-status]', busy ? t('Processing…') : status);
     renderInvite();
     renderBook();
     renderLists();
@@ -154,18 +154,20 @@ export function startContacts(
     if (input) input.value = ownLink ?? '';
     const rotate = node('[data-contact-action="rotate"]');
     if (rotate)
-      rotate.textContent = ownLink ? t('Trocar convite') : t('Criar convite');
+      rotate.textContent = ownLink
+        ? t('Replace invitation')
+        : t('Create invitation');
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
     if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
-      renderQr(qr, ownLink, t('QR Code de convite para contato'));
+      renderQr(qr, ownLink, t('Contact invitation QR code'));
   }
   function resetEditor(): void {
     found = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
     const address = node<HTMLInputElement>('[data-book-address]');
     if (address) address.readOnly = false;
-    text('[data-book-title]', t('Adicionar contato'));
+    text('[data-book-title]', t('Add contact'));
     text('[data-contact-discovery]', '');
     node('[data-contact-discovery-actions]')?.replaceChildren();
   }
@@ -184,7 +186,7 @@ export function startContacts(
     node('[data-contact-add]')?.addEventListener('click', () => {
       resetEditor();
       status = t(
-        'Salvar guarda o apelido na agenda; solicitar conversa depende do aceite.',
+        'Saving stores the nickname in contacts; a conversation request requires acceptance.',
       );
       render();
       openEditor('wallet');
@@ -222,7 +224,7 @@ export function startContacts(
     const deadline = Date.now() + 60_000;
     do {
       if (Date.now() >= deadline)
-        throw new Error('Sincronização interrompida. Tente novamente.');
+        throw new Error('Synchronization interrupted. Try again.');
       await sync.refresh();
     } while (!sync.complete);
     if (sync.pending) await sync.retry();
@@ -235,9 +237,9 @@ export function startContacts(
         contacts.state.inviteHash,
       );
     status = sync.complete
-      ? t('Contatos atualizados.')
+      ? t('Contacts updated.')
       : t(
-          'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.',
+          'Permissions verified. Continue loading the vault index before editing contacts.',
         );
     if (received && node('[data-contact-invite-form]')) await inspectInvite();
   }
@@ -288,14 +290,18 @@ export function startContacts(
     const contact = draft();
     const expected = generation;
     await book.save(contact, null, undefined, () => {
-      if (expected !== generation) throw new Error('Sessão alterada.');
+      if (expected !== generation) throw new Error('Session changed.');
     });
-    if (expected !== generation) throw new Error('Sessão alterada.');
+    if (expected !== generation) throw new Error('Session changed.');
     await directory.saved(contact);
     await options.saved?.(contact);
     status = sync.pending
-      ? t('Contato salvo neste aparelho. Será enviado quando a conexão voltar.')
-      : t('Contato particular confirmado no cofre. Isso não aprovou conversa.');
+      ? t(
+          'Contact saved on this device. It will be sent when the connection returns.',
+        )
+      : t(
+          'Private contact confirmed in the vault. This did not approve a conversation.',
+        );
     resetEditor();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
   }
@@ -306,13 +312,13 @@ export function startContacts(
     text(
       '[data-contact-discovery]',
       found
-        ? t('{0} · nome escolhido pelo usuário · {1} · {2}', [
-            found.name || t('Sem nome'),
+        ? t('{0} · user-chosen name · {1} · {2}', [
+            found.name || t('Unnamed'),
             found.ecosystem,
             found.address,
           ])
         : t(
-            'Wallet indisponível para solicitação por endereço. Salve na agenda e compartilhe seu convite.',
+            'Wallet unavailable for requests by address. Save it in contacts and share your invitation.',
           ),
     );
     const actions = node('[data-contact-discovery-actions]');
@@ -333,7 +339,7 @@ export function startContacts(
       text(
         `[data-contact-page-state="${kind}"]`,
         page
-          ? t('{0}{1} nesta página', [page.items.length, page.next ? '+' : ''])
+          ? t('{0}{1} on this page', [page.items.length, page.next ? '+' : ''])
           : '',
       );
     }
@@ -349,22 +355,22 @@ export function startContacts(
       count.textContent = `${amount}${incoming?.next ? '+' : ''}`;
       count.setAttribute(
         'aria-label',
-        t('Pedidos recebidos nesta página: {0}', [amount]),
+        t('Requests received on this page: {0}', [amount]),
       );
     }
   }
   function emptyList(kind: ContactList, loaded: boolean): string {
-    if (!loaded) return t('Entre e sincronize para conferir esta lista.');
+    if (!loaded) return t('Sign in and sync to check this list.');
     if (value('[data-book-search]'))
-      return t('Nenhum resultado nos itens desta página.');
+      return t("No results in this page's items.");
     const labels = {
       approved: t(
-        'Nenhuma conversa liberada. Adicione um contato ou aceite uma solicitação.',
+        'No conversations allowed yet. Add a contact or accept a request.',
       ),
-      incoming: t('Nenhum pedido recebido. Os novos pedidos aparecem aqui.'),
-      outgoing: t('Você não tem pedidos enviados nesta página.'),
-      rejected: t('Nenhum pedido recusado nesta página.'),
-      blocked: t('Nenhum bloqueio nesta página.'),
+      incoming: t('No requests received. New requests appear here.'),
+      outgoing: t('You have no sent requests on this page.'),
+      rejected: t('No declined requests on this page.'),
+      blocked: t('No blocks on this page.'),
     };
     return labels[kind];
   }
@@ -383,7 +389,7 @@ export function startContacts(
     });
     if (kind === 'approved' && options.open) {
       const open = options.open;
-      const converse = button(t('Conversar'), () => open(contact));
+      const converse = button(t('Chat'), () => open(contact));
       converse.className = 'primary';
       actions.append(converse);
     }
@@ -392,43 +398,43 @@ export function startContacts(
       details = document.createElement('details'),
       summary = document.createElement('summary'),
       wallet = document.createElement('p');
-    summary.textContent = t('Wallet e nome informado');
-    wallet.textContent = t('{0} · {1}. Nome escolhido pelo usuário.', [
+    summary.textContent = t('Wallet and provided name');
+    wallet.textContent = t('{0} · {1}. User-chosen name.', [
       contact.ecosystem.toUpperCase(),
       contact.address,
     ]);
     details.append(summary, wallet);
     menu.append(
       details,
-      button(t('Salvar na minha agenda'), async () => selectPeer(contact)),
+      button(t('Save to my contacts'), async () => selectPeer(contact)),
     );
     if (kind === 'outgoing')
       menu.append(
-        button(t('Cancelar solicitação'), async () => {
+        button(t('Cancel request'), async () => {
           await contacts.api('cancel', {
             revision: contacts.state.revision,
             target: contact.accountId,
           });
           await refresh();
-          status = t('Solicitação pendente cancelada.');
+          status = t('Pending request cancelled.');
         }),
       );
     return row;
   }
   function requestActions(actions: HTMLElement, contact: Peer): void {
-    const accept = button(t('Aceitar'), async () => {
+    const accept = button(t('Accept'), async () => {
       await contacts.respond(contact.accountId, true);
       await refresh();
-      status = t('Contato aprovado nos dois sentidos.');
+      status = t('Contact approved in both directions.');
     });
     accept.className = 'primary';
     actions.append(
       accept,
-      button(t('Recusar'), async () => {
+      button(t('Decline'), async () => {
         await contacts.respond(contact.accountId, false);
         await refresh();
         status = t(
-          'Solicitação recusada. A mesma identidade não pode repetir este pedido.',
+          'Request declined. The same identity cannot repeat this request.',
         );
       }),
     );
@@ -441,26 +447,23 @@ export function startContacts(
     for (const hash of contacts.pages.get('blocked')?.blocks ?? []) {
       if (!hash.toLowerCase().includes(query)) continue;
       const { row, actions } = contactRow({
-        title: t('Wallet bloqueada'),
+        title: t('Blocked wallet'),
         seed: hash,
-        detail: t('Referência · {0}', [shortAddress(hash)]),
+        detail: t('Reference · {0}', [shortAddress(hash)]),
       });
-      const menu = contactMenu(
-          actions,
-          t('bloqueio {0}', [shortAddress(hash)]),
-        ),
+      const menu = contactMenu(actions, t('block {0}', [shortAddress(hash)])),
         reference = document.createElement('p');
-      reference.textContent = t('Referência do bloqueio: {0}', [hash]);
+      reference.textContent = t('Block reference: {0}', [hash]);
       menu.append(reference);
       actions.prepend(
-        button(t('Desbloquear'), async () => {
+        button(t('Unblock'), async () => {
           await contacts.api('unblock', {
             revision: contacts.state.revision,
             walletHash: hash,
           });
           await refresh();
           status = t(
-            'Bloqueio removido. Uma nova solicitação e aprovação continuam necessárias.',
+            'Block removed. A new request and approval are still required.',
           );
         }),
       );
@@ -476,7 +479,7 @@ export function startContacts(
     if (a) a.value = contact.address;
     if (alias) alias.value = contact.name;
     status = t(
-      'Confira o apelido particular e salve explicitamente na agenda.',
+      'Check the private nickname and explicitly save it in contacts.',
     );
     openEditor('wallet');
     await Promise.resolve();
@@ -484,13 +487,13 @@ export function startContacts(
   async function configure(): Promise<void> {
     await contacts.configure(discovery.value, contacts.state.inviteHash);
     status = t(
-      'Visibilidade aplicada no servidor. Contatos já aprovados foram preservados.',
+      'Visibility applied on the server. Previously approved contacts were preserved.',
     );
   }
   async function rotate(): Promise<void> {
     if (!sync.complete || sync.pending)
       throw new Error(
-        'Abra/sincronize a agenda e resolva o rascunho antes de trocar o convite.',
+        'Open/sync contacts and resolve your draft before replacing the invitation.',
       );
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     const token = Array.from(bytes, (b) =>
@@ -498,7 +501,7 @@ export function startContacts(
     ).join('');
     bytes.fill(0);
     const session = contacts.session;
-    if (!session) throw new Error('Entre primeiro.');
+    if (!session) throw new Error('Sign in first.');
     const invite = { owner: session.accountId, token };
     await contacts.configure(contacts.state.mode, await digest(token));
     ownLink = invitationLink(location.origin, invite);
@@ -506,44 +509,44 @@ export function startContacts(
       await book.saveInvite(invite);
     } catch (error: unknown) {
       status = t(
-        'Convite ativo, mas a cópia cifrada não foi confirmada. Guarde o link ou revogue-o antes de sair.',
+        'Invitation active, but its encrypted copy was not confirmed. Keep the link or revoke it before leaving.',
       );
       render();
       throw error;
     }
     status = sync.pending
       ? t(
-          'Convite ativo; a cópia cifrada será enviada automaticamente ao reconectar.',
+          'Invitation active; its encrypted copy will be sent automatically when reconnected.',
         )
       : t(
-          'Novo convite ativo e preservado no cofre. O anterior foi invalidado.',
+          'New invitation active and preserved in the vault. The previous one was invalidated.',
         );
   }
   async function inspectInvite(): Promise<void> {
     const link = value('[data-contact-received]');
     if (link) received = readInvitation(link, location.origin);
-    if (!received) throw new Error('Informe um convite válido.');
+    if (!received) throw new Error('Enter a valid invitation.');
     invitePeer = await contacts.invite(received);
     const target = node('[data-contact-invite-peer]');
     target?.replaceChildren();
     if (!invitePeer) {
       status = t(
-        'Convite indisponível, revogado ou restrito pela privacidade atual.',
+        'Invitation unavailable, revoked or restricted by current privacy settings.',
       );
       return;
     }
     const selected = invitePeer,
       invite = received;
     const p = document.createElement('p');
-    p.textContent = t('{0} · nome escolhido pelo usuário · {1} · {2}', [
-      selected.name || t('Sem nome'),
+    p.textContent = t('{0} · user-chosen name · {1} · {2}', [
+      selected.name || t('Unnamed'),
       selected.ecosystem,
       selected.address,
     ]);
     target?.append(p);
     if (!node('[data-contact-invite-form]'))
       target?.append(
-        button(t('Solicitar conversa'), () =>
+        button(t('Request conversation'), () =>
           requestInvite(selected, invite.token),
         ),
       );
@@ -558,7 +561,7 @@ export function startContacts(
       token,
       alias: '',
       guard: () => {
-        if (expected !== generation) throw new Error('Sessão alterada.');
+        if (expected !== generation) throw new Error('Session changed.');
       },
     });
     await directory.saved(contact);
@@ -567,7 +570,7 @@ export function startContacts(
     invitePeer = null;
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
-    status = t('Solicitação enviada. Aguarde o aceite.');
+    status = t('Request sent. Wait for acceptance.');
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
@@ -585,13 +588,13 @@ export function startContacts(
         token: null,
         alias: value('[data-book-alias]'),
         guard: () => {
-          if (expected !== generation) throw new Error('Sessão alterada.');
+          if (expected !== generation) throw new Error('Session changed.');
         },
       });
       await directory.saved(contact);
       await options.saved?.(contact);
       await refresh();
-      status = t('Solicitação enviada. Aguarde o aceite.');
+      status = t('Request sent. Wait for acceptance.');
     }
   }
   const actions: Record<string, () => Promise<void>> = {
@@ -601,14 +604,12 @@ export function startContacts(
     revoke: async () => {
       await contacts.configure(contacts.state.mode, null);
       ownLink = null;
-      status = t(
-        'Convite revogado. Links antigos não permitem novas solicitações.',
-      );
+      status = t('Invitation revoked. Old links cannot start new requests.');
     },
     copy: async () => {
-      if (!ownLink) throw new Error('Crie um convite primeiro.');
+      if (!ownLink) throw new Error('Create an invitation first.');
       await navigator.clipboard.writeText(ownLink);
-      status = t('Link copiado. Compartilhe manualmente com o destinatário.');
+      status = t('Link copied. Share it manually with the recipient.');
     },
     'book-more': async () => {
       if (directory.more) await directory.load(true);
@@ -644,7 +645,7 @@ export function startContacts(
       qr?.replaceChildren();
       if (qr) delete qr.dataset['qrPayload'];
     }
-    status = t('Consultando contatos da conta…');
+    status = t('Checking account contacts…');
   }
   function sessionChanged(session: AccountSession | null): boolean {
     return (
@@ -666,7 +667,7 @@ export function startContacts(
       received = invite;
     } catch {
       received = null;
-      status = t('Convite inválido. Confira o link completo.');
+      status = t('Invalid invitation. Check the full link.');
     }
     if (contactInvitationValue(location.hash) !== null)
       history.replaceState(null, '', location.pathname + '#contacts');
@@ -709,7 +710,7 @@ export function startContacts(
   }
   return {
     ready,
-    /** Who may request a conversation, read from the server; used by Configurações iniciais. */
+    /** Who may request a conversation, read from the server; used by Initial settings. */
     async discovery(): Promise<DiscoveryMode> {
       await contacts.refresh();
       return contacts.state.mode;
@@ -721,7 +722,7 @@ export function startContacts(
       await contacts.configure(mode, contacts.state.inviteHash);
       render();
     },
-    /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
+    /** Received requests for Activity; same signed API and checks as Contacts → Requests. */
     async incomingRequests(): Promise<readonly Peer[]> {
       const previousRevision = contacts.state.revision;
       const incoming = await contacts.snapshot({ preservePages: true });
@@ -737,9 +738,11 @@ export function startContacts(
       await contacts.respond(accountId, accept);
       if (mounted?.isConnected) await refresh();
     },
-    showContact(contact: AddressBookEntry): void {
-      void run(() => contactSettings.open(contact));
+    showContact(contact: AddressBookEntry, container?: HTMLElement): void {
+      if (container) contactSettings.mount(container);
+      void contactSettings.open(contact);
     },
+    closeContact: () => contactSettings.clear(),
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();

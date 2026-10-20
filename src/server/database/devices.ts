@@ -64,7 +64,7 @@ export class DeviceStore {
       [accountId],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(403, 'Diretório de aparelho ausente.');
+    if (!row) throw new AccountError(403, 'Device directory missing.');
     return directoryEvent(row.event);
   }
   async page(accountId: string, after: number): Promise<unknown[]> {
@@ -85,7 +85,7 @@ export class DeviceStore {
       [accountId, revision],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(403, 'Autoridade histórica indisponível.');
+    if (!row) throw new AccountError(403, 'Historical authority unavailable.');
     return directoryEvent(row.event);
   }
   /** The coordinating caller authorizes these accounts before this bounded public-key read. */
@@ -101,7 +101,7 @@ export class DeviceStore {
     }[]
   > {
     if (requests.length > 16)
-      throw new AccountError(413, 'Lote de diretórios excedido.');
+      throw new AccountError(413, 'Directory batch exceeds the limit.');
     const rows = await client.query<{
       account_id: string;
       head: string;
@@ -116,7 +116,7 @@ export class DeviceStore {
       ],
     );
     if (rows.rows.length !== requests.length)
-      throw new AccountError(403, 'Diretório de participante indisponível.');
+      throw new AccountError(403, 'Participant directory unavailable.');
     return rows.rows.map((row) => ({
       accountId: row.account_id,
       head: row.head,
@@ -131,10 +131,7 @@ export class DeviceStore {
     );
     const row = result.rows[0];
     if (!row)
-      throw new AccountError(
-        409,
-        'Código expirado, cancelado ou já utilizado.',
-      );
+      throw new AccountError(409, 'Code expired, cancelled or already used.');
     return row;
   }
   private async transaction<T>(
@@ -167,7 +164,7 @@ export class DeviceStore {
       [session.accountId, session.deviceId, session.csrf, scope],
     );
     if (!valid.rowCount)
-      throw new AccountError(401, 'Sessão encerrada ou expirada.');
+      throw new AccountError(401, 'Session ended or expired.');
   }
   async assertEnrollmentSource(
     session: AccountSession,
@@ -184,59 +181,61 @@ export class DeviceStore {
       if (!current.rowCount)
         throw new AccountError(
           403,
-          'Confirmação da wallet ou autorização do aparelho ausente.',
+          'Wallet confirmation or device authorization missing.',
         );
     });
   }
   async createLink(session: AccountSession, link: DeviceLink): Promise<void> {
-    await withTemporaryAdmission('Muitos pedidos de vinculação. Aguarde.', () =>
-      this.transaction(async (client) => {
-        await this.lock(client, session);
-        const reused = await client.query(
-          'SELECT id FROM hash_talk.device_links WHERE id=$1',
-          [link.id],
-        );
-        if (reused.rowCount)
-          throw new AccountError(
-            409,
-            'Código já utilizado. Crie um novo pedido.',
+    await withTemporaryAdmission(
+      'Too many linking requests. Please wait.',
+      () =>
+        this.transaction(async (client) => {
+          await this.lock(client, session);
+          const reused = await client.query(
+            'SELECT id FROM hash_talk.device_links WHERE id=$1',
+            [link.id],
           );
-        await client.query(
-          `WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.device_links
+          if (reused.rowCount)
+            throw new AccountError(
+              409,
+              'Code already used. Create a new request.',
+            );
+          await client.query(
+            `WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.device_links
             WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
           DELETE FROM hash_talk.device_links target USING expired WHERE target.id=expired.id`,
-        );
-        const existing = await client.query(
-          'SELECT account_id FROM hash_talk.device_directories WHERE account_id=$1',
-          [session.accountId],
-        );
-        if (!existing.rowCount)
-          throw new AccountError(
-            409,
-            'Configure primeiro a recuperação em um aparelho autorizado.',
           );
-        await client.query(
-          'UPDATE hash_talk.device_links SET cancelled=true WHERE account_id=$1 AND device_id=$2 AND NOT cancelled',
-          [session.accountId, session.deviceId],
-        );
-        const inserted = await client.query(
-          `INSERT INTO hash_talk.device_links (id,account_id,device_id,code_hash,device,expires_at) VALUES ($1,$2,$3,$4,$5,$6)
+          const existing = await client.query(
+            'SELECT account_id FROM hash_talk.device_directories WHERE account_id=$1',
+            [session.accountId],
+          );
+          if (!existing.rowCount)
+            throw new AccountError(
+              409,
+              'Configure recovery on an authorized device first.',
+            );
+          await client.query(
+            'UPDATE hash_talk.device_links SET cancelled=true WHERE account_id=$1 AND device_id=$2 AND NOT cancelled',
+            [session.accountId, session.deviceId],
+          );
+          const inserted = await client.query(
+            `INSERT INTO hash_talk.device_links (id,account_id,device_id,code_hash,device,expires_at) VALUES ($1,$2,$3,$4,$5,$6)
          ON CONFLICT DO NOTHING RETURNING id`,
-          [
-            link.id,
-            session.accountId,
-            session.deviceId,
-            link.codeHash,
-            link.device,
-            link.expiresAt,
-          ],
-        );
-        if (!inserted.rowCount)
-          throw new AccountError(
-            409,
-            'Código já utilizado. Crie um novo pedido.',
+            [
+              link.id,
+              session.accountId,
+              session.deviceId,
+              link.codeHash,
+              link.device,
+              link.expiresAt,
+            ],
           );
-      }),
+          if (!inserted.rowCount)
+            throw new AccountError(
+              409,
+              'Code already used. Create a new request.',
+            );
+        }),
     );
   }
   async cancelLink(session: AccountSession, id: string): Promise<void> {
@@ -258,7 +257,7 @@ export class DeviceStore {
       if (current.rows[0]?.revision !== 0)
         throw new AccountError(
           409,
-          'O perfil existente precisa ser preservado e cifrado com a nova chave.',
+          'The existing profile must be preserved and encrypted with the new key.',
         );
       return;
     }
@@ -274,7 +273,7 @@ export class DeviceStore {
     if (!saved.rowCount)
       throw new AccountError(
         409,
-        'Perfil alterado em outra aba. Atualize antes de continuar.',
+        'Profile changed in another tab. Refresh before continuing.',
       );
   }
   async commit(input: {
@@ -293,7 +292,7 @@ export class DeviceStore {
       if ((current.rows[0]?.head ?? null) !== event.previous)
         throw new AccountError(
           409,
-          'Diretório alterado em outro aparelho. Atualize e confirme novamente.',
+          'Directory changed on another device. Refresh and confirm again.',
         );
       if (event.linkId)
         await this.consumeLink(client, session.accountId, event);
@@ -347,7 +346,7 @@ export class DeviceStore {
     )
       throw new AccountError(
         409,
-        'Código expirado, reutilizado ou aparelho divergente.',
+        'Code expired, reused or device does not match.',
       );
   }
   async saveProfile(
@@ -362,10 +361,7 @@ export class DeviceStore {
         [session.accountId],
       );
       if (current.rows[0]?.head !== head)
-        throw new AccountError(
-          409,
-          'Dispositivos alterados. Atualize antes de salvar.',
-        );
+        throw new AccountError(409, 'Devices changed. Refresh before saving.');
       await this.updateProfile(client, session.accountId, profile);
       await assertVaultQuota(client, session.accountId);
       await assertContentCapacity(client, this.contentCapacity);

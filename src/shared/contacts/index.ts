@@ -15,7 +15,7 @@ export const contactPageSize = 16;
 export type DiscoveryMode = 'wallet' | 'invite' | 'contacts';
 export function discoveryMode(value: unknown): DiscoveryMode {
   if (value !== 'wallet' && value !== 'invite' && value !== 'contacts')
-    throw new AccountError(400, 'Visibilidade inválida.');
+    throw new AccountError(400, 'Invalid visibility.');
   return value;
 }
 export interface WalletContact {
@@ -42,7 +42,7 @@ export function walletContact(value: unknown): WalletContact {
   } catch {
     throw new AccountError(
       400,
-      'Wallet inválida. Confira o endereço completo EVM ou Solana.',
+      'Invalid wallet. Check the full EVM or Solana address.',
     );
   }
 }
@@ -93,9 +93,9 @@ export function readInvitation(text: string, origin: string): Invitation {
     url.search ||
     contactInvitationValue(url.hash) === null
   )
-    throw new Error('Use um link de convite do 0xDMme desta origem.');
+    throw new Error('Use a 0xDMme invitation link from this origin.');
   const parts = contactInvitationValue(url.hash)!.split('.');
-  if (parts.length !== 2) throw new Error('Convite inválido.');
+  if (parts.length !== 2) throw new Error('Invalid invitation.');
   return invitation({ owner: parts[0], token: parts[1] });
 }
 export interface ContactProof {
@@ -108,7 +108,7 @@ export function contactProof(value: unknown): ContactProof {
   keys(data, ['directory', 'signature', 'payload']);
   const signature = boundedText(data['signature'], 88);
   if (base64(signature, 64).length !== 64)
-    throw new AccountError(400, 'Assinatura inválida.');
+    throw new AccountError(400, 'Invalid signature.');
   return {
     directory: fingerprint(data['directory']),
     signature,
@@ -138,7 +138,7 @@ export function revision(value: unknown): number {
     value < 0 ||
     value > 2147483646
   )
-    throw new AccountError(400, 'Revisão inválida.');
+    throw new AccountError(400, 'Invalid revision.');
   return value;
 }
 export type ContactList =
@@ -151,7 +151,7 @@ export function contactList(value: unknown): ContactList {
     value !== 'blocked' &&
     value !== 'rejected'
   )
-    throw new AccountError(400, 'Lista inválida.');
+    throw new AccountError(400, 'Invalid list.');
   return value;
 }
 export interface AddressBookEntry extends WalletContact {
@@ -171,7 +171,7 @@ function addressBookFormat(
   const addedVia = data['addedVia'];
   if (data['version'] === 2 && (addedVia === 'wallet' || addedVia === 'invite'))
     return { version: 2, addedVia };
-  throw new Error('Contato privado inválido.');
+  throw new Error('Invalid private contact.');
 }
 export function addressBookEntry(value: unknown): AddressBookEntry {
   const data = object(value);
@@ -189,7 +189,7 @@ export function addressBookEntry(value: unknown): AddressBookEntry {
   ];
   keys(data, format.version === 2 ? [...fields, 'addedVia'] : fields);
   if (typeof data['removed'] !== 'boolean')
-    throw new Error('Contato privado inválido.');
+    throw new Error('Invalid private contact.');
   return {
     ...walletContact({
       ecosystem: data['ecosystem'],

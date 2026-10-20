@@ -11,7 +11,7 @@ async function walletOperation<T>(operation: () => Promise<T>): Promise<T> {
         timer = setTimeout(
           () =>
             reject(
-              new Error('A wallet não concluiu a assinatura. Tente novamente.'),
+              new Error('The wallet did not complete signing. Try again.'),
             ),
           120_000,
         );
@@ -35,7 +35,7 @@ export async function signWalletStatement(input: {
       actual.ecosystem !== identity.ecosystem ||
       canonicalAddress(identity.ecosystem, actual.address) !== identity.address
     )
-      throw new Error('Selecione a wallet da conta aberta.');
+      throw new Error("Select the open account's wallet.");
   };
   check(await walletOperation(() => wallet.identity(true)));
   const signature = await walletOperation(() =>

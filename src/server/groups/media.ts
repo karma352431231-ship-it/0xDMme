@@ -124,10 +124,9 @@ export class GroupMediaService {
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action) throw new AccountError(404, 'Operação de mídia indisponível.');
+    if (!action) throw new AccountError(404, 'Media operation unavailable.');
     const release = reserveOperationMemory(partLimit * 8);
-    if (!release)
-      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
+    if (!release) throw new AccountError(429, 'Transfers busy. Resume later.');
     try {
       return await action(a, d);
     } finally {
@@ -189,7 +188,7 @@ export class GroupMediaService {
       for (const part of data.ref.parts)
         digest.update(await media.read(part.hash));
       if (digest.digest('hex') !== data.ref.hash)
-        throw new AccountError(400, 'Mídia integral divergente.');
+        throw new AccountError(400, 'Full media does not match.');
     }
     await this.store.finish(a, input);
   }
@@ -206,7 +205,7 @@ export class GroupMediaService {
     };
     const ref = await this.store.readable(a, input),
       part = ref.parts[input.index];
-    if (!part) throw new AccountError(400, 'Parte inexistente.');
+    if (!part) throw new AccountError(400, 'Part does not exist.');
     const bytes = await (
       await (
         await this.objects.readGroupMedia(input.groupId)

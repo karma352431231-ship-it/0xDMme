@@ -1,9 +1,9 @@
-/** Acesso tipado aos controles das telas descartáveis de ensaio. */
+/** Typed access to controls on disposable probe screens. */
 export function element<T extends HTMLElement>(
   id: string,
   kind: { new (): T },
 ): T {
   const value = document.getElementById(id);
-  if (!(value instanceof kind)) throw new Error('Tela de ensaio incompleta.');
+  if (!(value instanceof kind)) throw new Error('Test screen incomplete.');
   return value;
 }

@@ -9,7 +9,7 @@ import { classifyPreparedFrames } from '../../src/server/public-moderation/index
 import type { PublicFrameDetector } from '../../src/server/public-moderation/index.ts';
 import { readMediaRuntime } from '../../src/server/community-media/index.ts';
 
-await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incluindo ocorrência de um frame no meio e fim', async (t) => {
+await test('real temporal analysis: 120 s/720p/30 FPS and three 20 s GIFs including a one-frame occurrence in the middle and at the end', async (t) => {
   const runtime = readMediaRuntime(process.env);
   if (!runtime) {
     t.skip(
@@ -139,7 +139,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
     `4812 frames, lotes de até 4, ${(performance.now() - start).toFixed(1)} ms; detector sintético de cores, sem comprovação de precisão sexual.`,
   );
   await t.test(
-    'falha, resposta parcial e aborto não concluem a análise',
+    'failure, partial response and abort cannot complete analysis',
     async () => {
       const input = {
         bytes: image,
@@ -153,7 +153,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
           signal,
           detector: { ...detector, classify: () => Promise.resolve([]) },
         }),
-        /Análise/u,
+        /[Aa]nalysis/u,
       );
       const stop = new AbortController();
       await assert.rejects(
@@ -169,7 +169,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
             },
           },
         }),
-        /Análise/u,
+        /[Aa]nalysis/u,
       );
       await assert.rejects(
         classifyPreparedFrames({
@@ -178,7 +178,7 @@ await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incl
           signal,
           input: { ...input, bytes: new Uint8Array([1, 2, 3]) },
         }),
-        /Inspeção/u,
+        /[Ii]nspection/u,
       );
     },
   );

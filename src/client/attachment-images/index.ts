@@ -60,7 +60,7 @@ export function stripEncodedMetadata(
     offset += part.length;
   }
   if (!metadataFree(output, type))
-    throw new Error('Não foi possível confirmar a remoção de metadados.');
+    throw new Error('Could not confirm metadata removal.');
   return output;
 }
 function cleanPng(bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>[] {
@@ -71,20 +71,20 @@ function cleanPng(bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>[] {
     const size = v.getUint32(offset),
       type = text(bytes, offset + 4, 4);
     if (size > bytes.length - offset - 12)
-      throw new Error('PNG gerado incompleto.');
+      throw new Error('Generated PNG incomplete.');
     if (safePngChunks.includes(type))
       pieces.push(bytes.subarray(offset, offset + size + 12));
     offset += size + 12;
     if (type === 'IEND') return pieces;
   }
-  throw new Error('PNG gerado incompleto.');
+  throw new Error('Generated PNG incomplete.');
 }
 function cleanJpeg(bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>[] {
   const pieces = [bytes.subarray(0, 2)],
     v = view(bytes);
   let offset = 2;
   while (offset + 4 <= bytes.length) {
-    if (bytes[offset] !== 255) throw new Error('JPEG gerado inválido.');
+    if (bytes[offset] !== 255) throw new Error('Generated JPEG invalid.');
     const marker = v.getUint8(offset + 1),
       size = v.getUint16(offset + 2);
     if (marker === 218) {
@@ -92,12 +92,12 @@ function cleanJpeg(bytes: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer>[] {
       return pieces;
     }
     if (size < 2 || size > bytes.length - offset - 2)
-      throw new Error('JPEG gerado incompleto.');
+      throw new Error('Generated JPEG incomplete.');
     if (!(marker === 254 || (marker >= 225 && marker <= 239)))
       pieces.push(bytes.subarray(offset, offset + size + 2));
     offset += size + 2;
   }
-  throw new Error('JPEG gerado incompleto.');
+  throw new Error('Generated JPEG incomplete.');
 }
 export function assertFileAllowed(
   name: string,
@@ -112,7 +112,7 @@ export function assertFileAllowed(
     /\.(?:mp4|mov|m4v|webm|mkv|avi|mpeg|mpg|ogv|flv)$/iu.test(name) ||
     videoSignature(bytes)
   )
-    throw new Error('Upload de vídeo ainda não está disponível.');
+    throw new Error('Video upload is not available yet.');
 }
 export interface PreparedPhoto {
   bytes: Uint8Array<ArrayBuffer>;
@@ -165,21 +165,20 @@ async function encodeCanvas(
   const size = dimensions(bitmap.width, bitmap.height, input.edge),
     canvas = new OffscreenCanvas(size.width, size.height),
     context = canvas.getContext('2d');
-  if (!context) throw new Error('Processamento local de imagem indisponível.');
+  if (!context) throw new Error('Local image processing unavailable.');
   context.drawImage(bitmap, 0, 0, size.width, size.height);
   const blob = await canvas.convertToBlob({
     type: input.type,
     quality: input.quality,
   });
-  if (blob.type !== input.type)
-    throw new Error('Encoder de imagem não compatível.');
+  if (blob.type !== input.type) throw new Error('Incompatible image encoder.');
   const bytes = new Uint8Array(await blob.arrayBuffer());
   return stripEncodedMetadata(bytes, input.type);
 }
 export async function preparePhoto(file: File): Promise<PreparedPhoto> {
   if (!file.size || file.size > 20_000_000)
     throw new Error(
-      'Foto de origem deve ter até 20 MB para processamento local.',
+      'The source photo must be no larger than 20 MB for local processing.',
     );
   const source = new Uint8Array(await file.arrayBuffer()),
     shape = imageShape(source);
@@ -195,7 +194,7 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
       bytes = await encodeCanvas(bitmap, { edge, type, quality: 0.75 });
     }
     if (bytes.length > fileLimit)
-      throw new Error('Não foi possível otimizar a foto para 3 MB.');
+      throw new Error('Could not optimize the photo to 3 MB.');
     let thumbnail = await encodeCanvas(bitmap, {
       edge: 240,
       type: 'image/png',
@@ -208,7 +207,7 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
         quality: 1,
       });
     if (thumbnail.length > thumbnailLimit)
-      throw new Error('Miniatura excede o limite seguro.');
+      throw new Error('Thumbnail exceeds the safe limit.');
     const stem = safeFilename(file.name)
       .replace(/\.[^.]+$/u, '')
       .slice(0, 150);

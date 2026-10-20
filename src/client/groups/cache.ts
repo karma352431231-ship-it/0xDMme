@@ -55,7 +55,7 @@ export class GroupCache {
       JSON.parse(await openLocal(this.authority, row)) as unknown,
     );
     if (data['scope'] !== this.scope || data['name'] !== name)
-      throw new Error('Cache de outro grupo ou registro.');
+      throw new Error('Cache belongs to another group or record.');
     return data['value'];
   }
   async current(): Promise<GroupEvent | null> {

@@ -34,7 +34,7 @@ function recoveryDeadline(data: Record<string, unknown>): number {
     Date.parse(boundedText(data['expiresAt'], 32)) -
     Date.parse(boundedText(data['serverTime'], 32));
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 300_000)
-    throw new Error('Prazo inválido.');
+    throw new Error('Invalid deadline.');
   return Date.now() + remaining;
 }
 async function verifyDestination(
@@ -46,16 +46,16 @@ async function verifyDestination(
     transfer.config.origin !== location.origin ||
     (await digest(canonical(transfer))) !== entry.commitment
   )
-    throw new Error('Destino alterado.');
+    throw new Error('Destination changed.');
 }
 async function prepare(): Promise<void> {
   if (document.documentElement.hasAttribute('data-recovery-rejected'))
-    throw new Error('Pedido encerrado.');
+    throw new Error('Request ended.');
   const prepared = generation;
   const entry = recoveryEntry(location.pathname);
   if (!entry || location.search || location.hash)
-    throw new Error('Entrada inválida.');
-  if (!button || !status || !message) throw new Error('Interface ausente.');
+    throw new Error('Invalid entry.');
+  if (!button || !status || !message) throw new Error('Interface missing.');
   const data = object(await recoveryApi('request', entry));
   keys(data, ['transfer', 'expiresAt', 'serverTime']);
   const transfer = recoveryTransfer(data['transfer']);
@@ -64,11 +64,8 @@ async function prepare(): Promise<void> {
   if (prepared !== generation) return;
   message.textContent = recoveryMessage(transfer.config);
   status.textContent = t(
-    'Você está {0} seus dados com {1}. Confirme somente o pedido que abriu no seu navegador. Depois volte a ele.',
-    [
-      transfer.count === 2 ? t('configurando') : t('recuperando'),
-      transfer.wallet,
-    ],
+    'You are {0} your data with {1}. Only confirm the request you opened in your browser. Then return to it.',
+    [transfer.count === 2 ? t('setting up') : t('recovering'), transfer.wallet],
   );
   button.disabled = false;
   button.onclick = () => {
@@ -76,13 +73,13 @@ async function prepare(): Promise<void> {
     const token = ++generation;
     const current = () => {
       if (token !== generation || Date.now() > deadline)
-        throw new Error('Pedido encerrado.');
+        throw new Error('Request ended.');
     };
     const send = async () => {
       const wallet = discovery.get(
         `${transfer.wallet}:${transfer.config.ecosystem}`,
       );
-      if (!wallet) throw new Error('Wallet indisponível.');
+      if (!wallet) throw new Error('Wallet unavailable.');
       const signatures = await signRecovery({
         wallet,
         config: transfer.config,
@@ -104,13 +101,13 @@ async function prepare(): Promise<void> {
       await recoveryApi('submit', { ...entry, envelope });
       current();
       status.textContent = t(
-        'Resultado cifrado enviado. Volte ao navegador original; a abertura da conta será concluída automaticamente. Esta página não cria uma sessão ou autoriza aparelhos.',
+        'Encrypted result sent. Return to the original browser; account opening will finish automatically. This page does not create a session or authorize devices.',
       );
     };
     void send().catch(() => {
       if (token === generation)
         status.textContent = t(
-          'Recuperação não concluída. Confira a conta e a conexão; reinicie o pedido no navegador original.',
+          'Recovery not completed. Check your account and connection; restart the request in the original browser.',
         );
     });
   };
@@ -118,6 +115,6 @@ async function prepare(): Promise<void> {
 void prepare().catch(() => {
   if (status)
     status.textContent = t(
-      'Pedido inválido, alterado, expirado ou indisponível. Reinicie pelo navegador original.',
+      'Request invalid, changed, expired or unavailable. Restart from the original browser.',
     );
 });

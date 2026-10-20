@@ -258,6 +258,6 @@ export async function classifyPreparedRgbaFrames(options: {
     child.stdout.destroy();
     native.destroy();
     await closed;
-    throw new AccountError(503, 'Análise da mídia indisponível.');
+    throw new AccountError(503, 'Media analysis unavailable.');
   }
 }

@@ -32,7 +32,7 @@ export class RecoveryReturn {
     this.origin = origin;
     this.now = now;
     this.pending = new TemporaryRequests({
-      unavailable: 'Muitos retornos de recuperação. Aguarde.',
+      unavailable: 'Too many recovery returns. Please wait.',
       now,
       removed: (ticket, state) => {
         const device = state.session.accountId + ':' + state.session.deviceId;
@@ -51,7 +51,7 @@ export class RecoveryReturn {
   }
   async start(session: AccountSession, input: unknown) {
     return withTemporaryAdmission(
-      'Muitos retornos de recuperação. Aguarde.',
+      'Too many recovery returns. Please wait.',
       () => this.create(session, input),
     );
   }
@@ -72,7 +72,7 @@ export class RecoveryReturn {
       ['encrypt'],
     );
     if ((receiver.algorithm as RsaHashedKeyAlgorithm).modulusLength !== 3072)
-      throw new AccountError(400, 'Destino de recuperação inválido.');
+      throw new AccountError(400, 'Invalid recovery destination.');
     const commitment = await digest(canonical(transfer));
     const state: Pending = {
       session: {
@@ -87,7 +87,7 @@ export class RecoveryReturn {
       consumed: false,
     };
     if (!this.pending.add(transfer.ticket, state, state.expires))
-      throw new AccountError(429, 'Muitos retornos de recuperação. Aguarde.');
+      throw new AccountError(429, 'Too many recovery returns. Please wait.');
     const device = session.accountId + ':' + session.deviceId;
     const prior = this.pending.get(this.byDevice.get(device) ?? '');
     // Keep the earlier request's original expiry and replay rejection.
@@ -112,14 +112,14 @@ export class RecoveryReturn {
     if (!state || state.consumed || state.commitment !== data['commitment'])
       throw new AccountError(
         409,
-        'Retorno expirado, cancelado ou divergente. Inicie novamente.',
+        'Return expired, cancelled or does not match. Start again.',
       );
     return state;
   }
   requestPublic(input: unknown) {
     const state = this.request(input);
     if (state.envelope)
-      throw new AccountError(409, 'Este pedido já recebeu um retorno.');
+      throw new AccountError(409, 'This request already received a return.');
     return { transfer: state.transfer, ...this.timestamps(state) };
   }
   submit(input: unknown) {
@@ -129,10 +129,10 @@ export class RecoveryReturn {
       ticket: data['ticket'],
       commitment: data['commitment'],
     });
-    if (state.envelope) throw new AccountError(409, 'Retorno já enviado.');
+    if (state.envelope) throw new AccountError(409, 'Return already sent.');
     const envelope = sealedSecret(data['envelope']);
     if (canonical(envelope).length > 2048)
-      throw new AccountError(413, 'Envelope de retorno excedido.');
+      throw new AccountError(413, 'Return envelope exceeds the limit.');
     state.envelope = envelope;
     return { status: 'encrypted' };
   }
@@ -143,7 +143,7 @@ export class RecoveryReturn {
       state.session.deviceId !== session.deviceId ||
       state.session.csrf !== session.csrf
     )
-      throw new AccountError(403, 'Retorno pertence a outro navegador.');
+      throw new AccountError(403, 'Return belongs to another browser.');
     return state;
   }
   take(session: AccountSession, input: unknown) {

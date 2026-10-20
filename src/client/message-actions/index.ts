@@ -33,7 +33,7 @@ export function messageActions<T extends DailyRow>(
   if (c.replyAllowed !== false)
     menu.append(
       withMenuIcon(
-        c.action(t('Responder'), () => {
+        c.action(t('Reply'), () => {
           c.choose('reply', c.view);
           return Promise.resolve();
         }),
@@ -43,14 +43,14 @@ export function messageActions<T extends DailyRow>(
   if (!c.view.archived && c.view.own && c.view.kind === 'text')
     menu.append(
       withMenuIcon(
-        c.action(t('Editar'), () => {
+        c.action(t('Edit'), () => {
           c.choose('edit', c.view);
           return Promise.resolve();
         }),
         'edit',
       ),
     );
-  const reaction = c.action(t('Reagir…'), async () => {
+  const reaction = c.action(t('React…'), async () => {
     const emoji = await c.picker.choose(trigger);
     if (emoji !== null && !c.signal.aborted) await c.react(c.view, emoji);
   });
@@ -67,7 +67,7 @@ function appendForward<T extends DailyRow>(
   if (c.peers.length && ['text', 'attachment'].includes(c.view.kind))
     menu.append(
       withMenuIcon(
-        c.action(t('Encaminhar'), () => {
+        c.action(t('Forward'), () => {
           c.forward(c.view);
           return Promise.resolve();
         }),
@@ -82,6 +82,6 @@ function appendRemove<T extends DailyRow>(
 ): void {
   if (c.remove)
     menu.append(
-      withMenuIcon(c.action(t('Apagar para ambos'), c.remove), 'trash'),
+      withMenuIcon(c.action(t('Delete for both'), c.remove), 'trash'),
     );
 }

@@ -23,7 +23,7 @@ function cleanupMedia(input: CleanupMedia): CleanupMedia {
     bytes: integer(input.bytes, chatFileLimit + thumbnailLimit),
   };
   if (!item.sequence || !item.bytes)
-    throw new AccountError(400, 'Objeto de limpeza inválido.');
+    throw new AccountError(400, 'Invalid cleanup object.');
   return item;
 }
 
@@ -41,7 +41,7 @@ export function selectMediaCleanupBatch(input: {
   let remainingBytes = integer(input.remainingBytes, groupMediaQuota);
   let after = integer(input.after, Number.MAX_SAFE_INTEGER);
   if (input.items.length > groupCleanupBatch)
-    throw new AccountError(400, 'Lote de limpeza excedido.');
+    throw new AccountError(400, 'Cleanup batch exceeds the limit.');
   const selected: CleanupMedia[] = [];
   const ids = new Set<string>();
   for (const raw of input.items) {
@@ -49,7 +49,7 @@ export function selectMediaCleanupBatch(input: {
     if (item.sequence <= after || ids.has(item.id))
       throw new AccountError(
         400,
-        'Seleção de limpeza repetida ou fora de ordem.',
+        'Cleanup selection duplicated or out of order.',
       );
     ids.add(item.id);
     after = item.sequence;

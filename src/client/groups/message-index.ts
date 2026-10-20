@@ -46,7 +46,7 @@ export class GroupMessageIndex {
         : [...new Map(progress.items.map((item) => [item.id, item])).values()];
     }
     throw new IncompleteGroupIndex(
-      t('Índice do grupo parcialmente conferido. Continue a sincronização.'),
+      t('Group index partially verified. Continue syncing.'),
     );
   }
   private start(key: string, from: Snapshot | null): Progress {
@@ -97,7 +97,7 @@ function assertDelta(
     raw['from'] !== progress.from ||
     raw['revision'] !== snapshot.revision
   )
-    throw new Error('Delta de grupo divergente.');
+    throw new Error('Group change set mismatch.');
 }
 export async function currentGroupSnapshot(c: ReadContext): Promise<Snapshot> {
   const snapshot = readSnapshot(
@@ -111,7 +111,9 @@ export async function currentGroupSnapshot(c: ReadContext): Promise<Snapshot> {
     snapshot.head !== c.group.head ||
     snapshot.directory !== c.authority.directory
   )
-    throw new Error('Snapshot de outro grupo ou autoridade.');
+    throw new Error(
+      'Snapshot belongs to another group or authorization context.',
+    );
   return snapshot;
 }
 function readSnapshot(input: unknown): Snapshot {
@@ -133,7 +135,7 @@ export function wire(snapshot: Snapshot) {
 function readIndex(raw: Record<string, unknown>, c: ReadContext): IndexItem[] {
   const values = raw['items'];
   if (!Array.isArray(values) || values.length > 16)
-    throw new Error('Índice de grupo inválido.');
+    throw new Error('Invalid group index.');
   const joined =
     c.group.state.members.find(
       (member) => member.accountId === c.authority.session.accountId,
@@ -146,7 +148,7 @@ function readIndex(raw: Record<string, unknown>, c: ReadContext): IndexItem[] {
       epoch < joined ||
       epoch > c.group.state.epoch
     )
-      throw new Error('Mensagem fora da participação atual.');
+      throw new Error('Message is outside your current group participation.');
     return {
       id: uuid(value['id']),
       hash: fingerprint(value['hash']),
@@ -161,7 +163,7 @@ function readIndex(raw: Record<string, unknown>, c: ReadContext): IndexItem[] {
     };
   });
   if (new Set(items.map((item) => item.id)).size !== items.length)
-    throw new Error('Índice de grupo duplicado.');
+    throw new Error('Duplicate group index.');
   return items;
 }
 
@@ -172,20 +174,19 @@ function assertFullPage(
 ): void {
   let previous = after;
   for (const item of items) {
-    if (item.sequence <= previous)
-      throw new Error('Ordem de grupo divergente.');
+    if (item.sequence <= previous) throw new Error('Group order mismatch.');
     previous = item.sequence;
   }
   if (next === null && items.length > 0)
-    throw new Error('Índice de grupo incompleto.');
+    throw new Error('Incomplete group index.');
   if (next !== null && next !== previous)
-    throw new Error('Paginação de grupo divergente.');
+    throw new Error('Group pagination does not match.');
 }
 
 function appendChanges(progress: Progress, items: IndexItem[]): void {
   if (progress.from === null) return;
   if (progress.items.length + items.length > 256)
-    throw new Error('Delta de grupo excedido.');
+    throw new Error('Group change set limit exceeded.');
   progress.items.push(...items);
 }
 function readCursor(
@@ -196,8 +197,8 @@ function readCursor(
     raw['next'] === null ? null : integer(raw['next'], Number.MAX_SAFE_INTEGER);
   if (c.progress.from === null) assertFullPage(c.items, c.progress.after, next);
   if (c.progress.from !== null && next !== null && next > c.snapshot.revision)
-    throw new Error('Cursor de outra revisão.');
+    throw new Error('Cursor belongs to another revision.');
   if (next !== null && next <= c.progress.after)
-    throw new Error('Paginação de grupo divergente.');
+    throw new Error('Group pagination does not match.');
   return next;
 }

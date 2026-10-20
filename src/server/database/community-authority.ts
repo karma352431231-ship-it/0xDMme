@@ -39,7 +39,7 @@ export async function requireCommunityManager(
 ): Promise<void> {
   const role = await communityRole(context);
   if (role === 'participant' || (owner && role !== 'owner'))
-    throw new AccountError(403, 'Você não tem permissão para esta gestão.');
+    throw new AccountError(403, 'You do not have permission to manage this.');
 }
 export function currentCommunity(
   context: CommunityContext,
@@ -48,15 +48,12 @@ export function currentCommunity(
   if (context.row.revision !== revision)
     throw new AccountError(
       409,
-      'A comunidade mudou. Recarregue antes de continuar.',
+      'The community changed. Reload before continuing.',
     );
 }
 export function openCommunity(context: CommunityContext): void {
   if (context.row.archived)
-    throw new AccountError(
-      403,
-      'Comunidade arquivada: disponível apenas para leitura.',
-    );
+    throw new AccountError(403, 'Community archived: read only.');
 }
 export async function bumpCommunity(context: CommunityContext): Promise<void> {
   await context.client.query(
@@ -93,7 +90,7 @@ export async function requireCommunityParticipation(
   if (await activeSanction(context))
     throw new AccountError(
       403,
-      'Você está suspenso nesta comunidade. Consulte o motivo e a contestação.',
+      'You are suspended in this community. Check the reason and appeal.',
     );
 }
 export async function communityTarget(
@@ -103,6 +100,6 @@ export async function communityTarget(
   const found = (
     await context.profiles.identities(context.client, [target])
   ).get(target);
-  if (!found) throw new AccountError(404, 'Perfil público indisponível.');
+  if (!found) throw new AccountError(404, 'Public profile unavailable.');
   return found;
 }

@@ -1,3 +1,4 @@
+import { watchRankingUpdates } from './ranking-live.ts';
 import { AccountRankingView, rankingPeriods } from './account-ranking.ts';
 import { discoveryMenu } from './discovery-controls.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
@@ -6,6 +7,7 @@ import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import { communityTopics } from '../../shared/community-classification/index.ts';
+import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { Communities, communityRead } from './controller.ts';
@@ -15,9 +17,9 @@ import { topicDot } from './classification.ts';
 import { growthLabel } from './ranking-side-growth.ts';
 
 /**
- * FOMO-style ranking beside the feed (docs/UI_PAINEIS_E_TEMAS.md, 16/10/2026).
+ * FOMO-style ranking beside the feed (16/10/2026).
  * Public ranking pages are read without credentials; Following uses the
- * signed list. While visible, the bar refreshes every few seconds and redraws
+ * signed list. A publication event refreshes the visible bar, which redraws
  * only when the server published a new ranking, so likes, replies and posts
  * show up within seconds. Rows are reused per community, so photos are not
  * fetched again on every refresh.
@@ -35,7 +37,6 @@ type Row = {
   previous: number;
 };
 
-const refreshMs = 4000;
 const collapsedKey = '0xdmme:ranking-side-collapsed';
 const scopes: readonly [RankingScope, string][] = [
   ['communities', 'ranking.title'],
@@ -58,6 +59,7 @@ export function startRankingSide(options: {
   element: HTMLElement;
   refresh: () => void;
   showScope: (scope: RankingScope) => void;
+  setSession: (session: AccountSession | null) => void;
 } {
   const controller = new Communities(options.access);
   const aside = el('aside', '', 'ranking-side');
@@ -66,18 +68,26 @@ export function startRankingSide(options: {
     load: (tab, signal, period) =>
       load(controller, { tab, signal, period, signedIn: options.signedIn }),
     scopeChanged: (scope) => options.scopeChanged?.(scope),
+    signedIn: options.signedIn,
+    following: (period, after) =>
+      controller.request('discovery-accounts', { period, after }),
   });
   options.shell.append(aside);
   const tick = () => {
     if (document.visibilityState === 'visible' && view.visible())
       void view.refresh();
   };
-  setInterval(tick, refreshMs);
-  document.addEventListener('visibilitychange', tick);
+  watchRankingUpdates({
+    visible: () => view.visible(),
+    refresh: () => view.published(),
+  });
   return {
     element: aside,
     refresh: tick,
     showScope: (scope) => view.showScope(scope),
+    setSession: (session) => {
+      if (controller.setSession(session)) view.sessionChanged();
+    },
   };
 }
 
@@ -128,6 +138,7 @@ class RankingView {
   private readonly accounts: AccountRankingView;
   private key = '';
   private busy = false;
+  private epoch = 0;
   private abort = new AbortController();
   private readonly rows = new Map<string, HTMLElement>();
   private readonly list: HTMLElement;
@@ -146,6 +157,11 @@ class RankingView {
       period: RankingPeriod,
     ) => Promise<{ key: string; rows: Row[] } | null>;
     scopeChanged: (scope: RankingScope) => void;
+    signedIn: () => boolean;
+    following: (
+      period: RankingPeriod,
+      after: string | null,
+    ) => Promise<unknown>;
   };
   constructor(host: HTMLElement, source: RankingView['source']) {
     this.host = host;
@@ -158,11 +174,17 @@ class RankingView {
     this.tabsRow = this.tabBar();
     this.pane = el('div', '', 'ranking-community-pane');
     this.pane.append(this.list, this.status, this.footer());
-    this.accounts = new AccountRankingView(this.abort.signal);
+    this.accounts = new AccountRankingView(this.abort.signal, {
+      signedIn: source.signedIn,
+      following: source.following,
+      orderChanged: () => this.showPeriod(),
+    });
+    this.accounts.controls.hidden = true;
     this.accounts.element.hidden = true;
     host.append(
       this.header(),
       this.tabsRow,
+      this.accounts.controls,
       this.columns(),
       this.pane,
       this.accounts.element,
@@ -179,6 +201,7 @@ class RankingView {
     const users = scope === 'users';
     this.pane.hidden = users;
     this.tabsRow.hidden = users;
+    this.accounts.controls.hidden = !users;
     this.accounts.element.hidden = !users;
     this.columnLabel.textContent = t(
       users ? 'ranking.user' : 'ranking.community',
@@ -186,6 +209,20 @@ class RankingView {
     this.showPeriod();
     if (users) this.accounts.setPeriod(this.period);
     void this.refresh(true);
+  }
+  published(): Promise<void> {
+    return this.scope === 'users'
+      ? this.accounts.published()
+      : this.refresh(true);
+  }
+  sessionChanged(): void {
+    this.epoch++;
+    this.busy = false;
+    this.accounts.reset();
+    this.key = '';
+    this.list.replaceChildren();
+    this.rows.clear();
+    if (this.visible()) void this.refresh(true);
   }
   /** The list is on screen: not hidden by the layout nor collapsed. */
   visible(): boolean {
@@ -198,17 +235,28 @@ class RankingView {
     if (this.scope === 'users') return this.accounts.refresh();
     if (this.busy && !force) return;
     this.busy = true;
+    const epoch = ++this.epoch;
     const tab = this.tab,
       period = this.period;
     try {
       const page = await this.source.load(tab, this.abort.signal, this.period);
-      if (tab === this.tab && period === this.period) this.apply(page, force);
+      if (this.current(epoch, tab, period)) this.apply(page, force);
     } catch {
-      // A failed refresh keeps the last ranking; the next tick tries again.
-      this.status.textContent = this.rows.size ? '' : t('ranking.unavailable');
+      // A failed refresh keeps the last ranking until a publication or reconnect.
+      if (epoch === this.epoch)
+        this.status.textContent = this.rows.size
+          ? ''
+          : t('ranking.unavailable');
     } finally {
-      this.busy = false;
+      if (epoch === this.epoch) this.busy = false;
     }
+  }
+  private current(
+    epoch: number,
+    tab: RankingTab,
+    period: RankingPeriod,
+  ): boolean {
+    return epoch === this.epoch && tab === this.tab && period === this.period;
   }
   /** Redraws only when the server published a different ranking. */
   private apply(page: { key: string; rows: Row[] } | null, force: boolean) {
@@ -315,7 +363,7 @@ class RankingView {
     const row = el('div', '', 'ranking-side-columns');
     discoveryMenu(
       this.periodHost,
-      t('Período'),
+      t('Period'),
       { value: this.period, options: rankingPeriods() },
       (value) => {
         this.period = value as RankingPeriod;
@@ -331,7 +379,9 @@ class RankingView {
   /** Following lists followed communities; no period applies to it. */
   private showPeriod(): void {
     this.periodHost.hidden =
-      this.scope === 'communities' && this.tab === 'following';
+      this.scope === 'communities'
+        ? this.tab === 'following'
+        : this.accounts.following();
   }
   private footer(): HTMLElement {
     const link = el('a', t('ranking.full'), 'ranking-side-full');

@@ -63,7 +63,7 @@ function connectionFixture(connect: () => Promise<unknown>) {
   };
 }
 
-await test('conexão Solana distingue recusa do provider sem transportar texto ou dados privados', async (t) => {
+await test('Solana connection distinguishes provider rejection without carrying private text or data', async (t) => {
   const fixture = connectionFixture(() =>
     Promise.reject(
       Object.assign(new Error('PRIVATE ticket=secret signature=secret'), {
@@ -83,7 +83,7 @@ await test('conexão Solana distingue recusa do provider sem transportar texto o
   });
 });
 
-await test('conexão resolvida sem conta não vira assinatura e conta autorizada posteriormente pode ser usada', async (t) => {
+await test('connection resolved without an account cannot become a signature and a subsequently authorized account is usable', async (t) => {
   let calls = 0;
   const fixture = connectionFixture(() => {
     calls++;
@@ -107,7 +107,7 @@ await test('conexão resolvida sem conta não vira assinatura e conta autorizada
   });
 });
 
-await test('D1 recebe somente categoria fixa de conexão, mantendo HTTP e erro genérico separados', (t) => {
+await test('D1 receives only a fixed connection category while keeping HTTP and generic error separate', (t) => {
   const location = Object.getOwnPropertyDescriptor(globalThis, 'location');
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
@@ -124,7 +124,7 @@ await test('D1 recebe somente categoria fixa de conexão, mantendo HTTP e erro g
     diagnostic.text(true),
     /stage=conexao-solicitada.*failure=conta-solana-ausente/u,
   );
-  assert.doesNotMatch(diagnostic.text(true), /Selecione|0x|PRIVATE|signature/u);
+  assert.doesNotMatch(diagnostic.text(true), /Select|0x|PRIVATE|signature/u);
   diagnostic.fail(403);
   assert.match(diagnostic.text(true), /failure=HTTP-403/u);
   diagnostic.fail();

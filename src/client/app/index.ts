@@ -47,6 +47,8 @@ import {
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
+import { startMobileConversation } from './mobile-conversation.ts';
+import { startConversationBadges } from './conversation-badges.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
@@ -56,7 +58,7 @@ import { SessionBoot } from './session-boot.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
-  if (!result) throw new Error('Interface incompleta.');
+  if (!result) throw new Error('Interface incomplete.');
   return result as T;
 }
 
@@ -85,10 +87,11 @@ let currentHash = '';
 let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
+  mobileConversation?.open();
   if (pageKey(appAddress()) !== 'conversas') {
     navigateApp('#chats');
-    route();
   }
+  route();
   element('app-shell').dataset['chatOpen'] = 'true';
   rightColumn?.showChat();
   element('workspace').scrollTop = 0;
@@ -121,12 +124,14 @@ const publicProfiles = startPublicProfile(
   externalMedia,
   (host, detail, signal) => communities.previewModeration(host, detail, signal),
 );
-const communities = startCommunities(
-  devices,
-  vault.sync,
-  externalMedia,
-  publicProfiles.follows,
-);
+const conversationBadgeHost = document.getElementById('app-shell');
+const conversationBadge = conversationBadgeHost
+  ? startConversationBadges(conversationBadgeHost)
+  : () => {};
+const communities = startCommunities(devices, vault.sync, externalMedia, {
+  profiles: publicProfiles.follows,
+  unreadChanged: (count) => conversationBadge('public', count),
+});
 // Ranking beside the feed and the Chat | Communities switch (16/10/2026).
 // The wallet approval document has no app shell and gets neither.
 const appShell = document.getElementById('app-shell');
@@ -188,17 +193,17 @@ const messages = startMessages(devices, vault.sync, {
   playback,
   openConversation,
   openContact: (contact: AddressBookEntry) => {
-    navigateApp('#contacts');
-    route();
-    contacts.showContact(contact);
+    contacts.showContact(contact, element('app-shell'));
   },
   directoryChanged: (available) => {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
   },
+  unreadChanged: (count) => conversationBadge('private', count),
   directorySettled: (session) => sessionBoot.settled(session),
   representatives,
   liveEvent: (event) => {
+    communities.dmEvent(event);
     calls.event(event);
     if (event === 'call') return;
     statuses.event(event);
@@ -304,8 +309,7 @@ const account = startAccount({
     calls.setSession(session);
     statuses.setSession(session);
     representatives.setSession(session);
-    publicProfiles.setSession(session);
-    communities.setSession(session);
+    setPublicSession(session);
     activity.setSession(session);
     callLog.reset();
     if (!session) sessionExtrasFor = '';
@@ -314,8 +318,8 @@ const account = startAccount({
     const label = document.getElementById('account-label');
     if (label)
       label.textContent = session
-        ? session.name || t('Conta conectada')
-        : t('Conta não conectada');
+        ? session.name || t('Account connected')
+        : t('No account connected');
     if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
       currentPage = '';
       route();
@@ -467,7 +471,7 @@ function showAboutLinks(): void {
 function renderPageHeader(key: PageKey): void {
   const dm =
     key === 'comunidades' && routeParams(appAddress()).get('view') === 'dms';
-  const title = dm ? t('Mensagens pelo @') : pages[key].title;
+  const title = dm ? t('Handle messages') : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
   const mobileTitle = document.querySelector('[data-mobile-title]');
@@ -475,12 +479,12 @@ function renderPageHeader(key: PageKey): void {
   element('breadcrumb').textContent =
     title.toLocaleUpperCase(currentLanguage());
   element('page-phase').textContent = dm
-    ? t('DMs individuais · E2EE')
+    ? t('Individual DMs · E2EE')
     : key === 'publico'
-      ? t('Perfil público · Leitura aberta')
+      ? t('Public profile · Open access')
       : key === 'comunidades'
-        ? t('Comunidades · Leitura aberta')
-        : t('Conta EVM / Solana · Mensagens privadas');
+        ? t('Communities · Open access')
+        : t('EVM / Solana account · Private messages');
   document.title = t('{0} · 0xDMme', [title]);
 }
 function mountProfileSettings(content: HTMLElement): void {
@@ -526,7 +530,7 @@ function mountProfileSettings(content: HTMLElement): void {
   );
   if (vaultSettings) mountVault(vaultSettings);
 }
-/** Same vault and backup cards as #vault, now also inside Perfil → Cofre e backup. */
+/** Same vault and backup cards as #vault, now also inside Profile → Vault and backup. */
 function mountVault(container: HTMLElement): void {
   vault.mount(container);
   const backupContainer = document.createElement('div');
@@ -621,12 +625,12 @@ function mountAccountPanels(key: PageKey): void {
 }
 
 function renderApprovalPage(): void {
-  element('page-title').textContent = t('Confirmar assinatura');
-  element('breadcrumb').textContent = t('CONTA');
+  element('page-title').textContent = t('Confirm signature');
+  element('breadcrumb').textContent = t('ACCOUNT');
   const container = document.createElement('div');
   element('page-content').replaceChildren(container);
   account.mount(container);
-  document.title = t('Confirmar assinatura · 0xDMme');
+  document.title = t('Confirm signature · 0xDMme');
 }
 
 function connection(): void {
@@ -655,10 +659,10 @@ function renderConnection(): void {
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()
-        ? t('Conta conectada')
-        : t('Sessão conectada · abertura da conta em Perfil → Aparelhos')
-      : t('Conexão disponível · nenhuma conta conectada')
-    : t('Sem conexão · histórico salvo disponível neste aparelho');
+        ? t('Account connected')
+        : t('Session connected · open account in Profile → Devices')
+      : t('Connection available · no account connected')
+    : t('Offline · saved history available on this device');
 }
 
 function loadSessionExtras(accountId: string): void {
@@ -668,7 +672,7 @@ function loadSessionExtras(accountId: string): void {
   refreshStatusAuthors(true);
 }
 let statusAuthorsAt = 0;
-/** Rings and the status row; at most once a minute when returning to Conversas. */
+/** Rings and the status row; at most once a minute when returning to Chats. */
 function refreshStatusAuthors(force = false): void {
   if (!connectedAccount || !devices.authorized()) return;
   if (!force && Date.now() - statusAuthorsAt < 60_000) return;
@@ -716,24 +720,44 @@ conversationContent.addEventListener('click', (event) => {
     event.target instanceof Element &&
     event.target.closest('[data-chat-back]')
   ) {
+    if (mobileConversation?.close()) return;
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
   }
 });
-document
-  .querySelector('[data-route=conversas]')
-  ?.addEventListener('click', () => {
+document.querySelectorAll('[data-route=conversas]').forEach((link) =>
+  link.addEventListener('click', () => {
+    if (mobileConversation?.close()) return;
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
-  });
+  }),
+);
 if (!account.approvalPage)
   startAppNavigation(() => {
     currentHash = appAddress();
     panels?.canonicalized(currentHash);
   });
-window.addEventListener('hashchange', route);
+const mobileConversation = account.approvalPage
+  ? null
+  : startMobileConversation({
+      shell: element('app-shell'),
+      scope: (scope) => panels?.setContactScope(scope),
+      changed: () => messages.viewChanged(),
+    });
+window.addEventListener('hashchange', () => {
+  contacts.closeContact();
+  route();
+  mobileConversation?.restore();
+});
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
+mobileConversation?.restore();
 connection();
+
+function setPublicSession(session: AccountSession | null): void {
+  publicProfiles.setSession(session);
+  communities.setSession(session);
+  rankingSide?.setSession(session);
+}

@@ -10,21 +10,23 @@ export class ImageQueue {
   }
   add(files: File[]): void {
     if (this.files.length + files.length > 256)
-      throw new Error('Escolha no máximo 256 imagens por rodada.');
+      throw new Error('Choose no more than 256 images per round.');
     for (const file of files) {
       if (
         file.size < 1 ||
         file.size > maxBytes ||
         !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
       )
-        throw new Error('Use PNG, JPEG ou WebP de até 8 MiB por imagem.');
+        throw new Error(
+          'Use PNG, JPEG or WebP images no larger than 8 MiB each.',
+        );
     }
     const bytes = [...this.files, ...files].reduce(
       (total, file) => total + file.size,
       0,
     );
     if (bytes > 512 * 1024 * 1024)
-      throw new Error('A fila deve ocupar até 512 MiB.');
+      throw new Error('The queue must stay within 512 MiB.');
     this.files.push(...files);
   }
   next(): void {

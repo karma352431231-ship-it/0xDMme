@@ -166,7 +166,7 @@ function browser(
   };
 }
 
-await test('registro resolvido não afirma offline antes de ativação e instalação perdida permite retry limitado', async () => {
+await test('resolved registration cannot claim offline before activation and lost installation allows bounded retry', async () => {
   const scope = browser();
   const pwa = scope.start();
   await new Promise<void>((resolve) => setImmediate(resolve));
@@ -184,7 +184,7 @@ await test('registro resolvido não afirma offline antes de ativação e instala
   assert.match(scope.status(), /Reopen/);
 });
 
-await test('entrada online volta ao endereço offline após ativação explícita, preservando a tela escolhida', async () => {
+await test('online entry returns to the offline address after explicit activation while preserving the chosen screen', async () => {
   const scope = browser({ search: '?atualizar=1', hash: '#contatos' });
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -198,7 +198,7 @@ await test('entrada online volta ao endereço offline após ativação explícit
   assert.equal(scope.reloads(), 0);
 });
 
-await test('registro pendente tem prazo visual sem acumular promessas e página encerrada ignora conclusão tardia', async () => {
+await test('pending registration has a visual deadline without accumulating promises; closed page ignores late completion', async () => {
   const scope = browser();
   let complete: ((value: Registration) => void) | undefined;
   scope.setResult(
@@ -220,7 +220,7 @@ await test('registro pendente tem prazo visual sem acumular promessas e página 
   assert.match(scope.status(), /Update in progress/);
 });
 
-await test('atualização exige escolha explícita, evita duplicação e recupera timeout de ativação', async () => {
+await test('update requires explicit choice, avoids duplication and recovers activation timeout', async () => {
   const scope = browser();
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -251,7 +251,7 @@ await test('atualização exige escolha explícita, evita duplicação e recuper
   assert.match(scope.status(), /installed version remains/);
 });
 
-await test('consulta de atualização pendente não inicia concorrentes depois do prazo', async () => {
+await test('pending update check starts no concurrent checks after the deadline', async () => {
   const scope = browser();
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -269,7 +269,7 @@ await test('consulta de atualização pendente não inicia concorrentes depois d
   assert.equal(scope.timers(), 0);
 });
 
-await test('instalação só publica sucesso após ativação e nova versão aguarda escolha', async () => {
+await test('installation publishes success only after activation and a new version waits for a choice', async () => {
   const scope = browser();
   const pwa = scope.start();
   await new Promise<void>((resolve) => setImmediate(resolve));
@@ -294,7 +294,7 @@ await test('instalação só publica sucesso após ativação e nova versão agu
   pwa.render();
 });
 
-await test('atualização espera operação de conta e alterações não salvas', async () => {
+await test('update waits for account operation and unsaved changes', async () => {
   const scope = browser();
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -320,7 +320,7 @@ await test('atualização espera operação de conta e alterações não salvas'
   scope.window.dispatchEvent(new Event('pagehide'));
 });
 
-await test('Atualizar agora aguarda uma sincronização transitória e revalida antes de ativar', async () => {
+await test('Update now waits for transient synchronization and revalidates before activation', async () => {
   const scope = browser();
   scope.registration.waiting = new Worker();
   let idle = false;
@@ -335,7 +335,7 @@ await test('Atualizar agora aguarda uma sincronização transitória e revalida 
   assert.equal(scope.timers(), 0);
 });
 
-await test('abrir push público muda só a rota da aba, sem recarga, e recusa destinos externos', () => {
+await test('opening public push changes only the tab route without reloading and rejects external destinations', () => {
   const scope = browser();
   scope.start();
   const id = crypto.randomUUID(),
@@ -359,7 +359,7 @@ const current = ['/app-1111111111111111.js', '/app-2222222222222222.css'];
 const older = ['/app-0000000000000000.js', '/app-2222222222222222.css'];
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
 
-await test('página já na versão publicada nunca mostra o aviso, mesmo com worker antigo esperando', async () => {
+await test('page already at the published version never shows the notice even with an old waiting worker', async () => {
   const scope = browser({}, current, current);
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -376,7 +376,7 @@ await test('página já na versão publicada nunca mostra o aviso, mesmo com wor
   scope.window.dispatchEvent(new Event('pagehide'));
 });
 
-await test('página atrás da versão publicada mostra o aviso e recarrega pela ativação do worker', async () => {
+await test('page behind the published version shows the notice and reloads through worker activation', async () => {
   const scope = browser({}, older, current);
   scope.registration.installing = null;
   scope.registration.active = new Worker();
@@ -396,7 +396,7 @@ await test('página atrás da versão publicada mostra o aviso e recarrega pela 
   scope.window.dispatchEvent(new Event('pagehide'));
 });
 
-await test('aba antiga percebe a troca feita por outra aba e só recarrega; sem rede o aviso não aparece do nada', async () => {
+await test("old tab detects another tab's switch and only reloads; offline state cannot invent a notice", async () => {
   const scope = browser({}, older, current);
   scope.registration.installing = null;
   scope.registration.active = new Worker();

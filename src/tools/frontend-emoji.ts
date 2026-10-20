@@ -13,7 +13,7 @@ export const emojiAsset = `emoji-${digest.slice(0, 16)}.json.gz`;
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new Error('Dados de emoji inválidos.');
+    throw new Error('Invalid emoji data.');
   return value as Record<string, unknown>;
 }
 function graphicsKey(
@@ -38,7 +38,7 @@ function catalog(
   },
 ): EmojiRow[] {
   if (typeof pack['emojiTest'] !== 'string')
-    throw new Error('Catálogo ausente.');
+    throw new Error('Catalog missing.');
   const svg = record(pack['svg']);
   const rows: EmojiRow[] = [];
   const groups = [
@@ -69,7 +69,7 @@ function catalog(
     rows.push([emoji, name, keywords, group, graphicsKey(emoji, svg)]);
   }
   if (rows.length !== 3963 || rows.filter((row) => !row[4]).length !== 19)
-    throw new Error('Repertório de emojis alterado sem revisão.');
+    throw new Error('Emoji repertoire changed without review.');
   return rows;
 }
 
@@ -80,17 +80,17 @@ export async function frontendEmoji(
   const path = resolve(root, 'vendor/emoji/assets.json.gz');
   const info = await lstat(path);
   if (!info.isFile() || info.isSymbolicLink() || info.size > 2 * 1024 * 1024)
-    throw new Error('Pacote de emojis inválido.');
+    throw new Error('Invalid emoji package.');
   const content = await readFile(path);
   if (createHash('sha256').update(content).digest('hex') !== digest)
-    throw new Error('Pacote de emojis alterado sem revisão.');
+    throw new Error('Emoji package changed without review.');
   const pack = record(
     JSON.parse(
       gunzipSync(content, { maxOutputLength: 12 * 1024 * 1024 }).toString(),
     ) as unknown,
   );
   if (pack['version'] !== 1 || Object.keys(record(pack['svg'])).length !== 4009)
-    throw new Error('Desenhos de emojis ausentes.');
+    throw new Error('Emoji artwork missing.');
   const annotations = await emojiAnnotations(root);
   return {
     content,

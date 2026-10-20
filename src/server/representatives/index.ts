@@ -66,7 +66,7 @@ export class RepresentativeService {
       },
     };
     const action = actions[operation];
-    if (!action) throw new AccountError(404, 'Operação indisponível.');
+    if (!action) throw new AccountError(404, 'Operation unavailable.');
     return action();
   }
   private async register(a: ContactAuthority, d: Record<string, unknown>) {
@@ -82,7 +82,7 @@ export class RepresentativeService {
           address: a.session.address,
         })
     )
-      throw new AccountError(403, 'Wallet emissora divergente.');
+      throw new AccountError(403, 'Issuing wallet does not match.');
     verifyWalletStatement(r.issuer, registrationStatement(body), signature);
     await this.store.register(a, r);
     return { status: 'saved' };
@@ -96,7 +96,7 @@ export class RepresentativeService {
       issuedAt > Date.now() + 60_000 ||
       expiresAt <= Date.now()
     )
-      throw new AccountError(400, 'Prazo da autorização inválido.');
+      throw new AccountError(400, 'Invalid authorization deadline.');
     await this.store.issue(a, {
       id: uuid(d['id']),
       organizationId: uuid(d['organizationId']),
@@ -120,7 +120,7 @@ export class RepresentativeService {
       { signature, ...body } = r;
     const registration = await this.store.registration(a, r.organizationId);
     if (r.origin !== this.origin)
-      throw new AccountError(403, 'Contexto inválido.');
+      throw new AccountError(403, 'Invalid context.');
     verifyWalletStatement(
       registration.issuer,
       revocationStatement(body),
@@ -152,7 +152,10 @@ export class RepresentativeService {
       claim.expiresAt <= Date.now() ||
       claim.expiresAt > Date.now() + domainWindow
     )
-      throw new AccountError(400, 'Desafio expirado ou de outro contexto.');
+      throw new AccountError(
+        400,
+        'Challenge expired or belongs to another context.',
+      );
     verifyWalletStatement(
       registration.issuer,
       domainStatement(body),
@@ -174,9 +177,9 @@ export class RepresentativeService {
   private async verifyDomain(a: ContactAuthority, d: Record<string, unknown>) {
     keys(d, ['organizationId']);
     const row = await this.store.domain(a, uuid(d['organizationId']));
-    if (!row) throw new AccountError(404, 'Desafio de domínio ausente.');
+    if (!row) throw new AccountError(404, 'Domain challenge missing.');
     if (row.verifiedAt === null && row.claim.expiresAt <= Date.now())
-      throw new AccountError(400, 'Desafio expirado. Gere outro código.');
+      throw new AccountError(400, 'Challenge expired. Generate another code.');
     let matches: boolean;
     try {
       matches = await this.resolver.matches(row.claim.domain, row.record);
@@ -185,7 +188,7 @@ export class RepresentativeService {
       throw error;
     }
     if (!(await this.store.checkedDomain(row, matches)))
-      throw new AccountError(409, 'Vínculo de domínio mudou.');
+      throw new AccountError(409, 'Domain binding changed.');
     return { verified: matches };
   }
   async maintain(): Promise<void> {

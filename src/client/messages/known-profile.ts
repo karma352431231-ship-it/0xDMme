@@ -21,7 +21,7 @@ export async function knownPeerProfile(
   }>(scope, `profile:${id}`);
   if (!row) return null;
   if (row.id !== id || row.peer !== peer || row.own)
-    throw new Error('Cartão de perfil local divergente.');
+    throw new Error('Local profile card does not match.');
   const removed = await localGet<number>(
     scope,
     `profile-tombstone:${peer}:false`,

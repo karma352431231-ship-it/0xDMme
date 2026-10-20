@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { WorkScheduler } from '../src/server/work-scheduler/index.ts';
 
-await test('evento durante trabalho não se perde e lotes continuam com fallback desativado', async () => {
+await test('event during work is preserved and batches continue with fallback disabled', async () => {
   let release: () => void = () => {},
     rounds = 0;
   const gate = new Promise<void>((resolve) => {
@@ -24,7 +24,7 @@ await test('evento durante trabalho não se perde e lotes continuam com fallback
   assert.equal(rounds, 3);
   await scheduler.close();
 });
-await test('vencimento acorda sem novo evento; encerramento cancela próximo prazo', async () => {
+await test('expiration wakes without a new event; shutdown cancels the next deadline', async () => {
   let rounds = 0,
     resolve: () => void = () => {};
   const done = new Promise<void>((accept) => {
@@ -49,7 +49,7 @@ await test('vencimento acorda sem novo evento; encerramento cancela próximo pra
   scheduler.wake();
   assert.equal(rounds, 2);
 });
-await test('falha é observável, não simula conclusão, e uma chamada nova recupera', async () => {
+await test('failure is observable, cannot simulate completion and a new call recovers', async () => {
   let failure = true;
   const scheduler = new WorkScheduler({
     fallbackMs: 0,

@@ -57,7 +57,7 @@ export async function sealBlock(
   const plaintext = encoder.encode(value);
   try {
     if (!plaintext.length || plaintext.length > blockLimit - 28)
-      throw new Error('Conteúdo deve ter até 3 MB.');
+      throw new Error('Content must be no larger than 3 MB.');
     return await encrypt(key, plaintext, vaultContext(identity, 'block'));
   } finally {
     plaintext.fill(0);
@@ -72,7 +72,7 @@ export async function openBlock(
     bytes.length !== commit.block.bytes ||
     (await bytesHash(bytes)) !== commit.block.hash
   )
-    throw new Error('Bloco incompleto ou corrompido.');
+    throw new Error('Block incomplete or corrupted.');
   const plaintext = await decrypt(key, bytes, vaultContext(commit, 'block'));
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(plaintext);

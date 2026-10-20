@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GroupRetry } from '../src/client/groups/retry.ts';
-await test('reconexões e avisos não criam repetição infinita de envios do grupo', () => {
+await test('reconnections and notifications cannot create endless repeated group sends', () => {
   const retry = new GroupRetry();
   assert.equal(retry.available('A', 0), true);
   assert.equal(retry.available('A', 0), true);

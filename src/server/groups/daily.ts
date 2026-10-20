@@ -16,10 +16,10 @@ export const groupDailyOperations = [
 ] as const;
 function ids(input: unknown): string[] {
   if (!Array.isArray(input) || input.length > 16)
-    throw new AccountError(400, 'Lote de mensagens inválido.');
+    throw new AccountError(400, 'Invalid message batch.');
   const result = input.map(uuid);
   if (new Set(result).size !== result.length)
-    throw new AccountError(400, 'Mensagens repetidas.');
+    throw new AccountError(400, 'Duplicate messages.');
   return result;
 }
 export function groupDailyActions(
@@ -29,8 +29,7 @@ export function groupDailyActions(
   (a: ContactAuthority, d: Record<string, unknown>) => Promise<unknown>
 > {
   function available(): GroupDailyStore {
-    if (!store)
-      throw new AccountError(503, 'Controles do grupo indisponíveis.');
+    if (!store) throw new AccountError(503, 'Group controls unavailable.');
     return store;
   }
   const scope = (d: Record<string, unknown>) => ({
@@ -41,7 +40,7 @@ export function groupDailyActions(
     'group-daily-states': (a, d) => {
       keys(d, ['groups']);
       if (!Array.isArray(d['groups']) || d['groups'].length > 16)
-        throw new AccountError(400, 'Lote de grupos inválido.');
+        throw new AccountError(400, 'Invalid group batch.');
       const values: unknown[] = d['groups'];
       return available().states(
         a,

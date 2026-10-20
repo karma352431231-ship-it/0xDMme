@@ -31,7 +31,7 @@ export class CommunityMediaFiles {
   async initialize(): Promise<void> {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     if ((await realpath(this.root)) !== this.root)
-      throw new Error('Diretório de mídia irregular.');
+      throw new Error('Invalid media directory.');
     if (this.sharedProcessing) await chmod(this.root, 0o770);
     await this.sync(resolve(this.root, '..'));
   }
@@ -46,7 +46,7 @@ export class CommunityMediaFiles {
     }
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de mídia irregular.');
+      throw new Error('Invalid media directory.');
     if (this.sharedProcessing) await chmod(path, 0o770);
     return path;
   }
@@ -58,7 +58,7 @@ export class CommunityMediaFiles {
       !bytes.length ||
       bytes.length > communityMediaPartBytes
     )
-      throw new Error('Parte irregular.');
+      throw new Error('Invalid part.');
     const path = resolve(await this.directory(id), `part-${index}`);
     const file = await open(
       path,
@@ -106,7 +106,7 @@ export class CommunityMediaFiles {
             source.bytes - index * communityMediaPartBytes,
           )
         )
-          throw new Error('Upload incompleto.');
+          throw new Error('Upload incomplete.');
         hash.update(bytes);
         await file.writeFile(bytes);
       }
@@ -116,11 +116,11 @@ export class CommunityMediaFiles {
       await file.close();
     }
     if (hash.digest('hex') !== source.hash)
-      throw new Error('Upload integral divergente.');
+      throw new Error('Complete upload mismatch.');
     return output;
   }
   async read(id: string, name: string, maximum: number): Promise<Uint8Array> {
-    if (!validName(name)) throw new Error('Objeto irregular.');
+    if (!validName(name)) throw new Error('Invalid object.');
     const file = await open(
       resolve(await this.existingDirectory(id), name),
       constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -128,14 +128,14 @@ export class CommunityMediaFiles {
     try {
       const stat = await file.stat();
       if (!stat.isFile() || !stat.size || stat.size > maximum)
-        throw new Error('Objeto irregular.');
+        throw new Error('Invalid object.');
       const bytes = Buffer.alloc(stat.size);
       const read = await file.read(bytes, 0, stat.size, 0);
       if (
         read.bytesRead !== stat.size ||
         (await file.stat()).size !== stat.size
       )
-        throw new Error('Objeto incompleto.');
+        throw new Error('Incomplete object.');
       return bytes;
     } finally {
       await file.close();
@@ -148,7 +148,7 @@ export class CommunityMediaFiles {
   ): Promise<number> {
     const stat = await lstat(resolve(await this.directory(id), name));
     if (!stat.isFile() || !stat.size || stat.size > maximum)
-      throw new Error('Mídia preparada excede o tamanho.');
+      throw new Error('Prepared media exceeds the size limit.');
     const file = await open(
       resolve(await this.directory(id), name),
       constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -172,7 +172,7 @@ export class CommunityMediaFiles {
       expectedBytes < 1 ||
       expectedBytes > communityMediaLimits.video.result
     )
-      throw new Error('Objeto de mídia irregular.');
+      throw new Error('Invalid media object.');
     const file = await open(
       resolve(await this.existingDirectory(id), name),
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
@@ -180,7 +180,7 @@ export class CommunityMediaFiles {
     try {
       const stat = await file.stat();
       if (!stat.isFile() || stat.size !== expectedBytes)
-        throw new Error('Objeto de mídia irregular.');
+        throw new Error('Invalid media object.');
       return file;
     } catch (error: unknown) {
       await file.close();
@@ -205,7 +205,7 @@ export class CommunityMediaFiles {
         expectedBytes < 1 ||
         expectedBytes > communityMediaLimits.video.result
       )
-        throw new Error('Objeto de mídia irregular.');
+        throw new Error('Invalid media object.');
       const buffer = Buffer.alloc(
           Math.min(expectedBytes, communityMediaPartBytes),
         ),
@@ -218,13 +218,13 @@ export class CommunityMediaFiles {
           Math.min(buffer.length, expectedBytes - offset),
           offset,
         );
-        if (!read.bytesRead) throw new Error('Objeto incompleto.');
+        if (!read.bytesRead) throw new Error('Incomplete object.');
         hash.update(buffer.subarray(0, read.bytesRead));
         offset += read.bytesRead;
       }
       const after = await file.stat();
       if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs)
-        throw new Error('Objeto alterado durante a leitura.');
+        throw new Error('Object changed while reading.');
       return hash.digest('hex');
     } finally {
       await file.close();
@@ -242,13 +242,13 @@ export class CommunityMediaFiles {
       const stat = await file.stat(),
         offset = input.index * communityMediaPartBytes;
       if (!stat.isFile() || stat.size !== input.bytes || offset >= stat.size)
-        throw new Error('Objeto de mídia irregular.');
+        throw new Error('Invalid media object.');
       const bytes = Buffer.alloc(
         Math.min(communityMediaPartBytes, stat.size - offset),
       );
       const read = await file.read(bytes, 0, bytes.length, offset);
       if (read.bytesRead !== bytes.length)
-        throw new Error('Objeto incompleto.');
+        throw new Error('Incomplete object.');
       return bytes;
     } finally {
       await file.close();
@@ -298,18 +298,18 @@ export class CommunityMediaFiles {
     const path = resolve(this.root, uuid(id)),
       stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
-      throw new Error('Diretório de mídia irregular.');
+      throw new Error('Invalid media directory.');
     return path;
   }
   private async names(path: string): Promise<string[]> {
     const names = await readdir(path);
-    if (names.length > 385) throw new Error('Objetos excedem orçamento.');
+    if (names.length > 385) throw new Error('Objects exceed the budget.');
     const present: string[] = [];
     for (const name of names) {
-      if (!validName(name)) throw new Error('Objeto irregular.');
+      if (!validName(name)) throw new Error('Invalid object.');
       try {
         if (!(await lstat(resolve(path, name))).isFile())
-          throw new Error('Objeto irregular.');
+          throw new Error('Invalid object.');
         present.push(name);
       } catch (error: unknown) {
         if (!isCode(error, 'ENOENT')) throw error;

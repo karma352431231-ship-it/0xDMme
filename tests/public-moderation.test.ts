@@ -29,7 +29,7 @@ const result: PublicModerationEvaluation = {
   frames: 1_800,
   expectedFrames: 1_800,
 };
-await test('análise exige os bytes/modelo exatos e cobertura temporal integral', () => {
+await test('analysis requires exact bytes and model and full temporal coverage', () => {
   validateModerationEvaluation(job, result);
   for (const changed of [
     { contentHash: 'c'.repeat(64) },
@@ -45,7 +45,7 @@ await test('análise exige os bytes/modelo exatos e cobertura temporal integral'
       AccountError,
     );
 });
-await test('aviso ao autor não admite identidades privadas, scores ou bytes de outro objeto', () => {
+await test("author notice rejects private identities, scores and another object's bytes", () => {
   const notice = {
     id: job.id,
     kind: job.kind,

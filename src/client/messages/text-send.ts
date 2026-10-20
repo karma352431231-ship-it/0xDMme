@@ -48,7 +48,7 @@ export class TextSendQueue {
   }
   enqueue(draft: TextDraft): void {
     if (this.full || new TextEncoder().encode(draft.text).length > 131072)
-      throw new Error('Aguarde a atualização das conversas e tente novamente.');
+      throw new Error('Wait for conversations to update, then try again.');
     const captured = { ...draft, createdAt: draft.createdAt ?? Date.now() };
     this.drafts.push(captured);
     this.options.draftChanged?.(captured, 'admitted');

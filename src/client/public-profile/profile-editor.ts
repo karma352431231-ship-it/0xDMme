@@ -161,7 +161,7 @@ export function startProfileEditor(
     if (!framed) return;
     const photo = await preparePhoto(framed);
     if (old !== generation)
-      throw new Error('Sessão ou página alterada durante a preparação.');
+      throw new Error('Session or page changed during preparation.');
     const image: Image = {
       type: photo.type === 'image/png' ? 'image/png' : 'image/jpeg',
       bytes: photo.bytes,

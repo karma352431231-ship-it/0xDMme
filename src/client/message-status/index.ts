@@ -7,18 +7,16 @@ export function messageChecks(input: {
 }): { text: string; label: string; color: 'gray' | 'green' } | null {
   if (!input.own || !input.delivery) return null;
   if (input.read)
-    return { text: '✓✓', label: t('Lida pelo destinatário'), color: 'green' };
+    return { text: '✓✓', label: t('Read by recipient'), color: 'green' };
   if (input.delivery === 'received')
     return {
       text: '✓✓',
-      label: t('Recebida por um aparelho do destinatário'),
+      label: t("Received by one of the recipient's devices"),
       color: 'gray',
     };
   return {
     text: '✓',
-    label: t(
-      'Aceita pelo servidor; recebimento do destinatário ainda não confirmado',
-    ),
+    label: t('Accepted by the server; recipient receipt is not yet confirmed'),
     color: 'gray',
   };
 }

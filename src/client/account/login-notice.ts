@@ -4,9 +4,9 @@ import { t } from '../../shared/i18n/index.ts';
 export function loginSignatureNotice(handoff: boolean): string {
   return handoff
     ? t(
-        'O documento de login na wallet está em inglês. Ele conecta ao 0xDMme o navegador que abriu este pedido. Recuse links de outras pessoas. Não movimenta fundos, não autoriza transações e não abre seu histórico cifrado. Confira o domínio e o endereço antes de assinar.',
+        'The wallet login document is in English. It connects the browser that opened this request to 0xDMme. Reject links from other people. It does not move funds, authorize transactions or open your encrypted history. Check the domain and address before signing.',
       )
     : t(
-        'O documento de login na wallet está em inglês. Ele apenas conecta sua conta ao 0xDMme. Não movimenta fundos, não autoriza transações e não abre seu histórico cifrado. Confira o domínio e o endereço antes de assinar.',
+        'The wallet login document is in English. It only connects your account to 0xDMme. It does not move funds, authorize transactions or open your encrypted history. Check the domain and address before signing.',
       );
 }

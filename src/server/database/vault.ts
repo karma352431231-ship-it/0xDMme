@@ -72,7 +72,7 @@ export class VaultStore {
     if (!authorized.rowCount)
       throw new AccountError(
         403,
-        'Sessão ou autorização de cofre alterada. Atualize aparelhos.',
+        'Session or vault authorization changed. Refresh devices.',
       );
   }
   private async operation(
@@ -99,7 +99,7 @@ export class VaultStore {
     if (commit.sequence !== head.sequence + 1 || commit.previous !== head.head)
       throw new AccountError(
         409,
-        'Cofre mudou em outro aparelho. Sincronize mantendo o rascunho.',
+        'Vault changed on another device. Sync while preserving the draft.',
       );
   }
   private async lockOperation(
@@ -131,7 +131,7 @@ export class VaultStore {
           if (existing.hash !== hash)
             throw new AccountError(
               409,
-              'Identificador já usado por outra operação.',
+              'Identifier already used by another operation.',
             );
           return { status: existing.state };
         }
@@ -167,13 +167,10 @@ export class VaultStore {
         commit.id,
       );
       if (!operation || operation.hash !== hash)
-        throw new AccountError(409, 'Reserve esta operação antes do upload.');
+        throw new AccountError(409, 'Reserve this operation before uploading.');
       if (operation.state === 'accepted') return null;
       if (operation.state !== 'reserved')
-        throw new AccountError(
-          409,
-          'Upload em andamento ou descarte pendente.',
-        );
+        throw new AccountError(409, 'Upload in progress or discard pending.');
       await this.assertHead(client, commit);
       const writer = crypto.randomUUID();
       await client.query(
@@ -204,7 +201,7 @@ export class VaultStore {
         operation.writer !== writer ||
         operation.hash !== hash
       )
-        throw new AccountError(409, 'Upload não confirmado.');
+        throw new AccountError(409, 'Upload not confirmed.');
       await this.allocations?.maintain(client, {
         accountId: session.accountId,
         id: commit.id,
@@ -216,8 +213,7 @@ export class VaultStore {
         "UPDATE hash_talk.vault_operations SET state='accepted',sequence=$4,writer=NULL WHERE account_id=$1 AND id=$2 AND state='writing' AND writer=$3 AND hash=$5 RETURNING id",
         [session.accountId, commit.id, writer, commit.sequence, hash],
       );
-      if (!saved.rowCount)
-        throw new AccountError(409, 'Upload não confirmado.');
+      if (!saved.rowCount) throw new AccountError(409, 'Upload not confirmed.');
       await client.query(
         'INSERT INTO hash_talk.vault_heads(account_id,sequence,head) VALUES($1,$2,$3) ON CONFLICT(account_id) DO UPDATE SET sequence=excluded.sequence,head=excluded.head',
         [session.accountId, commit.sequence, hash],
@@ -246,7 +242,10 @@ export class VaultStore {
   async preflight(accountId: string, id: string): Promise<void> {
     const operation = await this.operation(this.pool, accountId, id);
     if (!operation || !['reserved', 'accepted'].includes(operation.state))
-      throw new AccountError(409, 'Upload exige reserva desta conta.');
+      throw new AccountError(
+        409,
+        'Upload requires a reservation from this account.',
+      );
   }
   async expiredReservations(): Promise<{ account_id: string; id: string }[]> {
     return (
@@ -291,7 +290,7 @@ export class VaultStore {
       if (after > head.sequence)
         throw new AccountError(
           409,
-          'Cofre remoto anterior ao checkpoint local.',
+          'Remote vault predates the local checkpoint.',
         );
       const pending = await pendingVaultCommits(client, {
         accountId: session.accountId,
@@ -317,10 +316,10 @@ export class VaultStore {
         [session.accountId, id],
       );
       if (removed.rowCount)
-        throw new AccountError(410, 'Versão removida do cofre pessoal.');
+        throw new AccountError(410, 'Version removed from the personal vault.');
       const operation = await this.operation(client, session.accountId, id);
       if (operation?.state !== 'accepted')
-        throw new AccountError(404, 'Bloco não confirmado nesta conta.');
+        throw new AccountError(404, 'Block not confirmed in this account.');
       return operation.commit as VaultCommit;
     });
   }
@@ -335,7 +334,7 @@ export class VaultStore {
       if (!operation || operation.state !== 'reserved')
         throw new AccountError(
           409,
-          'Versão confirmada ou upload em andamento não pode ser descartado.',
+          'Confirmed versions or ongoing uploads cannot be discarded.',
         );
       const writer = crypto.randomUUID();
       await client.query(

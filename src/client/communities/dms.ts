@@ -1,7 +1,8 @@
 import { EmojiPicker } from '../emoji/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
-import { clearDmChecks, refreshDmChecks } from './dm-checks.ts';
+import { clearDmChecks } from './dm-checks.ts';
+import { readVisibleDm } from './dm-read.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -38,6 +39,8 @@ import {
   paintDmDirectoryPreviews,
 } from './dm-directory.ts';
 import { LiveUpdates } from '../message-live/index.ts';
+import { DmUnreadUpdates } from './dm-unread-updates.ts';
+import type { LiveEvent } from '../message-live/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
 
@@ -48,8 +51,17 @@ export function startSocialDmUi(
   access: VaultAccess,
   sync: VaultSync,
   privacy: ExternalMediaConsent,
+  unreadChanged: (count: number) => void = () => {},
 ) {
   const controller = new SocialDms(access, sync);
+  const unread = new DmUnreadUpdates({
+    page: async (after) => {
+      const page = await controller.list(after);
+      return { peers: page.items.map((row) => row.peer.id), next: page.next };
+    },
+    count: (peers) => controller.unread(peers),
+    changed: unreadChanged,
+  });
   const publicDirectory = new DmDirectory({
     list: () => controller.list(null),
     previews: (peers) => controller.directoryPreviews(peers),
@@ -218,7 +230,7 @@ export function startSocialDmUi(
           status(
             error instanceof Error
               ? translatedError(error.message)
-              : t('DM indisponível.'),
+              : t('DM unavailable.'),
           );
         }
       } finally {
@@ -251,6 +263,7 @@ export function startSocialDmUi(
     return old === generation && expected === verification;
   }
   async function reload(): Promise<void> {
+    unread.request();
     if (!container) {
       await publicDirectory.refresh();
       return;
@@ -287,7 +300,7 @@ export function startSocialDmUi(
     if (!currentVerification(old, expected)) return;
     await copiesList(host);
     cursor = page ? page.next : null;
-    if (cursor) moreButton(host, t('Mais conversas'), list);
+    if (cursor) moreButton(host, t('More conversations'), list);
   }
   function listRows(
     host: HTMLElement,
@@ -299,7 +312,7 @@ export function startSocialDmUi(
         communityElement(
           'p',
           t(
-            'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+            'No handle conversations yet. Open a public profile to send a message.',
           ),
           'chat-gate',
         ),
@@ -333,16 +346,16 @@ export function startSocialDmUi(
       page = await controller.copies(after);
     if (!currentVerification(old, expected)) return;
     if (page.items.length && !after)
-      host.append(communityElement('h4', t('Neste aparelho'), 'dm-list-title'));
+      host.append(communityElement('h4', t('On this device'), 'dm-list-title'));
     for (const row of page.items)
       host.append(
         directoryRow(
-          { peer: row.peer, label: t('Cópia local') },
+          { peer: row.peer, label: t('Local copy') },
           `&history=local`,
         ),
       );
     if (page.next)
-      moreButton(host, t('Mais cópias locais'), () =>
+      moreButton(host, t('More local copies'), () =>
         copiesList(host, page.next),
       );
   }
@@ -375,7 +388,7 @@ export function startSocialDmUi(
   function frame(selected: string): DmView {
     const key = `${selected}:${localOnly}`;
     if (view && viewKey === key && container?.contains(view.panel)) return view;
-    if (!container) throw new Error('DM encerrada.');
+    if (!container) throw new Error('DM ended.');
     composer.leave();
     clearRows();
     view = dmConversationView(container);
@@ -444,7 +457,7 @@ export function startSocialDmUi(
     data: Awaited<ReturnType<typeof loadConversation>>,
   ): void {
     if (!data.profile) {
-      current.title.textContent = t('Histórico de DM no aparelho');
+      current.title.textContent = t('DM history on this device');
       return;
     }
     paintDmPeer(current, {
@@ -479,16 +492,22 @@ export function startSocialDmUi(
     renderHistory(current, page, { selected, localMedia: !writable });
     current.history.hidden = false;
     composer.update(composerState());
+    const usable = () =>
+      old === generation &&
+      expected === verification &&
+      writable &&
+      document.visibilityState === 'visible' &&
+      current.history.isConnected &&
+      current.history.getClientRects().length > 0;
     if (writable)
-      await refreshDmChecks({
+      await readVisibleDm({
         history: current.history,
         controller,
         peer: selected,
-        items: page.items,
-        reactionReads: page.reactionReads,
+        page,
         work: input.work,
-        usable: () =>
-          old === generation && writable && current.history.isConnected,
+        usable,
+        changed: () => unread.request(),
       });
   }
   function options(
@@ -499,7 +518,7 @@ export function startSocialDmUi(
   ): void {
     current.options.replaceChildren();
     if (profile) {
-      const link = communityElement('a', t('Ver perfil público'));
+      const link = communityElement('a', t('View public profile'));
       link.href = `#users?handle=${encodeURIComponent(profile.handle)}`;
       current.options.append(withMenuIcon(link, 'profile'));
     }
@@ -508,7 +527,7 @@ export function startSocialDmUi(
     optionButton(
       current,
       {
-        label: blocked ? t('Desbloquear') : t('Bloquear'),
+        label: blocked ? t('Unblock') : t('Block'),
         icon: blocked ? 'unblock' : 'block',
       },
       async () => {
@@ -523,7 +542,7 @@ export function startSocialDmUi(
     );
     optionButton(
       current,
-      { label: t('Recarregar conversa'), icon: 'refresh' },
+      { label: t('Reload conversation'), icon: 'refresh' },
       async () => {
         before = null;
         await conversation();
@@ -572,8 +591,7 @@ export function startSocialDmUi(
       if (row === cursorNode) cursorNode = row.nextSibling;
       else current.history.insertBefore(row, cursorNode);
     }
-    if (!page.items.length)
-      current.gate.textContent = t('Nenhuma mensagem ainda.');
+    if (!page.items.length) current.gate.textContent = t('No messages yet.');
     current.older.hidden = page.next === null;
     nextBefore = page.next;
     restore();
@@ -612,7 +630,7 @@ export function startSocialDmUi(
         article: bubble.row,
         view: { ...item, peer: input.selected, archived: input.localMedia },
         saveNotice: t(
-          'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
+          'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
         ),
         content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
         load: (_view, thumbnail) =>
@@ -689,6 +707,13 @@ export function startSocialDmUi(
     messageId = crypto.randomUUID();
   }
   return {
+    ready: () => unread.start(),
+    event(event: LiveEvent): void {
+      if (event === 'call') return;
+      if (['authorization', 'revoked', 'ended', 'invalidated'].includes(event))
+        unread.invalidate();
+      unread.request();
+    },
     mount(node: HTMLElement, id: string | null, local = false): void {
       leave();
       container = node;
@@ -702,13 +727,13 @@ export function startSocialDmUi(
         node.replaceChildren(
           communityElement(
             'p',
-            t('Entre pelo Perfil para abrir suas mensagens pelo @.'),
+            t('Sign in through Profile to open your handle messages.'),
             'chat-gate',
           ),
         );
         return;
       }
-      status(id ? t('Abrindo conversa…') : t('Carregando mensagens pelo @…'));
+      status(id ? t('Opening conversation…') : t('Loading handle messages…'));
       const old = generation;
       void run(async () => {
         const profile =
@@ -732,6 +757,7 @@ export function startSocialDmUi(
       session = value;
       ownProfile = null;
       controller.setSession(value);
+      unread.reset(value !== null);
       node?.replaceChildren();
     },
     canActivate: () => !busy && !composer.active,
@@ -741,7 +767,7 @@ export function startSocialDmUi(
         node.replaceChildren(
           communityElement(
             'p',
-            t('Entre pela wallet para ver suas mensagens @.'),
+            t('Sign in with your wallet to view your handle messages.'),
           ),
         );
         return;

@@ -35,7 +35,7 @@ function fixture() {
   return { authority, vault, session };
 }
 
-await test('invalidar a vista oculta uma leitura antiga sem rejeitar a confirmação da própria criação/entrada', async () => {
+await test('view invalidation hides an old read without rejecting confirmation of its own creation or entry', async () => {
   const { authority } = fixture();
   let viewRevision = 0;
   const expected = viewRevision;
@@ -58,14 +58,14 @@ await test('invalidar a vista oculta uma leitura antiga sem rejeitar a confirma�
   );
 });
 
-await test('troca de sessão ou revogação ainda cancela uma mutação, inclusive durante sua resposta HTTP', async (t) => {
+await test('session change or revocation still cancels a mutation, including during its HTTP response', async (t) => {
   const { authority } = fixture();
   await assert.rejects(
     authority.mutate(() => {
       authority.invalidate();
       return Promise.resolve('saved');
     }),
-    /Autorização da conta alterada/u,
+    /Account authorization changed/u,
   );
   t.mock.method(globalThis, 'fetch', () => {
     authority.invalidate();
@@ -73,17 +73,17 @@ await test('troca de sessão ou revogação ainda cancela uma mutação, inclusi
   });
   await assert.rejects(
     authority.mutate((context) => context.api('group-link-revoke', {})),
-    /Autorização da conta alterada/u,
+    /Account authorization changed/u,
   );
 });
 
-await test('autoridade do cofre precisa coincidir com conta, aparelho e sessão atuais', async () => {
+await test('vault authority must match the current account, device and session', async () => {
   for (const field of ['accountId', 'deviceId', 'csrf'] as const) {
     const { authority, vault, session } = fixture();
     vault.session = { ...session, [field]: crypto.randomUUID() };
     await assert.rejects(
       authority.mutate(() => Promise.resolve('saved')),
-      /Conta alterada/u,
+      /Account changed/u,
     );
   }
 });

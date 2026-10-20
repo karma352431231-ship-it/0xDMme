@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AccountRateLimit } from '../src/server/account/rate-limit.ts';
-await test('orçamentos explícitos de leitura não gastam os seis desafios nem ampliam as escritas limitadas', () => {
+await test('explicit read budgets neither consume the six challenges nor expand limited writes', () => {
   const limit = new AccountRateLimit({ reads: 240 });
   try {
     for (let i = 0; i < 240; i++) limit.admit('synthetic', false, true);
@@ -19,7 +19,7 @@ await test('orçamentos explícitos de leitura não gastam os seis desafios nem 
   }
 });
 
-await test('leituras e escritas normais não têm teto por minuto nem esgotam desafios ou entradas de outros usuários', () => {
+await test("normal reads and writes have no per-minute limit and cannot exhaust other users' challenges or entries", () => {
   const limit = new AccountRateLimit({ requests: null });
   try {
     for (let i = 0; i < 1000; i++) {

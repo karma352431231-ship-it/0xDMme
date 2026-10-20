@@ -19,7 +19,7 @@ function blobEnvelope(
 ): { type: string; size: number } {
   const type = response.headers.get('content-type');
   if (!type || !acceptedTypes.includes(type)) {
-    throw new Error('Formato da mídia pública inválido.');
+    throw new Error('Invalid public media format.');
   }
   const size = Number(response.headers.get('content-length'));
   if (
@@ -28,7 +28,7 @@ function blobEnvelope(
     size > maximum ||
     !response.body
   ) {
-    throw new Error('Tamanho da mídia pública inválido.');
+    throw new Error('Invalid public media size.');
   }
   return { type, size };
 }
@@ -53,10 +53,10 @@ async function boundedBlob(
       const next = await reader.read();
       if (next.done) break;
       received += next.value.length;
-      if (received > size) throw new Error('Mídia pública excedida.');
+      if (received > size) throw new Error('Public media exceeds the limit.');
       chunks.push(Uint8Array.from(next.value));
     }
-    if (received !== size) throw new Error('Mídia pública incompleta.');
+    if (received !== size) throw new Error('Public media incomplete.');
     return new Blob(chunks, { type });
   } catch (error: unknown) {
     await reader.cancel().catch(() => undefined);
@@ -80,7 +80,7 @@ export async function publicPostMediaBlob(
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error('Mídia pública indisponível.');
+      throw new Error('Public media unavailable.');
     }
     return boundedBlob(
       response,
@@ -140,7 +140,7 @@ export async function publicAvatarBlob(input: {
   signal: AbortSignal;
 }): Promise<Blob> {
   const reference = publicAvatar(input.reference, input.kind, input.target);
-  if (!reference) throw new Error('Foto pública indisponível.');
+  if (!reference) throw new Error('Public photo unavailable.');
   return withPublicRead(input.signal, async () => {
     const response = await fetch(reference, {
       credentials: 'omit',
@@ -150,7 +150,7 @@ export async function publicAvatarBlob(input: {
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error('Foto pública indisponível.');
+      throw new Error('Public photo unavailable.');
     }
     return boundedBlob(response, publicAvatarLimit);
   });
@@ -170,7 +170,7 @@ export function showPublicAvatar(
   const image = document.createElement('img'),
     status = document.createElement('span');
   image.className = 'public-avatar-preview';
-  image.alt = t('Foto pública aprovada');
+  image.alt = t('Approved public photo');
   image.hidden = true;
   status.setAttribute('role', 'status');
   container.append(image, status);
@@ -198,7 +198,7 @@ export function showPublicAvatar(
     })
     .catch(() => {
       if (!stopped && !input.signal.aborted)
-        status.textContent = t('Foto indisponível.');
+        status.textContent = t('Photo unavailable.');
     });
   return stop;
 }

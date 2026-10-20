@@ -11,7 +11,7 @@ export function groupPhoto(input: unknown): GroupPhoto | null {
   if (input === null) return null;
   const data = object(input);
   keys(data, ['type', 'base64']);
-  if (data['type'] !== 'image/jpeg') throw new Error('Foto do grupo inválida.');
+  if (data['type'] !== 'image/jpeg') throw new Error('Invalid group photo.');
   const bytes = Uint8Array.from(base64(data['base64'], groupPhotoLimit));
   try {
     const shape = imageShape(bytes, groupPhotoEdge * groupPhotoEdge);
@@ -20,7 +20,7 @@ export function groupPhoto(input: unknown): GroupPhoto | null {
       Math.max(shape.width, shape.height) > groupPhotoEdge ||
       !metadataFree(bytes, shape.type)
     )
-      throw new Error('Foto do grupo deve ser reduzida e sem metadados.');
+      throw new Error('Group photo must be resized and have no metadata.');
     return { type: 'image/jpeg', base64: data['base64'] as string };
   } finally {
     bytes.fill(0);

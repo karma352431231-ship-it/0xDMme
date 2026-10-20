@@ -65,7 +65,7 @@ function checkpointDatabase(records: Map<string, unknown>): IDBFactory {
   } as unknown as IDBFactory;
 }
 
-await test('perfil em edição não pode ser salvo com chave anterior depois de revogação observada', async (t) => {
+await test('profile being edited cannot be saved with an old key after observed revocation', async (t) => {
   const accountId = crypto.randomUUID();
   const owner = await createIdentity(crypto.randomUUID(), 'Mac');
   const revoked = await createIdentity(crypto.randomUUID(), 'Revogado');
@@ -171,7 +171,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
   });
   await assert.rejects(
     controller.saveProfile(session, oldProfile, oldRing.epoch),
-    /Dispositivos alterados/,
+    /Devices changed/,
   );
   assert.deepEqual(requests, ['/api/account/devices/read']);
   const profile = await sealProfile({
@@ -188,11 +188,11 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
       profile,
       ring.epoch,
     ),
-    /Sessão alterada/,
+    /Session changed/,
   );
   assert.equal(requests.length, 3);
   await t.test(
-    'recuperação com lista desatualizada exige nova conferência antes de alterar chaves',
+    'recovery with a stale list requires rechecking before changing keys',
     async () => {
       const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
       Object.defineProperty(globalThis, 'navigator', {
@@ -218,7 +218,7 @@ await test('perfil em edição não pode ser salvo com chave anterior depois de 
             revoked: [owner.public.id],
             revision: initial.revision,
           }),
-          /lista de aparelhos mudou/,
+          /device list changed/,
         );
         assert.deepEqual(requests.slice(before), ['/api/account/devices/read']);
         assert.equal(recovering.current?.revision, current.revision);

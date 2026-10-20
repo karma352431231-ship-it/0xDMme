@@ -89,21 +89,21 @@ export function startRepresentatives(
         title = document.createElement('summary');
       title.textContent = org.organization.name;
       detail.append(
-        button(t('Concluir registro da organização'), async () => {
+        button(t('Complete organization registration'), async () => {
           await controller.registerOwned(org);
-          notice(t('Organização registrada.'));
+          notice(t('Organization registered.'));
         }),
         title,
         paragraph(
-          t('Emissor: {0} · {1}', [
+          t('Issuer: {0} · {1}', [
             org.organization.issuer.ecosystem,
             org.organization.issuer.address,
           ]),
         ),
       );
       detail.append(
-        button(t('Emitir autorização'), () => issuance(org)),
-        button(t('Vincular/verificar domínio (opcional)'), () =>
+        button(t('Issue authorization'), () => issuance(org)),
+        button(t('Link/verify domain (optional)'), () =>
           domainPanel(org, detail),
         ),
       );
@@ -120,7 +120,7 @@ export function startRepresentatives(
           ]),
         ),
         paragraph(
-          t('Até {0}', [
+          t('Until {0}', [
             new Date(card.credential.expiresAt).toLocaleString(
               currentLanguage(),
             ),
@@ -128,14 +128,14 @@ export function startRepresentatives(
         ),
       );
       row.append(
-        button(t('Conferir estado'), async () => {
+        button(t('Check state'), async () => {
           const checked = await controller.check(card);
           notice(checked.status);
         }),
       );
       if (card.credential.organization.issuer.accountId === session?.accountId)
         row.append(
-          button(t('Concluir emissão'), async () => {
+          button(t('Complete issuance'), async () => {
             await controller.registerOwned({
               organization: card.credential.organization,
               registration: card.credential.registration,
@@ -143,28 +143,26 @@ export function startRepresentatives(
             await controller.registerCredential(card);
             notice(
               t(
-                'Emissão registrada. Envie o cartão na conversa do representante.',
+                "Issuance recorded. Send the card in the representative's conversation.",
               ),
             );
           }),
-          button(t('Revogar autorização'), async () => {
+          button(t('Revoke authorization'), async () => {
             if (
               !window.confirm(
-                t(
-                  'Revogar esta autorização? Ela não poderá voltar a ser vigente.',
-                ),
+                t('Revoke this authorization? It cannot become valid again.'),
               )
             )
               return;
             await controller.revoke(card);
-            notice(t('Autorização revogada.'));
+            notice(t('Authorization revoked.'));
           }),
         );
       list.append(row);
     }
     if (controller.hasMore)
       list.append(
-        button(t('Mais organizações e autorizações'), async () => {
+        button(t('More organizations and authorizations'), async () => {
           await controller.load(true);
           renderOwned();
         }),
@@ -181,7 +179,7 @@ export function startRepresentatives(
     form.append(
       paragraph(
         t(
-          'Autorizar representante de {0}. A assinatura não concede cargos de grupo nem movimenta fundos.',
+          'Authorize a representative for {0}. The signature does not grant group roles or move funds.',
           [org.organization.name],
         ),
       ),
@@ -190,7 +188,7 @@ export function startRepresentatives(
       scope = document.createElement('input'),
       expiry = document.createElement('input');
     scope.maxLength = 240;
-    scope.placeholder = t('Escopo: por exemplo, suporte ao cliente');
+    scope.placeholder = t('Scope: for example, customer support');
     expiry.type = 'date';
     expiry.value = new Date(Date.now() + 90 * 86_400_000)
       .toISOString()
@@ -208,7 +206,7 @@ export function startRepresentatives(
     }
     appendPeers(peers);
     let after = raw.next;
-    const more = button(t('Mais contatos'), async () => {
+    const more = button(t('More contacts'), async () => {
       if (!after) return;
       const next = await contacts.list('approved', true);
       appendPeers(next.items);
@@ -217,22 +215,22 @@ export function startRepresentatives(
     });
     more.hidden = after === null;
     const scopeLabel = document.createElement('label');
-    scopeLabel.textContent = t('Função e escopo');
+    scopeLabel.textContent = t('Role and scope');
     scopeLabel.append(scope);
     const expiryLabel = document.createElement('label');
-    expiryLabel.textContent = t('Válida até');
+    expiryLabel.textContent = t('Valid until');
     expiryLabel.append(expiry);
     const subjectLabel = document.createElement('label');
-    subjectLabel.textContent = t('Contato representante');
+    subjectLabel.textContent = t('Representative contact');
     subjectLabel.append(select);
     form.append(
       subjectLabel,
       more,
       scopeLabel,
       expiryLabel,
-      button(t('Assinar autorização'), async () => {
+      button(t('Sign authorization'), async () => {
         const subject = available.find((p) => p.accountId === select.value);
-        if (!subject) throw new Error('Escolha um contato aprovado.');
+        if (!subject) throw new Error('Choose an approved contact.');
         await controller.issue(
           org,
           subject,
@@ -243,11 +241,11 @@ export function startRepresentatives(
         renderOwned();
         notice(
           t(
-            'Autorização criada. Abra a conversa do representante para enviá-la.',
+            "Authorization created. Open the representative's conversation to send it.",
           ),
         );
       }),
-      button(t('Cancelar'), () => {
+      button(t('Cancel'), () => {
         form.remove();
         return Promise.resolve();
       }),
@@ -263,12 +261,12 @@ export function startRepresentatives(
     const section = document.createElement('section');
     section.dataset['domainPanel'] = '';
     const input = document.createElement('input');
-    input.placeholder = t('Seu domínio, por exemplo carros.com');
+    input.placeholder = t('Your domain, for example cars.com');
     input.maxLength = 253;
     const output = document.createElement('p');
     output.className = 'detail representative-dns-code';
     const domainLabel = document.createElement('label');
-    domainLabel.textContent = t('Domínio (opcional)');
+    domainLabel.textContent = t('Domain (optional)');
     domainLabel.append(input);
     const state = await controller.domainState(org.organization.id);
     if (current !== generation) return;
@@ -276,7 +274,7 @@ export function startRepresentatives(
       const row = object(state),
         claim = object(row['claim']);
       input.value = String(claim['domain']);
-      output.textContent = t('TXT: _0xdmme.{0}\nValor: {1}', [
+      output.textContent = t('TXT: _0xdmme.{0}\nValue: {1}', [
         input.value,
         String(row['record']),
       ]);
@@ -284,16 +282,16 @@ export function startRepresentatives(
     section.append(
       paragraph(
         t(
-          'Opcional. Publique o TXT no painel DNS do domínio. O vínculo poderá ser compartilhado; não comprova titularidade legal ou reputação.',
+          "Optional. Publish the TXT record in the domain's DNS panel. The link may be shared; it does not prove legal ownership or reputation.",
         ),
       ),
       domainLabel,
-      button(t('Gerar e assinar código'), async () => {
+      button(t('Generate and sign code'), async () => {
         const raw = object(
           await controller.domainChallenge(org.organization.id, input.value),
         );
         output.textContent = t(
-          'Tipo: TXT\nNome: {0}\nValor: {1}\nPublique e verifique antes de {2}.',
+          'Type: TXT\nName: {0}\nValue: {1}\nPublish and verify before {2}.',
           [
             String(raw['name']),
             String(raw['value']),
@@ -304,22 +302,22 @@ export function startRepresentatives(
         );
       }),
       output,
-      button(t('Verificar DNS'), async () => {
+      button(t('Verify DNS'), async () => {
         const checked = object(
           await controller.verifyDomain(org.organization.id),
         );
         notice(
           checked['verified'] === true
-            ? t('Controle do domínio verificado.')
+            ? t('Domain control verified.')
             : t(
-                'Código não encontrado. Confira o registro e aguarde a propagação do DNS.',
+                'Code not found. Check the record and wait for DNS propagation.',
               ),
         );
       }),
-      button(t('Desvincular domínio'), async () => {
+      button(t('Unlink domain'), async () => {
         await controller.unlinkDomain(org.organization.id);
         section.remove();
-        notice(t('Domínio desvinculado.'));
+        notice(t('Domain unlinked.'));
       }),
     );
     parent.append(section);
@@ -328,7 +326,7 @@ export function startRepresentatives(
     host = container;
     container.innerHTML = t('html.3dee5155ad6c');
     const card = container.querySelector<HTMLElement>('.card');
-    if (!card) throw new Error('Painel de representantes indisponível.');
+    if (!card) throw new Error('Representative panel unavailable.');
     container
       .querySelector('[data-representative-load]')
       ?.addEventListener('click', () => {
@@ -341,14 +339,14 @@ export function startRepresentatives(
     summary.textContent = t('representatives.new-organization');
     create.append(summary);
     card.append(create);
-    const name = field(create, t('Nome da organização'));
+    const name = field(create, t('Organization name'));
     name.maxLength = 80;
     create.append(
-      button(t('Criar e assinar organização'), async () => {
+      button(t('Create and sign organization'), async () => {
         await controller.create(name.value);
         name.value = '';
         renderOwned();
-        notice(t('Organização registrada.'));
+        notice(t('Organization registered.'));
       }),
     );
   }
@@ -361,13 +359,13 @@ export function startRepresentatives(
     container.replaceChildren();
     const noticeNode = paragraph(
       t(
-        'Apresente uma autorização aceita ou envie um convite de representação.',
+        'Present an accepted authorization or send a representation invitation.',
       ),
     );
     noticeNode.dataset['representativeNotice'] = '';
     container.append(noticeNode);
     container.append(
-      button(t('Minhas autorizações'), async () => {
+      button(t('My authorizations'), async () => {
         await controller.load();
         renderShareList(container, peer, send);
       }),
@@ -386,13 +384,13 @@ export function startRepresentatives(
       list.append(
         paragraph(
           t(
-            'Nenhuma autorização disponível nesta página. Crie e emita em Perfil → Organizações e representantes.',
+            'No authorizations available on this page. Create and issue them in Profile → Organizations and representatives.',
           ),
         ),
       );
     if (controller.hasMore)
       list.append(
-        button(t('Mais autorizações'), async () => {
+        button(t('More authorizations'), async () => {
           await controller.load(true);
           renderShareList(container, peer, send);
         }),
@@ -416,8 +414,8 @@ export function startRepresentatives(
       button(
         t('{0}: {1} — {2}', [
           offer
-            ? t('Enviar autorização para aceite')
-            : t('Apresentar autorização'),
+            ? t('Send authorization for acceptance')
+            : t('Present authorization'),
           c.organization.name,
           c.scope,
         ]),
@@ -430,10 +428,10 @@ export function startRepresentatives(
             await controller.registerCredential(card);
           }
           const state = await controller.check(card);
-          if ([t('Revogada'), t('Expirada')].includes(state.status))
+          if ([t('Revoked'), t('Expired')].includes(state.status))
             throw new Error(state.status);
           await send(encodeRepresentativeCard(card));
-          notice(t('Cartão enviado pelo chat criptografado.'));
+          notice(t('Card sent through encrypted chat.'));
         },
       ),
     );
@@ -447,30 +445,35 @@ export function startRepresentatives(
     try {
       card = decodeRepresentativeCard(text);
     } catch {
-      parent.append(paragraph(t('Cartão de autorização inválido.')));
+      parent.append(paragraph(t('Invalid authorization card.')));
       return true;
     }
     if (!card) return false;
     const c = card.credential,
       article = document.createElement('article');
     article.className = 'card';
-    const state = paragraph(t('Ainda não verificada.'));
+    const state = paragraph(t('Not verified yet.'));
     state.setAttribute('role', 'status');
     article.append(
       paragraph(t('{0} — {1}', [c.organization.name, c.scope])),
       paragraph(
-        t('Emissor: {0} · {1}', [
+        t('Issuer: {0} · {1}', [
           c.organization.issuer.ecosystem,
           c.organization.issuer.address,
         ]),
       ),
       paragraph(
-        t('Representante: {0} · {1}', [c.subject.ecosystem, c.subject.address]),
+        t('Representative: {0} · {1}', [
+          c.subject.ecosystem,
+          c.subject.address,
+        ]),
       ),
       paragraph(
-        t('Até {0}', [new Date(c.expiresAt).toLocaleString(currentLanguage())]),
+        t('Until {0}', [
+          new Date(c.expiresAt).toLocaleString(currentLanguage()),
+        ]),
       ),
-      paragraph(t('Verifique novamente antes de usar esta autorização.')),
+      paragraph(t('Verify again before using this authorization.')),
       state,
     );
     if (
@@ -482,16 +485,16 @@ export function startRepresentatives(
       article.append(
         paragraph(
           t(
-            'Este cartão foi encaminhado. Ele não comprova que o remetente é o representante.',
+            'This card was forwarded. It does not prove that the sender is the representative.',
           ),
         ),
       );
     article.append(
-      button(t('Verificar autorização'), async () => {
+      button(t('Verify authorization'), async () => {
         try {
           const checked = await controller.check(card);
           state.textContent =
-            t('Consulta em {0}: {1}', [
+            t('Lookup at {0}: {1}', [
               new Date().toLocaleString(currentLanguage()),
               checked.status,
             ]) +
@@ -499,14 +502,12 @@ export function startRepresentatives(
               ? t(' · {0}: {1}', [
                   checked.domain,
                   checked.domainCurrent
-                    ? t('Controle do domínio verificado')
-                    : t('verificação de domínio desatualizada ou inconclusiva'),
+                    ? t('Domain control verified')
+                    : t('domain verification outdated or inconclusive'),
                 ])
-              : t(
-                  ' · Sem domínio vinculado. Emissor identificado pela wallet.',
-                ));
+              : t(' · No linked domain. Issuer identified by wallet.'));
         } catch (error: unknown) {
-          state.textContent = t('Autorização atual não confirmada: {0}', [
+          state.textContent = t('Current authorization not confirmed: {0}', [
             representativeFailure(error),
           ]);
         }
@@ -514,14 +515,14 @@ export function startRepresentatives(
     );
     if (c.subject.accountId === session?.accountId && card.acceptance === null)
       article.append(
-        button(t('Aceitar representação e assinar'), async () => {
+        button(t('Accept representation and sign'), async () => {
           try {
             await controller.accept(card);
             state.textContent = t(
-              'Aceite salvo. Você pode apresentar esta autorização nas conversas.',
+              'Acceptance saved. You can present this authorization in conversations.',
             );
           } catch (error: unknown) {
-            state.textContent = t('Aceite não concluído: {0}', [
+            state.textContent = t('Acceptance not completed: {0}', [
               representativeFailure(error),
             ]);
           }

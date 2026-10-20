@@ -16,7 +16,7 @@ export function vaultLabel(
   change: Pick<VaultChange, 'kind' | 'label'>,
 ): string {
   if (change.kind === 'settings' && change.label === languageRecordLabel)
-    return t('Idioma do aplicativo');
+    return t('App language');
   return change.kind === 'settings' && settingsLabels.has(change.label)
     ? t(change.label)
     : change.label;

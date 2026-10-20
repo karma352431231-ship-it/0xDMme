@@ -26,7 +26,7 @@ export function qrLink(code: LinkCode): string {
 }
 export function qrReceipt(receipt: string): string {
   if (!/^[a-f0-9]{32}$/u.test(receipt))
-    throw new Error('Confirmação inválida para QR Code.');
+    throw new Error('Invalid QR code confirmation.');
   return prefix.receipt + receipt;
 }
 export function readQrPayload(payload: string, kind: QrKind): string {
@@ -41,25 +41,25 @@ export function readQrPayload(payload: string, kind: QrKind): string {
         payload,
       )
     )
-      throw new Error('Este QR Code não contém um convite do 0xDMme.');
+      throw new Error('This QR code does not contain a 0xDMme invitation.');
     return payload;
   }
   if (payload.length > 4096 || !payload.startsWith(prefix[kind]))
-    throw new Error('Este QR Code não corresponde à etapa de vinculação.');
+    throw new Error('This QR code does not match the device linking step.');
   const value = payload.slice(prefix[kind].length);
   if (kind === 'link') return canonical(linkCode(JSON.parse(value) as unknown));
   if (!/^[a-f0-9]{32}$/u.test(value))
-    throw new Error('QR de confirmação inválido.');
+    throw new Error('Invalid confirmation QR code.');
   return value;
 }
 export function qrMatrix(payload: string): boolean[][] {
-  if (payload.length > 4096) throw new Error('QR Code excedido.');
+  if (payload.length > 4096) throw new Error('QR code exceeds the limit.');
   return encodeQR(payload, 'raw', { ecc: 'medium', border: 4 });
 }
 export function renderQr(
   container: HTMLElement,
   payload: string,
-  label = t('QR Code de vinculação de aparelho'),
+  label = t('Device linking QR code'),
 ): void {
   if (container.dataset['qrPayload'] === payload) return;
   const matrix = qrMatrix(payload);
@@ -83,7 +83,7 @@ export function renderQr(
 }
 export function decodeQrFrame(frame: ImageData): string | null {
   if (frame.width > 960 || frame.height > 960 || !frame.width || !frame.height)
-    throw new Error('Imagem excede o orçamento do leitor.');
+    throw new Error("Image exceeds the reader's budget.");
   try {
     return decodeQR(frame, { effort: 2, timeLimit: 16 });
   } catch (error: unknown) {

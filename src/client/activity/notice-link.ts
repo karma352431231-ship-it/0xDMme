@@ -27,11 +27,11 @@ export function noticeLink(input: {
       navigateApp(input.href);
     } catch (error: unknown) {
       if (input.current()) {
-        link.textContent = t('Tentar abrir novamente');
+        link.textContent = t('Try opening again');
         link.title =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível marcar como lida.');
+            : t('Could not mark as read.');
       }
     } finally {
       pending = false;

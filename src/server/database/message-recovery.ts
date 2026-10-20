@@ -25,14 +25,17 @@ export class MessageRecoveryStore {
         key.deviceId !== authority.session.deviceId ||
         key.directory !== authority.directory
       )
-        throw new AccountError(403, 'Chave de outra conta ou aparelho.');
+        throw new AccountError(
+          403,
+          'Key belongs to another account or device.',
+        );
       const directory = await client.query<{ event: unknown }>(
         'SELECT event FROM hash_talk.device_directories WHERE account_id=$1',
         [key.accountId],
       );
       const event = directory.rows[0]?.event;
       if (!event || directoryEvent(event).epoch !== key.epoch)
-        throw new AccountError(409, 'Época de recuperação mudou.');
+        throw new AccountError(409, 'Recovery epoch changed.');
       const current = await this.epoch(client, key.accountId, key.epoch);
       // A concurrent initializer adopts the accepted capsule, never replaces its key.
       if (current) return current;
@@ -59,7 +62,7 @@ export class MessageRecoveryStore {
         [authority.session.accountId],
       );
       const event = directory.rows[0]?.event;
-      if (!event) throw new AccountError(403, 'Diretório ausente.');
+      if (!event) throw new AccountError(403, 'Directory missing.');
       return this.epoch(
         client,
         authority.session.accountId,
@@ -77,7 +80,7 @@ export class MessageRecoveryStore {
         [authority.session.accountId, id],
       );
       const key = result.rows[0]?.body;
-      if (!key) throw new AccountError(404, 'Chave histórica ausente.');
+      if (!key) throw new AccountError(404, 'Historical key missing.');
       return key;
     });
   }
@@ -103,7 +106,7 @@ export class MessageRecoveryStore {
     accounts: string[],
   ): Promise<RecoveryKey[]> {
     if (accounts.length > 16)
-      throw new AccountError(413, 'Lote de recuperação excedido.');
+      throw new AccountError(413, 'Recovery batch exceeds the limit.');
     const rows = await client.query<{ body: RecoveryKey }>(
       "SELECT k.body FROM hash_talk.message_recovery_keys k JOIN hash_talk.device_directories d ON d.account_id=k.account_id AND (d.event->>'epoch')::integer=k.epoch WHERE k.account_id=ANY($1::uuid[]) ORDER BY k.account_id",
       [accounts],

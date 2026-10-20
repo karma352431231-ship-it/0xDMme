@@ -51,7 +51,7 @@ function confirmed(item: PendingView): void {
 function labelCount(label: HTMLElement, views: number): void {
   const value = label.querySelector('span');
   if (value) value.textContent = views.toLocaleString(currentLanguage());
-  label.setAttribute('aria-label', t('{0} visualizações estimadas', [views]));
+  label.setAttribute('aria-label', t('{0} estimated views', [views]));
 }
 /** One observer/timer and bounded batches for public and signed-in post cards. */
 class ViewExposure {
@@ -171,7 +171,7 @@ class ViewExposure {
         }),
         signal: AbortSignal.timeout(8000),
       });
-      if (!response.ok) throw new Error('Contagem indisponível.');
+      if (!response.ok) throw new Error('Count unavailable.');
       this.acknowledge(batch, postViewsPage(await response.json()));
       this.retry = 0;
     } catch {
@@ -202,9 +202,7 @@ class ViewExposure {
     for (const item of batch) {
       this.pending.delete(item.post);
       for (const label of item.labels)
-        label.title = t(
-          'Contagem disponível; esta visualização não pôde ser confirmada.',
-        );
+        label.title = t('Count available; this view could not be confirmed.');
     }
     this.retry = 0;
   }
@@ -227,12 +225,12 @@ export function postViews(
   }
   const label = el('span', '', 'post-action post-views');
   label.title = t(
-    'Estimativa de navegadores únicos por post, incluindo visitantes sem login.',
+    'Estimated unique browsers per post, including visitors who are not signed in.',
   );
   label.append(
     communityIcon('eye'),
     el('span', '—'),
-    el('span', t('visualizações'), 'post-action-caption'),
+    el('span', t('views'), 'post-action-caption'),
   );
   if (post.views !== undefined) labelCount(label, post.views);
   toolbar.append(label);

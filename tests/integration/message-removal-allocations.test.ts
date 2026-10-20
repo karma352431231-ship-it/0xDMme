@@ -665,7 +665,7 @@ async function failureCases(
             hash,
             proof(pair.sender),
           ),
-          /Contagem global indisponível/u,
+          /Global count unavailable/u,
         );
       } finally {
         await c.inspector.query(

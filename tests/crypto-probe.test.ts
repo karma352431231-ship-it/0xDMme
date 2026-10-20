@@ -25,7 +25,7 @@ async function pair(t: TestContext) {
   return { relay, alice, bob };
 }
 
-await test('texto cifrado nos dois sentidos; relay não recebe a mensagem legível', async (t) => {
+await test('text is encrypted in both directions; relay never receives plaintext', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -39,7 +39,7 @@ await test('texto cifrado nos dois sentidos; relay não recebe a mensagem legív
   assert.equal(await alice.decrypt(reply), 'Resposta sintética');
 });
 
-await test('destinatário recebe depois de ficar offline, dentro da sessão em memória', async (t) => {
+await test('recipient receives after going offline within the in-memory session', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -54,13 +54,16 @@ await test('destinatário recebe depois de ficar offline, dentro da sessão em m
   );
 });
 
-await test('chave esperada errada impede envio, sem fallback', async (t) => {
+await test('wrong expected key prevents sending without fallback', async (t) => {
   const { alice } = await pair(t);
-  await assert.rejects(alice.confirmPeer('chave falsa'), /não confere/);
-  await assert.rejects(alice.send('Não pode sair'), /Confirme a chave/);
+  await assert.rejects(alice.confirmPeer('chave falsa'), /does not match/);
+  await assert.rejects(
+    alice.send('Não pode sair'),
+    /Confirm the other client's key/,
+  );
 });
 
-await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async (t) => {
+await test('tampered ciphertext is rejected by the cryptographic engine', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -76,11 +79,11 @@ await test('ciphertext adulterado é rejeitado pelo motor criptográfico', async
       ciphertext: ciphertext.slice(0, 30) + replacement + ciphertext.slice(31),
     },
   };
-  await assert.rejects(bob.decrypt(damaged), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(damaged), /Message rejected/);
   assert.equal(await bob.decrypt(event), 'Texto sintético íntegro');
 });
 
-await test('atribuir autoria falsa ao pacote não o transforma em mensagem autorizada', async (t) => {
+await test('false packet authorship cannot make an authorized message', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -88,25 +91,25 @@ await test('atribuir autoria falsa ao pacote não o transforma em mensagem autor
   await bob.receive();
   await assert.rejects(
     bob.decrypt({ ...event, sender: '@intruso:probe.invalid' }),
-    /não autorizado/,
+    /not authorized|unauthorized/,
   );
 });
 
-await test('relay recusa texto legível e campos secretos em vez de armazená-los', () => {
+await test('relay rejects readable text and secret fields instead of storing them', () => {
   const relay = new ProbeRelay();
   assert.throws(
     () => relay.dispatch('alice', 'publish', '{"body":"texto aberto"}'),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   assert.throws(
     () =>
       relay.dispatch('alice', 'upload', '{"private_key":"segredo fictício"}'),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   assert.equal(relay.inspect().includes('segredo fictício'), false);
 });
 
-await test('outro cliente com chaves novas não lê os pacotes armazenados para Bob', async (t) => {
+await test('another client with new keys cannot read packets stored for Bob', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -122,7 +125,7 @@ await test('outro cliente com chaves novas não lê os pacotes armazenados para 
   );
   t.after(() => outsider.close());
   await outsider.confirmPeer(alice.fingerprint);
-  await assert.rejects(outsider.receive(), /Pacote de chave não autorizado/);
+  await assert.rejects(outsider.receive(), /Key package unauthorized/);
   await assert.rejects(outsider.decrypt(event), (error: unknown) => {
     assert.ok(error instanceof Error);
     assert.ok(error.cause instanceof MegolmDecryptionError);
@@ -136,7 +139,7 @@ await test('outro cliente com chaves novas não lê os pacotes armazenados para 
   );
 });
 
-await test('revogação rotaciona a sessão: Bob mantém passado e não abre novas mensagens', async (t) => {
+await test('revocation rotates the session: Bob retains the past and cannot open new messages', async (t) => {
   const { relay, alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -154,12 +157,12 @@ await test('revogação rotaciona a sessão: Bob mantém passado e não abre nov
   const afterState = JSON.parse(relay.inspect()) as { to_device: unknown };
   assert.deepEqual(afterState.to_device, beforeState.to_device);
   await bob.receive();
-  await assert.rejects(bob.decrypt(after), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(after), /Message rejected/);
   assert.equal(await bob.decrypt(before), 'Antes da revogação');
-  await assert.rejects(alice.confirmPeer(bob.fingerprint), /revogado/);
+  await assert.rejects(alice.confirmPeer(bob.fingerprint), /revoked/);
 });
 
-await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão antiga', async (t) => {
+await test('concurrent revocation and sending preserve order without using the old session', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -171,10 +174,10 @@ await test('revogação e envio concorrentes respeitam a ordem, sem usar sessão
   await revocation;
   const event = await delivery;
   await bob.receive();
-  await assert.rejects(bob.decrypt(event), /Mensagem rejeitada/);
+  await assert.rejects(bob.decrypt(event), /Message rejected/);
 });
 
-await test('repetir um ciphertext com novo identificador não produz uma segunda mensagem', async (t) => {
+await test('repeated ciphertext with a new identifier produces no second message', async (t) => {
   const { alice, bob } = await pair(t);
   await alice.confirmPeer(bob.fingerprint);
   await bob.confirmPeer(alice.fingerprint);
@@ -183,11 +186,11 @@ await test('repetir um ciphertext com novo identificador não produz uma segunda
   assert.equal(await bob.decrypt(event), 'Mensagem única');
   await assert.rejects(
     bob.decrypt({ ...event, event_id: '$replay-synthetic' }),
-    /Mensagem rejeitada/,
+    /Message rejected/,
   );
 });
 
-await test('diretório hostil não substitui a chave de criptografia com assinatura inválida', async (t) => {
+await test('hostile directory cannot replace the encryption key with an invalid signature', async (t) => {
   const { relay, alice, bob } = await pair(t);
   const attacked = new ProbeRelay();
   const observer = await ProbeClient.create('alice', (operation, body) =>
@@ -211,7 +214,7 @@ await test('diretório hostil não substitui a chave de criptografia com assinat
   await assert.rejects(observer.confirmPeer(bob.fingerprint));
   await assert.rejects(
     observer.send('Texto não pode sair com chave adulterada'),
-    /Confirme a chave/,
+    /Confirm the other client's key/,
   );
   await alice.confirmPeer(bob.fingerprint);
 });

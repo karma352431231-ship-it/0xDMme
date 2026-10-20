@@ -22,10 +22,10 @@ function source(value: unknown): MentionNotification['source'] {
   keys(data, ['kind', 'id', 'community', 'name']);
   const kind = data['kind'];
   if (!['post', 'reply', 'profile', 'community'].includes(String(kind)))
-    throw new AccountError(400, 'Origem da menção inválida.');
+    throw new AccountError(400, 'Invalid mention origin.');
   const group = data['community'] === null ? null : uuid(data['community']);
   if ((kind === 'post' || kind === 'reply') !== (group !== null))
-    throw new AccountError(400, 'Origem da menção inválida.');
+    throw new AccountError(400, 'Invalid mention origin.');
   return {
     kind: kind as MentionNotification['source']['kind'],
     id: uuid(data['id']),
@@ -55,7 +55,7 @@ export function mentionNotificationPage(
   const data = object(value);
   keys(data, ['items', 'next']);
   if (!Array.isArray(data['items']) || data['items'].length > 24)
-    throw new AccountError(400, 'Página de menções inválida.');
+    throw new AccountError(400, 'Invalid mention page.');
   return {
     items: data['items'].map(mentionNotification),
     next: postCursor(data['next']),

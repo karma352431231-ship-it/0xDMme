@@ -100,11 +100,11 @@ export class SocialDmStore {
   }
   async target(context: SocialContext, id: string): Promise<PublicProfile> {
     if (id === context.actor.id)
-      throw new AccountError(400, 'DM exige duas pessoas.');
+      throw new AccountError(400, 'A DM requires two people.');
     const target = (await this.profiles.identities(context.client, [id])).get(
       id,
     );
-    if (!target) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!target) throw new AccountError(404, 'Public profile unavailable.');
     return target;
   }
   async blocked(context: SocialContext, peer: string): Promise<boolean> {
@@ -121,7 +121,7 @@ export class SocialDmStore {
     if (peer === context.actor.id) return;
     const row = await this.relation(context, peer);
     if (!row || (await this.blocked(context, peer)))
-      throw new AccountError(403, 'DM indisponível.');
+      throw new AccountError(403, 'DM unavailable.');
   }
   private async relation(
     context: SocialContext,
@@ -199,7 +199,7 @@ export class SocialDmStore {
       return {
         items: page.map((row) => {
           const peer = profiles.get(row.peer);
-          if (!peer) throw new Error('Perfil de DM ausente.');
+          if (!peer) throw new Error('DM profile missing.');
           return {
             peer,
             requester: row.requester,
@@ -230,7 +230,7 @@ export class SocialDmStore {
     return this.withActor(authority, async (context) => {
       const target = await this.target(context, peer);
       if (await this.blocked(context, peer))
-        throw new AccountError(403, 'DM indisponível.');
+        throw new AccountError(403, 'DM unavailable.');
       const opened = await openSocialConversation({
         client: context.client,
         actor: context.actor.id,
@@ -253,7 +253,7 @@ export class SocialDmStore {
       return this.withActor(authority, () => {
         throw new AccountError(
           409,
-          'Solicitações de DM foram desativadas. Use Bloquear para impedir mensagens.',
+          'DM requests have been disabled. Use Block to prevent messages.',
         );
       });
     return this.open(authority, input.peer);
@@ -298,6 +298,6 @@ function blockChanges(
   if (old.revision === next.revision + 1 && old.blocked === next.blocked)
     return false;
   if (old.revision !== next.revision)
-    throw new AccountError(409, 'Bloqueio de DM mudou. Recarregue.');
+    throw new AccountError(409, 'DM block changed. Reload.');
   return old.blocked !== next.blocked;
 }

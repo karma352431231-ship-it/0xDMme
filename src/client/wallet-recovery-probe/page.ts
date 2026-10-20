@@ -18,8 +18,7 @@ const storageKey = '0xdmme.wallet-recovery-experiment.v1';
 const discovery = discoverWallets();
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const result = document.getElementById(id);
-  if (!(result instanceof type))
-    throw new Error('Interface do ensaio ausente.');
+  if (!(result instanceof type)) throw new Error('Test interface missing.');
   return result;
 }
 const walletSelect = element('wallet', HTMLSelectElement);
@@ -50,23 +49,20 @@ function render(): void {
     !consent.checked || target === null;
   element('download', HTMLButtonElement).disabled ||= target === null;
   if (!target) {
-    summary.textContent = t('Nenhum pacote ativo para recuperação.');
+    summary.textContent = t('No active package for recovery.');
     return;
   }
   const { context } = target.packet;
   const source =
     target.source.kind === 'file'
-      ? t('Arquivo importado: {0}', [target.source.name])
-      : t('Pacote do armazenamento deste navegador');
-  summary.textContent = t(
-    '{0}. Conta de origem: {1} ({2}). Identificador do pacote: {3}.',
-    [
-      source,
-      context.address,
-      context.ecosystem.toUpperCase(),
-      context.id.slice(0, 12),
-    ],
-  );
+      ? t('Imported file: {0}', [target.source.name])
+      : t("Package from this browser's storage");
+  summary.textContent = t('{0}. Source account: {1} ({2}). Package ID: {3}.', [
+    source,
+    context.address,
+    context.ecosystem.toUpperCase(),
+    context.id.slice(0, 12),
+  ]);
 }
 function refreshWallets(): void {
   const selected = walletSelect.value;
@@ -97,24 +93,22 @@ function refreshWallets(): void {
     walletSelect.value = selected;
   if (!wallets.length) {
     status.textContent = t(
-      'Nenhuma wallet detectada. Abra este endereço em um navegador com sua wallet de teste; não use uma conta com fundos.',
+      'No wallets detected. Open this address in a browser with your test wallet; do not use an account with funds.',
     );
   }
 }
 function selectedWallet(): WalletConnection {
   const wallet = discovery.get(walletSelect.value);
-  if (!wallet) throw new ProbeError('Nenhuma wallet de teste disponível.');
+  if (!wallet) throw new ProbeError('No test wallet available.');
   return wallet;
 }
 function current(token: number): void {
   if (token !== generation || blocked || document.hidden)
-    throw new ProbeError(
-      'Ensaio interrompido; recarregue antes de tentar novamente.',
-    );
+    throw new ProbeError('Test interrupted; reload before retrying.');
 }
 async function run(
   operation: (token: number) => Promise<string>,
-  pending = t('Ensaio em andamento. Confira a mensagem exclusiva na wallet.'),
+  pending = t('Test in progress. Check the exclusive message in your wallet.'),
 ): Promise<void> {
   if (busy || blocked) return;
   busy = true;
@@ -125,7 +119,7 @@ async function run(
     blocked = true;
     generation++;
     status.textContent = t(
-      'A wallet não concluiu em dois minutos. Recarregue antes de tentar novamente.',
+      'The wallet did not finish within two minutes. Reload before trying again.',
     );
     render();
   }, 120_000);
@@ -139,7 +133,7 @@ async function run(
         error instanceof ProbeError
           ? translatedError(error.message)
           : t(
-              'Ensaio recusado. Confira a conta, a assinatura e a disponibilidade do armazenamento; nenhum sucesso foi confirmado.',
+              'Test refused. Check the account, signature and storage availability; no success was confirmed.',
             );
   } finally {
     clearTimeout(timeout);
@@ -150,7 +144,7 @@ async function run(
 async function create(token: number): Promise<string> {
   if (!consent.checked || selection.active)
     throw new ProbeError(
-      'O ensaio já tem um pacote ou falta confirmar o uso de dados fictícios.',
+      'The test already has a package or fictional data use has not been confirmed.',
     );
   const wallet = selectedWallet();
   const identity = await wallet.identity(true);
@@ -163,7 +157,7 @@ async function create(token: number): Promise<string> {
   current(token);
   if (!repeatableSignatures({ context, first, second }))
     throw new ProbeError(
-      'As duas assinaturas são válidas, mas diferentes. Esta tentativa não permite recuperação estável.',
+      'Both signatures are valid but different. This attempt cannot provide stable recovery.',
     );
   const sealed = await sealProbe(context, first);
   const actual = await wallet.identity(false);
@@ -175,12 +169,12 @@ async function create(token: number): Promise<string> {
   });
   selection.created(sealed);
   return t(
-    'Duas assinaturas iguais; pacote fictício cifrado e guardado. Recarregue e teste recuperar. Isto não comprova outro aparelho ou outra implementação da wallet.',
+    'Two identical signatures; fictional package encrypted and saved. Reload and test recovery. This does not verify another device or wallet implementation.',
   );
 }
 async function recover(token: number): Promise<string> {
   if (!consent.checked)
-    throw new ProbeError('Importe ou crie um pacote fictício primeiro.');
+    throw new ProbeError('Import or create a fictional package first.');
   const { packet: value } = selection.requireTarget();
   const wallet = selectedWallet();
   const identity = await wallet.identity(true);
@@ -201,7 +195,7 @@ async function recover(token: number): Promise<string> {
   });
   current(token);
   return t(
-    'Pacote {0} recuperado com nova assinatura da conta {1}. Nenhuma assinatura ou chave anterior foi guardada pelo laboratório.',
+    'Package {0} recovered with a new signature from account {1}. No previous signature or key was kept by the laboratory.',
     [value.context.id.slice(0, 12), value.context.address],
   );
 }
@@ -229,11 +223,9 @@ element('erase', HTMLButtonElement).onclick = () => {
   try {
     localStorage.removeItem(storageKey);
     selection.clear();
-    status.textContent = t(
-      'Somente o pacote fictício deste ensaio foi apagado.',
-    );
+    status.textContent = t("Only this test's fictional package was deleted.");
   } catch {
-    status.textContent = t('Não foi possível apagar o pacote fictício.');
+    status.textContent = t('Could not delete the fictional package.');
   }
   render();
 };
@@ -246,14 +238,14 @@ fileInput.onchange = () => {
   void run(async (token) => {
     const target = await selection.importFile(file, () => current(token));
     return t(
-      'Arquivo importado. O pacote ativo agora é {0}. Selecione a conta de origem e clique em Testar este pacote.',
+      'File imported. The active package is now {0}. Select the source account and click Test this package.',
       [target.packet.context.id.slice(0, 12)],
     );
-  }, t('Lendo e validando o arquivo escolhido.'));
+  }, t('Reading and validating the selected file.'));
 };
 walletSelect.onchange = () => {
   status.textContent = t(
-    'Wallet selecionada mudou. Confira a conta de origem do pacote ativo e teste novamente.',
+    "Selected wallet changed. Check the active package's source account and test again.",
   );
 };
 consent.onchange = render;
@@ -263,7 +255,7 @@ document.addEventListener('visibilitychange', () => {
   generation++;
   blocked = true;
   status.textContent = t(
-    'O ensaio foi ocultado durante a operação. Recarregue; nenhum resultado atrasado será guardado.',
+    'The test was hidden during the operation. Reload; no delayed result will be saved.',
   );
   render();
 });
@@ -277,7 +269,7 @@ try {
 } catch {
   blocked = true;
   status.textContent = t(
-    'Armazenamento indisponível ou pacote inválido. Use um perfil de navegador de teste limpo.',
+    'Storage unavailable or package invalid. Use a clean test browser profile.',
   );
 }
 refreshWallets();

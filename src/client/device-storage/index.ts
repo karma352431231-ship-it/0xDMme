@@ -50,7 +50,7 @@ export async function storedOpeningReceiverIdentity(
   );
   if (!record || record.identity.public.wrapping !== receiver)
     throw new Error(
-      'O receptor desta entrada não está disponível. Inicie novamente.',
+      'The receiver for this sign-in is unavailable. Start again.',
     );
   // Expiry limits reuse for new entries. A live entry keeps its exact receiver;
   // only its server deadline and session grant retrieval of the ciphertext.
@@ -70,7 +70,7 @@ export async function openingReceiverIdentity(): Promise<LocalIdentity> {
   }
   const identity = await createIdentity(
     crypto.randomUUID(),
-    t('Abertura de conta'),
+    t('Account opening'),
   );
   const record = await transaction(
     'wallet-opening-receiver',
@@ -108,7 +108,7 @@ function transaction<T>(
       database?.close();
       reject(
         new Error(
-          'Armazenamento de dispositivos indisponível. Nenhuma autorização local foi confirmada.',
+          'Device storage unavailable. No local authorization was confirmed.',
         ),
       );
     }
@@ -153,7 +153,7 @@ export async function exclusive<T>(
 ): Promise<T> {
   if (!navigator.locks)
     throw new Error(
-      'Este navegador não oferece a exclusão entre abas necessária. Use um navegador atualizado.',
+      'This browser lacks the required cross-tab locking. Use an updated browser.',
     );
   return navigator.locks.request(
     `0xdmme-device-authority:${accountId}`,
@@ -177,7 +177,7 @@ export async function localIdentity(
   }
   const identity = await createIdentity(deviceId, name);
   return transaction(key, (store, existing) => {
-    if (existing) throw new Error('Identidade criada em outra aba.');
+    if (existing) throw new Error('Identity created in another tab.');
     store.add(identity, key);
     return identity;
   });
@@ -192,7 +192,7 @@ export async function storedIdentity(
   );
   if (!identity)
     throw new Error(
-      'Sem chave local deste aparelho. Faça login e recupere com autorização.',
+      'This device has no local key. Sign in and recover with authorization.',
     );
   await checkIdentity(identity);
   return identity;
@@ -214,7 +214,7 @@ export function nameIdentity(
         current?.public.signing !== identity.public.signing ||
         current.public.wrapping !== identity.public.wrapping
       )
-        throw new Error('Identidade local alterada.');
+        throw new Error('Local identity changed.');
       store.put(next, `identity:${accountId}:${identity.public.id}`);
       return next;
     },
@@ -231,7 +231,7 @@ export function readCheckpoint(accountId: string): Promise<Checkpoint> {
       value.events.length > 128 ||
       !('trustedRoot' in value)
     )
-      throw new Error('Checkpoint local inválido.');
+      throw new Error('Invalid local checkpoint.');
     const checkpoint = value as Checkpoint;
     if (checkpoint.trustedRoot !== null) fingerprint(checkpoint.trustedRoot);
     return checkpoint;
@@ -244,12 +244,12 @@ export function saveCheckpoint(
   return transaction(`checkpoint:${accountId}`, (store, value) => {
     const existing = value as Checkpoint | undefined;
     if ((existing?.events.length ?? 0) > checkpoint.events.length)
-      throw new Error('Checkpoint antigo.');
+      throw new Error('Old checkpoint.');
     if (
       existing?.trustedRoot &&
       existing.trustedRoot !== checkpoint.trustedRoot
     )
-      throw new Error('Raiz local alterada.');
+      throw new Error('Local root changed.');
     store.put(checkpoint, `checkpoint:${accountId}`);
   });
 }
@@ -268,13 +268,13 @@ export async function advanceCheckpoint(
     canonical(checkpoint.events.slice(0, existing.events.length)) !==
       canonical(existing.events)
   )
-    throw new Error('Migração não estende a raiz local confiável.');
+    throw new Error('Migration does not extend the trusted local root.');
   const current = await verifyHistory(checkpoint.events, accountId);
   if (
     !current ||
     checkpoint.trustedRoot !== (await digest(canonical(current.root)))
   )
-    throw new Error('Nova raiz sem transição verificada.');
+    throw new Error('New root without a verified transition.');
   return transaction(`checkpoint:${accountId}`, (store, value) => {
     const actual = value as Checkpoint | undefined;
     if (
@@ -282,7 +282,7 @@ export async function advanceCheckpoint(
       actual.trustedRoot !== existing.trustedRoot ||
       canonical(actual.events) !== canonical(existing.events)
     )
-      throw new Error('Checkpoint mudou durante a migração.');
+      throw new Error('Checkpoint changed during migration.');
     store.put(checkpoint, `checkpoint:${accountId}`);
   });
 }

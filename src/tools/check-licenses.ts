@@ -50,7 +50,7 @@ for (const [path, entry] of Object.entries(lock.packages)) {
       !text.includes('Redistribution and use in source and binary forms') ||
       !text.includes('THIS SOFTWARE IS PROVIDED')
     )
-      throw new Error('Licença Esprima alterada.');
+      throw new Error('Esprima license changed.');
     // Legacy package declares a licenses array omitted from the npm lockfile.
     license = 'BSD-2-Clause';
   }
@@ -63,10 +63,10 @@ for (const [path, entry] of Object.entries(lock.packages)) {
       (license === 'GPL-3.0' && reviewedGpl.has(`${name}@${entry.version}`)));
   if (!approved)
     throw new Error(
-      `Dependência exige revisão de licença: ${name}@${entry.version}`,
+      `Dependency requires a license review: ${name}@${entry.version}`,
     );
   counts.set(license ?? '', (counts.get(license ?? '') ?? 0) + 1);
 }
 process.stdout.write(
-  `Licenças npm revisadas: ${JSON.stringify(Object.fromEntries(counts))}\n`,
+  `Reviewed npm licenses: ${JSON.stringify(Object.fromEntries(counts))}\n`,
 );

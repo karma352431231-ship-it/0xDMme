@@ -23,7 +23,7 @@ function element<T extends HTMLElement>(
   selector: string,
 ): T {
   const node = host.querySelector<T>(selector);
-  if (!node) throw new Error('Painel de emojis incompleto.');
+  if (!node) throw new Error('Emoji panel incomplete.');
   return node;
 }
 function option(host: HTMLSelectElement, value: string, label: string): void {
@@ -45,13 +45,13 @@ const categoryIcons = [
   '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
 ] as const;
 const tones = [
-  ['all', '✋', t('Todos os tons')],
-  ['none', '✋', t('Sem modificador')],
-  ['🏻', '✋🏻', t('Clara')],
-  ['🏼', '✋🏼', t('Média clara')],
-  ['🏽', '✋🏽', t('Média')],
-  ['🏾', '✋🏾', t('Média escura')],
-  ['🏿', '✋🏿', t('Escura')],
+  ['all', '✋', t('All skin tones')],
+  ['none', '✋', t('No modifier')],
+  ['🏻', '✋🏻', t('Light')],
+  ['🏼', '✋🏼', t('Medium light')],
+  ['🏽', '✋🏽', t('Medium')],
+  ['🏾', '✋🏾', t('Medium dark')],
+  ['🏿', '✋🏿', t('Dark')],
 ] as const;
 export class EmojiPicker {
   private recent: string[] = [];
@@ -73,7 +73,7 @@ export class EmojiPicker {
     this.anchor = anchor;
     const dialog = document.createElement('dialog');
     dialog.className = 'emoji-picker';
-    dialog.setAttribute('aria-label', t('Escolher emoji'));
+    dialog.setAttribute('aria-label', t('Choose emoji'));
     // Authored markup only; emoji names enter through textContent/attributes.
     dialog.innerHTML = t('html.81724dfa0bc5');
     this.dialog = dialog;
@@ -114,13 +114,13 @@ export class EmojiPicker {
       .then(() => {
         if (dialog.isConnected)
           element(dialog, '[data-art]').textContent = t(
-            'Desenhos Twemoji · CC-BY-4.0 · Recentes só nesta sessão',
+            'Twemoji artwork · CC-BY-4.0 · Recents only in this session',
           );
       })
       .catch(() => {
         if (dialog.isConnected)
           element(dialog, '[data-art]').textContent = t(
-            'Desenhos indisponíveis. Você ainda pode escolher o emoji com a aparência deste aparelho.',
+            "Artwork unavailable. You can still choose emoji using this device's appearance.",
           );
       });
     return promise;
@@ -223,11 +223,11 @@ export class EmojiPicker {
         ),
       );
       element(dialog, '[data-section-title]').textContent = searching
-        ? t('Resultados')
+        ? t('Results')
         : (emojiCategories[Number(category)] ?? '');
       element(dialog, '[data-result]').textContent = total
         ? ''
-        : t('Nenhum emoji encontrado.');
+        : t('No emoji found.');
       this.renderRecent(dialog, searching, tone.value);
       const typed = query.value.trim();
       element<HTMLButtonElement>(dialog, '[data-custom]').hidden =

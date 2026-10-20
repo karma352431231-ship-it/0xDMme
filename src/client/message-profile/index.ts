@@ -15,13 +15,12 @@ export function profileCard(input: unknown): ProfileCard {
     !Number.isSafeInteger(data['revision']) ||
     data['revision'] < 0
   )
-    throw new Error('Cartão de perfil inválido.');
+    throw new Error('Invalid profile card.');
   if (data['photo'] === null)
     return { name: data['name'], revision: data['revision'], photo: null };
   const photo = object(data['photo']);
   keys(photo, ['type', 'base64']);
-  if (typeof photo['type'] !== 'string')
-    throw new Error('Tipo de foto inválido.');
+  if (typeof photo['type'] !== 'string') throw new Error('Invalid photo type.');
   const bytes = Uint8Array.from(base64(photo['base64'], 3_000_000));
   validatePhoto(photo['type'], bytes);
   return {

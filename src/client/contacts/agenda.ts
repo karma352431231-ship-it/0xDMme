@@ -57,7 +57,7 @@ export class AddressBook {
   async open(id: string): Promise<BookVersion> {
     const vault = this.sync.entries.get(id);
     if (!vault || vault.change.kind !== 'address-book')
-      throw new Error('Versão de contato não carregada.');
+      throw new Error('Contact version not loaded.');
     return {
       vault,
       contact: addressBookEntry(
@@ -77,7 +77,7 @@ export class AddressBook {
       canonical([editing.contact.ecosystem, editing.contact.address]) !==
         canonical([validated.ecosystem, validated.address])
     )
-      throw new Error('Crie outro contato para outra wallet.');
+      throw new Error('Create another contact for a different wallet.');
     const entity =
       editing?.vault.change.entity ?? (await walletEntity(validated));
     guard();
@@ -94,7 +94,7 @@ export class AddressBook {
             )
             .map((e) => e.commit.id));
     if (previous.length > 16)
-      throw new Error('Resolva as versões deste contato antes de salvar.');
+      throw new Error("Resolve this contact's versions before saving.");
     await this.sync.save({
       change: {
         version: 1,
@@ -138,7 +138,9 @@ export class AddressBook {
         ? 0
         : groups.findIndex((heads) => heads[0]!.change.entity === after) + 1;
     if (after !== null && offset === 0)
-      throw new Error('A agenda mudou. Atualize a lista antes de continuar.');
+      throw new Error(
+        'Contacts have changed. Refresh the list before continuing.',
+      );
     const page = groups.slice(offset, offset + 16);
     const items = await this.openGroups(page, work);
     return {
@@ -152,7 +154,7 @@ export class AddressBook {
   ): Promise<BookVersion[]> {
     if (groups.some((heads) => heads.length > 16))
       throw new Error(
-        'Resolva as versões deste contato antes de abrir a lista.',
+        "Resolve this contact's versions before opening the list.",
       );
     const entries = groups.flat(),
       versions = new Map<string, BookVersion>();
@@ -190,7 +192,7 @@ export class AddressBook {
       .filter((e) => e.change.kind === 'contact-invite');
     if (candidates.length > 16)
       throw new Error(
-        'Há conflitos de convites. Revogue o link e resolva as versões no cofre.',
+        'Invitation conflicts found. Revoke the link and resolve versions in the vault.',
       );
     for (const entry of candidates) {
       const stored = invitation(
@@ -211,7 +213,7 @@ export class AddressBook {
       .map((e) => e.commit.id);
     if (parents.length > 16)
       throw new Error(
-        'Resolva os conflitos do convite no cofre antes de criar outro.',
+        'Resolve invitation conflicts in the vault before creating another.',
       );
     await this.sync.save({
       change: {
@@ -219,7 +221,7 @@ export class AddressBook {
         entity,
         kind: 'contact-invite',
         parents,
-        label: t('Link particular de convite'),
+        label: t('Private invitation link'),
       },
       value: JSON.stringify(invitation(value)),
     });

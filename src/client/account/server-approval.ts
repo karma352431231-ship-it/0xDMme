@@ -10,6 +10,6 @@ export function serverApproval(value: unknown) {
     Date.parse(boundedText(data['expiresAt'], 32)) -
     Date.parse(boundedText(data['serverTime'], 32));
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 300_000)
-    throw new Error('Pedido expirou ou é inválido.');
+    throw new Error('Request expired or invalid.');
   return { request: walletApprovalRequest(data['request']), remaining };
 }

@@ -32,8 +32,8 @@ class StatusTile {
       this.name.textContent = entry.label;
     const label =
       entry.seed === null
-        ? t('Seu status: publicar ou ver')
-        : t('Ver status de {0}', [entry.label]);
+        ? t('Your status: publish or view')
+        : t("View {0}'s status", [entry.label]);
     if (this.element.getAttribute('aria-label') !== label)
       this.element.setAttribute('aria-label', label);
     const appearance = JSON.stringify([entry.label, entry.seed]);
@@ -65,7 +65,7 @@ export function renderStatusStrip(
       href: input.ownActive
         ? `#status?autor=${encodeURIComponent(input.ownActive)}`
         : '#status',
-      label: t('Seu status'),
+      label: t('Your status'),
       seed: null,
       active: !!input.ownActive,
     },

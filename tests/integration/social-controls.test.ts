@@ -26,7 +26,7 @@ import {
   rootPostContent,
 } from './community-fixture.ts';
 
-await test('controles sociais: autoridade, badges, confirmação, edição, bloqueio, sininho e denúncias', async (t) => {
+await test('social controls: authority, badges, confirmation, editing, blocking, notification bell and reports', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -104,8 +104,8 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
   ids.push(id);
   const meta = {
     name: 'Comunidade sintética',
-    description: 'Teste',
-    rules: 'Regras',
+    description: 'Test',
+    rules: 'Rules',
   };
   const state = () => owner.operate('state', { id }).then(communityState);
   const publicAction = async (
@@ -163,9 +163,9 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     bad(403),
   );
   const root = await create(owner, 'Original'),
-    reply = await create(author, 'Resposta', root.id);
+    reply = await create(author, 'Reply', root.id);
   await t.test(
-    'papéis atuais, badge de dois dias e atribuições manuais sem poderes',
+    'current roles, two-day badge and manual assignments without powers',
     async () => {
       assert.equal(root.authorBadges?.[0]?.kind, 'owner');
       await author.operate('follow', { id, following: true });
@@ -216,7 +216,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
         reader.operate('badge-create', {
           id,
           badge: crypto.randomUUID(),
-          label: 'Dono',
+          label: 'Owner',
         }),
         bad(403),
       );
@@ -242,7 +242,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     },
   );
   await t.test(
-    'confirmação atômica e banner restrito até a análise',
+    'atomic confirmation and restricted banner until analysis',
     async () => {
       const png = new Uint8Array(
         await readFile(
@@ -286,7 +286,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     },
   );
   await t.test(
-    'edição substitui o texto e expira na primeira hora',
+    'editing replaces text and expires after the first hour',
     async () => {
       const edit = postState(
         await owner.operate('post-edit', {
@@ -328,7 +328,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     },
   );
   await t.test(
-    'sininho opt-in, leitura, bloqueio e denúncias apenas armazenadas',
+    'opt-in notification bell, reading, blocking and stored-only reports',
     async () => {
       const target = authorId.id;
       await publicAction(reader, 'follow', {

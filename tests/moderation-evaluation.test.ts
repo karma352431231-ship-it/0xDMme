@@ -10,7 +10,7 @@ import {
   evaluationRound,
 } from '../src/shared/moderation-evaluation/index.ts';
 
-await test('resultado experimental valida distribuição e não concede decisão de publicação', () => {
+await test('experimental result validates distribution and grants no publication decision', () => {
   const result = {
     model: 'viddexa/nsfw-detection-2-nano',
     modelHash: evaluationModelHash,
@@ -46,7 +46,7 @@ const calibrationCase = {
   reference: 'uncertain',
 };
 
-await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associada ao caso', async () => {
+await test('client checks bytes, MIME and hash before displaying the case image', async () => {
   const originalFetch = globalThis.fetch;
   const bytes = new TextEncoder().encode('own-image');
   const entry = evaluationCase({
@@ -70,8 +70,8 @@ await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associa
     };
     const signal = new AbortController().signal;
     const reopened = new EvaluationApi('');
-    await assert.rejects(reopened.image(entry, 'image', signal), /Acesso/);
-    assert.throws(() => reopened.acceptAccess('invalid'), /Acesso/);
+    await assert.rejects(reopened.image(entry, 'image', signal), /Access/);
+    assert.throws(() => reopened.acceptAccess('invalid'), /Access/);
     reopened.acceptAccess('a'.repeat(64));
     assert.equal(
       (await reopened.image(entry, 'image', signal)).size,
@@ -80,21 +80,21 @@ await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associa
     assert.equal((await api.image(entry, 'image', signal)).size, bytes.length);
     await assert.rejects(
       api.image({ ...entry, imageHash: 'f'.repeat(64) }, 'image', signal),
-      /Hash/,
+      /[Hh]ash/,
     );
     await assert.rejects(
       api.image({ ...entry, bytes: 1 }, 'image', signal),
-      /excedida/,
+      /exceed/,
     );
     await assert.rejects(
       api.image({ ...entry, mime: 'image/jpeg' }, 'image', signal),
-      /divergente/,
+      /differ|not match/,
     );
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
-await test('galeria valida identidade, referência explícita e orçamento total sem confundir casos', () => {
+await test('gallery validates identity, explicit reference and total budget without mixing cases', () => {
   assert.deepEqual(evaluationCase(calibrationCase), calibrationCase);
   assert.throws(() => evaluationReference(''));
   for (const changes of [

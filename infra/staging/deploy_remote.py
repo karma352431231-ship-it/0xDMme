@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import resource
+import shlex
 import shutil
 import subprocess
 import sys
@@ -206,6 +207,41 @@ UPLOAD_LIFECYCLE_REVIEWED = '1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe'
 # aggregated counters; all 92 migrations stay byte-identical.
 ACCOUNT_RANKING_GROWTH_BEFORE = '6d0645faede7709af13c7033a1ba2caa033853d0'
 ACCOUNT_RANKING_GROWTH_REVIEWED = 'f3de52a96c0a3a6a224d53e69842e0d368336355'
+# Owner requested this release on 19/10/2026. Exact code-only change: only the text of
+# error reasons and labels differs; the syntax of every module is otherwise identical
+# and all 92 migrations stay byte-identical.
+SOURCE_TEXT_BEFORE = '29873898f51161a9ff0776f71e94a15721da79e8'
+SOURCE_TEXT_REVIEWED = 'f994fd6eef061aaba564d5520ff8240f9c86c85f'
+SOURCE_TEXT_MODULES = frozenset({
+    'attachment-reservations.ts', 'attachments.ts', 'authentication.ts', 'backups.ts', 'calls.ts',
+    'communities.ts', 'community-address.ts', 'community-authority.ts', 'community-badges.ts',
+    'community-discovery.ts', 'community-discussion.ts', 'community-followers.ts',
+    'community-governance.ts', 'community-interactions.ts', 'community-media.ts',
+    'community-moderation.ts', 'community-names.ts', 'community-post-authority.ts',
+    'community-post-moderation.ts', 'community-post-tags.ts', 'community-posts.ts',
+    'community-preferences.ts', 'community-ranking.ts', 'community-upvotes.ts', 'contacts.ts',
+    'content-capacity.ts', 'daily.ts', 'devices.ts', 'group-admission.ts', 'group-daily.ts',
+    'group-matrix.ts', 'group-media.ts', 'group-message-updates.ts', 'group-messages.ts',
+    'group-quota.ts', 'group-retention.ts', 'groups.ts', 'matrix.ts', 'mention-admission.ts',
+    'message-index.ts', 'message-opening.ts', 'message-recovery.ts',
+    'message-removal-allocations.ts', 'messages.ts', 'personal-cleanup-allocations.ts',
+    'personal-cleanup-authority.ts', 'post-sharing.ts', 'profile-banners.ts',
+    'profile-descriptions.ts', 'profile-mutuals.ts', 'profile-notifications.ts',
+    'profile-ranking.ts', 'profile-social.ts', 'public-moderation-details.ts',
+    'public-moderation.ts', 'public-profile.ts', 'public-reports.ts', 'representatives.ts',
+    'social-cleanup-authority.ts', 'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
+    'social-history.ts', 'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts',
+    'status-media.ts', 'status.ts', 'upload-admission.ts', 'vault-quota.ts', 'vault.ts',
+})
+# Exact reviewed runtime diagnostics; schema and runtime contracts remain fixed.
+RUNTIME_DIAGNOSTICS_BEFORE = '4c54956dc6ab04e6c29c04f317b54d93f307b886'
+RUNTIME_DIAGNOSTICS_REVIEWED = 'edc3d95e6f3c8b94866bd8470ebe0b447599ad03'
+RUNTIME_DIAGNOSTICS_MODULES = frozenset({
+    'authentication.ts', 'changes.ts', 'community-badges.ts',
+    'community-post-visibility.ts', 'contacts.ts', 'content-capacity.ts', 'daily.ts',
+    'group-quota.ts', 'index.ts', 'personal-quota.ts', 'public-moderation.ts',
+    'public-profile.ts', 'social-dm.ts', 'status.ts', 'work-signals.ts',
+})
 # Measured signed feed/follower read correction; pin the full database trees.
 # All 91 migrations, write paths, timeouts and runtime remain exact.
 COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
@@ -220,6 +256,9 @@ REQUIRED_COMMUNITY_TOPICS_BEFORE = '8d94f34ca6637cec6518a53d095a50c7af19a9b0'
 REQUIRED_COMMUNITY_TOPICS_REVIEWED = 'b086ad511cd3338a5246f7f6752ca250be7892ff'
 OWNER_REVIEW_MEDIA_BEFORE = '28b851b29ff11883511f5992083969534f7f7733'
 OWNER_REVIEW_MEDIA_REVIEWED = 'e4f9bfa8f35b4636e4ab8dfda720608962868817'
+# Bounded public inbox metadata; all applied migrations remain byte-identical.
+CONVERSATION_FLOW_BEFORE = '8edc9aae0bfa6e4c0939d3834c50960bd1721dfa'
+CONVERSATION_FLOW_REVIEWED = '4f03719b2e82209f23e0760b65aaf24f67494b67'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -231,8 +270,8 @@ COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'social_media', 'social_receipts', 'community_media', 'public_moderation')
 
 
-def run(args, timeout=30):
-    return subprocess.run(args, check=True, capture_output=True, timeout=timeout).stdout
+def run(args, timeout=30, env=None):
+    return subprocess.run(args, check=True, capture_output=True, timeout=timeout, env=env).stdout
 
 
 def digest(path):
@@ -417,6 +456,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'social-read-receipts.ts', 'social-unread.ts'}, CONVERSATION_FLOW_BEFORE, CONVERSATION_FLOW_REVIEWED),
         ({'communities.ts'}, COMMUNITY_READER_BEFORE, COMMUNITY_READER_REVIEWED),
         ({'community-interactions.ts', 'community-posts.ts', 'profile-notifications.ts', 'public-notice-wake.ts'},
          AUTOMATIC_ACTIVITY_BEFORE, AUTOMATIC_ACTIVITY_REVIEWED),
@@ -450,6 +490,8 @@ def database_code_reviewed(candidate, live):
         ({'community-ranking.ts', 'post-ranking-signals.ts', 'post-share-clicks.ts',
           'profile-follower-counts.ts', 'profile-ranking.ts'},
          ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
+        (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
+        (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
@@ -535,6 +577,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 93:
+        import deploy_profile_directory
+        return deploy_profile_directory.review(candidate, live)
     if count == 92:
         import deploy_account_rankings
         return deploy_account_rankings.review(candidate, live)
@@ -908,7 +953,61 @@ def prepare(config, work):
             continue
         os.chown(path, 0, 0)
         os.chmod(path, 0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
+    # Still in preparation: a refusal here leaves the web unit and workers untouched.
+    with measured('moderation_preflight'):
+        moderation_preflight(candidate)
     return candidate
+
+
+MODERATION_ENVIRONMENT = re.compile(r'HASH_TALK_(?:MODERATION|MEDIA)_[A-Z0-9_]+')
+MODERATION_PREFLIGHT = """
+import { pathToFileURL } from 'node:url';
+const root = process.argv[1];
+const { readPoseModerationConfiguration } = await import(
+  pathToFileURL(root + '/src/server/public-moderation/configuration.ts').href);
+try {
+  await readPoseModerationConfiguration(process.env);
+} catch (error) {
+  process.stdout.write(String(error?.message ?? 'unknown').slice(0, 200));
+  process.exitCode = 3;
+}
+"""
+
+
+def unit_moderation_environment(unit=UNIT):
+    """Only moderation/media settings of the unit; database and other secrets never leave it."""
+    values = {}
+    files = run(['systemctl', 'show', unit, '-p', 'EnvironmentFiles', '--value']).decode()
+    for line in files.splitlines():
+        path = Path(line.split(' (', 1)[0].strip().lstrip('-'))
+        if not line.strip() or not path.is_file():
+            continue
+        for entry in path.read_text().splitlines():
+            key, separator, value = entry.strip().partition('=')
+            if separator and MODERATION_ENVIRONMENT.fullmatch(key):
+                values[key] = value.strip().strip('"').strip("'")
+    assignments = run(['systemctl', 'show', unit, '-p', 'Environment', '--value']).decode()
+    for entry in shlex.split(assignments):
+        key, separator, value = entry.partition('=')
+        if separator and MODERATION_ENVIRONMENT.fullmatch(key):
+            values[key] = value
+    return values
+
+
+def moderation_preflight(candidate):
+    """Refuse before any unit stops when the candidate would reject its moderation approvals."""
+    # Like the runtime check in prepare(), this reads the root-owned candidate; only
+    # moderation/media settings and a fixed PATH reach the process.
+    environment = dict(unit_moderation_environment(), PATH='/usr/bin:/bin')
+    try:
+        run(['/usr/bin/node', '--input-type=module', '-e', MODERATION_PREFLIGHT, str(candidate)],
+            timeout=60, env=environment)
+    except subprocess.CalledProcessError as error:
+        output = (error.stdout or b'').decode(errors='replace').strip()
+        lines = [line for line in (error.stderr or b'').decode(errors='replace').splitlines()
+                 if 'Error' in line]
+        reason = output or (lines[-1].strip()[:200] if lines else 'no reason')
+        raise RuntimeError('Candidate refuses the moderation configuration: ' + reason) from None
 
 
 class ActivationFailed(RuntimeError):
@@ -933,6 +1032,8 @@ def exchange(candidate, previous, verify):
             if installed:
                 live.rename(candidate)
             previous.rename(live)
+            # A failing candidate can exhaust the unit's start limit; the rollback must still start.
+            run(['systemctl', 'reset-failed', UNIT])
             run(['systemctl', 'restart', UNIT])
             wait_ready()
         except BaseException:
@@ -1168,6 +1269,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 93:
+            import deploy_profile_directory
+            return deploy_profile_directory.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 92:
             import deploy_account_rankings
             return deploy_account_rankings.activate(config, work, candidate, before)

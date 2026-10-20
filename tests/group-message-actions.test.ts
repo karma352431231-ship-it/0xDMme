@@ -15,7 +15,7 @@ class DialogNode extends ChatNode {
   focus(): void {}
 }
 for (const language of ['en', 'zh-CN'] as const)
-  await test(`${language}: aviso vazio oculta editor, preserva rascunho intacto e descarta apenas a mensagem apagada`, (t) => {
+  await test(`${language}: empty notice hides the editor, preserves the untouched draft and discards only the deleted message`, (t) => {
     setActiveLanguage(language);
     t.after(() => setActiveLanguage('en'));
     const body = new DialogNode('body'),
@@ -53,7 +53,7 @@ for (const language of ['en', 'zh-CN'] as const)
     ) as unknown as DialogNode;
     row
       .querySelector('.message-menu')!
-      .children.find((child) => child.textContent === label('Editar'))!
+      .children.find((child) => child.textContent === label('Edit'))!
       .click();
     const dialog = body.children[0] as DialogNode,
       text = dialog.querySelector('textarea')!;

@@ -1,5 +1,5 @@
 /*
- * Post focus (docs/UI_PAINEIS_E_TEMAS.md): a clicked post takes the timeline.
+ * Post focus: a clicked post takes the timeline.
  * The post leads, its replies read as a thread, and replies to replies hang
  * from a guide line. The reply text is the content, so it gets full contrast.
  */

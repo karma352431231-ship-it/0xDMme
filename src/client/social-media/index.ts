@@ -10,12 +10,12 @@ export async function prepareSocialImage(
     const selection = await prepareAttachment(file, false);
     if (!selection.image) {
       selection.bytes.fill(0);
-      throw new Error('Use uma imagem PNG, JPEG ou WebP compatível nesta DM.');
+      throw new Error('Use a compatible PNG, JPEG or WebP image in this DM.');
     }
     return { selection, media: 'photo' };
   }
   if (!file.size || file.size > 3_000_000)
-    throw new Error('GIF deve ter até 3 MB.');
+    throw new Error('The GIF must be no larger than 3 MB.');
   const original = new Uint8Array(await file.arrayBuffer());
   try {
     prepareGif(original).fill(0);

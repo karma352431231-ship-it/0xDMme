@@ -30,11 +30,11 @@ export interface StatusAudiencePage {
 /** No audience-size product cap: enumerate approved contacts in bounded pages. */
 export function statusAudiencePage(input: StatusAudiencePage): string[] {
   if (input.contacts.length > statusPageSize)
-    throw new AccountError(400, 'Página de audiência excedida.');
+    throw new AccountError(400, 'Audience page exceeds the limit.');
   const author = uuid(input.author),
     contacts = input.contacts.map(uuid);
   if (new Set(contacts).size !== contacts.length || contacts.includes(author))
-    throw new AccountError(400, 'Audiência de status inválida.');
+    throw new AccountError(400, 'Invalid status audience.');
   return contacts.filter((account) => !input.excluded.has(account));
 }
 export function statusExpiresAt(publishedAt: number): number {

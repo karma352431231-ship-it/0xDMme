@@ -96,7 +96,7 @@ export function discoveryPeriod(value: unknown): DiscoveryPeriod {
     value !== 'month' &&
     value !== 'all'
   )
-    throw new AccountError(400, 'Período inválido.');
+    throw new AccountError(400, 'Invalid period.');
   return value;
 }
 export function feedOrder(value: unknown): FeedOrder {
@@ -106,7 +106,7 @@ export function feedOrder(value: unknown): FeedOrder {
     value !== 'votes' &&
     value !== 'replies'
   )
-    throw new AccountError(400, 'Ordenação inválida.');
+    throw new AccountError(400, 'Invalid ordering.');
   return value;
 }
 export function feedFilter(value: unknown): FeedFilter {
@@ -119,10 +119,11 @@ export function feedFilter(value: unknown): FeedFilter {
     scope !== 'saved' &&
     scope !== 'hidden'
   )
-    throw new AccountError(400, 'Feed inválido.');
+    throw new AccountError(400, 'Invalid feed.');
   const communityId = communityCursor(data['community']),
     tag = communityCursor(data['tag']);
-  if (tag && !communityId) throw new AccountError(400, 'Tag exige comunidade.');
+  if (tag && !communityId)
+    throw new AccountError(400, 'Tags require a community.');
   return {
     scope,
     order: feedOrder(data['order']),
@@ -140,7 +141,7 @@ export function exploreFilter(value: unknown): ExploreFilter {
   ]);
   const order = data['order'] === 'activity' ? 'trending' : data['order'];
   if (order !== 'size' && order !== 'trending' && order !== 'new')
-    throw new AccountError(400, 'Classificação inválida.');
+    throw new AccountError(400, 'Invalid classification.');
   const period = rankingPeriod(data['period']);
   const topics = communityTopicSelection(
     data['topics'] ?? [],
@@ -154,17 +155,17 @@ export function discoveryKey(value: FeedFilter | ExploreFilter): string {
 export function rankCursor(value: unknown, filter?: string): RankCursor | null {
   if (value === null) return null;
   if (typeof value !== 'string' || value.length > 500)
-    throw new AccountError(400, 'Cursor de descoberta inválido.');
+    throw new AccountError(400, 'Invalid discovery cursor.');
   let data: Record<string, unknown>;
   try {
     data = object(JSON.parse(value));
   } catch {
-    throw new AccountError(400, 'Cursor de descoberta inválido.');
+    throw new AccountError(400, 'Invalid discovery cursor.');
   }
   keys(data, ['filter', 'anchor', 'rank', 'time', 'id']);
   const key = communityText(data['filter'], 240);
   if (filter !== undefined && key !== filter)
-    throw new AccountError(400, 'Cursor pertence a outros filtros.');
+    throw new AccountError(400, 'Cursor belongs to different filters.');
   return {
     filter: key,
     anchor: postTime(data['anchor']),
@@ -215,7 +216,7 @@ export function feedPage(value: unknown): FeedPage {
       const post = communityPost(row['post']),
         id = uuid(group['id']);
       if (post.community !== id)
-        throw new AccountError(400, 'Comunidade do feed inválida.');
+        throw new AccountError(400, 'Invalid feed community.');
       return {
         post,
         ...feedInteractions(row),
@@ -254,13 +255,13 @@ function feedInteractions(
   if (Object.hasOwn(row, 'viewerVote')) {
     const position = row['viewerVote'];
     if (position !== -1 && position !== 0 && position !== 1)
-      throw new AccountError(400, 'Voto inválido.');
+      throw new AccountError(400, 'Invalid vote.');
     extra.viewerVote = position;
   }
   if (Object.hasOwn(row, 'share')) {
     extra.share = feedShare(row['share']);
     if (extra.share.id !== extra.activityId)
-      throw new AccountError(400, 'Atividade compartilhada inválida.');
+      throw new AccountError(400, 'Invalid shared activity.');
   }
   return extra;
 }
@@ -295,7 +296,7 @@ function feedContext(value: unknown, post: CommunityPost) {
     root.parent !== null ||
     root.status !== 'visible'
   )
-    throw new AccountError(400, 'Contexto da resposta inválido.');
+    throw new AccountError(400, 'Invalid reply context.');
   return { root, parent };
 }
 export function explorePage(value: unknown): ExplorePage {
@@ -341,17 +342,17 @@ export function exploreCursor(
 ): { generation: string; rank: number; id: string; filter: string } | null {
   if (value === null) return null;
   if (typeof value !== 'string' || value.length > 500)
-    throw new AccountError(400, 'Cursor de ranking inválido.');
+    throw new AccountError(400, 'Invalid ranking cursor.');
   let data: Record<string, unknown>;
   try {
     data = object(JSON.parse(value));
   } catch {
-    throw new AccountError(400, 'Cursor de ranking inválido.');
+    throw new AccountError(400, 'Invalid ranking cursor.');
   }
   keys(data, ['generation', 'rank', 'id', 'filter']);
   const key = communityText(data['filter'], 240);
   if (filter !== undefined && key !== filter)
-    throw new AccountError(400, 'Cursor pertence a outros filtros.');
+    throw new AccountError(400, 'Cursor belongs to different filters.');
   return {
     generation: uuid(data['generation']),
     rank: postCount(data['rank']),

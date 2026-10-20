@@ -15,7 +15,7 @@ export function postObservations(value: unknown): PostObservation[] {
   keys(data, ['items']);
   const items = data['items'];
   if (!Array.isArray(items) || items.length < 1 || items.length > 24)
-    throw new AccountError(400, 'Lote de visualizações inválido.');
+    throw new AccountError(400, 'Invalid view batch.');
   const seen = new Set<string>();
   return items.map((value: unknown) => {
     const item = object(value);
@@ -27,7 +27,7 @@ export function postObservations(value: unknown): PostObservation[] {
       typeof token !== 'string' ||
       !/^[a-f0-9]{32}$/u.test(token)
     )
-      throw new AccountError(400, 'Marca de visualização inválida.');
+      throw new AccountError(400, 'Invalid view marker.');
     seen.add(post);
     return { community: uuid(item['community']), post, token };
   });
@@ -36,7 +36,7 @@ export function postViewsPage(value: unknown): PostViews[] {
   const data = object(value);
   keys(data, ['items']);
   if (!Array.isArray(data['items']) || data['items'].length > 24)
-    throw new AccountError(400, 'Contagens inválidas.');
+    throw new AccountError(400, 'Invalid counts.');
   return data['items'].map((value: unknown) => {
     const item = object(value);
     keys(item, ['id', 'views']);

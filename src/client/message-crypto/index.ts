@@ -131,7 +131,7 @@ function checkAttachmentPacket(packet: MessagePacket, text: string): void {
       ),
     ) !== canonical(packet.attachments)
   )
-    throw new Error('Anexos divergentes da mensagem autenticada.');
+    throw new Error('Attachments differ from the authenticated message.');
 }
 function roomContent(input: {
   text: string;
@@ -154,7 +154,7 @@ function roomContent(input: {
     new TextEncoder().encode(value).length >
     (input.kind === 'profile' ? 4_010_000 : 3_000_000)
   )
-    throw new Error('Conteúdo excede o tamanho permitido.');
+    throw new Error('Content exceeds the permitted size.');
   return value;
 }
 
@@ -198,7 +198,7 @@ export class MessageCrypto {
     return new MessageCrypto(machine, input.transport);
   }
   private assertOpen(): void {
-    if (this.closed) throw new Error('Sessão criptográfica encerrada.');
+    if (this.closed) throw new Error('Cryptographic session ended.');
   }
   async prepare(authority: VaultAuthority): Promise<void> {
     this.assertOpen();
@@ -286,7 +286,7 @@ export class MessageCrypto {
     transport: MessageTransport = this.transport,
   ): Promise<void> {
     this.assertOpen();
-    if (!this.binding) throw new Error('Vínculo do aparelho ausente.');
+    if (!this.binding) throw new Error('Device binding missing.');
     const sdk = object(JSON.parse(request.body) as unknown);
     const payload: Record<string, unknown> = { sdk };
     let operation: MatrixOperation;
@@ -311,7 +311,7 @@ export class MessageCrypto {
   }
   private async verifyQuery(result: Record<string, unknown>): Promise<void> {
     if (!Array.isArray(result['bindings']))
-      throw new Error('Vínculos de chaves ausentes.');
+      throw new Error('Key bindings missing.');
     const response = object(result['response']),
       devices = object(response['device_keys']);
     const verified = new Map<string, MatrixBinding>();
@@ -324,7 +324,7 @@ export class MessageCrypto {
       for (const [device, keys] of Object.entries(object(value))) {
         const binding = verified.get(`${user}/${device}`);
         if (!binding || canonical(binding.public) !== canonical(keys))
-          throw new Error('Diretório substituiu uma chave Matrix.');
+          throw new Error('Directory replaced a Matrix key.');
       }
     }
   }
@@ -334,10 +334,10 @@ export class MessageCrypto {
       current = history?.at(-1),
       event = history?.[Number(raw['authorityRevision']) - 1];
     if (!event || !current)
-      throw new Error('Autoridade do contato não conferida.');
+      throw new Error('Contact authority has not been verified.');
     const binding = await verifyMatrixBinding(input, event);
     if (!current.devices.some((d) => d.id === binding.deviceId))
-      throw new Error('Chave de aparelho revogado.');
+      throw new Error('Key belongs to a revoked device.');
     return binding;
   }
   private async trustDevices(
@@ -345,7 +345,7 @@ export class MessageCrypto {
     transport: MessageTransport = this.transport,
   ): Promise<void> {
     const event = history.at(-1);
-    if (!event) throw new Error('Diretório do contato ausente.');
+    if (!event) throw new Error('Contact directory missing.');
     const user = matrixUser(event.accountId);
     this.contexts.set(user, history);
     const query = this.machine.queryKeysForUsers([new UserId(user)]);
@@ -398,7 +398,7 @@ export class MessageCrypto {
     const { authority, peerHistory, id, text } = input,
       peer = peerHistory.at(-1);
     if (!peer || input.recovery.length !== 2 || !text.trim())
-      throw new Error('Destinatário, recuperação ou texto ausente.');
+      throw new Error('Recipient, recovery or text missing.');
     await this.prepare(authority);
     await this.trustDevices(authority.events);
     await this.trustDevices(peerHistory);
@@ -452,7 +452,7 @@ export class MessageCrypto {
         ),
       ) as unknown,
     );
-    if (!this.binding) throw new Error('Identidade Matrix de origem ausente.');
+    if (!this.binding) throw new Error('Source Matrix identity missing.');
     const exported = await this.machine.exportRoomKeys(
       (session) =>
         session.roomId.toString() === room &&
@@ -497,7 +497,7 @@ export class MessageCrypto {
     const destinations = await Promise.all(
       histories.map(async (history) => {
         const event = history.at(-1);
-        if (!event) throw new Error('Diretório do grupo ausente.');
+        if (!event) throw new Error('Group directory missing.');
         return {
           accountId: event.accountId,
           directory: await eventHash(event),
@@ -528,7 +528,7 @@ export class MessageCrypto {
         ),
       ) as unknown,
     );
-    if (!this.binding) throw new Error('Vínculo Matrix ausente.');
+    if (!this.binding) throw new Error('Matrix binding missing.');
     const bundle = await this.groupSessionKeys(input, {
       content,
       destinations,
@@ -574,7 +574,7 @@ export class MessageCrypto {
     )
       return;
     const signer = input.authority.events[cached.binding.authorityRevision - 1];
-    if (!signer) throw new Error('Autoridade da sessão de grupo ausente.');
+    if (!signer) throw new Error('Group session authority missing.');
     await verifyGroupKeys(cached, signer);
     if (cached.head !== (await groupEventHash(input.state))) return;
     this.rooms.set(session.room, session.membership);
@@ -584,7 +584,7 @@ export class MessageCrypto {
     input: GroupEncryptionInput,
     session: { cached: GroupKeys; destinations: GroupDestination[] },
   ): boolean {
-    if (!this.binding) throw new Error('Identidade Matrix não preparada.');
+    if (!this.binding) throw new Error('Matrix identity not prepared.');
     const cached = session.cached;
     const origin = [
       cached.groupId,
@@ -625,7 +625,7 @@ export class MessageCrypto {
       cached.epoch === input.state.epoch
     )
       return cached;
-    if (!this.binding) throw new Error('Vínculo Matrix ausente.');
+    if (!this.binding) throw new Error('Matrix binding missing.');
     const exported = await this.machine.exportRoomKeys(
       (key) =>
         key.roomId.toString() === session.room &&
@@ -661,7 +661,7 @@ export class MessageCrypto {
       ) ||
       !input.text.trim()
     )
-      throw new Error('Grupo sem participação atual ou conteúdo.');
+      throw new Error('Group has no current membership or content.');
     const histories = input.histories,
       accounts = histories.map(historyAccount);
     if (
@@ -669,7 +669,7 @@ export class MessageCrypto {
         canonical(input.state.members.map((m) => m.accountId)) ||
       input.recovery.length !== histories.length
     )
-      throw new Error('Audiência ou recuperação incompleta.');
+      throw new Error('Audience or recovery incomplete.');
     for (const [index, history] of histories.entries())
       await this.checkGroupRecovery({
         history,
@@ -687,7 +687,7 @@ export class MessageCrypto {
       .find((h) => historyAccount(h) === authority.session.accountId)
       ?.at(-1);
     if (!own || (await eventHash(own)) !== authority.directory)
-      throw new Error('Diretório de origem mudou.');
+      throw new Error('Source directory changed.');
   }
   private async checkGroupRecovery(input: {
     history: DirectoryEvent[];
@@ -695,8 +695,7 @@ export class MessageCrypto {
     recovery: RecoveryKey | undefined;
   }): Promise<void> {
     const { account, recovery, history } = input;
-    if (!account || !recovery)
-      throw new Error('Recuperação de membro ausente.');
+    if (!account || !recovery) throw new Error('Member recovery missing.');
     const current = await verifyHistory(history, account),
       event = history[recovery.authorityRevision - 1];
     if (
@@ -705,7 +704,7 @@ export class MessageCrypto {
       recovery.accountId !== account ||
       !current.devices.some((d) => d.id === recovery.deviceId)
     )
-      throw new Error('Recuperação ou aparelho sem autorização atual.');
+      throw new Error('Recovery or device lacks current authorization.');
     await verifyRecoveryKey(recovery, event);
   }
   private async claimGroupSessions(
@@ -729,7 +728,7 @@ export class MessageCrypto {
     const accounts = histories.map(historyAccount);
     for (const [index, history] of histories.entries()) {
       const account = accounts[index];
-      if (!account) throw new Error('Conta de grupo ausente.');
+      if (!account) throw new Error('Group account missing.');
       this.contexts.set(matrixUser(account), history);
     }
     const query = this.machine.queryKeysForUsers(
@@ -742,7 +741,7 @@ export class MessageCrypto {
     }
     for (const history of histories) {
       const current = history.at(-1);
-      if (!current) throw new Error('Diretório do grupo ausente.');
+      if (!current) throw new Error('Group directory missing.');
       await this.trustKnownDevices(current);
     }
   }
@@ -785,7 +784,7 @@ export class MessageCrypto {
       },
     });
     if (new TextEncoder().encode(content).length > 3_000_000)
-      throw new Error('Conteúdo de grupo excedido.');
+      throw new Error('Group content exceeds the limit.');
     return content;
   }
   async decryptGroup(input: {
@@ -825,7 +824,7 @@ export class MessageCrypto {
           event.senderClaimedEd25519Key !==
             packet.binding.public.keys[`ed25519:${packet.deviceId}`]
         )
-          throw new Error('Chave de origem de grupo divergente.');
+          throw new Error('Group source key does not match.');
         return this.openGroupContent(packet, event.event);
       } finally {
         event.free();
@@ -847,7 +846,7 @@ export class MessageCrypto {
       identity['epoch'] !== packet.epoch
     )
       throw new Error(
-        'Conteúdo de grupo não corresponde ao pacote autenticado.',
+        'Group content does not match the authenticated package.',
       );
     if (
       packet.kind === 'attachment' &&
@@ -855,7 +854,7 @@ export class MessageCrypto {
         contentRefs(attachmentContent(JSON.parse(payload['body']) as unknown)),
       ) !== canonical(packet.attachments)
     )
-      throw new Error('Anexo de grupo divergente.');
+      throw new Error('Group attachment does not match.');
     return payload['body'];
   }
   private assertGroupContentRelation(
@@ -867,7 +866,7 @@ export class MessageCrypto {
       canonical(packet.relation ?? null)
     )
       throw new Error(
-        'Conteúdo de grupo não corresponde ao pacote autenticado.',
+        'Group content does not match the authenticated package.',
       );
   }
   async decrypt(input: {
@@ -911,7 +910,7 @@ export class MessageCrypto {
           event.senderClaimedEd25519Key !==
             packet.binding.public.keys[`ed25519:${packet.deviceId}`]
         )
-          throw new Error('Chaves de origem divergentes.');
+          throw new Error('Source keys do not match.');
         const payload = object(
             object(JSON.parse(event.event) as unknown)['content'],
           ),
@@ -923,7 +922,7 @@ export class MessageCrypto {
           identity['sender'] !== packet.sender ||
           identity['recipient'] !== packet.recipient
         )
-          throw new Error('Conteúdo não corresponde à mensagem autenticada.');
+          throw new Error('Content does not match the authenticated message.');
         checkAttachmentPacket(packet, payload['body']);
         return {
           text: payload['body'],
@@ -980,6 +979,6 @@ export class MessageCrypto {
 
 function historyAccount(history: DirectoryEvent[]): string {
   const current = history.at(-1);
-  if (!current) throw new Error('Diretório de membro ausente.');
+  if (!current) throw new Error('Member directory missing.');
   return current.accountId;
 }

@@ -77,7 +77,7 @@ export class MessageForwardSelection<T extends DailyRow> {
     this.bar.className = 'forward-selection';
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.textContent = t('Cancelar');
+    cancel.textContent = t('Cancel');
     cancel.addEventListener('click', () => {
       if (!this.busy) this.clear();
     });
@@ -85,7 +85,7 @@ export class MessageForwardSelection<T extends DailyRow> {
     this.count.setAttribute('role', 'status');
     this.send = document.createElement('button');
     this.send.type = 'button';
-    this.send.textContent = t('Encaminhar');
+    this.send.textContent = t('Forward');
     this.send.addEventListener('click', () => {
       void this.choose();
     });

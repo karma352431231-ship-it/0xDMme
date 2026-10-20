@@ -112,7 +112,7 @@ export class MessageOpening {
       !participants.includes(row.sender) ||
       !participants.includes(row.recipient)
     )
-      throw new AccountError(404, 'Mensagem indisponível.');
+      throw new AccountError(404, 'Message unavailable.');
     const removed = await client.query(
       "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
       [authority.session.accountId, id, row.original_id],
@@ -120,7 +120,7 @@ export class MessageOpening {
     if (!row.available || removed.rowCount)
       throw new AccountError(
         410,
-        'Mensagem apagada ou removida do cofre pessoal.',
+        'Message deleted or removed from the personal vault.',
       );
     return row;
   }
@@ -142,7 +142,7 @@ export class MessageOpening {
     )
       throw new AccountError(
         423,
-        'Entrega suspensa. É necessário novo consentimento.',
+        'Delivery suspended. Renewed consent is required.',
       );
     if (!ref.rowCount) context.missing.push(id);
     // Load ciphertext only after authorization. Bodies never enter routing plans.
@@ -218,7 +218,7 @@ export class MessageOpening {
 }
 function assertExportWindow(ids: string[]): void {
   if (!ids.length || ids.length > 32)
-    throw new AccountError(400, 'Lote inválido.');
+    throw new AccountError(400, 'Invalid batch.');
   if (new Set(ids).size !== ids.length)
-    throw new AccountError(400, 'Lote duplicado.');
+    throw new AccountError(400, 'Duplicate batch.');
 }

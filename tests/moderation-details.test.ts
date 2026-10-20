@@ -20,14 +20,14 @@ const detail = {
   post: {
     id: crypto.randomUUID(),
     community: crypto.randomUUID(),
-    communityName: 'Comunidade',
+    communityName: 'Community',
     title: '',
     text: '',
     reply: true,
     deleted: false,
   },
 };
-await test('análise aceita post sem legenda e valida cada resultado externo sem inventar categorias', () => {
+await test('analysis accepts posts without captions and validates each external result without inventing categories', () => {
   assert.deepEqual(publicModerationDetails(detail), detail);
   for (const invalid of [
     { ...detail, policy: 'inventada' },

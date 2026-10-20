@@ -43,7 +43,7 @@ function identity(
     link.append(
       el(
         'span',
-        profile.role === 'owner' ? t('Dono') : t('Moderador'),
+        profile.role === 'owner' ? t('Owner') : t('Moderator'),
         'community-follower-role',
       ),
     );
@@ -90,18 +90,18 @@ function stackedAvatar(
   return avatar;
 }
 /**
- * “Seguida por @a, @b e mais N que você segue”, as social networks phrase it:
+ * “Followed by @a, @b and N others you follow”, as social networks phrase it:
  * up to two names, then how many other profiles the reader follows.
  */
 export function knownFollowersText(page: CommunityFollowers): string {
   const names = page.items.slice(0, 2).map((profile) => `@${profile.handle}`);
   const rest = page.total - names.length;
   if (rest > 0)
-    return t('Seguida por {0} e mais {1} que você segue', [
+    return t('Followed by {0} and {1} more you follow', [
       names.join(', '),
       rest.toLocaleString(currentLanguage()),
     ]);
-  return t('Seguida por {0}', [
+  return t('Followed by {0}', [
     new Intl.ListFormat(currentLanguage()).format(names),
   ]);
 }
@@ -137,7 +137,7 @@ export function mountCommunityFollowerPreview(
     count = el('a', '', 'community-followers-link');
   count.append(
     el('strong', input.total.toLocaleString(currentLanguage())),
-    el('span', ` ${input.total === 1 ? t('seguidor') : t('seguidores')}`),
+    el('span', ` ${input.total === 1 ? t('follower') : t('followers')}`),
   );
   count.href = `#communities?id=${input.id}&view=followers`;
   line.append(count);
@@ -153,7 +153,7 @@ export function mountCommunityFollowerPreview(
     })
     .catch(() => {
       if (!input.signal.aborted)
-        preview.textContent = t('Perfis em comum indisponíveis agora.');
+        preview.textContent = t('Mutual profiles currently unavailable.');
     });
 }
 /** Separate page with a public roster and signed personalized tab. */
@@ -166,10 +166,10 @@ export function mountCommunityFollowerPage(
     tabs = el('nav'),
     list = el('div', '', 'community-followers-list'),
     status = el('p'),
-    more = el('button', t('Ver mais'));
+    more = el('button', t('View more'));
   back.href = `#communities?id=${input.id}`;
   more.type = 'button';
-  tabs.setAttribute('aria-label', t('Listas de seguidores'));
+  tabs.setAttribute('aria-label', t('Follower lists'));
   status.setAttribute('role', 'status');
   more.hidden = true;
   let tab: CommunityFollowerTab = 'staff',
@@ -188,20 +188,20 @@ export function mountCommunityFollowerPage(
       ? t('{0} {1}', [
           page.total.toLocaleString(currentLanguage()),
           tab === 'staff'
-            ? t('na administração')
+            ? t('in management')
             : tab === 'known'
-              ? t('perfis que você segue nesta comunidade')
+              ? t('profiles you follow in this community')
               : page.total === 1
-                ? t('seguidor')
-                : t('seguidores'),
+                ? t('follower')
+                : t('followers'),
         ])
-      : t('Nenhum perfil nesta lista.');
+      : t('No profiles in this list.');
   }
   async function load(append: boolean): Promise<void> {
     const current = ++generation;
     loading = true;
     more.disabled = true;
-    status.textContent = t('Carregando seguidores…');
+    status.textContent = t('Loading followers…');
     try {
       const page = await read(input, tab, append ? next : null);
       if (!usable() || current !== generation) return;
@@ -211,7 +211,7 @@ export function mountCommunityFollowerPage(
         status.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Seguidores indisponíveis.');
+            : t('Followers unavailable.');
     } finally {
       if (current === generation) {
         loading = false;
@@ -224,9 +224,9 @@ export function mountCommunityFollowerPage(
     button: HTMLButtonElement;
   }> = [];
   for (const [kind, label] of [
-    ['staff', t('Dono e moderadores')],
-    ['all', t('Seguidores')],
-    ['known', t('Perfis que você segue')],
+    ['staff', t('Owner and moderators')],
+    ['all', t('Followers')],
+    ['known', t('Profiles you follow')],
   ] as const) {
     if (kind === 'known' && !input.signedIn) continue;
     const button = el('button', label);

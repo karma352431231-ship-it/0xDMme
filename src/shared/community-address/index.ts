@@ -7,7 +7,7 @@ export function communitySlug(value: unknown): string {
     value.length > 96 ||
     reservedCommunitySlug(value)
   )
-    throw new AccountError(400, 'Link de comunidade inválido.');
+    throw new AccountError(400, 'Invalid community link.');
   return value;
 }
 /** Stable address assigned once at creation; display-name edits do not rename it. */

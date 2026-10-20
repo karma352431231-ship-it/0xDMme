@@ -31,7 +31,7 @@ export function feedFollowControl(
   let following = false;
   const mobile = () =>
     options.chooseOnMobile && matchMedia('(max-width: 700px)').matches;
-  const node = button(header, t('+ Seguir'), () =>
+  const node = button(header, t('+ Follow'), () =>
     options
       .run(async () => {
         if (!options.valid()) return;
@@ -44,13 +44,13 @@ export function feedFollowControl(
   );
   node.className = 'community-post-follow';
   const describe = () => {
-    node.textContent = following ? t('Seguindo') : t('+ Seguir');
+    node.textContent = following ? t('follow.following') : t('+ Follow');
     node.setAttribute(
       'aria-label',
       mobile()
-        ? t('Escolher entre seguir comunidade ou autor')
-        : t('{0} a comunidade {1}', [
-            following ? t('Deixar de seguir') : t('Seguir'),
+        ? t('Choose whether to follow the community or author')
+        : t('{0} the community {1}', [
+            following ? t('Unfollow') : t('Follow'),
             target.community.name,
           ]),
     );

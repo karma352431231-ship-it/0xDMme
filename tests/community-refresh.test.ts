@@ -31,7 +31,7 @@ const bundle = await build({
         }));
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
           contents:
-            'export function startSocialDmUi() { return { setSession() {}, leave() {}, canActivate() { return true; } }; }',
+            'export function startSocialDmUi() { return { setSession() {}, ready() {}, leave() {}, canActivate() { return true; } }; }',
           loader: 'js',
         }));
       },
@@ -96,7 +96,7 @@ function fixture(
     community: {
       id,
       name: 'Comunidade sintética',
-      description: 'Descrição',
+      description: 'Description',
       rules: '',
       revision: 1,
       archived: false,
@@ -163,7 +163,7 @@ function fixture(
   const respond = (path: string, input?: RequestInit) => {
     if (path.endsWith('/state'))
       return Promise.resolve(
-        Response.json(data.failState ? { error: 'Sem autorização.' } : state, {
+        Response.json(data.failState ? { error: 'Not authorized.' } : state, {
           status: data.failState ? 403 : 200,
         }),
       );
@@ -256,9 +256,11 @@ function fixture(
     {} as Parameters<typeof startCommunities>[1],
     {} as Parameters<typeof startCommunities>[2],
     {
-      inspect: () => Promise.resolve(null),
-      set: () =>
-        Promise.resolve({ following: false, notify: false, revision: 0 }),
+      profiles: {
+        inspect: () => Promise.resolve(null),
+        set: () =>
+          Promise.resolve({ following: false, notify: false, revision: 0 }),
+      },
     },
   );
   const host = new CommunityNode('main');
@@ -280,7 +282,7 @@ function fixture(
   return { ui, host, sidebar, data };
 }
 
-await test('rechecagem da mesma sessão conserva comunidade, cartão e rascunho, consultando dados atuais', async () => {
+await test('same-session recheck preserves community, card and draft while querying current data', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   const hero = host.querySelector('.community-hero'),
@@ -303,7 +305,7 @@ await test('rechecagem da mesma sessão conserva comunidade, cartão e rascunho,
   assert.ok(data.requests.length > reads);
   ui.leave();
 });
-await test('post e respostas idênticos conservam elementos; edição e exclusão continuam atuais', async () => {
+await test('identical post and replies preserve elements; edits and deletions stay current', async () => {
   const { ui, host, data } = fixture({ post: true });
   await settled(ui);
   const card = host.querySelector('.community-post'),
@@ -316,10 +318,10 @@ await test('post e respostas idênticos conservam elementos; edição e exclusã
   await settled(ui);
   assert.equal(host.querySelector('.community-post'), card);
   assert.equal(host.querySelector('.community-thread'), thread);
-  data.value = { ...data.value, title: 'Editada', revision: 2 };
+  data.value = { ...data.value, title: 'Edited', revision: 2 };
   ui.ready();
   await settled(ui);
-  assert.match(host.textContent, /Editada/);
+  assert.match(host.textContent, /Edited/);
   assert.notEqual(host.querySelector('.community-post'), card);
   data.value = {
     ...data.value,
@@ -334,7 +336,7 @@ await test('post e respostas idênticos conservam elementos; edição e exclusã
   assert.match(host.textContent, /deleted by the author/);
   ui.leave();
 });
-await test('mudança de permissão publica uma única tela atualizada; falha descarta conteúdo e permite nova conferência', async () => {
+await test('permission change publishes one updated screen; failure discards content and allows rechecking', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   const replacements = host.replacements;
@@ -354,7 +356,7 @@ await test('mudança de permissão publica uma única tela atualizada; falha des
   assert.ok(host.querySelector('.community-post'));
   ui.leave();
 });
-await test('rechecagem conserva o cursor da página exibida em vez de avançar para a próxima', async () => {
+await test('recheck preserves the displayed page cursor instead of advancing to the next page', async () => {
   const { ui, host, data } = fixture();
   const cursor = JSON.stringify({
     filter: 'fixture',
@@ -381,7 +383,7 @@ await test('rechecagem conserva o cursor da página exibida em vez de avançar p
   ui.leave();
 });
 
-await test('lista privada é descartada antes da conferência e voltar ao público não reutiliza sua visão', async () => {
+await test('private list is discarded before checking and returning to public cannot reuse its view', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   const own = host
@@ -409,7 +411,7 @@ await test('lista privada é descartada antes da conferência e voltar ao públi
   assert.doesNotMatch(host.textContent, /Lista privada/);
   ui.leave();
 });
-await test('resposta atrasada da comunidade não restaura a tela depois da navegação', async () => {
+await test('late community response cannot restore the screen after navigation', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   const gate = deferred<Response>(),
@@ -426,7 +428,7 @@ await test('resposta atrasada da comunidade não restaura a tela depois da naveg
   await settled(ui);
   assert.equal(host.children.length, 0);
 });
-await test('resposta inválida de posts descarta a visão anterior e a próxima conferência pode restaurá-la', async () => {
+await test('invalid post response discards the previous view and a subsequent check may restore it', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   data.overrides.set('/api/account/communities/discovery-feed', () =>
@@ -442,7 +444,7 @@ await test('resposta inválida de posts descarta a visão anterior e a próxima 
   ui.leave();
 });
 
-await test('rechecagem invalida uma lista privada ainda em voo antes de publicar seu resultado', async () => {
+await test('recheck invalidates an in-flight private list before publishing its result', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);
   const privateResponse = deferred<Response>(),
@@ -558,7 +560,7 @@ await test('the sidebar applies changes and discards previous data on authorizat
   assert.equal(sidebar.querySelector('.community-row'), row);
   data.overrides.set('/api/account/communities/list', () =>
     Promise.resolve(
-      Response.json({ error: 'Sem autorização.' }, { status: 403 }),
+      Response.json({ error: 'Not authorized.' }, { status: 403 }),
     ),
   );
   ui.ready();

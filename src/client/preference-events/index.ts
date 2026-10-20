@@ -1,8 +1,8 @@
 import type { PushPreferences } from '../../shared/daily/index.ts';
 
 /**
- * Same-tab notice that the person changed a choice that follows the account
- * (docs/UI_CONFIGURACOES.md). Senders only describe the change; the account
+ * Same-tab notice that the person changed a choice that follows the account.
+ * Senders only describe the change; the account
  * copy in the encrypted vault is kept by account-settings.
  */
 export interface PreferenceChange {

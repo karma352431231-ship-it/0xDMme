@@ -22,9 +22,7 @@ export function mountOfflineNotice(before: HTMLElement): void {
     notice.dataset['offlineNotice'] = '';
     notice.setAttribute('role', 'status');
     const text = document.createElement('span');
-    text.textContent = t(
-      'Sem conexão · histórico salvo disponível neste aparelho',
-    );
+    text.textContent = t('Offline · saved history available on this device');
     notice.append(pingElement('offline', 'sm'), text);
     before.before(notice);
   }

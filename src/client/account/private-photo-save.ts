@@ -38,7 +38,7 @@ export async function savePrivatePhoto(input: {
     if (error instanceof AccountError) throw error;
     throw new AccountError(
       409,
-      'Não foi possível salvar a foto. Selecione-a novamente para tentar.',
+      'Could not save the photo. Select it again to retry.',
     );
   } finally {
     input.draft.clear();

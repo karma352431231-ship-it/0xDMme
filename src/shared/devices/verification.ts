@@ -54,7 +54,7 @@ export async function verify(
     )
       reject();
   } catch {
-    reject('Assinatura de dispositivo inválida.');
+    reject('Invalid device signature.');
   }
 }
 export async function sign(key: CryptoKey, message: string): Promise<string> {
@@ -107,13 +107,13 @@ function additions(
     (device) => !previous.devices.some((known) => known.id === device.id),
   );
   if (added.some((device) => previous.revoked.includes(device.id)))
-    reject('Um identificador revogado não pode ser reativado.');
+    reject('A revoked identifier cannot be reactivated.');
   for (const device of event.devices) {
     const known = previous.devices.find(
       (candidate) => candidate.id === device.id,
     );
     if (known && !same(identityOf(known), identityOf(device)))
-      reject('Chaves de aparelho alteradas.');
+      reject('Device keys changed.');
   }
   return added;
 }
@@ -167,7 +167,7 @@ function validateMigration({ previous, event, added, removed }: Change): void {
     event.linkId !== null ||
     same(previous.root, event.root)
   )
-    reject('Migração de recuperação inválida.');
+    reject('Invalid recovery migration.');
 }
 function validateLink({ previous, event, added, removed }: Change): void {
   if (
@@ -250,9 +250,9 @@ export async function verifyTransition(
 ): Promise<DirectoryEvent> {
   const event = directoryEvent(input);
   if (event.root.wallet && event.root.wallet.accountId !== event.accountId)
-    reject('Recuperação pertence a outra conta.');
+    reject('Recovery belongs to another account.');
   if (new TextEncoder().encode(canonical(event)).length > eventBytes)
-    reject('Diretório excede o orçamento de metadados.');
+    reject('Directory exceeds the metadata budget.');
   membership(event);
   let publicKey = event.root.signing;
   if (!previous) {
@@ -260,13 +260,13 @@ export async function verifyTransition(
   } else {
     transition(previous, event);
     if (event.previous !== (await eventHash(previous)))
-      reject('Conflito ou versão antiga do diretório.');
+      reject('Directory conflict or outdated version.');
     if (event.kind === 'migrate') publicKey = previous.root.signing;
     if (event.signer !== 'recovery') {
       const signer = previous.devices.find(
         (device) => device.id === event.signer,
       );
-      if (!signer) reject('Aparelho sem autorização ou revogado.');
+      if (!signer) reject('Device unauthorized or revoked.');
       publicKey = signer.signing;
     }
   }
@@ -282,7 +282,7 @@ export async function verifyHistory(
   for (const event of events) {
     current = await verifyTransition(current, event);
     if (current.accountId !== accountId)
-      reject('Diretório pertence a outra conta.');
+      reject('Directory belongs to another account.');
   }
   return current;
 }

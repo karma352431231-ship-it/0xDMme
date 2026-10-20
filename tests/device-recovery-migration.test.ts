@@ -63,7 +63,7 @@ function checkpointDatabase(records: Map<string, unknown>): IDBFactory {
     },
   } as unknown as IDBFactory;
 }
-await test('raiz local avança só por migração verificada; outro aparelho reconcilia e usa épocas antigas', async (t) => {
+await test('local root advances only through verified migration; another device reconciles and uses old epochs', async (t) => {
   const wallet = new Wallet(`0x${'1'.padStart(64, '0')}`);
   const accountId = crypto.randomUUID();
   const identity = await createIdentity(crypto.randomUUID(), 'A');

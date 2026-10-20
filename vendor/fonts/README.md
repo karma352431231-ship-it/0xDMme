@@ -1,12 +1,12 @@
-# Fontes da interface do 0xDMme
+# 0xDMme interface fonts
 
-Fontes variáveis distribuídas pela mesma origem do app. O navegador não consulta serviços de terceiros para carregá-las.
+Variable fonts served from the app's own origin. The browser does not contact third-party services to load them.
 
-| Arquivo                     | Origem                                                                                     | SHA-256                                                            | Bytes  |
-| --------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ------ |
-| `figtree-latin-5.3.0.woff2` | `files/figtree-latin-wght-normal.woff2` do pacote npm `@fontsource-variable/figtree@5.3.0` | `4ba7d3d096695818fe0686be4f1e82c6b05134e18a22260336130335027462dd` | 20.156 |
-| `sora-latin-5.3.0.woff2`    | `files/sora-latin-wght-normal.woff2` do pacote npm `@fontsource-variable/sora@5.3.0`       | `fa26406eeda9a3c6ec3d9ea8813c3045d6dc755e30c716d5c094e8ef43be5a7f` | 33.652 |
+| File                        | Source                                                                                            | SHA-256                                                            | Bytes  |
+| --------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------ |
+| `figtree-latin-5.3.0.woff2` | `files/figtree-latin-wght-normal.woff2` from the npm package `@fontsource-variable/figtree@5.3.0` | `4ba7d3d096695818fe0686be4f1e82c6b05134e18a22260336130335027462dd` | 20,156 |
+| `sora-latin-5.3.0.woff2`    | `files/sora-latin-wght-normal.woff2` from the npm package `@fontsource-variable/sora@5.3.0`       | `fa26406eeda9a3c6ec3d9ea8813c3045d6dc755e30c716d5c094e8ef43be5a7f` | 33,652 |
 
-Figtree (texto) é da Figtree Project Authors. Sora (títulos) é da Sora Project Authors. As duas usam a **SIL Open Font License 1.1**, reproduzida em `LICENSE-FIGTREE.txt` e `LICENSE-SORA.txt`. Os arquivos não foram modificados nem renomeados internamente. Só o subconjunto latino, com o português, é entregue. Outros alfabetos usam a fonte do sistema.
+Figtree (body text) is by the Figtree Project Authors. Sora (headings) is by the Sora Project Authors. Both use the **SIL Open Font License 1.1**, reproduced in `LICENSE-FIGTREE.txt` and `LICENSE-SORA.txt`. The files were neither modified nor internally renamed. Only the Latin subset is shipped; other scripts use the system font.
 
-O build (`src/tools/build-web.ts`) confere esses hashes e publica os dois arquivos como `/figtree-latin-5.3.0.woff2` e `/sora-latin-5.3.0.woff2`. Para atualizar, revise a versão e a licença, troque os arquivos e os hashes registrados aqui e no build, e confira o visual.
+The build (`src/tools/build-web.ts`) checks these hashes and publishes the two files as `/figtree-latin-5.3.0.woff2` and `/sora-latin-5.3.0.woff2`. To update, review the version and license, replace the files and the hashes recorded here and in the build, and check the visual result.

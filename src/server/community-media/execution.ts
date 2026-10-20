@@ -39,7 +39,7 @@ export class MediaExecutionQueue {
       return Promise.reject(
         new AccountError(
           503,
-          'Processador indisponível ou interrompido. Retome o envio.',
+          'Processor unavailable or interrupted. Resume the upload.',
         ),
       );
     return new Promise<string>((resolve, reject) => {

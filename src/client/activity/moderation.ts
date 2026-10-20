@@ -21,7 +21,7 @@ export function moderationRows(
       copy = document.createElement('div'),
       controls = document.createElement('div');
     const link = noticeLink({
-      label: t('Ver análise e contestar'),
+      label: t('View analysis and appeal'),
       href: `#review?id=${encodeURIComponent(item.review ?? item.id.split(':')[0] ?? '')}`,
       read: item.read === true,
       acknowledge: () => actions.acknowledge(item.id),

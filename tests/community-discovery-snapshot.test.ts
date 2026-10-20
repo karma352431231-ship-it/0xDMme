@@ -24,14 +24,14 @@ const page = (changes: Partial<typeof post> = {}) => ({
   items: [
     {
       post: { ...post, ...changes },
-      community: { id: community, name: 'Teste' },
+      community: { id: community, name: 'Test' },
     },
   ],
   next: null,
 });
 const query = 'order=recent&period=all';
 
-await test('rechecagem do mesmo feed valida a resposta e conserva a página; mudanças visíveis exigem novo desenho', () => {
+await test('same-feed recheck validates the response and preserves the page; visible changes require redrawing', () => {
   const snapshot = new DiscoverySnapshot();
   assert.equal(snapshot.read('feed', query, page()).changed, true);
   assert.equal(snapshot.read('feed', query, page()).changed, false);
@@ -46,7 +46,7 @@ await test('rechecagem do mesmo feed valida a resposta e conserva a página; mud
   }
 });
 
-await test('exclusão, moderação e remoção de item não mantêm conteúdo antigo no feed', () => {
+await test('deletion, moderation and item removal cannot retain old feed content', () => {
   for (const status of ['deleted', 'removed']) {
     const snapshot = new DiscoverySnapshot();
     snapshot.read('feed', query, page());
@@ -62,7 +62,7 @@ await test('exclusão, moderação e remoção de item não mantêm conteúdo an
   }
 });
 
-await test('filtros, cursor, escopo e sessão não reutilizam a página de outra consulta', () => {
+await test("filters, cursor, scope and session cannot reuse another query's page", () => {
   const snapshot = new DiscoverySnapshot();
   snapshot.read('feed', query, page());
   assert.equal(
@@ -81,7 +81,7 @@ await test('filtros, cursor, escopo e sessão não reutilizam a página de outra
   );
 });
 
-await test('resposta adulterada ou maior que a página permitida é recusada antes do reuso; retry ainda compara a última válida', () => {
+await test('tampered or oversized page is rejected before reuse; retry still compares the last valid page', () => {
   const snapshot = new DiscoverySnapshot();
   snapshot.read('feed', query, page());
   assert.throws(() =>
@@ -99,7 +99,7 @@ await test('resposta adulterada ou maior que a página permitida é recusada ant
   assert.equal(snapshot.read('feed', query, page()).changed, false);
 });
 
-await test('ranking valida geração/cursor e refaz página quando a geração ou a ordem muda', () => {
+await test('rankings validate generation and cursor and rebuild the page when generation or order changes', () => {
   const snapshot = new DiscoverySnapshot();
   const ranking = {
     items: [],

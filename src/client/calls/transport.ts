@@ -38,7 +38,7 @@ export class CallTransport {
     return result;
   }
   private guard(g: number): void {
-    if (g !== this.generation) throw new Error('Sessão da chamada encerrada.');
+    if (g !== this.generation) throw new Error('Call session ended.');
   }
   private async authority(g: number): Promise<SigningAuthority> {
     if (this.signing && Date.now() < this.signing.until)
@@ -49,7 +49,7 @@ export class CallTransport {
       (a) => {
         this.guard(g);
         if (a.offline)
-          throw new Error('Autorização online da chamada indisponível.');
+          throw new Error('Online call authorization unavailable.');
         // Retain only session-bound signing, never content/wrapping key closures.
         return Promise.resolve({
           session: { ...a.session },
@@ -60,7 +60,7 @@ export class CallTransport {
       { priority: 'interactive' },
     );
     this.guard(g);
-    if (Date.now() >= until) throw new Error('Autorização da chamada expirou.');
+    if (Date.now() >= until) throw new Error('Call authorization expired.');
     this.signing = { authority, until };
     return authority;
   }

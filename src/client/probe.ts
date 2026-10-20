@@ -25,7 +25,7 @@ const displayed = new Set<string>();
 let client: ProbeClient | undefined;
 let authorized = false;
 let busy = false;
-let stage = t('preparação da sessão');
+let stage = t('session preparation');
 
 function controls(): void {
   confirm.disabled = busy || !client;
@@ -42,10 +42,10 @@ async function run(operation: () => Promise<void>): Promise<void> {
   } catch (error: unknown) {
     const kind =
       error instanceof WebAssembly.CompileError
-        ? t('WASM incompatível')
-        : t('operação rejeitada');
+        ? t('Incompatible WASM')
+        : t('operation rejected');
     status.textContent = t(
-      'Falha na {0} ({1}). Confira as chaves e a sessão; nenhum envio em texto aberto será feito.',
+      'Failure in {0} ({1}). Check the keys and session; no plaintext will be sent.',
       [stage, kind],
     );
   } finally {
@@ -65,22 +65,22 @@ function transport(role: Role, token: string): ProbeTransport {
       body,
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) throw new Error('O laboratório rejeitou a operação.');
+    if (!response.ok) throw new Error('The laboratory rejected the operation.');
     return boundedResponse(response);
   };
 }
 
 async function initialize(): Promise<void> {
   const role = location.hash.slice(1);
-  if (!isRole(role)) throw new Error('Cliente inválido.');
+  if (!isRole(role)) throw new Error('Invalid client.');
   const config = await fetch('/api/config', {
     signal: AbortSignal.timeout(5_000),
   });
-  if (!config.ok) throw new Error('Configuração indisponível.');
+  if (!config.ok) throw new Error('Settings unavailable.');
   const token = text(parseObject(await boundedResponse(config))[role]);
-  stage = t('inicialização do motor criptográfico');
+  stage = t('cryptographic engine initialization');
   const initialized = await ProbeClient.create(role, transport(role, token));
-  stage = t('publicação das chaves públicas');
+  stage = t('public key publication');
   try {
     await initialized.publishKeys();
   } catch (error: unknown) {
@@ -88,38 +88,38 @@ async function initialize(): Promise<void> {
     throw error;
   }
   client = initialized;
-  stage = t('operação solicitada');
-  element('name', HTMLHeadingElement).textContent = t('Cliente {0}', [
+  stage = t('operation requested');
+  element('name', HTMLHeadingElement).textContent = t('Client {0}', [
     role === 'alice' ? 'Alice' : 'Bob',
   ]);
   element('fingerprint', HTMLTextAreaElement).value = client.fingerprint;
   status.textContent = t(
-    'Cliente iniciado. Copie a chave pública da outra tela para autorizar.',
+    'Client started. Copy the public key from the other screen to authorize.',
   );
-  document.title = t('Hash-Talk · {0}', [role]);
+  document.title = t('0xDMme · {0}', [role]);
   confirm.addEventListener('click', () => {
     void run(async () => {
       authorized = false;
-      if (!client) throw new Error('Cliente indisponível.');
+      if (!client) throw new Error('Client unavailable.');
       await client.confirmPeer(expected.value);
       authorized = true;
       expected.readOnly = true;
-      status.textContent = t('Chave confirmada. Pronto para enviar e receber.');
+      status.textContent = t('Key confirmed. Ready to send and receive.');
     });
   });
   send.addEventListener('click', () => {
     void run(async () => {
-      if (!client) throw new Error('Cliente indisponível.');
+      if (!client) throw new Error('Client unavailable.');
       await client.send(message.value);
       message.value = '';
       status.textContent = t(
-        'Pacote cifrado recebido pelo laboratório. O destinatário pode buscar.',
+        'Encrypted package received by the laboratory. The recipient can retrieve it.',
       );
     });
   });
   receive.addEventListener('click', () => {
     void run(async () => {
-      if (!client) throw new Error('Cliente indisponível.');
+      if (!client) throw new Error('Client unavailable.');
       for (const event of await client.receive()) {
         const id = text(event.event_id);
         if (event.sender !== identity(peer(role)).user || displayed.has(id))
@@ -130,21 +130,17 @@ async function initialize(): Promise<void> {
         messages.append(item);
         displayed.add(id);
       }
-      status.textContent = t(
-        'Busca concluída. As mensagens recebidas estão abaixo.',
-      );
+      status.textContent = t('Search completed. Received messages are below.');
     });
   });
   revoke.addEventListener('click', () => {
     void run(async () => {
       authorized = false;
-      if (!client) throw new Error('Cliente indisponível.');
+      if (!client) throw new Error('Client unavailable.');
       await client.revokePeer();
-      await client.send(
-        t('Texto fictício posterior à revogação; somente para o remetente.'),
-      );
+      await client.send(t('Fictional text after revocation; sender only.'));
       status.textContent = t(
-        'Dispositivo revogado e sessão rotacionada. O outro cliente não abre o novo pacote; cópias anteriores continuam legíveis.',
+        'Device revoked and session rotated. The other client cannot open the new package; previous copies remain readable.',
       );
     });
   });

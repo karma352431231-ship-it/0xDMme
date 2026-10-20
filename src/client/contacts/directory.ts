@@ -53,7 +53,7 @@ export class ContactDirectory {
   }
   id(wallet: WalletContact): string {
     const id = this.identities.get(walletKey(wallet));
-    if (!id) throw new Error('Wallet ainda não carregada na lista.');
+    if (!id) throw new Error('Wallet not loaded in the list yet.');
     return id;
   }
   async prepare(peers: readonly Peer[]): Promise<void> {
@@ -62,14 +62,14 @@ export class ContactDirectory {
       const key = walletKey(peer);
       if (this.identities.has(key)) continue;
       const id = await walletEntity(peer);
-      if (generation !== this.generation) throw new Error('Sessão alterada.');
+      if (generation !== this.generation) throw new Error('Session changed.');
       this.identities.set(key, id);
     }
   }
   async saved(contact: AddressBookEntry): Promise<void> {
     const generation = this.generation,
       entity = await walletEntity(contact);
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     this.contacts.set(walletKey(contact), { entity, contact });
     this.identities.set(walletKey(contact), entity);
   }
@@ -77,7 +77,7 @@ export class ContactDirectory {
     if (more && !this.more) return;
     const generation = this.generation;
     const page = await this.book.page(more ? this.after : null, work);
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     for (const entry of page.items) {
       const entity = entry.vault.change.entity,
         key = walletKey(entry.contact);
@@ -90,9 +90,9 @@ export class ContactDirectory {
   async remove(contact: AddressBookEntry): Promise<void> {
     const generation = this.generation;
     await this.book.remove(contact, () => {
-      if (generation !== this.generation) throw new Error('Sessão alterada.');
+      if (generation !== this.generation) throw new Error('Session changed.');
     });
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
     await this.saved({ ...contact, removed: true });
   }
 }

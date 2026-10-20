@@ -36,7 +36,7 @@ function handler(kind: Kind, work: () => Promise<void>, t: TestContext) {
     });
     t.mock.method(service, 'session', async () => {
       await work();
-      throw new AccountError(401, 'Sessão encerrada ou expirada.');
+      throw new AccountError(401, 'Session ended or expired.');
     });
     return createAccountHandler({ service, origin: 'http://127.0.0.1:45100' });
   }
@@ -117,7 +117,7 @@ await test('unauthenticated call traffic cannot exhaust a shared visitor window'
     origin,
   });
   t.mock.method(service, 'authorize', () =>
-    Promise.reject(new AccountError(401, 'Sessão encerrada ou expirada.')),
+    Promise.reject(new AccountError(401, 'Session ended or expired.')),
   );
   const current = createAccountHandler({ service, origin });
   t.after(() => current.close());

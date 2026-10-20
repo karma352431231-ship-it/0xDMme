@@ -23,7 +23,7 @@ const postHref = (post: CommunityPost) =>
 /** “↩ Resposta” chip in a reply's header, so replies never pass for posts. */
 export function markReply(card: HTMLElement): void {
   card.classList.add('community-post-is-reply');
-  const chip = el('span', t('Resposta'), 'post-kind-reply');
+  const chip = el('span', t('Reply'), 'post-kind-reply');
   chip.prepend(communityIcon('reply'));
   // Right after the author's @, before badges and the byline.
   const author = card.querySelector('.community-post-author');
@@ -48,17 +48,15 @@ export function repliedPost(input: {
   const section = el('section', '', 'replied-post');
   section.setAttribute(
     'aria-label',
-    input.kind === 'share'
-      ? t('Postagem compartilhada')
-      : t('Postagem respondida'),
+    input.kind === 'share' ? t('Shared post') : t('Replied-to post'),
   );
   if (input.kind !== 'share')
     section.append(
       el(
         'p',
         parent.author
-          ? t('Em resposta a @{0}', [parent.author.handle])
-          : t('Em resposta a uma conta removida'),
+          ? t('Replying to @{0}', [parent.author.handle])
+          : t('Replying to a removed account'),
         'replied-post-label',
       ),
     );
@@ -69,8 +67,8 @@ export function repliedPost(input: {
       el(
         'p',
         input.kind === 'share'
-          ? t('Postagem compartilhada indisponível.')
-          : t('Postagem respondida indisponível.'),
+          ? t('Shared post unavailable.')
+          : t('Replied-to post unavailable.'),
       ),
     );
     return section;
@@ -78,7 +76,7 @@ export function repliedPost(input: {
   quotedContent(quoted, input);
   if (root && root.id !== parent.id) {
     const original = anchor(
-      t('Postagem original: {0}', [root.title || t('sem título')]),
+      t('Original post: {0}', [root.title || t('untitled')]),
       postHref(root),
     );
     original.className = 'replied-post-root';
@@ -106,7 +104,7 @@ function quotedContent(
     );
   if (privacy) showPostExternalMedia(quoted, parent.text, { privacy, signal });
   if (parent.media?.length) showPublicPostMedia(quoted, parent.media, signal);
-  const open = anchor(t('Ver postagem completa'), postHref(parent));
+  const open = anchor(t('View full post'), postHref(parent));
   open.className = 'replied-post-open';
   quoted.append(open);
   quoted.addEventListener('click', (event) => openFromCard(event, open));
@@ -158,10 +156,10 @@ export async function showRepliedAbove(input: {
       el(
         'p',
         error instanceof Error
-          ? t('Postagem respondida indisponível: {0}', [
+          ? t('Replied-to post unavailable: {0}', [
               translatedError(error.message),
             ])
-          : t('Postagem respondida indisponível.'),
+          : t('Replied-to post unavailable.'),
         'replied-post-label',
       ),
     );

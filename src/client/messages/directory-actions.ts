@@ -15,7 +15,7 @@ export function organizationActions(options: {
   return [
     {
       id: 'archive',
-      label: settings.archived ? t('Desarquivar') : t('Arquivar'),
+      label: settings.archived ? t('Unarchive') : t('Archive'),
       icon: settings.archived ? 'unarchive' : 'archive',
       perform: () =>
         perform(() =>
@@ -28,7 +28,7 @@ export function organizationActions(options: {
     },
     {
       id: 'pin',
-      label: settings.pinned ? t('Desafixar') : t('Fixar'),
+      label: settings.pinned ? t('Unpin') : t('Pin'),
       icon: settings.pinned ? 'unpin' : 'pin',
       perform: () =>
         perform(() =>
@@ -41,9 +41,7 @@ export function organizationActions(options: {
     },
     {
       id: 'favorite',
-      label: favorite
-        ? t('Remover dos favoritos')
-        : t('Adicionar aos favoritos'),
+      label: favorite ? t('Remove from favorites') : t('Add to favorites'),
       icon: favorite ? 'unfavorite' : 'favorite',
       perform: () => perform(() => daily.setFavorite(favoriteId, !favorite)),
     },

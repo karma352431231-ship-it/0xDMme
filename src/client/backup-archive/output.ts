@@ -34,12 +34,12 @@ export class BackupOutput {
     }
   }
   async write(bytes: Uint8Array<ArrayBuffer>): Promise<void> {
-    if (this.closed) throw new Error('Backup encerrado.');
+    if (this.closed) throw new Error('Backup ended.');
     if (this.stream) await this.stream.write(bytes);
     else this.parts.push(new Blob([bytes]));
   }
   async finish(): Promise<Blob> {
-    if (this.closed) throw new Error('Backup encerrado.');
+    if (this.closed) throw new Error('Backup ended.');
     if (this.stream && this.file) {
       await this.stream.close();
       this.closed = true;

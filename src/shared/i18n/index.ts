@@ -1,5 +1,6 @@
 import { catalog } from './catalog.ts';
 import { errorTemplates } from './error-templates.ts';
+import { legacyErrorSource } from './legacy-errors.ts';
 
 export const languages = [
   { id: 'en', label: 'English' },
@@ -78,7 +79,7 @@ export function t(
 export function translatedError(message: string): string {
   const source = Object.hasOwn(catalog, message)
     ? message
-    : sourceByTranslation.get(message);
+    : (sourceByTranslation.get(message) ?? legacyErrorSource(message));
   if (source) return t(source);
   for (const entry of errorPatterns) {
     const match = entry.pattern.exec(message);
@@ -86,7 +87,7 @@ export function translatedError(message: string): string {
   }
   // API diagnostics append only fixed operation/status identifiers.
   const diagnostic =
-    /^(.*) (\[[a-z]+(?:[/-][a-z]+)* · (?:HTTP [1-5][0-9]{2}|sem resposta HTTP|no HTTP response|无 HTTP 响应) · (?:http|non-json|invalid-json|network|timeout|cancelled) · (?:json|html|other|missing)\])$/u.exec(
+    /^(.*) (\[[a-z]+(?:[/-][a-z]+)* · (?:HTTP [1-5][0-9]{2}|no HTTP response|无 HTTP 响应) · (?:http|non-json|invalid-json|network|timeout|cancelled) · (?:json|html|other|missing)\])$/u.exec(
       message,
     );
   if (diagnostic) return `${translatedError(diagnostic[1]!)} ${diagnostic[2]}`;

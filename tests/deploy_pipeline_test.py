@@ -54,7 +54,7 @@ class DeploymentTests(unittest.TestCase):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
-                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings']
+                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -376,9 +376,10 @@ class DeploymentTests(unittest.TestCase):
                 with self.assertRaises(remote.ActivationFailed) as error:
                     remote.exchange(candidate, previous, fail)
             self.assertTrue(error.exception.rollback_verified)
-            self.assertEqual(command.call_count, 2)
-            self.assertTrue(all(c.args[0] == ['systemctl', 'restart', '0xdmme-test.service']
-                                for c in command.call_args_list))
+            self.assertEqual([c.args[0] for c in command.call_args_list],
+                             [['systemctl', 'restart', '0xdmme-test.service'],
+                              ['systemctl', 'reset-failed', '0xdmme-test.service'],
+                              ['systemctl', 'restart', '0xdmme-test.service']])
             ready.assert_called_once()
             self.assertEqual((base / 'release/version').read_text(), 'old')
             self.assertEqual(sentinel.read_text(), 'preserve this')

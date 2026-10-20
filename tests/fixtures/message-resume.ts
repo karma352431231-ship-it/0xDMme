@@ -226,7 +226,7 @@ export function resumeFixture() {
     data.requests.push(operation);
     if (operation === data.failure)
       return Promise.resolve(
-        Response.json({ error: 'Sem autorização.' }, { status: 403 }),
+        Response.json({ error: 'Not authorized.' }, { status: 403 }),
       );
     if (operation === 'snapshot')
       return Promise.resolve(Response.json(data.snapshot));

@@ -17,7 +17,7 @@ import {
 
 const databaseUrl = 'postgresql://hash_talk_dev@127.0.0.1:45432/hash_talk_dev';
 
-await test('pacote principal de fontes acima de 2 MiB é carregado integralmente', async (t) => {
+await test('main source package above 2 MiB loads completely', async (t) => {
   const directory = await mkdtemp(resolve(tmpdir(), '0xdmme-source-size-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const source = '/source-0123456789abcdef.tar.gz';
@@ -37,10 +37,10 @@ await test('pacote principal de fontes acima de 2 MiB é carregado integralmente
   manifest[2] = { path: '/app-0123456789abcdef.js', type: 'text/javascript' };
   await writeFile(resolve(directory, 'assets.json'), JSON.stringify(manifest));
   await writeFile(resolve(directory, 'app-0123456789abcdef.js'), bytes);
-  await assert.rejects(loadWebAssets(root), /Asset excedido/u);
+  await assert.rejects(loadWebAssets(root), /Asset exceeds the limit/u);
 });
 
-await test('fontes públicas incluem instruções/licenças do build e excluem backend/dados privados', async () => {
+await test('public sources include build instructions and licenses and exclude backend and private data', async () => {
   const assets = await loadWebAssets();
   const sourcePath = [...assets.keys()].find((path) =>
     path.endsWith('.tar.gz'),
@@ -116,7 +116,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/shared/wallet-approval/index.ts',
     'src/client/app/phantom-probe.html',
     'LICENSE-GPL-3.0.txt',
-    'docs/FONTES_FRONTEND.md',
+    'docs/FRONTEND_SOURCES.md',
     'vendor/libsodium-0.8.4/README.md',
     'node_modules/@wallet-standard/app/LICENSE',
     'node_modules/libsodium-wrappers/LICENSE',
@@ -193,7 +193,7 @@ function verifyMatrixSources(
   assert.ok(assets.get('/matrix-crypto-18.9.0.wasm'));
 }
 
-await test('configuração isola banco e objetos locais e recusa perfis públicos', () => {
+await test('configuration isolates local database and objects and rejects public profiles', () => {
   assert.deepEqual(
     readWebConfiguration({
       HASH_TALK_DATABASE_URL: databaseUrl,
@@ -230,7 +230,7 @@ await test('configuração isola banco e objetos locais e recusa perfis público
     );
 });
 
-await test('staging exige origem canônica HTTPS, cluster/role exclusivos e objetos confinados', () => {
+await test('staging requires canonical HTTPS origin, dedicated cluster and role and confined objects', () => {
   const environment = {
     HASH_TALK_PROFILE: 'staging',
     HASH_TALK_PUBLIC_ORIGIN: 'https://0xdmme.app',
@@ -279,7 +279,7 @@ await test('staging exige origem canônica HTTPS, cluster/role exclusivos e obje
     assert.throws(() => readWebConfiguration({ ...environment, ...overrides }));
 });
 
-await test('política offline limita cache a assets públicos fixados do build', () => {
+await test('offline policy restricts cache to pinned public build assets', () => {
   const origin = 'https://hash-talk.example';
   const assets = [
     '/',
@@ -334,7 +334,7 @@ await test('política offline limita cache a assets públicos fixados do build',
   );
 });
 
-await test('servidor recusa origem, mutação, traversal e dados privados; saúde falha sem persistência', async (t) => {
+await test('server rejects origin violations, mutations, traversal and private data; health fails without persistence', async (t) => {
   let healthy = true;
   const assets = await loadWebAssets();
   const host = createWebServer({

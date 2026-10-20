@@ -27,7 +27,7 @@ class MentionInput {
     this.panel.id = 'mentions-' + crypto.randomUUID();
     this.panel.hidden = true;
     this.panel.setAttribute('role', 'listbox');
-    this.panel.setAttribute('aria-label', t('Usuários e comunidades'));
+    this.panel.setAttribute('aria-label', t('Users and communities'));
     field.setAttribute('aria-controls', this.panel.id);
     field.setAttribute('aria-autocomplete', 'list');
     field.setAttribute('aria-expanded', 'false');
@@ -101,16 +101,10 @@ class MentionInput {
       if (old !== this.generation || !this.field.isConnected) return;
       this.choices = choices;
       this.selected = 0;
-      this.paint(
-        choices.length ? '' : t('Nenhum perfil ou comunidade encontrado.'),
-      );
+      this.paint(choices.length ? '' : t('No profiles or communities found.'));
     } catch {
       if (old === this.generation)
-        this.paint(
-          t(
-            'Não foi possível buscar. Continue escrevendo para tentar de novo.',
-          ),
-        );
+        this.paint(t('Could not search. Keep typing to try again.'));
     }
   }
   private paint(problem: string): void {
@@ -142,13 +136,13 @@ class MentionInput {
       'aria-label',
       t('@{0} {1}', [
         choice.label,
-        choice.kind === 'user' ? t('Usuário') : t('Comunidade'),
+        choice.kind === 'user' ? t('User') : t('Community'),
       ]),
     );
     avatar.className = 'mention-avatar';
     avatar.textContent = avatarInitials(choice.label);
     title.textContent = '@' + choice.label;
-    type.textContent = choice.kind === 'user' ? t('Usuário') : t('Comunidade');
+    type.textContent = choice.kind === 'user' ? t('User') : t('Community');
     copy.append(title, type);
     button.append(avatar, copy);
     if (choice.avatar)
@@ -209,7 +203,7 @@ class MentionInput {
         this.field.maxLength > 0 ? this.field.maxLength : 560,
       );
     } catch {
-      this.paint(t('Sem espaço para esta menção. Remova um pouco do texto.'));
+      this.paint(t('No space for this mention. Remove some text.'));
       return;
     }
     this.draft.reset(candidate.value());

@@ -40,6 +40,7 @@ const real = new Set([
   './text-send.ts',
   './outgoing-text.ts',
   './profile-broadcast.ts',
+  '../conversation-preview/index.ts',
 ]);
 const bundle = await build({
   entryPoints: [entry],
@@ -98,6 +99,7 @@ export function coordinatorFixture(
   const drafts: { id: string; peer: string; text: string }[] = [];
   const state = {
     visibilityState: 'visible',
+    chatVisible: true,
     holdPage: false,
     holdInitialization: false,
     holdGroups: false,
@@ -131,6 +133,7 @@ export function coordinatorFixture(
   let clickPeer: (
     peer: Parameters<ReturnType<typeof startMessages>['openContact']>[0],
   ) => void = () => {};
+  let previews: ReadonlyMap<string, { text: string }> = new Map();
   const noop = () => {};
   const asyncNoop = () => Promise.resolve();
   const base = {
@@ -229,8 +232,10 @@ export function coordinatorFixture(
   };
   fixture.MessageDirectoryUi = function (options: {
     openPeer: typeof clickPeer;
+    previews: typeof previews;
   }) {
     clickPeer = options.openPeer;
+    previews = options.previews;
     return {
       ...base,
       renderContacts: noop,
@@ -324,6 +329,21 @@ export function coordinatorFixture(
         publish(null);
       },
       knownProfile: () => Promise.resolve(null),
+      directoryPreviews: () =>
+        Promise.resolve(
+          new Map([
+            [
+              'preview-peer',
+              {
+                id: 'latest',
+                sequence: 1,
+                text: 'Latest received message',
+                own: false,
+                read: false,
+              },
+            ],
+          ]),
+        ),
     };
   };
   fixture.startGroups = () => ({
@@ -433,7 +453,7 @@ export function coordinatorFixture(
     hidden: false,
     dataset: {},
     innerHTML: '',
-    getClientRects: () => [{}],
+    getClientRects: () => (state.chatVisible ? [{}] : []),
     addEventListener: noop,
     querySelectorAll: () => [],
     querySelector: (selector: string) =>
@@ -505,6 +525,7 @@ export function coordinatorFixture(
   t.after(() => lifecycle.pageHide({ persisted: false }));
   return {
     messages,
+    previews: () => previews,
     state,
     calls,
     priorities,

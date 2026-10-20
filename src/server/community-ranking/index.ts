@@ -1,3 +1,4 @@
+export { RankingLive } from './live.ts';
 import type { CommunityRankingStore, WorkSignals } from '../database/index.ts';
 import { WorkScheduler } from '../work-scheduler/index.ts';
 
@@ -14,7 +15,7 @@ export class CommunityRankingService {
       ...options,
       work: () => store.process(),
       failed: () => {
-        process.stderr.write('Ranking indisponível; atualização pendente.\n');
+        process.stderr.write('Rankings unavailable; update pending.\n');
       },
     });
     this.unsubscribe = signals.subscribe('ranking', () =>

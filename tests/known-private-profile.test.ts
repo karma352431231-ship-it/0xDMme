@@ -43,7 +43,7 @@ function profileDatabase(records: Map<string, unknown>): IDBFactory {
     },
   } as unknown as IDBFactory;
 }
-await test('fotos privadas usam somente cartão recebido na conta atual; ausência e exclusão não expõem foto antiga', async (t) => {
+await test('private photos use only cards received in the current account; absence and deletion expose no old photo', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'indexedDB', previous);
@@ -112,7 +112,10 @@ await test('fotos privadas usam somente cartão recebido na conta atual; ausênc
     { ...row, id: crypto.randomUUID() },
   ]) {
     store(`profile:${id}`, divergent);
-    await assert.rejects(knownPeerProfile(authority, peer), /divergente/u);
+    await assert.rejects(
+      knownPeerProfile(authority, peer),
+      /differ|not match/u,
+    );
   }
 });
 

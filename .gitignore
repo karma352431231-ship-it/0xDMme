@@ -1,10 +1,10 @@
-# Configuração privada; exemplos versionados devem conter somente valores fictícios.
+# Private configuration; committed examples must contain only fictitious values.
 .env
 .env.*
 !.env.example
 !.env.*.example
 
-# Chaves e diretórios reservados para dados privados locais.
+# Keys and directories reserved for private local data.
 *.pem
 *.key
 *.p12
@@ -15,11 +15,14 @@
 /storage/
 /uploads/
 
-# Inventários e registros operacionais são privados e permanecem somente locais.
+# Private operational records stay local.
 /.local/
-/INVENTARIO_BLOCO_00.md
 
-# Dependências e saídas locais, caso sejam geradas pela futura stack.
+# Local editor and assistant configuration.
+/AGENTS.md
+/CLAUDE.md
+
+# Dependencies and local build output.
 node_modules/
 /dist/
 /build/
@@ -28,6 +31,6 @@ node_modules/
 __pycache__/
 *.log
 
-# Arquivos do sistema operacional.
+# Operating system files.
 .DS_Store
 Thumbs.db

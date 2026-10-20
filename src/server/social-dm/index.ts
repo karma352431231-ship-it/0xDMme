@@ -21,6 +21,7 @@ export const socialDmOperations = [
   'dm-received',
   'dm-message-status',
   'dm-preview-status',
+  'dm-unread',
   'dm-secret-get',
   'dm-secret-save',
   'dm-attachment-reserve',
@@ -108,10 +109,11 @@ export class SocialDmService {
       },
       'dm-message-status': (a, d) => db.socialHistory.reads.status(a, d),
       'dm-preview-status': (a, d) => db.socialHistory.reads.preview(a, d),
+      'dm-unread': (a, d) => db.socialHistory.reads.unread(a, d),
       'dm-received': async (a, d) => {
         keys(d, ['items']);
         if (!Array.isArray(d['items']) || d['items'].length > 16)
-          throw new AccountError(400, 'Confirmação de DMs excedida.');
+          throw new AccountError(400, 'DM confirmations exceeds the limit.');
         await db.socialHistory.received(
           a,
           d['items'].map((value) => {
@@ -229,7 +231,7 @@ export class SocialDmService {
       'dm-matrix-received': async (a, d) => {
         keys(d, ['sequences']);
         if (!Array.isArray(d['sequences']) || d['sequences'].length > 16)
-          throw new AccountError(400, 'Lote de envelopes inválido.');
+          throw new AccountError(400, 'Invalid envelope batch.');
         await db.socialMatrix.received(a, d['sequences'].map(socialRevision));
         return { status: 'saved' };
       },
@@ -247,19 +249,18 @@ export class SocialDmService {
     data: Record<string, unknown>,
   ): Promise<unknown> {
     if (operation.startsWith('dm-attachment-')) {
-      if (!this.media)
-        throw new AccountError(503, 'Transferência de DMs indisponível.');
+      if (!this.media) throw new AccountError(503, 'DM transfers unavailable.');
       return this.media.operate(authority, operation.slice(3), data);
     }
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action) throw new AccountError(404, 'Operação de DM indisponível.');
+    if (!action) throw new AccountError(404, 'DM operation unavailable.');
     return action(authority, data);
   }
 }
 function boolean(input: unknown): boolean {
   if (typeof input !== 'boolean')
-    throw new AccountError(400, 'Opção de DM inválida.');
+    throw new AccountError(400, 'Invalid DM option.');
   return input;
 }

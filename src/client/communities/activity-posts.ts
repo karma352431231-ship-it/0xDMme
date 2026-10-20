@@ -182,9 +182,9 @@ export class ActivityPosts {
         options: (host) => this.options(card, host),
       });
     } else {
-      const login = el('a', t('Responder'), 'post-action post-comments');
+      const login = el('a', t('Reply'), 'post-action post-comments');
       login.href = '#settings';
-      login.setAttribute('aria-label', t('Entre pelo Perfil para responder'));
+      login.setAttribute('aria-label', t('Sign in through Profile to reply'));
       toolbar.append(login);
       postSharing(toolbar, post, null);
     }
@@ -238,7 +238,7 @@ export class ActivityPosts {
           card,
           error instanceof Error
             ? translatedError(error.message)
-            : t('Operação indisponível.'),
+            : t('Operation unavailable.'),
         );
     } finally {
       this.pending--;
@@ -267,13 +267,13 @@ export class ActivityPosts {
       replies = card.node.querySelector('.post-comments span');
     if (score) score.textContent = String(state.post.score);
     if (replies) replies.textContent = String(state.post.replies);
-    this.status(card, t('Alteração salva.'));
+    this.status(card, t('Change saved.'));
   }
   private async replied(card: ActivityCard, reply: PostState): Promise<void> {
     const { valid } = this.access(card),
       post = card.entry.post;
-    this.status(card, t('Resposta publicada.'));
-    const link = el('a', t('Ver resposta publicada'));
+    this.status(card, t('Reply published.'));
+    const link = el('a', t('View published reply'));
     link.href = `#communities?id=${post.community}&post=${reply.post.id}`;
     card.node.querySelector('.activity-post-status')?.append(' ', link);
     try {
@@ -285,7 +285,7 @@ export class ActivityPosts {
       );
       if (!valid()) return;
       this.counts(card, parent);
-      this.status(card, t('Resposta publicada.'));
+      this.status(card, t('Reply published.'));
       card.node.querySelector('.activity-post-status')?.append(' ', link);
     } catch (error: unknown) {
       if (valid())
@@ -295,10 +295,8 @@ export class ActivityPosts {
             el(
               'span',
               error instanceof Error
-                ? t(' Contagem indisponível: {0}', [
-                    translatedError(error.message),
-                  ])
-                : t(' Contagem indisponível.'),
+                ? t(' Count unavailable: {0}', [translatedError(error.message)])
+                : t(' Count unavailable.'),
             ),
           );
     }
@@ -325,7 +323,7 @@ export class ActivityPosts {
     if (!valid()) return;
     if (operation === 'report') {
       communityState(result);
-      this.status(card, t('Denúncia enviada.'));
+      this.status(card, t('Report sent.'));
       return;
     }
     const state = postState(result);

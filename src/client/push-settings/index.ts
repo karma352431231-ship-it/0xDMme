@@ -18,7 +18,7 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
     retry = document.createElement('button');
   notice.setAttribute('role', 'status');
   retry.type = 'button';
-  retry.textContent = t('Tentar carregar preferências');
+  retry.textContent = t('Try loading preferences');
   retry.hidden = true;
   host.append(notice, retry);
   let loaded = false,
@@ -43,7 +43,7 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
         notice.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível carregar preferências.');
+            : t('Could not load preferences.');
         retry.hidden = false;
       }
     } finally {
@@ -65,13 +65,13 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
         showCalls: showCalls.checked,
       });
       if (current === generation)
-        notice.textContent = t('Preferências de push salvas neste aparelho.');
+        notice.textContent = t('Push preferences saved on this device.');
     } catch (error: unknown) {
       if (current === generation)
         notice.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível salvar preferências.');
+            : t('Could not save preferences.');
     } finally {
       if (current === generation) {
         busy = false;

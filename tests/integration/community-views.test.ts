@@ -18,7 +18,7 @@ import {
 } from './community-fixture.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 
-await test('visualizações públicas: concorrência, idempotência, isolamento por post, rollback e exclusão', async (t) => {
+await test('public views: concurrency, idempotence, per-post isolation, rollback and deletion', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');

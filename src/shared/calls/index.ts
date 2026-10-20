@@ -52,7 +52,7 @@ export function mediaState(value: unknown): MediaState {
   if (
     !['idle', 'connecting', 'connected', 'disconnected'].includes(String(value))
   )
-    throw new AccountError(400, 'Estado de chamada inválido.');
+    throw new AccountError(400, 'Invalid call state.');
   return value as MediaState;
 }
 export function callDescription(input: unknown): CallDescription {
@@ -71,9 +71,9 @@ export function callDescription(input: unknown): CallDescription {
     'signature',
   ]);
   if (!['offer', 'answer', 'invite'].includes(String(d['type'])))
-    throw new AccountError(400, 'Negociação inválida.');
+    throw new AccountError(400, 'Invalid negotiation.');
   if (typeof d['signature'] !== 'string' || d['signature'].length > 128)
-    throw new AccountError(400, 'Assinatura inválida.');
+    throw new AccountError(400, 'Invalid signature.');
   return {
     id: uuid(d['id']),
     from: uuid(d['from']),
@@ -90,7 +90,7 @@ export function callDescription(input: unknown): CallDescription {
 }
 function invitationSdp(d: Record<string, unknown>): string {
   if (d['sdp'] !== '' || d['sequence'] !== 0)
-    throw new AccountError(400, 'Convite de chamada inválido.');
+    throw new AccountError(400, 'Invalid call invitation.');
   return '';
 }
 /** Remove ICE related addresses before sharing; reject all non-relay candidates. */
@@ -100,29 +100,29 @@ export function relaySdp(input: unknown): string {
     input.length > 6000 ||
     /[^\x20-\x7e\r\n]/u.test(input)
   )
-    throw new AccountError(400, 'Descrição de áudio inválida.');
+    throw new AccountError(400, 'Invalid audio description.');
   const lines = input.trim().split(/\r?\n/u);
   const media = lines.filter((s) => s.startsWith('m='));
   if (
     media.length !== 1 ||
     !/^m=audio \d+ UDP\/TLS\/RTP\/SAVPF /u.test(media[0] ?? '')
   )
-    throw new AccountError(400, 'Somente áudio WebRTC é permitido.');
+    throw new AccountError(400, 'Only WebRTC audio is allowed.');
   if (
     !lines.some((s) =>
       /^a=fingerprint:sha-256 (?:[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/u.test(s),
     )
   )
-    throw new AccountError(400, 'Fingerprint de mídia ausente.');
+    throw new AccountError(400, 'Media fingerprint missing.');
   if (!lines.some((s) => s.startsWith('a=candidate:')))
-    throw new AccountError(400, 'TURN não forneceu candidato relay.');
+    throw new AccountError(400, 'TURN did not provide a relay candidate.');
   return lines.map(safeSdpLine).filter(Boolean).join('\r\n') + '\r\n';
 }
 function safeSdpLine(line: string): string {
   if (line.startsWith('a=candidate:')) return relayCandidate(line);
   if (line.startsWith('o=')) {
     if (!/^o=\S+ \d+ \d+ IN IP[46] \S+$/u.test(line))
-      throw new AccountError(400, 'Origem de mídia inválida.');
+      throw new AccountError(400, 'Invalid media origin.');
     return line.replace(/IN IP[46] \S+$/u, 'IN IP4 0.0.0.0');
   }
   if (line.startsWith('c=')) return 'c=IN IP4 0.0.0.0';
@@ -138,11 +138,11 @@ function safeSdpLine(line: string): string {
 export function relayCandidate(line: string): string {
   const parts = line.trim().split(/\s+/u);
   if (parts.length < 8 || parts[6] !== 'typ' || parts[7] !== 'relay')
-    throw new AccountError(400, 'Candidato fora do relay rejeitado.');
+    throw new AccountError(400, 'Non-relay candidate rejected.');
   if (!['udp', 'tcp'].includes(String(parts[2]).toLowerCase()))
-    throw new AccountError(400, 'Transporte ICE inválido.');
+    throw new AccountError(400, 'Invalid ICE transport.');
   if (!/^[0-9a-fA-F:.]+$/u.test(parts[4] ?? ''))
-    throw new AccountError(400, 'Endereço relay inválido.');
+    throw new AccountError(400, 'Invalid relay address.');
   for (let i = 8; i < parts.length; i += 2) {
     if (parts[i] === 'raddr') parts[i + 1] = '0.0.0.0';
     if (parts[i] === 'rport') parts[i + 1] = '0';
@@ -159,9 +159,9 @@ export function callSnapshot(input: unknown): CallSnapshot {
     ...(Object.hasOwn(d, 'invitation') ? ['invitation'] : []),
   ]);
   if (Object.hasOwn(d, 'invitation') && d['invitation'] !== true)
-    throw new AccountError(400, 'Capacidade de chamada inválida.');
+    throw new AccountError(400, 'Invalid call capability.');
   if (typeof d['configured'] !== 'boolean' || typeof d['enabled'] !== 'boolean')
-    throw new AccountError(400, 'Preferência de chamadas inválida.');
+    throw new AccountError(400, 'Invalid call preference.');
   return {
     ...(d['invitation'] === true ? { invitation: true } : {}),
     configured: d['configured'],
@@ -189,7 +189,7 @@ function callView(input: unknown): CallView {
     typeof d['caller'] !== 'boolean' ||
     !['ringing', 'connecting', 'active'].includes(String(d['phase']))
   )
-    throw new AccountError(400, 'Chamada inválida.');
+    throw new AccountError(400, 'Invalid call.');
   return {
     id: uuid(d['id']),
     peer: uuid(d['peer']),

@@ -62,9 +62,7 @@ const offerKey = (accountId: string) => `0xdmme:push-offer:${accountId}`;
 function failure(label: string, error: unknown): string {
   return t('{0}: {1}', [
     label,
-    error instanceof Error
-      ? translatedError(error.message)
-      : t('não aplicado.'),
+    error instanceof Error ? translatedError(error.message) : t('not applied.'),
   ]);
 }
 function pushKinds(push: AccountSettings['push']): PushPreferences {
@@ -83,8 +81,8 @@ function samePush(a: PushPreferences, b: PushPreferences): boolean {
 }
 
 /**
- * Configurações iniciais and the account copy of device choices
- * (docs/UI_CONFIGURACOES.md). The copy lives in the encrypted vault; the
+ * Initial settings and the account copy of device choices.
+ * The copy lives in the encrypted vault; the
  * server only stores ciphertext, like every other vault record.
  */
 export class AccountSettingsController {
@@ -197,7 +195,7 @@ export class AccountSettingsController {
       if (!samePush(current, pushKinds(push)))
         await this.ports.push.configurePush(pushKinds(push));
     } catch (error: unknown) {
-      showToast(failure(t('Notificações deste aparelho'), error));
+      showToast(failure(t('Notifications on this device'), error));
     }
   }
   /** True when this device is subscribed afterwards. */
@@ -298,17 +296,17 @@ export class AccountSettingsController {
   ): Promise<string[]> {
     const steps: [string, () => Promise<void>][] = [
       [
-        t('Notificações push'),
+        t('Push notifications'),
         async () => {
           await pushStarted;
           if (pack.settings.push.enabled)
             await this.ports.push.configurePush(pushKinds(pack.settings.push));
         },
       ],
-      [t('Tema, sons e mídias'), () => this.applyDevice(pack.settings)],
-      [t('Privacidade'), () => this.ports.privacy.save(pack.privacy)],
+      [t('Theme, sounds and media'), () => this.applyDevice(pack.settings)],
+      [t('Privacy'), () => this.ports.privacy.save(pack.privacy)],
       [
-        t('Quem pode pedir conversa'),
+        t('Who can request a conversation'),
         () => this.ports.discovery.set(pack.discovery),
       ],
     ];
@@ -324,7 +322,7 @@ export class AccountSettingsController {
     }
     return problems;
   }
-  /** A change made in Configurações updates the account copy. */
+  /** A change made in Settings updates the account copy. */
   private changed(change: PreferenceChange): void {
     const session = this.session;
     if (!session || this.applying) return;
@@ -348,7 +346,7 @@ export class AccountSettingsController {
       .catch((error: unknown) => {
         showToast(
           failure(
-            t('Configuração aplicada neste aparelho, mas não salva na conta'),
+            t('Setting applied on this device, but not saved to your account'),
             error,
           ),
         );
@@ -358,7 +356,7 @@ export class AccountSettingsController {
   async saveLanguage(language: AppLanguage): Promise<void> {
     const session = this.session;
     if (!session || !this.languageReady)
-      throw new Error('Abra sua conta para salvar o idioma.');
+      throw new Error('Open your account to save your language.');
     const generation = this.generation;
     const current = () => this.guard(generation);
     const write = this.writes.then(async () => {
@@ -372,6 +370,6 @@ export class AccountSettingsController {
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
-      throw new Error('A conta mudou antes de salvar as configurações.');
+      throw new Error('The account changed before settings were saved.');
   }
 }

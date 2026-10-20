@@ -12,7 +12,7 @@ export class IncompleteMessageIndex extends Error {
   constructor() {
     super(
       t(
-        'Índice de mensagens parcialmente conferido. Continue sincronizando; o histórico permanece oculto.',
+        'Message index partially verified. Continue syncing; history remains hidden.',
       ),
     );
   }
@@ -260,11 +260,11 @@ export function assertMessagePage(
   let previous = after;
   for (const item of page.items) {
     if (item.sequence <= previous)
-      throw new Error('Ordem do índice divergente.');
+      throw new Error('Index order does not match.');
     previous = item.sequence;
   }
   if (page.next !== null && (page.next !== previous || page.next <= after))
-    throw new Error('Paginação de mensagens divergente.');
+    throw new Error('Message pagination does not match.');
 }
 
 interface VerifiedView {
@@ -287,7 +287,8 @@ export class VerifiedWindow<T extends VerifiedView> {
   remember(snapshot: unknown, items: MessageItem[], views: T[]): void {
     this.clear();
     // 16 base messages, two profiles and at most 48 relations.
-    if (items.length > 66) throw new Error('Janela verificada excedida.');
+    if (items.length > 66)
+      throw new Error('Verified window exceeds the limit.');
     this.scope = authorityScope(snapshot);
     const byId = new Map(views.map((view) => [view.id, view]));
     for (const item of items) {
@@ -330,7 +331,7 @@ function packetIdentity(item: MessageItem): string {
 export function messagePeer(account: string, item: MessageItem): string {
   if (item.sender === account) return item.recipient;
   if (item.recipient === account) return item.sender;
-  throw new Error('Mensagem fora da conta autorizada.');
+  throw new Error('Message outside the authorized account.');
 }
 
 /** A root-sealed receipt binds the verified packet, content hash and consent scope.
@@ -356,7 +357,7 @@ export function verifiedReceiptHash(
   if (item.deleted || item.status !== 'received') return null;
   const data = object(JSON.parse(receipt) as unknown);
   if (typeof data['scope'] !== 'string' || typeof data['identity'] !== 'string')
-    throw new Error('Cópia verificada inválida.');
+    throw new Error('Invalid verified copy.');
   const payloadHash = fingerprint(data['payloadHash']);
   return data['scope'] === authorityScope(snapshot) &&
     data['identity'] === packetIdentity(item)
@@ -398,7 +399,7 @@ export class MessagePrefetch {
   }
   commit(snapshot: unknown, page: ReturnType<typeof messageItems>): void {
     if (canonical(snapshot) !== this.identity)
-      throw new Error('Sincronização alterada.');
+      throw new Error('Synchronization changed.');
     assertMessagePage(page, this.after);
     this.after = page.next ?? page.items.at(-1)?.sequence ?? this.after;
     this.complete = page.next === null;

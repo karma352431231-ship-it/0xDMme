@@ -53,8 +53,7 @@ export function mountImageSlot(
   input.accept = 'image/png,image/jpeg,image/webp';
   input.hidden = true;
   slotNode.append(input);
-  const removeLabel =
-    slot === 'photo' ? t('Remover foto') : t('Remover banner');
+  const removeLabel = slot === 'photo' ? t('Remove photo') : t('Remove banner');
   const remove = el('button', t('×'), 'community-image-remove');
   remove.type = 'button';
   remove.setAttribute('aria-label', removeLabel);

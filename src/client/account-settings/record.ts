@@ -9,7 +9,7 @@ import type { PreferenceChange } from '../preference-events/index.ts';
 
 /**
  * Choices that would otherwise stay on one device; the account copy lives in
- * the encrypted vault (docs/UI_CONFIGURACOES.md). Privacy and discovery already
+ * the encrypted vault. Privacy and discovery already
  * belong to the account (encrypted profile and server) and are not repeated here.
  */
 export interface AccountSettings {
@@ -25,7 +25,7 @@ export interface PrivacyChoices {
   readReceipts: boolean;
   backupReminder: boolean;
 }
-/** Everything Configurações iniciais sets at once. */
+/** Everything Initial settings sets at once. */
 export interface SettingsPack {
   settings: AccountSettings;
   privacy: PrivacyChoices;
@@ -33,8 +33,7 @@ export interface SettingsPack {
 }
 
 function flag(value: unknown): boolean {
-  if (typeof value !== 'boolean')
-    throw new Error('Configuração da conta inválida.');
+  if (typeof value !== 'boolean') throw new Error('Invalid account settings.');
   return value;
 }
 
@@ -42,7 +41,7 @@ export function accountSettings(value: unknown): AccountSettings {
   const data = object(value);
   keys(data, ['version', 'theme', 'sound', 'externalMedia', 'push']);
   if (data['version'] !== 1 || !isTheme(data['theme']))
-    throw new Error('Configuração da conta inválida.');
+    throw new Error('Invalid account settings.');
   const push = object(data['push']);
   keys(push, ['enabled', 'messages', 'calls', 'showCalls']);
   const { enabled, ...kinds } = push;
@@ -55,7 +54,7 @@ export function accountSettings(value: unknown): AccountSettings {
   };
 }
 
-/** A change made in Configurações, applied over the account copy. */
+/** A change made in Settings, applied over the account copy. */
 export function withChange(
   current: AccountSettings,
   change: PreferenceChange,
@@ -93,9 +92,9 @@ interface Preset {
 export const presets: readonly Preset[] = [
   {
     id: 'reserved',
-    label: t('Reservado'),
+    label: t('Reserved'),
     hint: t(
-      'O mínimo de exposição: só convite, sem presença, GIFs como link e sem push.',
+      'Minimal exposure: invitation only, no presence, GIFs as links and no push.',
     ),
     externalMedia: false,
     push: { enabled: false, messages: true, calls: true, showCalls: false },
@@ -104,9 +103,9 @@ export const presets: readonly Preset[] = [
   },
   {
     id: 'balanced',
-    label: t('Equilibrado'),
+    label: t('Balanced'),
     hint: t(
-      'Avisos e GIFs ligados, presença escondida e confirmação de leitura.',
+      'Alerts and GIFs enabled, presence hidden and read receipts enabled.',
     ),
     externalMedia: true,
     push: { enabled: true, messages: true, calls: true, showCalls: true },
@@ -116,7 +115,9 @@ export const presets: readonly Preset[] = [
   {
     id: 'social',
     label: t('Social'),
-    hint: t('Tudo ligado: online, leitura, GIFs e avisos completos.'),
+    hint: t(
+      'Everything on: online status, read receipts, GIFs and full alerts.',
+    ),
     externalMedia: true,
     push: { enabled: true, messages: true, calls: true, showCalls: true },
     privacy: { online: true, lastSeen: false, readReceipts: true },

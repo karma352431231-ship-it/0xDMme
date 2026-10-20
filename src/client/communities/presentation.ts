@@ -90,9 +90,9 @@ export function relativePostTime(createdAt: string, now = Date.now()): string {
     Math.floor((now - Date.parse(createdAt)) / 60_000),
   );
   if (minutes < 1) return t('activity.now');
-  if (minutes < 60) return t('há {0} min', [minutes]);
-  if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
-  return t('há {0} d', [Math.floor(minutes / 1440)]);
+  if (minutes < 60) return t('{0} min ago', [minutes]);
+  if (minutes < 1440) return t('{0} h ago', [Math.floor(minutes / 60)]);
+  return t('{0} d ago', [Math.floor(minutes / 1440)]);
 }
 /**
  * Every post uses its public author identity. The community remains a secondary link.
@@ -116,7 +116,7 @@ export function postHeader(
     identity.lastElementChild?.classList.add('community-post-author');
     authorBadges(identity, post);
   } else
-    identity.append(el('span', t('Conta removida'), 'community-post-author'));
+    identity.append(el('span', t('Removed account'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
     link(byline, group.name, communityHref(group));
@@ -143,8 +143,12 @@ function authorBadges(identity: HTMLElement, post: CommunityPost): void {
         : { owner: '👑', moderator: '🛡️', new: '🌱' }[badge.kind],
       'community-author-badge',
     );
-    mark.title = badge.label;
-    mark.setAttribute('aria-label', badge.label);
+    const label =
+      badge.kind === 'custom'
+        ? badge.label
+        : t(badge.kind === 'moderator' ? 'Moderator' : 'New member');
+    mark.title = label;
+    mark.setAttribute('aria-label', label);
     mark.dataset['kind'] = badge.kind;
     identity.append(mark);
   }
@@ -161,7 +165,7 @@ function authorAvatar(post: CommunityPost): HTMLElement {
     );
     avatar.setAttribute(
       'aria-label',
-      t('Abrir perfil de @{0}', [post.author.handle]),
+      t("Open @{0}'s profile", [post.author.handle]),
     );
   } else avatar.setAttribute('aria-hidden', 'true');
   avatar.append(
@@ -178,12 +182,12 @@ export function postComments(
   a.href = `#communities?id=${post.community}&post=${post.id}`;
   a.setAttribute(
     'aria-label',
-    t('Abrir postagem e {0} respostas diretas', [post.replies]),
+    t('Open post and {0} direct replies', [post.replies]),
   );
   a.append(
     communityIcon('comment'),
     el('span', String(post.replies)),
-    el('span', t('comentários'), 'post-action-caption'),
+    el('span', t('comments'), 'post-action-caption'),
   );
   container.append(a);
 }

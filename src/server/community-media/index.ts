@@ -107,10 +107,9 @@ export class CommunityMediaService {
     d: Record<string, unknown>,
   ): Promise<unknown> {
     if (this.stop.signal.aborted)
-      throw new AccountError(503, 'Serviço em encerramento.');
+      throw new AccountError(503, 'Service shutting down.');
     const release = reserveOperationMemory(communityMediaPartBytes * 8);
-    if (!release)
-      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
+    if (!release) throw new AccountError(429, 'Transfers busy. Resume later.');
     try {
       return await this.execute(operation, a, d);
     } finally {
@@ -126,7 +125,7 @@ export class CommunityMediaService {
     if (operation === 'media-reserve') {
       keys(d, ['id', 'source']);
       if (!this.normalizer.available())
-        throw new AccountError(503, 'Processador de mídia não configurado.');
+        throw new AccountError(503, 'Media processor not configured.');
       await this.clean();
       return this.store.reserve(
         a,
@@ -150,7 +149,7 @@ export class CommunityMediaService {
       await this.clean();
       return { cancelled: true };
     }
-    throw new AccountError(404, 'Operação de mídia indisponível.');
+    throw new AccountError(404, 'Media operation unavailable.');
   }
   private async part(
     a: ContactAuthority,
@@ -172,7 +171,7 @@ export class CommunityMediaService {
           lease.state.source.bytes - index * communityMediaPartBytes,
         )
       )
-        throw new AccountError(400, 'Tamanho de parte divergente.');
+        throw new AccountError(400, 'Part size does not match.');
       await this.files.part(id, index, bytes);
       await this.store.part(a, { community, id, writer: lease.writer, hash });
     } catch (error: unknown) {
@@ -192,10 +191,10 @@ export class CommunityMediaService {
       current.received !==
       Math.ceil(current.source.bytes / communityMediaPartBytes)
     )
-      throw new AccountError(409, 'Upload incompleto.');
+      throw new AccountError(409, 'Upload incomplete.');
     const release = reserveOperationMemory(1_048_576);
     if (!release)
-      throw new AccountError(429, 'Preparação ocupada. Retome depois.');
+      throw new AccountError(429, 'Preparation busy. Resume later.');
     let lease;
     try {
       lease = await this.store.begin(a, {
@@ -246,7 +245,7 @@ export class CommunityMediaService {
           writer,
           error instanceof AccountError
             ? error.message
-            : 'Preparação indisponível. Retome o envio.',
+            : 'Preparation unavailable. Resume the upload.',
         );
       })
       .finally(() => {
@@ -256,7 +255,7 @@ export class CommunityMediaService {
     this.jobs.set(id, job);
     // A database outage in the release path is logged without payloads and does not leave an unhandled rejection.
     void job.catch(() => {
-      process.stderr.write('Falha ao finalizar preparação pública.\n');
+      process.stderr.write('Failed to finalize public media preparation.\n');
     });
     return { ...current, status: 'processing' };
   }
@@ -273,10 +272,10 @@ export class CommunityMediaService {
           1,
       );
     if (typeof d['thumbnail'] !== 'boolean')
-      throw new AccountError(400, 'Seleção de mídia inválida.');
+      throw new AccountError(400, 'Invalid media selection.');
     const state = await this.store.status(a, community, id);
     if (!state.result || !['ready', 'attached'].includes(state.status))
-      throw new AccountError(404, 'Mídia não preparada.');
+      throw new AccountError(404, 'Media not prepared.');
     const bytes = await this.files.slice(id, {
       name: d['thumbnail'] ? 'thumbnail' : 'result',
       index,

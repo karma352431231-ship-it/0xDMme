@@ -9,7 +9,7 @@ export function groupDeletion(input: unknown) {
   const value = object(input);
   keys(value, ['type', 'accountId', 'proof']);
   if (value['type'] !== 'message')
-    throw new AccountError(400, 'Exclusão de grupo inválida.');
+    throw new AccountError(400, 'Invalid group deletion.');
   return {
     type: 'message' as const,
     accountId: uuid(value['accountId']),
@@ -47,10 +47,10 @@ export async function verifyGroupDeletion(
     origin.accountId !== deletion.accountId ||
     (await eventHash(origin)) !== proof.directory
   )
-    throw new Error('Exclusão de outra mensagem, grupo ou autor.');
+    throw new Error('Deletion belongs to another message, group or author.');
   fingerprint(payload['head']);
   const device = origin.devices.find((row) => row.id === proof.deviceId);
-  if (!device) throw new Error('Exclusão sem aparelho autorizado.');
+  if (!device) throw new Error('Deletion has no authorized device.');
   await verify(
     device.signing,
     proof.signature,

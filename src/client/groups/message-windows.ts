@@ -87,7 +87,7 @@ export class GroupMessageWindows {
     const previous = this.states.get(snapshot.groupId);
     if (previous?.scope !== scope) return null;
     if (snapshot.revision < previous.snapshot.revision)
-      throw new Error('Estado antigo do grupo.');
+      throw new Error('Outdated group state.');
     return previous;
   }
   private async loadWindow(
@@ -189,9 +189,7 @@ export class GroupMessageWindows {
       deadline = Date.now() + 45000;
     while (pending.size) {
       if (Date.now() > deadline)
-        throw new Error(
-          'Preparação do grupo excedeu o prazo; tente novamente.',
-        );
+        throw new Error('Group preparation timed out; try again.');
       const requested = [...pending].slice(0, 16),
         raw = object(
           await c.api('group-message-objects', {
@@ -200,7 +198,7 @@ export class GroupMessageWindows {
           }),
         );
       if (!Array.isArray(raw['items']) || !raw['items'].length)
-        throw new Error('Objetos de grupo incompletos.');
+        throw new Error('Incomplete group objects.');
       const returned = (raw['items'] as unknown[]).map((item) =>
         uuid(object(item)['id']),
       );
@@ -208,7 +206,7 @@ export class GroupMessageWindows {
         new Set(returned).size !== returned.length ||
         returned.some((id) => !requested.includes(id))
       )
-        throw new Error('Objetos de outra consulta.');
+        throw new Error('Objects belong to another query.');
       const page = await c.read(raw);
       if (consume) consume(page.views);
       else views.push(...page.views);
@@ -238,7 +236,7 @@ export class GroupMessageWindows {
       }),
     );
     if (!Array.isArray(relations['ids']) || relations['ids'].length > 16)
-      throw new Error('Edições de grupo inválidas.');
+      throw new Error('Invalid group edits.');
     let projected = base;
     await this.objects(
       c,

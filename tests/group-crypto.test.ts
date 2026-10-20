@@ -40,7 +40,7 @@ const recoveryOnlyTransport: MessageTransport = (operation) => {
     return Promise.resolve({ response: { one_time_keys: {}, failures: {} } });
   return Promise.resolve({ response: {} });
 };
-await test('Megolm real recupera só o período dirigido ao membro e rejeita origem/audiência adulteradas', async (t) => {
+await test("real Megolm recovers only the member's addressed period and rejects tampered source or audience", async (t) => {
   await initAsync();
   const owner = await groupParticipant(),
     member = await groupParticipant(),
@@ -121,7 +121,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
     'Texto sintético do período autorizado',
   );
   await t.test(
-    'edição cifrada vincula original/grupo/autor; prova de exclusão rejeita outra mensagem',
+    'encrypted edit binds original, group and author; deletion proof rejects another message',
     async () => {
       const relation = {
         id: packet.id,
@@ -165,7 +165,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           senderEvent: owner.directory,
           exported: openRoomKey(readerKey, capsule),
         }),
-        /não corresponde/,
+        /does not match|is not a/,
       );
       const payload = {
         groupId: state.groupId,
@@ -215,12 +215,12 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           },
           [owner.directory],
         ),
-        /outra mensagem/,
+        /another message/,
       );
     },
   );
   await t.test(
-    'foto administrativa permanece cifrada, recuperável só pelos membros do período',
+    'administrative photo stays encrypted and recoverable only by members of the period',
     async () => {
       const photo = fixtureGroupPhoto(),
         text = JSON.stringify({ version: 1, title: 'Grupo', photo });
@@ -249,7 +249,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
     },
   );
   await t.test(
-    'cache autenticado evita novas consultas e continua recusando adulteração ou participação encerrada',
+    'authenticated cache avoids new queries while rejecting tampering and ended membership',
     async (c) => {
       const hash = await digest(canonical(packet));
       const cached = {
@@ -307,7 +307,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
             },
           ],
         }),
-        /Mensagem divergente/u,
+        /Message differs/u,
       );
       await assert.rejects(
         readGroupPage(
@@ -325,7 +325,7 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
           },
           page,
         ),
-        /período de participação/u,
+        /membership period/u,
       );
     },
   );

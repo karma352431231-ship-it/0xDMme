@@ -66,14 +66,14 @@ export async function profileKey(
         )) {
           database?.close();
           reject(
-            new Error('Falha ao encerrar transação local.', { cause: error }),
+            new Error('Failed to end the local transaction.', { cause: error }),
           );
           return;
         }
         // A completed/aborted transaction cannot be aborted again.
       }
       database?.close();
-      reject(new Error('Armazenamento local indisponível.'));
+      reject(new Error('Local storage unavailable.'));
     };
     const timer = window.setTimeout(fail, 5000);
     const complete = (key: CryptoKey | null) => {

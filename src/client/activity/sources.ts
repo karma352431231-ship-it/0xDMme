@@ -5,7 +5,7 @@ import type { MentionNotification } from '../../shared/mention-notifications/ind
 import type { ModerationActivity } from './moderation.ts';
 
 /**
- * Activity (docs/UI_PAINEIS_E_TEMAS.md): one place for items the app already
+ * Activity: one place for items the app already
  * receives. Each source keeps its own API, authorization and checks; this module
  * only reads them on demand and calls the same actions as the original screens.
  */
@@ -92,7 +92,7 @@ async function load<T>(
       problem:
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível carregar.'),
+          : t('Could not load.'),
     };
   }
 }

@@ -49,7 +49,7 @@ export interface DirectoryEvent {
   profile: string | null;
   signature: string;
 }
-export function reject(message = 'Diretório de dispositivos inválido.'): never {
+export function reject(message = 'Invalid device directory.'): never {
   throw new AccountError(409, message);
 }
 export function bytes(value: unknown, length: number): string {

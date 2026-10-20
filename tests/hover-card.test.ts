@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
-await test('trocar perfil por comunidade não cancela a próxima prévia com o timeout antigo', async (t) => {
+await test('switching from profile to community cannot cancel the next preview with the old timeout', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const document = communityDocument(),
     body = new CommunityNode('body'),
@@ -76,7 +76,7 @@ await test('trocar perfil por comunidade não cancela a próxima prévia com o t
   }
 });
 
-await test('prévia de menção por UUID mantém identidade estável e recusa @ reutilizado', async (t) => {
+await test('UUID mention preview preserves stable identity and rejects a reused handle', async (t) => {
   const { profileHoverProvider } =
     await import('../src/client/public-profile/profile-hover.ts');
   const document = communityDocument();
@@ -147,7 +147,7 @@ await test('prévia de menção por UUID mantém identidade estável e recusa @ 
         card as unknown as HTMLElement,
         new AbortController().signal,
       ),
-      /Perfil público alterado/,
+      /Public profile changed/,
     );
     assert.equal(provider(link('invalid')), null);
   } finally {

@@ -67,12 +67,12 @@ export function assertVaultObjectsAvailable(
 
 function availableCommit(read: ObjectRead, id: string): VaultCommit {
   const entry = read.entries.get(id);
-  if (!entry) throw new Error('Carregue esta versão primeiro.');
+  if (!entry) throw new Error('Load this version first.');
   if (entry.commit.accountId !== read.authority.session.accountId)
-    throw new Error('Manifesto de outra conta.');
+    throw new Error('Manifest belongs to another account.');
   if (read.removed(id))
     throw new Error(
-      'Versão removida do cofre pessoal. Consulte o backup independente.',
+      'Version removed from the personal vault. Check the independent backup.',
     );
   return entry.commit;
 }
@@ -83,9 +83,9 @@ async function fetchObject(
 ): Promise<Uint8Array> {
   if (authority.offline)
     throw new Error(
-      'Este bloco ainda não está no aparelho. Reconecte para carregar.',
+      'This block is not on the device yet. Reconnect to load it.',
     );
   const data = object(await vaultApi(authority, 'object', { id }));
-  if (data['id'] !== id) throw new Error('Objeto divergente.');
+  if (data['id'] !== id) throw new Error('Object does not match.');
   return base64(data['ciphertext'], blockLimit);
 }

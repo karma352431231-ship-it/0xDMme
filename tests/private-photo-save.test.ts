@@ -64,7 +64,7 @@ await test('a failed photo save retains the saved image and clears the unreachab
       current: () => true,
       save: () => Promise.reject(new Error('synthetic failure')),
     }),
-    /salvar a foto/u,
+    /save the photo/u,
   );
   assert.equal(f.profile.photo, saved);
   assert.equal(f.draft.dirty(), false);

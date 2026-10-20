@@ -7,7 +7,7 @@ import { publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 
 /** Historical wire value: UI translations must never enter signed DM directories. */
-export const socialDeviceName = 'Aparelho de DMs';
+export const socialDeviceName = 'DM device';
 
 export interface SocialRelation {
   peer: PublicProfile;
@@ -20,7 +20,7 @@ export interface SocialRelation {
 }
 export function socialRevision(input: unknown): number {
   if (typeof input !== 'number' || !Number.isSafeInteger(input) || input < 0)
-    throw new AccountError(400, 'Revisão de DM inválida.');
+    throw new AccountError(400, 'Invalid DM revision.');
   return input;
 }
 export function socialRelation(input: unknown): SocialRelation {
@@ -41,7 +41,7 @@ export function socialRelation(input: unknown): SocialRelation {
     typeof data['blocked'] !== 'boolean' ||
     typeof data['canSend'] !== 'boolean'
   )
-    throw new AccountError(400, 'Relação de DM inválida.');
+    throw new AccountError(400, 'Invalid DM relationship.');
   return {
     peer: publicProfile(data['peer']),
     requester: uuid(data['requester']),
@@ -56,7 +56,7 @@ export function socialPage(input: unknown) {
   const data = object(input);
   keys(data, ['items', 'next']);
   if (!Array.isArray(data['items']) || data['items'].length > 16)
-    throw new AccountError(400, 'Página de DMs inválida.');
+    throw new AccountError(400, 'Invalid DM page.');
   return {
     items: (data['items'] as unknown[]).map(socialRelation),
     next: data['next'] === null ? null : uuid(data['next']),
@@ -74,7 +74,7 @@ export function socialDirectory(input: unknown): DirectoryEvent {
   )
     throw new AccountError(
       400,
-      'Diretório de DMs contém dados de outro contexto.',
+      'DM directory contains data from another context.',
     );
   return event;
 }

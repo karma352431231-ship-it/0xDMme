@@ -13,7 +13,7 @@ export function withPublicRead(
 ): Promise<Blob> {
   signal.throwIfAborted();
   if (pending.length >= 128)
-    return Promise.reject(new Error('Leituras públicas ocupadas.'));
+    return Promise.reject(new Error('Public readers busy.'));
   return new Promise((resolve, reject) => {
     const job: QueuedRead = {
       start() {
@@ -26,7 +26,7 @@ export function withPublicRead(
             reject(
               error instanceof Error
                 ? error
-                : new Error('Leitura pública indisponível.'),
+                : new Error('Public reading unavailable.'),
             );
           } finally {
             active--;
@@ -39,7 +39,7 @@ export function withPublicRead(
         const index = pending.indexOf(job);
         if (index !== -1) pending.splice(index, 1);
         signal.removeEventListener('abort', job.cancel);
-        reject(new DOMException(t('Leitura pública cancelada.'), 'AbortError'));
+        reject(new DOMException(t('Public reading cancelled.'), 'AbortError'));
       },
     };
     if (active < 4) job.start();

@@ -8,6 +8,6 @@ export function reserveCallState(kind: 'endpoint' | 'call'): () => void {
   );
   if (release) return release;
   if (kind === 'endpoint')
-    throw new AccountError(429, 'Limite temporário de aparelhos conectados.');
-  throw new AccountError(409, 'Chamada indisponível.');
+    throw new AccountError(429, 'Temporary connected device limit reached.');
+  throw new AccountError(409, 'Call unavailable.');
 }

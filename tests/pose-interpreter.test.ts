@@ -16,7 +16,7 @@ function interpreter(mode: string) {
     model: 'a'.repeat(64),
   });
 }
-await test('processo persistente associa cada resposta à solicitação e encerra', async () => {
+await test('persistent process associates each response with its request and shuts down', async () => {
   const worker = interpreter('ok');
   try {
     await worker.ready(AbortSignal.timeout(3000));
@@ -33,7 +33,7 @@ await test('processo persistente associa cada resposta à solicitação e encerr
     /indisponível/u,
   );
 });
-await test('identidade incorreta, saída inesperada e falha do processo impedem resultado', async () => {
+await test('wrong identity, unexpected output and process failure prevent a result', async () => {
   for (const mode of [
     'wrong-model',
     'startup-exit',
@@ -52,7 +52,7 @@ await test('identidade incorreta, saída inesperada e falha do processo impedem 
     }
   }
 });
-await test('aborto e close interrompem inferência travada, sem promessa ou processo pendente', async () => {
+await test('abort and close interrupt stalled inference without pending promise or process', async () => {
   for (const action of ['abort', 'close']) {
     const worker = interpreter('hang'),
       stop = new AbortController();
@@ -65,7 +65,7 @@ await test('aborto e close interrompem inferência travada, sem promessa ou proc
     await worker.close();
   }
 });
-await test('inferência simultânea e requisição excessiva não são enfileiradas sem limite', async () => {
+await test('simultaneous inference and excess requests cannot enter an unbounded queue', async () => {
   const worker = interpreter('hang'),
     stop = new AbortController();
   await worker.ready(AbortSignal.timeout(3000));

@@ -68,12 +68,12 @@ function bindPhoto(
       try {
         close = openImageViewer({
           url: current,
-          alt: t('Imagem ampliada'),
+          alt: t('Enlarged image'),
           trigger,
           signal,
         });
       } catch {
-        showToast(t('Não foi possível abrir a ampliação.'));
+        showToast(t('Could not open the enlarged image.'));
       }
     },
     { signal },

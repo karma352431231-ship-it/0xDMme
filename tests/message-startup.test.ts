@@ -128,7 +128,7 @@ for (const kind of ['private', 'public'])
         outcome === 'ready'
           ? /Verified authority/u
           : outcome === 'logout'
-            ? /Sessão/u
+            ? /[Ss]ession/u
             : /Synthetic runtime failure/u,
       );
       assert.equal(fixture.entered(), outcome === 'ready' ? 1 : 0);

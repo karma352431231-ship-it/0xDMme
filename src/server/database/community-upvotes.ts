@@ -87,7 +87,7 @@ export class CommunityUpvotes {
         `SELECT p.id FROM hash_talk.community_posts p WHERE p.id=$1 AND p.community_id=$2 AND ${visibleUpvoteTarget()}`,
         [post, community],
       );
-      if (!target.rowCount) throw new AccountError(404, 'Post indisponível.');
+      if (!target.rowCount) throw new AccountError(404, 'Post unavailable.');
       const found = await client.query<{ profile_id: string }>(
         'SELECT profile_id FROM hash_talk.community_votes WHERE post_id=$1 AND position=1 AND ($2::uuid IS NULL OR profile_id<$2) ORDER BY profile_id DESC LIMIT 25',
         [post, communityCursor(after)],

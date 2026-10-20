@@ -11,7 +11,7 @@ type ReceiptApi = (
 
 function parseReceipts(raw: unknown): Set<string> {
   if (!Array.isArray(raw) || raw.length > 16)
-    throw new Error('Confirmações inválidas.');
+    throw new Error('Invalid confirmations.');
   return new Set(raw.map((value) => String(value)));
 }
 

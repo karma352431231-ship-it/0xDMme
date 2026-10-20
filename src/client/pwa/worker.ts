@@ -118,7 +118,7 @@ scope.addEventListener('install', (event) => {
               signal,
             }));
           if (!response.ok || response.type !== 'basic')
-            throw new Error('Shell incompleto.');
+            throw new Error('App shell incomplete.');
           await cache.put(path, response);
         }
       })
@@ -266,7 +266,7 @@ function notificationAppearance(data: object): NotificationAppearance {
   return {
     title: genericNotification.title,
     body: showCall
-      ? t('Chamada de voz recebida. Abra o app para atender.')
+      ? t('Incoming voice call. Open the app to answer.')
       : t(genericNotification.body),
     tag: call ? '0xdmme-call' : '0xdmme-activity',
   };
@@ -277,9 +277,9 @@ function publicAppearance(
   if (preview.followed) return followedAppearance(preview);
   return {
     title: preview.reply
-      ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
-      : t('@{0} publicou · 0xDMme', [preview.author.handle]),
-    body: preview.text || t('Nova publicação com mídia.'),
+      ? t('@{0} replied · 0xDMme', [preview.author.handle])
+      : t('@{0} posted · 0xDMme', [preview.author.handle]),
+    body: preview.text || t('New media publication.'),
     tag: '0xdmme-public-activity',
     data: {
       href: appHref(
@@ -299,7 +299,7 @@ function followedAppearance(
 ): NotificationAppearance {
   return {
     title: `@${preview.author.handle}`,
-    body: preview.text || t('Nova publicação com mídia.'),
+    body: preview.text || t('New media publication.'),
     tag: `0xdmme-post-${preview.post}`,
     ...(preview.author.avatar ? { icon: preview.author.avatar } : {}),
     data: {

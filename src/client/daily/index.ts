@@ -51,7 +51,7 @@ export class Daily {
     this.sync = sync;
   }
   private assertGeneration(generation: number): void {
-    if (generation !== this.generation) throw new Error('Sessão alterada.');
+    if (generation !== this.generation) throw new Error('Session changed.');
   }
   setSession(session: AccountSession | null): void {
     if (
@@ -74,7 +74,7 @@ export class Daily {
   ): Promise<unknown> {
     const generation = this.generation;
     const guard = () => {
-      if (generation !== this.generation) throw new Error('Sessão alterada.');
+      if (generation !== this.generation) throw new Error('Session changed.');
     };
     return this.access.withVault(false, (a) =>
       messageApi(a, operation, payload, guard),
@@ -116,7 +116,7 @@ export class Daily {
         peers: peers.slice(offset, offset + 16),
       });
       if (!Array.isArray(raw) || raw.length > 16)
-        throw new Error('Estados inválidos.');
+        throw new Error('Invalid states.');
       for (const value of raw)
         states.set(String(object(value)['peer']), parseState(value));
     }
@@ -130,7 +130,7 @@ export class Daily {
         groups: groups.slice(offset, offset + 16),
       });
       if (!Array.isArray(raw) || raw.length > 16)
-        throw new Error('Estados de grupo inválidos.');
+        throw new Error('Invalid group states.');
       for (const value of raw) {
         const data = object(value);
         states.set(
@@ -155,7 +155,7 @@ export class Daily {
       duration !== Number.MAX_SAFE_INTEGER
     )
       throw new Error(
-        'Desarquive a conversa antes de alterar ou retomar os alertas.',
+        'Unarchive the conversation before changing or resuming alerts.',
       );
     await this.applyMute(peer, duration);
   }
@@ -210,7 +210,7 @@ export class Daily {
   async loadSettings(peers: readonly string[]): Promise<void> {
     if (!this.sync.complete)
       throw new Error(
-        'Sincronize o cofre antes de abrir preferências de conversa.',
+        'Sync the vault before opening conversation preferences.',
       );
     const generation = this.generation;
     const settings = new Map<string, ConversationSettings>(),
@@ -233,7 +233,7 @@ export class Daily {
       );
       if (favoriteHeads.length > 16 || entries.length > 16)
         throw new Error(
-          'Muitas versões de preferências. Resolva os conflitos antes de continuar.',
+          'Too many preference versions. Resolve conflicts before continuing.',
         );
       if (favoriteHeads[0])
         favorites.set(
@@ -289,7 +289,7 @@ export class Daily {
       )
       .map((e) => e.commit.id);
     if (parents.length > 16)
-      throw new Error('Resolva as versões deste favorito antes de continuar.');
+      throw new Error("Resolve this favorite's versions before continuing.");
     this.assertGeneration(generation);
     await this.sync.save({
       change: {
@@ -352,7 +352,7 @@ export class Daily {
     } catch (error: unknown) {
       if (patch.archived && mutePeer)
         throw new Error(
-          'Alertas silenciados, mas o arquivamento não foi salvo. Tente novamente.',
+          'Alerts were muted, but archiving was not saved. Try again.',
           { cause: error },
         );
       throw error;
@@ -368,7 +368,7 @@ export class Daily {
     await this.loadSettings(visible);
     if ((this.sync.currentHeads().get(peer)?.length ?? 0) > 16)
       throw new Error(
-        'Muitas alterações simultâneas nesta conversa. Tente novamente após sincronizar.',
+        'Too many simultaneous changes in this conversation. Sync, then try again.',
       );
   }
   async enablePush(): Promise<void> {
@@ -378,20 +378,22 @@ export class Daily {
       !('serviceWorker' in navigator)
     )
       throw new Error(
-        'Este navegador não oferece Web Push. No iPhone/iPad, adicione à tela inicial e abra pelo ícone.',
+        'This browser does not support Web Push. On iPhone/iPad, add the app to the home screen and open its icon.',
       );
     const permission = await Notification.requestPermission();
     if (permission !== 'granted')
       throw new Error(
-        'Permissão de notificação não concedida. Altere-a nas configurações do navegador para tentar novamente.',
+        'Notification permission not granted. Change it in browser settings to try again.',
       );
     const config = object(await this.api('daily-config'));
     if (typeof config['publicKey'] !== 'string')
-      throw new Error('O envio push ainda não foi configurado neste ambiente.');
+      throw new Error(
+        'Push delivery has not been configured in this environment yet.',
+      );
     const registration = await navigator.serviceWorker.getRegistration('/');
     if (!registration?.active)
       throw new Error(
-        'Aguarde a instalação do aplicativo offline e tente novamente.',
+        'Wait for the offline app installation to finish, then try again.',
       );
     const subscription =
       (await registration.pushManager.getSubscription()) ??
@@ -440,7 +442,7 @@ function favoriteValue(input: unknown): boolean {
   const value = object(input);
   keys(value, ['favorite']);
   if (typeof value['favorite'] !== 'boolean')
-    throw new Error('Favorito inválido.');
+    throw new Error('Invalid favorite.');
   return value['favorite'];
 }
 function parseState(value: unknown): PeerState {
@@ -449,7 +451,7 @@ function parseState(value: unknown): PeerState {
     typeof d['online'] !== 'boolean' ||
     (d['lastSeen'] !== null && typeof d['lastSeen'] !== 'string')
   )
-    throw new Error('Presença inválida.');
+    throw new Error('Invalid presence.');
   return {
     revision: integer(d['revision'], 2147483647),
     mutedUntil: integer(Number(d['mutedUntil']), Number.MAX_SAFE_INTEGER),

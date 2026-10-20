@@ -37,7 +37,7 @@ import {
   prepareEvent,
 } from '../../src/client/device-operations/index.ts';
 
-await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam dados e isolam sessões', async (t) => {
+await test('PostgreSQL/HTTP: authorized migration and encrypted return preserve data and isolate sessions', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -208,7 +208,7 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
     profile: null,
   });
   await t.test(
-    'somente aparelho autorizado migra, com assinatura antiga e vínculo à conta/origem',
+    'only authorized device migrates with old signature and account/origin binding',
     async () => {
       assert.equal(
         (
@@ -267,7 +267,7 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
     },
   );
   await t.test(
-    'mobile recebe página própria e envia apenas envelope; original exige cookie/CSRF e uso único',
+    'mobile receives a dedicated page and sends only the envelope; original requires cookie, CSRF and single use',
     async () => {
       const input = {
         wallet: 'MetaMask',
@@ -386,7 +386,7 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
     },
   );
   await t.test(
-    'nova instância do serviço recupera histórico; autoridade antiga não assina novos eventos',
+    'new service instance recovers history; old authority cannot sign new events',
     async () => {
       const restored = await recoverSecrets(
         migration,

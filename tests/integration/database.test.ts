@@ -10,7 +10,7 @@ const config = readWebConfiguration(process.env);
 if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
   throw new Error('Integração exige banco hash_talk_test exclusivo.');
 
-await test('migrações concorrentes são atômicas e identidade sobrevive a reinício', async () => {
+await test('concurrent migrations are atomic and identity survives restart', async () => {
   const first = new Database(config.databaseUrl);
   const second = new Database(config.databaseUrl);
   let identity: string;
@@ -53,7 +53,7 @@ await test('migrações concorrentes são atômicas e identidade sobrevive a rei
   }
 });
 
-await test('checksum alterado é recusado e manutenção/durabilidade estão habilitadas', async () => {
+await test('changed checksum is rejected and maintenance and durability remain enabled', async () => {
   const inspector = new pg.Client({ connectionString: config.databaseUrl });
   const database = new Database(config.databaseUrl);
   await inspector.connect();
@@ -82,7 +82,7 @@ await test('checksum alterado é recusado e manutenção/durabilidade estão hab
       ['synthetic-invalid'],
     );
     try {
-      await assert.rejects(database.migrate(), /Migração aplicada difere/);
+      await assert.rejects(database.migrate(), /Applied migration differs/);
     } finally {
       await inspector.query(
         'UPDATE hash_talk.schema_migrations SET checksum = $1 WHERE version = 1',
@@ -95,7 +95,7 @@ await test('checksum alterado é recusado e manutenção/durabilidade estão hab
   }
 });
 
-await test('observabilidade retorna só agregados finitos sem identificadores ou conteúdo', async () => {
+await test('observability returns only finite aggregates without identifiers or content', async () => {
   const database = new Database(config.databaseUrl);
   const inspector = new pg.Client({ connectionString: config.databaseUrl });
   await inspector.connect();

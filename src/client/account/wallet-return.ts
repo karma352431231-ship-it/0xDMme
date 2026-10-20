@@ -75,7 +75,7 @@ function handoffExpiry(data: Record<string, unknown>): string {
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 300_000)
     throw new AccountError(
       502,
-      'O prazo recebido para abrir a wallet é inválido ou já terminou. Crie um novo pedido.',
+      'The deadline received for opening the wallet is invalid or has passed. Create a new request.',
     );
   // This local deadline only bounds polling. It never extends server validity.
   return new Date(Date.now() + remaining).toISOString();
@@ -128,7 +128,7 @@ export function createWalletReturn(options: {
       if (!closed && current === generation)
         options.message(
           t(
-            'Não foi possível consultar o retorno. Confira a conexão e volte a esta tela.',
+            'Could not check the return. Check your connection and return to this screen.',
           ),
         );
     } finally {
@@ -175,7 +175,7 @@ export function createWalletReturn(options: {
       if (error instanceof AccountError) throw error;
       throw new AccountError(
         503,
-        'Não foi possível criar o pedido para abrir a wallet. Confira a conexão e tente novamente.',
+        'Could not create the wallet-opening request. Check your connection and try again.',
       );
     }
   }
@@ -198,7 +198,7 @@ export function createWalletReturn(options: {
       await options.api('handoff-cancel', { input: {} });
       throw new AccountError(
         400,
-        'Para abrir a wallet, use o endereço HTTPS de teste no aparelho. O loopback deste computador não serve para conexão mobile.',
+        "To open your wallet, use the HTTPS test address on your device. This computer's loopback address cannot be used for mobile connections.",
       );
     }
     pending = {
@@ -210,11 +210,11 @@ export function createWalletReturn(options: {
     options.message(
       attempted
         ? t(
-            'Abrindo {0}… Se o app não abrir, toque em Abrir {1}. Conecte e assine; depois volte aqui para confirmar o endereço.',
+            'Opening {0}… If the app does not open, tap Open {1}. Connect and sign, then return here to confirm the address.',
             [wallet, wallet],
           )
         : t(
-            'Toque em Abrir {0}, conecte e assine. Depois volte a este navegador para confirmar o endereço.',
+            'Tap Open {0}, connect and sign. Return to this browser to confirm the address.',
             [wallet],
           ),
     );
@@ -222,7 +222,7 @@ export function createWalletReturn(options: {
     schedule();
   }
   async function confirmationInput(state: Pending) {
-    if (!state.address) throw new Error('A wallet ainda não assinou.');
+    if (!state.address) throw new Error('The wallet has not signed yet.');
     const expected = options.expectedAccount?.();
     if (
       expected &&
@@ -230,13 +230,13 @@ export function createWalletReturn(options: {
         canonicalAddress(state.ecosystem, expected.address) !== state.address)
     )
       throw new Error(
-        'Confirme a wallet da conta que já está aberta neste aparelho.',
+        'Confirm the wallet for the account already open on this device.',
       );
     const openingTicket = await options.openingTicket?.();
     if (options.prepareOpening && !openingTicket)
       throw new AccountError(
         409,
-        'O pedido de abertura deste navegador foi perdido. Cancele e conecte novamente.',
+        "This browser's opening request was lost. Cancel and reconnect.",
       );
     return {
       address: state.address,
@@ -245,7 +245,7 @@ export function createWalletReturn(options: {
     };
   }
   async function confirm(): Promise<void> {
-    if (!pending) throw new Error('A wallet ainda não assinou.');
+    if (!pending) throw new Error('The wallet has not signed yet.');
     const current = ++generation;
     const input = await confirmationInput(pending);
     if (!isCurrent(current)) return;

@@ -60,7 +60,7 @@ export class GroupBackups {
     const has = (key: string, hash: string) => {
       const old = known.get(key);
       if (old !== undefined && old !== hash)
-        throw new Error('Cópia de grupo diverge do histórico preservado.');
+        throw new Error('Group copy differs from preserved history.');
       return old !== undefined;
     };
     const add = async (row: BackupRecord) => {
@@ -69,7 +69,7 @@ export class GroupBackups {
         old = known.get(key);
       if (old !== undefined) {
         if (old !== row.hash)
-          throw new Error('Cópia de grupo diverge do histórico preservado.');
+          throw new Error('Group copy differs from preserved history.');
         return;
       }
       await input.append(row);
@@ -102,15 +102,13 @@ export class GroupBackups {
       const page = object(await c.api('group-list', { after })),
         raw = page['items'];
       if (!Array.isArray(raw) || raw.length > 16)
-        throw new Error('Lista de grupos inválida.');
+        throw new Error('Invalid group list.');
       const items: unknown[] = raw;
       for (const item of items) {
         const state = groupEvent(item),
           group = await c.governance.verify(state.groupId);
         if ((await groupEventHash(state)) !== group.head)
-          throw new Error(
-            'Participação mudou durante o backup. Tente novamente.',
-          );
+          throw new Error('Membership changed during backup. Try again.');
         await this.remoteGroup(c, group);
       }
       after = page['next'] === null ? null : uuid(page['next']);
@@ -150,9 +148,7 @@ export class GroupBackups {
         await c.api('group-current', { groupId: group.state.groupId }),
       );
       if ((await groupEventHash(current)) !== group.head)
-        throw new Error(
-          'Participação mudou durante o backup. Tente novamente.',
-        );
+        throw new Error('Membership changed during backup. Try again.');
       await writeSummary(c, await cachedSummary(c.authority, group));
     } finally {
       machine.close();
@@ -208,7 +204,7 @@ async function cachedSummary(
     state: group.state,
     title:
       raw === null
-        ? t('Grupo {0}', [group.state.groupId.slice(0, 8)])
+        ? t('Group {0}', [group.state.groupId.slice(0, 8)])
         : groupTitle(raw),
     profileSequence:
       raw === null
@@ -236,8 +232,7 @@ function recordUnavailable(
   views: readonly GroupView[],
   omitted: string[],
 ): void {
-  if (!Array.isArray(raw['items']))
-    throw new Error('Mensagens de grupo inválidas.');
+  if (!Array.isArray(raw['items'])) throw new Error('Invalid group messages.');
   const rows: unknown[] = raw['items'];
   for (const row of rows) {
     const data = object(row);
@@ -245,7 +240,7 @@ function recordUnavailable(
       continue;
     const id = uuid(data['id']);
     if (!views.some((v) => v.id === id))
-      omitted.push(t('group-message:{0} indisponível', [id]));
+      omitted.push(t('group-message:{0} unavailable', [id]));
   }
 }
 async function writeView(
@@ -257,7 +252,7 @@ async function writeView(
     view.groupId !== group.state.groupId ||
     view.own !== (view.sender === c.authority.session.accountId)
   )
-    throw new Error('Cópia de outro grupo ou conta.');
+    throw new Error('Copy belongs to another group or account.');
   const { id, hash, groupId, sequence, epoch, sender, own, kind, text } = view;
   await c.add({
     type: 'group-message',
@@ -295,7 +290,8 @@ async function writeMedia(
         thumbnail,
         image: thumbnail || content.image,
         api: view.localOnly
-          ? () => Promise.reject(new Error('Mídia ausente na cópia local.'))
+          ? () =>
+              Promise.reject(new Error('Media missing from the local copy.'))
           : groupAttachmentApi(group, c.api),
         snapshot: null,
         guard: c.guard,
@@ -313,7 +309,7 @@ async function writeMedia(
       c.guard();
     } catch {
       c.guard();
-      c.omitted.push(t('group-media:{0} indisponível', [file.ref.id]));
+      c.omitted.push(t('group-media:{0} unavailable', [file.ref.id]));
       continue;
     }
     try {

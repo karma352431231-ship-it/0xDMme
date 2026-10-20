@@ -36,5 +36,5 @@ export function moderationOperation(
       reason: boundedText(data['reason'], 2000),
     });
   }
-  throw new AccountError(404, 'Operação de análise desconhecida.');
+  throw new AccountError(404, 'Unknown analysis operation.');
 }

@@ -41,7 +41,7 @@ function row(value: string): BackupRecord {
     value,
   };
 }
-await test('histórico persistido cifra registros grandes e autentica conta, metadados e ordem das partes', async () => {
+await test('persisted history encrypts large records and authenticates account, metadata and part order', async () => {
   const a = fixture(),
     record = row('x'.repeat(600_000));
   const stored = await sealHistoryRecord(a, 'b'.repeat(64), record);
@@ -62,7 +62,7 @@ await test('histórico persistido cifra registros grandes e autentica conta, met
   await assert.rejects(openHistoryRecord(a, corrupted));
   await assert.rejects(openHistoryRecord(a, { ...stored, bytes: -1 }));
 });
-await test('histórico antigo e novo se unem por identidade, mantendo edições e reações sem duplicar', () => {
+await test('old and new history merge by identity while preserving edits and reactions without duplication', () => {
   const author = crypto.randomUUID(),
     peer = crypto.randomUUID();
   const base = {
@@ -110,6 +110,6 @@ await test('histórico antigo e novo se unem por identidade, mantendo edições 
   assert.equal(visible[1]!.content.text, 'Nova');
   assert.throws(
     () => mergeHistory([{ ...base, hash: 'f'.repeat(64) }], [base]),
-    /diverge/u,
+    /differ/u,
   );
 });

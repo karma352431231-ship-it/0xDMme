@@ -27,7 +27,7 @@ export interface AccountCore {
 export function createCore(): AccountCore {
   return {
     session: null,
-    status: t('Conecte sua wallet para entrar.'),
+    status: t('Connect your wallet to sign in.'),
     profileStatus: '',
     busy: false,
     epoch: 0,

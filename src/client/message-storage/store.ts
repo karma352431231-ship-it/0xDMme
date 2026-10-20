@@ -26,7 +26,7 @@ export function transaction<T>(
         /* Already completed. */
       }
       db?.close();
-      reject(new Error('Gravação de mensagens não confirmada no aparelho.'));
+      reject(new Error('Message storage on the device was not confirmed.'));
     }
     opening.onerror = fail;
     opening.onblocked = fail;

@@ -16,9 +16,9 @@ export function pushDispatch(input: unknown, now = Date.now()): PushDispatch {
   keys(d, ['subscription', 'expiresAt', 'urgency']);
   const expiresAt = integer(d['expiresAt'], Number.MAX_SAFE_INTEGER);
   if (expiresAt <= now || expiresAt > now + 60_000)
-    throw new Error('Aviso push expirado.');
+    throw new Error('Push notification expired.');
   if (d['urgency'] !== 'normal' && d['urgency'] !== 'high')
-    throw new Error('Prioridade inválida.');
+    throw new Error('Invalid priority.');
   return {
     subscription: pushRegistration(d['subscription']),
     expiresAt,

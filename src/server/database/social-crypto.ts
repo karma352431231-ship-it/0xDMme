@@ -63,10 +63,7 @@ export class SocialCryptoStore {
     const event = await this.current(context.client, profile),
       active = await this.activeDevices(context.client, profile);
     if (!event || event.devices.some((d) => !active.includes(d.id)))
-      throw new AccountError(
-        409,
-        'Aparelhos das DMs precisam ser atualizados pelo participante.',
-      );
+      throw new AccountError(409, 'The participant must update DM devices.');
     return event;
   }
   async ownDevice(context: SocialContext): Promise<string> {
@@ -77,7 +74,7 @@ export class SocialCryptoStore {
     const device = result.rows[0]?.device_id;
     const event = await this.ready(context);
     if (!device || !event.devices.some((d) => d.id === device))
-      throw new AccountError(403, 'Aparelho sem identidade de DM atual.');
+      throw new AccountError(403, 'Device has no current DM identity.');
     return device;
   }
   async directory(
@@ -115,7 +112,10 @@ export class SocialCryptoStore {
     const event = socialDirectory(raw);
     return this.social.withActor(authority, async (context) => {
       if (event.accountId !== context.actor.id)
-        throw new AccountError(403, 'Diretório de outro perfil público.');
+        throw new AccountError(
+          403,
+          'Directory belongs to another public profile.',
+        );
       const previous = await this.current(context.client, context.actor.id);
       if (previous && canonical(previous) === canonical(event)) return event;
       await verifyTransition(previous, event);
@@ -174,10 +174,10 @@ export class SocialCryptoStore {
     )
       throw new AccountError(
         403,
-        'Diretório inclui aparelho sem autorização atual.',
+        'Directory includes a device without current authorization.',
       );
     if (previous && event.kind === 'revoke' && event.signer !== alias)
-      throw new AccountError(403, 'Revogação assinada por outro aparelho.');
+      throw new AccountError(403, 'Revocation signed by another device.');
   }
   private assertNewAlias(
     event: DirectoryEvent,
@@ -190,7 +190,7 @@ export class SocialCryptoStore {
         alias &&
         (event.kind !== 'recover' || event.devices.some((d) => d.id === alias)))
     )
-      throw new AccountError(409, 'Identidade de aparelho já registrada.');
+      throw new AccountError(409, 'Device identity already registered.');
   }
   private assertIndependent(
     event: DirectoryEvent,
@@ -218,10 +218,7 @@ export class SocialCryptoStore {
         ...event.devices.flatMap((d) => [d.signing, d.wrapping]),
       ].some((key) => privateKeys.has(key))
     )
-      throw new AccountError(
-        403,
-        'DM exige identidade e chaves independentes.',
-      );
+      throw new AccountError(403, 'DMs require independent identity and keys.');
   }
   async recovery(
     authority: ContactAuthority,
@@ -231,7 +228,10 @@ export class SocialCryptoStore {
       const profile = input.peer ?? context.actor.id;
       await this.social.requireConversation(context, profile);
       if (input.id && profile !== context.actor.id)
-        throw new AccountError(403, 'Recuperação histórica restrita ao dono.');
+        throw new AccountError(
+          403,
+          'Historical recovery restricted to the owner.',
+        );
       const current = await this.ready(context, profile);
       if (input.key !== undefined) {
         await this.registerRecovery(context, current, input.key);
@@ -251,7 +251,7 @@ export class SocialCryptoStore {
     const key = await verifyRecoveryKey(raw, current),
       device = await this.ownDevice(context);
     if (key.accountId !== context.actor.id || key.deviceId !== device)
-      throw new AccountError(403, 'Recuperação de outra identidade.');
+      throw new AccountError(403, 'Recovery belongs to another identity.');
     const serialized = JSON.stringify(key);
     await context.client.query(
       'INSERT INTO hash_talk.social_recovery(profile_id,epoch,id,body,charge) VALUES($1,$2,$3,$4::jsonb,$5) ON CONFLICT(profile_id,epoch) DO NOTHING',
@@ -281,7 +281,7 @@ export class SocialCryptoStore {
       )
         throw new AccountError(
           409,
-          'Identidade ou aparelhos mudaram. Refaça a cifragem.',
+          'Identity or devices changed. Encrypt again.',
         );
       await verifyPacket(packet, sender);
       await this.assertRecovery(context, packet, [sender, recipient]);
@@ -299,7 +299,7 @@ export class SocialCryptoStore {
           existing.rows[0].sender !== context.actor.id ||
           !existing.rows[0].body
         )
-          throw new AccountError(409, 'Identificador de DM já utilizado.');
+          throw new AccountError(409, 'DM identifier already used.');
         return { status: 'accepted', hash };
       }
       await admitSocialAction(context, packet);
@@ -324,7 +324,7 @@ export class SocialCryptoStore {
     packet: MessagePacket,
   ): Promise<void> {
     if (!this.media)
-      throw new AccountError(503, 'Preservação da mídia de DMs indisponível.');
+      throw new AccountError(503, 'DM media preservation unavailable.');
     await this.media.admit(context.client, packet);
   }
   async accepted(
@@ -342,14 +342,14 @@ export class SocialCryptoStore {
       if (row.sender !== context.actor.id || row.hash !== hash)
         throw new AccountError(
           409,
-          'Recibo de DM de outro remetente ou conteúdo.',
+          'DM receipt belongs to another sender or content.',
         );
       const removed = await context.client.query(
         "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='dm-message' AND id=$2",
         [authority.session.accountId, id],
       );
       if (removed.rowCount)
-        throw new AccountError(410, 'DM removida do cofre pessoal.');
+        throw new AccountError(410, 'DM removed from the personal vault.');
       return true;
     });
   }
@@ -379,7 +379,7 @@ export class SocialCryptoStore {
           ),
       )
     )
-      throw new AccountError(409, 'Recuperação de DM desatualizada.');
+      throw new AccountError(409, 'DM recovery outdated.');
   }
   async messages(
     authority: ContactAuthority,

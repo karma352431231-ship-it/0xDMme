@@ -42,5 +42,5 @@ await promisify(execFile)(
   { timeout: 10_000, maxBuffer: 4096 },
 );
 process.stdout.write(
-  'Galeria privada de coleta e fontes correspondentes preparadas.\n',
+  'Private collection gallery and corresponding source prepared.\n',
 );

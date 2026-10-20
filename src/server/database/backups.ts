@@ -100,14 +100,14 @@ export class BackupStore {
         if (!confirmed.rowCount)
           throw new AccountError(
             403,
-            'Confirme a wallet nesta sessão antes de resetar o cofre.',
+            'Confirm your wallet in this session before resetting the vault.',
           );
         const current = await c.query<{ revision: number }>(
           'SELECT revision FROM hash_talk.device_directories WHERE account_id=$1',
           [a.session.accountId],
         );
         if (current.rows[0]?.revision !== selection.revision)
-          throw new AccountError(409, 'Autoridade da limpeza mudou.');
+          throw new AccountError(409, 'Cleanup authority changed.');
         if (selection.items.every((item) => item.kind === 'message'))
           await this.removals?.clean(c, {
             accountId: a.session.accountId,
@@ -167,7 +167,7 @@ export class BackupStore {
     );
     if (prior.rows.length) {
       if (prior.rows[0]?.hash !== item.hash)
-        throw new AccountError(409, 'Seleção de limpeza divergente.');
+        throw new AccountError(409, 'Cleanup selection does not match.');
       return false;
     }
     const retained =
@@ -205,7 +205,7 @@ export class BackupStore {
     );
     const v = row.rows[0];
     if (!v || v.hash !== item.hash)
-      throw new AccountError(409, 'Versão do cofre ausente ou divergente.');
+      throw new AccountError(409, 'Vault version missing or does not match.');
     await c.query(
       'UPDATE hash_talk.vault_operations SET charge=charge-$3 WHERE account_id=$1 AND id=$2',
       [account, item.id, v.bytes],

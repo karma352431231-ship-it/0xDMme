@@ -54,11 +54,14 @@ export class CommunityDirectory {
       if (page) this.options.rows(view.host, page);
       else
         view.host.append(
-          communityElement('p', t('Entre para ver suas comunidades seguidas.')),
+          communityElement(
+            'p',
+            t('Sign in to see the communities you follow.'),
+          ),
         );
       this.next = page?.next ?? null;
       if (this.next)
-        communityButton(view.host, t('Mais comunidades'), () =>
+        communityButton(view.host, t('More communities'), () =>
           this.options.run(async () => {
             if (!view.valid()) return;
             this.cursor = this.next;

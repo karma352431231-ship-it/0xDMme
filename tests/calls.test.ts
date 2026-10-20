@@ -115,7 +115,7 @@ function fixture(t: TestContext) {
     now: () => now,
   };
 }
-await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade; recusa encerra em todos', (t) => {
+await test('first answer wins; other tabs and devices lose authority; rejection ends all', (t) => {
   const f = fixture(t),
     call = f.start();
   f.offer(call.id);
@@ -125,7 +125,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
   assert.equal(winner.phase, 'connecting');
   assert.throws(
     () => f.state.accept(f.endpoint(f.otherDevice, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   assert.equal(f.sync(f.otherDevice), null);
   f.state.answer(f.endpoint(f.callee, false), {
@@ -142,7 +142,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
         sequence: 1,
         body,
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.sync(f.caller, { media: 'connected', ack: 1 });
   f.sync(f.callee, { media: 'connected', ack: 1 });
@@ -177,7 +177,7 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
   assert.equal(f.sync(f.callee), null);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revelam estados diferentes', (t) => {
+await test('busy, offline, blocked, silent and disabled-preference states remain indistinguishable', (t) => {
   const f = fixture(t);
   for (const patch of [
     { allowed: false },
@@ -192,10 +192,10 @@ await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revel
           gate.peerDirectory!,
           { ...gate, ...patch },
         ),
-      /Chamada indisponível/u,
+      /Call unavailable/u,
     );
   const call = f.start();
-  assert.throws(() => f.start(), /Chamada indisponível/u);
+  assert.throws(() => f.start(), /Call unavailable/u);
   f.offer(call.id);
   assert.equal(
     f.sync(f.caller, {}, { ...gate, enabled: false, receiving: false })?.id,
@@ -209,7 +209,7 @@ await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revel
   f.state.endAccounts([f.callee.session.accountId]);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('toque expira em 60s, conexão em 20s e duração conectada não tem limite artificial', (t) => {
+await test('ringing expires in 60s, connection in 20s and connected duration has no artificial limit', (t) => {
   const f = fixture(t);
   f.start();
   for (let i = 0; i < 11; i++) {
@@ -246,7 +246,7 @@ await test('toque expira em 60s, conexão em 20s e duração conectada não tem 
   f.state.clean();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('aparelhos inscritos podem acordar durante o convite, recebem oferta apenas uma vez e primeiro atendimento vence', (t) => {
+await test('subscribed devices may wake during the invitation, receive one offer and honor the first answer', (t) => {
   const f = fixture(t),
     recipient = authority(),
     sibling = authority(recipient.session.accountId);
@@ -302,10 +302,10 @@ await test('aparelhos inscritos podem acordar durante o convite, recebem oferta 
   );
   assert.throws(
     () => f.state.accept(f.endpoint(recipient, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
 });
-await test('convite para aparelho fechado não sobrevive a cancelamento, perda da lease ou 60 segundos', (t) => {
+await test('invitation to a closed device cannot survive cancellation, lease loss or 60 seconds', (t) => {
   const f = fixture(t),
     recipient = authority();
   const start = () =>
@@ -342,14 +342,14 @@ await test('convite para aparelho fechado não sobrevive a cancelamento, perda d
   assert.equal(f.sync(recipient), null);
   assert.equal(f.state.usage.packets, 0);
 });
-await test('replay, novos participantes, negociação fora de ordem e orçamento são rejeitados', (t) => {
+await test('replay, new participants, out-of-order negotiation and budget overruns are rejected', (t) => {
   const f = fixture(t),
     call = f.start();
   const outsider = authority();
   f.sync(outsider);
   assert.throws(
     () => f.state.accept(f.endpoint(outsider, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   assert.throws(
     () =>
@@ -358,16 +358,16 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
         sequence: 2,
         packets: [],
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.offer(call.id);
-  assert.throws(() => f.offer(call.id), /indisponível/u);
+  assert.throws(() => f.offer(call.id), /[Uu]navailable/u);
   const a = authority(),
     channel = crypto.randomUUID();
   f.state.endpoint(a, { channel, sequence: 1, at: f.now() }, true);
   assert.throws(
     () => f.state.endpoint(a, { channel, sequence: 1, at: f.now() }, false),
-    /repetido/u,
+    /[Dd]uplicate|repeated/u,
   );
   assert.throws(
     () =>
@@ -376,12 +376,12 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
         { channel, sequence: 2, at: f.now() - 10_001 },
         false,
       ),
-    /horário/u,
+    /time/u,
   );
   f.state.close();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('fechar mídia é terminal no heartbeat; contador transitório impede replay após a lease expirar', (t) => {
+await test('closing media is terminal for heartbeat; transient counter blocks replay after lease expiration', (t) => {
   const f = fixture(t),
     call = f.start();
   f.offer(call.id);
@@ -396,7 +396,10 @@ await test('fechar mídia é terminal no heartbeat; contador transitório impede
   f.state.endpoint(a, request, true);
   f.advance(leaseMs);
   f.state.clean();
-  assert.throws(() => f.state.endpoint(a, request, true), /repetido/u);
+  assert.throws(
+    () => f.state.endpoint(a, request, true),
+    /[Dd]uplicate|repeated/u,
+  );
 });
 await test('endpoint admission exceeds 1024 global and 64 account channels while retaining expiry', (t) => {
   t.mock.method(process, 'availableMemory', () => 1_073_741_824);
@@ -478,7 +481,7 @@ const sdp = [
   'a=sendrecv',
   'a=rtpmap:111 opus/48000/2',
 ].join('\r\n');
-await test('SDP não transporta endereços locais/relacionados e recusa host/STUN/vídeo/sem fingerprint', () => {
+await test('SDP carries no local or related addresses and rejects host/STUN/video/missing fingerprint', () => {
   const clean = relaySdp(sdp);
   assert.ok(!clean.includes('192.168.1.3'));
   assert.ok(!clean.includes('43210'));
@@ -495,7 +498,7 @@ await test('SDP não transporta endereços locais/relacionados e recusa host/STU
     relayCandidate('candidate:1 1 udp 1 host.local 9 typ relay'),
   );
 });
-await test('TURN usa credenciais temporárias sem identidade; configuração parcial não vira relay aberto', () => {
+await test('TURN uses temporary anonymous credentials; partial configuration cannot become an open relay', () => {
   const config = readTurnConfiguration({
     HASH_TALK_TURN_URLS:
       'turn:turn.example:3478?transport=udp,turns:turn.example:5349?transport=tcp',
@@ -552,12 +555,12 @@ await test('negotiated encrypted invitation permits one early accept and preserv
   }));
   assert.throws(
     () => f.state.invite(caller, call.id, packets.slice(0, 1)),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.invite(caller, call.id, packets);
   assert.throws(
     () => f.state.invite(caller, call.id, packets),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   const incoming = f.state.synchronize(
     f.endpoint(f.callee, false, true),
@@ -575,7 +578,7 @@ await test('negotiated encrypted invitation permits one early accept and preserv
   );
   assert.throws(
     () => f.state.accept(f.endpoint(f.otherDevice, false), call.id),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   const winner = f.state.accept(f.endpoint(f.callee, false, true), call.id);
   assert.equal(winner.phase, 'connecting');
@@ -607,7 +610,7 @@ await test('negotiated encrypted invitation permits one early accept and preserv
         sequence: 2,
         packets,
       }),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.offer(f.endpoint(f.caller, false, true), {
     id: call.id,
@@ -627,7 +630,7 @@ await test('legacy callers cannot publish invitations; unaccepted invitations ex
   }));
   assert.throws(
     () => f.state.invite(f.endpoint(f.caller, false), call.id, packets),
-    /indisponível/u,
+    /[Uu]navailable/u,
   );
   f.state.invite(f.endpoint(f.caller, false, true), call.id, packets);
   f.advance(leaseMs + 1);

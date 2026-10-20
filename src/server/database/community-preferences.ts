@@ -8,10 +8,7 @@ function shouldWrite(old: PostPreference, desired: PostPreference): boolean {
   const same = old.saved === desired.saved && old.hidden === desired.hidden;
   if (old.revision === desired.revision) return !same;
   if (same && old.revision === desired.revision + 1) return false;
-  throw new AccountError(
-    409,
-    'Preferência mudou. Recarregue antes de continuar.',
-  );
+  throw new AccountError(409, 'Preference changed. Reload before continuing.');
 }
 
 export async function operatePostPreference(
@@ -22,7 +19,7 @@ export async function operatePostPreference(
 ): Promise<PostPreference> {
   const writing = operation === 'discovery-preference-set';
   if (!writing && operation !== 'discovery-preference')
-    throw new AccountError(404, 'Preferência indisponível.');
+    throw new AccountError(404, 'Preference unavailable.');
   keys(data, writing ? ['id', 'post', 'preference'] : ['id', 'post']);
   const post = uuid(data['post']),
     community = uuid(data['id']);
@@ -30,7 +27,7 @@ export async function operatePostPreference(
     'SELECT 1 FROM hash_talk.community_posts WHERE id=$1 AND community_id=$2',
     [post, community],
   );
-  if (!found.rowCount) throw new AccountError(404, 'Post indisponível.');
+  if (!found.rowCount) throw new AccountError(404, 'Post unavailable.');
   const result = await context.client.query<PostPreference>(
     'SELECT saved,hidden,revision FROM hash_talk.community_post_preferences WHERE profile_id=$1 AND post_id=$2 FOR UPDATE',
     [context.actor.id, post],
@@ -52,7 +49,7 @@ export async function savedPostIds(
   actor: string,
   ids: string[],
 ): Promise<Set<string>> {
-  if (ids.length > 24) throw new AccountError(400, 'Página muito grande.');
+  if (ids.length > 24) throw new AccountError(400, 'Page too large.');
   if (!ids.length) return new Set();
   const result = await client.query<{ post_id: string }>(
     'SELECT post_id FROM hash_talk.community_post_preferences WHERE profile_id=$1 AND post_id=ANY($2::uuid[]) AND saved',

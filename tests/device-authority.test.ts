@@ -21,7 +21,7 @@ import {
   recoveryIdentities,
 } from '../src/client/device-operations/index.ts';
 
-await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação e integridade', async (t) => {
+await test('device authority: linking, clean recovery, revocation and integrity', async (t) => {
   const accountId = crypto.randomUUID();
   const first = await createIdentity(crypto.randomUUID(), 'Mac');
   const second = await createIdentity(crypto.randomUUID(), 'Segundo aparelho');
@@ -66,7 +66,7 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
   });
 
   await t.test(
-    'dois aparelhos abrem as mesmas chaves, com identidades privadas não exportáveis',
+    'two devices open the same keys with non-exportable private identities',
     async () => {
       assert.equal(first.signing.extractable, false);
       assert.equal(first.wrapping.extractable, false);
@@ -80,7 +80,7 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
     },
   );
   await t.test(
-    'servidor não adiciona sozinho, substitui chaves, injeta outra raiz ou omite eventos',
+    'server cannot add devices alone, replace keys, inject another root or omit events',
     async () => {
       await assert.rejects(
         verifyTransition(genesis, {
@@ -109,7 +109,7 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
     },
   );
   await t.test(
-    'revogado conserva chave anterior, não abre nova nem assina outra autorização',
+    'revoked device retains the previous key but cannot open a new key or sign another authorization',
     async () => {
       assert.deepEqual(await deviceSecrets(second, link), ring);
       assert.deepEqual(await deviceSecrets(first, revocation), rotated);
@@ -146,11 +146,11 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
     },
   );
   await t.test(
-    'segredo errado e cápsula alterada falham; recuperação sem estado anterior troca chaves',
+    'wrong secret and altered capsule fail; recovery without previous state replaces keys',
     async () => {
       await assert.rejects(
         recoverSecrets(revocation, newSecret()),
-        /Recuperação rejeitada/,
+        /Recovery rejected/,
       );
       const corrupted = structuredClone(revocation);
       corrupted.root.capsule.ciphertext = `${corrupted.root.capsule.ciphertext[0] === 'A' ? 'B' : 'A'}${corrupted.root.capsule.ciphertext.slice(1)}`;
@@ -186,7 +186,7 @@ await test('autoridade dos aparelhos: vínculo, recuperação limpa, revogação
     },
   );
   await t.test(
-    'recuperação mantém todos ou revoga apenas a seleção, sem reativar identificadores',
+    'recovery retains all or revokes only the selection without reactivating identifiers',
     async () => {
       const recovered = await recoverSecrets(link, secret);
       for (const revoked of [

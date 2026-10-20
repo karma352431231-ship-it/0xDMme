@@ -40,5 +40,5 @@ function explicitRange(
 }
 
 function unsatisfied(): never {
-  throw new AccountError(416, 'Mídia pública indisponível.');
+  throw new AccountError(416, 'Public media unavailable.');
 }

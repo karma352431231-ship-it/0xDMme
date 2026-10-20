@@ -4,7 +4,7 @@ const pixelBudget = 24_000_000;
 const decoder = new TextDecoder();
 function fail(): never {
   throw new Error(
-    'GIF incompleto, inválido ou acima do orçamento de processamento.',
+    'GIF is incomplete, invalid or exceeds the processing budget.',
   );
 }
 function u16(bytes: Uint8Array, at: number): number {

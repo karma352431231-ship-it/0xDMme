@@ -103,11 +103,11 @@ export class GifSearch {
   async page(input: { query: string; page: number }): Promise<GifPage> {
     const active = this.context();
     if (!(await this.consent()))
-      throw new Error('Permita GIFs externos no Perfil para usar o KLIPY.');
+      throw new Error('Allow external GIFs in Profile to use KLIPY.');
     const key = await this.apiKey();
-    if (!key) throw new Error('GIFs indisponíveis neste servidor.');
+    if (!key) throw new Error('GIFs unavailable on this server.');
     active.throwIfAborted();
-    if (!(await this.consent())) throw new Error('Permissão de GIFs retirada.');
+    if (!(await this.consent())) throw new Error('GIF permission withdrawn.');
     active.throwIfAborted();
     const query = input.query.trim().slice(0, 100);
     const params = new URLSearchParams({
@@ -125,10 +125,10 @@ export class GifSearch {
         signal: AbortSignal.any([active, AbortSignal.timeout(8000)]),
       },
     );
-    if (!response.ok) throw new Error('Busca de GIFs indisponível agora.');
+    if (!response.ok) throw new Error('GIF search is currently unavailable.');
     const page = parseGifPage(await response.json());
     active.throwIfAborted();
-    if (!(await this.consent())) throw new Error('Permissão de GIFs retirada.');
+    if (!(await this.consent())) throw new Error('GIF permission withdrawn.');
     return page;
   }
   private apiKey(): Promise<string | null> {
@@ -173,9 +173,7 @@ export function mountGifPane(
     for (const item of result.items) grid.append(gifTile(item, chosen));
     next = result.next;
     page++;
-    status.textContent = grid.children.length
-      ? ''
-      : t('Nenhum GIF encontrado.');
+    status.textContent = grid.children.length ? '' : t('No GIFs found.');
   };
   const load = async (fresh: boolean): Promise<void> => {
     if (!canLoad(fresh)) return;
@@ -185,7 +183,7 @@ export function mountGifPane(
       grid.replaceChildren();
     }
     loading = true;
-    status.textContent = t('Carregando GIFs…');
+    status.textContent = t('Loading GIFs…');
     try {
       const result = await search.page({ query: query.value, page });
       if (current === generation && host.isConnected) show(result);
@@ -217,7 +215,7 @@ export function mountGifPane(
 function failure(error: unknown): string {
   return error instanceof Error
     ? translatedError(error.message)
-    : t('GIFs indisponíveis.');
+    : t('GIFs unavailable.');
 }
 function gifTile(
   item: GifResult,

@@ -7,7 +7,7 @@ import { validateVoice } from '../voice/index.ts';
 export type SocialMedia = 'photo' | 'gif' | 'voice';
 export function socialMedia(value: unknown): SocialMedia {
   if (value !== 'photo' && value !== 'gif' && value !== 'voice')
-    throw new AccountError(400, 'Use foto, GIF ou voz nesta DM.');
+    throw new AccountError(400, 'Use photos, GIFs or voice in this DM.');
   return value;
 }
 export function socialAttachment(
@@ -16,21 +16,21 @@ export function socialAttachment(
 ): AttachmentContent {
   const content = animatedAttachmentContent(input);
   if (declared === 'voice') {
-    if (!content.voice) throw new Error('Voz sem descritor autenticado.');
+    if (!content.voice)
+      throw new Error('Voice message has no authenticated descriptor.');
     return content;
   }
-  if (!content.image || content.voice)
-    throw new Error('Imagem de DM inválida.');
+  if (!content.image || content.voice) throw new Error('Invalid DM image.');
   if (
     declared === 'gif' &&
     (content.type !== 'image/gif' || content.thumbnail !== null)
   )
-    throw new Error('GIF de DM inválido.');
+    throw new Error('Invalid DM GIF.');
   if (
     declared === 'photo' &&
     !['image/png', 'image/jpeg', 'image/webp'].includes(content.type)
   )
-    throw new Error('Foto de DM inválida.');
+    throw new Error('Invalid DM photo.');
   return content;
 }
 /** Chat originals may retain metadata; format, size and allocation bounds remain mandatory. */
@@ -40,9 +40,9 @@ export function checkSocialBytes(
   bytes: Uint8Array<ArrayBuffer>,
 ): void {
   if (bytes.length !== content.file.ref.bytes)
-    throw new Error('Tamanho de mídia divergente.');
+    throw new Error('Media size mismatch.');
   if (declared === 'voice') {
-    if (!content.voice) throw new Error('Voz inválida.');
+    if (!content.voice) throw new Error('Invalid voice message.');
     validateVoice(bytes, content.voice);
     return;
   }
@@ -51,5 +51,5 @@ export function checkSocialBytes(
     return;
   }
   if (imageShape(bytes).type !== content.type)
-    throw new Error('Foto recebida inválida.');
+    throw new Error('Invalid received photo.');
 }

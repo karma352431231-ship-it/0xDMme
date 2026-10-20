@@ -392,7 +392,7 @@
 .appearance-feedback {
   color: var(--warn);
 }
-/* Vault usage under the account identity; the exact figures stay in Cofre e backup. */
+/* Vault usage under the account identity; the exact figures stay in Vault and backup. */
 .vault-meter {
   display: grid;
   gap: 6px;
@@ -448,7 +448,7 @@
 }
 
 /*
- * Perfil as in the approved mockup (docs/UI_PAINEIS_E_TEMAS.md): identity, vault
+ * Profile as in the approved mockup: identity, vault
  * and categories on the left, the open category beside them on wide screens; a
  * grouped list whose rows open a full screen on phones. The account module keeps
  * its own markup, so connected identity parts join the layout with display: contents.
@@ -460,7 +460,7 @@
   font: inherit;
   cursor: pointer;
 }
-/* Switches for every on/off preference in Perfil. */
+/* Switches for every on/off preference in Profile. */
 .app[data-page='perfil'] .settings-body input[type='checkbox'] {
   appearance: none;
   flex: 0 0 36px;
@@ -972,7 +972,7 @@
 }
 
 /*
- * Settings organization (16/10/2026, docs/UI_CONFIGURACOES.md): each block
+ * Settings organization (16/10/2026): each block
  * keeps its own save button; cards get even spacing, empty status lines take
  * no room, the vault is one column and risky actions sit in a danger zone.
  */

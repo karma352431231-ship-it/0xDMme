@@ -4,7 +4,7 @@ import { groupTransport } from '../src/client/message-crypto/group-transport.ts'
 import { matrixUser } from '../src/shared/messages/index.ts';
 import { object } from '../src/shared/account/index.ts';
 
-await test('200 contas com 32 aparelhos mantêm a audiência e cabem nos lotes sem truncar a transação SDK', async () => {
+await test('200 accounts with 32 devices preserve the audience and fit batches without truncating the SDK transaction', async () => {
   const users = Array.from({ length: 200 }, () =>
     matrixUser(crypto.randomUUID()),
   );
@@ -66,7 +66,7 @@ await test('200 contas com 32 aparelhos mantêm a audiência e cabem nos lotes s
     'matrix-send': 13,
   });
 });
-await test('falha parcial de consulta rejeita a sessão em vez de simular resposta completa', async () => {
+await test('partial query failure rejects the session instead of simulating a complete response', async () => {
   const transport = groupTransport(() =>
     Promise.resolve({
       bindings: [],

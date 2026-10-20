@@ -7,15 +7,15 @@ import { MediaWorkerServer } from './server.ts';
 
 const runtime = readMediaRuntime(process.env);
 if (!runtime || runtime.socket)
-  throw new Error('Runtime local do worker ausente.');
+  throw new Error('Local worker runtime missing.');
 if (
   process.env['LISTEN_PID'] !== String(process.pid) ||
   process.env['LISTEN_FDS'] !== '1'
 )
-  throw new Error('Socket isolado ausente.');
+  throw new Error('Isolated socket missing.');
 const root = process.env['HASH_TALK_MEDIA_ROOT'];
 if (!root || resolve(root) !== root || !root.endsWith('/community-media'))
-  throw new Error('Namespace público ausente.');
+  throw new Error('Public namespace missing.');
 await verifyMediaBudget(runtime);
 const worker = new MediaWorkerServer({ runtime, root });
 worker.server.listen({ fd: 3 });

@@ -23,7 +23,7 @@ export async function assignCommunityAddress(
   if (!slug)
     throw new AccountError(
       409,
-      'Já existe uma comunidade com esse nome. Escolha outro.',
+      'A community with this name already exists. Choose another.',
     );
   await client.query(
     'INSERT INTO hash_talk.community_addresses(community_id,slug) VALUES($1,$2)',

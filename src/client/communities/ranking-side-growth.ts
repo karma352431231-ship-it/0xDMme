@@ -2,7 +2,7 @@
  * Growth shown beside a community in the ranking sidebar: active members in
  * the selected period compared with the previous period of the same length,
  * as a raw percent with no cap and no "forming" label (owner decision of
- * 16/10/2026, docs/RANKING_COMUNIDADES_TRENDING.md). By the owner's decision
+ * 16/10/2026). By the owner's decision
  * of 19/10/2026 growth only counts from a base of at least 1 (1 → 2 is 100%);
  * an empty previous period shows 0%.
  */

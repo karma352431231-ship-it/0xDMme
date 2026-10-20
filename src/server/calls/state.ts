@@ -43,7 +43,7 @@ interface Connection {
   lastOffer: number;
 }
 function unavailable(): never {
-  throw new AccountError(409, 'Chamada indisponível.');
+  throw new AccountError(409, 'Call unavailable.');
 }
 /** Single web process owns bounded RAM only. All mutations are synchronous. */
 export class CallState {
@@ -64,7 +64,7 @@ export class CallState {
     if (Math.abs(this.clock() - request.at) > 10_000)
       throw new AccountError(
         409,
-        'Atualize a página: horário da chamada divergente.',
+        'Refresh the page: call time does not match.',
       );
     const key = `${a.session.accountId}:${a.session.deviceId}:${request.channel}`;
     let endpoint = this.endpoints.get(key);
@@ -99,7 +99,7 @@ export class CallState {
     }
     this.checkEndpointLease(endpoint, register);
     if (request.sequence <= endpoint.sequence)
-      throw new AccountError(409, 'Pedido de chamada repetido.');
+      throw new AccountError(409, 'Duplicate call request.');
     endpoint.invitation = invitation;
     endpoint.sequence = request.sequence;
     endpoint.expires = this.clock() + leaseMs;

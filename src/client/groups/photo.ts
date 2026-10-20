@@ -16,7 +16,7 @@ import { GroupCache } from './cache.ts';
 
 export async function prepareGroupPhoto(file: File): Promise<GroupPhoto> {
   if (!file.size || file.size > 3_000_000)
-    throw new Error('Escolha uma foto PNG, JPEG ou WebP de até 3 MB.');
+    throw new Error('Choose a PNG, JPEG or WebP photo no larger than 3 MB.');
   const source = new Uint8Array(await file.arrayBuffer());
   try {
     imageShape(source);
@@ -28,7 +28,7 @@ export async function prepareGroupPhoto(file: File): Promise<GroupPhoto> {
     const canvas = new OffscreenCanvas(groupPhotoEdge, groupPhotoEdge),
       context = canvas.getContext('2d');
     if (!context)
-      throw new Error('Não foi possível preparar a foto neste aparelho.');
+      throw new Error('Could not prepare the photo on this device.');
     const edge = Math.min(bitmap.width, bitmap.height);
     context.drawImage(
       bitmap,
@@ -45,7 +45,9 @@ export async function prepareGroupPhoto(file: File): Promise<GroupPhoto> {
       const photo = await encodeGroupPhoto(canvas, quality);
       if (photo) return photo;
     }
-    throw new Error('Esta foto não coube no avatar. Escolha outra imagem.');
+    throw new Error(
+      'This photo could not fit the avatar. Choose another image.',
+    );
   } finally {
     bitmap.close();
   }

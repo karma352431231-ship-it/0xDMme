@@ -95,7 +95,7 @@ export class ProfileBanners {
         if ((old?.revision ?? 0) !== revision)
           throw new AccountError(
             409,
-            'Banner alterado em outro aparelho. Recarregue antes de editar.',
+            'Banner changed on another device. Reload before editing.',
           );
         if (old?.review)
           await this.options.moderation.remove(client, old.review);

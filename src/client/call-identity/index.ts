@@ -59,7 +59,7 @@ export class CallIdentity {
     ]);
   }
   private guard(g: number): void {
-    if (g !== this.generation) throw new Error('Identidade da chamada mudou.');
+    if (g !== this.generation) throw new Error('Call identity changed.');
   }
   async withPeer<T>(
     peer: string,
@@ -95,11 +95,11 @@ export class CallIdentity {
           const events = await this.directory(a, peer, raw['peer'], g);
           this.guard(g);
           const last = events.at(-1);
-          if (!last) throw new Error('Identidade do contato ausente.');
+          if (!last) throw new Error('Contact identity missing.');
           const value = await work(a, last);
           this.guard(g);
           if (stamp !== this.stamp())
-            throw new Error('Cofre alterado durante a chamada.');
+            throw new Error('Vault changed during the call.');
           return { value, events, stamp };
         },
         { priority: 'interactive' },
@@ -119,7 +119,7 @@ export class CallIdentity {
       this.checkpoint = this.stamp();
       return result.value;
     }
-    throw new Error('Identidades mudaram durante a chamada. Tente novamente.');
+    throw new Error('Identities changed during the call. Try again.');
   }
   private async legacy<T>(
     peer: string,
@@ -138,7 +138,7 @@ export class CallIdentity {
           this.identities.get(peer),
         );
         const last = events.at(-1);
-        if (!last) throw new Error('Identidade do contato ausente.');
+        if (!last) throw new Error('Contact identity missing.');
         await this.identities.remember(peer, events);
         return work(a, last);
       },
@@ -167,7 +167,7 @@ export class CallIdentity {
     const vault = readPage(raw['vault']),
       removed = object(raw['removals']);
     if (!Array.isArray(removed['items']) || removed['items'].length > 16)
-      throw new Error('Página de remoções inválida.');
+      throw new Error('Invalid removals page.');
     return (
       vault.sequence === this.sync.state.sequence &&
       vault.head === this.sync.state.head &&
@@ -192,7 +192,7 @@ export class CallIdentity {
       events.length > 8 ||
       events.length > revision
     )
-      throw new Error('Página de diretório inválida.');
+      throw new Error('Invalid directory page.');
     if (events.length !== revision)
       return peerHistory(
         (op, d) => messageApi(a, op, d, () => this.guard(g)),

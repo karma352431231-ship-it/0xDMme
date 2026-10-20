@@ -41,16 +41,16 @@ export function mountCommunityCreation(
   // Inside the panel, community links stay in the panel, so this returns there too.
   const back = el('a', '', 'community-create-back');
   back.href = '#communities?view=feed';
-  back.setAttribute('aria-label', t('Voltar'));
-  back.title = t('Voltar');
+  back.setAttribute('aria-label', t('Back'));
+  back.title = t('Back');
   iconLabel(back, 'back');
-  title.append(back, el('h2', t('Criar comunidade')));
+  title.append(back, el('h2', t('Create community')));
   head.append(
     title,
     el(
       'p',
       t(
-        'Comunidades são públicas e gratuitas. Qualquer perfil público autorizado pode participar sem precisar seguir.',
+        'Communities are public and free. Any authorized public profile can participate without following.',
       ),
     ),
   );
@@ -85,7 +85,7 @@ export function mountCommunityCreation(
   const classification = classificationForm(form);
   const notice = el('aside', '', 'community-create-notice');
   notice.append(
-    el('h3', t('Aviso sobre conteúdo público')),
+    el('h3', t('Public content notice')),
     el('p', t(communityPolicy)),
   );
   card.append(notice);
@@ -95,7 +95,7 @@ export function mountCommunityCreation(
   status.setAttribute('role', 'status');
   const submit = el(
     'button',
-    t('Criar comunidade'),
+    t('Create community'),
     'primary community-create-submit',
   );
   submit.type = 'button';
@@ -169,6 +169,6 @@ async function applyImages(
   } catch (error: unknown) {
     return error instanceof Error
       ? translatedError(error.message)
-      : t('Comunidade indisponível.');
+      : t('Community unavailable.');
   }
 }

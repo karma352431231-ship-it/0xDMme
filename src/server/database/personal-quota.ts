@@ -33,11 +33,11 @@ export async function vaultUsage(
         Number(amount) < 0,
     )
   )
-    throw new Error('Cota indisponível.');
+    throw new Error('Quota unavailable.');
   const bytes = amounts.reduce<number>(
     (total, amount) => total + Number(amount),
     0,
   );
-  if (!Number.isSafeInteger(bytes)) throw new Error('Cota indisponível.');
+  if (!Number.isSafeInteger(bytes)) throw new Error('Quota unavailable.');
   return bytes;
 }

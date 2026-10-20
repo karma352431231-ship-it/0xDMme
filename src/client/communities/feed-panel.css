@@ -3,7 +3,7 @@
  * (desktop density).
  */
 @media (min-width: 1280px) {
-  /* Comunidades ao lado */
+  /* Communities beside */
   #app-shell .feed-panel-heading {
     flex-wrap: wrap;
     gap: 10px;

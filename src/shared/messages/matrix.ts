@@ -49,7 +49,7 @@ function verifyMatrixSignature(
       { zip215: false },
     )
   )
-    throw new AccountError(403, 'Assinatura Matrix inválida.');
+    throw new AccountError(403, 'Invalid Matrix signature.');
 }
 export function matrixDeviceKeys(
   input: unknown,
@@ -69,7 +69,7 @@ export function matrixDeviceKeys(
     !algorithms.includes('m.olm.v1.curve25519-aes-sha2') ||
     !algorithms.includes('m.megolm.v1.aes-sha2')
   )
-    throw new AccountError(400, 'Identidade Matrix divergente.');
+    throw new AccountError(400, 'Matrix identity does not match.');
   const publicKeys = object(data['keys']);
   keys(publicKeys, [`curve25519:${identity}`, `ed25519:${identity}`]);
   const result: MatrixDeviceKeys = {
@@ -115,7 +115,7 @@ export function matrixBinding(input: unknown): MatrixBinding {
     revision > 128 ||
     base64(data['signature'], 64).length !== 64
   )
-    throw new AccountError(400, 'Vínculo Matrix inválido.');
+    throw new AccountError(400, 'Invalid Matrix binding.');
   return {
     accountId,
     deviceId,
@@ -142,7 +142,7 @@ export async function verifyMatrixBinding(
     event.revision !== binding.authorityRevision ||
     (await eventHash(event)) !== binding.directory
   )
-    throw new AccountError(403, 'Vínculo Matrix sem autoridade verificada.');
+    throw new AccountError(403, 'Matrix binding lacks verified authority.');
   await verify(device.signing, binding.signature, matrixBindingProof(binding));
   return binding;
 }
@@ -158,7 +158,7 @@ export function matrixOneTimeKey(
   ]);
   matrixBase64(data['key'], 32);
   if (Object.hasOwn(data, 'fallback') && data['fallback'] !== true)
-    throw new AccountError(400, 'Fallback Matrix inválido.');
+    throw new AccountError(400, 'Invalid Matrix fallback key.');
   const user = matrixUser(binding.accountId),
     device = binding.deviceId;
   const signatures = signatureMap(data['signatures'], user, device);

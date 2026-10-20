@@ -9,7 +9,7 @@ import {
 import { messageApi } from '../src/client/message-api/index.ts';
 import type { VaultAuthority } from '../src/client/vault-authority/index.ts';
 
-await test('HTML de 429/502/504 preserva status/operação e nunca mostra o corpo', async () => {
+await test('429/502/504 HTML preserves status and operation and never shows the body', async () => {
   for (const status of [429, 502, 504]) {
     const response = new Response('<html><h1>segredo-sintético</h1></html>', {
       status,
@@ -34,22 +34,22 @@ await test('HTML de 429/502/504 preserva status/operação e nunca mostra o corp
     assert.equal(response.bodyUsed, true);
   }
 });
-await test('JSON válido conserva dados e erros de autorização; vazio/adulterado tem diagnóstico próprio', async () => {
+await test('valid JSON preserves data and authorization errors; empty or tampered JSON has separate diagnostics', async () => {
   assert.equal(
     await readApiJson(Response.json(null), 'contacts/snapshot'),
     null,
   );
   await assert.rejects(
     readApiJson(
-      Response.json({ error: 'Aparelho revogado.' }, { status: 403 }),
+      Response.json({ error: 'Device revoked.' }, { status: 403 }),
       'account/devices/read',
     ),
     (error: unknown) => {
       assert.ok(error instanceof ApiResponseError);
       assert.equal(error.status, 403);
       assert.equal(error.failure, 'http');
-      assert.equal(error.reason, 'Aparelho revogado.');
-      assert.match(error.message, /Aparelho revogado/u);
+      assert.equal(error.reason, 'Device revoked.');
+      assert.match(error.message, /Device revoked/u);
       return true;
     },
   );
@@ -83,7 +83,7 @@ await test('JSON válido conserva dados e erros de autorização; vazio/adultera
     },
   );
 });
-await test('falha de rede, prazo e cancelamento distinguem causas sem expor URL, cabeçalhos ou assinatura e sem repetir', async (t) => {
+await test('network failure, deadline and cancellation have distinct causes without exposing URLs, headers or signatures or retrying', async (t) => {
   const controller = new AbortController();
   controller.abort(new DOMException('segredo-sintético', 'TimeoutError'));
   const cancel = new AbortController();
@@ -125,7 +125,7 @@ await test('falha de rede, prazo e cancelamento distinguem causas sem expor URL,
     t.mock.restoreAll();
   }
 });
-await test('cliente de mensagens não perde HTTP 429 nem contorna sua guarda; rótulos recusam URLs/identificadores', async (t) => {
+await test('message client preserves HTTP 429 and its guard; labels reject URLs and identifiers', async (t) => {
   let requests = 0;
   t.mock.method(globalThis, 'fetch', () => {
     requests++;
@@ -156,9 +156,9 @@ await test('cliente de mensagens não perde HTTP 429 nem contorna sua guarda; r�
   );
   await assert.rejects(
     messageApi(authority, 'publish', {}, () => {
-      throw new Error('Sessão alterada.');
+      throw new Error('Session changed.');
     }),
-    /Sessão alterada/u,
+    /Session changed/u,
   );
   assert.equal(requests, 1);
   const error = new ApiResponseError({
@@ -170,7 +170,7 @@ await test('cliente de mensagens não perde HTTP 429 nem contorna sua guarda; r�
   assert.equal(error.message.includes('ticket'), false);
 });
 
-await test('ação do usuário cancela a rede de preparação e preserva a guarda de autorização', async (t) => {
+await test('user action cancels preparation networking and preserves the authorization guard', async (t) => {
   const abort = new AbortController();
   let started!: () => void;
   const entered = new Promise<void>((resolve) => {

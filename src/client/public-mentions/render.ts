@@ -24,8 +24,7 @@ export function renderMentions(
         span.kind === 'user' ? 'perfil' : 'comunidade',
       ]),
     );
-    link.title =
-      span.kind === 'user' ? t('Abrir perfil') : t('Abrir comunidade');
+    link.title = span.kind === 'user' ? t('Open profile') : t('Open community');
     host.append(link);
     end = span.end;
   }

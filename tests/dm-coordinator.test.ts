@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { dmCoordinatorFixture } from './fixtures/dm-coordinator.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-await test('DM inicializa uma vez por sessão e a última navegação espera a anterior', async (t) => {
+await test('DM initializes once per session and the latest navigation waits for the previous one', async (t) => {
   const f = dmCoordinatorFixture(t);
   f.ui.mount(f.host, 'first');
   await turn();
@@ -21,7 +21,7 @@ await test('DM inicializa uma vez por sessão e a última navegação espera a a
   assert.equal(f.calls.includes('read:held'), false);
   assert.equal(f.calls.includes('read:latest'), true);
 });
-await test('avisos durante operação são reunidos; remoção fecha imediatamente e resultado antigo não reabre', async (t) => {
+await test('notifications during an operation coalesce; removal closes immediately and an old result cannot reopen', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = dmCoordinatorFixture(t);
   f.ui.mount(f.host, 'first');
@@ -82,7 +82,7 @@ await test('a genuine signed DM list failure remains visible', async (t) => {
   f.holdList();
   f.ui.mount(f.host, null);
   await turn();
-  f.releaseList(Response.json({ error: 'DM indisponível.' }, { status: 503 }));
+  f.releaseList(Response.json({ error: 'DM unavailable.' }, { status: 503 }));
   await turn();
   assert.match(f.host.textContent ?? '', /DM unavailable.*HTTP 503/u);
 });

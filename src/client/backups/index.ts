@@ -20,7 +20,7 @@ export function startBackups(
     busy = false,
     armed = false;
   let status = t(
-    'O backup completo inclui conversas, áudios, imagens e arquivos.',
+    'The full backup includes conversations, audio, images and files.',
   );
   let downloadUrl: string | null = null;
   let session: AccountSession | null = null;
@@ -49,9 +49,7 @@ export function startBackups(
     );
     if (clean) {
       clean.disabled = busy || controller.cleanupCount === 0;
-      clean.textContent = armed
-        ? t('Confirmar reset do cofre')
-        : t('Resetar cofre');
+      clean.textContent = armed ? t('Confirm vault reset') : t('Reset vault');
     }
     const cancel = mounted?.querySelector<HTMLElement>('[data-backup-cancel]');
     if (cancel) cancel.hidden = !busy;
@@ -70,7 +68,7 @@ export function startBackups(
       status =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível concluir o backup.');
+          : t('Could not complete the backup.');
     } finally {
       busy = false;
       render();
@@ -79,11 +77,11 @@ export function startBackups(
   async function save(): Promise<void> {
     clearDownload();
     armed = false;
-    status = t('Preparando o backup completo…');
+    status = t('Preparing full backup…');
     render();
     const report = await controller.generateComplete();
     const file = controller.file;
-    if (!file) throw new Error('Arquivo não concluído.');
+    if (!file) throw new Error('File not completed.');
     downloadUrl = URL.createObjectURL(file);
     const link = document.createElement('a');
     link.href = downloadUrl;
@@ -91,11 +89,11 @@ export function startBackups(
     link.click();
     status = report.omitted.length
       ? t(
-          'Backup incompleto: {0} itens indisponíveis. O reset permanece bloqueado; tente salvar novamente.',
+          'Backup incomplete: {0} unavailable items. Reset remains blocked; try saving again.',
           [report.omitted.length],
         )
       : t(
-          'Backup preparado. Guarde o arquivo e use “Validar arquivo” para conferir a cópia salva.',
+          'Backup prepared. Keep the file and use “Validate file” to check the saved copy.',
         );
   }
   async function validate(): Promise<void> {
@@ -104,22 +102,22 @@ export function startBackups(
       mounted?.querySelector<HTMLInputElement>('[data-backup-file]')
         ?.files?.[0];
     if (!file) return;
-    status = t('Validando e importando o histórico cifrado…');
+    status = t('Validating and importing encrypted history…');
     render();
     const reader = await controller.open(file);
     status = reader.complete
       ? t(
-          'Arquivo íntegro e completo. Histórico importado para Conversas neste aparelho.',
+          'File intact and complete. History imported into Conversations on this device.',
         )
       : t(
-          'Arquivo íntegro, com conteúdo incompleto. Os itens presentes foram importados; o reset permanece bloqueado.',
+          'File intact, with incomplete content. Available items were imported; reset remains blocked.',
         );
   }
   async function reset(): Promise<void> {
     if (session?.walletConfirmed !== true) {
       armed = false;
       status = t(
-        'Confirme sua wallet uma vez nesta sessão e volte ao Cofre para concluir o reset.',
+        'Confirm your wallet once in this session, then return to Vault to complete the reset.',
       );
       options.confirmWallet();
       return;
@@ -127,21 +125,21 @@ export function startBackups(
     if (!armed) {
       armed = true;
       status = t(
-        'Resetar os dados preservados neste backup somente do seu cofre no servidor? Mensagens posteriores e cópias de outras pessoas permanecem.',
+        "Reset the data preserved in this backup only from your server vault? Later messages and other people's copies remain.",
       );
       return;
     }
     armed = false;
     const result = await controller.cleanup();
     status = t(
-      'Cofre resetado: {0} MB liberados. O histórico importado continua neste aparelho.',
+      'Vault reset: {0} MB freed. Imported history remains on this device.',
       [(result.released / 1_000_000).toFixed(2)],
     );
   }
   window.addEventListener('0xdmme-backup-progress', (event) => {
     const detail = (event as CustomEvent<{ done: number; total: number }>)
       .detail;
-    status = t('Preparando backup: {0} itens.', [detail.done]);
+    status = t('Preparing backup: {0} items.', [detail.done]);
     render();
   });
   window.addEventListener('pagehide', () => {
@@ -210,7 +208,7 @@ export function startBackups(
           controller.cancel();
           armed = false;
           status = t(
-            'Operação interrompida. Se o reset já foi enviado, confira o armazenamento antes de repetir.',
+            'Operation interrupted. If reset was already sent, check storage before retrying.',
           );
           render();
         });

@@ -37,8 +37,7 @@ export interface EvaluationRound {
 }
 /** Experimental scores describe the candidate, never grant public publication. */
 function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object')
-    throw new Error('Resultado inválido.');
+  if (!value || typeof value !== 'object') throw new Error('Invalid result.');
   return value as Record<string, unknown>;
 }
 function identity(
@@ -51,7 +50,7 @@ function identity(
     !Number.isFinite(data['elapsedMs']) ||
     data['elapsedMs'] < 0
   )
-    throw new Error('Resultado inválido.');
+    throw new Error('Invalid result.');
   return {
     model: data['model'],
     modelHash: evaluationModelHash,
@@ -62,7 +61,7 @@ function readScores(value: unknown): Record<EvaluationLabel, number> {
   const raw = record(value);
   const entries = Object.entries(raw);
   if (entries.length !== evaluationLabels.length)
-    throw new Error('Cobertura inválida.');
+    throw new Error('Invalid coverage.');
   const scores = {} as Record<EvaluationLabel, number>;
   for (const label of evaluationLabels) {
     const score = raw[label];
@@ -72,14 +71,14 @@ function readScores(value: unknown): Record<EvaluationLabel, number> {
       score < 0 ||
       score > 1
     )
-      throw new Error('Pontuações inválidas.');
+      throw new Error('Invalid scores.');
     scores[label] = score;
   }
   if (
     Math.abs(Object.values(scores).reduce((sum, score) => sum + score, 0) - 1) >
     0.00001
   )
-    throw new Error('Distribuição inválida.');
+    throw new Error('Invalid distribution.');
   return scores;
 }
 export function evaluationResult(value: unknown): EvaluationResult {
@@ -90,7 +89,7 @@ const uuid =
   /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 function identifier(value: unknown, pattern: RegExp): string {
   if (typeof value !== 'string' || !pattern.test(value))
-    throw new Error('Identificação inválida.');
+    throw new Error('Invalid identification.');
   return value;
 }
 function integer(value: unknown, maximum: number): number {
@@ -100,19 +99,19 @@ function integer(value: unknown, maximum: number): number {
     value < 1 ||
     value > maximum
   )
-    throw new Error('Orçamento inválido.');
+    throw new Error('Invalid budget.');
   return value;
 }
 export function evaluationReference(value: unknown): EvaluationReference {
   if (value !== 'safe' && value !== 'unsafe' && value !== 'uncertain')
-    throw new Error('Escolha sua avaliação para esta imagem.');
+    throw new Error('Choose your assessment for this image.');
   return value;
 }
 export function evaluationCase(value: unknown): EvaluationCase {
   const data = record(value),
     mime = data['mime'];
   if (mime !== 'image/png' && mime !== 'image/jpeg' && mime !== 'image/webp')
-    throw new Error('Formato inválido.');
+    throw new Error('Invalid format.');
   return {
     ...evaluationResult(data),
     id: identifier(data['id'], uuid),
@@ -127,10 +126,10 @@ export function evaluationCase(value: unknown): EvaluationCase {
 }
 function roundCases(value: unknown, maximum: number): EvaluationCase[] {
   if (!Array.isArray(value) || value.length > maximum)
-    throw new Error('Galeria excedida.');
+    throw new Error('Gallery exceeds the limit.');
   const cases = value.map(evaluationCase);
   if (new Set(cases.map((entry) => entry.id)).size !== cases.length)
-    throw new Error('Casos duplicados.');
+    throw new Error('Duplicate cases.');
   return cases;
 }
 export function evaluationRound(value: unknown): EvaluationRound {
@@ -143,7 +142,7 @@ export function evaluationRound(value: unknown): EvaluationRound {
     0,
   );
   if (data['usedBytes'] !== usedBytes || usedBytes > maxBytes)
-    throw new Error('Contabilidade inválida.');
+    throw new Error('Invalid accounting.');
   return {
     roundId: identifier(data['roundId'], uuid),
     expiresAt: integer(data['expiresAt'], Number.MAX_SAFE_INTEGER),

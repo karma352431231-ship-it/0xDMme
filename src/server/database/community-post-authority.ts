@@ -30,10 +30,10 @@ export async function loadPost(
     `SELECT ${postColumns} FROM hash_talk.community_posts WHERE community_id=$1 AND id=$2 FOR UPDATE`,
     [context.row.id, id],
   );
-  if (!found.rows[0]) throw new AccountError(404, 'Post indisponível.');
+  if (!found.rows[0]) throw new AccountError(404, 'Post unavailable.');
   return found.rows[0];
 }
 export function currentPost(row: PostRow, revision: unknown): void {
   if (row.revision !== communityRevision(revision))
-    throw new AccountError(409, 'O post mudou. Recarregue antes de continuar.');
+    throw new AccountError(409, 'The post changed. Reload before continuing.');
 }

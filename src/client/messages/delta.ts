@@ -17,7 +17,7 @@ export async function readMessageDelta(
     canonical(value['from']) !== canonical(from) ||
     canonical(value['snapshot']) !== canonical(snapshot)
   )
-    throw new Error('Alterações de outro snapshot.');
+    throw new Error('Changes belong to another snapshot.');
   const page = messageItems(
     { items: value['items'], next: value['next'] },
     256,
@@ -26,6 +26,6 @@ export async function readMessageDelta(
     page.next !== null ||
     new Set(page.items.map((item) => item.id)).size !== page.items.length
   )
-    throw new Error('Alterações incompletas ou duplicadas.');
+    throw new Error('Incomplete or duplicate changes.');
   return page.items;
 }

@@ -195,7 +195,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -281,7 +281,10 @@ def main():
                         help='Activate the separately reviewed own media bundle with this release.')
     parser.add_argument('--capacity', action='store_true', help='Activate the reviewed capacity schema and own proxy transition.')
     parser.add_argument('--worker-boot', action='store_true', help='Apply the separately reviewed own worker boot layout after code publication.')
+    parser.add_argument('--profile-directory', action='store_true', help='Apply the separately approved 092→093 profile directory migration.')
     args = parser.parse_args()
+    if args.profile_directory and (args.prepare or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
+        parser.error('Profile directory requires its separate --check or --activate release.')
     if args.worker_boot and (args.prepare or args.capacity or args.request_limit or args.media_worker):
         parser.error('Worker boot requires its separate --check or --activate release.')
     if (args.request_limit or args.media_worker or args.capacity) and args.prepare:
@@ -296,6 +299,8 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.profile_directory:
+        config['profile_directory'] = True
     if args.media_worker:
         path = PRIVATE_ROOT / '.local/VPS_MEDIA_WORKER_REVIEW.json'
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_size > 4096:

@@ -36,7 +36,7 @@ export async function changedMessageItems(
     [a.session.accountId, a.session.deviceId, ids],
   );
   if (result.rows.length !== ids.length)
-    throw new Error('Índice de alterações incompleto.');
+    throw new Error('Incomplete change index.');
   return result.rows.map(sequenceRow);
 }
 function sequenceRow(row: Record<string, unknown>) {

@@ -27,7 +27,7 @@ export function discussionOrder(value: unknown): DiscussionOrder {
     value !== 'recent' &&
     value !== 'oldest'
   )
-    throw new AccountError(400, 'Ordenação da discussão inválida.');
+    throw new AccountError(400, 'Invalid discussion ordering.');
   return value;
 }
 export function discussionKey(
@@ -48,12 +48,12 @@ export function discussionCursor(
 ): DiscussionCursor | null {
   if (value === null) return null;
   if (typeof value !== 'string' || value.length > 700)
-    throw new AccountError(400, 'Cursor da discussão inválido.');
+    throw new AccountError(400, 'Invalid discussion cursor.');
   let data: Record<string, unknown>;
   try {
     data = object(JSON.parse(value));
   } catch {
-    throw new AccountError(400, 'Cursor da discussão inválido.');
+    throw new AccountError(400, 'Invalid discussion cursor.');
   }
   keys(data, ['key', 'anchor', 'activity', 'score', 'time', 'id']);
   if (
@@ -63,7 +63,7 @@ export function discussionCursor(
   )
     throw new AccountError(
       400,
-      'Cursor pertence a outra discussão ou ordenação.',
+      'Cursor belongs to another discussion or ordering.',
     );
   return {
     key: data['key'],
@@ -84,8 +84,8 @@ export function discussionPage(value: unknown): DiscussionPage {
   };
 }
 export const discussionOrders = [
-  ['discussed', 'Mais discutidos'],
-  ['votes', 'Mais votados'],
-  ['recent', 'Recentes'],
-  ['oldest', 'Mais antigos'],
+  ['discussed', 'community.sort-most-discussed'],
+  ['votes', 'Top voted'],
+  ['recent', 'Recent'],
+  ['oldest', 'Oldest'],
 ] as const;

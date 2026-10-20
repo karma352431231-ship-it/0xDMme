@@ -32,11 +32,10 @@ export class MessageLive {
     validate: () => Promise<boolean>;
     callWakeups?: boolean;
   }): void {
-    if (this.closed)
-      throw new AccountError(503, 'Atualização imediata indisponível.');
+    if (this.closed) throw new AccountError(503, 'Live update unavailable.');
     const remaining = Date.parse(input.session.expiresAt) - Date.now();
     if (!Number.isFinite(remaining) || remaining <= 0)
-      throw new AccountError(401, 'Sessão encerrada ou expirada.');
+      throw new AccountError(401, 'Session ended or expired.');
     // The host's existing socket/resource budgets still apply; no invented 8/2 product quota.
     const stream: Stream = {
       ...input,

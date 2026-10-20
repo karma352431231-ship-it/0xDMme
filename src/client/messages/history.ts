@@ -54,7 +54,7 @@ export function assertRemovalIdentity(
     cached.hash !== item.hash ||
     canonical(cached.relation ?? null) !== canonical(item.relation ?? null)
   )
-    throw new Error('Exclusão divergente da mensagem já autenticada.');
+    throw new Error('Deletion differs from the already authenticated message.');
 }
 /** JSON object order is not preserved by the transport/database. Normalize
  * through the shared packet contract before binding it to the signed index. */
@@ -67,7 +67,7 @@ export async function indexedPacket(
     packet.id !== item.id ||
     (await digest(JSON.stringify(packet))) !== item.hash
   )
-    throw new Error('Mensagem divergente do índice.');
+    throw new Error('Message differs from index.');
   return packet;
 }
 /** The signed packet hash is checked first; index metadata must also describe
@@ -101,7 +101,7 @@ export function assertPacketIdentity(
     item.relation ?? null,
   ];
   if (canonical(fields) !== canonical(indexed))
-    throw new Error('Identidade da mensagem divergente do índice.');
+    throw new Error('Message identity differs from the index.');
 }
 export type { Api } from '../peer-identity/index.ts';
 export { peerHistory } from '../peer-identity/index.ts';
@@ -115,7 +115,7 @@ export function messageItems(
   const data = object(input),
     raw = data['items'];
   if (!Array.isArray(raw) || raw.length > maximum)
-    throw new Error('Índice de mensagens inválido.');
+    throw new Error('Invalid message index.');
   const items = raw.map((value) => {
     const row = object(value);
     if (
@@ -125,7 +125,7 @@ export function messageItems(
         row['status'] as string | null,
       )
     )
-      throw new Error('Estado de mensagem inválido.');
+      throw new Error('Invalid message state.');
     return {
       ...(row['relation'] == null
         ? {}
@@ -182,7 +182,7 @@ export async function verifyDeletion(
     (await eventHash(event)) !== proof.directory ||
     !validDeletionTarget(item, proof)
   )
-    throw new Error('Exclusão não autenticada.');
+    throw new Error('Unauthenticated deletion.');
   await verify(
     device.signing,
     proof.signature,

@@ -49,6 +49,7 @@
 @import '../scrollbars/scrollbars.css';
 @import './theme.css';
 @import './shell-layout.css';
+@import './conversation-badges.css';
 @import './rail.css';
 @import '../contacts/directory-desktop.css';
 @import '../chat-ui/chat-desktop.css';
@@ -68,6 +69,7 @@
 @import '../devices/device-cards.css';
 @import './card-forms.css';
 @import '../contacts/conversation-list.css';
+@import '../conversation-preview/preview.css';
 @import '../message-search/search-dialog.css';
 @import '../chat-ui/message-content.css';
 @import '../backups/backup-card.css';

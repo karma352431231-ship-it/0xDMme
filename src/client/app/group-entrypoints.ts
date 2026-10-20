@@ -29,7 +29,7 @@ export function startGroupEntrypoints(options: GroupEntrypoints): {
     button.closest('details')?.removeAttribute('open');
     if (!options.available()) {
       window.alert(
-        t('Entre e autorize este aparelho para usar grupos privados.'),
+        t('Sign in and authorize this device to use private groups.'),
       );
       return;
     }
@@ -51,6 +51,6 @@ function showError(error: unknown): void {
   window.alert(
     error instanceof Error
       ? translatedError(error.message)
-      : t('Não foi possível abrir o grupo.'),
+      : t('Could not open the group.'),
   );
 }

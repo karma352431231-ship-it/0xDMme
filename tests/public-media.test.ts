@@ -8,7 +8,7 @@ import { publicProfile } from '../src/shared/public-profile/index.ts';
 import { PublicMediaService } from '../src/server/public-media/index.ts';
 import { AccountError } from '../src/shared/account/index.ts';
 
-await test('avatar público: referência só da própria origem, tipo e alvo; URL não concede acesso', () => {
+await test('public avatar: reference requires own origin, type and target; URL grants no access', () => {
   const target = crypto.randomUUID(),
     review = crypto.randomUUID(),
     path = publicAvatarPath('avatar', target, review);
@@ -26,7 +26,7 @@ await test('avatar público: referência só da própria origem, tipo e alvo; UR
   ])
     assert.throws(() => publicAvatar(value, 'avatar', target), AccountError);
 });
-await test('leitura pública: substituição entre as consultas não devolve bytes anteriores', async () => {
+await test('public reading: replacement between queries never returns previous bytes', async () => {
   let first = true;
   const service = new PublicMediaService({
     profiles: {

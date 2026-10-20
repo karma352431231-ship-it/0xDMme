@@ -1,3 +1,4 @@
+import { rankingPeriod } from '../../shared/community-ranking/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
@@ -47,7 +48,7 @@ function window(filter: FeedFilter, after: unknown, actor: string | null) {
     cursor = rankCursor(after, key),
     anchor = cursor?.anchor ?? new Date().toISOString();
   if (Date.parse(anchor) > Date.now() + 1000)
-    throw new AccountError(400, 'Cursor no futuro.');
+    throw new AccountError(400, 'Cursor is in the future.');
   return { key, cursor, anchor, since: discoveryWindow(filter.period, anchor) };
 }
 function page<T extends RankedRow>(
@@ -74,7 +75,7 @@ function activityWindow(profile: string, tab: string, after: string | null) {
     cursor = rankCursor(after, key),
     anchor = cursor?.anchor ?? new Date().toISOString();
   if (Date.parse(anchor) > Date.now() + 1000)
-    throw new AccountError(400, 'Cursor no futuro.');
+    throw new AccountError(400, 'Cursor is in the future.');
   return { key, cursor, anchor };
 }
 function activityIdentity(row: FeedRow) {
@@ -121,7 +122,7 @@ export class CommunityDiscoveryStore {
   }
   async feed(filter: FeedFilter, after: string | null): Promise<FeedPage> {
     if (filter.scope !== 'all')
-      throw new AccountError(403, 'Feed restrito à própria conta.');
+      throw new AccountError(403, 'Feed restricted to your own account.');
     return this.feedRows(this.pool, { filter, after, actor: null });
   }
   private async feedRows(
@@ -358,6 +359,24 @@ export class CommunityDiscoveryStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (operation === 'discovery-accounts') {
+      keys(data, ['period', 'after']);
+      const period = rankingPeriod(data['period']);
+      const after = data['after'];
+      exploreCursor(after);
+      return this.communities.withReader(authority, ({ client, actor }) => {
+        if (!actor)
+          throw new AccountError(
+            403,
+            'Create your public profile in Profile to organize your lists.',
+          );
+        return this.ranking.accountsPage(period, after as string | null, {
+          order: 'following',
+          actor: actor.id,
+          client,
+        });
+      });
+    }
     if (operation === 'discovery-feed') {
       keys(data, ['filter', 'after']);
       const filter = feedFilter(data['filter']);
@@ -365,7 +384,7 @@ export class CommunityDiscoveryStore {
         if (!context.actor && filter.scope !== 'all')
           throw new AccountError(
             403,
-            'Crie seu perfil público em Perfil para organizar suas listas.',
+            'Create your public profile in Profile to organize your lists.',
           );
         return this.feedRows(context.client, {
           filter,

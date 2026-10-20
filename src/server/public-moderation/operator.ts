@@ -21,7 +21,7 @@ export class PublicModerationOperator {
   }
   async preview(id: string): Promise<OperatorPreview> {
     const current = await this.database.publicModeration.operatorCandidate(id);
-    if (!current) throw new AccountError(404, 'Contestação indisponível.');
+    if (!current) throw new AccountError(404, 'Appeal unavailable.');
     const subject = current.subject;
     let preview: OperatorPreview | null;
     if (subject.kind === 'post-media')
@@ -35,7 +35,7 @@ export class PublicModerationOperator {
       !preview ||
       !(await this.database.publicModeration.operatorCandidate(id))
     )
-      throw new AccountError(409, 'Candidato substituído ou expirado.');
+      throw new AccountError(409, 'Candidate replaced or expired.');
     return preview;
   }
   private async mediaPreview(
@@ -53,14 +53,14 @@ export class PublicModerationOperator {
       bytes.length !== current.result.bytes ||
       createHash('sha256').update(bytes).digest('hex') !== current.resultHash
     )
-      throw new Error('Candidato público divergente.');
+      throw new Error('Public candidate mismatch.');
     const thumbnail = await this.files.digest(
       current.id,
       'thumbnail',
       current.result.thumbnailBytes,
     );
     if (thumbnail !== current.thumbnailHash)
-      throw new Error('Miniatura divergente.');
+      throw new Error('Thumbnail mismatch.');
     return { type: current.result.type, bytes };
   }
   review(input: {

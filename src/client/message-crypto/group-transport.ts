@@ -6,7 +6,7 @@ function completeResponse(input: unknown): Record<string, unknown> {
   const response = object(input);
   if (Object.keys(object(response['failures'] ?? {})).length)
     throw new Error(
-      'Consulta de chaves de grupo incompleta. Retome o envio após atualizar.',
+      'Group key lookup incomplete. Refresh before resuming the send.',
     );
   return response;
 }
@@ -57,7 +57,7 @@ async function query(
     );
     const response = completeResponse(result['response']);
     if (!Array.isArray(result['bindings']))
-      throw new Error('Vínculos de grupo ausentes.');
+      throw new Error('Group bindings missing.');
     Object.assign(deviceKeys, object(response['device_keys']));
     bindings.push(...(result['bindings'] as unknown[]));
   }

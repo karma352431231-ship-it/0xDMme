@@ -11,7 +11,7 @@ import { PublicModerationStore } from '../../src/server/database/public-moderati
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { publicModerationRetentionMs } from '../../src/shared/public-moderation/index.ts';
 
-await test('fila global de análise: concorrência, atomicidade, retries, contestação e prazo fixo', async (t) => {
+await test('global analysis queue: concurrency, atomicity, retries, appeal and fixed deadline', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
@@ -98,12 +98,12 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
     'Isolar a fila antes de testar; não consumir trabalho de outro autor.',
   );
   await t.test(
-    'capacidade global cobre o registro; falta de capacidade reverte a admissão',
+    'global capacity covers the record; insufficient capacity rolls back admission',
     async () => {
       const before = await usage();
       await assert.rejects(
         enqueue(new PublicModerationStore(pool, before + 1_023)),
-        /Capacidade global/,
+        /Global capacity/,
       );
       assert.equal(await usage(), before);
       const id = await enqueue();
@@ -116,7 +116,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
     },
   );
   await t.test(
-    'uma concessão por trabalho; cobertura incompleta e falha de publicação não aprovam',
+    'one grant per job; incomplete coverage and publication failure cannot approve',
     async () => {
       const claimed = await Promise.all([
         db.publicModeration.claim(model),
@@ -131,7 +131,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           { ...evaluation(job), frames: 1_799 },
           bind,
         ),
-        /incompleta/,
+        /incomplete/,
       );
       await assert.rejects(
         db.publicModeration.finish(
@@ -139,7 +139,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           evaluation(job),
           bind,
         ),
-        /substituída/,
+        /superseded|replaced/,
       );
       await assert.rejects(
         db.publicModeration.finish(job, evaluation(job), (client) =>
@@ -164,7 +164,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
       );
       await assert.rejects(
         db.publicModeration.finish(job, evaluation(job, 'reject'), bind),
-        /substituída/,
+        /superseded|replaced/,
       );
       await pool.query(
         "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
@@ -174,7 +174,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
     },
   );
   await t.test(
-    'contestação é do autor, única e idempotente; revisão exige confirmação de conteúdo permitido',
+    'appeal is author-only, unique and idempotent; review requires confirmation of allowed content',
     async () => {
       const id = await enqueue(),
         job = await db.publicModeration.claim(model);
@@ -189,7 +189,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
             reason: 'Não sou autor',
           }),
         ),
-        /indisponível/,
+        /[Uu]navailable/,
       );
       const request = {
         owner,
@@ -214,7 +214,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
             reason: 'Trocar contestação',
           }),
         ),
-        /já foi registrada/,
+        /already been recorded/,
       );
       await assert.rejects(
         db.publicModeration.operatorReview(
@@ -226,7 +226,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           },
           bind,
         ),
-        /proibição global/,
+        /global ban/,
       );
       const decision = {
         id,
@@ -250,7 +250,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           { ...decision, verdict: 'reject' },
           bind,
         ),
-        /já foi decidida/,
+        /already been decided/,
       );
       const foreign = await transaction((client) =>
         db.publicModeration.notices(client, other),
@@ -259,7 +259,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
     },
   );
   await t.test(
-    'publicação exige política e modelo/runtime aceitos; o registro aprovado sozinho não abre leitura',
+    'publication requires accepted policy and model/runtime; approved record alone cannot open reads',
     async () => {
       const id = await enqueue(),
         current = await db.publicModeration.claim(model);
@@ -294,7 +294,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
     },
   );
   await t.test(
-    'recuperação tem três tentativas; prazo não se renova e descarte precisa de confirmação',
+    'recovery has three attempts; deadline cannot renew and disposal requires confirmation',
     async () => {
       const id = await enqueue(),
         original = await row(id);
@@ -310,7 +310,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
         assert.equal(await db.publicModeration.recover(), 1);
         await assert.rejects(
           db.publicModeration.finish(job, evaluation(job), bind),
-          /substituída/,
+          /superseded|replaced/,
         );
       }
       const third = await db.publicModeration.claim(model);

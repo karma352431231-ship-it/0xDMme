@@ -8,7 +8,7 @@ import type {
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import { SocialDms } from '../src/client/social-dm/index.ts';
 
-await test('DM cancela antes do envio se a sessão muda durante assinatura; não usa autoridade de outra conta', async (t) => {
+await test("DM cancels before sending if the session changes during signing and never uses another account's authority", async (t) => {
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),
@@ -56,7 +56,7 @@ await test('DM cancela antes do envio se a sessão muda durante assinatura; não
     );
   controller.setSession(session);
   const pending = controller.request('request', { peer: crypto.randomUUID() }),
-    rejection = assert.rejects(pending, /Sessão/);
+    rejection = assert.rejects(pending, /[Ss]ession/);
   await signing;
   controller.setSession(null);
   finish('a'.repeat(88));
@@ -65,7 +65,7 @@ await test('DM cancela antes do envio se a sessão muda durante assinatura; não
   controller.setSession({ ...session, accountId: crypto.randomUUID() });
   await assert.rejects(
     controller.request('list', { after: null }),
-    /outra conta/,
+    /another account/,
   );
   assert.equal(fetch.mock.callCount(), 0);
 });

@@ -114,7 +114,7 @@ await test('session change and rejected read never request or project receipts',
   const { daily, state, window, session } = receiptFixture(t);
   state.afterRead = () =>
     daily.setSession({ ...session, csrf: 'c'.repeat(64) });
-  await assert.rejects(daily.readConversation(window), /Sessão alterada/);
+  await assert.rejects(daily.readConversation(window), /Session changed/);
   assert.deepEqual(state.operations, ['daily-read']);
   state.operations.length = 0;
   state.failure = true;

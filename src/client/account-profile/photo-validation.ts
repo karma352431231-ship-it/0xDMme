@@ -17,7 +17,7 @@ export function validatePhoto(
   bytes: Uint8Array<ArrayBuffer>,
 ): void {
   if (bytes.length === 0 || bytes.length > profileLimit)
-    throw new Error('Foto deve ter até 3 MB.');
+    throw new Error('The photo must be no larger than 3 MB.');
   if (!photoSignature(type, bytes))
-    throw new Error('Use uma foto PNG, JPEG ou WebP válida.');
+    throw new Error('Use a valid PNG, JPEG or WebP photo.');
 }

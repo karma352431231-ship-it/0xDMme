@@ -9,7 +9,7 @@ import {
 } from '../src/shared/public-profile/index.ts';
 import { pendingPublicAvatar } from '../src/shared/public-avatar/index.ts';
 
-await test('@ normaliza caixa sem aceitar acentos, homógrafos Unicode ou nomes do sistema', () => {
+await test('handle normalizes case while rejecting accents, Unicode homoglyphs and system names', () => {
   assert.equal(claimableHandle(' @Joao_123 '), 'joao_123');
   assert.equal(claimableHandle('123'), '123');
   assert.equal(publicHandle('joao'), 'joao');
@@ -27,9 +27,9 @@ await test('@ normaliza caixa sem aceitar acentos, homógrafos Unicode ou nomes 
   ])
     assert.throws(() => claimableHandle(value), AccountError);
   for (const value of ['Admin', 'suporte', '0xDMme', 'a_d_m_i_n', '0xdmme_app'])
-    assert.throws(() => claimableHandle(value), /reservado/);
+    assert.throws(() => claimableHandle(value), /reserved/);
 });
-await test('contrato público recusa campos privados ou avatar sem proteção', () => {
+await test('public contract rejects private fields or unprotected avatars', () => {
   const profile = { id: crypto.randomUUID(), handle: 'joao', avatar: null };
   assert.deepEqual(publicProfile(profile), profile);
   for (const key of [
@@ -49,7 +49,7 @@ await test('contrato público recusa campos privados ou avatar sem proteção', 
     AccountError,
   );
 });
-await test('avatar preparado é limitado, estático e sem metadados; não concede publicação', async () => {
+await test('prepared avatar is bounded, static and metadata-free and grants no publication', async () => {
   const bytes = new Uint8Array(
     await readFile(new URL('../src/client/app/icon-192.png', import.meta.url)),
   );

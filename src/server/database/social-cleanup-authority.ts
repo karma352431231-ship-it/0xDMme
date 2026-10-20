@@ -34,10 +34,7 @@ export class SocialCleanupAuthority {
   async validate(c: pg.PoolClient, account: string, item: BackupTarget) {
     const row = await this.target(c, account, item.id);
     if (row.hash !== item.hash)
-      throw new AccountError(
-        409,
-        'Mensagem de DM divergente da seleção de limpeza.',
-      );
+      throw new AccountError(409, 'DM differs from the cleanup selection.');
     return row;
   }
   async target(c: pg.PoolClient, account: string, id: string) {
@@ -49,10 +46,7 @@ export class SocialCleanupAuthority {
     );
     const row = result.rows[0];
     if (!row?.available)
-      throw new AccountError(
-        410,
-        'Mensagem de DM indisponível no cofre pessoal.',
-      );
+      throw new AccountError(410, 'DM unavailable in the personal vault.');
     return { hash: row.hash, actor: actor.id };
   }
 }

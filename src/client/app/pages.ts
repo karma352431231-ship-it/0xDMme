@@ -74,7 +74,7 @@ export function saveSettingsSection(storage: SectionStorage, id: string): void {
   }
 }
 
-/** `#settings?section=<id>` opens that category, e.g. "Editar perfil público". */
+/** `#settings?section=<id>` opens that category, e.g. "Edit public profile". */
 export function requestedSettingsSection(hash: string): string | null {
   return routeParams(hash).get('section');
 }
@@ -153,7 +153,7 @@ function categoryList(
 ): { first: HTMLButtonElement | null; sync: () => void } {
   const nav = document.createElement('nav');
   nav.className = 'profile-categories';
-  nav.setAttribute('aria-label', t('Categorias de configurações'));
+  nav.setAttribute('aria-label', t('Settings categories'));
   const buttons = new Map<HTMLDetailsElement, HTMLButtonElement>();
   for (const section of sections) {
     if (section.dataset['settingsSection'] === 'account') continue;
@@ -182,39 +182,39 @@ function categoryList(
 const profileContent = t('html.148d3089e900', [
   settingsSection({
     id: 'privacy',
-    title: t('Privacidade'),
-    description: t('Presença, leitura e quem pode me encontrar'),
+    title: t('Privacy'),
+    description: t('Presence, read receipts and who can find me'),
     content:
       '<div data-privacy-settings></div><div data-contact-settings-container></div>',
   }),
   settingsSection({
     id: 'profile',
-    title: t('Perfil público'),
-    description: t('Seu @ e sua foto nas comunidades'),
+    title: t('Public profile'),
+    description: t('Your handle and photo in communities'),
     content: '<div data-public-profile-settings></div>',
   }),
   settingsSection({
     id: 'alerts',
-    title: t('Notificações e chamadas'),
-    description: t('Push, sons e silêncio das conversas'),
+    title: t('Notifications and calls'),
+    description: t('Push, sounds and conversation muting'),
     content: '<div data-daily-settings></div><div data-call-settings></div>',
   }),
   settingsSection({
     id: 'devices',
-    title: t('Dispositivos conectados'),
-    description: t('Vincular, recuperar e gerenciar acessos'),
+    title: t('Connected devices'),
+    description: t('Link, recover and manage access'),
     content: '<div data-device-settings></div>',
   }),
   settingsSection({
     id: 'vault',
-    title: t('Cofre e backup'),
-    description: t('Uso do armazenamento, salvar e restaurar'),
+    title: t('Vault and backup'),
+    description: t('Storage usage, save and restore'),
     content: '<div class="cards" data-vault-settings></div>',
   }),
   settingsSection({
     id: 'representatives',
-    title: t('Organizações e representantes'),
-    description: t('Organizações e autorizações assinadas'),
+    title: t('Organizations and representatives'),
+    description: t('Organizations and signed authorizations'),
     content: '<div data-representatives-settings></div>',
   }),
   settingsSection({
@@ -225,32 +225,32 @@ const profileContent = t('html.148d3089e900', [
   }),
   settingsSection({
     id: 'app',
-    title: t('Sobre o app'),
-    description: t('Versão, atualizações, código e licenças'),
+    title: t('About the app'),
+    description: t('Version, updates, source code and licenses'),
     content: t('html.33d7dbf67efc'),
   }),
 ]);
 
 export const pages = {
-  conversas: { title: t('Conversas'), content: '' },
+  conversas: { title: t('Conversations'), content: '' },
   atividade: {
-    title: t('Atividade'),
+    title: t('Activity'),
     content: '<div class="activity" data-activity></div>',
   },
   comunidades: {
-    title: t('Comunidades'),
+    title: t('Communities'),
     content: '<div data-communities></div>',
   },
   perfil: {
-    title: t('Perfil'),
+    title: t('Profile'),
     content: profileContent,
   },
   analise: {
-    title: t('Análise do conteúdo'),
+    title: t('Content analysis'),
     content: '<div data-moderation-review></div>',
   },
   publico: {
-    title: t('Perfil público'),
+    title: t('Public profile'),
     content: '<div data-public-profile-view></div>',
   },
   status: {
@@ -258,11 +258,11 @@ export const pages = {
     content: '<div class="cards" data-status-container></div>',
   },
   contatos: {
-    title: t('Contatos'),
+    title: t('Contacts'),
     content: '<div class="cards" data-contacts-container></div>',
   },
   cofre: {
-    title: t('Cofre'),
+    title: t('Vault'),
     content: '<div class="cards" data-vault-container></div>',
   },
 };

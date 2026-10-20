@@ -141,8 +141,11 @@ function reviewedPipelines(
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
     '1271c7deba0443c4f53c76295c0789c9cdf766b53a5c9875ab560c2c5a7b7c58',
     '409455c7f259b71f0d9d2c60704613267da0c597f47c42b6ea92bbaf7f001a3f',
+    // Owner-approved 19/10/2026: the pipeline before the source text revision.
+    // Its approved results must stay visible, so the list now holds seven.
+    '12c1cd1b6b504f1e476da8b58c07f034aaf2addfbd03fa0c2d2f074f6f3cea1f',
   ]);
-  if (hashes.length > 6 || new Set(hashes).size !== hashes.length)
+  if (hashes.length > 7 || new Set(hashes).size !== hashes.length)
     throw new Error('Incomplete or duplicated pipeline approvals.');
   if (hashes.some((hash) => !known.has(hash)))
     throw new Error('Unreviewed inference predecessor.');

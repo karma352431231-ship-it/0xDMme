@@ -24,7 +24,7 @@ export async function searchMentions(
   ]);
   const communities = communityPage(groups);
   if (!Array.isArray(users) || users.length > 8 || communities.items.length > 8)
-    throw new Error('Sugestões de perfis inválidas.');
+    throw new Error('Invalid profile suggestions.');
   return [
     ...users.map(publicProfile).map((profile) => ({
       kind: 'user' as const,

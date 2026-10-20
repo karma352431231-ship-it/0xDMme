@@ -76,7 +76,7 @@ export class OfflineIndex {
     }
     if (!scan.complete)
       throw new Error(
-        'Índice local parcialmente carregado. Continue abrindo a cópia local.',
+        'Local index partially loaded. Continue opening the local copy.',
       );
   }
   private async readRelations(scan: Scan, c: ReadContext): Promise<void> {
@@ -95,7 +95,7 @@ export class OfflineIndex {
     }
     if (!scan.relationsComplete)
       throw new Error(
-        'Alterações locais parcialmente carregadas; continue abrindo a cópia local.',
+        'Local changes are partially loaded; keep opening the local copy.',
       );
   }
 }

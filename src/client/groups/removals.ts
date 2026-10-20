@@ -88,5 +88,5 @@ function assertKnownRemoval(
     ]) !==
     canonical([item.id, item.hash, group, item.sender, item.relation ?? null])
   )
-    throw new Error('Exclusão divergente da mensagem de grupo já verificada.');
+    throw new Error('Deletion does not match the verified group message.');
 }

@@ -271,18 +271,22 @@
   background: var(--surface-3);
   color: var(--text);
 }
-.right-switch-badge {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 10.5px;
-  line-height: 16px;
-}
 .ranking-side-copy small .community-topic-dot {
   display: inline-block;
   margin-right: 5px;
   vertical-align: 1px;
+}
+
+#app-shell .right-switch-track button {
+  position: relative;
+}
+#app-shell .right-switch-track button + button::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--line-strong);
+  pointer-events: none;
 }

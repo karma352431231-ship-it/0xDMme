@@ -30,7 +30,7 @@ export function postPreview(
   const host = el('div', '', 'post-preview');
   let content = postText(preview === text ? text : preview + '…');
   host.append(content);
-  const toggle = el('button', t('Ver tudo'), 'post-preview-toggle');
+  const toggle = el('button', t('View all'), 'post-preview-toggle');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
   let expanded = false;
@@ -39,7 +39,7 @@ export function postPreview(
     const next = postText(expanded ? text : preview + '…');
     content.replaceWith(next);
     content = next;
-    toggle.textContent = expanded ? t('Ver menos') : t('Ver tudo');
+    toggle.textContent = expanded ? t('View less') : t('View all');
     toggle.setAttribute('aria-expanded', String(expanded));
   });
   host.append(toggle);

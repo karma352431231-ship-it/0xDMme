@@ -53,7 +53,7 @@ export class NotificationService {
     this.scheduler = new WorkScheduler({
       work: () => this.dispatch(),
       failed: () => {
-        process.stderr.write('Fila de notificações indisponível.\n');
+        process.stderr.write('Notification queue unavailable.\n');
       },
     });
     this.unsubscribe = options.signals?.subscribe('push', () =>
@@ -64,18 +64,17 @@ export class NotificationService {
     this.config = options.config;
     this.send =
       options.send ??
-      (() => Promise.reject(new Error('Emissor push indisponível.')));
+      (() => Promise.reject(new Error('Push sender unavailable.')));
     this.dispatcher = new PushDispatcher({
       store: this.store,
       wake: () => this.scheduler.wake(),
       send: (subscription) => {
-        if (!this.config)
-          return Promise.reject(new Error('Push indisponível.'));
+        if (!this.config) return Promise.reject(new Error('Push unavailable.'));
         return this.send(subscription, this.config);
       },
     });
     this.calls = new CallPushQueue(this.store, (subscription, delivery) => {
-      if (!this.config) return Promise.reject(new Error('Push indisponível.'));
+      if (!this.config) return Promise.reject(new Error('Push unavailable.'));
       return this.send(subscription, this.config, delivery);
     });
   }
@@ -107,7 +106,7 @@ export class NotificationService {
       'daily-states': () => {
         keys(input, ['peers']);
         if (!Array.isArray(input['peers']) || input['peers'].length > 16)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return this.store.states(a, input['peers'].map(uuid));
       },
       'daily-configure': () => {
@@ -128,7 +127,7 @@ export class NotificationService {
       'daily-heartbeat': () => {
         keys(input, ['active']);
         if (typeof input['active'] !== 'boolean')
-          throw new AccountError(400, 'Estado inválido.');
+          throw new AccountError(400, 'Invalid state.');
         return this.store.heartbeat(a, input['active']);
       },
       'daily-read': () => {
@@ -148,7 +147,7 @@ export class NotificationService {
         if (input['subscription'] !== null && !this.config)
           throw new AccountError(
             503,
-            'Push ainda não configurado neste ambiente.',
+            'Push is not configured in this environment yet.',
           );
         return this.store.subscribe(
           a,
@@ -161,7 +160,7 @@ export class NotificationService {
     const action = Object.hasOwn(actions, operation)
       ? actions[operation]
       : undefined;
-    if (!action) throw new AccountError(404, 'Operação diária indisponível.');
+    if (!action) throw new AccountError(404, 'Daily operation unavailable.');
     return action();
   }
   async allowPush(session: AccountSession): Promise<boolean> {
@@ -237,6 +236,6 @@ export class NotificationService {
 
 function messageIds(input: unknown): string[] {
   if (!Array.isArray(input) || input.length > 16)
-    throw new AccountError(400, 'Lote inválido.');
+    throw new AccountError(400, 'Invalid batch.');
   return input.map(uuid);
 }

@@ -73,21 +73,21 @@ export class StatusController {
   }
   guard(generation: number): void {
     if (generation !== this.generation)
-      throw new Error('Sessão ou tela de status alterada.');
+      throw new Error('Session or status screen changed.');
   }
   private async withAuthority<T>(
     generation: number,
     work: (a: VaultAuthority) => Promise<T>,
   ): Promise<T> {
     if (!this.session || !navigator.onLine)
-      throw new Error('Entre e conecte-se para abrir os status.');
+      throw new Error('Sign in and connect to open statuses.');
     return this.access.withVault(false, async (a) => {
       this.guard(generation);
       if (
         a.session.accountId !== this.session?.accountId ||
         a.session.deviceId !== this.session.deviceId
       )
-        throw new Error('Sessão alterada.');
+        throw new Error('Session changed.');
       const value = await work(a);
       this.guard(generation);
       return value;
@@ -178,10 +178,10 @@ export class StatusController {
       const raw = object(await api('status-read', { id })),
         packet = statusPacket(raw['packet']),
         envelope = statusEnvelope(raw['envelope']);
-      if (packet.id !== id) throw new Error('Publicação divergente.');
+      if (packet.id !== id) throw new Error('Publication does not match.');
       const history = await this.origin({ id, author: packet.author, api });
       const origin = history[packet.authorityRevision - 1];
-      if (!origin) throw new Error('Origem do status incompleta.');
+      if (!origin) throw new Error('Status origin incomplete.');
       const key = recoveryKey(
         await api('recovery-key', { id: envelope.recipient.archive.keyId }),
       );
@@ -235,9 +235,9 @@ export class StatusController {
         current = fingerprint(data['head']),
         raw = data['events'];
       if (head && head !== current)
-        throw new Error('Os aparelhos do autor mudaram. Tente novamente.');
+        throw new Error("The author's devices changed. Try again.");
       if (!Array.isArray(raw) || !raw.length || raw.length > 8)
-        throw new Error('Origem do status incompleta.');
+        throw new Error('Status origin incomplete.');
       head = current;
       const values: unknown[] = raw;
       events.push(...values);
@@ -249,16 +249,16 @@ export class StatusController {
           current: true,
         });
     }
-    throw new Error('Diretório do autor excedido.');
+    throw new Error('Author directory exceeds the limit.');
   }
   async photo(thumbnail: boolean): Promise<Uint8Array<ArrayBuffer>> {
     const view = this.opened;
     if (!view || view.packet.kind !== 'photo')
-      throw new Error('Abra uma foto primeiro.');
+      throw new Error('Open a photo first.');
     const generation = this.generation,
       content = attachmentContent(JSON.parse(view.text) as unknown),
       file = thumbnail ? content.thumbnail : content.file;
-    if (!file) throw new Error('Prévia da foto ausente.');
+    if (!file) throw new Error('Photo preview missing.');
     return this.withAuthority(generation, async (a) => {
       const api = (op: string, payload: Record<string, unknown>) =>
         messageApi(a, op, payload, () => this.guard(generation));
@@ -290,20 +290,20 @@ async function confirmStatus(input: {
     canonical(statusPacket(data['packet'])) !== canonical(input.packet) ||
     !statusIsActive({ publishedAt: input.packet.publishedAt, now: Date.now() })
   )
-    throw new Error('Status mudou, expirou ou está indisponível.');
+    throw new Error('Status changed, expired or unavailable.');
 }
 function parseStatusItems(input: unknown): StatusItem[] {
   if (!Array.isArray(input) || input.length > 16)
-    throw new Error('Lista de status inválida.');
+    throw new Error('Invalid status list.');
   return input.map((value: unknown) => {
     const d = object(value),
       kind = d['kind'];
     if (kind !== 'text' && kind !== 'photo')
-      throw new Error('Tipo de status inválido.');
+      throw new Error('Invalid status type.');
     const publishedAt = integer(d['publishedAt'], Number.MAX_SAFE_INTEGER),
       expiresAt = integer(d['expiresAt'], Number.MAX_SAFE_INTEGER);
     if (expiresAt !== statusExpiresAt(publishedAt))
-      throw new Error('Expiração de status inválida.');
+      throw new Error('Invalid status expiration.');
     return {
       id: uuid(d['id']),
       author: uuid(d['author']),

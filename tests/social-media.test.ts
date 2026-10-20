@@ -51,7 +51,7 @@ function gif(comment = false): Uint8Array<ArrayBuffer> {
     new Uint8Array([59]),
   );
 }
-await test('GIF conserva dois quadros, delays e loop; remove comentários e recusa truncamento/pixels excessivos', () => {
+await test('GIF preserves two frames, delays and loop, removes comments and rejects truncation or excess pixels', () => {
   assert.deepEqual(prepareGif(gif(true)), gif());
   assert.throws(() => prepareGif(gif().subarray(0, -1)));
   const huge = gif();
@@ -59,7 +59,7 @@ await test('GIF conserva dois quadros, delays e loop; remove comentários e recu
   huge[7] = 255;
   assert.throws(() => prepareGif(huge));
 });
-await test('backup de DM/GIF usa SDK real, reabre separado do chat por wallet e exige mídia completa para limpar', async () => {
+await test('DM/GIF backup uses the real SDK, reopens separately from wallet chat and requires complete media for cleanup', async () => {
   await initAsync();
   const owner = await groupParticipant(),
     sealed = await sealFile(gif());
@@ -76,7 +76,7 @@ await test('backup de DM/GIF usa SDK real, reabre separado do chat por wallet e 
     'gif',
   );
   checkSocialBytes(content, 'gif', gif());
-  assert.throws(() => checkSocialBytes(content, 'gif', gif(true)), /Tamanho/);
+  assert.throws(() => checkSocialBytes(content, 'gif', gif(true)), /size/);
   const row: BackupRecord = {
     type: 'dm-message',
     id: crypto.randomUUID(),
@@ -153,7 +153,7 @@ await test('backup de DM/GIF usa SDK real, reabre separado do chat por wallet e 
     socialAttachment({ ...content, type: 'image/png' }, 'gif'),
   );
 });
-await test('GIF original de DM conserva comentários sem reduzir a validação de quadros ou integridade', async () => {
+await test('original DM GIF preserves comments without weakening frame or integrity validation', async () => {
   const original = gif(true),
     sealed = await sealFile(original),
     content = socialAttachment(
@@ -176,7 +176,7 @@ await test('GIF original de DM conserva comentários sem reduzir a validação d
   assert.deepEqual(await openFile(sealed.file, sealed.bytes), original);
 });
 
-await test('exportação reúne cópias de DM uma vez, preserva mídia e recusa hashes divergentes', async (t) => {
+await test('export collects DM copies once, preserves media and rejects mismatched hashes', async (t) => {
   const owner = await groupParticipant(),
     sealed = await sealFile(gif());
   const row: Extract<BackupRecord, { type: 'dm-message' }> = {
@@ -257,7 +257,7 @@ await test('exportação reúne cópias de DM uma vez, preserva mídia e recusa 
       omitted: [],
       guard: () => {},
     }),
-    /diverge/,
+    /differ/,
   );
   assert.equal(download.mock.callCount(), 1);
 });

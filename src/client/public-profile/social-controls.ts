@@ -102,7 +102,9 @@ export async function profileSocialControls(
   check.append(communityIcon('check'));
   bell.append(communityIcon('bell'), check);
   function paint(): void {
-    followButton.textContent = follow.following ? t('Seguindo') : t('Seguir');
+    followButton.textContent = follow.following
+      ? t('follow.following')
+      : t('Follow');
     followButton.setAttribute('aria-pressed', String(follow.following));
     bell.disabled = !follow.following || access.block.blocked;
     bell.dataset['inactive'] = String(bell.disabled);
@@ -110,14 +112,14 @@ export async function profileSocialControls(
     bell.setAttribute(
       'aria-label',
       alerts.enabled
-        ? t('Desativar notificações de posts e respostas')
-        : t('Ativar notificações de posts e respostas'),
+        ? t('Disable post and reply notifications')
+        : t('Enable post and reply notifications'),
     );
     bell.title = follow.following
       ? alerts.enabled
-        ? t('Notificações ligadas')
-        : t('Notificações desligadas')
-      : t('Siga para ativar notificações');
+        ? t('Notifications on')
+        : t('Notifications off')
+      : t('Follow to enable notifications');
   }
   paint();
   const menu = document.createElement('details'),
@@ -125,13 +127,13 @@ export async function profileSocialControls(
   menu.className = 'post-more';
   const content = document.createElement('div');
   content.className = 'post-more-content';
-  summaryNode.setAttribute('aria-label', t('Opções do usuário'));
+  summaryNode.setAttribute('aria-label', t('User options'));
   summaryNode.append(communityIcon('more'));
   menu.append(summaryNode, content);
   host.append(menu);
   const block = button(
     content,
-    access.block.blocked ? t('Desbloquear usuário') : t('Bloquear usuário'),
+    access.block.blocked ? t('Unblock user') : t('Block user'),
     async () => {
       const saved = publicBlockState(
         await controller.perform('block', {
@@ -155,14 +157,14 @@ export async function profileSocialControls(
   const form = document.createElement('details'),
     heading = document.createElement('summary');
   form.className = 'post-report';
-  heading.textContent = t('Denunciar usuário');
+  heading.textContent = t('Report user');
   heading.prepend(communityIcon('flag'));
   form.append(heading);
   content.append(form);
   const label = document.createElement('label'),
     reason = document.createElement('textarea');
   reason.maxLength = 1000;
-  label.textContent = t('Motivo da denúncia');
+  label.textContent = t('Report reason');
   label.append(reason);
   form.append(label);
   const record = crypto.randomUUID(),
@@ -171,7 +173,7 @@ export async function profileSocialControls(
   form.append(status);
   button(
     form,
-    t('Guardar denúncia'),
+    t('Save report'),
     async () => {
       const result = object(
         await controller.perform('public-report', {
@@ -182,9 +184,9 @@ export async function profileSocialControls(
         }),
       );
       keys(result, ['saved']);
-      if (result['saved'] !== true) throw new Error('Denúncia não confirmada.');
+      if (result['saved'] !== true) throw new Error('Report not confirmed.');
       if (!signal.aborted)
-        status.textContent = t('Denúncia guardada no backend do app.');
+        status.textContent = t("Report saved on the app's backend.");
     },
     error,
   );

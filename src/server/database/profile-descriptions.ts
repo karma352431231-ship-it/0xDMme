@@ -35,7 +35,7 @@ export class ProfileDescriptions {
     return rows.rows[0] ?? { revision: 0, description: '' };
   }
   async readMany(client: Reader, ids: string[]): Promise<Map<string, string>> {
-    if (ids.length > 24) throw new AccountError(400, 'Página muito grande.');
+    if (ids.length > 24) throw new AccountError(400, 'Page too large.');
     const rows = await client.query<{
       profile_id: string;
       description: string;
@@ -80,7 +80,7 @@ export class ProfileDescriptions {
         if (old.revision !== revision)
           throw new AccountError(
             409,
-            'Descrição alterada em outro aparelho. Recarregue antes de editar.',
+            'Description changed on another device. Reload before editing.',
           );
         const result = await client.query<ProfileDescription>(
           `INSERT INTO hash_talk.public_profile_descriptions(profile_id,description) VALUES($1,$2)

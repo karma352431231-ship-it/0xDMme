@@ -1,5 +1,10 @@
+import { RankingLive } from '../community-ranking/index.ts';
+import type { WorkSignals } from '../database/index.ts';
 import { accountRankingLookup } from './account-ranking.ts';
-import type { AccountRankingPage } from '../../shared/account-ranking/index.ts';
+import type {
+  AccountRankingPage,
+  AccountRankingOrder,
+} from '../../shared/account-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communitySlug } from '../../shared/community-address/index.ts';
 import { upvoterLookup } from './upvotes.ts';
@@ -46,6 +51,7 @@ import type {
 } from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
+  rankingSignals?: Pick<WorkSignals, 'subscribe'>;
   upvoters?: (
     id: string,
     post: string,
@@ -63,6 +69,7 @@ export function createCommunityHandler(read: {
   accounts?: (
     period: RankingPeriod,
     after: string | null,
+    order?: AccountRankingOrder,
   ) => Promise<AccountRankingPage>;
   readAddress?: (slug: string) => Promise<Community>;
   read: (id: string) => Promise<Community>;
@@ -91,6 +98,9 @@ export function createCommunityHandler(read: {
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
+  const live = read.rankingSignals
+    ? new RankingLive(read.rankingSignals)
+    : null;
   function send(
     response: ServerResponse,
     status: number,
@@ -109,7 +119,7 @@ export function createCommunityHandler(read: {
     }
     if (request.url !== '/api/communities/views') return readLookup(request);
     if (!read.views || !read.origin)
-      throw new AccountError(404, 'Visualizações indisponíveis.');
+      throw new AccountError(404, 'Views unavailable.');
     return {
       items: postViewsPage(
         await read.views(await viewRequest(request, read.origin)),
@@ -117,8 +127,7 @@ export function createCommunityHandler(read: {
     };
   }
   async function followerLookup(address: URL): Promise<unknown> {
-    if (!read.followers)
-      throw new AccountError(404, 'Seguidores indisponíveis.');
+    if (!read.followers) throw new AccountError(404, 'Followers unavailable.');
     params(address, ['after', 'tab']);
     const id = uuid(address.pathname.split('/')[3]);
     return communityFollowers(
@@ -153,7 +162,7 @@ export function createCommunityHandler(read: {
   }
   async function readLookup(request: IncomingMessage): Promise<unknown> {
     if (request.method !== 'GET' && request.method !== 'HEAD')
-      throw new AccountError(405, 'Método inválido.');
+      throw new AccountError(405, 'Invalid method.');
     budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
     const address = new URL(request.url ?? '', 'http://local.invalid');
     if (
@@ -174,10 +183,29 @@ export function createCommunityHandler(read: {
       address.search ||
       !/^\/api\/communities\/[a-f0-9-]{36}$/u.test(address.pathname)
     )
-      throw new AccountError(404, 'Comunidade indisponível.');
+      throw new AccountError(404, 'Community unavailable.');
     return community(
       await read.read(uuid(address.pathname.slice('/api/communities/'.length))),
     );
+  }
+  function serveRankingEvents(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): boolean {
+    if (request.url !== '/api/communities/ranking-events' || !live)
+      return false;
+    if (request.method !== 'GET')
+      throw new AccountError(405, 'Invalid method.');
+    budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
+    live.open(response);
+    return true;
+  }
+  function allowedMethods(request: IncomingMessage): string {
+    if (request.url === '/api/communities/ranking-events') return 'GET';
+    return (request.url === '/api/communities/views' && read.views) ||
+      (request.url === '/api/communities/share-clicks' && read.shareClicks)
+      ? 'POST'
+      : 'GET, HEAD';
   }
   async function handle(
     request: IncomingMessage,
@@ -185,17 +213,11 @@ export function createCommunityHandler(read: {
   ): Promise<void> {
     const head = request.method === 'HEAD';
     try {
+      if (serveRankingEvents(request, response)) return;
       send(response, 200, await lookup(request), head);
     } catch (error: unknown) {
       if (error instanceof AccountError && error.status === 405)
-        response.setHeader(
-          'Allow',
-          (request.url === '/api/communities/views' && read.views) ||
-            (request.url === '/api/communities/share-clicks' &&
-              read.shareClicks)
-            ? 'POST'
-            : 'GET, HEAD',
-        );
+        response.setHeader('Allow', allowedMethods(request));
       send(
         response,
         error instanceof AccountError ? error.status : 503,
@@ -203,7 +225,7 @@ export function createCommunityHandler(read: {
           error:
             error instanceof AccountError
               ? error.message
-              : 'Comunidade indisponível. Tente novamente.',
+              : 'Community unavailable. Try again.',
         },
         head,
       );
@@ -217,7 +239,7 @@ export function createCommunityHandler(read: {
           address.searchParams.getAll(key).length !== 1,
       )
     )
-      throw new AccountError(400, 'Filtros inválidos.');
+      throw new AccountError(400, 'Invalid filters.');
   }
   async function discoveryLookup(address: URL): Promise<unknown> {
     const query = address.searchParams;
@@ -249,7 +271,7 @@ export function createCommunityHandler(read: {
         ),
       );
     }
-    throw new AccountError(404, 'Descoberta indisponível.');
+    throw new AccountError(404, 'Discovery unavailable.');
   }
   function communitySubresource(address: URL): Promise<unknown> {
     if (address.pathname.endsWith('/upvoters'))
@@ -277,14 +299,14 @@ export function createCommunityHandler(read: {
       read.post
     )
       return communityPost(await read.post(id, uuid(parts[5])));
-    throw new AccountError(404, 'Post indisponível.');
+    throw new AccountError(404, 'Post unavailable.');
   }
   async function replyLookup(
     address: URL,
     id: string,
     parent: string,
   ): Promise<unknown> {
-    if (!read.replies) throw new AccountError(404, 'Respostas indisponíveis.');
+    if (!read.replies) throw new AccountError(404, 'Replies unavailable.');
     if (address.searchParams.has('order') && read.discussion) {
       params(address, ['after', 'order']);
       return discussionPage(
@@ -324,7 +346,13 @@ export function createCommunityHandler(read: {
         ),
       );
     }
-    throw new AccountError(404, 'Post indisponível.');
+    throw new AccountError(404, 'Post unavailable.');
   }
-  return { handle, close: () => budget.close() };
+  return {
+    handle,
+    close: () => {
+      live?.close();
+      budget.close();
+    },
+  };
 }

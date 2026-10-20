@@ -18,7 +18,7 @@ export function verifyWalletStatement(
         !/^0x[0-9a-fA-F]{130}$/u.test(signature) ||
         canonicalAddress('evm', verifyMessage(message, signature)) !== expected
       )
-        throw new Error('Assinatura inválida.');
+        throw new Error('Invalid signature.');
       return;
     }
     const key = solanaPublicKey(expected),
@@ -30,14 +30,14 @@ export function verifyWalletStatement(
       bytes.length !== 64 ||
       base58.encode(bytes) !== signature
     )
-      throw new Error('Chave/assinatura inválida.');
+      throw new Error('Invalid key/signature.');
     if (
       !ed25519.verify(bytes, new TextEncoder().encode(message), key, {
         zip215: false,
       })
     )
-      throw new Error('Assinatura inválida.');
+      throw new Error('Invalid signature.');
   } catch {
-    throw new AccountError(403, 'Assinatura da autorização inválida.');
+    throw new AccountError(403, 'Invalid authorization signature.');
   }
 }

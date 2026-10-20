@@ -66,10 +66,10 @@ export async function openRecoveryKey(
   await prepareMessageRuntime();
   const raw = recoveryKey(input);
   const event = authority.events[raw.authorityRevision - 1];
-  if (!event) throw new Error('Autoridade histórica da recuperação ausente.');
+  if (!event) throw new Error('Historical recovery authority missing.');
   const key = await verifyRecoveryKey(input, event);
   if (key.accountId !== authority.session.accountId)
-    throw new Error('Recuperação de outra conta.');
+    throw new Error('Recovery belongs to another account.');
   const secret = BackupDecryptionKey.fromBase64(
     await openBlock(
       await authority.key(key.epoch),
@@ -80,7 +80,7 @@ export async function openRecoveryKey(
   const publicKey = secret.megolmV1PublicKey;
   try {
     if (publicKey.publicKeyBase64 !== key.publicKey)
-      throw new Error('Chave recuperada divergente.');
+      throw new Error('Recovered key does not match.');
   } catch (error: unknown) {
     secret.free();
     throw error;
@@ -146,7 +146,7 @@ export async function ensureMessageRecovery(
     });
   const key = recoveryKey(raw),
     event = authority.events[key.authorityRevision - 1];
-  if (!event) throw new Error('Autoridade da recuperação ausente.');
+  if (!event) throw new Error('Recovery authority missing.');
   await verifyRecoveryKey(key, event);
   const secret = await openRecoveryKey(key, authority);
   secret.free();

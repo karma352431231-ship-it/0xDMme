@@ -48,7 +48,7 @@ export class DmDirectory {
     this.generation++;
     this.clearRows();
     if (this.available)
-      this.host?.replaceChildren(el('p', t('Abrindo conversa…')));
+      this.host?.replaceChildren(el('p', t('Opening conversation…')));
   }
   async refresh(): Promise<void> {
     if (!this.available || !this.host) return;
@@ -92,11 +92,11 @@ export class DmDirectory {
         el(
           'p',
           t(
-            'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+            'No handle conversations yet. Open a public profile to send a message.',
           ),
         ),
       );
-    const all = el('a', t('Todas as mensagens @'));
+    const all = el('a', t('All handle messages'));
     all.href = '#communities?view=dms';
     host.append(all);
   }
@@ -153,6 +153,6 @@ export function dmDirectoryRow(
   return link;
 }
 function relationLabel(row: SocialRelation): string {
-  if (row.blocked) return t('Bloqueada');
-  return row.canSend ? t('Conversa') : t('DM indisponível.');
+  if (row.blocked) return t('Blocked');
+  return row.canSend ? t('Conversation') : t('DM unavailable.');
 }

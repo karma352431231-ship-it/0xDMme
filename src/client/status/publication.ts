@@ -63,8 +63,8 @@ export class StatusPublication {
   }): Promise<void> {
     const saved = object(await input.api('status-begin', { id: this.id }));
     if (!['draft', 'published'].includes(String(saved['state'])))
-      throw new Error('Publicação encerrada ou removida.');
-    if (!this.encryption) throw new Error('Rascunho de status encerrado.');
+      throw new Error('Publication ended or removed.');
+    if (!this.encryption) throw new Error('Status draft ended.');
     if (!this.ownSaved) await this.saveOwn(input);
     while (!this.audienceComplete) await this.saveContacts(input);
     await this.sealPublication(input);
@@ -72,18 +72,18 @@ export class StatusPublication {
       await input.api('status-publish', { packet: this.packet }),
     );
     if (result['status'] !== 'published')
-      throw new Error('Publicação não confirmada.');
+      throw new Error('Publication not confirmed.');
   }
   private async sealPublication(input: {
     authority: VaultAuthority;
     api: AttachmentApi;
   }): Promise<void> {
     if (this.packet) return;
-    if (!this.encryption) throw new Error('Publicação encerrada.');
+    if (!this.encryption) throw new Error('Publication ended.');
     if (this.photo) await uploadStatusPhoto(this.id, this.photo, input.api);
     const ready = object(await input.api('status-ready', { id: this.id }));
     if (!this.head || ready['head'] !== this.head)
-      throw new Error('Audiência da publicação divergiu.');
+      throw new Error('Publication audience does not match.');
     this.packet = await this.encryption.publish({
       authority: input.authority,
       publishedAt: integer(ready['publishedAt'], Number.MAX_SAFE_INTEGER),
@@ -108,12 +108,12 @@ export class StatusPublication {
         }),
     });
     const envelopes: StatusEnvelope[] = [];
-    if (!this.encryption) throw new Error('Publicação encerrada.');
+    if (!this.encryption) throw new Error('Publication ended.');
     for (const account of accounts) {
       const data = histories.get(account);
       if (!data?.recovery)
         throw new Error(
-          'Um contato ainda precisa abrir as Conversas para preparar sua conta.',
+          'A contact still needs to open Conversations to prepare their account.',
         );
       envelopes.push(
         await this.encryption.recipient({
@@ -139,7 +139,7 @@ export class StatusPublication {
       }),
     );
     if (fingerprint(result['head']) !== head)
-      throw new Error('Cápsulas da publicação divergiram.');
+      throw new Error('Publication capsules do not match.');
     this.head = head;
     this.page++;
   }
@@ -168,7 +168,7 @@ export class StatusPublication {
         await input.api('status-contacts', { id: this.id, after: this.after }),
       );
       if (!Array.isArray(data['accounts']))
-        throw new Error('Audiência inválida.');
+        throw new Error('Invalid audience.');
       const accounts = statusAudiencePage({
         contacts: data['accounts'].map(uuid),
         excluded: this.excluded,

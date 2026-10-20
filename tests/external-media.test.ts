@@ -29,7 +29,7 @@ function storage() {
 }
 const signal = () => new AbortController().signal;
 
-await test('visitante e conta sem @ nunca autorizam vídeo; GIF usa somente aviso KLIPY', async () => {
+await test('visitor and account without a handle never authorize video; GIF uses only KLIPY notice', async () => {
   const prompts: string[] = [];
   const privacy = new ExternalMediaConsent({
     profile: () => Promise.resolve(false),
@@ -46,7 +46,7 @@ await test('visitante e conta sem @ nunca autorizam vídeo; GIF usa somente avis
   assert.equal(await privacy.authorize('gifs', signal()), true);
   assert.deepEqual(prompts, ['gifs', 'gifs']);
 });
-await test('conta com @ existente escolhe uma vez; a mesma escolha cobre vídeo e GIF', async () => {
+await test('account with an existing handle chooses once; the same choice covers video and GIF', async () => {
   for (const choice of [true, false]) {
     const prompts: string[] = [],
       saved = storage(),
@@ -69,7 +69,7 @@ await test('conta com @ existente escolhe uma vez; a mesma escolha cobre vídeo 
     assert.deepEqual(prompts, ['all']);
   }
 });
-await test('escolhas isoladas por conta; trocar de conta cancela o aviso e não transfere consentimento', async () => {
+await test('account-isolated choices: switching accounts cancels the notice without transferring consent', async () => {
   const first = session(),
     second = session();
   const saved = storage();
@@ -95,7 +95,7 @@ await test('escolhas isoladas por conta; trocar de conta cancela o aviso e não 
   privacy.setSession(first);
   assert.equal(privacy.permitted('video'), false);
 });
-await test('avisos simultâneos compartilham uma escolha e revogação afeta todos os leitores', async () => {
+await test('simultaneous notices share one choice and revocation affects all readers', async () => {
   let count = 0,
     choice = true;
   const privacy = new ExternalMediaConsent({
@@ -126,7 +126,7 @@ await test('avisos simultâneos compartilham uma escolha e revogação afeta tod
   assert.equal(await privacy.authorize('gifs', signal()), false);
   assert.equal(count, 2);
 });
-await test('fechar aviso não aceita; falha de perfil e escolha corrompida falham restritas', async () => {
+await test('closing notice does not accept; profile failure and corrupt choice fail closed', async () => {
   const privacy = new ExternalMediaConsent({
     profile: () => Promise.reject(new Error('Perfil indisponível')),
     storage: {
@@ -144,7 +144,7 @@ await test('fechar aviso não aceita; falha de perfil e escolha corrompida falha
   assert.equal(await privacy.beforeCreate(signal()), null);
   assert.equal(privacy.permitted('gifs'), false);
 });
-await test('escolha da conta vale para GIFs e players e não é perguntada de novo ao criar o @', async () => {
+await test('account choice covers GIFs and players without asking again when creating a handle', async () => {
   let prompts = 0;
   const saved = storage();
   const privacy = new ExternalMediaConsent({

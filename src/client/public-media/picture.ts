@@ -17,18 +17,18 @@ export function mountPublicPicture(
     retry = document.createElement('button');
   button.type = retry.type = 'button';
   button.className = 'public-picture-open';
-  button.setAttribute('aria-label', t('Ampliar imagem'));
+  button.setAttribute('aria-label', t('Zoom in on image'));
   image.className = 'community-media-preview';
   image.alt =
     media.result.kind === 'gif'
-      ? t('GIF público aprovado')
-      : t('Foto pública aprovada');
+      ? t('Approved public GIF')
+      : t('Approved public photo');
   image.width = media.result.width;
   image.height = media.result.height;
   image.hidden = true;
   image.decoding = 'async';
   caption.setAttribute('role', 'status');
-  retry.textContent = t('Tentar carregar imagem');
+  retry.textContent = t('Try loading image');
   retry.className = 'public-picture-retry';
   retry.hidden = true;
   button.append(image);
@@ -59,7 +59,7 @@ export function mountPublicPicture(
     const attempt = new AbortController();
     pending = attempt;
     const signal = AbortSignal.any([options.signal, attempt.signal]);
-    caption.textContent = t('Carregando imagem…');
+    caption.textContent = t('Loading image…');
     retry.hidden = true;
     try {
       const blob = await options.load(signal);
@@ -70,7 +70,7 @@ export function mountPublicPicture(
       caption.textContent = '';
     } catch {
       if (usable(signal)) {
-        caption.textContent = t('Imagem indisponível.');
+        caption.textContent = t('Image unavailable.');
         retry.hidden = false;
       }
     } finally {
@@ -89,7 +89,7 @@ export function mountPublicPicture(
         signal: options.signal,
       });
     } catch {
-      caption.textContent = t('Não foi possível abrir a ampliação.');
+      caption.textContent = t('Could not open the enlarged image.');
     }
   });
   const observer =

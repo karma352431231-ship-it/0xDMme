@@ -1,3 +1,4 @@
+import { watchRankingUpdates } from './ranking-live.ts';
 import { rankingScopes, mountDiscoveryRanking } from './account-ranking.ts';
 import { renderFeedCard } from './feed-card.ts';
 import { renderCommunityRanking } from './ranking-view.ts';
@@ -56,9 +57,9 @@ export function startCommunityDiscovery(
     paging: HTMLElement | null = null,
     feedback: HTMLElement | null = null;
   let generation = 0,
-    busy = false,
     signedIn = false,
     abort = new AbortController();
+  let busy: Promise<void> | null = null;
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
     order: FeedOrder = 'mixed',
@@ -91,28 +92,29 @@ export function startCommunityDiscovery(
         HTMLButtonElement | HTMLSelectElement | HTMLInputElement
       >('button,select,input')
       .forEach((node) => {
-        node.disabled = busy;
+        node.disabled = Boolean(busy);
       });
   }
-  async function run(work: () => Promise<void>): Promise<void> {
-    if (busy) return;
+  function run(work: () => Promise<void>): Promise<void> {
+    if (busy) return busy;
     const old = generation;
-    busy = true;
+    busy = Promise.resolve()
+      .then(work)
+      .catch((error: unknown) => {
+        snapshot.clear();
+        if (old === generation && feedback)
+          feedback.textContent =
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Feed unavailable.');
+      })
+      .finally(() => {
+        busy = null;
+        disabled();
+        if (old !== generation && mounted) ready();
+      });
     disabled();
-    try {
-      await work();
-    } catch (error: unknown) {
-      snapshot.clear();
-      if (old === generation && feedback)
-        feedback.textContent =
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Feed indisponível.');
-    } finally {
-      busy = false;
-      disabled();
-      if (old !== generation && mounted) ready();
-    }
+    return busy;
   }
   function filters(): void {
     if (!mounted) return;
@@ -121,10 +123,10 @@ export function startCommunityDiscovery(
     mounted.append(toolbar);
     if (view === 'feed' || view === 'following') {
       const scopes = el('nav', '', 'community-feed-scopes');
-      scopes.setAttribute('aria-label', t('Escolher feed'));
+      scopes.setAttribute('aria-label', t('Choose feed'));
       for (const [key, label] of [
-        ['feed', t('Descobrir')],
-        ['following', t('Seguindo')],
+        ['feed', t('Discover')],
+        ['following', t('follow.following')],
       ] as const) {
         link(scopes, label, `#communities?view=${key}`);
         if (view === key)
@@ -136,13 +138,13 @@ export function startCommunityDiscovery(
     if (view === 'explore')
       discoveryMenu(
         toolbar,
-        t('Classificar comunidades'),
+        t('Sort communities'),
         {
           value: exploreOrder,
           options: [
             ['trending', t('Trending')],
-            ['size', t('Maiores')],
-            ['new', t('Comunidades recém-criadas')],
+            ['size', t('Largest')],
+            ['new', t('New communities')],
           ],
         },
         (value) => {
@@ -155,7 +157,7 @@ export function startCommunityDiscovery(
     else
       discoveryMenu(
         toolbar,
-        t('Ordenar'),
+        t('Sort'),
         { value: order, options: feedOrders },
         (value) => {
           order = feedFilter({
@@ -173,15 +175,15 @@ export function startCommunityDiscovery(
     periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
     discoveryMenu(
       periodPanel,
-      t('Período'),
+      t('Period'),
       {
         value: period,
         options:
           view === 'explore'
             ? [
-                ['day', t('24 horas')],
-                ['week', t('7 dias')],
-                ['month', t('30 dias')],
+                ['day', t('24 hours')],
+                ['week', t('7 days')],
+                ['month', t('30 days')],
               ]
             : discoveryPeriods,
       },
@@ -289,12 +291,12 @@ export function startCommunityDiscovery(
       list.append(
         el(
           'p',
-          t('Nenhum conteúdo nesta página com estes filtros.'),
+          t('No content on this page matches these filters.'),
           'community-empty',
         ),
       );
     if (after)
-      button(paging, t('Próxima página'), () =>
+      button(paging, t('Next page'), () =>
         run(async () => {
           await load();
         }),
@@ -500,15 +502,30 @@ export function startCommunityDiscovery(
       view = options.view;
       signedIn = options.signedIn;
       initialFilters(options.bookmark);
-      const ranking = mountDiscoveryRanking(container, view, abort.signal);
+      const ranking = mountDiscoveryRanking(container, view, abort.signal, {
+        signedIn: () => signedIn,
+        following: (period, after) =>
+          controller.request('discovery-accounts', { period, after }),
+      });
       rankingScope = ranking.scope;
       mounted = ranking.element;
+      watchRankingUpdates({
+        enabled: view === 'explore',
+        signal: abort.signal,
+        visible: () => container.isConnected && !container.hidden,
+        refresh: async () => {
+          await busy;
+          if (mounted !== ranking.element) return;
+          if (ranking.scope?.active()) await ranking.scope.published();
+          else await run(reload);
+        },
+      });
       const titles: Record<string, string> = {
         feed: t('Feed'),
-        following: t('Seguindo'),
-        explore: t('Ranking de comunidades'),
-        saved: t('Suas postagens salvas'),
-        hidden: t('Conteúdo oculto dos seus feeds'),
+        following: t('follow.following'),
+        explore: t('Community ranking'),
+        saved: t('Your saved posts'),
+        hidden: t('Content hidden from your feeds'),
       };
       const heading = el('header', '', 'community-heading'),
         text = el('div');
@@ -518,14 +535,14 @@ export function startCommunityDiscovery(
       if (!signedIn && view !== 'feed' && view !== 'explore') {
         link(
           mounted,
-          t('Entre pelo Perfil para acessar sua lista'),
+          t('Sign in through Profile to access your list'),
           '#settings',
         );
         return;
       }
       const label = el(
         'p',
-        t('Leitura pública · participação com conta'),
+        t('Public reading · account required to participate'),
         'community-public-label',
       );
       label.prepend(communityIcon('globe'));

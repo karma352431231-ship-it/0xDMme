@@ -24,7 +24,7 @@ export class ModerationMedia {
       id,
     );
     if (!subject || subject.kind === 'post-media')
-      throw new AccountError(404, 'Arquivo da análise indisponível.');
+      throw new AccountError(404, 'Review media unavailable.');
     const read = () =>
       subject.kind === 'avatar' || subject.kind === 'profile-banner'
         ? this.stores.profiles.moderationCandidate(subject)
@@ -41,7 +41,7 @@ export class ModerationMedia {
       current.contentHash !== subject.contentHash ||
       !(await read())
     )
-      throw new AccountError(404, 'Arquivo da análise indisponível.');
+      throw new AccountError(404, 'Review media unavailable.');
     return { type: media.type, bytes: encode(media.bytes) };
   }
 }

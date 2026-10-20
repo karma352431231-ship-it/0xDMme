@@ -25,7 +25,7 @@ import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
 
-await test('posts: publicação aberta, tags locais, privacidade, revisão, exclusão e moderação transacionais', async (t) => {
+await test('posts: open publication, local tags, privacy, revision, deletion and transactional moderation', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -164,7 +164,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     });
   }
   await t.test(
-    'qualquer perfil autorizado publica sem seguir; dados pessoais e formatos futuros não entram na resposta',
+    'any authorized profile can publish without following; responses exclude personal data and future formats',
     async () => {
       const before = await vaultUsage(
         inspector,
@@ -228,7 +228,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'tags pertencem à comunidade, têm revisão e desativação sem apagar a classificação antiga',
+    'tags belong to the community and support revision and deactivation without deleting old classification',
     async () => {
       assert.deepEqual(tags.items.map((tag) => tag.label).sort(), [
         'Discussão',
@@ -237,16 +237,16 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
       ]);
       const newTag = crypto.randomUUID();
       await assert.rejects(
-        author.operate('tag-create', { id, tag: newTag, label: 'Teste' }),
+        author.operate('tag-create', { id, tag: newTag, label: 'Test' }),
         bad(403),
       );
-      await owner.operate('tag-create', { id, tag: newTag, label: 'Teste' });
-      await owner.operate('tag-create', { id, tag: newTag, label: 'Teste' });
+      await owner.operate('tag-create', { id, tag: newTag, label: 'Test' });
+      await owner.operate('tag-create', { id, tag: newTag, label: 'Test' });
       await assert.rejects(
         owner.operate('tag-create', {
           id,
           tag: crypto.randomUUID(),
-          label: 'teste',
+          label: 'test',
         }),
         bad(409),
       );
@@ -332,7 +332,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'edições concorrentes não sobrescrevem; gestores não editam o texto de outro autor',
+    "concurrent edits cannot overwrite; managers cannot edit another author's text",
     async () => {
       await assert.rejects(
         owner.operate('post-edit', {
@@ -367,7 +367,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
   );
   let removal = crypto.randomUUID();
   await t.test(
-    'ocultação é reversível; texto/motivos restritos e uma contestação por remoção',
+    'hiding is reversible with restricted text and reasons and one appeal per removal',
     async () => {
       await assert.rejects(
         author.operate('post-hide', {
@@ -375,7 +375,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
           post,
           revision: (await own()).post.revision,
           record: removal,
-          reason: 'Teste',
+          reason: 'Test',
         }),
         bad(403),
       );
@@ -496,7 +496,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'acesso ao texto oculto acompanha a função atual de moderador e é revogado ao removê-la',
+    'hidden-text access follows the current moderator role and is revoked when the role is removed',
     async () => {
       await govern('role', { target: outsiderProfile.id, moderator: true });
       const state = await own(outsider);
@@ -526,7 +526,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'exclusão limpa o texto ativo, preserva marcador/histórico e impede restauração',
+    'deletion clears active text, preserves marker and history and prevents restoration',
     async () => {
       await assert.rejects(
         owner.operate('post-delete', {
@@ -579,7 +579,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'post exige título e tag, aceita até cinco tags em ordem e o filtro encontra qualquer uma',
+    'post requires title and tag, accepts up to five ordered tags and matches any tag in the filter',
     async () => {
       const active = (await communities.tags(id, null)).items.map(
         (tag) => tag.id,
@@ -632,7 +632,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
           id,
           post: reply,
           parent: tagged,
-          content: { title: '', text: 'Resposta', tags: [active[0]] },
+          content: { title: '', text: 'Reply', tags: [active[0]] },
         }),
         bad(400),
       );
@@ -653,7 +653,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'arquivamento e sanção bloqueiam publicar/editar, sem impedir exclusão própria',
+    'archive and sanction block publication and edits without blocking own deletion',
     async () => {
       const next = crypto.randomUUID(),
         active = (await communities.tags(id, null)).items[0]!.id,
@@ -696,7 +696,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'paginação por horário/UUID, filtro de tags e capacidade global com rollback, sem cota pessoal',
+    'time/UUID pagination, tag filter and global capacity with rollback and no personal quota',
     async () => {
       const selectedTag = (await communities.tags(id, null)).items[0]!,
         created: string[] = [];
@@ -767,7 +767,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
-    'rotas públicas recusam filtros inválidos; transporte/prova e sessão são verificados',
+    'public routes reject invalid filters and verify transport, proof and session',
     async () => {
       for (const suffix of [
         'posts?after=inválido',

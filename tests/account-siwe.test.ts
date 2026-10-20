@@ -37,7 +37,7 @@ function challenge(origin: string) {
   return { signer, stored };
 }
 
-await test('desafio HTTPS omite scheme do cabeçalho, preserva origem/porta e assina a mensagem exata por personal_sign', async () => {
+await test('HTTPS challenge omits the header scheme, preserves origin/port and signs the exact message with personal_sign', async () => {
   for (const origin of ['https://0xdmme.app', 'https://example.test:8443']) {
     const { signer, stored } = challenge(origin);
     const parsed = new ParsedMessage(stored.message);
@@ -84,7 +84,7 @@ await test('desafio HTTPS omite scheme do cabeçalho, preserva origem/porta e as
   }
 });
 
-await test('desafio HTTPS anterior com scheme explícito continua verificável até seu prazo original', async () => {
+await test('previous HTTPS challenge with an explicit scheme remains verifiable until its original deadline', async () => {
   const origin = 'https://0xdmme.app';
   const { signer, stored } = challenge(origin);
   stored.message = `https://${stored.message}`;
@@ -99,7 +99,7 @@ await test('desafio HTTPS anterior com scheme explícito continua verificável a
   );
 });
 
-await test('HTTP local conserva scheme explícito e rejeita mensagem que omite scheme mesmo com assinatura válida', async () => {
+await test('local HTTP preserves an explicit scheme and rejects its omission even with a valid signature', async () => {
   const origin = 'http://127.0.0.1:45110';
   const { signer, stored } = challenge(origin);
   assert.equal(new ParsedMessage(stored.message).scheme, 'http');
@@ -114,11 +114,11 @@ await test('HTTP local conserva scheme explícito e rejeita mensagem que omite s
   };
   assert.throws(
     () => verifyLoginSignature(implicit, '0x' + 'a'.repeat(130), origin),
-    /Contexto SIWE inválido/u,
+    /Invalid SIWE context/u,
   );
   const signature = await signer.signMessage(implicit.message);
   assert.throws(
     () => verifyLoginSignature(implicit, signature, origin),
-    /Contexto SIWE inválido/u,
+    /Invalid SIWE context/u,
   );
 });

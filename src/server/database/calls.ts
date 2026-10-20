@@ -105,7 +105,7 @@ export class CallStore {
       if ((row.rows[0]?.revision ?? 0) !== input.revision)
         throw new AccountError(
           409,
-          'Preferência mudou em outro aparelho; atualize.',
+          'Preference changed on another device; refresh.',
         );
       await c.query(
         `INSERT INTO hash_talk.call_controls(account_id,enabled,revision) VALUES($1,$2,1) ON CONFLICT(account_id) DO UPDATE SET enabled=$2,revision=hash_talk.call_controls.revision+1 WHERE hash_talk.call_controls.enabled IS DISTINCT FROM $2`,

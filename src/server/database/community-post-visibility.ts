@@ -4,7 +4,7 @@ type Reader = Pick<pg.PoolClient, 'query'>;
 /** Current attachments only: replacing a refused file can restore publication.
  * Keep a removed media row's review effective after its bytes are collected. */
 export function blockedPost(alias: string): string {
-  if (!/^[a-z]+$/u.test(alias)) throw new Error('Alias de post inválido.');
+  if (!/^[a-z]+$/u.test(alias)) throw new Error('Invalid post alias.');
   return `EXISTS(SELECT 1 FROM hash_talk.public_moderation pm
     WHERE pm.kind='post-media' AND pm.target=ANY(${alias}.media_ids)
       AND pm.status IN ('rejected','held','failed','discarding','expired')

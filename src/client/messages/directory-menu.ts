@@ -171,7 +171,7 @@ export class ConversationMenu {
       const back = document.createElement('button');
       back.type = 'button';
       back.className = 'menu-back';
-      back.textContent = t('Voltar');
+      back.textContent = t('Back');
       withMenuIcon(back, 'back');
       back.addEventListener('click', () => {
         this.renderActions(list, path.slice(0, -1));
@@ -215,13 +215,13 @@ export class ConversationMenu {
     const dialog = document.createElement('dialog');
     this.dialog = dialog;
     dialog.className = 'conversation-menu';
-    dialog.setAttribute('aria-label', t('Opções de {0}', [entry.title]));
+    dialog.setAttribute('aria-label', t('Options for {0}', [entry.title]));
     const title = document.createElement('strong');
     title.textContent = entry.title;
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'menu-close';
-    close.textContent = t('Fechar');
+    close.textContent = t('Close');
     withMenuIcon(close, 'close');
     close.addEventListener('click', () => this.close());
     const list = document.createElement('div');

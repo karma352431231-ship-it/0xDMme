@@ -76,7 +76,7 @@ async function zkAsset(
       legalComments: 'inline',
     }).then((result) => {
       const output = result.outputFiles[0];
-      if (!output) throw new Error('Bundle ZK ausente.');
+      if (!output) throw new Error('ZK bundle missing.');
       return output.contents;
     });
     const content = await workerBundle;
@@ -133,7 +133,7 @@ async function body(request: IncomingMessage): Promise<string> {
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
     bytes += buffer.length;
-    if (bytes > maxBodyBytes) throw new Error('Entrada excedida.');
+    if (bytes > maxBodyBytes) throw new Error('Input exceeds the limit.');
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString('utf8');
@@ -153,7 +153,7 @@ async function asset(path: string, response: ServerResponse): Promise<boolean> {
     }).outputText;
   }
   if (file.endsWith('.html'))
-    // Canonicalizar só o conteúdo do importmap para manter seu hash CSP após formatação.
+    // Canonicalize only importmap content to preserve its CSP hash after formatting.
     content = content
       .toString()
       .replace(/\s*\{\{IMPORT_MAP\}\}\s*/u, importMap);
@@ -169,12 +169,12 @@ function admitted(
   mobile?: MobileListener,
 ): boolean {
   if (!allowedProbeOrigin(request, origin)) {
-    json(response, 403, '{"error":"Origem não permitida."}');
+    json(response, 403, '{"error":"Origin not allowed."}');
     return false;
   }
   if (mobile && !authorizeMobile(request, response, mobile.accessToken)) {
     if (!response.headersSent)
-      json(response, 403, '{"error":"Acesso temporário necessário."}');
+      json(response, 403, '{"error":"Temporary access required."}');
     return false;
   }
   return true;
@@ -211,14 +211,14 @@ export function startProbe(port = 45101, mobile?: MobileListener) {
     if (request.method === 'GET' && (await get(path, response))) return;
     const route = postRoute(request);
     if (!route) {
-      json(response, 404, '{"error":"Rota não disponível."}');
+      json(response, 404, '{"error":"Route unavailable."}');
       return;
     }
     if (
       request.headers.authorization !== `Bearer ${tokens[route.role]}` ||
       request.headers['content-type'] !== 'application/json'
     ) {
-      json(response, 403, '{"error":"Pedido não permitido."}');
+      json(response, 403, '{"error":"Request not allowed."}');
       return;
     }
     json(
@@ -231,7 +231,7 @@ export function startProbe(port = 45101, mobile?: MobileListener) {
   const listener = (request: IncomingMessage, response: ServerResponse) => {
     void handle(request, response).catch(() => {
       if (!response.headersSent)
-        json(response, 400, '{"error":"Operação rejeitada pelo laboratório."}');
+        json(response, 400, '{"error":"Operation rejected by the lab."}');
       else response.destroy();
     });
   };
@@ -247,11 +247,11 @@ export function startProbe(port = 45101, mobile?: MobileListener) {
   server.maxConnections = 8;
   server.maxHeadersCount = 20;
   server.on('error', () => {
-    process.stderr.write('Não foi possível iniciar o laboratório local.\n');
+    process.stderr.write('Could not start the local lab.\n');
     process.exitCode = 1;
   });
   server.listen(port, mobile?.address ?? '127.0.0.1', () =>
-    process.stdout.write(`Laboratório sintético: ${origin}\n`),
+    process.stdout.write(`Synthetic lab: ${origin}\n`),
   );
   const shutdown = () => {
     server.close();

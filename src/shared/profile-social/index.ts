@@ -41,7 +41,7 @@ const hiddenControls =
  */
 export function profileDescriptionText(value: unknown): string {
   if (typeof value !== 'string')
-    throw new AccountError(400, 'Descrição inválida.');
+    throw new AccountError(400, 'Invalid description.');
   const text = value
     .normalize('NFC')
     .replace(/\r\n?/gu, '\n')
@@ -50,15 +50,18 @@ export function profileDescriptionText(value: unknown): string {
     .replace(/\n{3,}/gu, '\n\n')
     .trim();
   if (hiddenControls.test(text))
-    throw new AccountError(400, 'A descrição tem caracteres invisíveis.');
+    throw new AccountError(
+      400,
+      'The description contains invisible characters.',
+    );
   mentionText(text, 560);
   if ([...mentionPlainText(text)].length > profileDescriptionLength)
     throw new AccountError(
       400,
-      `A descrição aceita até ${profileDescriptionLength} caracteres.`,
+      `The description allows up to ${profileDescriptionLength} characters.`,
     );
   if (text.split('\n').length > 5)
-    throw new AccountError(400, 'A descrição aceita até cinco linhas.');
+    throw new AccountError(400, 'The description allows up to five lines.');
   return text;
 }
 export function profileDescription(value: unknown): ProfileDescription {
@@ -120,6 +123,6 @@ export function profileActivityFilter(value: unknown) {
   keys(data, ['profile', 'tab']);
   const tab = data['tab'];
   if (tab !== 'overview' && tab !== 'posts' && tab !== 'replies')
-    throw new AccountError(400, 'Aba de perfil inválida.');
+    throw new AccountError(400, 'Invalid profile tab.');
   return { profile: uuid(data['profile']), tab };
 }

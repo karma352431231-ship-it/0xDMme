@@ -35,7 +35,7 @@ export function communityDirectoryProblem(
     error.failure === 'http' &&
     error.operation === 'communities/list' &&
     translatedError(error.reason) ===
-      t('Crie seu perfil público em Perfil antes de participar.')
+      t('Create your public profile in Profile before participating.')
   ) {
     container.append(invitation());
     const mobile = document.querySelector<HTMLElement>(
@@ -52,7 +52,7 @@ export function communityDirectoryProblem(
       'p',
       error instanceof Error
         ? translatedError(error.message)
-        : t('Lista indisponível.'),
+        : t('List unavailable.'),
     ),
   );
 }

@@ -207,7 +207,7 @@ export class MessageService {
       relations: (a, d) => {
         keys(d, ['ids', 'snapshot']);
         if (!Array.isArray(d['ids']) || d['ids'].length > 16)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return db.messages.relations(
           a,
           d['ids'].map(uuid),
@@ -217,7 +217,7 @@ export class MessageService {
       preview: (a, d) => {
         keys(d, ['peers', 'snapshot']);
         if (!Array.isArray(d['peers']) || d['peers'].length > 16)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return db.messages.preview(a, {
           peers: [...new Set(d['peers'].map(uuid))],
           snapshot: snapshot(d['snapshot']),
@@ -234,10 +234,10 @@ export class MessageService {
           !d['ids'].length ||
           d['ids'].length > 32
         )
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         const ids = d['ids'].map(uuid);
         if (new Set(ids).size !== ids.length)
-          throw new AccountError(400, 'Lote duplicado.');
+          throw new AccountError(400, 'Duplicate batch.');
         const rows = await db.messages.backupWindow(
           a,
           ids,
@@ -260,7 +260,7 @@ export class MessageService {
       'backup-ack': async (a, d) => {
         keys(d, ['items', 'snapshot']);
         if (!Array.isArray(d['items']) || d['items'].length > 32)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         await db.messages.confirmSnapshot(a, snapshot(d['snapshot']));
         for (const item of d['items']) {
           const row = object(item);
@@ -280,7 +280,7 @@ export class MessageService {
       delivery: (a, d) => {
         keys(d, ['snapshot', 'ids']);
         if (!Array.isArray(d['ids']) || d['ids'].length > 18)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return db.messages.delivery(a, {
           snapshot: snapshot(d['snapshot']),
           ids: d['ids'].map(uuid),
@@ -334,7 +334,7 @@ export class MessageService {
         keys(d, ['sequences']);
         const values = d['sequences'];
         if (!Array.isArray(values) || values.length > 16)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return db.matrix.received(a, values.map(sequence));
       },
       'group-matrix-query': (a, d) => {
@@ -370,7 +370,7 @@ export class MessageService {
         keys(d, ['sequences']);
         const values = d['sequences'];
         if (!Array.isArray(values) || values.length > 16)
-          throw new AccountError(400, 'Lote inválido.');
+          throw new AccountError(400, 'Invalid batch.');
         return db.matrix.groupReceived(a, values.map(sequence));
       },
     };
@@ -383,7 +383,7 @@ export class MessageService {
     for (const operation of representativeOperations)
       this.actions[operation] = (a, d) => {
         if (!this.representatives)
-          throw new AccountError(503, 'Autorizações indisponíveis.');
+          throw new AccountError(503, 'Authorizations unavailable.');
         return this.representatives.operate(a, operation, d);
       };
     for (const operation of [
@@ -401,7 +401,7 @@ export class MessageService {
     ])
       this.actions[operation] = (a, d) => {
         if (!this.notifications)
-          throw new AccountError(503, 'Notificações indisponíveis.');
+          throw new AccountError(503, 'Notifications unavailable.');
         return this.notifications.operate(a, operation, d);
       };
     for (const operation of [
@@ -413,7 +413,7 @@ export class MessageService {
     ])
       this.actions[operation] = (a, d) => {
         if (!this.attachments)
-          throw new AccountError(503, 'Armazenamento de anexos indisponível.');
+          throw new AccountError(503, 'Attachment storage unavailable.');
         return this.attachments.operate(
           a,
           operation,
@@ -469,7 +469,7 @@ export class MessageService {
     for (const operation of groupMediaOperations)
       this.actions[operation] = (a, d) => {
         if (!this.groupMedia)
-          throw new AccountError(503, 'Armazenamento de mídia indisponível.');
+          throw new AccountError(503, 'Media storage unavailable.');
         return this.groupMedia.operate(a, operation, d);
       };
   }
@@ -477,7 +477,7 @@ export class MessageService {
     for (const operation of statusOperations)
       this.actions[operation] = (a, d) => {
         if (!this.statuses)
-          throw new AccountError(503, 'Armazenamento de status indisponível.');
+          throw new AccountError(503, 'Status storage unavailable.');
         return this.statuses.operate(a, operation, d);
       };
   }
@@ -486,7 +486,7 @@ export class MessageService {
     id: unknown,
   ): Promise<void> {
     const current = await this.devices.current(session.accountId);
-    if (!current) throw new AccountError(403, 'Aparelho não autorizado.');
+    if (!current) throw new AccountError(403, 'Device not authorized.');
     await this.social.preflight({ session, directory: current.head }, uuid(id));
   }
   async preflightAttachment(
@@ -494,7 +494,7 @@ export class MessageService {
     id: unknown,
   ): Promise<void> {
     const current = await this.devices.current(session.accountId);
-    if (!current) throw new AccountError(403, 'Aparelho não autorizado.');
+    if (!current) throw new AccountError(403, 'Device not authorized.');
     await this.db.attachments.preflight(
       { session, directory: current.head },
       uuid(id),
@@ -517,8 +517,7 @@ export class MessageService {
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action)
-      throw new AccountError(404, 'Operação de mensagem indisponível.');
+    if (!action) throw new AccountError(404, 'Message operation unavailable.');
     const { proof, current } = await this.authenticate(
       operation,
       session,
@@ -550,14 +549,14 @@ export class MessageService {
       proof.deviceId !== session.deviceId ||
       current?.head !== proof.directory
     )
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     await verify(
       signer.signing,
       proof.signature,
       messageBody(session.accountId, session.deviceId, operation, proof),
     );
     if (!current)
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     return { proof, current };
   }
   private checkDeletionRevision(
@@ -566,7 +565,7 @@ export class MessageService {
     revision: number,
   ): void {
     if (operation === 'delete' && proof.payload['revision'] !== revision)
-      throw new AccountError(409, 'Autoridade da exclusão divergente.');
+      throw new AccountError(409, 'Deletion authority does not match.');
   }
   private async register(
     a: ContactAuthority,
@@ -575,7 +574,7 @@ export class MessageService {
     keys(d, ['key']);
     const key = recoveryKey(d['key']),
       current = await this.devices.current(a.session.accountId);
-    if (!current) throw new AccountError(403, 'Diretório ausente.');
+    if (!current) throw new AccountError(403, 'Directory missing.');
     await verifyRecoveryKey(key, directoryEvent(current.event));
     return this.db.messageRecovery.register(a, key);
   }
@@ -585,7 +584,7 @@ export class MessageService {
   ): Promise<unknown> {
     const value = matrixUpload(d),
       current = await this.devices.current(a.session.accountId);
-    if (!current) throw new AccountError(403, 'Diretório ausente.');
+    if (!current) throw new AccountError(403, 'Directory missing.');
     assertBindingAccount(
       value.binding,
       a.session.accountId,
@@ -602,11 +601,11 @@ export class MessageService {
     const packet = messagePacket(d['packet']),
       hash = await digest(JSON.stringify(packet));
     if (packet.socialMedia)
-      throw new AccountError(400, 'Formato de DM pelo @ fora deste contexto.');
+      throw new AccountError(400, 'Handle DM format outside this context.');
     if (await this.db.messages.accepted(a, packet.id, hash))
       return { status: 'accepted', hash };
     const current = await this.devices.current(a.session.accountId);
-    if (!current) throw new AccountError(403, 'Diretório ausente.');
+    if (!current) throw new AccountError(403, 'Directory missing.');
     await verifyPacket(packet, directoryEvent(current.event));
     return this.db.messages.admit(a, packet, hash);
   }

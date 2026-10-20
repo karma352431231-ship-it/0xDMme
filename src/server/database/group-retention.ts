@@ -84,7 +84,7 @@ export class GroupRetentionStore {
         const joined = state.members.find(
           (m) => m.accountId === authority.session.accountId,
         )?.joined;
-        if (!joined) throw new AccountError(403, 'Participação indisponível.');
+        if (!joined) throw new AccountError(403, 'Membership unavailable.');
         const items = await client.query<{
           message_id: string;
           sequence: string;
@@ -117,7 +117,7 @@ export class GroupRetentionStore {
         if (state.owner !== authority.session.accountId)
           throw new AccountError(
             403,
-            'Somente o dono limpa o cofre compartilhado.',
+            'Only the owner can clear the shared vault.',
           );
         const changed = await client.query(
           'UPDATE hash_talk.groups SET clearing=true WHERE id=$1 AND NOT clearing',

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 
-await test('processo web inicia com estado persistido e encerra por SIGTERM sem vazamento', async (t) => {
+await test('web process starts with persisted state and exits on SIGTERM without leaks', async (t) => {
   const service = spawn(process.execPath, ['src/server/main.ts'], {
     env: { ...process.env, HASH_TALK_PORT: '45109' },
     stdio: ['ignore', 'pipe', 'pipe'],

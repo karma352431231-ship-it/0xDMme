@@ -102,13 +102,15 @@ await test('directory shows the private group avatar and marks only the opened g
       };
     const edited: AddressBookEntry[] = [];
     const headerEdit = new CommunityNode('button');
+    const groupFilter = new CommunityNode('button');
+    let unread = 0;
     let selected: GroupSummary | null = current,
       entries: readonly ConversationEntry[] = [];
     const options = {
       snapshot: () => ({
         peers: [peer],
         selected: peer,
-        states: new Map(),
+        states: new Map([[peer.accountId, { unread: 2 }]]),
         statusAuthors: new Set(),
         session: null,
       }),
@@ -124,7 +126,7 @@ await test('directory shows the private group avatar and marks only the opened g
           return selected;
         },
         listLabel: () => current.title + ' · group',
-        unread: () => 0,
+        unread: () => 3,
         photo: (value: GroupSummary) => {
           assert.equal(value, current);
           return Promise.resolve(fixtureGroupPhoto());
@@ -141,7 +143,9 @@ await test('directory shows the private group avatar and marks only the opened g
           ? list
           : selector === '[data-chat-edit-contact]'
             ? headerEdit
-            : null,
+            : selector === '[data-conversation-filter="groups"]'
+              ? groupFilter
+              : null,
       host: () => null,
       contactActions: () => [],
       perform: () => {},
@@ -149,6 +153,9 @@ await test('directory shows the private group avatar and marks only the opened g
       openContact: (contact: AddressBookEntry) => edited.push(contact),
       openGroup: () => {},
       changed: () => {},
+      unreadChanged: (count: number) => {
+        unread = count;
+      },
       presence: () => {},
     } as unknown as ConstructorParameters<typeof MessageDirectoryUi>[0];
     const ui = new MessageDirectoryUi(options);
@@ -157,6 +164,13 @@ await test('directory shows the private group avatar and marks only the opened g
     assert.equal(edited.length, 0);
     ui.renderContacts();
     await settle();
+    assert.equal(unread, 5);
+    groupFilter.click();
+    assert.equal(
+      unread,
+      5,
+      'hiding contact rows must not hide their unread notification',
+    );
     assert.deepEqual(
       entries.filter((entry) => entry.selected).map((entry) => entry.id),
       [current.state.groupId],
@@ -276,7 +290,7 @@ await test('directory photo reads only the local private cache for a known group
   const pending = controller.photo(current);
   controller.setSession(null);
   read();
-  await assert.rejects(pending, /Sessão ou grupo alterado/u);
+  await assert.rejects(pending, /Session or group changed/u);
 });
 
 await test('replacing rows or closing search aborts late photos and revokes their blob URLs', async (t) => {

@@ -47,7 +47,7 @@ export class CommunityService {
     return this.requireDiscovery().explore(exploreFilter(filter), after);
   }
   private requireDiscovery(): CommunityDiscoveryStore {
-    if (!this.discovery) throw new AccountError(404, 'Feed indisponível.');
+    if (!this.discovery) throw new AccountError(404, 'Feed unavailable.');
     return this.discovery;
   }
   post(community: unknown, id: unknown) {
@@ -88,7 +88,7 @@ export class CommunityService {
     return this.requirePosts().tags(uuid(community), communityCursor(after));
   }
   private requirePosts(): CommunityPostStore {
-    if (!this.posts) throw new AccountError(404, 'Posts indisponíveis.');
+    if (!this.posts) throw new AccountError(404, 'Posts unavailable.');
     return this.posts;
   }
   suggestions(query: string) {
@@ -129,7 +129,7 @@ export class CommunityService {
         (device) => device.id === session.deviceId,
       );
     if (!signer || current?.head !== proof.directory)
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     await verify(
       signer.signing,
       proof.signature,
@@ -139,7 +139,7 @@ export class CommunityService {
       }),
     );
     if (operation.startsWith('media-')) {
-      if (!this.media) throw new AccountError(503, 'Mídia indisponível.');
+      if (!this.media) throw new AccountError(503, 'Media unavailable.');
       return this.media.operate(
         operation,
         { session, directory: proof.directory },

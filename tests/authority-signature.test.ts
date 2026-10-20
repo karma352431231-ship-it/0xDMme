@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { authoritySignature } from '../src/client/devices/authority-signature.ts';
 import { base64 } from '../src/shared/account/index.ts';
 
-await test('assinatura mantém prova individual e rejeita sessão alterada mesmo durante WebCrypto', async (t) => {
+await test('signature preserves individual proof and rejects a changed session even during WebCrypto', async (t) => {
   const pair = await crypto.subtle.generateKey(
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
@@ -11,7 +11,7 @@ await test('assinatura mantém prova individual e rejeita sessão alterada mesmo
   );
   let current = true;
   const signature = authoritySignature(pair.privateKey, () => {
-    if (!current) throw new Error('Sessão alterada.');
+    if (!current) throw new Error('Session changed.');
   });
   const proof = 'synthetic-public-proof';
   assert.ok(
@@ -32,5 +32,5 @@ await test('assinatura mantém prova individual e rejeita sessão alterada mesmo
       return signed;
     },
   );
-  await assert.rejects(signature(proof), /Sessão alterada/);
+  await assert.rejects(signature(proof), /Session changed/);
 });

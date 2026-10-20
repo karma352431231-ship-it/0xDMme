@@ -27,7 +27,7 @@ export function showExternalVideos(
     const slot = document.createElement('section');
     const link = document.createElement('a');
     link.href = `https://www.youtube.com/watch?v=${id}`;
-    link.textContent = t('Abrir vídeo no YouTube');
+    link.textContent = t('Open video on YouTube');
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     slot.append(link);
@@ -55,7 +55,7 @@ export function showExternalVideos(
           consent: options.privacy,
           kind: 'video',
           signal,
-          label: t('Reproduzir vídeo do YouTube'),
+          label: t('Play YouTube video'),
           render: (target) => target.append(youtubePlayer(id)),
         });
     } catch (error: unknown) {
@@ -63,14 +63,14 @@ export function showExternalVideos(
         field.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Player externo indisponível.');
+            : t('External player unavailable.');
     }
   }
   return cleanup;
 }
 function youtubePlayer(id: string): HTMLIFrameElement {
   const player = document.createElement('iframe');
-  player.title = t('Vídeo do YouTube');
+  player.title = t('YouTube video');
   player.referrerPolicy = 'strict-origin-when-cross-origin';
   player.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
   player.allowFullscreen = true;

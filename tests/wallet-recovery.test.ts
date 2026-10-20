@@ -54,7 +54,7 @@ function session(): AccountSession {
   };
 }
 
-await test('recuperação v2 bilíngue abre a cápsula após troca de idioma; outra conta/mensagem/origem falha', async (context) => {
+await test('bilingual recovery v2 opens the capsule after language change; other account, message or origin fails', async (context) => {
   context.after(() => setActiveLanguage('en'));
   const user = session();
   const config = walletRecovery({
@@ -136,7 +136,7 @@ await test('recuperação v2 bilíngue abre a cápsula após troca de idioma; ou
     ),
   );
 });
-await test('Solana: mesma mensagem e conta recuperam cápsula com assinatura Ed25519, sem código', async () => {
+await test('Solana: same message and account recover the capsule with an Ed25519 signature and no code', async () => {
   const seed = new Uint8Array(32).fill(7);
   const user = {
     ...session(),
@@ -175,7 +175,7 @@ await test('Solana: mesma mensagem e conta recuperam cápsula com assinatura Ed2
   );
   await assert.rejects(walletRecoveryKey(config, [wrong]));
 });
-await test('assinatura EVM válida mas variável é recusada na configuração e não abre a cápsula existente', async () => {
+await test('valid but variable EVM signature is rejected during setup and cannot open the existing capsule', async () => {
   const config = createWalletRecovery(session(), origin);
   const signature = await signer.signMessage(recoveryMessage(config));
   const alternate = secp256k1.sign(
@@ -186,7 +186,7 @@ await test('assinatura EVM válida mas variável é recusada na configuração e
   const other = `${hexlify(alternate.toCompactRawBytes())}${(27 + alternate.recovery).toString(16)}`;
   await assert.rejects(
     walletRecoveryKey(config, [signature, other]),
-    /assinaturas diferentes/,
+    /different signatures/,
   );
   const key = await walletRecoveryKey(config, [signature]);
   const authority = await createRecovery(config.accountId, key, config);
@@ -206,7 +206,7 @@ await test('assinatura EVM válida mas variável é recusada na configuração e
     recoverSecrets(event, await walletRecoveryKey(config, [other])),
   );
 });
-await test('migração assinada pela autoridade antiga preserva épocas/aparelhos e retira autoridade do código antigo', async (t) => {
+await test('migration signed by old authority preserves epochs and devices and removes old-code authority', async (t) => {
   const user = session();
   const first = await createIdentity(user.deviceId, 'A');
   const second = await createIdentity(crypto.randomUUID(), 'B');
@@ -275,7 +275,7 @@ await test('migração assinada pela autoridade antiga preserva épocas/aparelho
     }),
   );
   await t.test(
-    'recuperação pela wallet mantém todos, alguns ou nenhum aparelho conforme seleção',
+    'wallet recovery retains all, some or no devices according to selection',
     async () => {
       for (const revoked of [
         [],
@@ -315,7 +315,7 @@ await test('migração assinada pela autoridade antiga preserva épocas/aparelho
     },
   );
 });
-await test('erros da wallet e de parsing nunca devolvem assinatura privada ao texto de erro', async () => {
+await test('wallet and parsing errors never expose private signatures in error text', async () => {
   const config = createWalletRecovery(session(), origin);
   const privateMarker = 'ASSINATURA_PRIVADA_QUE_NAO_PODE_VAZAR';
   const wallet: WalletConnection = {

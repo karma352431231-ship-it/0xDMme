@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readPreparationProfile } from '../src/server/configuration/index.ts';
 
-await test('a preparação inicia localmente sem credenciais', () => {
+await test('preparation starts locally without credentials', () => {
   assert.equal(readPreparationProfile({}), 'development');
   assert.equal(
     readPreparationProfile({ HASH_TALK_PROFILE: 'development' }),
@@ -10,11 +10,11 @@ await test('a preparação inicia localmente sem credenciais', () => {
   );
 });
 
-await test('configuração inválida não anuncia sucesso nem revela valores recebidos', () => {
+await test('invalid configuration neither announces success nor reveals received values', () => {
   for (const profile of ['production', 'test', '', 'private-value']) {
     assert.throws(
       () => readPreparationProfile({ HASH_TALK_PROFILE: profile }),
-      { message: 'Esta base aceita somente o perfil development.' },
+      { message: 'This setup only accepts the development profile.' },
     );
   }
 });

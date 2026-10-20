@@ -4,6 +4,7 @@ import type { DatabaseChanges } from './changes.ts';
 
 const topics = [
   'ranking',
+  'ranking-published',
   'push',
   'backups',
   'attachments',
@@ -45,7 +46,8 @@ export class WorkSignals {
   }
   /** The existing LISTEN connection also owns the process lease; no extra DB slot. */
   holdWorker(role: 'ranking' | 'content' | 'public', lost: () => void): void {
-    if (this.client || this.ownership) throw new Error('Worker já registrado.');
+    if (this.client || this.ownership)
+      throw new Error('Worker is already registered.');
     this.ownership = { role, lost };
   }
   private notify(topic: WorkTopic): void {
@@ -54,7 +56,7 @@ export class WorkSignals {
         listener();
       } catch {
         process.stderr.write(
-          'Consumidor não recebeu sinal; recuperação pendente.\n',
+          'Consumer did not receive a signal; recovery pending.\n',
         );
       }
     }
@@ -94,7 +96,7 @@ export class WorkSignals {
           [`hash-talk:background:${this.ownership.role}`],
         );
         if (!lease.rows[0]?.acquired)
-          throw new Error('Worker desta responsabilidade já ativo.');
+          throw new Error('Worker for this responsibility is already active.');
         this.owned = true;
       }
       for (const topic of topics)
@@ -121,9 +123,7 @@ export class WorkSignals {
     this.retry = setTimeout(() => {
       this.retry = null;
       void this.start().catch(() => {
-        process.stderr.write(
-          'Sinalização de trabalho indisponível; recuperação pendente.\n',
-        );
+        process.stderr.write('Work signaling unavailable; recovery pending.\n');
       });
     }, 5000);
     this.retry.unref();
@@ -139,7 +139,7 @@ export class WorkSignals {
         typeof data['removed'] !== 'boolean' ||
         typeof data['authorization'] !== 'boolean'
       )
-        throw new Error('Aviso inválido.');
+        throw new Error('Invalid notification.');
       this.changes?.committed(
         accounts.map((value: unknown) => uuid(value)),
         {

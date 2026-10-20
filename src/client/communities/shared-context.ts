@@ -30,7 +30,11 @@ export function sharedEntry(
     entry.community,
     'community',
   );
-  const chip = el('span', t('Compartilhou'), 'post-kind-reply post-kind-share');
+  const chip = el(
+    'span',
+    t('community.shared-activity'),
+    'post-kind-reply post-kind-share',
+  );
   chip.prepend(communityIcon('share'));
   row.querySelector('.community-post-author')?.after(chip);
   if (share.author.avatar)

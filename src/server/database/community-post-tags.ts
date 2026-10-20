@@ -66,7 +66,7 @@ export async function requirePostTags(
   const known = new Map(found.rows.map((row) => [row.id, row.active]));
   for (const id of ids)
     if (!known.has(id) || (!known.get(id) && !previous.includes(id)))
-      throw new AccountError(400, 'Tag indisponível nesta comunidade.');
+      throw new AccountError(400, 'Tag unavailable in this community.');
 }
 /**
  * A post (not a reply) needs a title, and at least one tag whenever the
@@ -77,14 +77,14 @@ export async function requireRootContent(
   value: { title: string; tags: readonly string[] },
 ): Promise<void> {
   if (!value.title.trim())
-    throw new AccountError(400, 'Dê um título à postagem.');
+    throw new AccountError(400, 'Give your post a title.');
   if (value.tags.length) return;
   const offered = await context.client.query(
     'SELECT 1 FROM hash_talk.community_tags WHERE community_id=$1 AND active LIMIT 1',
     [context.row.id],
   );
   if (offered.rows.length)
-    throw new AccountError(400, 'Escolha pelo menos uma tag.');
+    throw new AccountError(400, 'Choose at least one tag.');
 }
 /** Tags after the first, per post and in order (the first lives on the post row). */
 export async function postExtraTags(
@@ -147,7 +147,7 @@ export async function operatePostTag(
         [id, context.row.id, label],
       );
       if (!same.rowCount)
-        throw new AccountError(409, 'Identificador de tag já utilizado.');
+        throw new AccountError(409, 'Tag identifier already used.');
       return null;
     }
     await uniqueLabel(context, id, label);
@@ -157,7 +157,7 @@ export async function operatePostTag(
     );
   } else {
     if (operation !== 'tag-edit')
-      throw new AccountError(404, 'Operação de tag indisponível.');
+      throw new AccountError(404, 'Tag operation unavailable.');
     keys(data, ['id', 'tag', 'revision', 'label', 'active']);
     const active = communityBoolean(data['active']),
       revision = communityRevision(data['revision']);
@@ -174,7 +174,7 @@ export async function operatePostTag(
       if (!unchanged.rowCount)
         throw new AccountError(
           409,
-          'A tag mudou. Recarregue antes de continuar.',
+          'The tag changed. Reload before continuing.',
         );
       return null;
     }
@@ -194,6 +194,6 @@ async function uniqueLabel(
   if (found.rowCount)
     throw new AccountError(
       409,
-      'Já existe uma tag com esse nome nesta comunidade.',
+      'This community already has a tag with this name.',
     );
 }

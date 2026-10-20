@@ -55,10 +55,7 @@ export class RepresentativeStore {
       );
       const old = await this.owned(c, a, r.organizationId);
       if (canonical(old) !== canonical(r))
-        throw new AccountError(
-          409,
-          'Identificador de organização já utilizado.',
-        );
+        throw new AccountError(409, 'Organization identifier already used.');
       if (inserted.rowCount) await this.budget(c, a.session.accountId);
     });
   }
@@ -72,7 +69,7 @@ export class RepresentativeStore {
       [id, a.session.accountId],
     );
     const r = rows.rows[0]?.registration;
-    if (!r) throw new AccountError(404, 'Organização indisponível.');
+    if (!r) throw new AccountError(404, 'Organization unavailable.');
     return r;
   }
   async registration(
@@ -110,10 +107,7 @@ export class RepresentativeStore {
         Number(row.rows[0]?.issued_at) !== receipt.issuedAt ||
         Number(row.rows[0]?.expires_at) !== receipt.expiresAt
       )
-        throw new AccountError(
-          409,
-          'Identificador de autorização já utilizado.',
-        );
+        throw new AccountError(409, 'Authorization identifier already used.');
       if (inserted.rowCount) await this.budget(c, a.session.accountId);
     });
   }
@@ -138,7 +132,7 @@ export class RepresentativeStore {
         [revocation.id, revocation.organizationId, revocation.credentialHash],
       );
       if (!previous.rows[0]?.revocation)
-        throw new AccountError(404, 'Autorização indisponível.');
+        throw new AccountError(404, 'Authorization unavailable.');
     });
   }
   async status(
@@ -156,7 +150,7 @@ export class RepresentativeStore {
         [receipt.id, receipt.organizationId, receipt.hash],
       );
       const stored = row.rows[0];
-      if (!stored) throw new AccountError(404, 'Autorização não registrada.');
+      if (!stored) throw new AccountError(404, 'Authorization not registered.');
       return {
         registration: stored.registration,
         revocation: stored.revocation,

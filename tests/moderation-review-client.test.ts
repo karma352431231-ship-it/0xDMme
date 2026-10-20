@@ -82,14 +82,11 @@ await test('review shows the private community banner without the duplicate subj
     assert.equal(host.querySelectorAll('img').length, 1);
     assert.equal(
       host.querySelector('img')?.alt,
-      text('Mídia restrita à sua conta'),
+      text('Media restricted to your account'),
     );
     assert.equal(host.querySelector('.moderation-subject'), null);
-    assert.equal(host.textContent?.includes(text('Conteúdo analisado')), false);
-    assert.equal(
-      host.textContent?.includes(text('Resultado da análise')),
-      true,
-    );
+    assert.equal(host.textContent?.includes(text('Analyzed content')), false);
+    assert.equal(host.textContent?.includes(text('Analysis result')), true);
     assert.deepEqual(requests, ['moderation-details', 'moderation-media']);
     await review.ready();
     assert.equal(host.querySelectorAll('img').length, 1);
@@ -109,24 +106,21 @@ await test('private preview handles unavailable media and a transient error, and
       controller: {
         perform: () =>
           ++attempts === 1
-            ? Promise.reject(new Error('Prévia indisponível.'))
+            ? Promise.reject(new Error('Preview unavailable.'))
             : Promise.reject(
-                new AccountError(404, 'Arquivo da análise indisponível.'),
+                new AccountError(404, 'Review media unavailable.'),
               ),
       },
     });
     await settle();
-    assert.equal(
-      host.querySelector('button')?.textContent,
-      text('Tentar novamente'),
-    );
+    assert.equal(host.querySelector('button')?.textContent, text('Try again'));
     host.querySelector('button')?.click();
     await settle();
     assert.equal(host.querySelectorAll('button').length, 0);
     assert.ok(
       host.textContent?.includes(
         text(
-          'Este arquivo não está mais disponível. Ele pode ter sido substituído, removido ou atingido o prazo de retenção.',
+          'This file is no longer available. It may have been replaced, removed, or reached its retention deadline.',
         ),
       ),
     );

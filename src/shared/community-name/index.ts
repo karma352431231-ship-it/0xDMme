@@ -3,7 +3,7 @@ import { AccountError } from '../account/index.ts';
 export function communityName(value: string): string {
   const name = value.normalize('NFKC').trim().replace(/\s+/gu, ' ');
   if (!name || name.length > 100 || /[\p{Cc}\p{Cf}]/u.test(name))
-    throw new AccountError(400, 'Nome da comunidade inválido.');
+    throw new AccountError(400, 'Invalid community name.');
   return name;
 }
 export function communityNameKey(value: string): string {

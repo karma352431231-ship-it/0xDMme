@@ -51,20 +51,19 @@ export class PublicProfileService {
   }
   async read(handle: unknown) {
     const profile = await this.store.read(publicHandle(handle));
-    if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!profile) throw new AccountError(404, 'Public profile unavailable.');
     return profile;
   }
   async readById(id: string) {
     const profile = await this.store.readById(id);
-    if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!profile) throw new AccountError(404, 'Public profile unavailable.');
     return profile;
   }
   suggestions(query: string) {
     return this.store.suggestions(query);
   }
   private pages(): ProfileSocialStore {
-    if (!this.social)
-      throw new AccountError(503, 'Página pública indisponível.');
+    if (!this.social) throw new AccountError(503, 'Public page unavailable.');
     return this.social;
   }
   summary(handle: string) {
@@ -127,7 +126,7 @@ export class PublicProfileService {
         'moderation-appeal',
       ].includes(operation)
     )
-      throw new AccountError(404, 'Operação de perfil público não encontrada.');
+      throw new AccountError(404, 'Public profile operation not found.');
     const proof = publicProfileProof(input);
     const current = await this.devices.current(session.accountId);
     const signer =
@@ -136,7 +135,7 @@ export class PublicProfileService {
         (device) => device.id === session.deviceId,
       );
     if (!signer || current?.head !== proof.directory)
-      throw new AccountError(403, 'Aparelho sem autorização atual.');
+      throw new AccountError(403, 'Device has no current authorization.');
     await verify(
       signer.signing,
       proof.signature,
@@ -179,7 +178,7 @@ export class PublicProfileService {
     if (operation === 'moderation-media') {
       keys(data, ['id']);
       if (!this.moderationMedia)
-        throw new AccountError(503, 'Arquivo da análise indisponível.');
+        throw new AccountError(503, 'Review media unavailable.');
       return this.moderationMedia.read(authority, uuid(data['id']));
     }
     if (operation.startsWith('moderation-'))
@@ -193,7 +192,7 @@ export class PublicProfileService {
       if (data['consent'] !== true)
         throw new AccountError(
           400,
-          'Confirme a criação explícita do perfil público.',
+          'Explicitly confirm public profile creation.',
         );
       return this.store.create(authority, claimableHandle(data['handle']));
     }

@@ -1,5 +1,5 @@
 /*
- * Desktop density of the approved mockup (docs/UI_PAINEIS_E_TEMAS.md, 09/10/2026):
+ * Desktop density of the approved mockup (09/10/2026):
  * the left rail. Desktop files use the #app-shell prefix so they outrank
  * the base rules that load later; phones keep their own layout.
  */

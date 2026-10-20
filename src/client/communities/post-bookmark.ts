@@ -27,14 +27,14 @@ export function postBookmark(
         const value = await togglePostPreference(post, 'saved', actions);
         if (!value) return;
         paint(value.saved);
-        if (value.saved) showToast(t('Postagem salva.'), { success: true });
-        else showToast(t('Postagem removida dos salvos.'));
+        if (value.saved) showToast(t('Post saved.'), { success: true });
+        else showToast(t('Post removed from saved items.'));
       } catch (error: unknown) {
         if (actions.valid())
           showToast(
             error instanceof Error
               ? translatedError(error.message)
-              : t('Não foi possível salvar. Tente novamente.'),
+              : t('Could not save. Try again.'),
           );
         throw error;
       }
@@ -44,14 +44,14 @@ export function postBookmark(
   function paint(saved: boolean): void {
     save.replaceChildren(
       communityIcon('bookmark'),
-      el('span', saved ? t('Salvo') : t('Salvar'), 'post-action-caption'),
+      el('span', saved ? t('Saved') : t('Save'), 'post-action-caption'),
     );
     save.setAttribute('aria-pressed', String(saved));
     save.setAttribute(
       'aria-label',
-      saved ? t('Remover postagem dos salvos') : t('Salvar postagem'),
+      saved ? t('Remove post from saved items') : t('Save post'),
     );
-    save.title = saved ? t('Postagem salva') : t('Salvar postagem');
+    save.title = saved ? t('Saved post') : t('Save post');
   }
   paint(actions.saved ?? post.viewer?.saved ?? false);
 }

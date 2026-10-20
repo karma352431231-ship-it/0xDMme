@@ -53,13 +53,13 @@ export class GroupMessageActions {
     if (view.kind === 'text')
       panel.append(
         withMenuIcon(
-          this.button(t('Editar'), () => this.edit(view)),
+          this.button(t('Edit'), () => this.edit(view)),
           'edit',
         ),
       );
     panel.append(
       withMenuIcon(
-        this.button(t('Apagar para todos'), () => {
+        this.button(t('Delete for everyone'), () => {
           void this.actions.run(() => this.actions.remove(view));
         }),
         'trash',
@@ -82,18 +82,18 @@ export class GroupMessageActions {
       text = document.createElement('textarea'),
       save = document.createElement('button');
     dialog.className = 'group-dialog group-message-edit';
-    dialog.setAttribute('aria-label', t('Editar mensagem'));
-    title.textContent = t('Editar mensagem');
+    dialog.setAttribute('aria-label', t('Edit message'));
+    title.textContent = t('Edit message');
     text.value = view.text;
     text.required = true;
-    text.setAttribute('aria-label', t('Mensagem'));
+    text.setAttribute('aria-label', t('Message'));
     save.type = 'submit';
-    save.textContent = t('Salvar alteração');
+    save.textContent = t('Save change');
     form.append(
       title,
       text,
       save,
-      this.button(t('Cancelar'), () => this.close()),
+      this.button(t('Cancel'), () => this.close()),
     );
     form.addEventListener('submit', (event) => {
       event.preventDefault();

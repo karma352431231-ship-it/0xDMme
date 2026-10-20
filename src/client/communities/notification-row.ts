@@ -10,7 +10,7 @@ export function publicationNotificationRow(
   const row = el('div', '', 'community-row community-notification-row');
   row.dataset['read'] = String(item.read);
   const link = noticeLink({
-    label: item.read ? t('Publicação lida') : t('Nova publicação'),
+    label: item.read ? t('Publication read') : t('New publication'),
     href: `#communities?id=${item.community}&post=${item.reply}`,
     read: item.read,
     acknowledge: () => actions.open(item.reply),

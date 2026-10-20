@@ -17,7 +17,7 @@ export function publicUpvoteScore(post: CommunityPost): HTMLButtonElement {
       score.title =
         error instanceof Error
           ? translatedError(error.message)
-          : t('Não foi possível carregar.');
+          : t('Could not load.');
     }
   });
   return score;
@@ -27,7 +27,7 @@ function showUpvoters(post: CommunityPost): void {
     list = el('div'),
     status = el('p'),
     more = el('button', t('upvote.more')),
-    close = el('button', t('Fechar'));
+    close = el('button', t('Close'));
   const lifetime = new AbortController();
   let after: string | null = null,
     busy = false,
@@ -86,7 +86,7 @@ function showUpvoters(post: CommunityPost): void {
         status.textContent =
           error instanceof Error
             ? translatedError(error.message)
-            : t('Não foi possível carregar.');
+            : t('Could not load.');
         more.hidden = false;
       }
     } finally {

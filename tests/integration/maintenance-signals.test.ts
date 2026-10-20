@@ -16,7 +16,7 @@ async function until(check: () => boolean): Promise<void> {
     'Evento confirmado deve acordar o consumidor sem fallback.',
   );
 }
-await test('workers: avisos após commit, ponte privada e propriedade exclusiva da conexão', async (t) => {
+await test('workers: after-commit notifications, private bridge and exclusive connection ownership', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo necessário.');
@@ -92,7 +92,7 @@ await test('workers: avisos após commit, ponte privada e propriedade exclusiva 
   const duplicate = new WorkSignals(config.databaseUrl);
   duplicate.holdWorker('content', () => {});
   try {
-    await assert.rejects(duplicate.start(), /já ativo/);
+    await assert.rejects(duplicate.start(), /already active/);
   } finally {
     await duplicate.close();
   }

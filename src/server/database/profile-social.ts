@@ -37,7 +37,7 @@ export class ProfileSocialStore {
   }
   private async profile(handle: string) {
     const profile = await this.options.profiles.read(handle);
-    if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!profile) throw new AccountError(404, 'Public profile unavailable.');
     return profile;
   }
   async summary(handle: string): Promise<ProfileSummary> {
@@ -66,7 +66,7 @@ export class ProfileSocialStore {
       [profile.id],
     );
     const row = stats.rows[0];
-    if (!row) throw new AccountError(404, 'Perfil público indisponível.');
+    if (!row) throw new AccountError(404, 'Public profile unavailable.');
     return {
       profile,
       description: row.description ?? '',
@@ -109,7 +109,7 @@ export class ProfileSocialStore {
         tab: data['tab'],
       });
       if (data['after'] !== null && typeof data['after'] !== 'string')
-        throw new AccountError(400, 'Cursor inválido.');
+        throw new AccountError(400, 'Invalid cursor.');
       const after = data['after'];
       return this.options.communities.withActor(authority, (context) =>
         this.options.discovery.profileActivity(
@@ -158,14 +158,14 @@ export class ProfileSocialStore {
     return this.options.communities.withActor(authority, async (context) => {
       const actor = context.actor.id;
       if (target === actor)
-        throw new AccountError(409, 'Você já está no seu próprio perfil.');
+        throw new AccountError(409, 'You are already on your own profile.');
       // Canonical order also prevents reciprocal follows from taking opposite locks.
       const exists = await context.client.query<{ id: string }>(
         'SELECT id FROM hash_talk.public_profiles WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
         [[actor, target]],
       );
       if (!exists.rows.some((row) => row.id === target))
-        throw new AccountError(404, 'Perfil público indisponível.');
+        throw new AccountError(404, 'Public profile unavailable.');
       const found = await context.client.query<ProfileFollow>(
         'SELECT following,revision FROM hash_talk.public_profile_follows WHERE follower=$1 AND target=$2',
         [actor, target],
@@ -179,7 +179,7 @@ export class ProfileSocialStore {
       if (old.revision !== revision)
         throw new AccountError(
           409,
-          'A escolha de seguir mudou. Recarregue antes de tentar novamente.',
+          'Your follow choice changed. Reload before retrying.',
         );
       if (old.following === following) return old;
       const result = await context.client.query<ProfileFollow>(

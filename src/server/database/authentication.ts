@@ -76,26 +76,28 @@ export class AuthenticationStore {
   }
 
   async createChallenge(challenge: LoginChallenge): Promise<void> {
-    await withTemporaryAdmission('Muitos pedidos de login. Aguarde.', () =>
-      transaction(this.pool, async (client) => {
-        await client.query(`WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.login_challenges
+    await withTemporaryAdmission(
+      'Too many sign-in requests. Please wait.',
+      () =>
+        transaction(this.pool, async (client) => {
+          await client.query(`WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.login_challenges
           WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
         DELETE FROM hash_talk.login_challenges target USING expired WHERE target.id=expired.id`);
-        await client.query(
-          `INSERT INTO hash_talk.login_challenges
+          await client.query(
+            `INSERT INTO hash_talk.login_challenges
         (id, browser_hash, address, device_id, message, expires_at, ecosystem, handoff_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [
-            challenge.id,
-            challenge.browserHash,
-            challenge.address,
-            challenge.deviceId,
-            challenge.message,
-            challenge.expiresAt,
-            challenge.ecosystem,
-            challenge.handoffHash ?? null,
-          ],
-        );
-      }),
+            [
+              challenge.id,
+              challenge.browserHash,
+              challenge.address,
+              challenge.deviceId,
+              challenge.message,
+              challenge.expiresAt,
+              challenge.ecosystem,
+              challenge.handoffHash ?? null,
+            ],
+          );
+        }),
     );
   }
 
@@ -111,7 +113,7 @@ export class AuthenticationStore {
     );
     const challenge = result.rows[0];
     if (!challenge)
-      throw new AccountError(401, 'Desafio inválido ou expirado.');
+      throw new AccountError(401, 'Challenge invalid or expired.');
     return challenge;
   }
 
@@ -132,7 +134,7 @@ export class AuthenticationStore {
       if (preferredId && existing.rows[0].id !== preferredId)
         throw new AccountError(
           409,
-          'A conta mudou durante a entrada. Inicie novamente.',
+          'The account changed during sign-in. Start again.',
         );
       return existing.rows[0].id;
     }
@@ -141,7 +143,7 @@ export class AuthenticationStore {
       [identity.address, identity.ecosystem, preferredId ?? randomUUID()],
     );
     const id = created.rows[0]?.id;
-    if (!id) throw new Error('Conta não persistida.');
+    if (!id) throw new Error('Account was not persisted.');
     if (typeof this.contentCapacity !== 'number')
       await assertContentCapacity(client, this.contentCapacity);
     return id;
@@ -173,7 +175,7 @@ export class AuthenticationStore {
         [input.challenge.id, input.challenge.browserHash],
       );
       if (consumed.rowCount !== 1)
-        throw new AccountError(401, 'Desafio inválido ou expirado.');
+        throw new AccountError(401, 'Challenge invalid or expired.');
       return this.insertSession(client, {
         ...input,
         identity: input.challenge,
@@ -238,7 +240,7 @@ export class AuthenticationStore {
       if (!source.rowCount)
         throw new AccountError(
           403,
-          'Vinculação sem confirmação atual da wallet.',
+          'Linking lacks current wallet confirmation.',
         );
       await this.registerDevice(client, input.source.accountId, input.deviceId);
       const ended = await this.reserveSession(
@@ -262,7 +264,7 @@ export class AuthenticationStore {
   }
 
   async createHandoff(input: Omit<LoginHandoff, 'address'>): Promise<void> {
-    await withTemporaryAdmission('Muitos pedidos de retorno. Aguarde.', () =>
+    await withTemporaryAdmission('Too many return requests. Please wait.', () =>
       transaction(this.pool, async (client) => {
         await client.query(`WITH expired AS MATERIALIZED (SELECT browser_hash FROM hash_talk.login_handoffs
           WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
@@ -289,8 +291,7 @@ export class AuthenticationStore {
       [ticketHash],
     );
     const row = result.rows[0];
-    if (!row)
-      throw new AccountError(401, 'Pedido de retorno inválido ou expirado.');
+    if (!row) throw new AccountError(401, 'Return request invalid or expired.');
     return row;
   }
   async handoffStatus(browserHash: string): Promise<{
@@ -325,7 +326,7 @@ export class AuthenticationStore {
         [challenge.id, challenge.browserHash, ticketHash],
       );
       if (consumed.rowCount !== 1)
-        throw new AccountError(401, 'Desafio de retorno inválido.');
+        throw new AccountError(401, 'Invalid return challenge.');
       const accepted = await client.query(
         `UPDATE hash_talk.login_handoffs SET address=$2 WHERE ticket_hash=$1
         AND ecosystem=$3 AND device_id=$4 AND expires_at > now() AND address IS NULL RETURNING browser_hash`,
@@ -337,7 +338,7 @@ export class AuthenticationStore {
         ],
       );
       if (accepted.rowCount !== 1)
-        throw new AccountError(401, 'Pedido já usado ou expirado.');
+        throw new AccountError(401, 'Request already used or expired.');
     });
   }
   async finishHandoff(input: {
@@ -358,7 +359,7 @@ export class AuthenticationStore {
       );
       const row = consumed.rows[0];
       if (!row)
-        throw new AccountError(401, 'Retorno inválido ou ainda não assinado.');
+        throw new AccountError(401, 'Return invalid or not yet signed.');
       return this.insertSession(client, {
         ...input,
         identity: {
@@ -383,10 +384,7 @@ export class AuthenticationStore {
     );
     const state = devices.rows[0];
     if (!state?.known && (state?.total ?? 32) >= 32)
-      throw new AccountError(
-        409,
-        'Limite de cadastros de dispositivos atingido.',
-      );
+      throw new AccountError(409, 'Device registration limit reached.');
     await client.query(
       `INSERT INTO hash_talk.login_devices (account_id, device_id)
       VALUES ($1,$2) ON CONFLICT DO NOTHING`,
@@ -413,7 +411,7 @@ export class AuthenticationStore {
       [accountId],
     );
     if ((count.rows[0]?.total ?? 8) >= 8)
-      throw new AccountError(409, 'Encerre uma sessão antes de abrir outra.');
+      throw new AccountError(409, 'End one session before opening another.');
     return removed?.rows[0] ?? null;
   }
 
@@ -427,7 +425,7 @@ export class AuthenticationStore {
       [tokenHash],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(401, 'Sessão encerrada ou expirada.');
+    if (!row) throw new AccountError(401, 'Session ended or expired.');
     return {
       ...row,
       expiresAt: row.expiresAt.toISOString(),
@@ -463,7 +461,7 @@ export class AuthenticationStore {
       [tokenHash, name],
     );
     if (result.rowCount !== 1)
-      throw new AccountError(401, 'Sessão encerrada ou expirada.');
+      throw new AccountError(401, 'Session ended or expired.');
   }
 
   async readProfile(tokenHash: string): Promise<EncryptedProfile | null> {
@@ -478,7 +476,7 @@ export class AuthenticationStore {
       [tokenHash],
     );
     const row = result.rows[0];
-    if (!row) throw new AccountError(401, 'Sessão encerrada ou expirada.');
+    if (!row) throw new AccountError(401, 'Session ended or expired.');
     if (!row.iv || !row.ciphertext) return null;
     return {
       version: 1,
@@ -514,7 +512,7 @@ export class AuthenticationStore {
       if (result.rowCount !== 1)
         throw new AccountError(
           409,
-          'Perfil alterado em outra sessão ou sessão expirada. Recarregue.',
+          'Profile changed in another session or session expired. Reload.',
         );
       const accountId = result.rows[0]?.id;
       if (accountId) await assertVaultQuota(client, accountId);

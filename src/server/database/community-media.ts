@@ -97,7 +97,7 @@ function preparedHash(row: MediaRow): string | null {
 }
 function state(row: MediaRow): CommunityMediaState {
   if (row.status === 'deleting')
-    throw new AccountError(404, 'Mídia indisponível.');
+    throw new AccountError(404, 'Media unavailable.');
   return {
     source: row.source,
     received: row.received.length,
@@ -109,15 +109,15 @@ function state(row: MediaRow): CommunityMediaState {
 function requirePart(row: MediaRow, index: number | null): void {
   const parts = Math.ceil(row.source.bytes / communityMediaPartBytes);
   if (index === null && row.received.length !== parts)
-    throw new AccountError(409, 'Upload incompleto.');
+    throw new AccountError(409, 'Upload incomplete.');
   if (index !== null && index >= parts)
-    throw new AccountError(400, 'Parte inexistente.');
+    throw new AccountError(400, 'Part does not exist.');
 }
 function requireMediaLifetime(row: MediaRow): void {
   if (['removed', 'discarding', 'expired'].includes(row.moderationStatus ?? ''))
-    throw new AccountError(404, 'Mídia indisponível.');
+    throw new AccountError(404, 'Media unavailable.');
   if (!row.post_id && row.expires_at.getTime() <= Date.now())
-    throw new AccountError(410, 'Upload expirou. Inicie outro envio.');
+    throw new AccountError(410, 'Upload expired. Start another upload.');
   if (
     row.moderationExpires &&
     row.moderationStatus !== 'approved' &&
@@ -125,7 +125,7 @@ function requireMediaLifetime(row: MediaRow): void {
   )
     throw new AccountError(
       410,
-      'Mídia sem aprovação expirou. Envie outro arquivo.',
+      'Unapproved media expired. Upload another file.',
     );
 }
 function requireMediaAttachment(
@@ -139,9 +139,9 @@ function requireMediaAttachment(
     !['ready', 'attached'].includes(row.status) ||
     (row.post_id && row.post_id !== post)
   )
-    throw new AccountError(403, 'Mídia não disponível para esta postagem.');
+    throw new AccountError(403, 'Media unavailable for this post.');
   if (!row.moderation_review)
-    throw new AccountError(409, 'Mídia sem análise vigente.');
+    throw new AccountError(409, 'Media has no current analysis.');
   requireMediaLifetime(row);
 }
 export class CommunityMediaStore {
@@ -170,7 +170,7 @@ export class CommunityMediaStore {
     );
     const row = found.rows[0];
     if (!row || row.author !== context.actor.id || row.status === 'deleting')
-      throw new AccountError(404, 'Mídia indisponível.');
+      throw new AccountError(404, 'Media unavailable.');
     requireMediaLifetime(row);
     return row;
   }
@@ -192,7 +192,7 @@ export class CommunityMediaStore {
           old.community_id !== community ||
           canonical(old.source) !== canonical(source)
         )
-          throw new AccountError(409, 'Reserva de mídia divergente.');
+          throw new AccountError(409, 'Media reservation does not match.');
         return state(await this.owned(c, source.id));
       }
       const used = await c.client.query(
@@ -202,7 +202,7 @@ export class CommunityMediaStore {
       if (used.rowCount)
         throw new AccountError(
           409,
-          'Identificador de mídia já utilizado. Inicie outro envio.',
+          'Media identifier already used. Start another upload.',
         );
       const charge = preparationCharge(source);
       const result = await c.client.query<MediaRow>(
@@ -250,15 +250,15 @@ export class CommunityMediaStore {
       requirePart(row, input.index);
       if (input.index !== null && row.received[input.index] !== undefined) {
         if (row.received[input.index] !== input.hash)
-          throw new AccountError(409, 'Parte de mídia divergente.');
+          throw new AccountError(409, 'Media part does not match.');
         return { state: state(row), writer: null };
       }
       if (row.status !== 'uploading')
         return { state: state(row), writer: null };
       if (row.writer)
-        throw new AccountError(409, 'Upload em andamento. Aguarde.');
+        throw new AccountError(409, 'Upload in progress. Please wait.');
       if (input.index !== null && input.index !== row.received.length)
-        throw new AccountError(409, 'Retome a próxima parte do upload.');
+        throw new AccountError(409, 'Resume the next upload part.');
       if (input.index === null) await this.reservePreparation(c, row);
       const writer = randomUUID();
       await c.client.query(
@@ -289,7 +289,7 @@ export class CommunityMediaStore {
       await requireCommunityParticipation(c);
       const row = await this.owned(c, input.id);
       if (row.writer !== input.writer)
-        throw new AccountError(409, 'Upload interrompido.');
+        throw new AccountError(409, 'Upload interrupted.');
       await c.client.query(
         'UPDATE hash_talk.community_media SET received=array_append(received,$3),writer=NULL WHERE id=$1 AND writer=$2',
         [input.id, input.writer, input.hash],
@@ -302,7 +302,7 @@ export class CommunityMediaStore {
       [id, writer],
     );
     if (!updated.rowCount)
-      throw new AccountError(409, 'Preparação interrompida.');
+      throw new AccountError(409, 'Preparation interrupted.');
   }
   async ready(
     a: ContactAuthority,
@@ -319,14 +319,14 @@ export class CommunityMediaStore {
       await requireCommunityParticipation(c);
       const row = await this.owned(c, input.id);
       if (row.writer !== input.writer || row.status !== 'processing')
-        throw new AccountError(409, 'Preparação interrompida.');
+        throw new AccountError(409, 'Preparation interrupted.');
       const result = communityMediaResult(input.result),
         hashes = {
           resultHash: fingerprint(input.resultHash),
           thumbnailHash: fingerprint(input.thumbnailHash),
         };
       if (row.created_at.getTime() + publicModerationRetentionMs <= Date.now())
-        throw new AccountError(410, 'Upload expirou. Inicie outro envio.');
+        throw new AccountError(410, 'Upload expired. Start another upload.');
       await this.moderation.enqueue(
         c.client,
         {
@@ -370,7 +370,7 @@ export class CommunityMediaStore {
     await this.communities.withContext(a, community, async (c) => {
       const row = await this.owned(c, id);
       if (row.post_id || row.writer)
-        throw new AccountError(409, 'Mídia vinculada ou em processamento.');
+        throw new AccountError(409, 'Media linked or being processed.');
       await c.client.query(
         "UPDATE hash_talk.community_media SET status='deleting' WHERE id=$1",
         [id],
@@ -389,7 +389,7 @@ export class CommunityMediaStore {
       [input.ids],
     );
     if (found.rows.length !== input.ids.length)
-      throw new AccountError(400, 'Mídia não preparada.');
+      throw new AccountError(400, 'Media not prepared.');
     for (const row of found.rows) requireMediaAttachment(row, c, input.post);
     communityMediaSet(found.rows.map((r) => r.source));
     const detached = await c.client.query<{ moderation_review: string | null }>(
@@ -489,7 +489,7 @@ export class CommunityMediaStore {
     posts: string[],
   ): Promise<Map<string, PublicPostMedia[]>> {
     if (posts.length > 24)
-      throw new AccountError(400, 'Página de mídia excedida.');
+      throw new AccountError(400, 'Media page exceeds the limit.');
     const found = await client.query<MediaRow>(
       `SELECT m.* FROM hash_talk.community_media m JOIN hash_talk.community_posts p ON p.id=m.post_id
         WHERE m.post_id=ANY($1::uuid[]) AND m.status='attached' AND ${visiblePost('p')} AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))

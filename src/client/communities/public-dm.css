@@ -1,6 +1,6 @@
 /*
  * Public @ conversations use the private chat frame. In the workspace chat
- * column the frame replaces the old bar; on the Comunidades page it gets a
+ * column the frame replaces the old bar; on the Communities page it gets a
  * height of its own, since the page itself scrolls.
  */
 .public-chat:has(.social-dm-panel) {

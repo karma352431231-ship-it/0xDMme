@@ -31,7 +31,7 @@ async function groupUsage(
         Number(value) < 0,
     )
   )
-    throw new Error('Cota de grupo indisponível.');
+    throw new Error('Group quota unavailable.');
   return {
     text: Number(row.text),
     media: Number(row.media),
@@ -50,7 +50,7 @@ export async function assertGroupTextQuota(
   groupId: string,
 ): Promise<void> {
   if ((await groupTextUsage(client, groupId)) > groupTextQuota)
-    throw new AccountError(413, 'Cota de texto/controle do grupo cheia.');
+    throw new AccountError(413, 'Group text/control quota full.');
 }
 export async function assertGroupContentQuota(
   client: Pick<pg.PoolClient, 'query'>,
@@ -59,7 +59,7 @@ export async function assertGroupContentQuota(
   if ((await groupTextUsage(client, groupId)) > groupContentQuota)
     throw new AccountError(
       413,
-      'Espaço de conteúdo do grupo cheio. A margem restante é administrativa.',
+      'Group content space full. Remaining capacity is reserved for administration.',
     );
 }
 export async function groupMediaUsage(
@@ -82,6 +82,6 @@ export async function assertGroupMediaQuota(
   if ((await groupMediaUsage(client, groupId)) > groupMediaQuota)
     throw new AccountError(
       413,
-      'Cota de mídia do grupo cheia. Aguarde a limpeza ou exporte e limpe o cofre.',
+      'Group media quota full. Wait for cleanup or export and clear the vault.',
     );
 }

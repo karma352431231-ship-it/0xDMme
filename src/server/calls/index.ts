@@ -98,7 +98,7 @@ export class CallService {
         if (!this.options.config)
           throw new AccountError(
             503,
-            'Chamadas aguardam a configuração do TURN próprio.',
+            "Calls are awaiting configuration of the app's own TURN server.",
           );
         const endpoint = this.state.endpoint(
           a,
@@ -188,7 +188,7 @@ export class CallService {
   ): Promise<unknown> {
     keys(d, ['enabled', 'revision']);
     if (typeof d['enabled'] !== 'boolean')
-      throw new AccountError(400, 'Preferência inválida.');
+      throw new AccountError(400, 'Invalid preference.');
     await this.options.store.configure(a, {
       enabled: d['enabled'],
       revision: integer(d['revision'], Number.MAX_SAFE_INTEGER),
@@ -208,7 +208,7 @@ export class CallService {
     if (op === 'sync') {
       keys(d, [...common, 'listening', 'media', 'ack']);
       if (typeof d['listening'] !== 'boolean')
-        throw new AccountError(400, 'Disponibilidade inválida.');
+        throw new AccountError(400, 'Invalid availability.');
       return {
         ...(endpoint.invitation ? { invitation: true } : {}),
         configured: true,
@@ -285,7 +285,7 @@ export class CallService {
       this.state.authorized(e, id);
       return turnCredentials(this.options.config);
     }
-    throw new AccountError(404, 'Operação de chamada indisponível.');
+    throw new AccountError(404, 'Call operation unavailable.');
   }
   close(): void {
     if (this.timer) clearTimeout(this.timer);
@@ -310,7 +310,7 @@ export class CallService {
 }
 function packets(input: unknown) {
   if (!Array.isArray(input) || !input.length || input.length > deviceLimit)
-    throw new AccountError(413, 'Destinatários excedidos.');
+    throw new AccountError(413, 'Recipients exceed the limit.');
   const rows: unknown[] = input;
   return rows.map((raw) => {
     const d = object(raw);

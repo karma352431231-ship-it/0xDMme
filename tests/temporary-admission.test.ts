@@ -13,7 +13,7 @@ await test('idle expiry releases shared memory without a new request and preserv
   t.mock.method(process, 'availableMemory', () => available);
   const removed: string[] = [];
   const pending = new TemporaryRequests<{ request: number }>({
-    unavailable: 'Muitas entradas pendentes. Aguarde.',
+    unavailable: 'Too many pending sign-ins. Please wait.',
     removed: (id) => removed.push(id),
   });
   t.after(() => pending.close());
@@ -49,19 +49,19 @@ await test('temporary operations reject pressure before work and release on succ
     return held.promise;
   };
   await assert.rejects(
-    withTemporaryAdmission('Muitos pedidos de login. Aguarde.', work),
+    withTemporaryAdmission('Too many sign-in requests. Please wait.', work),
   );
   assert.equal(calls, 0);
   available = 1_048_576;
   const active = withTemporaryAdmission(
-    'Muitos pedidos de login. Aguarde.',
+    'Too many sign-in requests. Please wait.',
     work,
   );
   assert.equal(reserveOperationMemory(available), null);
   held.resolve();
   await active;
   await assert.rejects(
-    withTemporaryAdmission('Muitos pedidos de login. Aguarde.', () =>
+    withTemporaryAdmission('Too many sign-in requests. Please wait.', () =>
       Promise.reject(new Error('validation failed')),
     ),
   );
@@ -74,7 +74,7 @@ await test('expiry rechecks the clock and shutdown cancels every owned timer', (
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let now = 1000;
   const pending = new TemporaryRequests<string>({
-    unavailable: 'Muitas entradas pendentes. Aguarde.',
+    unavailable: 'Too many pending sign-ins. Please wait.',
     now: () => now,
   });
   assert.equal(pending.add('request', 'opaque', 2000), true);

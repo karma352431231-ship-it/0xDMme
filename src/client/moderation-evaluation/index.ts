@@ -11,7 +11,7 @@ import { CalibrationGalleryView } from './gallery.ts';
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const node = document.getElementById(id);
   if (!(node instanceof type))
-    throw new Error('Tela de avaliação indisponível.');
+    throw new Error('Assessment screen unavailable.');
   return node;
 }
 startLanguage();
@@ -61,7 +61,7 @@ function selectedImage(): File {
     !['image/png', 'image/jpeg', 'image/webp'].includes(image.type)
   )
     throw new Error(
-      'Selecione uma imagem estática PNG, JPEG ou WebP de até 8 MiB.',
+      'Select a static PNG, JPEG or WebP image no larger than 8 MiB.',
     );
   return image;
 }
@@ -81,7 +81,7 @@ async function evaluate(): Promise<void> {
   const image = selectedImage(),
     reference = evaluationReference(expected.value);
   status.textContent = t(
-    'Analisando e guardando este caso na rodada temporária…',
+    'Analyzing and saving this case in the temporary round…',
   );
   const saved = evaluationCase(
     await api.json('/api/evaluate', {
@@ -102,15 +102,15 @@ async function evaluate(): Promise<void> {
     byte.toString(16).padStart(2, '0'),
   ).join('');
   if (saved.imageHash !== hash || saved.reference !== reference)
-    throw new Error('O caso recebido diverge da imagem enviada.');
+    throw new Error('The received case differs from the uploaded image.');
   status.textContent = t(
-    'Caso {0} salvo com imagem, scores e sua referência.',
+    'Case {0} saved with image, scores and your reference.',
     [saved.id.slice(0, 8)],
   );
   await gallery.refresh(true);
 }
 async function exportRound(): Promise<void> {
-  status.textContent = t('Preparando ZIP privado com originais e resultados…');
+  status.textContent = t('Preparing private ZIP with originals and results…');
   const blob = await api.archive(),
     url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -121,14 +121,14 @@ async function exportRound(): Promise<void> {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
   status.textContent = t(
-    'Exportação solicitada. O arquivo baixado contém as imagens e fica sob seu controle.',
+    'Export requested. The downloaded file contains the images and is under your control.',
   );
 }
 async function clearRound(): Promise<void> {
   if (
     !window.confirm(
       t(
-        'Apagar todas as imagens e resultados desta rodada temporária? Arquivos já baixados permanecem no seu dispositivo.',
+        'Delete all images and results from this temporary round? Files already downloaded remain on your device.',
       ),
     )
   )
@@ -139,7 +139,7 @@ async function clearRound(): Promise<void> {
   expected.value = '';
   await gallery.refresh(true);
   status.textContent = t(
-    'Imagens e resultados da rodada apagados do avaliador.',
+    'Round images and results deleted from the evaluator.',
   );
 }
 analyze.addEventListener('click', () => action(evaluate));

@@ -95,15 +95,14 @@ export class PublicModerationScanner implements PublicModerationRunner {
       createHash('sha256').update(avatar.bytes).digest('hex') !==
         job.contentHash
     )
-      throw new AccountError(409, 'Foto substituída ou expirada.');
+      throw new AccountError(409, 'Photo replaced or expired.');
     return [{ ...avatar, maximumFrames: 1 }];
   }
   private async mediaInputs(
     job: PublicModerationClaim,
   ): Promise<PreparedFrameInput[]> {
     const candidate = await this.candidates.media(job);
-    if (!candidate)
-      throw new AccountError(409, 'Mídia substituída ou expirada.');
+    if (!candidate) throw new AccountError(409, 'Media replaced or expired.');
     const result = await this.files.read(
         candidate.id,
         'result',

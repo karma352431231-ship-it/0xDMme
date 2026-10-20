@@ -29,22 +29,22 @@ function history(value: unknown): HistorySnapshot {
     !Number.isSafeInteger(revision) ||
     revision < 1
   )
-    throw new Error('Revisão de histórico inválida.');
+    throw new Error('Invalid history revision.');
   if (!Array.isArray(snapshot.messages) || snapshot.messages.length > 32)
-    throw new Error('Histórico excede o limite do ensaio.');
+    throw new Error('History exceeds the test limit.');
   const messages = snapshot.messages.map((item: unknown) => {
     const entry = record(item);
     onlyKeys(entry, ['id', 'body']);
     return { id: text(entry.id, 100), body: text(entry.body, 1_000) };
   });
   if (new Set(messages.map((entry) => entry.id)).size !== messages.length)
-    throw new Error('Histórico com identificadores repetidos.');
+    throw new Error('History contains duplicate identifiers.');
   return { owner: text(snapshot.owner, 100), revision, messages };
 }
 
 async function recoveryKey(secret: string): Promise<CryptoKey> {
   const bytes = decode(secret, 32);
-  if (bytes.length !== 32) throw new Error('Segredo de recuperação inválido.');
+  if (bytes.length !== 32) throw new Error('Invalid recovery secret.');
   try {
     return await crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, [
       'wrapKey',
@@ -55,7 +55,7 @@ async function recoveryKey(secret: string): Promise<CryptoKey> {
   }
 }
 
-/** Segredo aleatório de 256 bits, independente de wallet, senha ou assinatura. */
+/** Random 256-bit secret, independent of wallet, password or signature. */
 export function newRecoverySecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   try {
@@ -72,10 +72,10 @@ export async function sealHistory(
   const validated = history(snapshot);
   const plaintext = new TextEncoder().encode(JSON.stringify(validated));
   if (plaintext.length > 32_000)
-    throw new Error('Histórico excede o limite do ensaio.');
+    throw new Error('History exceeds the test limit.');
   const aad = authenticatedHeader(validated.owner, validated.revision);
   const wrappingKey = await recoveryKey(secret);
-  // Uma chave de dados nova por snapshot; nenhum nonce/ratchet próprio.
+  // One new data key per snapshot; no custom nonce or ratchet.
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     true,
@@ -110,7 +110,7 @@ export async function sealHistory(
   }
 }
 
-/** Abre somente histórico. Não importa autorização, dispositivos ou sessões Olm. */
+/** Opens only history. Imports no authorization, devices or Olm sessions. */
 export async function openHistory(
   serialized: string,
   secret: string,
@@ -118,7 +118,7 @@ export async function openHistory(
 ): Promise<HistorySnapshot> {
   const envelope = parseEnvelope(serialized);
   if (envelope.owner !== expectedOwner)
-    throw new Error('Cofre pertence a outra identidade.');
+    throw new Error('Vault belongs to another identity.');
   const aad = authenticatedHeader(envelope.owner, envelope.revision);
   try {
     const wrappingKey = await recoveryKey(secret);
@@ -158,13 +158,13 @@ export async function openHistory(
         restored.owner !== envelope.owner ||
         restored.revision !== envelope.revision
       )
-        throw new Error('Manifesto inconsistente.');
+        throw new Error('Inconsistent manifest.');
       return restored;
     } finally {
       plaintext.fill(0);
     }
   } catch (error: unknown) {
-    throw new Error('Cofre rejeitado: segredo ou integridade inválidos.', {
+    throw new Error('Vault rejected: invalid secret or integrity.', {
       cause: error,
     });
   }

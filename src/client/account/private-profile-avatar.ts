@@ -52,7 +52,7 @@ export class PrivateProfileAvatar {
     }
     if (host.querySelector('img')?.getAttribute('src') === url) return;
     const image = document.createElement('img');
-    image.alt = t('Sua foto de perfil');
+    image.alt = t('Your profile photo');
     image.src = url;
     image.addEventListener(
       'error',

@@ -49,6 +49,7 @@ interface HistoryPresentation {
   media: Messages['media'];
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
+  readConfirmed?: (peer: string) => Promise<void>;
   outgoing?: () => readonly OutgoingText[];
   retryOutgoing?: () => void;
   externalMedia?: ExternalMediaConsent;
@@ -139,7 +140,7 @@ export class MessageHistoryUi {
     if (gate) {
       gate.hidden = this.views !== null;
       gate.textContent = t(
-        'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.',
+        'Syncing messages… History opens after updates and deletions are checked.',
       );
     }
     const older = this.options.node('[data-message-older]');
@@ -207,7 +208,7 @@ export class MessageHistoryUi {
     );
   }
   private peerLabel(): string {
-    return this.options.context().title || t('Selecione um contato aprovado');
+    return this.options.context().title || t('Select an approved contact');
   }
   private renderPeer(): void {
     const { selected, calls } = this.options.context();
@@ -272,7 +273,7 @@ export class MessageHistoryUi {
       detail.title = messageStateText(view.state);
     else detail.textContent = messageStateText(view.state);
     if (view.edited)
-      detail.prepend(detail.childNodes.length ? t('Editada · ') : t('Editada'));
+      detail.prepend(detail.childNodes.length ? t('Edited · ') : t('Edited'));
     const time = messageTime(view.sentAt);
     if (time) detail.prepend(time);
     return detail;
@@ -287,13 +288,13 @@ export class MessageHistoryUi {
         (row) => row.id === view.content.reply,
       );
       reply.textContent = original
-        ? t('Em resposta: {0}', [original.content.text.slice(0, 120)])
-        : t('Resposta: mensagem original fora desta página ou indisponível.');
+        ? t('Replying to: {0}', [original.content.text.slice(0, 120)])
+        : t('Reply: original message is outside this page or unavailable.');
       article.append(reply);
     }
     if (view.content.forwarded) {
       const forwarded = document.createElement('small');
-      forwarded.textContent = t('Encaminhada');
+      forwarded.textContent = t('Forwarded');
       article.append(forwarded);
     }
   }
@@ -308,8 +309,8 @@ export class MessageHistoryUi {
     article.setAttribute(
       'aria-label',
       view.own
-        ? t('Mensagem enviada por você')
-        : t('Mensagem recebida de {0}', [this.peerLabel()]),
+        ? t('Message sent by you')
+        : t('Message received from {0}', [this.peerLabel()]),
     );
     const text = document.createElement('p');
     this.renderMessageContent({ article, text, view, signal });
@@ -437,5 +438,6 @@ export class MessageHistoryUi {
     if (receipts === null || !this.stillVisible(peer, views)) return;
     this.readIds = receipts;
     this.renderStates();
+    if (incoming.length) await this.options.readConfirmed?.(peer);
   }
 }

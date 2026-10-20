@@ -18,7 +18,7 @@ import {
   stripEncodedMetadata,
   prepareOriginal,
 } from '../src/client/attachment-images/index.ts';
-await test('anexo de 3 MB usa SDK real, mantém tamanho verificável e rejeita adulteração e segredo errado', async () => {
+await test('3 MB attachment uses the real SDK, keeps verifiable size and rejects tampering and wrong secrets', async () => {
   const bytes = new Uint8Array(fileLimit).fill(71),
     sealed = await sealFile(bytes);
   assert.equal(sealed.bytes.length, bytes.length);
@@ -26,7 +26,7 @@ await test('anexo de 3 MB usa SDK real, mantém tamanho verificável e rejeita a
   assert.equal(attachmentRef(sealed.file.ref).bytes, fileLimit);
   assert.deepEqual(await openFile(sealed.file, sealed.bytes), bytes);
   const corrupt = sealed.bytes.slice();
-  corrupt[0] = 8;
+  corrupt[0] = corrupt[0]! ^ 1;
   await assert.rejects(openFile(sealed.file, corrupt));
   await assert.rejects(openFile(sealed.file, sealed.bytes.subarray(1)));
   const wrong = await sealFile(new Uint8Array([1, 2, 3]));
@@ -48,7 +48,7 @@ await test('anexo de 3 MB usa SDK real, mantém tamanho verificável e rejeita a
     }),
   );
 });
-await test('cifras independentes não deduplicam arquivos legíveis; contrato privado não permite refs extras ou miniatura grande', async () => {
+await test('independent ciphertexts do not deduplicate readable files; private contract rejects extra refs and oversized thumbnails', async () => {
   const bytes = new Uint8Array([4, 5, 6]),
     one = await sealFile(bytes),
     two = await sealFile(bytes);
@@ -93,7 +93,7 @@ function png(
   bytes.set(new TextEncoder().encode('IEND'), 49);
   return bytes;
 }
-await test('imagem original conserva bytes e metadados, dispensa miniatura e reconhece 12 MP sem reencodar', async () => {
+await test('original image preserves bytes and metadata, needs no thumbnail and recognizes 12 MP without reencoding', async () => {
   const bytes = png(4000, 3000, 'eXIf'),
     file = new File([bytes], 'camera.png', {
       type: 'application/octet-stream',
@@ -135,10 +135,10 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   const refs = [sealed.file.ref];
   assert.equal(attachmentRefs(refs, chatFileLimit)[0]?.bytes, chatFileLimit);
   assert.throws(() => attachmentRefs(refs));
-  await assert.rejects(sealFile(bytes), /até 3 MB/u);
+  await assert.rejects(sealFile(bytes), /no larger than 3 MB/u);
   await assert.rejects(
     sealFile(new Uint8Array(chatFileLimit + 1), chatFileLimit),
-    /até 10 MB/u,
+    /no larger than 10 MB/u,
   );
   const oversized = {
     size: chatFileLimit + 1,
@@ -146,7 +146,7 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   };
   await assert.rejects(
     prepareOriginal(oversized as unknown as File, chatFileLimit),
-    /limite de 10 MB/u,
+    /larger than 10 MB/u,
   );
   const exact = await prepareOriginal(
     new File([bytes], 'ten.bin'),
@@ -155,10 +155,10 @@ await test('private and group chats accept 10 MB; other contexts keep the 3 MB l
   assert.equal(exact.bytes.length, chatFileLimit);
   await assert.rejects(
     prepareOriginal(new File([bytes], 'ten.bin')),
-    /limite de 3 MB/u,
+    /larger than 3 MB/u,
   );
 });
-await test('original acima de 3 MB é recusado antes da leitura; teto exato e formatos sem prévia conservam os bytes', async () => {
+await test('original above 3 MB is rejected before reading; exact limit and formats without previews preserve bytes', async () => {
   let reads = 0;
   const oversized = {
     size: fileLimit + 1,
@@ -167,7 +167,7 @@ await test('original acima de 3 MB é recusado antes da leitura; teto exato e fo
       return Promise.resolve(new ArrayBuffer(0));
     },
   };
-  await assert.rejects(prepareOriginal(oversized as File), /limite de 3 MB/);
+  await assert.rejects(prepareOriginal(oversized as File), /larger than 3 MB/);
   assert.equal(reads, 0);
   const exact = await prepareOriginal(
     new File([new Uint8Array(fileLimit)], 'teto.bin'),
@@ -181,13 +181,13 @@ await test('original acima de 3 MB é recusado antes da leitura; teto exato e fo
   assert.deepEqual(original.bytes, oversizedPixels);
   await assert.rejects(
     prepareOriginal(new File([new Uint8Array([1])], 'video.mp4')),
-    /vídeo/,
+    /[Vv]ideo/,
   );
 });
-await test('limite de pixels vem antes de decodificar e metadados privados impedem promessa de remoção', () => {
+await test('pixel limit precedes decoding and private metadata prevents promising removal', () => {
   assert.equal(imageShape(png(320, 200)).type, 'image/png');
-  assert.throws(() => imageShape(png(50000, 50000)), /pixels/);
-  assert.throws(() => imageShape(png(320, 200, 'acTL')), /animada/);
+  assert.throws(() => imageShape(png(50000, 50000)), /pixel budget/);
+  assert.throws(() => imageShape(png(320, 200, 'acTL')), /animated/);
   assert.equal(metadataFree(png(320, 200), 'image/png'), true);
   for (const chunk of ['eXIf', 'tEXt', 'iTXt'])
     assert.equal(metadataFree(png(320, 200, chunk), 'image/png'), false);
@@ -205,13 +205,13 @@ await test('limite de pixels vem antes de decodificar e metadados privados imped
         'application/octet-stream',
         new Uint8Array([1]),
       ),
-    /vídeo/,
+    /[Vv]ideo/,
   );
   const mp4 = new Uint8Array(24);
   mp4.set(new TextEncoder().encode('ftyp'), 4);
   assert.throws(
     () => assertFileAllowed('fake.pdf', 'application/octet-stream', mp4),
-    /vídeo/,
+    /[Vv]ideo/,
   );
   for (const brand of ['heic', 'avif', 'M4A ']) {
     mp4.set(new TextEncoder().encode(brand), 8);
@@ -228,7 +228,7 @@ await test('limite de pixels vem antes de decodificar e metadados privados imped
   );
 });
 
-await test('encoder que acrescenta EXIF/texto produz foto limpa sem alterar blocos da imagem', () => {
+await test('encoder adding EXIF/text produces a clean photo without changing image blocks', () => {
   const jpeg = new Uint8Array([
     255, 216, 255, 225, 0, 8, 69, 120, 105, 102, 0, 0, 255, 254, 0, 4, 71, 80,
     255, 218, 0, 2, 12, 34, 255, 217,

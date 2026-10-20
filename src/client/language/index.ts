@@ -75,7 +75,7 @@ function translateDocument(root: Node): void {
 export function languageSelect(value = currentLanguage()): HTMLSelectElement {
   const select = document.createElement('select');
   select.name = 'language';
-  select.setAttribute('aria-label', t('Idioma do aplicativo'));
+  select.setAttribute('aria-label', t('App language'));
   for (const language of languages) {
     const option = document.createElement('option');
     option.value = language.id;
@@ -114,7 +114,7 @@ export function languageFailure(error: unknown): string {
   if (error instanceof LanguageChangeBlocked) return error.message;
   return error instanceof Error
     ? translatedError(error.message)
-    : t('Não foi possível salvar o idioma.');
+    : t('Could not save your language.');
 }
 
 export function mountLanguageSettings(
@@ -125,12 +125,12 @@ export function mountLanguageSettings(
   const section = document.createElement('section');
   section.className = 'settings-block';
   const label = document.createElement('label');
-  label.textContent = t('Idioma do aplicativo');
+  label.textContent = t('App language');
   const select = languageSelect();
   label.append(select);
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = t('Salvar idioma');
+  button.textContent = t('Save language');
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   button.addEventListener('click', () => {
@@ -146,7 +146,7 @@ export function mountLanguageSettings(
       .then(() => {
         // Reload happens after the explicit choice; it never submits another form.
         if (value === currentLanguage()) {
-          status.textContent = t('Idioma salvo.');
+          status.textContent = t('Language saved.');
           button.disabled = false;
         } else location.reload();
       })

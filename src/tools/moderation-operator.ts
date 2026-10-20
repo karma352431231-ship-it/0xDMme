@@ -17,7 +17,8 @@ async function decision(): Promise<{
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) {
     text += String(chunk);
-    if (Buffer.byteLength(text) > 8192) throw new Error('Decisão excedida.');
+    if (Buffer.byteLength(text) > 8192)
+      throw new Error('Decision exceeds the limit.');
   }
   const data = object(JSON.parse(text) as unknown);
   keys(data, ['id', 'verdict', 'reason', 'confirmsPermitted']);
@@ -26,7 +27,7 @@ async function decision(): Promise<{
     typeof data['reason'] !== 'string' ||
     typeof data['confirmsPermitted'] !== 'boolean'
   )
-    throw new Error('Decisão inválida.');
+    throw new Error('Invalid decision.');
   return {
     id: uuid(data['id']),
     verdict: data['verdict'],
@@ -106,9 +107,9 @@ async function preview(
   });
   const address = server.address();
   if (!address || typeof address === 'string')
-    throw new Error('Prévia indisponível.');
+    throw new Error('Preview unavailable.');
   process.stdout.write(
-    `Prévia privada por cinco minutos: http://127.0.0.1:${address.port}${path}\n`,
+    `Private preview for five minutes: http://127.0.0.1:${address.port}${path}\n`,
   );
   await new Promise<void>((accept) => {
     let closing = false;
@@ -132,7 +133,7 @@ let database: Database | undefined;
 try {
   const [command, argument, ...extra] = process.argv.slice(2);
   if (extra.length || !['list', 'preview', 'decide'].includes(command ?? ''))
-    throw new Error('Use list [cursor], preview ID ou decide < decisão.json.');
+    throw new Error('Use list [cursor], preview ID or decide < decision.json.');
   const config = await readOperatorConfiguration(process.cwd());
   database = new Database(config.databaseUrl);
   const operator = new PublicModerationOperator(
@@ -147,7 +148,7 @@ try {
     );
   else {
     if (argument)
-      throw new Error('Envie a decisão somente pela entrada padrão.');
+      throw new Error('Send the decision only through standard input.');
     process.stdout.write(
       JSON.stringify(await operator.review(await decision())) + '\n',
     );
@@ -156,7 +157,7 @@ try {
   process.stderr.write(
     error instanceof AccountError
       ? `${error.message}\n`
-      : 'Ferramenta restrita indisponível; confira permissões, configuração e argumento.\n',
+      : 'Restricted tool unavailable; check permissions, configuration and argument.\n',
   );
   process.exitCode = 1;
 } finally {

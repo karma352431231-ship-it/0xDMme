@@ -48,8 +48,7 @@ function preferences(value: unknown): ProfilePreferences {
   const result = emptyProfile().preferences;
   for (const name of Object.keys(result) as (keyof ProfilePreferences)[]) {
     if (name === 'backupReminder' && data[name] === undefined) continue;
-    if (typeof data[name] !== 'boolean')
-      throw new Error('Preferência inválida.');
+    if (typeof data[name] !== 'boolean') throw new Error('Invalid preference.');
     result[name] = data[name];
   }
   result.lastSeen = false; // Historical encrypted field, no active last-access feature.
@@ -74,7 +73,7 @@ export function decodePrivateProfile(value: string): PrivateProfile {
     const photo = object(data['photo']);
     keys(photo, ['type', 'bytes']);
     if (typeof photo['type'] !== 'string')
-      throw new Error('Foto de perfil inválida.');
+      throw new Error('Invalid profile photo.');
     const bytes = base64(photo['bytes'], profileLimit);
     validatePhoto(photo['type'], bytes);
     result.photo = { type: photo['type'], bytes };
@@ -151,10 +150,10 @@ export async function openProfile(input: {
     ),
   );
   try {
-    if (plaintext.length < 4) throw new Error('Perfil inválido.');
+    if (plaintext.length < 4) throw new Error('Invalid profile.');
     const size = new DataView(plaintext.buffer).getUint32(0);
     if (size > 2048 || size > plaintext.length - 4)
-      throw new Error('Perfil inválido.');
+      throw new Error('Invalid profile.');
     const metadata = object(
       JSON.parse(
         new TextDecoder('utf-8', { fatal: true }).decode(
@@ -165,9 +164,9 @@ export async function openProfile(input: {
     const bytes = plaintext.slice(size + 4);
     const type = metadata['photoType'];
     if (type !== null && typeof type !== 'string')
-      throw new Error('Foto inválida.');
+      throw new Error('Invalid photo.');
     if (type) validatePhoto(type, bytes);
-    else if (bytes.length) throw new Error('Perfil inválido.');
+    else if (bytes.length) throw new Error('Invalid profile.');
     return {
       preferences: preferences(metadata['preferences']),
       photo: type ? { type, bytes } : null,

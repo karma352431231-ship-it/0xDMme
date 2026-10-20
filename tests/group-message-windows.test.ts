@@ -84,7 +84,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
       ),
     }),
     'group-message-confirm': () => {
-      if (data.fail) throw new Error('Confirmação recusada');
+      if (data.fail) throw new Error('Confirmation rejected');
       return {};
     },
   };
@@ -96,7 +96,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     api: (op: string, d: Record<string, unknown>) => {
       data.calls.push({ op, ids: d['ids'] });
       if (op === data.failure)
-        return Promise.reject(new Error('Conferência recusada'));
+        return Promise.reject(new Error('Check rejected'));
       return Promise.resolve(handlers[op]!(d));
     },
     read: (raw: unknown) => {
@@ -123,7 +123,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
   };
   return { c, data, add, participant };
 }
-await test('edição de grupo lê só o objeto alterado e mantém a outra mensagem; retomada igual não lê histórico', async () => {
+await test('group edit reads only the changed object and preserves the other message; identical resume reads no history', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows(),
     root = add('Original'),
@@ -135,7 +135,7 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
     ...root,
     id: crypto.randomUUID(),
     sequence: 3,
-    text: 'Editada',
+    text: 'Edited',
     relation: {
       id: root.id,
       hash: root.hash,
@@ -147,7 +147,7 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
   data.changed = [edit];
   data.revision++;
   const result = await windows.read(c, null);
-  assert.equal(result.views[0]!.text, 'Editada');
+  assert.equal(result.views[0]!.text, 'Edited');
   assert.equal(result.views[1], intact);
   assert.deepEqual(data.decoded.slice(reads), [edit.id]);
   assert.ok(
@@ -166,13 +166,13 @@ await test('edição de grupo lê só o objeto alterado e mantém a outra mensag
     ['group-message-snapshot', 'group-message-confirm'],
   );
 });
-await test('falha de confirmação elimina o candidato e exige conferência antes de reabrir', async () => {
+await test('confirmation failure removes the candidate and requires checking before reopening', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   add('Confirmada');
   await windows.read(c, null);
   data.fail = true;
-  await assert.rejects(windows.read(c, null), /recusada/);
+  await assert.rejects(windows.read(c, null), /rejected|declined/);
   data.fail = false;
   const before = data.calls.length;
   await windows.read(c, null);
@@ -180,7 +180,7 @@ await test('falha de confirmação elimina o candidato e exige conferência ante
     data.calls.slice(before).some((call) => call.op === 'group-message-index'),
   );
 });
-await test('índice grande conserva avanço sem decifrar uma janela parcial', async () => {
+await test('large index preserves progress without decrypting a partial window', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   for (let index = 0; index < 144; index++) add('Sintética');
@@ -193,7 +193,7 @@ await test('índice grande conserva avanço sem decifrar uma janela parcial', as
     10,
   );
 });
-await test('projeção de grupo rejeita edição de outro autor ou original e ignora versões anteriores', async () => {
+await test('group projection rejects another author or original and ignores older edit versions', async () => {
   const { add } = await fixture(),
     root = add('Original'),
     edit = {
@@ -219,7 +219,7 @@ await test('projeção de grupo rejeita edição de outro autor ou original e ig
   assert.throws(
     () =>
       projectGroupMessages([root], [{ ...edit, sender: crypto.randomUUID() }]),
-    /divergente/,
+    /differ|not match/,
   );
   assert.throws(
     () =>
@@ -227,11 +227,11 @@ await test('projeção de grupo rejeita edição de outro autor ou original e ig
         [root],
         [{ ...edit, relation: { ...edit.relation, hash: 'c'.repeat(64) } }],
       ),
-    /divergente/,
+    /differ|not match/,
   );
 });
 
-await test('falha no snapshot descarta o candidato; página anterior não ganha mensagens posteriores', async () => {
+await test('snapshot failure discards the candidate; previous page gains no later messages', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   for (let i = 0; i < 20; i++) add('Original');
@@ -244,7 +244,7 @@ await test('falha no snapshot descarta o candidato; página anterior não ganha 
   assert.equal(old.views.length, 9);
   assert.ok(old.views.every((view) => view.sequence < 10));
   data.failure = 'group-message-snapshot';
-  await assert.rejects(windows.read(c, 10), /recusada/);
+  await assert.rejects(windows.read(c, 10), /rejected|declined/);
   data.failure = null;
   const before = data.calls.length;
   await windows.read(c, 10);
@@ -252,7 +252,7 @@ await test('falha no snapshot descarta o candidato; página anterior não ganha 
     data.calls.slice(before).some((call) => call.op === 'group-message-index'),
   );
 });
-await test('edição em um grupo conserva o candidato de outro grupo sem reler mensagens', async () => {
+await test("edit in one group preserves another group's candidate without rereading messages", async () => {
   const a = await fixture(),
     b = await fixture(a.participant),
     windows = new GroupMessageWindows();

@@ -66,13 +66,13 @@ export function communityText(
   empty = false,
 ): string {
   if (typeof value !== 'string' || value.length > maximum)
-    throw new AccountError(400, 'Texto da comunidade inválido ou muito longo.');
+    throw new AccountError(400, 'Community text invalid or too long.');
   const result = value.replaceAll('\r\n', '\n').trim();
   if (
     (!empty && !result) ||
     /[\p{Cc}\p{Cf}]/u.test(result.replaceAll('\n', '').replaceAll('\t', ''))
   )
-    throw new AccountError(400, 'Texto da comunidade inválido.');
+    throw new AccountError(400, 'Invalid community text.');
   return result;
 }
 export function communityMeta(value: unknown): CommunityMeta {
@@ -80,7 +80,7 @@ export function communityMeta(value: unknown): CommunityMeta {
   keys(data, ['name', 'description', 'rules']);
   const name = communityText(data['name'], 100);
   if (/[\n\t]/u.test(name))
-    throw new AccountError(400, 'Nome deve ocupar uma linha.');
+    throw new AccountError(400, 'The name must be one line.');
   return {
     name: communityName(name),
     description: communityMentionText(data['description'], 1000, true),
@@ -89,12 +89,12 @@ export function communityMeta(value: unknown): CommunityMeta {
 }
 export function communityRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
-    throw new AccountError(400, 'Revisão da comunidade inválida.');
+    throw new AccountError(400, 'Invalid community revision.');
   return value;
 }
 export function communityBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean')
-    throw new AccountError(400, 'Escolha inválida.');
+    throw new AccountError(400, 'Invalid choice.');
   return value;
 }
 export function communityCursor(value: unknown): string | null {
@@ -134,7 +134,7 @@ export function community(value: unknown): Community {
     !Number.isSafeInteger(d['followers']) ||
     d['followers'] < 0
   )
-    throw new AccountError(400, 'Comunidade pública inválida.');
+    throw new AccountError(400, 'Invalid public community.');
   const id = uuid(d['id']);
   return {
     ...communityMeta({
@@ -168,7 +168,7 @@ export function communityPage(value: unknown): CommunityPage {
 }
 export function communityArray(value: unknown): unknown[] {
   if (!Array.isArray(value) || value.length > communityPageSize)
-    throw new AccountError(400, 'Página da comunidade inválida.');
+    throw new AccountError(400, 'Invalid community page.');
   return value;
 }
 function optionalText(value: unknown, maximum: number): string | null {
@@ -183,7 +183,7 @@ export function sanction(value: unknown): Sanction {
     (!Number.isFinite(Date.parse(until)) ||
       new Date(until).toISOString() !== until)
   )
-    throw new AccountError(400, 'Duração inválida.');
+    throw new AccountError(400, 'Invalid duration.');
   return {
     id: uuid(d['id']),
     target: d['target'] === null ? null : publicProfile(d['target']),
@@ -208,7 +208,7 @@ export function communityState(value: unknown): CommunityState {
   ]);
   const role = d['role'];
   if (role !== 'owner' && role !== 'moderator' && role !== 'participant')
-    throw new AccountError(400, 'Função inválida.');
+    throw new AccountError(400, 'Invalid role.');
   let transfer: CommunityState['transfer'] = null;
   if (d['transfer'] !== null) {
     const t = object(d['transfer']);
@@ -256,7 +256,7 @@ function communityDate(value: unknown): string | null {
     !Number.isFinite(Date.parse(value)) ||
     new Date(value).toISOString() !== value
   )
-    throw new AccountError(400, 'Data da comunidade inválida.');
+    throw new AccountError(400, 'Invalid community date.');
   return value;
 }
 export function communityMentionText(

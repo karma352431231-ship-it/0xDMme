@@ -5,7 +5,7 @@ export function mobileLink(
 ): string {
   const target = `${transfer.config.origin}/recovery-entry/${transfer.ticket}/${commitment}`;
   if (!target.startsWith('https://'))
-    throw new Error('O retorno mobile exige HTTPS.');
+    throw new Error('Mobile return requires HTTPS.');
   if (transfer.wallet === 'MetaMask')
     return `https://link.metamask.io/dapp/${target.slice(8)}`;
   const base =

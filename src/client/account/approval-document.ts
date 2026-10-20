@@ -13,10 +13,10 @@ export function takeApprovalDocument(
   try {
     const payload = node?.textContent;
     if (!payload || payload.length > 1024)
-      throw new Error('Pedido de aprovação ausente ou excedido.');
+      throw new Error('Approval request missing or over the limit.');
     const state = serverApproval(JSON.parse(payload) as unknown);
     if (!state || state.request.wallet !== 'Backpack')
-      throw new Error('Pedido de aprovação inválido.');
+      throw new Error('Invalid approval request.');
     remember(state);
     return state;
   } finally {

@@ -8,14 +8,14 @@ import {
 export function appAddress(): string {
   return location.hash || (location.pathname ?? '/') + (location.search ?? '');
 }
-export function navigateApp(href: string): void {
+export function navigateApp(href: string, state: unknown = null): void {
   const target = canonicalAppHash(href);
   if (!target) {
     location.hash = href;
     return;
   }
   if (appAddress() === target) return;
-  history.pushState(null, '', target);
+  history.pushState(state, '', target);
   const targetWindow = window;
   queueMicrotask(() => targetWindow.dispatchEvent(new Event('hashchange')));
 }

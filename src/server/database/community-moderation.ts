@@ -65,15 +65,12 @@ async function sanctionRow(
     `SELECT ${sanctionColumns} FROM hash_talk.community_sanctions WHERE community_id=$1 AND id=$2`,
     [context.row.id, id],
   );
-  if (!result.rows[0]) throw new AccountError(404, 'Sanção indisponível.');
+  if (!result.rows[0]) throw new AccountError(404, 'Sanction unavailable.');
   return result.rows[0];
 }
 function sanctionDays(value: unknown): number | null {
   if (value !== null && value !== 1 && value !== 7 && value !== 30)
-    throw new AccountError(
-      400,
-      'Escolha 1, 7, 30 dias ou banimento reversível.',
-    );
+    throw new AccountError(400, 'Choose 1, 7 or 30 days, or a reversible ban.');
   return value;
 }
 async function applySanction(
@@ -102,7 +99,7 @@ async function applySanction(
       old.reason !== reason ||
       old.days !== days
     )
-      throw new AccountError(409, 'Identificador de sanção já utilizado.');
+      throw new AccountError(409, 'Sanction identifier already used.');
     return;
   }
   currentCommunity(context, communityRevision(data['revision']));
@@ -115,10 +112,10 @@ async function applySanction(
   )
     throw new AccountError(
       403,
-      'Remova a função de gestão antes de aplicar uma sanção.',
+      'Remove the management role before applying a sanction.',
     );
   if (await activeSanction(context, target))
-    throw new AccountError(409, 'Já existe uma sanção ativa para este perfil.');
+    throw new AccountError(409, 'This profile already has an active sanction.');
   await context.client.query(
     "INSERT INTO hash_talk.community_sanctions(id,community_id,target,actor,reason,days,until_at) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6::integer IS NULL THEN NULL ELSE now()+$6*interval '1 day' END)",
     [id, context.row.id, target, context.actor.id, reason, days],
@@ -135,10 +132,10 @@ async function appeal(
   const record = await sanctionRow(context, uuid(data['record'])),
     text = communityText(data['text'], 2000);
   if (record.target !== context.actor.id)
-    throw new AccountError(403, 'Somente o perfil afetado pode contestar.');
+    throw new AccountError(403, 'Only the affected profile can appeal.');
   if (record.appeal === text) return;
   if (record.appeal !== null || record.lifted)
-    throw new AccountError(409, 'Contestação já enviada ou sanção encerrada.');
+    throw new AccountError(409, 'Appeal already sent or sanction ended.');
   await context.client.query(
     'UPDATE hash_talk.community_sanctions SET appeal=$2 WHERE id=$1',
     [record.id, text],
@@ -158,10 +155,10 @@ async function decide(
   if (record.decision === decision && record.lifted === lift) return;
   currentCommunity(context, communityRevision(data['revision']));
   if (record.decision !== null && !lift)
-    throw new AccountError(409, 'Contestação já revisada.');
+    throw new AccountError(409, 'Appeal already reviewed.');
   if (!record.appeal && !lift)
-    throw new AccountError(400, 'Revise uma contestação ou retire a sanção.');
-  if (record.lifted) throw new AccountError(409, 'Sanção já encerrada.');
+    throw new AccountError(400, 'Review an appeal or lift the sanction.');
+  if (record.lifted) throw new AccountError(409, 'Sanction already ended.');
   await context.client.query(
     'UPDATE hash_talk.community_sanctions SET decision=$2,lifted=$3 WHERE id=$1',
     [record.id, decision, lift],
@@ -211,7 +208,7 @@ async function report(
       old.author !== context.actor.id ||
       old.reason !== reason
     )
-      throw new AccountError(409, 'Identificador de denúncia já utilizado.');
+      throw new AccountError(409, 'Report identifier already used.');
     return;
   }
   const open = await context.client.query(
@@ -221,7 +218,7 @@ async function report(
   if (open.rowCount)
     throw new AccountError(
       409,
-      'Você já tem uma denúncia aberta nesta comunidade. Acompanhe sua análise.',
+      'You already have an open report in this community. Track its review.',
     );
   await context.client.query(
     'INSERT INTO hash_talk.community_reports(id,community_id,author,reason) VALUES($1,$2,$3,$4)',
@@ -242,10 +239,10 @@ async function resolve(
   );
   const row = result.rows[0],
     decision = communityText(data['decision'], 1000);
-  if (!row) throw new AccountError(404, 'Denúncia indisponível.');
+  if (!row) throw new AccountError(404, 'Report unavailable.');
   if (row.resolved && row.decision === decision) return;
   currentCommunity(context, communityRevision(data['revision']));
-  if (row.resolved) throw new AccountError(409, 'Denúncia já encerrada.');
+  if (row.resolved) throw new AccountError(409, 'Report already closed.');
   await context.client.query(
     'UPDATE hash_talk.community_reports SET resolved=true,decision=$2 WHERE id=$1',
     [row.id, decision],
@@ -316,6 +313,6 @@ export async function communityModeration(
       await resolve(context, data, capacity);
       return undefined;
     default:
-      throw new AccountError(404, 'Operação da comunidade indisponível.');
+      throw new AccountError(404, 'Community operation unavailable.');
   }
 }

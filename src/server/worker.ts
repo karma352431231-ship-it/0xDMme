@@ -24,7 +24,7 @@ async function shutdown(): Promise<void> {
 try {
   const role = process.argv[2];
   if (!['ranking', 'content', 'public'].includes(role ?? ''))
-    throw new Error('Worker inválido.');
+    throw new Error('Invalid worker.');
   const config = readWebConfiguration(process.env);
   const moderation = await readPoseModerationConfiguration(process.env);
   database = new Database(
@@ -58,11 +58,11 @@ try {
   };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
-  process.stdout.write(`0xDMme: worker ${role} iniciado.\n`);
+  process.stdout.write(`0xDMme: worker ${role} started.\n`);
 } catch {
   await shutdown().catch(() => {});
   process.stderr.write(
-    'Worker não iniciado; confira esquema e configuração próprios.\n',
+    'Worker did not start; check its schema and configuration.\n',
   );
   process.exitCode = 1;
 }

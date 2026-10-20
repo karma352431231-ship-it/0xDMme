@@ -44,13 +44,15 @@ let shutdown: (() => Promise<void>) | undefined;
 try {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
-    throw new Error('Mobile temporário exige banco de teste exclusivo.');
+    throw new Error(
+      'Temporary mobile setup requires a dedicated test database.',
+    );
   const mobile = await readMobileWebConfiguration();
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
   const recoveryDocument = assets.get('/recovery.html')?.content;
-  if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
-  if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
+  if (!recoveryDocument) throw new Error('Recovery document missing.');
+  if (!approvalDocument) throw new Error('Approval document missing.');
   const moderation = await readPoseModerationConfiguration(process.env);
   database = new Database(
     config.databaseUrl,
@@ -125,11 +127,14 @@ try {
       publicProfiles,
     ),
     communities: createCommunityHandler({
+      rankingSignals: database.workSignals,
       origin: mobile.origin,
       views: (input) => database!.communityViews.observe(input),
       shareClicks: (input) => database!.communityViews.shareClicks(input),
-      accounts: (period, after) =>
-        database!.communityRanking.accountsPage(period, after),
+      accounts: (period, after, order) =>
+        database!.communityRanking.accountsPage(period, after, {
+          order: order ?? 'trending',
+        }),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),
       list: (after) => communities.list(after),
@@ -205,19 +210,19 @@ try {
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
   await database.workSignals.start().catch(() => {
-    process.stderr.write('Sinalização indisponível; reconexão agendada.\n');
+    process.stderr.write('Signaling unavailable; reconnection scheduled.\n');
   });
   background.start();
   notifications.start();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(
-    'Base mobile temporária iniciada; acesso em .local/WEB_MOBILE_ACESSO.md.\n',
+    'Temporary mobile setup started; access details in .local/WEB_MOBILE_ACESSO.md.\n',
   );
 } catch {
   if (shutdown) await shutdown();
   else await database?.close();
   process.stderr.write(
-    'Base mobile indisponível. Confira banco de teste e certificado/configuração privada.\n',
+    'Mobile setup unavailable. Check the test database and private certificate/configuration.\n',
   );
   process.exitCode = 1;
 }

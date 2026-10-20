@@ -39,7 +39,7 @@ export class CallSecurity {
     this.identities.clear();
   }
   private guard(g: number): void {
-    if (g !== this.generation) throw new Error('Identidade da chamada mudou.');
+    if (g !== this.generation) throw new Error('Call identity changed.');
   }
   async directory(peer: string): Promise<DirectoryEvent> {
     const until = Date.now() + leaseMs,
@@ -91,12 +91,12 @@ export class CallSecurity {
   ) {
     const g = this.generation;
     if ((await eventHash(peer)) !== input.view.peerDirectory)
-      throw new Error('Aparelhos do contato mudaram.');
+      throw new Error("The contact's devices changed.");
     const packets = [];
     for (const id of input.devices) {
       this.guard(g);
       const device = peer.devices.find((d) => d.id === id);
-      if (!device) throw new Error('Aparelho do contato não autorizado.');
+      if (!device) throw new Error("The contact's device is not authorized.");
       const body: Omit<CallDescription, 'signature'> = {
         id: input.view.id,
         from: a.session.accountId,
@@ -129,15 +129,15 @@ export class CallSecurity {
     const g = this.generation;
     return this.identities.withPeer(view.peer, async (a, peer) => {
       if ((await eventHash(peer)) !== view.peerDirectory)
-        throw new Error('Diretório da chamada divergente.');
+        throw new Error('Call directory does not match.');
       const envelope = view.signal ?? view.invitation;
       if (!envelope || !a.openSecret)
-        throw new Error('Sinalização protegida indisponível.');
+        throw new Error('Protected signaling unavailable.');
       const d = callDescription(
         await a.openSecret(envelope, callContext(view.id, a.session.deviceId)),
       );
       const signer = peer.devices.find((p) => p.id === d.fromDevice);
-      if (!signer) throw new Error('Aparelho do contato revogado.');
+      if (!signer) throw new Error("The contact's device was revoked.");
       await verifyCallDescription(
         d,
         {
@@ -180,7 +180,7 @@ export function assertDescription(c: {
     d.to !== c.account ||
     d.toDevice !== c.device
   )
-    throw new Error('Extremos da chamada divergentes.');
+    throw new Error('Call endpoints do not match.');
   assertNegotiation(d, view, c.directory, c.invitation === true);
 }
 function assertInvitation(c: Parameters<typeof assertDescription>[0]): void {
@@ -189,7 +189,7 @@ function assertInvitation(c: Parameters<typeof assertDescription>[0]): void {
     c.invitation &&
     (view.caller || !view.invitation || view.signal || view.sequence !== 0)
   )
-    throw new Error('Convite de chamada divergente.');
+    throw new Error('Call invitation mismatch.');
 }
 function assertNegotiation(
   d: CallDescription,
@@ -203,5 +203,5 @@ function assertNegotiation(
     d.toDirectory !== directory ||
     d.type !== (invitation ? 'invite' : view.caller ? 'answer' : 'offer')
   )
-    throw new Error('Negociação antiga ou de outro aparelho.');
+    throw new Error('Negotiation outdated or from another device.');
 }

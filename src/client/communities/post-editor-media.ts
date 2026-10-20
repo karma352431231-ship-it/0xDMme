@@ -53,10 +53,10 @@ function gifControl(
     gif = el('button', 'GIF', 'post-gif-button'),
     status = el('span', '', 'post-gif-status');
   emoji.type = gif.type = 'button';
-  emoji.setAttribute('aria-label', t('Escolher emoji'));
+  emoji.setAttribute('aria-label', t('Choose emoji'));
   emoji.title = t('Emoji');
   emoji.append(communityIcon('emoji'));
-  gif.setAttribute('aria-label', t('Escolher GIF'));
+  gif.setAttribute('aria-label', t('Choose GIF'));
   gif.title = 'GIF';
   status.setAttribute('role', 'status');
   controls.prepend(emoji, gif, status);
@@ -77,7 +77,7 @@ function gifControl(
       if (appendGif(input.text, url)) close();
       else
         host.querySelector('[data-gif-status]')!.textContent = t(
-          'Remova um pouco do texto para adicionar o GIF.',
+          'Remove some text to add the GIF.',
         );
     });
   let pending = false;
@@ -93,7 +93,7 @@ function gifControl(
         const gifs = available ? search : null;
         if (!gifs && start === 'gif') {
           status.textContent = t(
-            'Busca de GIFs indisponível. Você pode anexar um arquivo GIF.',
+            'GIF search unavailable. You can attach a GIF file.',
           );
           return;
         }
@@ -106,7 +106,7 @@ function gifControl(
       })
       .catch(() => {
         if (!input.access.signal.aborted)
-          status.textContent = t('Não foi possível abrir o painel.');
+          status.textContent = t('Could not open the panel.');
       })
       .finally(() => {
         pending = false;

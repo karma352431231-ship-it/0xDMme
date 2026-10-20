@@ -83,14 +83,15 @@ async function bundle(
     logLevel: 'silent',
   });
   const output = result.outputFiles[0];
-  if (!output) throw new Error('Build ausente.');
+  if (!output) throw new Error('Build missing.');
   for (const path of Object.keys(result.metafile.inputs)) inputs.add(path);
   return output.contents;
 }
 
 async function pruneGeneratedAssets(): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
-  if (entries.length > 128) throw new Error('Diretório de build excedido.');
+  if (entries.length > 128)
+    throw new Error('Build directory exceeds the limit.');
   for (const entry of entries) {
     const original = entry.name.endsWith('.br')
       ? entry.name.slice(0, -3)
@@ -102,7 +103,7 @@ async function pruneGeneratedAssets(): Promise<void> {
       files.has(entry.name)
     )
       continue;
-    if (!entry.isFile()) throw new Error('Asset gerado irregular.');
+    if (!entry.isFile()) throw new Error('Invalid generated asset.');
     await unlink(new URL(entry.name, directory));
   }
 }
@@ -229,7 +230,7 @@ asset(
 for (const [name, expected] of fonts) {
   const bytes = await readFile(new URL(`vendor/fonts/${name}`, root));
   if (createHash('sha256').update(bytes).digest('hex') !== expected)
-    throw new Error('Fonte divergente.');
+    throw new Error('Source mismatch.');
   asset(name, bytes);
 }
 for (const name of [
@@ -287,7 +288,7 @@ const worker = workerSource
       Object.fromEntries(
         paths.map((path) => {
           const bytes = files.get(path === '/' ? 'index.html' : path.slice(1));
-          if (!bytes) throw new Error('Asset do Worker ausente.');
+          if (!bytes) throw new Error('Worker asset missing.');
           return [path, createHash('sha256').update(bytes).digest('hex')];
         }),
       ),
@@ -304,7 +305,7 @@ for (const [name, bytes] of files)
 const manifest = [...files.keys()].map((name) => {
   const extension = name.slice(name.lastIndexOf('.'));
   const type = mime.get(extension);
-  if (!type) throw new Error('MIME ausente.');
+  if (!type) throw new Error('MIME type missing.');
   return {
     path: `/${name}`,
     type,
@@ -322,4 +323,4 @@ await build({
   outfile: 'dist/media-worker/worker.mjs',
   sourcemap: false,
 });
-process.stdout.write(`Build web local: ${files.size} assets públicos.\n`);
+process.stdout.write(`Local web build: ${files.size} public assets.\n`);

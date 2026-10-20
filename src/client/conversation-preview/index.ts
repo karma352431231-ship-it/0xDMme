@@ -38,7 +38,7 @@ function previewText(input: {
   const label = media.voice
     ? t('preview.audio')
     : media.image
-      ? t('Foto')
+      ? t('Photo')
       : media.name;
   return input.displayText ? `${label} · ${input.displayText}` : label;
 }

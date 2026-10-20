@@ -273,7 +273,7 @@ for (const failure of [
     }
     await assert.rejects(
       f.sync.open(id),
-      /Revoked|Removal check failed|removida|corrompido|Sessão/u,
+      /Revoked|Removal check failed|removed|corrupted|Session/u,
     );
     assert.equal(f.counts().requests, 0);
   });
@@ -281,10 +281,10 @@ for (const failure of [
 await test('object pages reject duplicates and excess work before acquiring authority', async (t) => {
   const f = await fixture(t, 1),
     id = [...f.cached.keys()][0]!;
-  await assert.rejects(f.sync.openMany([id, id]), /Página/u);
+  await assert.rejects(f.sync.openMany([id, id]), /[Pp]age/u);
   await assert.rejects(
     f.sync.openMany(Array.from({ length: 17 }, () => crypto.randomUUID())),
-    /Página/u,
+    /[Pp]age/u,
   );
   assert.equal((await f.sync.openMany([])).length, 0);
   assert.equal(f.counts().authorities, 0);
@@ -298,7 +298,7 @@ await test('cleanup discovered after decryption rejects the entire cached page',
     return Promise.resolve();
   });
   t.mock.method(f.module.RemovalIndex.prototype, 'has', () => reads >= 2);
-  await assert.rejects(f.book.page(), /removida/u);
+  await assert.rejects(f.book.page(), /removed/u);
   assert.equal(reads, 2);
   assert.equal(f.counts().requests, 0);
 });
@@ -309,7 +309,7 @@ await test('explicit offline reading opens only available ciphertext and never s
   f.context.navigator.onLine = false;
   assert.match(await f.sync.open(id), /Synthetic/u);
   f.cached.clear();
-  await assert.rejects(f.sync.open(id), /Reconecte/u);
+  await assert.rejects(f.sync.open(id), /Reconnect/u);
   assert.equal(f.counts().requests, 0);
 });
 
@@ -317,7 +317,7 @@ await test('an entry from another account cannot be opened using a cached block'
   const f = await fixture(t, 1),
     entry = [...f.sync.entries.values()][0]!;
   entry.commit.accountId = crypto.randomUUID();
-  await assert.rejects(f.sync.open(entry.commit.id), /outra conta/u);
+  await assert.rejects(f.sync.open(entry.commit.id), /another account/u);
   assert.equal(f.counts().requests, 0);
 });
 
@@ -469,7 +469,7 @@ await test('queued refresh failures reach every caller and allow a new attempt',
 await test('session replacement prevents joining a queued refresh from the old session', async (t) => {
   const f = await fixture(t, 0),
     queue = holdAuthorities(t, f);
-  const old = assert.rejects(f.sync.refresh(), /Sessão/u);
+  const old = assert.rejects(f.sync.refresh(), /[Ss]ession/u);
   f.sync.setSession({ ...f.sync.session!, csrf: 'replacement' });
   const current = f.sync.refresh();
   const queued = queue.jobs.length;

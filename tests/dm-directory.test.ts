@@ -15,7 +15,7 @@ class DirectoryNode extends ChatNode {
     ]);
   }
 }
-await test('lista pública atualiza a prévia sem abrir chat, reutiliza a linha e recusa resultado após invalidação', async (t) => {
+await test('public list updates previews without opening chat, reuses the row and rejects results after invalidation', async (t) => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,

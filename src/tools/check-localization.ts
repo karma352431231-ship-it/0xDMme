@@ -3,11 +3,22 @@ import path from 'node:path';
 import ts from 'typescript';
 import { catalog } from '../shared/i18n/catalog.ts';
 import {
+  legacyCatalogKeys,
   localizationExemptions,
   routeIdentifiers,
 } from './localization-exemptions.ts';
 
 const problems: string[] = [];
+const identifierKey = /^[a-z0-9]+(?:[.-][a-z0-9]+)+(?: \{\d\})*$/u;
+for (const [source, [english]] of Object.entries(catalog))
+  if (
+    source !== english &&
+    !identifierKey.test(source) &&
+    !legacyCatalogKeys.has(source)
+  )
+    problems.push(
+      `src/shared/i18n/catalog.ts: Key must be its English text or an area.name identifier: ${source}`,
+    );
 const portuguese =
   /[áéíóúãõâêôçÁÉÍÓÚÃÕÂÊÔÇ]|\b(?:configurando|recuperando|enviada|recebida|respondeu|publicou|respostas|dias|minutos|participantes|seguidores|lida|criar|mensagens|conversas|explorar|privacidade|nome|sobre|salvos|moderador|aprovar|removido|procurar|editar|excluir|chamadas|perfil|contatos|cofre|salvar|buscar|enviar|conta|clara|teste|todos|grupos|favoritos|arquivadas|minhas|copiar)\b/iu;
 const staticCatalog = new Set(

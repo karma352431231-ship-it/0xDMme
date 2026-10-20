@@ -38,10 +38,10 @@ export class RemovalIndex {
       await this.acceptPage(a, page);
       if (page['next'] === null) return;
       if (page['next'] !== this.after)
-        throw new Error('Paginação de remoções divergente.');
+        throw new Error('Removal pagination does not match.');
     }
     throw new Error(
-      'Continue sincronizando as remoções pessoais antes de abrir conteúdo.',
+      'Continue syncing personal removals before opening content.',
     );
   }
   private async loadLocal(a: VaultAuthority): Promise<void> {
@@ -58,18 +58,17 @@ export class RemovalIndex {
       if (page.next === null) this.localComplete = true;
     }
     if (!this.localComplete)
-      throw new Error('Continue carregando as remoções pessoais.');
+      throw new Error('Continue loading personal removals.');
   }
   private async acceptPage(
     a: VaultAuthority,
     page: Record<string, unknown>,
   ): Promise<void> {
     if (!Array.isArray(page['items']) || page['items'].length > 16)
-      throw new Error('Página de remoções inválida.');
+      throw new Error('Invalid removals page.');
     for (const raw of page['items']) {
       const row = personalRemoval(raw);
-      if (row.sequence <= this.after)
-        throw new Error('Ordem de remoções inválida.');
+      if (row.sequence <= this.after) throw new Error('Invalid removal order.');
       await verifyRemoval(a.session.accountId, row, a.events);
       await localPut(
         `removals:${a.session.accountId}`,
@@ -114,7 +113,7 @@ export async function cleanPersonal(
       typeof data['released'] !== 'number'
     )
       throw new Error(
-        'Confirmação de limpeza inválida. Confira o estado antes de repetir.',
+        'Invalid cleanup confirmation. Check the state before retrying.',
       );
     await saveReceipts(a, data['items'], items.slice(start, start + 8));
     used = data['used'];
@@ -145,20 +144,20 @@ async function saveReceipts(
 ): Promise<void> {
   if (!Array.isArray(input) || input.length !== items.length)
     throw new Error(
-      'Comprovantes de limpeza incompletos. Confira o estado antes de continuar.',
+      'Cleanup receipts incomplete. Check the state before continuing.',
     );
   const seen = new Set<string>();
   for (const raw of input) {
     const row = personalRemoval(raw);
     const id = `${row.kind}:${row.id}`;
-    if (seen.has(id)) throw new Error('Comprovante repetido.');
+    if (seen.has(id)) throw new Error('Duplicate receipt.');
     seen.add(id);
     if (
       !items.some(
         (i) => i.kind === row.kind && i.id === row.id && i.hash === row.hash,
       )
     )
-      throw new Error('Comprovante divergente.');
+      throw new Error('Receipt does not match.');
     await verifyRemoval(a.session.accountId, row, a.events);
     await localPut(
       `removals:${a.session.accountId}`,

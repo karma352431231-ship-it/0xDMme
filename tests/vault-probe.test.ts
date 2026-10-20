@@ -19,7 +19,7 @@ const snapshot = {
   ],
 };
 
-await test('relay recebe somente cofre cifrado; leitor limpo recupera com segredo correto', async () => {
+await test('relay receives only encrypted vault; clean reader recovers with the correct secret', async () => {
   const relay = new ProbeRelay();
   const secret = newRecoverySecret();
   const sealed = await sealHistory(snapshot, secret);
@@ -29,7 +29,7 @@ await test('relay recebe somente cofre cifrado; leitor limpo recupera com segred
     false,
   );
   assert.equal(relay.inspect().includes(secret), false);
-  // O leitor usa apenas envelope, segredo e identidade esperada, sem o objeto que cifrou.
+  // Reader uses only the envelope, secret and expected identity, without the encrypting object.
   assert.deepEqual(
     await openHistory(
       relay.dispatch('alice', 'vault-load', '{}'),
@@ -40,12 +40,12 @@ await test('relay recebe somente cofre cifrado; leitor limpo recupera com segred
   );
 });
 
-await test('segredo errado, ciphertext, encapsulamento ou cabeçalho alterados falham', async () => {
+await test('wrong secret or altered ciphertext, encapsulation or header fails', async () => {
   const secret = newRecoverySecret();
   const sealed = await sealHistory(snapshot, secret);
   await assert.rejects(
     openHistory(JSON.stringify(sealed), newRecoverySecret(), owner),
-    /Cofre rejeitado/,
+    /Vault rejected/,
   );
   for (const field of ['ciphertext', 'wrappedKey', 'iv', 'wrapIv'] as const) {
     const bytes = decode(sealed[field], 32_016);
@@ -56,20 +56,20 @@ await test('segredo errado, ciphertext, encapsulamento ou cabeçalho alterados f
         secret,
         owner,
       ),
-      /Cofre rejeitado/,
+      /Vault rejected/,
     );
   }
   await assert.rejects(
     openHistory(JSON.stringify({ ...sealed, revision: 2 }), secret, owner),
-    /Cofre rejeitado/,
+    /Vault rejected/,
   );
   await assert.rejects(
     openHistory(JSON.stringify(sealed), secret, '@bob:probe.invalid'),
-    /outra identidade/,
+    /another (?:Olm )?identity/,
   );
 });
 
-await test('backup histórico antigo é permitido e não autoriza dispositivo novo', async (t) => {
+await test('old historical backup is allowed and grants no authority to a new device', async (t) => {
   const secret = newRecoverySecret();
   const older = await sealHistory(snapshot, secret);
   const newer = await sealHistory({ ...snapshot, revision: 2 }, secret);
@@ -84,20 +84,20 @@ await test('backup histórico antigo é permitido e não autoriza dispositivo no
   t.after(() => fresh.close());
   await assert.rejects(
     fresh.send('Histórico restaurado não autoriza envio'),
-    /Confirme a chave/,
+    /Confirm the other client's key/,
   );
 });
 
-await test('campos de permissão, versões desconhecidas e entradas malformadas são rejeitados', async () => {
+await test('permission fields, unknown versions and malformed inputs are rejected', async () => {
   const secret = newRecoverySecret();
   await assert.rejects(
     sealHistory({ ...snapshot, messages: [{ id: '1', body: '' }] }, secret),
-    /Texto inválido/,
+    /Invalid text/,
   );
   const sealed = await sealHistory(snapshot, secret);
   await assert.rejects(
     openHistory(JSON.stringify({ ...sealed, version: 2 }), secret, owner),
-    /não suportado/,
+    /Unsupported/,
   );
   await assert.rejects(
     openHistory(
@@ -105,7 +105,7 @@ await test('campos de permissão, versões desconhecidas e entradas malformadas 
       secret,
       owner,
     ),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   const relay = new ProbeRelay();
   assert.throws(
@@ -115,11 +115,11 @@ await test('campos de permissão, versões desconhecidas e entradas malformadas 
         'vault-save',
         JSON.stringify({ ...sealed, secret }),
       ),
-    /Campo não permitido/,
+    /Field not allowed/,
   );
   relay.dispatch('alice', 'vault-save', JSON.stringify(sealed));
   assert.throws(
     () => relay.dispatch('alice', 'vault-save', JSON.stringify(sealed)),
-    /desatualizada/,
+    /Outdated/,
   );
 });

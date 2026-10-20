@@ -16,7 +16,7 @@ export function syntheticRecoveryControls(): void {
       const response = await fetch('/api/account/session', {
         cache: 'no-store',
       });
-      if (!response.ok) throw new Error('Sessão indisponível.');
+      if (!response.ok) throw new Error('Session unavailable.');
       const session = accountSession(await response.json());
       const logout = await fetch('/api/account/logout', {
         method: 'POST',
