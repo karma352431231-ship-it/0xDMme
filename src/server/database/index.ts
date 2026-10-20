@@ -217,6 +217,7 @@ const migrations = [
   '091-group-media-parts.sql',
   '092-account-ranking-windows.sql',
   '093-profile-directory-orders.sql',
+  '094-single-use-contact-invitations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -324,12 +325,13 @@ export class Database {
     );
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity, writers.vault);
-    this.contacts = new ContactStore(
-      this.pool,
-      this.changes,
-      role === 'worker',
-      this.contentAllocations,
-    );
+    this.contacts = new ContactStore({
+      pool: this.pool,
+      changes: this.changes,
+      relayChanges: role === 'worker',
+      allocations: this.contentAllocations,
+      capacity: contentCapacity,
+    });
     this.publicModeration = new PublicModerationStore(
       this.pool,
       contentCapacity,

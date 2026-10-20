@@ -10,6 +10,8 @@ import {
 } from '../../shared/devices/index.ts';
 import { contactPageSize } from '../../shared/contacts/index.ts';
 import { lockContactAdmission } from './contact-admission.ts';
+import { ContactInvitations } from './contact-invitations.ts';
+import type { ContentCapacity } from './content-capacity.ts';
 import type { ContactAccess, ContactPeer } from './contact-admission.ts';
 import type {
   ContactList,
@@ -45,25 +47,34 @@ export async function walletHash(wallet: WalletContact): Promise<string> {
 function unavailable(): never {
   throw new AccountError(404, 'Contact unavailable for this operation.');
 }
+function existingRequest(relation: Relation | null, actor: string): boolean {
+  return (
+    relation?.state === 'approved' ||
+    (relation?.state === 'pending' && relation.requester === actor)
+  );
+}
 export class ContactStore {
   private readonly pool: pg.Pool;
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
   private readonly relayChanges: boolean;
   private readonly allocations: ContentWriteAllocations | undefined;
+  private readonly invitations: ContactInvitations;
   private readonly pendingChanges = new WeakMap<
     pg.PoolClient,
     { accounts: Set<string>; authorization: boolean; removed: boolean }
   >();
-  constructor(
-    pool: pg.Pool,
-    changes?: import('./changes.ts').DatabaseChanges,
-    relayChanges = false,
-    allocations?: ContentWriteAllocations,
-  ) {
-    this.pool = pool;
-    this.changes = changes;
-    this.relayChanges = relayChanges;
-    this.allocations = allocations;
+  constructor(input: {
+    pool: pg.Pool;
+    changes?: import('./changes.ts').DatabaseChanges;
+    relayChanges: boolean;
+    allocations: ContentWriteAllocations | undefined;
+    capacity: ContentCapacity;
+  }) {
+    this.pool = input.pool;
+    this.changes = input.changes;
+    this.relayChanges = input.relayChanges;
+    this.allocations = input.allocations;
+    this.invitations = new ContactInvitations(input.capacity);
   }
   /** Coordinated schema operations register hints; only a successful COMMIT publishes them. */
   changed(
@@ -255,7 +266,16 @@ export class ContactStore {
     const controls = await this.controls(client, target.accountId);
     if (controls.mode === 'contacts') return false;
     if (controls.mode === 'wallet') return true;
-    return invite !== null && controls.inviteHash === (await digest(invite));
+    return (
+      invite !== null &&
+      this.invitations.valid(client, {
+        owner: target.accountId,
+        token: invite,
+        ...(existingRequest(relation, actor.accountId)
+          ? { actor: actor.accountId }
+          : {}),
+      })
+    );
   }
   async state(authority: ContactAuthority): Promise<Controls> {
     return this.withMessageRead(authority, (c) =>
@@ -502,19 +522,63 @@ export class ContactStore {
       if (!exists.rowCount) return null;
       const actor = await this.account(client, authority.session.accountId),
         target = await this.account(client, owner);
-      const controls = await this.controls(client, owner);
       // Revocation applies even when discovery by wallet remains enabled.
-      if (controls.inviteHash !== (await digest(token))) return null;
+      if (!(await this.invitations.valid(client, { owner, token })))
+        return null;
       return (await this.eligible(client, actor, target, token))
         ? target
         : null;
     });
+  }
+  async approvedPeer(
+    authority: ContactAuthority,
+    target: string,
+  ): Promise<Peer> {
+    return this.withMessageRead(authority, async (client) => {
+      if (!(await this.allowed(client, authority.session.accountId, target)))
+        unavailable();
+      return this.account(client, target);
+    });
+  }
+  async issueInvitation(
+    authority: ContactAuthority,
+    hash: string,
+  ): Promise<{ expiresAt: number }> {
+    return this.transaction(authority, async (client) => ({
+      expiresAt: await this.invitations.issue(
+        client,
+        authority.session.accountId,
+        hash,
+      ),
+    }));
+  }
+  async revokeInvitation(
+    authority: ContactAuthority,
+    hash: string,
+  ): Promise<void> {
+    return this.transaction(authority, (client) =>
+      this.invitations.revoke(client, authority.session.accountId, hash),
+    );
+  }
+  async expireInvitations(): Promise<void> {
+    return this.withMaintenance((client) => this.invitations.clean(client));
+  }
+  async nextInvitationExpiry(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      'SELECT min(expires_at) AS at FROM hash_talk.contact_invitations',
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
   }
   async configure(
     authority: ContactAuthority,
     input: { revision: number; mode: DiscoveryMode; inviteHash: string | null },
   ): Promise<Controls> {
     return this.transaction(authority, async (client) => {
+      if (input.inviteHash !== null)
+        throw new AccountError(
+          400,
+          'Generate a single-use invitation instead.',
+        );
       const id = authority.session.accountId;
       await this.expect(client, id, input.revision);
       const current = await this.controls(client, id);
@@ -541,20 +605,50 @@ export class ContactStore {
         target = await this.account(client, input.target);
       if (!(await this.eligible(client, actor, target, input.invite)))
         unavailable();
+      const relation = await this.relation(client, id, target.accountId);
+      await this.requireInvitation(client, {
+        owner: target.accountId,
+        actor: id,
+        token: input.invite,
+        relation,
+      });
+      if (!this.needsRequest(relation, id)) return;
       if (
         input.invite !== null &&
-        (await this.controls(client, target.accountId)).inviteHash !==
-          (await digest(input.invite))
+        !(await this.invitations.consume(client, {
+          owner: target.accountId,
+          token: input.invite,
+          actor: id,
+        }))
       )
         unavailable();
-      const relation = await this.relation(client, id, target.accountId);
-      if (!this.needsRequest(relation, id)) return;
       await client.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'pending') ON CONFLICT(lo,hi) DO UPDATE SET requester=$1,state='pending'",
         [id, target.accountId],
       );
       await this.bump(client, [id, target.accountId]);
     });
+  }
+  private async requireInvitation(
+    client: pg.PoolClient,
+    input: {
+      owner: string;
+      actor: string;
+      token: string | null;
+      relation: Relation | null;
+    },
+  ): Promise<void> {
+    if (input.token === null) return;
+    if (
+      !(await this.invitations.valid(client, {
+        owner: input.owner,
+        token: input.token,
+        ...(existingRequest(input.relation, input.actor)
+          ? { actor: input.actor }
+          : {}),
+      }))
+    )
+      unavailable();
   }
   private needsRequest(relation: Relation | null, id: string): boolean {
     if (!relation) return true;

@@ -150,6 +150,29 @@ await test('directory opens 16 contacts per page and concurrent removal wins unt
   assert.equal((await book.page()).items[0]?.contact.removed, true);
   await assert.rejects(book.page(crypto.randomUUID()), /Contacts have changed/);
 });
+await test('notification aliases open only the canonical contact and share directory conflict and identity rules', async (t) => {
+  const f = fixture(t),
+    book = new AddressBook(f.sync),
+    value = contact(1),
+    peer = { ...value, accountId: crypto.randomUUID(), name: 'Sender' };
+  await f.add(contact(2), 10);
+  await f.add({ ...value, alias: 'Older' }, 1);
+  const latest = await f.add({ ...value, alias: 'Current' }, 2);
+  assert.equal(await book.aliasFor(peer), 'Current');
+  assert.equal(f.reads.length, 2, 'Unrelated contact payloads stay unopened');
+  assert.equal((await book.page()).items[1]?.contact.alias, 'Current');
+  for (const changed of [
+    { ...value, accountId: crypto.randomUUID() },
+    { ...value, address: contact(3).address },
+    { ...value, removed: true },
+  ]) {
+    f.values.set(latest.commit.id, JSON.stringify(changed));
+    assert.equal(await book.aliasFor(peer), '');
+  }
+  f.values.set(latest.commit.id, JSON.stringify(value));
+  await f.add({ ...value, removed: true }, 0);
+  assert.equal(await book.aliasFor(peer), '', 'Concurrent removal wins');
+});
 await test('account change during opening cannot restore previous account aliases or wallets', async (t) => {
   const f = fixture(t);
   await f.add(contact(1), 1);

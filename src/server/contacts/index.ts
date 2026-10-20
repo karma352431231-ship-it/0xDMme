@@ -44,6 +44,18 @@ export class ContactService {
       },
       list: (a, d) => this.list(a, d),
       discover: (a, d) => store.discover(a, walletContact(d)),
+      peer: (a, d) => {
+        keys(d, ['target']);
+        return store.approvedPeer(a, uuid(d['target']));
+      },
+      'issue-invitation': (a, d) => {
+        keys(d, ['hash']);
+        return store.issueInvitation(a, token(d['hash']));
+      },
+      'revoke-invitation': (a, d) => {
+        keys(d, ['hash']);
+        return store.revokeInvitation(a, token(d['hash']));
+      },
       invite: (a, d) => {
         const i = invitation(d);
         return store.inspectInvite(a, i.owner, i.token);

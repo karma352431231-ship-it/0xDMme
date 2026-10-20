@@ -3,6 +3,7 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { TextSendQueue } from './text-send.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
@@ -276,6 +277,26 @@ export function startMessages(
     unreadChanged: (count) => options.unreadChanged?.(count),
     presence: renderPresence,
   });
+  const activity = new ConversationActivity({
+    generation: () => generation,
+    current: (current) => current === generation && !!session && connected(),
+    peers: () =>
+      directoryData.peers.map((peer) => ({
+        id: peer.accountId,
+        settings: directoryUi.contactOrganizationId(
+          agenda.find(peer),
+          peer.accountId,
+        ),
+        ...(peer.localOnly ? { localOnly: true } : {}),
+      })),
+    daily,
+    previous: () => states,
+    publish: (next) => {
+      states = next;
+      renderContacts();
+    },
+    alert: () => sound.alert('direct'),
+  });
   function selectGroup(): void {
     if (voice.active || attachments.selected?.voice)
       throw new Error(
@@ -373,6 +394,7 @@ export function startMessages(
     },
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
+    unread: () => activity.refresh(),
     presence: dailyTick,
     refresh,
     changes: refreshChangedSelected,
@@ -1244,42 +1266,13 @@ export function startMessages(
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
     const current = generation;
+    await activity.refresh();
+    if (current !== generation || !connected()) return;
     await pushSettings?.refresh();
     await daily.configure(preferences());
     await daily.heartbeat(document.visibilityState === 'visible');
     if (current !== generation || !connected()) return;
-    const old = states,
-      next = await daily.states(directoryData.peers.map((p) => p.accountId));
-    if (current !== generation) return;
-    await silenceArchived(next);
-    if (current !== generation) return;
-    states = next;
-    alertUnread(old);
-    renderContacts();
     if (document.visibilityState === 'visible') await historyUi.markRead(daily);
-  }
-  async function silenceArchived(next: Map<string, PeerState>): Promise<void> {
-    for (const peer of directoryData.peers) {
-      const state = next.get(peer.accountId);
-      if (!state || peer.localOnly) continue;
-      next.set(
-        peer.accountId,
-        await daily.keepArchivedSilent(
-          peer.accountId,
-          directoryUi.contactOrganizationId(agenda.find(peer), peer.accountId),
-          state,
-        ),
-      );
-    }
-  }
-  function alertUnread(old: Map<string, PeerState>): void {
-    for (const [id, state] of states)
-      if (
-        old.has(id) &&
-        state.unread > (old.get(id)?.unread ?? 0) &&
-        state.mutedUntil <= Date.now()
-      )
-        sound.alert('direct');
   }
   async function searchPage(
     query: string,

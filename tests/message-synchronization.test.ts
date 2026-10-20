@@ -34,6 +34,7 @@ function fixture(t: TestContext) {
     pause() {},
     preloadDirect: () => Promise.resolve(false),
     preloadGroups: () => Promise.resolve(false),
+    unread: () => Promise.resolve(),
     presence: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
     changes: () => Promise.resolve(),

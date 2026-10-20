@@ -26,7 +26,7 @@ import {
 } from '../../src/shared/contacts/index.ts';
 import type { ContactList } from '../../src/shared/contacts/index.ts';
 import { digest, eventHash, sign } from '../../src/shared/devices/index.ts';
-import { object } from '../../src/shared/account/index.ts';
+import { AccountError, object } from '../../src/shared/account/index.ts';
 import { verifyContactConcurrency } from './contact-concurrency-fixture.ts';
 import { verifyContactPairConcurrency } from './contact-pair-concurrency-fixture.ts';
 await test('persistent contacts: discovery, consent, blocking, no caps and HTTP', async (t) => {
@@ -187,15 +187,11 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
   async function rev(user: User) {
     return Number(object(await op(user, 'state'))['revision']);
   }
-  async function configure(
-    user: User,
-    mode = 'wallet',
-    inviteHash: string | null = null,
-  ) {
+  async function configure(user: User, mode = 'wallet') {
     return op(user, 'configure', {
       revision: await rev(user),
       mode,
-      inviteHash,
+      inviteHash: null,
     });
   }
   async function request(a: User, b: User, invite: string | null = null) {
@@ -310,7 +306,8 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
     'revocable invitation only allows requesting and reveals no photo; only recipient accepts; crossing requests cannot approve',
     async () => {
       const token = 'a'.repeat(64);
-      await configure(b, 'invite', await digest(token));
+      await configure(b, 'invite');
+      await op(b, 'issue-invitation', { hash: await digest(token) });
       assert.equal(await op(a, 'discover', b.wallet), null);
       assert.equal(
         object(await op(a, 'invite', { owner: b.session.accountId, token }))[
@@ -329,23 +326,34 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
       await respond(b, a, true);
       assert.equal(await allowed(a, b), true);
       assert.equal(await allowed(b, a), true);
+      assert.equal(
+        object(await op(a, 'peer', { target: b.session.accountId }))[
+          'accountId'
+        ],
+        b.session.accountId,
+      );
+      await assert.rejects(op(c, 'peer', { target: b.session.accountId }), {
+        status: 404,
+      });
       const list = object(
         await op(b, 'list', { kind: 'approved', after: null }),
       );
       assert.equal((list['items'] as unknown[]).length, 1);
       assert.equal(JSON.stringify(list).includes('photo'), false);
-      await configure(b, 'wallet', await digest(token));
+      const fresh = 'b'.repeat(64);
+      await op(b, 'issue-invitation', { hash: await digest(fresh) });
+      await configure(b, 'wallet');
       assert.equal(
         object(await op(c, 'discover', b.wallet))['accountId'],
         b.session.accountId,
       );
       assert.equal(
-        object(await op(c, 'invite', { owner: b.session.accountId, token }))[
-          'accountId'
-        ],
+        object(
+          await op(c, 'invite', { owner: b.session.accountId, token: fresh }),
+        )['accountId'],
         b.session.accountId,
       );
-      await configure(b, 'contacts', await digest(token));
+      await configure(b, 'contacts');
       assert.equal(await op(c, 'discover', b.wallet), null);
       assert.equal(
         await op(c, 'invite', { owner: b.session.accountId, token }),
@@ -355,13 +363,144 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
         object(await op(a, 'discover', b.wallet))['accountId'],
         b.session.accountId,
       );
-      await configure(b, 'invite', null);
+      await configure(b, 'invite');
+      await op(b, 'revoke-invitation', { hash: await digest(fresh) });
       assert.equal(
         await op(c, 'invite', { owner: b.session.accountId, token }),
         null,
       );
       await assert.rejects(request(c, b, token));
       assert.equal(await allowed(a, b), true);
+    },
+  );
+  await t.test(
+    'independent contact invitations expire after 24 hours and allow exactly one new request',
+    async () => {
+      const owner = await create(),
+        first = await create(),
+        second = await create();
+      const one = 'c'.repeat(64),
+        two = 'd'.repeat(64);
+      const createdAt = Date.now();
+      const issued = object(
+        await op(owner, 'issue-invitation', { hash: await digest(one) }),
+      );
+      assert.ok(Number(issued['expiresAt']) >= createdAt + 86390000);
+      assert.ok(Number(issued['expiresAt']) <= Date.now() + 86400000);
+      assert.deepEqual(
+        await op(owner, 'issue-invitation', { hash: await digest(one) }),
+        issued,
+        'An issuance retry must not renew the expiry',
+      );
+      await op(owner, 'issue-invitation', { hash: await digest(two) });
+      assert.ok(
+        await op(first, 'invite', {
+          owner: owner.session.accountId,
+          token: one,
+        }),
+      );
+      assert.ok(
+        await op(second, 'invite', {
+          owner: owner.session.accountId,
+          token: two,
+        }),
+      );
+      await request(first, owner, one);
+      const revisionAfter = await rev(first);
+      await request(first, owner, one);
+      assert.equal(
+        await rev(first),
+        revisionAfter,
+        'The same pending request is idempotent',
+      );
+      await assert.rejects(request(second, owner, one), { status: 404 });
+      assert.equal(
+        await op(second, 'invite', {
+          owner: owner.session.accountId,
+          token: one,
+        }),
+        null,
+      );
+      await op(first, 'revoke-invitation', { hash: await digest(two) });
+      assert.ok(
+        await op(second, 'invite', {
+          owner: owner.session.accountId,
+          token: two,
+        }),
+        'A different account cannot revoke this link',
+      );
+      await request(second, owner, two);
+      assert.equal(
+        await allowed(first, owner),
+        false,
+        'A consumed invitation still requires the owner to accept',
+      );
+      await assert.rejects(
+        op(owner, 'configure', {
+          revision: await rev(owner),
+          mode: 'invite',
+          inviteHash: await digest(one),
+        }),
+        { status: 400 },
+      );
+      await assert.rejects(
+        op(pending, 'issue-invitation', { hash: await digest(one) }),
+      );
+    },
+  );
+  await t.test(
+    'concurrent recipients cannot spend the same invitation twice, and expired grants are reclaimed',
+    async () => {
+      const owner = await create(),
+        first = await create(),
+        second = await create();
+      const shared = 'e'.repeat(64),
+        expired = 'f'.repeat(64);
+      await op(owner, 'issue-invitation', { hash: await digest(shared) });
+      const results = await Promise.allSettled([
+        request(first, owner, shared),
+        request(second, owner, shared),
+      ]);
+      assert.equal(
+        results.filter((result) => result.status === 'fulfilled').length,
+        1,
+      );
+      const failure: unknown = results.find(
+        (result) => result.status === 'rejected',
+      )?.reason;
+      assert.ok(failure instanceof AccountError);
+      assert.equal(failure.status, 404);
+      await inspector.query(
+        'UPDATE hash_talk.contact_invitations SET used_by=NULL WHERE account_id=$1 AND token_hash=$2',
+        [owner.session.accountId, await digest(shared)],
+      );
+      assert.equal(
+        await op(first, 'invite', {
+          owner: owner.session.accountId,
+          token: shared,
+        }),
+        null,
+        'An anonymized/deleted spender must not reopen a consumed grant',
+      );
+      await op(owner, 'issue-invitation', { hash: await digest(expired) });
+      await inspector.query(
+        "UPDATE hash_talk.contact_invitations SET expires_at=now()-interval '1 second' WHERE account_id=$1 AND token_hash=$2",
+        [owner.session.accountId, await digest(expired)],
+      );
+      assert.equal(
+        await op(first, 'invite', {
+          owner: owner.session.accountId,
+          token: expired,
+        }),
+        null,
+      );
+      await assert.rejects(request(first, owner, expired), { status: 404 });
+      await database.contacts.expireInvitations();
+      const remaining = await inspector.query(
+        'SELECT token_hash FROM hash_talk.contact_invitations WHERE account_id=$1 ORDER BY token_hash',
+        [owner.session.accountId],
+      );
+      assert.deepEqual(remaining.rows, [{ token_hash: await digest(shared) }]);
     },
   );
   const d = await create();

@@ -30,6 +30,11 @@ export class ContentMaintenance {
     this.consumers = new WorkConsumers(
       [
         {
+          topic: 'contact-invites',
+          work: () => db.contacts.expireInvitations(),
+          next: () => db.contacts.nextInvitationExpiry(),
+        },
+        {
           topic: 'backups',
           work: async () => {
             for (const item of await db.backups.garbage()) {

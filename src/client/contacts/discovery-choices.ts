@@ -12,7 +12,7 @@ function descriptions(mode: DiscoveryMode): {
       title: t('Only through my invitation link'),
       hint: t('Invite people yourself'),
       explanation: t(
-        'Only people with your active invitation link can find your private account and request a chat. You choose whether to accept. Replacing or revoking the link stops new requests through the old link. Approved contacts keep access.',
+        'Only people with an unused invitation can find your private account and request a chat. Each invitation expires after 24 hours and allows one request. New invitations are independent; you still choose whether to accept.',
       ),
     };
   if (mode === 'wallet')

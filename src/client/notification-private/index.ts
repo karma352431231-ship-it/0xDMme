@@ -6,6 +6,8 @@ import { BackgroundVaultAccess } from '../devices/index.ts';
 import { VaultSync } from '../vault-sync/index.ts';
 import { notificationMessages } from '../messages/index.ts';
 import { readGroupNotification } from '../groups/index.ts';
+import { AddressBook, Contacts } from '../contacts/index.ts';
+import { directNotificationSender } from './sender.ts';
 
 export interface PrivateNotificationDetail {
   candidate: PrivatePushCandidate;
@@ -36,12 +38,15 @@ export async function privateNotificationDetails(input: {
     sync = new VaultSync(access);
   sync.setSession(session);
   const messages = notificationMessages({ ...input, session, access, sync });
+  const contacts = new Contacts(access),
+    book = new AddressBook(sync);
+  contacts.setSession(session);
   const details: PrivateNotificationDetail[] = [];
   try {
     for (const candidate of input.candidates) {
       input.signal.throwIfAborted();
       const detail = await availableDetail(
-        { ...input, session, access, sync, messages },
+        { ...input, session, access, sync, messages, contacts, book },
         candidate,
       );
       if (detail) details.push(detail);
@@ -49,6 +54,7 @@ export async function privateNotificationDetails(input: {
     return details;
   } finally {
     messages.close();
+    contacts.setSession(null);
     sync.setSession(null);
     access.close();
   }
@@ -58,6 +64,8 @@ type DetailContext = {
   access: BackgroundVaultAccess;
   sync: VaultSync;
   messages: ReturnType<typeof notificationMessages>;
+  contacts: Contacts;
+  book: AddressBook;
   signal: AbortSignal;
 };
 async function availableDetail(
@@ -93,10 +101,16 @@ async function readDetail(
   const body = await c.messages.read(candidate.peer, candidate.id);
   if (body === null) return null;
   const profile = await c.messages.profile(candidate.peer);
+  const sender = await directNotificationSender({
+    peer: candidate.peer,
+    profileName: profile?.name,
+    contacts: c.contacts,
+    book: c.book,
+  });
   return {
     candidate,
-    title: profile?.name || '0xDMme',
-    body,
+    title: sender,
+    body: `${sender}: ${body}`,
     ...photoIcon(profile?.photo),
   };
 }

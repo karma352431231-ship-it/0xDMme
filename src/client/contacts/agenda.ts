@@ -3,8 +3,6 @@ import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import {
   addressBookEntry,
   contactInvitationValue,
-  invitation,
-  invitationLink,
   readInvitation,
 } from '../../shared/contacts/index.ts';
 import type {
@@ -17,6 +15,12 @@ import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
 export interface BookVersion {
   vault: VaultEntry;
   contact: AddressBookEntry;
+}
+function newestVersion(a: VaultEntry, b: VaultEntry): number {
+  return (
+    b.commit.sequence - a.commit.sequence ||
+    a.commit.id.localeCompare(b.commit.id)
+  );
 }
 type AgendaSync = Pick<
   VaultSync,
@@ -121,11 +125,7 @@ export class AddressBook {
               e.change.kind === 'address-book' &&
               !this.sync.isRemoved(e.commit.id),
           )
-          .sort(
-            (a, b) =>
-              b.commit.sequence - a.commit.sequence ||
-              a.commit.id.localeCompare(b.commit.id),
-          ),
+          .sort(newestVersion),
       )
       .filter((heads) => heads.length > 0)
       .sort(
@@ -147,6 +147,31 @@ export class AddressBook {
       items,
       next: groups.length > offset + 16 ? page.at(-1)![0]!.change.entity : null,
     };
+  }
+  /** The canonical wallet entity avoids scanning the agenda during a push. */
+  async aliasFor(
+    peer: import('../../shared/contacts/index.ts').Peer,
+  ): Promise<string> {
+    const entity = await walletEntity(peer);
+    const heads = this.sync
+      .heads(entity)
+      .filter(
+        (entry) =>
+          entry.change.kind === 'address-book' &&
+          !this.sync.isRemoved(entry.commit.id),
+      )
+      .sort(newestVersion);
+    if (!heads.length) return '';
+    const [version] = await this.openGroups([heads], {});
+    if (
+      !version ||
+      version.contact.removed ||
+      walletKey(version.contact) !== walletKey(peer) ||
+      (version.contact.accountId !== null &&
+        version.contact.accountId !== peer.accountId)
+    )
+      return '';
+    return version.contact.alias;
   }
   private async openGroups(
     groups: VaultEntry[][],
@@ -181,50 +206,6 @@ export class AddressBook {
     guard: () => void = () => undefined,
   ): Promise<void> {
     await this.save({ ...contact, removed: true }, null, undefined, guard);
-  }
-  async savedInvite(
-    origin: string,
-    expectedHash: string | null,
-  ): Promise<string | null> {
-    if (!expectedHash) return null;
-    const candidates = [...this.sync.currentHeads().values()]
-      .flat()
-      .filter((e) => e.change.kind === 'contact-invite');
-    if (candidates.length > 16)
-      throw new Error(
-        'Invitation conflicts found. Revoke the link and resolve versions in the vault.',
-      );
-    for (const entry of candidates) {
-      const stored = invitation(
-        JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
-      );
-      if ((await digest(stored.token)) === expectedHash)
-        return invitationLink(origin, stored);
-    }
-    return null;
-  }
-  async saveInvite(value: Invitation): Promise<void> {
-    const previous = [...this.sync.currentHeads().values()]
-      .flat()
-      .filter((e) => e.change.kind === 'contact-invite');
-    const entity = previous[0]?.change.entity ?? crypto.randomUUID();
-    const parents = previous
-      .filter((e) => e.change.entity === entity)
-      .map((e) => e.commit.id);
-    if (parents.length > 16)
-      throw new Error(
-        'Resolve invitation conflicts in the vault before creating another.',
-      );
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity,
-        kind: 'contact-invite',
-        parents,
-        label: t('Private invitation link'),
-      },
-      value: JSON.stringify(invitation(value)),
-    });
   }
 }
 export function incomingInvitation(

@@ -27,6 +27,7 @@ interface SynchronizationOperations {
   pause: () => void;
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
   preloadGroups: (signal: AbortSignal) => Promise<boolean>;
+  unread: () => Promise<void>;
   presence: () => Promise<void>;
   refresh: (work: VaultWorkOptions) => Promise<void>;
   changes: (work: VaultWorkOptions) => Promise<void>;
@@ -66,7 +67,11 @@ export class MessageSynchronization {
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
       changed: () => this.resume(),
-      received: () => options.complete(),
+      received: async () => {
+        const generation = options.state().generation;
+        await options.unread();
+        if (this.current(generation)) options.complete();
+      },
       failed: (error) => {
         this.report(error, t('Could not prepare conversation history.'));
         options.status();
@@ -253,6 +258,8 @@ export class MessageSynchronization {
   private async checkChanges(work: VaultWorkOptions): Promise<void> {
     const current = this.options.state().generation;
     await this.checkAutomatically(async () => {
+      await this.options.unread();
+      if (!this.current(current)) return;
       await retrySnapshotRead(
         () => this.options.changes(work),
         () => this.current(current),

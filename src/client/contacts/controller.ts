@@ -208,6 +208,27 @@ export class Contacts {
     const result = await this.api('discover', { ...wallet });
     return result === null ? null : peer(result);
   }
+  async approvedPeer(target: string): Promise<Peer> {
+    const found = peer(await this.api('peer', { target }));
+    if (found.accountId !== target)
+      throw new Error('Contact identity does not match.');
+    return found;
+  }
+  async issueInvitation(hash: string): Promise<number> {
+    const data = object(await this.api('issue-invitation', { hash }));
+    keys(data, ['expiresAt']);
+    const expiresAt = data['expiresAt'];
+    if (
+      typeof expiresAt !== 'number' ||
+      !Number.isSafeInteger(expiresAt) ||
+      expiresAt <= Date.now()
+    )
+      throw new Error('Invalid invitation expiry.');
+    return expiresAt;
+  }
+  async revokeInvitation(hash: string): Promise<void> {
+    await this.api('revoke-invitation', { hash });
+  }
   async invite(value: Invitation): Promise<Peer | null> {
     const result = await this.api('invite', { ...value });
     return result === null ? null : peer(result);

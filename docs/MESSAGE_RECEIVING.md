@@ -65,7 +65,7 @@ The latest instruction supersedes the intermediate private-only interpretation:
 public posts/replies, including followed profiles with notifications enabled,
 keep detailed Web Push with the approved public author photo. Only handle DMs
 are excluded. Private contact/group messages use local decryption by default;
-private plaintext, contact names/photos and E2EE keys never reach the backend or
+private plaintext, local contact aliases/photos and E2EE keys never reach the backend or
 the isolated push sender. The owner explicitly accepted local detailed alerts,
 superseding the earlier generic-only private display rule.
 
@@ -125,3 +125,24 @@ for the exact pushed task-branch commit; main still requires push-triggered CI.
 The same repository, latest-run, SHA, branch, workflow and success checks remain.
 This aligns the executor with the workflow's existing task-branch policy and
 allows activation without merging this correction into main.
+
+## Sender labels and unread timing — 20 October 2026
+
+The owner reported a correct private photo/body with no sender name, and unread
+badges/sound following the message preview. Private sender lookup now uses the
+chat's encrypted local alias, then the verified profile card, then the name of
+that one currently approved account. It never scans the contact directory or
+sends a local alias to the backend. The sender is also included in the body,
+where browser/OS layouts can otherwise emphasize only the application heading.
+
+`messages/activity.ts` owns the coalesced, generation-checked unread projection
+and sound. Live changes refresh counts before selected history; a completed
+inbox page refreshes counts before its preview projection. Push settings,
+presence and contact maintenance no longer precede this update. Counts remain
+server-authorized; archive/mute still applies before sounding, and receipt does
+not mark messages as read. System push sound and real-device timing still need
+physical acceptance.
+
+The screen receives only wiring; the existing screen/controller hotspot split
+proposal remains above. Independent invitation rules and the required schema
+review are in [Contact invitations](CONTACT_INVITATIONS.md).

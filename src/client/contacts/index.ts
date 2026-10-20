@@ -13,12 +13,12 @@ import type {
   Invitation,
   Peer,
 } from '../../shared/contacts/index.ts';
-import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { AddressBook, incomingInvitation } from './agenda.ts';
 import { Contacts } from './controller.ts';
+import { PrivateContactInvitations } from './invitations.ts';
 import { ContactDirectory } from './directory.ts';
 import { directoryItems, renderDirectory } from './directory-view.ts';
 import { requestContact } from './request-contact.ts';
@@ -64,7 +64,12 @@ export function startContacts(
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
-  let ownLink: string | null = null;
+  const invitations = new PrivateContactInvitations({
+    owner: () => contacts.session?.accountId ?? null,
+    origin: location.origin,
+    issue: (hash) => contacts.issueInvitation(hash),
+    revoke: (hash) => contacts.revokeInvitation(hash),
+  });
   let camera: QrCamera | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
@@ -148,15 +153,13 @@ export function startContacts(
           offset + 16;
   }
   function renderInvite(): void {
+    const ownLink = invitations.link;
     const own = node('[data-contact-own-invite]');
     if (own) own.hidden = !ownLink;
     const input = node<HTMLInputElement>('[data-contact-invite]');
     if (input) input.value = ownLink ?? '';
     const rotate = node('[data-contact-action="rotate"]');
-    if (rotate)
-      rotate.textContent = ownLink
-        ? t('Replace invitation')
-        : t('Create invitation');
+    if (rotate) rotate.textContent = t('Create new invitation');
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
     if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
@@ -231,11 +234,6 @@ export function startContacts(
     await contacts.snapshot();
     await directory.load();
     discovery.value = contacts.state.mode;
-    if (sync.complete)
-      ownLink = await book.savedInvite(
-        location.origin,
-        contacts.state.inviteHash,
-      );
     status = sync.complete
       ? t('Contacts updated.')
       : t(
@@ -491,36 +489,10 @@ export function startContacts(
     );
   }
   async function rotate(): Promise<void> {
-    if (!sync.complete || sync.pending)
-      throw new Error(
-        'Open/sync contacts and resolve your draft before replacing the invitation.',
-      );
-    const bytes = crypto.getRandomValues(new Uint8Array(32));
-    const token = Array.from(bytes, (b) =>
-      b.toString(16).padStart(2, '0'),
-    ).join('');
-    bytes.fill(0);
-    const session = contacts.session;
-    if (!session) throw new Error('Sign in first.');
-    const invite = { owner: session.accountId, token };
-    await contacts.configure(contacts.state.mode, await digest(token));
-    ownLink = invitationLink(location.origin, invite);
-    try {
-      await book.saveInvite(invite);
-    } catch (error: unknown) {
-      status = t(
-        'Invitation active, but its encrypted copy was not confirmed. Keep the link or revoke it before leaving.',
-      );
-      render();
-      throw error;
-    }
-    status = sync.pending
-      ? t(
-          'Invitation active; its encrypted copy will be sent automatically when reconnected.',
-        )
-      : t(
-          'New invitation active and preserved in the vault. The previous one was invalidated.',
-        );
+    await invitations.create();
+    status = t(
+      'Invitation ready: one use, valid for 24 hours. Previous invitations remain valid.',
+    );
   }
   async function inspectInvite(): Promise<void> {
     const link = value('[data-contact-received]');
@@ -602,11 +574,13 @@ export function startContacts(
     discover: requestWallet,
     rotate,
     revoke: async () => {
-      await contacts.configure(contacts.state.mode, null);
-      ownLink = null;
-      status = t('Invitation revoked. Old links cannot start new requests.');
+      await invitations.revoke();
+      status = t(
+        'This invitation was revoked. Other invitations remain valid.',
+      );
     },
     copy: async () => {
+      const ownLink = invitations.link;
       if (!ownLink) throw new Error('Create an invitation first.');
       await navigator.clipboard.writeText(ownLink);
       status = t('Link copied. Share it manually with the recipient.');
@@ -632,7 +606,7 @@ export function startContacts(
     node<HTMLDialogElement>('[data-contact-invites]')?.close();
     contacts.clear();
     directory.clear();
-    ownLink = null;
+    invitations.clear();
     found = null;
     invitePeer = null;
     mounted?.querySelectorAll<HTMLInputElement>('input').forEach((n) => {

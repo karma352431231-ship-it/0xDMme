@@ -40,6 +40,7 @@ const real = new Set([
   './text-send.ts',
   './outgoing-text.ts',
   './profile-broadcast.ts',
+  './activity.ts',
   '../conversation-preview/index.ts',
 ]);
 const bundle = await build({
@@ -180,6 +181,7 @@ export function coordinatorFixture(
         refresh: asyncNoop,
         more: false,
         renderContacts: noop,
+        contactOrganizationId: (_saved: unknown, id: string) => id,
         pause: noop,
         clearMedia: noop,
         clearSelection: noop,

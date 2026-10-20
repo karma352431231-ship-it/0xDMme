@@ -13,6 +13,7 @@ const topics = [
   'group-daily',
   'status',
   'representatives',
+  'contact-invites',
   'public-media',
   'public-moderation',
   'post-views',

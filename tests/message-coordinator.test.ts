@@ -19,6 +19,28 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  await f.messages.openContact(peer('live-count'));
+  f.calls.length = 0;
+  f.state.holdContacts = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.includes('states'));
+  assert.ok(f.calls.indexOf('states') < f.calls.indexOf('probe'));
+  assert.ok(
+    !f.calls.includes('heartbeat'),
+    'Presence must not delay the unread update',
+  );
+  f.contactLoad.resolve();
+});
+
 await test('returning to the mobile directory retains the verified preview; authority loss and page departure clear it', async (t) => {
   const f = coordinatorFixture(t);
   await f.messages.openContact(peer('preview-peer'));
