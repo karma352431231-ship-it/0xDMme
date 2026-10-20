@@ -43,6 +43,9 @@ export class Recording {
         submissions:
           'enter-click-submit-and-controls; not-delivery-or-read-proof',
         causality: 'timeline-and-caller-positions; not-an-automatic-diagnosis',
+        conversationSlots:
+          'anonymous-DOM-rows; replacement-may-assign-a-new-slot',
+        wakeups: 'local-controls-cross-tab-device-and-service-worker-hints',
       },
       events: this.events.map((event) => ({ ...event })),
     };

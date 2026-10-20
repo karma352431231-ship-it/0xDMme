@@ -1,4 +1,5 @@
 import type { RecordEvent } from './recording.ts';
+import { ConversationInteractions } from './interactions.ts';
 
 function chatState() {
   const status = document.querySelector('[data-message-status]');
@@ -9,26 +10,16 @@ function chatState() {
     ),
     historyPresent: history !== null,
     historyHidden: !!history?.closest('[hidden]'),
+    renderedMessages: history?.querySelectorAll('[data-message]').length ?? 0,
     visible: document.visibilityState === 'visible',
   };
 }
 
-function actionCategory(target: EventTarget | null): string | null {
-  if (!(target instanceof Element)) return null;
-  if (target.closest('.conversation-row')) return 'conversation-open';
-  if (target.closest('[data-message-refresh]')) return 'manual-sync';
-  if (target.closest('[data-chat-back]')) return 'conversation-back';
-  if (target.closest('[data-message-older], [data-group-older]'))
-    return 'older-messages';
-  if (target.closest('[data-call-start], .call-actions button'))
-    return 'call-control';
-  return null;
-}
-
-/** Static UI labels only; never enumerate bubbles, read identities or capture
- * input/keystrokes, private text, attributes, screenshots or error messages. */
+/** Fixed status flags, node counts and action categories only. Never capture
+ * bubble contents, identities, input, screenshots or arbitrary attributes. */
 export function observePage(record: RecordEvent): () => void {
   const abort = new AbortController();
+  const interactions = new ConversationInteractions();
   const signal = abort.signal;
   for (const type of [
     'focus',
@@ -54,8 +45,8 @@ export function observePage(record: RecordEvent): () => void {
   document.addEventListener(
     'click',
     (event) => {
-      const category = actionCategory(event.target);
-      if (category) record('user-action', { category });
+      const action = interactions.read(event.target);
+      if (action) record('user-action', action);
     },
     { signal, capture: true },
   );
