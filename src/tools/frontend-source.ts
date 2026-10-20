@@ -62,6 +62,8 @@ const authored = [
   'src/shared/community-discussion',
   'src/shared/community-posts',
   'src/shared/post-sharing',
+  'src/shared/public-notification',
+  'src/shared/private-notification',
   'src/shared/community-badges',
   'src/shared/community-views',
   'src/client/communities',

@@ -367,8 +367,8 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
       const alerts = await notices();
       assert.equal(
         await db.daily.check(pushAuthority),
-        false,
-        'Public posts and replies are in-app only',
+        true,
+        'Followed public posts and replies authorize detailed push',
       );
       await assertPrivatePushEligibility(db, inspector, {
         sender: author.login.session.accountId,
@@ -379,7 +379,7 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
         'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
         [reader.login.session.accountId, reader.login.session.deviceId],
       );
-      assert.equal(queued.rows[0]?.pending, false);
+      assert.equal(queued.rows[0]?.pending, true);
       await db.daily.configurePush(pushAuthority, {
         messages: false,
         calls: true,
@@ -527,14 +527,17 @@ async function assertPrivatePushEligibility(
       ],
     );
     assert.equal(await db.daily.check(input.authority), true);
+    assert.deepEqual(await db.daily.privateCandidates(input.authority), [
+      { kind: 'direct', id, peer: input.sender },
+    ]);
     await inspector.query(
       'INSERT INTO hash_talk.conversation_controls(account_id,peer,muted_until) VALUES($1,$2,$3)',
       [input.recipient, input.sender, Date.now() + 60000],
     );
     assert.equal(
       await db.daily.check(input.authority),
-      false,
-      'Muted private messages cannot authorize push because public activity is unread',
+      true,
+      'Muting a private chat preserves followed public notifications',
     );
   } finally {
     await inspector.query('DELETE FROM hash_talk.message_packets WHERE id=$1', [

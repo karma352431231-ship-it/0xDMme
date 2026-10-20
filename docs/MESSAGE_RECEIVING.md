@@ -59,36 +59,55 @@ the exact message-snapshot conflict. Each attempt obtains fresh authority;
 revocation, unrelated conflicts and repeated failures still close the projection
 and remain visible. No publication is retried by this helper.
 
-## Owner clarification: private Web Push only — 20 October 2026
+## Detailed push scope — owner clarification, 20 October 2026
 
-The owner explicitly limited Web Push to private chats. This supersedes public
-post/reply push previews and the previous proposal to deduplicate those previews.
-The public area, including communities, followed posts/replies and handle DMs,
-keeps its in-app updates and unread counts without OS push alerts. Existing
-private contact/group message eligibility, mute, authorization and private call
-controls remain in force. The open/closed-app notification preference is still
-undecided; this clarification does not select one of those modes.
+The latest instruction supersedes the intermediate private-only interpretation:
+public posts/replies, including followed profiles with notifications enabled,
+keep detailed Web Push with the approved public author photo. Only handle DMs
+are excluded. Private contact/group messages use local decryption by default;
+private plaintext, contact names/photos and E2EE keys never reach the backend or
+the isolated push sender. The owner explicitly accepted local detailed alerts,
+superseding the earlier generic-only private display rule.
 
-Remove public admission into the push queue, public eligibility, authenticated
-public preview lookup and worker presentation together. Public transaction
-notifications still wake open app clients after commit, including recipients
-without push consent. A public event must not change a pending private marker or
-its generation. Old pending jobs with only public activity are ineligible.
-Remove the unused public preview/avatar/deduplication modules and their profile
-dependency. The worker ignores public data even if an older response includes it.
+Authenticated push inspection supplies at most one current direct-message and
+one group-message locator, reusing existing consent, membership, mute, read and
+removal predicates. These are not plaintext previews and do not acknowledge read.
+The worker obtains the same active session, verifies its digest, and uses the
+existing device authority, persisted non-exportable keys, cross-context locks,
+pinned identities, SDK recovery, encrypted cache and final snapshot checks.
+No browser key is enrolled, copied to a new database or sent to the server.
+Private group reading uses an invisible headless reader and never sends read ACKs.
 
-Private push remains generic under the previously approved contract: the isolated
-sender has no message identity, plaintext, contact photo or E2EE keys, and the OS
-alert does not disclose them. This is a product/architecture choice, not a Web
-Push protocol requirement. The owner asked for an explanation, not a change to
-that disclosure policy. No message text or photo is sent to the backend to make
-notifications richer. The notification pipeline remains in its own module, with
-one active inspection and one coalesced followup.
+To preserve initial alert timing, the authorized private alert appears before
+local vault/SDK work. A successful detail read replaces that same notification
+silently after rechecking the exact session and still-eligible message ID.
+Local work has an eight-second deadline; missing keys, locked/busy storage,
+revocation, logout, changed consent or unread state cannot publish stale details.
+On failure the initial generic alert remains. The first alert does not wait for
+historical vault synchronization; a cold or large vault may delay the detail
+replacement. This is not a claim of zero end-to-end delay or real-device latency.
+The SDK/vault path may still need a first load to validate existing identity pins.
+New push events cancel an older detail read and replace its pending followup;
+initial alerts continue immediately while the old network/store operation exits.
+The existing classic worker build binds the SDK's import URL to its own URL.
+Only `/sw.js` receives the same `wasm-unsafe-eval` permission already used by the
+app and local `data:` notification images. Its network stays same-origin;
+HTML, wallet entry, APIs and other workers keep their existing policies. No
+`unsafe-eval`, inline script permission or new external origin is introduced.
+Large private photos (over 128 KB) use the app icon rather than holding up the
+notification with a full-resolution image. Smaller approved local profile photos
+are passed as local data URLs, never via an unencrypted server/avatar endpoint.
 
-Regression coverage checks that public posts/replies remain visible in-app but
-neither queue nor authorize push, preserve an existing private marker, and cannot
-inject public text, author, avatar or destination into an allowed private alert.
-Private delivery and mute remain tested independently of public activity.
+Public post IDs are deduplicated in one bounded local record (32 IDs, session
+digest only); author, message text, wallet and private peers are not persisted
+there. Display does not mark a public post read. Public transaction wakeups and
+in-app handle DM receipt remain independent of notification presentation.
+
+The previous screen/controller hotspots receive only public entry-point wiring.
+Headless device access, direct/group notification reading and worker presentation
+are separate modules. Further hotspot cuts remain listed above. Background Web
+Push delivery and existing private call controls are unchanged; the owner has
+not selected the proposed per-device open/closed-app preference.
 
 This correction stays on `codex/chat-preview-notificacoes`, as requested. The
 existing deployment command accepts the existing on-demand `check.yml` workflow

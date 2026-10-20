@@ -879,6 +879,15 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         await message(messages, member, 'group-daily-state', scope),
       );
       assert.equal(state['unread'], 1);
+      const pushAuthority = { session: member.session, directory: member.head };
+      await db.daily.subscribe(pushAuthority, {
+        endpoint: 'https://web.push.apple.com/synthetic-group-notification',
+        keys: { p256dh: 'synthetic', auth: 'synthetic' },
+      });
+      assert.deepEqual(await db.daily.privateCandidates(pushAuthority), [
+        { kind: 'group', id: encrypted.packet.id, group: joined.groupId },
+      ]);
+
       await assert.rejects(
         message(messages, outsider, 'group-daily-states', { groups: [scope] }),
         { status: 409 },
@@ -896,6 +905,11 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         revision: 0,
         mutedUntil: Date.now() + 86400000,
       });
+      assert.deepEqual(
+        await db.daily.privateCandidates(pushAuthority),
+        [],
+        'Muted group content cannot be used in a detailed notification',
+      );
       await assert.rejects(
         message(messages, member, 'group-daily-mute', {
           ...scope,

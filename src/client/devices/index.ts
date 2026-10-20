@@ -1,3 +1,4 @@
+export { BackgroundVaultAccess } from './background.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type {
   AccountSession,

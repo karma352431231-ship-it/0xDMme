@@ -573,3 +573,32 @@ await test('unselected directory preview restarts from fresh authority when rece
   );
   assert.equal(data.requests.includes('daily-read'), false);
 });
+
+await test('headless private notification reads the exact verified message without selecting a conversation or marking read', async () => {
+  const f = resumeFixture();
+  const item = await f.add('Current private notification');
+  const abort = new AbortController();
+  const reader = f.notificationReader(abort.signal);
+  assert.equal(
+    await reader.read(f.peer, item.id),
+    'Current private notification',
+  );
+  assert.equal(
+    f.data.requests.includes('page'),
+    false,
+    'No global message sweep',
+  );
+  assert.equal(f.data.requests.includes('daily-read'), false);
+  assert.equal(
+    f.data.frames.some((rows) => rows?.length),
+    false,
+  );
+  assert.equal(
+    await reader.read(f.peer, crypto.randomUUID()),
+    null,
+    'An older unread locator cannot reuse another message',
+  );
+  abort.abort();
+  await assert.rejects(reader.read(f.peer, item.id));
+  reader.close();
+});

@@ -14,6 +14,7 @@ import type {
   VaultAccess,
 } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
+import type { notificationMessages } from '../../src/client/messages/notification.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 
 // Keep the actual controller, authenticated API, index, receipts and visibility.
@@ -42,7 +43,12 @@ const adapters: Record<string, string[]> = {
   'message-search': ['indexSearch', 'searchMessages'],
 };
 const bundle = await build({
-  entryPoints: ['src/client/messages/controller.ts'],
+  stdin: {
+    contents:
+      "export { Messages } from './src/client/messages/controller.ts'; export { notificationMessages } from './src/client/messages/notification.ts';",
+    resolveDir: process.cwd(),
+    loader: 'ts',
+  },
   bundle: true,
   write: false,
   platform: 'browser',
@@ -282,7 +288,12 @@ export function resumeFixture() {
     clearTimeout,
     fetch: respond,
     navigator: { onLine: true },
-    messageController: undefined as { Messages: typeof Messages } | undefined,
+    messageController: undefined as
+      | {
+          Messages: typeof Messages;
+          notificationMessages: typeof notificationMessages;
+        }
+      | undefined,
   };
   runInNewContext(source, context);
   assert.ok(context.messageController);
@@ -326,5 +337,17 @@ export function resumeFixture() {
     });
     return item;
   };
-  return { controller, data, session, peer, add, access };
+  const notificationReader = (signal: AbortSignal) =>
+    context.messageController!.notificationMessages({
+      access,
+      session,
+      signal,
+      sync: {
+        refresh: () => Promise.resolve(),
+        complete: true,
+        currentHeads: () => new Map(),
+        isRemoved: () => false,
+      } as unknown as VaultSync,
+    });
+  return { controller, data, session, peer, add, access, notificationReader };
 }

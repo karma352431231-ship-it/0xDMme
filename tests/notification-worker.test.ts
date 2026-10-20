@@ -166,7 +166,7 @@ await test('unavailable push consumes no jobs; eligibility is revalidated and re
   }
 });
 
-await test('private push inspection never returns public content or identity', async () => {
+await test('push inspection carries public details and private ciphertext locators, never private content', async () => {
   const job = pushJob();
   const session = {
     accountId: job.account_id,
@@ -174,24 +174,38 @@ await test('private push inspection never returns public content or identity', a
     csrf: 'a'.repeat(64),
   } as AccountSession;
   let allowed = true;
+  const publicPreview = {
+    author: { id: crypto.randomUUID(), handle: 'followed', avatar: null },
+    community: crypto.randomUUID(),
+    post: crypto.randomUUID(),
+    text: 'Public post',
+    reply: false,
+    followed: true,
+  };
+  const privateCandidates = [
+    {
+      kind: 'direct' as const,
+      id: crypto.randomUUID(),
+      peer: crypto.randomUUID(),
+    },
+  ];
   const store = {
     pushState: () =>
       Promise.resolve({ registered: true, calls: false, showCalls: false }),
     check: () => Promise.resolve(allowed),
-    publicPreview: () => {
-      throw new Error('Public content must not be queried for private push.');
-    },
+    publicPreview: () => Promise.resolve(publicPreview),
+    privateCandidates: () => Promise.resolve(privateCandidates),
   } as unknown as DailyStore;
   const devices = {
     current: () => Promise.resolve({ head: 'b'.repeat(64) }),
   } as unknown as DeviceStore;
   const service = new NotificationService({ store, devices, config: null });
   try {
-    assert.deepEqual(await service.inspectPush(session), {
-      allowed: true,
-      call: false,
-      showCall: false,
-    });
+    const result = await service.inspectPush(session);
+    assert.deepEqual(result.publicPreview, publicPreview);
+    assert.deepEqual(result.privateCandidates, privateCandidates);
+    assert.match(result.publicScope!, /^[a-f0-9]{64}$/u);
+    assert.notEqual(result.publicScope, session.csrf);
     allowed = false;
     assert.deepEqual(await service.inspectPush(session), {
       allowed: false,

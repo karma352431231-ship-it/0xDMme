@@ -1,4 +1,13 @@
-import { privatePushEligible } from './push-private-activity.ts';
+import {
+  publicNotificationCandidates,
+  readPublicNotificationPreview,
+} from './public-notification-preview.ts';
+import type { PublicProfileStore } from './public-profile.ts';
+import type { PrivatePushCandidate } from '../../shared/private-notification/index.ts';
+import {
+  privatePushEligible,
+  privatePushRows,
+} from './push-private-activity.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -20,19 +29,22 @@ import type {
 } from './push-jobs.ts';
 const messagesEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.messages)`;
 const callsEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.calls)`;
-const eligible = `(${messagesEnabled} AND ${privatePushEligible})`;
+const eligible = `(${messagesEnabled} AND (${privatePushEligible} OR EXISTS(${publicNotificationCandidates('s.account_id')})))`;
 const authorizedDevice = `EXISTS(SELECT 1 FROM hash_talk.device_directories d,jsonb_array_elements(d.event->'devices') member WHERE d.account_id=s.account_id AND member->>'id'=s.device_id::text)`;
 export class DailyStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   private readonly readAllocations: MessageReadAllocations | undefined;
+  private readonly profiles: Pick<PublicProfileStore, 'readById'>;
   constructor(input: {
     pool: pg.Pool;
     contacts: ContactStore;
+    profiles: Pick<PublicProfileStore, 'readById'>;
     capacity: ContentCapacity;
     readAllocations: MessageReadAllocations | undefined;
   }) {
+    this.profiles = input.profiles;
     this.pool = input.pool;
     this.contacts = input.contacts;
     this.capacity = input.capacity;
@@ -211,6 +223,20 @@ export class DailyStore {
         ],
       );
       await this.budget(c, a.session.accountId);
+    });
+  }
+  async publicPreview(a: ContactAuthority) {
+    return readPublicNotificationPreview(this.contacts, a, this.profiles);
+  }
+  async privateCandidates(
+    a: ContactAuthority,
+  ): Promise<PrivatePushCandidate[]> {
+    return this.contacts.withMessageRead(a, async (c) => {
+      const result = await c.query<{ value: PrivatePushCandidate }>(
+        `SELECT candidate.* FROM hash_talk.push_subscriptions s CROSS JOIN LATERAL (${privatePushRows}) candidate WHERE s.account_id=$1 AND s.device_id=$2 AND ${authorizedDevice} AND ${messagesEnabled} LIMIT 2`,
+        [a.session.accountId, a.session.deviceId],
+      );
+      return result.rows.map((row) => row.value);
     });
   }
   async check(a: ContactAuthority): Promise<boolean> {

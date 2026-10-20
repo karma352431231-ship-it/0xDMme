@@ -1,6 +1,6 @@
 import type pg from 'pg';
 
-/** Public activity has in-app post-COMMIT wakeups only; it never queues Web Push.
+/** The transaction owns both the push job and generic post-COMMIT wakeups.
  * SQL batches at most 64 account IDs per frame, even without push consent. */
 async function queueRecipients(
   client: Pick<pg.PoolClient, 'query'>,
@@ -8,7 +8,10 @@ async function queueRecipients(
 ): Promise<void> {
   await client.query(
     `WITH recipients AS MATERIALIZED (${source.query}),
-    batches AS (
+    pushed AS (
+      UPDATE hash_talk.push_subscriptions s SET pending=true,generation=generation+1,attempts=0,next_attempt=now()
+      WHERE EXISTS(SELECT 1 FROM recipients r WHERE r.account_id=s.account_id) RETURNING s.account_id
+    ), batches AS (
       SELECT account_id,(row_number() OVER(ORDER BY account_id)-1)/64 AS batch FROM recipients
     ) SELECT pg_notify('hash_talk_content_changes',json_build_object(
       'accounts',json_agg(account_id),'removed',false,'authorization',false)::text)

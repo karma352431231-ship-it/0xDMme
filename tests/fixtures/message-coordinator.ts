@@ -22,7 +22,7 @@ const entry = 'src/client/messages/index.ts';
 const source = await readFile(entry, 'utf8');
 const exports = new Map<string, string[]>();
 for (const match of source.matchAll(
-  /import \{([\s\S]*?)\} from '([^']+)';/gu,
+  /(?:import|export) \{([\s\S]*?)\} from '([^']+)';/gu,
 )) {
   exports.set(
     match[2]!,

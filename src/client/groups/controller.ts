@@ -594,7 +594,7 @@ export class GroupController {
     const ids = this.views
       .filter((v) => !v.own && !v.unavailableMedia.length && !v.localOnly)
       .map((v) => v.id);
-    if (ids.length && document.visibilityState === 'visible' && this.visible())
+    if (ids.length && this.visible() && document.visibilityState === 'visible')
       await this.recordReads(api, group, ids);
     const own = this.views
       .filter((v) => v.own && !v.localOnly)

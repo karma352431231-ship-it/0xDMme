@@ -211,17 +211,18 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
 
       assert.equal((await notices(author)).items.length, 0);
       const jobs = await db.daily.jobs();
-      assert.equal(
-        jobs.some((job) => job.account_id === owner.login.session.accountId),
-        false,
-      );
-      assert.equal(await db.daily.check(authority), false);
+      const job = jobs.find(
+        (job) => job.account_id === owner.login.session.accountId,
+      )!;
+      assert.ok(job);
+      assert.equal(Number(job.generation), 1);
+      assert.equal(await db.daily.eligible(job), true);
       await db.daily.configurePush(authority, {
         messages: false,
         calls: true,
         showCalls: true,
       });
-      assert.equal(await db.daily.check(authority), false);
+      assert.equal(await db.daily.eligible(job), false);
       await db.daily.configurePush(authority, {
         messages: true,
         calls: true,
@@ -302,7 +303,7 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
     },
   );
   await t.test(
-    'public replies neither send legacy push jobs nor change an existing private marker',
+    'ordinary push wakes after commit and a new reply inherits no delay after success',
     async () => {
       const testRoot = crypto.randomUUID(),
         testCommunity = crypto.randomUUID();
@@ -325,43 +326,27 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
         },
       });
       try {
-        // A queued marker from the old public-push policy must not be sent.
-        await inspector.query(
-          'UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=0,next_attempt=now() WHERE account_id=$1',
-          [owner.login.session.accountId],
-        );
-        await notifications.flush();
-        assert.equal(deliveries, 0);
-        // New public activity cannot reset or reschedule a private retry marker.
-        await inspector.query(
-          "UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=2,next_attempt=now()+interval '1 hour' WHERE account_id=$1",
-          [owner.login.session.accountId],
-        );
-        const marker = () =>
-          inspector
-            .query<{
-              pending: boolean;
-              generation: string;
-              attempts: number;
-              next_attempt: Date;
-            }>(
-              'SELECT pending,generation,attempts,next_attempt FROM hash_talk.push_subscriptions WHERE account_id=$1',
-              [owner.login.session.accountId],
-            )
-            .then((result) => result.rows);
-        const before = await marker();
-        const newReply = crypto.randomUUID();
-        await create(author, newReply, testRoot, testCommunity);
-        assert.deepEqual(await marker(), before);
-        assert.equal(await db.daily.check(authority), false);
-        assert.equal(
-          (await notices(owner)).items.some(
-            (notice) => notice.reply === newReply,
-          ),
-          true,
-        );
-        await notifications.flush();
-        assert.equal(deliveries, 0);
+        await db.workSignals.start();
+        notifications.start();
+        const awaitDelivery = async (expected: number) => {
+          const until = Date.now() + 2000;
+          while (deliveries < expected && Date.now() < until)
+            await new Promise<void>((resolve) => setTimeout(resolve, 10));
+          assert.equal(deliveries, expected);
+        };
+        await awaitDelivery(1);
+        // Finish() persists after the send callback; wait for its acknowledgment.
+        const until = Date.now() + 2000;
+        while (Date.now() < until) {
+          const state = await inspector.query<{ pending: boolean }>(
+            'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1',
+            [owner.login.session.accountId],
+          );
+          if (!state.rows[0]!.pending) break;
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        }
+        await create(author, crypto.randomUUID(), testRoot, testCommunity);
+        await awaitDelivery(2);
       } finally {
         await notifications.close();
         await inspector.query('DELETE FROM hash_talk.communities WHERE id=$1', [
@@ -786,7 +771,10 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
           replies: page.items.map((item) => item.reply),
         });
       assert.ok((await notices(owner)).items.every((item) => item.read));
-      assert.equal(await db.daily.check(authority), false);
+      const job = (await db.daily.jobs()).find(
+        (job) => job.account_id === owner.login.session.accountId,
+      )!;
+      assert.equal(await db.daily.eligible(job), false);
       await assert.rejects(
         owner.operate('post-notifications', { after: null, wallet: 'private' }),
         bad(400),

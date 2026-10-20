@@ -80,9 +80,14 @@ const appExternalContent = {
 };
 function contentPolicy(
   scriptSources: string,
-  external = { media: '', connect: '', frames: '' },
+  external: {
+    media: string;
+    connect: string;
+    frames: string;
+    images?: string;
+  } = { media: '', connect: '', frames: '' },
 ): string {
-  return `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:${external.media}; media-src blob:${external.media}; font-src 'self'; connect-src 'self'${external.connect}; frame-src${external.frames || " 'none'"}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+  return `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:${external.images ?? external.media}; media-src blob:${external.media}; font-src 'self'; connect-src 'self'${external.connect}; frame-src${external.frames || " 'none'"}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
 }
 function securityHeaders(
   response: ServerResponse,
@@ -122,8 +127,29 @@ function sendPublicAsset(
       'camera=(self), microphone=(self), geolocation=(), payment=()',
     );
   }
+  notificationWorkerPolicy(request, response, entry);
   attachmentWorkerPolicy(request, response, entry);
   sendAsset(request, response, entry);
+}
+
+function notificationWorkerPolicy(
+  request: IncomingMessage,
+  response: ServerResponse,
+  entry: WebAsset | undefined,
+): void {
+  if (request.url === '/sw.js' && entry?.type.startsWith('text/javascript')) {
+    // Same Matrix runtime as the app, plus local decoded notification photos.
+    // Other documents/workers retain their existing script and image policies.
+    response.setHeader(
+      'Content-Security-Policy',
+      contentPolicy("'self' 'wasm-unsafe-eval'", {
+        media: '',
+        connect: '',
+        frames: '',
+        images: ' data:',
+      }),
+    );
+  }
 }
 
 function appShellRequest(request: IncomingMessage): boolean {

@@ -602,10 +602,16 @@ await test('server rejects origin violations, mutations, traversal and private d
     attachmentResponse.headers['permissions-policy'],
     'camera=(), microphone=(), geolocation=(), payment=()',
   );
-  assert.doesNotMatch(
-    String((await get('/sw.js')).headers['content-security-policy']),
-    /wasm-unsafe-eval/u,
+  const notificationPolicy = String(
+    (await get('/sw.js')).headers['content-security-policy'],
   );
+  assert.match(notificationPolicy, /script-src 'self' 'wasm-unsafe-eval';/u);
+  assert.match(notificationPolicy, /img-src 'self' blob: data:;/u);
+  assert.doesNotMatch(
+    notificationPolicy,
+    /(?:api|static)\.klipy|youtube|unsafe-inline|script-src[^;]*'unsafe-eval'/u,
+  );
+  assert.doesNotMatch(shellPolicy, /img-src[^;]*data:/u);
   assert.equal((await get('/', { host: 'attacker.example' })).status, 403);
   assert.equal(
     (await get('/', { origin: 'https://attacker.example' })).status,

@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
+import type { PrivatePushCandidate } from '../../shared/private-notification/index.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -180,6 +183,9 @@ export class NotificationService {
     allowed: boolean;
     call: boolean;
     showCall: boolean;
+    publicPreview?: PublicNotificationPreview;
+    publicScope?: string;
+    privateCandidates?: PrivatePushCandidate[];
   }> {
     const current = await this.devices.current(session.accountId);
     if (!current) return { allowed: false, call: false, showCall: false };
@@ -190,7 +196,20 @@ export class NotificationService {
       state.calls &&
       (await this.incoming(session, current.head));
     const allowed = call || (await this.store.check(authority));
-    return { allowed, call, showCall: call && state.showCalls };
+    if (!allowed || call)
+      return { allowed, call, showCall: call && state.showCalls };
+    const [publicPreview, privateCandidates] = await Promise.all([
+      this.store.publicPreview(authority),
+      this.store.privateCandidates(authority),
+    ]);
+    return {
+      allowed,
+      call,
+      showCall: false,
+      publicScope: createHash('sha256').update(session.csrf).digest('hex'),
+      ...(publicPreview ? { publicPreview } : {}),
+      privateCandidates,
+    };
   }
   start(): void {
     if (this.config) this.scheduler.start();

@@ -1,3 +1,4 @@
+import { privateNotificationDetails } from '../notification-private/index.ts';
 import { NotificationDelivery } from './notification.ts';
 import {
   appDocumentPath,
@@ -209,6 +210,7 @@ async function wakeOpenClients(): Promise<void> {
   }
 }
 const notifications = new NotificationDelivery({
+  details: privateNotificationDetails,
   wake: wakeOpenClients,
   show: (title, options) => scope.registration.showNotification(title, options),
 });

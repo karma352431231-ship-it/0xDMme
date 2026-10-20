@@ -1,3 +1,4 @@
+export { notificationMessages } from './notification.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';

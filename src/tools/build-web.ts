@@ -265,7 +265,9 @@ asset(
   ),
 );
 const workerSource = Buffer.from(
-  await bundle('src/client/pwa/worker.ts'),
+  await bundle('src/client/pwa/worker.ts', {
+    'import.meta.url': 'globalThis.location.href',
+  }),
 ).toString();
 const version = createHash('sha256').update(workerSource);
 for (const [name, bytes] of files) version.update(name).update(bytes);
