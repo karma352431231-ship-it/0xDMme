@@ -201,7 +201,7 @@ export function startCommunityDiscovery(
       },
     );
     mountPublicSearchToolbar(toolbar, abort.signal);
-    appendFeedSearchSummary(toolbar, search);
+    appendFeedSearchSummary(toolbar, search, view);
     postShortcut(toolbar);
     rankingTopicFilter(mounted, {
       active: view === 'explore',

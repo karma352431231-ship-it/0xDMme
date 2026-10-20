@@ -10,9 +10,15 @@ export function feedSearchScope(view: string, search: string): string {
 export function appendFeedSearchSummary(
   toolbar: HTMLElement,
   search: string,
+  view: string,
 ): void {
-  if (search)
-    toolbar.append(
-      communityElement('p', t('Search results for “{0}”', [search])),
-    );
+  if (!search) return;
+  const summary = communityElement(
+    'p',
+    t('Search results for “{0}”', [search]),
+  );
+  const clear = communityElement('a', t('Clear search'));
+  clear.href = feedSearchScope(view, '');
+  summary.append(document.createTextNode(' · '), clear);
+  toolbar.append(summary);
 }

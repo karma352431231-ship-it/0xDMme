@@ -688,6 +688,10 @@ await test('cut 6: public feeds, discovery and private references', async (t) =>
   await t.test(
     'keyword search covers titles, bodies and low-engagement replies with filter-bound pagination',
     async () => {
+      const searchReader = await make();
+      await searchReader.publicIdentity(
+        `search_${crypto.randomUUID().slice(0, 8)}`,
+      );
       const group = crypto.randomUUID();
       ids.push(group);
       await owner.operate('create', {
@@ -757,14 +761,15 @@ await test('cut 6: public feeds, discovery and private references', async (t) =>
         entries[0],
       );
       assert.equal(
-        (await feed(owner, { ...search, scope: 'following' })).items.length,
+        (await feed(searchReader, { ...search, scope: 'following' })).items
+          .length,
         0,
       );
-      await owner.operate('follow', { id: group, following: true });
+      await searchReader.operate('follow', { id: group, following: true });
       assert.ok(
-        (await feed(owner, { ...search, scope: 'following' })).items.some(
-          (entry) => entry.post.id === entries[0],
-        ),
+        (
+          await feed(searchReader, { ...search, scope: 'following' })
+        ).items.some((entry) => entry.post.id === entries[0]),
       );
       const response = await fetch(
         `${origin}/api/communities/feed?period=all&q=pedra&community=${group}`,

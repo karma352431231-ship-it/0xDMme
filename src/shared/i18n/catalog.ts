@@ -1473,6 +1473,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Search posts for “{0}”': ['Search posts for “{0}”', '搜索包含“{0}”的帖子'],
   'Search results for “{0}”': ['Search results for “{0}”', '“{0}”的搜索结果'],
   'Invalid post search.': ['Invalid post search.', '帖子搜索内容无效。'],
+  'Clear search': ['Clear search', '清除搜索'],
   'Search messages': ['Search messages', '搜索消息'],
   'Find profile': ['Find profile', '查找个人资料'],
   'Find and check the profile before continuing.': [
