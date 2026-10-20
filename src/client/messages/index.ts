@@ -1327,6 +1327,7 @@ export function startMessages(
       );
     attachments.clearMedia();
     attachments.pausePreview();
+    synchronization.resume();
   }
   function suspend(
     reason: 'pause' | 'invalidate' | 'directory' = 'pause',

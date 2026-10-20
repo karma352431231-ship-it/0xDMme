@@ -144,6 +144,89 @@ await test('prefetch alternates direct and groups, stops completed branches and 
   await turn();
   assert.deepEqual(calls, ['direct', 'direct', 'groups']);
 });
+
+await test('account inbox receives private and group pages without a mounted or selected chat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.connected = false;
+  const received: string[] = [];
+  f.options.preloadDirect = () => {
+    received.push('private');
+    return Promise.resolve(false);
+  };
+  f.options.preloadGroups = () => {
+    received.push('group');
+    return Promise.resolve(false);
+  };
+  f.sync.resume();
+  for (let page = 0; page < 2; page++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.deepEqual(received, ['private', 'group']);
+  assert.equal(
+    f.completed(),
+    1,
+    'Receipt completion refreshes directory projections',
+  );
+  t.mock.timers.tick(10000);
+  await turn();
+  assert.deepEqual(
+    received,
+    ['private', 'group'],
+    'Completed inboxes remain idle',
+  );
+});
+
+await test('routine presence and decoration cannot abort an unfinished inbox page', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    held = deferred<boolean>();
+  const signals: AbortSignal[] = [];
+  let received = false,
+    decoration = 0;
+  f.options.preloadDirect = async (value) => {
+    signals.push(value);
+    await held.promise;
+    received = !value.aborted;
+    return false;
+  };
+  f.sync.resume();
+  t.mock.timers.tick(1000);
+  await turn();
+  const signal = signals[0];
+  assert.ok(signal);
+  await f.sync.maintainPresence();
+  await f.sync.background(() => {
+    decoration++;
+    return Promise.resolve();
+  });
+  await f.sync.periodicTick();
+  assert.equal(signal.aborted, false);
+  assert.equal(
+    decoration,
+    0,
+    'Optional work yields until the receipt page settles',
+  );
+  held.resolve(false);
+  await turn();
+  assert.equal(received, true);
+});
+
+await test('a live account wakeup is checked while its chat directory is disconnected', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.connected = false;
+  let checks = 0;
+  f.options.changes = () => {
+    checks++;
+    return Promise.resolve();
+  };
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 1);
+});
 await test('suspension/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t);

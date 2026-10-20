@@ -64,18 +64,15 @@ export class MessageSynchronization {
       direct: (signal) => options.preloadDirect(signal),
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
-      changed: () => this.updates.resume(),
+      changed: () => this.resume(),
+      settled: () => options.complete(),
       failed: (error) => {
         this.report(error, t('Could not prepare conversation history.'));
         options.status();
       },
     });
     this.updates = new LiveUpdates({
-      available: () =>
-        this.canSynchronize() &&
-        options.state().connected &&
-        !this.inbox.running &&
-        !options.state().liveConnecting,
+      available: () => this.canSynchronize() && !options.state().liveConnecting,
       run: (update) => {
         const work: VaultWorkOptions =
           this.interactiveChange && options.state().visible
@@ -230,7 +227,12 @@ export class MessageSynchronization {
 
   private canSynchronize(): boolean {
     const state = this.options.state();
-    return this.foregroundReady && state.visible && !state.textPending;
+    return (
+      this.foregroundReady &&
+      !this.inbox.running &&
+      state.visible &&
+      !state.textPending
+    );
   }
   get foregroundReady(): boolean {
     const state = this.options.state();
@@ -245,7 +247,7 @@ export class MessageSynchronization {
   }
   private canPreload(): boolean {
     const state = this.options.state();
-    return this.canSynchronize() && state.connected && !state.startupPending;
+    return this.canSynchronize() && !state.startupPending;
   }
   private async checkChanges(work: VaultWorkOptions): Promise<void> {
     const current = this.options.state().generation;

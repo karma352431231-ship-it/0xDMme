@@ -733,6 +733,9 @@ export class SocialDms {
     await this.synchronizeHistory(options);
     return this.cached(peer, before, options);
   }
+  async receive(): Promise<void> {
+    await this.synchronizeHistory();
+  }
   private async synchronizeHistory(
     options: VaultWorkOptions = {},
   ): Promise<unknown> {

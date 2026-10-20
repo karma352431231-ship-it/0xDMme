@@ -9,6 +9,7 @@ interface InboxPorts {
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
+  settled: () => void;
   failed: (error: unknown) => void;
 }
 
@@ -90,5 +91,6 @@ export class MessageInbox {
       : this.ports.direct(signal));
     if (signal.aborted || !this.ports.current(generation)) return;
     this.preparation.complete(turn, more);
+    if (!this.preparation.pending) this.ports.settled();
   }
 }

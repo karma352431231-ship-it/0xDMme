@@ -32,3 +32,20 @@ receipt, coordinator and visibility tests must accompany those cuts.
 - Hidden/offline/suspended browsers retain their existing deferral policy;
   resuming the browser requests current authority before projecting content.
 - No new server endpoint, schema, crypto format, dependency or telemetry is needed.
+
+## Implemented flow
+
+`MessageInbox` now schedules private/group receipt independently of a mounted
+directory. Automatic presence and decoration yield to an unfinished page;
+foreground user work retains cancellation and priority. Completed receipt
+refreshes list projections without marking messages read.
+
+`communities/dm-inbox.ts` owns account-level handle receipt and browser wakeups.
+It receives authenticated history once per coalesced account update, before
+projecting paginated notification counts. An empty directory does not initialize
+an alias. Account replacement removes its lifecycle listeners, and failures or
+stale generations cannot publish counts.
+
+Regression coverage lives in `message-synchronization`, `message-coordinator`,
+`message-resume`, `dm-inbox`, `social-unread` and `social-dm-work` tests. Device
+delivery timing still requires a new live capture after publication.

@@ -168,4 +168,10 @@ for (const interactive of [false, true])
         .every((boundary) => boundary.priority === undefined),
       'Directory preparation must not inherit a selected conversation priority',
     );
+    const received = requests.length;
+    await controller.receive();
+    assert.deepEqual(requests.slice(received), [
+      '/api/account/messages/dm-personal-snapshot',
+      '/api/account/messages/dm-personal-snapshot',
+    ]);
   });

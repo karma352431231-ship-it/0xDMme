@@ -10,6 +10,7 @@ export class DmUnreadUpdates {
       after: string | null,
     ) => Promise<{ peers: string[]; next: string | null }>;
     count: (peers: string[]) => Promise<number>;
+    prepare?: () => Promise<void>;
     changed: (count: number) => void;
   };
   constructor(ports: DmUnreadUpdates['ports']) {
@@ -60,16 +61,38 @@ export class DmUnreadUpdates {
   }
   private async read(generation: number): Promise<number> {
     let after: string | null = null,
-      total = 0;
+      total = 0,
+      prepared = false;
     for (let page = 0; page < 64; page++) {
       const result = await this.ports.page(after);
       if (generation !== this.generation) return 0;
-      total += await this.ports.count(result.peers);
-      if (generation !== this.generation) return 0;
+      const counted = await this.countReceivedPage({
+        peers: result.peers,
+        generation,
+        prepared,
+      });
+      if (!counted) return 0;
+      prepared = counted.prepared;
+      total += counted.count;
       if (!result.next || total >= 100) return Math.min(100, total);
       if (result.next === after) throw new Error('Invalid DM page.');
       after = result.next;
     }
     throw new Error('Continue syncing DM history.');
+  }
+  /** Receive once for the account before projecting paginated notifications. */
+  private async countReceivedPage(input: {
+    peers: string[];
+    generation: number;
+    prepared: boolean;
+  }): Promise<{ count: number; prepared: boolean } | null> {
+    if (!input.prepared && input.peers.length) {
+      await this.ports.prepare?.();
+      if (input.generation !== this.generation) return null;
+    }
+    const count = await this.ports.count(input.peers);
+    return input.generation === this.generation
+      ? { count, prepared: input.prepared || input.peers.length > 0 }
+      : null;
   }
 }

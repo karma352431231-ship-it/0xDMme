@@ -39,7 +39,7 @@ import {
   paintDmDirectoryPreviews,
 } from './dm-directory.ts';
 import { LiveUpdates } from '../message-live/index.ts';
-import { DmUnreadUpdates } from './dm-unread-updates.ts';
+import { createDmInbox } from './dm-inbox.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
@@ -54,14 +54,7 @@ export function startSocialDmUi(
   unreadChanged: (count: number) => void = () => {},
 ) {
   const controller = new SocialDms(access, sync);
-  const unread = new DmUnreadUpdates({
-    page: async (after) => {
-      const page = await controller.list(after);
-      return { peers: page.items.map((row) => row.peer.id), next: page.next };
-    },
-    count: (peers) => controller.unread(peers),
-    changed: unreadChanged,
-  });
+  const unread = createDmInbox(controller, unreadChanged);
   const publicDirectory = new DmDirectory({
     list: () => controller.list(null),
     previews: (peers) => controller.directoryPreviews(peers),
