@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import test from 'node:test';
 import pg from 'pg';
 
@@ -77,6 +81,28 @@ await test('092 to 093 preserves source data and accounting while rebuilding onl
     await admin.end();
   });
   await client.connect();
+  const temporary = await mkdtemp(
+    resolve(tmpdir(), '0xdmme-directory-review-'),
+  );
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const review = (phase: string) =>
+    promisify(execFile)(
+      'python3',
+      [
+        'tests/fixtures/profile-directory-migration-review.py',
+        process.cwd(),
+        phase,
+        resolve(temporary, 'before.json'),
+      ],
+      {
+        env: {
+          ...process.env,
+          HASH_TALK_DATABASE_URL: target.href,
+          DIRECTORY_TEST_NODE: process.execPath,
+        },
+        timeout: 60000,
+      },
+    );
   await client.query(
     'CREATE SCHEMA hash_talk;CREATE TABLE hash_talk.schema_migrations(version integer PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())',
   );
@@ -118,7 +144,17 @@ await test('092 to 093 preserves source data and accounting while rebuilding onl
     )
   ).rows;
   const usage = await accounting(client);
+  await review('before');
   await migrate(client, 93, 93);
+  await review('after');
+  await client.query(
+    'UPDATE hash_talk.profile_ranking_entries SET followers=1',
+  );
+  await assert.rejects(review('after'));
+  await client.query(
+    'UPDATE hash_talk.profile_ranking_entries SET followers=0',
+  );
+  await review('after');
   assert.deepEqual(await snapshot(client), before);
   assert.deepEqual(
     (
