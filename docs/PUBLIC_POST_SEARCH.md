@@ -34,6 +34,14 @@ indexes, rows and accounting remain intact. Preparing the migration locally
 does not activate it on the VPS; its reviewed activation must use the existing
 deployment executor, with backup, preserved data and exact passing CI.
 
+The owner explicitly approved migration 095 and its internal executor module
+after the automatic review initially interpreted that module as an additional
+deployment script. Activation remains `npm run deploy:staging -- --post-search`;
+there is no second command. The verifier pins predecessor `5673246` and complete
+application sources `a04abe6`, refuses unit drift, compares all existing table
+hashes and accounting, verifies the index and reuses the phase-aware tested
+backup/restore path. The transport budget remains unchanged.
+
 The discovery and community screen closures remain hotspots. Their changes are
 limited to passing the new filter and rendering options; query validation,
 highlighting and the search submission link live in separate owning modules.
