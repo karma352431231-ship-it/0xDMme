@@ -62,13 +62,19 @@ def repository():
     return revision, branch
 
 
+def approved_ci_event(event, branch):
+    # Task branches already run the same workflow on demand. Keep exact SHA,
+    # branch, repository, workflow, conclusion and latest-run checks below.
+    return event == 'push' or (event == 'workflow_dispatch' and branch.startswith('codex/'))
+
+
 def require_ci(data, revision, branch):
     runs = data.get('workflow_runs', [])
     if not runs:
         raise RuntimeError('No CI run for this commit.')
     latest = max(runs, key=lambda r: r['id'])
     if (latest.get('head_sha') != revision or latest.get('head_branch') != branch or
-            latest.get('event') != 'push' or latest.get('path') != '.github/workflows/check.yml' or
+            not approved_ci_event(latest.get('event'), branch) or latest.get('path') != '.github/workflows/check.yml' or
             latest.get('head_repository', {}).get('full_name') != OWNER + '/0xDMme' or
             latest.get('status') != 'completed' or latest.get('conclusion') != 'success'):
         raise RuntimeError('Latest exact-commit CI has not passed; activation refused.')
@@ -77,7 +83,7 @@ def require_ci(data, revision, branch):
 
 def ci(revision, branch):
     query = urllib.parse.urlencode({'head_sha': revision, 'branch': branch,
-                                    'event': 'push', 'per_page': 10})
+                                    'per_page': 10})
     request = urllib.request.Request(
         f'https://api.github.com/repos/{OWNER}/0xDMme/actions/workflows/check.yml/runs?' + query,
         headers={'Accept': 'application/vnd.github+json', 'User-Agent': '0xdmme-deploy'})

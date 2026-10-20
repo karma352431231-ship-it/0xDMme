@@ -201,6 +201,22 @@ class DeploymentTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 deploy.require_ci({'workflow_runs': [valid, bad]}, 'a' * 40, 'codex/example')
 
+    def test_manual_task_ci_keeps_exact_commit_guards_and_main_push_policy(self):
+        valid = dict(self.ci_run(), event='workflow_dispatch')
+        self.assertEqual(deploy.require_ci({'workflow_runs': [valid]}, 'a' * 40,
+                                          'codex/example'), valid['html_url'])
+        for field, value in [('head_sha', 'b' * 40), ('head_branch', 'codex/other'),
+                             ('path', 'unrelated.yml'), ('status', 'in_progress'),
+                             ('conclusion', 'failure'), ('event', 'pull_request'),
+                             ('head_repository', {'full_name': 'someone/else'})]:
+            bad = dict(valid, id=2)
+            bad[field] = value
+            with self.assertRaises(RuntimeError):
+                deploy.require_ci({'workflow_runs': [valid, bad]}, 'a' * 40, 'codex/example')
+        with self.assertRaises(RuntimeError):
+            deploy.require_ci({'workflow_runs': [dict(valid, head_branch='main')]},
+                              'a' * 40, 'main')
+
     def test_main_release_keeps_explicit_branch_and_manifest_guards(self):
         for branch in ['main', 'codex/example']:
             self.assertTrue(remote.valid_release_branch(branch))
