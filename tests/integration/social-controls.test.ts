@@ -371,6 +371,11 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
       assert.equal(preview.author.handle, authorId.handle);
       assert.ok(preview.text.includes('sininho'));
       assert.equal(preview.followed, true);
+      await assertMixedPushIsGeneric(db, inspector, {
+        sender: author.login.session.accountId,
+        recipient: reader.login.session.accountId,
+        authority: pushAuthority,
+      });
       const queued = await inspector.query<{ pending: boolean }>(
         'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
         [reader.login.session.accountId, reader.login.session.deviceId],
@@ -495,3 +500,58 @@ await test('social controls: authority, badges, confirmation, editing, blocking,
     },
   );
 });
+
+/** Synthetic transport rows isolate classification; no real E2EE content is inserted. */
+async function assertMixedPushIsGeneric(
+  db: Database,
+  inspector: pg.Client,
+  input: {
+    sender: string;
+    recipient: string;
+    authority: Parameters<Database['daily']['publicPreview']>[0];
+  },
+): Promise<void> {
+  const id = crypto.randomUUID();
+  await inspector.query(
+    "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'approved')",
+    [input.sender, input.recipient],
+  );
+  try {
+    await inspector.query(
+      'INSERT INTO hash_talk.message_packets(id,sender,recipient,sender_revision,recipient_revision,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,1,1,$4,$5::jsonb,0,0,0)',
+      [
+        id,
+        input.sender,
+        input.recipient,
+        'a'.repeat(64),
+        JSON.stringify({ synthetic: true }),
+      ],
+    );
+    assert.equal(await db.daily.check(input.authority), true);
+    assert.equal(
+      await db.daily.publicPreview(input.authority),
+      null,
+      'An unread private message cannot be presented as a stale public reply',
+    );
+    await inspector.query(
+      'INSERT INTO hash_talk.conversation_controls(account_id,peer,muted_until) VALUES($1,$2,$3)',
+      [input.recipient, input.sender, Date.now() + 60000],
+    );
+    assert.ok(
+      await db.daily.publicPreview(input.authority),
+      'A muted private conversation cannot hide eligible public activity',
+    );
+  } finally {
+    await inspector.query('DELETE FROM hash_talk.message_packets WHERE id=$1', [
+      id,
+    ]);
+    await inspector.query(
+      'DELETE FROM hash_talk.conversation_controls WHERE account_id=$1 AND peer=$2',
+      [input.recipient, input.sender],
+    );
+    await inspector.query(
+      'DELETE FROM hash_talk.contact_relations WHERE lo=least($1::uuid,$2::uuid) AND hi=greatest($1::uuid,$2::uuid)',
+      [input.sender, input.recipient],
+    );
+  }
+}

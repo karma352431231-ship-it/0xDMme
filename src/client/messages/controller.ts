@@ -1,3 +1,5 @@
+import type { ConversationPreview } from '../conversation-preview/index.ts';
+import { retrySnapshotRead } from './snapshot-retry.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
@@ -211,7 +213,16 @@ export class Messages {
       return card;
     });
   }
-  async directoryPreviews(peers: readonly string[]) {
+  directoryPreviews(peers: readonly string[]) {
+    const generation = this.generation;
+    return retrySnapshotRead(
+      () => this.readDirectoryPreviews(peers),
+      () => this.generation === generation,
+    );
+  }
+  private async readDirectoryPreviews(
+    peers: readonly string[],
+  ): Promise<Map<string, ConversationPreview>> {
     if (!peers.length) return new Map();
     const generation = this.generation;
     let snapshot: unknown;

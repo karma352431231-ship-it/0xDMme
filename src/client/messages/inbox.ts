@@ -1,3 +1,4 @@
+import { retrySnapshotRead } from './snapshot-retry.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 
@@ -9,7 +10,7 @@ interface InboxPorts {
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
-  settled: () => void;
+  received: () => void;
   failed: (error: unknown) => void;
 }
 
@@ -86,11 +87,16 @@ export class MessageInbox {
   ): Promise<void> {
     const turn = this.preparation.next();
     if (!turn) return;
-    const more = await (turn.kind === 'groups'
-      ? this.ports.groups(signal)
-      : this.ports.direct(signal));
+    const more = await retrySnapshotRead(
+      () =>
+        turn.kind === 'groups'
+          ? this.ports.groups(signal)
+          : this.ports.direct(signal),
+      () => !signal.aborted && this.ports.current(generation),
+    );
     if (signal.aborted || !this.ports.current(generation)) return;
     this.preparation.complete(turn, more);
-    if (!this.preparation.pending) this.ports.settled();
+    this.retryAt = 0;
+    this.ports.received();
   }
 }

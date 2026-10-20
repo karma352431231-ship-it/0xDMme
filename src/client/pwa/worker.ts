@@ -1,16 +1,9 @@
+import { NotificationDelivery } from './notification.ts';
 import {
   appDocumentPath,
   publicPostHash,
-  appHref,
 } from '../../shared/app-routes/index.ts';
-import { t } from '../../shared/i18n/index.ts';
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
-import { genericNotification } from '../../shared/daily/index.ts';
-import { publicNotificationPreview } from '../../shared/public-notification/index.ts';
-import { pushSoundEnabled } from '../notification-sound/index.ts';
-import { fetchApi, readApiJson } from '../api-response/index.ts';
-import { pushLanguage } from '../language/index.ts';
-import { setActiveLanguage } from '../../shared/i18n/index.ts';
 
 // Narrow structural interfaces keep DOM client and worker contexts independent.
 interface WorkerScope {
@@ -200,42 +193,6 @@ scope.addEventListener('message', (event) => {
   if (new URL(event.source.url).origin !== scope.location.origin) return;
   event.waitUntil(scope.skipWaiting());
 });
-async function notify(): Promise<void> {
-  try {
-    const response = await fetchApi(
-      'account/push-check',
-      '/api/account/push-check',
-      {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(5000),
-      },
-    );
-    const data = await readApiJson(response, 'account/push-check');
-    if (
-      !response.ok ||
-      typeof data !== 'object' ||
-      data === null ||
-      !('allowed' in data) ||
-      data.allowed !== true
-    )
-      return;
-    await wakeOpenClients();
-    const sound = await pushSoundEnabled();
-    setActiveLanguage(await pushLanguage());
-    const appearance = notificationAppearance(data);
-    await scope.registration.showNotification(appearance.title, {
-      ...appearance,
-      icon: appearance.icon ?? '/icon-192.png',
-      badge: '/notification-badge.png',
-      silent: !sound,
-      renotify: sound,
-    });
-  } catch {
-    /* Unverified authorization/mute never falls back to an alert. The message remains durable. */
-  }
-}
 /** A closing window must not prevent the independently authorized OS alert. */
 async function wakeOpenClients(): Promise<void> {
   try {
@@ -251,67 +208,12 @@ async function wakeOpenClients(): Promise<void> {
     // Live hints, return-to-app reconciliation and the foreground fallback remain active.
   }
 }
-interface NotificationAppearance {
-  title: string;
-  body: string;
-  tag: string;
-  icon?: string;
-  data?: { href: string };
-}
-function notificationAppearance(data: object): NotificationAppearance {
-  const call = 'call' in data && data.call === true;
-  const showCall = call && 'showCall' in data && data.showCall === true;
-  if (!call && 'publicPreview' in data)
-    return publicAppearance(publicNotificationPreview(data.publicPreview));
-  return {
-    title: genericNotification.title,
-    body: showCall
-      ? t('Incoming voice call. Open the app to answer.')
-      : t(genericNotification.body),
-    tag: call ? '0xdmme-call' : '0xdmme-activity',
-  };
-}
-function publicAppearance(
-  preview: ReturnType<typeof publicNotificationPreview>,
-): NotificationAppearance {
-  if (preview.followed) return followedAppearance(preview);
-  return {
-    title: preview.reply
-      ? t('@{0} replied · 0xDMme', [preview.author.handle])
-      : t('@{0} posted · 0xDMme', [preview.author.handle]),
-    body: preview.text || t('New media publication.'),
-    tag: '0xdmme-public-activity',
-    data: {
-      href: appHref(
-        'communities',
-        new URLSearchParams({ id: preview.community, post: preview.post }),
-      ),
-    },
-  };
-}
-/**
- * X-style alert for posts and replies by profiles followed with notifications
- * on (16/10/2026): the author's handle on top, the post below, the author's
- * public photo as the image. One alert per post, so several stay visible.
- */
-function followedAppearance(
-  preview: ReturnType<typeof publicNotificationPreview>,
-): NotificationAppearance {
-  return {
-    title: `@${preview.author.handle}`,
-    body: preview.text || t('New media publication.'),
-    tag: `0xdmme-post-${preview.post}`,
-    ...(preview.author.avatar ? { icon: preview.author.avatar } : {}),
-    data: {
-      href: appHref(
-        'communities',
-        new URLSearchParams({ id: preview.community, post: preview.post }),
-      ),
-    },
-  };
-}
+const notifications = new NotificationDelivery({
+  wake: wakeOpenClients,
+  show: (title, options) => scope.registration.showNotification(title, options),
+});
 scope.addEventListener('push', (event) => {
-  event.waitUntil(notify());
+  event.waitUntil(notifications.request());
 });
 function notificationHref(data: unknown): string {
   const href =

@@ -1,3 +1,4 @@
+import { retrySnapshotRead } from './snapshot-retry.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageWarmup } from './warmup.ts';
 import { MessageInbox } from './inbox.ts';
@@ -65,7 +66,7 @@ export class MessageSynchronization {
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
       changed: () => this.resume(),
-      settled: () => options.complete(),
+      received: () => options.complete(),
       failed: (error) => {
         this.report(error, t('Could not prepare conversation history.'));
         options.status();
@@ -252,7 +253,10 @@ export class MessageSynchronization {
   private async checkChanges(work: VaultWorkOptions): Promise<void> {
     const current = this.options.state().generation;
     await this.checkAutomatically(async () => {
-      await this.options.changes(work);
+      await retrySnapshotRead(
+        () => this.options.changes(work),
+        () => this.current(current),
+      );
       if (this.current(current)) this.followup.queue();
     });
   }

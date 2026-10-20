@@ -333,7 +333,10 @@ await test('snapshot changed between probe and load rejects publication even wit
   await add('Fictícia');
   assert.equal(await controller.probe(), true);
   data.snapshot.revision++;
-  await assert.rejects(controller.synchronize(), /Estado alterado/);
+  await assert.rejects(
+    controller.synchronize(),
+    /Messages or permissions changed|Estado alterado/,
+  );
   assert.equal(data.frames.at(-1), null);
 });
 
@@ -549,3 +552,24 @@ for (const interactive of [false, true])
     );
     assert.equal(f.data.requests.length, 0);
   });
+
+await test('unselected directory preview restarts from fresh authority when receipt changes the delivery snapshot', async () => {
+  const { controller, data, peer, add } = resumeFixture();
+  controller.select(null);
+  await add('Latest inbox message');
+  data.beforeDelivery = () => {
+    data.beforeDelivery = undefined;
+    data.snapshot = { ...data.snapshot, revision: 2 };
+  };
+  const previews = await controller.directoryPreviews([peer]);
+  assert.equal(previews.get(peer)?.text, 'Latest inbox message');
+  assert.equal(
+    data.requests.filter((operation) => operation === 'snapshot').length,
+    2,
+  );
+  assert.equal(
+    data.frames.some((frame) => frame?.length),
+    false,
+  );
+  assert.equal(data.requests.includes('daily-read'), false);
+});

@@ -104,6 +104,7 @@ export function resumeFixture() {
     confirmation: null as (() => Promise<Response>) | null,
     frames: [] as (MessageView[] | null)[],
     authorityReads: 0,
+    beforeDelivery: undefined as (() => void) | undefined,
     beforeLocalRead: undefined as ((name: string) => void) | undefined,
     beforeLocalOpen: undefined as (() => void) | undefined,
   };
@@ -221,6 +222,29 @@ export function resumeFixture() {
       }),
     );
   };
+  const deliveryResponse = (input?: RequestInit): Promise<Response> => {
+    data.beforeDelivery?.();
+    const body = JSON.parse(requestBody(input)) as {
+      payload: { snapshot: unknown };
+    };
+    if (JSON.stringify(body.payload.snapshot) !== JSON.stringify(data.snapshot))
+      return Promise.resolve(
+        Response.json(
+          { error: 'Messages or permissions changed. Sync again.' },
+          { status: 409 },
+        ),
+      );
+    return Promise.resolve(
+      Response.json(
+        data.items.map((item) => ({
+          id: item.id,
+          hash: item.hash,
+          queue_active: false,
+          recipient_received: true,
+        })),
+      ),
+    );
+  };
   const respond = (path: string, input?: RequestInit): Promise<Response> => {
     const operation = path.split('/').at(-1)!;
     data.requests.push(operation);
@@ -232,18 +256,15 @@ export function resumeFixture() {
       return Promise.resolve(Response.json(data.snapshot));
     if (operation === 'changes') return changesResponse(input);
     if (operation === 'page') return pageResponse(input);
-    if (operation === 'relations') return relationsResponse(input);
-    if (operation === 'delivery')
+    if (operation === 'preview')
       return Promise.resolve(
-        Response.json(
-          data.items.map((item) => ({
-            id: item.id,
-            hash: item.hash,
-            queue_active: false,
-            recipient_received: true,
-          })),
-        ),
+        Response.json({
+          items: data.items.filter((item) => !item.relation),
+          next: null,
+        }),
       );
+    if (operation === 'relations') return relationsResponse(input);
+    if (operation === 'delivery') return deliveryResponse(input);
     if (operation === 'confirm') return confirmResponse(input);
     throw new Error('Requisição inesperada: ' + operation);
   };

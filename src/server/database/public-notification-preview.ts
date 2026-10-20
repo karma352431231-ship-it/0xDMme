@@ -1,3 +1,4 @@
+import { privatePushEligible } from './push-private-activity.ts';
 import type pg from 'pg';
 import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { publicNotificationText } from '../../shared/public-notification/index.ts';
@@ -21,7 +22,7 @@ export function publicNotificationCandidates(
 }
 /**
  * Authenticated same-origin read, separate from the isolated push sender.
- * Followed profiles' posts carry the author's approved public photo so the
+ * Posts and replies carry the author's approved public photo so the
  * alert can show it; the push payload itself stays generic.
  */
 export async function readPublicNotificationPreview(
@@ -30,7 +31,7 @@ export async function readPublicNotificationPreview(
   profiles: Pick<PublicProfileStore, 'readById'>,
 ): Promise<PublicNotificationPreview | null> {
   const preview = await readPreviewRow(contacts, authority);
-  if (!preview?.followed) return preview;
+  if (!preview) return null;
   const author = await profiles.readById(preview.author.id);
   return author ? { ...preview, author } : preview;
 }
@@ -53,7 +54,7 @@ function readPreviewRow(
       }>(
         `WITH candidates AS (${publicNotificationCandidates('$1')}) SELECT p.id,p.community_id,p.title,p.text,p.parent_id,p.author,pp.handle,n.followed
       FROM candidates n JOIN hash_talk.community_posts p ON p.id=n.id JOIN hash_talk.public_profiles pp ON pp.id=p.author WHERE EXISTS(SELECT 1 FROM hash_talk.push_subscriptions s WHERE s.account_id=$1 AND s.device_id=$2
-        AND NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.messages))
+        AND NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.messages) AND NOT ${privatePushEligible})
       ORDER BY n.created_at DESC,n.id DESC LIMIT 1`,
         [authority.session.accountId, authority.session.deviceId],
       );

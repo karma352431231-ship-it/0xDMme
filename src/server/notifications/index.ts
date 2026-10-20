@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -182,6 +183,7 @@ export class NotificationService {
     call: boolean;
     showCall: boolean;
     publicPreview?: PublicNotificationPreview;
+    publicScope?: string;
   }> {
     const current = await this.devices.current(session.accountId);
     if (!current) return { allowed: false, call: false, showCall: false };
@@ -198,7 +200,14 @@ export class NotificationService {
       allowed,
       call,
       showCall: call && state.showCalls,
-      ...(publicPreview ? { publicPreview } : {}),
+      ...(publicPreview
+        ? {
+            publicPreview,
+            publicScope: createHash('sha256')
+              .update(session.csrf)
+              .digest('hex'),
+          }
+        : {}),
     };
   }
   start(): void {

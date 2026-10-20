@@ -49,3 +49,43 @@ stale generations cannot publish counts.
 Regression coverage lives in `message-synchronization`, `message-coordinator`,
 `message-resume`, `dm-inbox`, `social-unread` and `social-dm-work` tests. Device
 delivery timing still requires a new live capture after publication.
+
+## Preview and aggregate-push corrections — 20 October 2026
+
+Each successfully verified inbox page now refreshes directory projections,
+without waiting for the other inbox or the remaining history. Private preview
+loads and automatic receipt/change reads retry the complete operation once on
+the exact message-snapshot conflict. Each attempt obtains fresh authority;
+revocation, unrelated conflicts and repeated failures still close the projection
+and remain visible. No publication is retried by this helper.
+
+The push sender supplies an aggregate wakeup, not the identity of a private
+message. An unread public reply must not repeatedly impersonate new chat
+activity. The worker remembers up to 32 displayed public post IDs in one local
+record, scoped to a digest of the authenticated session's CSRF secret. No raw
+secret, message text, author, wallet or private peer is stored. A session change
+replaces that bounded record; clearing browser data resets it. Display does not
+mark a post read. A repeated candidate uses the existing generic activity alert
+and app link. If there is eligible unread private/group activity, the server omits the public
+preview so a mixed wakeup stays generic, including on a fresh browser cache.
+That check reuses the same private mute/read/authorization predicate as push
+eligibility. This cannot identify the exact event behind an aggregate push;
+without eligible private activity, an unseen public candidate can be shown.
+
+Posts and direct public replies both use the author's currently approved public
+photo. Private push remains generic under the existing privacy contract. The
+notification pipeline and public-alert bookkeeping have their own modules;
+the worker only connects browser events. Inspections have one active operation
+and one coalesced followup. Cache failure falls back to generic attribution after
+successful server authorization.
+
+The owner deferred choosing notifications with the app closed until the options
+are explained. Background Web Push, consent, mute, call behavior, schema,
+dependencies and private-message confidentiality are unchanged.
+
+This correction stays on `codex/chat-preview-notificacoes`, as requested. The
+existing deployment command accepts the existing on-demand `check.yml` workflow
+for the exact pushed task-branch commit; main still requires push-triggered CI.
+The same repository, latest-run, SHA, branch, workflow and success checks remain.
+This aligns the executor with the workflow's existing task-branch policy and
+allows activation without merging this correction into main.

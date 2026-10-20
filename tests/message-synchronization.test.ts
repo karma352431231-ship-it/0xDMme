@@ -1,3 +1,4 @@
+import { ApiResponseError } from '../src/client/api-response/index.ts';
 import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -166,8 +167,8 @@ await test('account inbox receives private and group pages without a mounted or 
   assert.deepEqual(received, ['private', 'group']);
   assert.equal(
     f.completed(),
-    1,
-    'Receipt completion refreshes directory projections',
+    2,
+    'Each received page refreshes directory projections',
   );
   t.mock.timers.tick(10000);
   await turn();
@@ -673,4 +674,45 @@ await test('a visible return prioritizes only the coalesced pending history chec
   t.mock.timers.tick(150);
   await turn();
   assert.deepEqual(priorities, ['interactive', undefined]);
+});
+
+await test('verified private pages refresh the directory before a slow group inbox finishes', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    group = deferred<boolean>();
+  f.state.connected = false;
+  f.options.preloadGroups = () => group.promise;
+  f.sync.resume();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(f.completed(), 1);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(f.completed(), 1, 'Group receipt is still pending');
+  group.resolve(false);
+  await turn();
+  assert.equal(f.completed(), 2);
+});
+
+await test('a live snapshot race is retried with fresh work before publishing an automatic error', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  let calls = 0;
+  f.options.changes = () =>
+    ++calls === 1
+      ? Promise.reject(
+          new ApiResponseError({
+            operation: 'messages/delivery',
+            status: 409,
+            failure: 'http',
+            responseType: 'json',
+            message: 'Messages or permissions changed. Sync again.',
+          }),
+        )
+      : Promise.resolve();
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(calls, 2);
+  assert.deepEqual(f.notices, []);
 });
