@@ -216,6 +216,7 @@ const migrations = [
   '090-attachment-reservation-allocations.sql',
   '091-group-media-parts.sql',
   '092-account-ranking-windows.sql',
+  '093-profile-directory-orders.sql',
 ];
 
 export interface MaintenanceSnapshot {

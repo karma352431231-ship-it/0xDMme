@@ -1,0 +1,31 @@
+/* The preview uses the full row below the name and its timestamp in both directories. */
+.conversation-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+}
+.conversation-copy strong {
+  grid-column: 1;
+  grid-row: 1;
+}
+.conversation-copy small {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.conversation-copy small > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversation-time {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}

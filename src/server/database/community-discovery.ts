@@ -1,3 +1,4 @@
+import { rankingPeriod } from '../../shared/community-ranking/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
@@ -358,6 +359,24 @@ export class CommunityDiscoveryStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (operation === 'discovery-accounts') {
+      keys(data, ['period', 'after']);
+      const period = rankingPeriod(data['period']);
+      const after = data['after'];
+      exploreCursor(after);
+      return this.communities.withReader(authority, ({ client, actor }) => {
+        if (!actor)
+          throw new AccountError(
+            403,
+            'Create your public profile in Profile to organize your lists.',
+          );
+        return this.ranking.accountsPage(period, after as string | null, {
+          order: 'following',
+          actor: actor.id,
+          client,
+        });
+      });
+    }
     if (operation === 'discovery-feed') {
       keys(data, ['filter', 'after']);
       const filter = feedFilter(data['filter']);

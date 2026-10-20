@@ -9996,4 +9996,5 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Invalid media duration.': ['Invalid media duration.', '媒体时长无效。'],
   'Invalid media frame rate.': ['Invalid media frame rate.', '媒体帧率无效。'],
+  'ranking.biggest': ['Biggest', '最大'],
 };

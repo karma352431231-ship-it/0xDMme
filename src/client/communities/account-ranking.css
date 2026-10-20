@@ -102,3 +102,20 @@
 .ranking-side > .account-ranking[hidden] {
   display: none;
 }
+
+#app-shell .account-ranking-restart,
+#app-shell .account-ranking-more {
+  align-self: center;
+  width: auto;
+  margin: 8px 16px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+#app-shell .account-ranking-restart[hidden],
+#app-shell .account-ranking-more[hidden] {
+  display: none;
+}
