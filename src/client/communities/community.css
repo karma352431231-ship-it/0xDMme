@@ -4,6 +4,7 @@
  * file where its rules must apply.
  */
 @import './feed-refresh.css';
+@import './post-search.css';
 @import './post-media.css';
 @import './feed-follow.css';
 @import './post-thread.css';

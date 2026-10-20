@@ -11,6 +11,7 @@ export function feedRank(order: FeedFilter['order']): string {
 }
 /** Choose representatives before applying a cursor; pagination cannot refill discarded duplicates. */
 export function feedSelection(filter: FeedFilter): string {
+  if (filter.search) return 'SELECT *,1 AS representative FROM candidates';
   if (filter.scope === 'following')
     return `SELECT *,row_number() OVER(PARTITION BY coalesce(root_id,id),(root_id IS NULL)
     ORDER BY created_at ASC,id ASC) AS representative FROM candidates`;

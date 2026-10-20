@@ -6,6 +6,7 @@ import {
 } from '../../shared/public-mentions/index.ts';
 import { postText, postUrls } from './post-text.ts';
 import { communityElement as el } from './elements.ts';
+import { highlightPostSearch } from './search-highlight.ts';
 
 /** Length and line count both matter: short text can still occupy many rows. */
 export function postPreviewText(text: string): string {
@@ -23,10 +24,15 @@ export function postPreviewText(text: string): string {
 export function postPreview(
   source: string,
   displayedGifs: readonly string[] = [],
+  search = '',
 ): HTMLElement {
   const text = withoutGifLinks(source, displayedGifs);
-  const preview = postPreviewText(text);
-  if (preview === text) return postText(text);
+  const preview = search ? text : postPreviewText(text);
+  if (preview === text) {
+    const node = postText(text);
+    highlightPostSearch(node, search);
+    return node;
+  }
   const host = el('div', '', 'post-preview');
   let content = postText(preview === text ? text : preview + '…');
   host.append(content);

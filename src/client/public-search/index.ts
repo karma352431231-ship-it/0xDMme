@@ -5,6 +5,7 @@ import { mentionHref } from '../../shared/public-mentions/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { PublicSearchRequests, publicSearchQuery } from './query.ts';
+import { appendPostSearch } from './posts.ts';
 
 const searchIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';
@@ -51,6 +52,7 @@ export function mountPublicSearch(
       const choices = await requests.search(value);
       if (choices === null || signal.aborted || value !== query) return;
       list.replaceChildren();
+      appendPostSearch(list, value);
       media.abort();
       media = new AbortController();
       selected = -1;
@@ -79,6 +81,8 @@ export function mountPublicSearch(
       return;
     }
     if (!query) return;
+    appendPostSearch(list, query);
+    show('');
     timer = setTimeout(() => {
       void search();
     }, 250);
@@ -90,7 +94,7 @@ export function mountPublicSearch(
     (event) => {
       event.preventDefault();
       if (selected >= 0) links()[selected]?.click();
-      else changed();
+      else list.querySelector<HTMLAnchorElement>('[data-post-search]')?.click();
     },
     { signal },
   );

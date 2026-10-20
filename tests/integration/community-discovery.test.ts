@@ -686,6 +686,133 @@ await test('cut 6: public feeds, discovery and private references', async (t) =>
     },
   );
   await t.test(
+    'keyword search covers titles, bodies and low-engagement replies with filter-bound pagination',
+    async () => {
+      const group = crypto.randomUUID();
+      ids.push(group);
+      await owner.operate('create', {
+        classification: { nsfw: false, topics: ['meme'] },
+        id: group,
+        meta: { name: `Search fixture ${group}`, description: '', rules: '' },
+      });
+      const entries: string[] = [];
+      for (const [title, text] of [
+        ['Pedra', 'River content'],
+        ['Other title', 'Pedra granite'],
+        ['Unrelated', 'Reply context'],
+      ]) {
+        const post = crypto.randomUUID();
+        entries.push(post);
+        await owner.operate('post-create', {
+          id: group,
+          post,
+          content: await rootPostContent(communities, group, text!, title),
+        });
+      }
+      const reply = crypto.randomUUID();
+      await owner.operate('reply-create', {
+        id: group,
+        post: reply,
+        parent: entries[2],
+        content: { title: '', text: 'Pedra reply', tags: [] },
+      });
+      await inspector.query(
+        "UPDATE hash_talk.community_posts SET score=20,created_at=clock_timestamp()-interval '2 days' WHERE id=$1",
+        [entries[0]],
+      );
+      const search = {
+        ...baseline,
+        community: group,
+        order: 'mixed' as const,
+        search: 'pedra',
+      };
+      const publicRead = async (
+        filter: FeedFilter = search,
+        after: string | null = null,
+      ) => feedPage(await communities.feed(filter, after));
+      const results = await publicRead();
+      assert.equal(results.items[0]?.post.id, entries[0]);
+      assert.deepEqual(
+        new Set(results.items.map((entry) => entry.post.id)),
+        new Set([entries[0], entries[1], reply]),
+      );
+      assert.deepEqual(
+        (await publicRead({ ...search, search: 'PeDrA granite' })).items.map(
+          (entry) => entry.post.id,
+        ),
+        [entries[1]],
+      );
+      assert.ok(
+        !(await publicRead({ ...search, period: 'day' })).items.some(
+          (entry) => entry.post.id === entries[0],
+        ),
+      );
+      assert.equal(
+        (await publicRead({ ...search, order: 'votes' })).items[0]?.post.id,
+        entries[0],
+      );
+      assert.equal(
+        (await publicRead({ ...search, order: 'recent' })).items.at(-1)?.post
+          .id,
+        entries[0],
+      );
+      assert.equal(
+        (await feed(owner, { ...search, scope: 'following' })).items.length,
+        0,
+      );
+      await owner.operate('follow', { id: group, following: true });
+      assert.ok(
+        (await feed(owner, { ...search, scope: 'following' })).items.some(
+          (entry) => entry.post.id === entries[0],
+        ),
+      );
+      const response = await fetch(
+        `${origin}/api/communities/feed?period=all&q=pedra&community=${group}`,
+      );
+      assert.equal(response.status, 200);
+      assert.equal(feedPage(await response.json()).items.length, 3);
+      for (let i = 0; i < 25; i++)
+        await owner.operate('post-create', {
+          id: group,
+          post: crypto.randomUUID(),
+          content: await rootPostContent(
+            communities,
+            group,
+            'Paginationstone',
+            'Indexed fixture',
+          ),
+        });
+      const paged = { ...search, search: 'paginationstone' };
+      const first = await publicRead(paged);
+      assert.ok(first.next);
+      const second = await publicRead(paged, first.next);
+      assert.equal(
+        new Set([...first.items, ...second.items].map((entry) => entry.post.id))
+          .size,
+        25,
+      );
+      await assert.rejects(
+        publicRead({ ...paged, search: 'pedra' }, first.next),
+        bad(400),
+      );
+      const state = postState(
+        await owner.operate('post-state', { id: group, post: entries[0] }),
+      );
+      await owner.operate('post-hide', {
+        id: group,
+        post: entries[0],
+        revision: state.post.revision,
+        record: crypto.randomUUID(),
+        reason: 'Search visibility fixture',
+      });
+      assert.ok(
+        !(await publicRead()).items.some(
+          (entry) => entry.post.id === entries[0],
+        ),
+      );
+    },
+  );
+  await t.test(
     'synthetic deletion removes preferences and follows; reused handle inherits no references',
     async () => {
       for (const table of [

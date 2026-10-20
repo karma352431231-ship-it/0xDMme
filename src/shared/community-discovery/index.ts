@@ -1,4 +1,5 @@
 import { rankingPeriod } from '../community-ranking/index.ts';
+import { postSearchQuery } from '../post-search/index.ts';
 import {
   communityTopicSelection,
   communityTopics,
@@ -27,6 +28,7 @@ export type FeedOrder = 'mixed' | 'recent' | 'votes' | 'replies';
 export type DiscoveryPeriod = 'day' | 'week' | 'month' | 'all';
 export type FeedScope = 'all' | 'following' | 'saved' | 'hidden';
 export interface FeedFilter {
+  search?: string;
   scope: FeedScope;
   order: FeedOrder;
   period: DiscoveryPeriod;
@@ -111,7 +113,14 @@ export function feedOrder(value: unknown): FeedOrder {
 }
 export function feedFilter(value: unknown): FeedFilter {
   const data = object(value);
-  keys(data, ['scope', 'order', 'period', 'community', 'tag']);
+  keys(data, [
+    'scope',
+    'order',
+    'period',
+    'community',
+    'tag',
+    ...(Object.hasOwn(data, 'search') ? ['search'] : []),
+  ]);
   const scope = data['scope'];
   if (
     scope !== 'all' &&
@@ -130,6 +139,9 @@ export function feedFilter(value: unknown): FeedFilter {
     period: discoveryPeriod(data['period']),
     community: communityId,
     tag,
+    ...(postSearchQuery(data['search'])
+      ? { search: postSearchQuery(data['search']) }
+      : {}),
   };
 }
 export function exploreFilter(value: unknown): ExploreFilter {

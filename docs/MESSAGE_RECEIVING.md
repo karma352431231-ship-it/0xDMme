@@ -132,8 +132,10 @@ The owner reported a correct private photo/body with no sender name, and unread
 badges/sound following the message preview. Private sender lookup now uses the
 chat's encrypted local alias, then the verified profile card, then the name of
 that one currently approved account. It never scans the contact directory or
-sends a local alias to the backend. The sender is also included in the body,
-where browser/OS layouts can otherwise emphasize only the application heading.
+sends a local alias to the backend. After confirming the updated app displays
+the sender correctly, the owner requested removing the duplicate name from the
+body on 20 October 2026. Direct-message notifications now put the sender only
+in the native title and the message alone in the body, retaining the photo.
 
 `messages/activity.ts` owns the coalesced, generation-checked unread projection
 and sound. Live changes refresh counts before selected history; a completed

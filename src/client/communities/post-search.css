@@ -1,0 +1,5 @@
+.community-post .post-search-match {
+  color: var(--accent-ink);
+  background: transparent;
+  font-weight: 650;
+}

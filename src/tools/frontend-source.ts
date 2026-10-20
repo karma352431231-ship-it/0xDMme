@@ -56,6 +56,7 @@ const authored = [
   'src/shared/social-dm',
   'src/client/social-dm',
   'src/shared/community-discovery',
+  'src/shared/post-search',
   'src/shared/community-ranking',
   'src/shared/account-ranking',
   'src/shared/community-classification',

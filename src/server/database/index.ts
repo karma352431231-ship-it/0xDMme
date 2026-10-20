@@ -218,6 +218,7 @@ const migrations = [
   '092-account-ranking-windows.sql',
   '093-profile-directory-orders.sql',
   '094-single-use-contact-invitations.sql',
+  '095-public-post-search.sql',
 ];
 
 export interface MaintenanceSnapshot {

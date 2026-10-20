@@ -12,6 +12,7 @@ import type {
 } from '../../shared/community-discovery/index.ts';
 
 export interface FeedBookmark {
+  search?: string;
   view: string;
   order: FeedOrder;
   period: DiscoveryPeriod;
@@ -135,7 +136,12 @@ function pauseMedia(node: Node): void {
 }
 const heldLifetime = 10 * 60_000;
 function sameFeed(a: FeedBookmark, b: FeedBookmark): boolean {
-  return a.view === b.view && a.order === b.order && a.period === b.period;
+  return (
+    a.view === b.view &&
+    a.order === b.order &&
+    a.period === b.period &&
+    (a.search ?? '') === (b.search ?? '')
+  );
 }
 /**
  * The feed page left for a public profile, kept exactly as it was on screen

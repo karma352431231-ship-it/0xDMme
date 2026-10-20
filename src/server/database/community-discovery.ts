@@ -1,4 +1,5 @@
 import { rankingPeriod } from '../../shared/community-ranking/index.ts';
+import { createHash } from 'node:crypto';
 import type { ContentCapacity } from './content-capacity.ts';
 import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
@@ -44,7 +45,12 @@ interface FeedRow extends RankedRow {
   name: string;
 }
 function window(filter: FeedFilter, after: unknown, actor: string | null) {
-  const key = actor ? `${actor}:${discoveryKey(filter)}` : discoveryKey(filter),
+  const identity = actor
+    ? `${actor}:${discoveryKey(filter)}`
+    : discoveryKey(filter);
+  const key = filter.search
+      ? `search:${createHash('sha256').update(identity).digest('hex')}`
+      : identity,
     cursor = rankCursor(after, key),
     anchor = cursor?.anchor ?? new Date().toISOString();
   if (Date.parse(anchor) > Date.now() + 1000)
@@ -139,11 +145,12 @@ export class CommunityDiscoveryStore {
       LEFT JOIN hash_talk.community_post_preferences pref ON pref.post_id=p.id AND pref.profile_id=$1
       WHERE ($2 IN ('saved','hidden') OR (${visiblePost('p')}
         AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
-        AND (p.parent_id IS NULL OR (($2='following' OR $3::uuid IS NULL) AND (
+        AND (p.parent_id IS NULL OR $12::text IS NOT NULL OR (($2='following' OR $3::uuid IS NULL) AND (
           ($2='all' AND $11='mixed' AND p.author IS NOT NULL AND (p.score>=5 OR p.discussion_participants>=3)) OR
           (($2='following' OR $11<>'mixed') AND EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following)))))))
       AND ($3::uuid IS NULL OR p.community_id=$3) AND ($4::uuid IS NULL OR p.tag_id=$4 OR EXISTS(SELECT 1 FROM hash_talk.community_post_extra_tags e WHERE e.post_id=p.id AND e.tag_id=$4))
       AND ($5::timestamptz IS NULL OR p.created_at>=$5) AND p.created_at<=$6
+      AND ($12::text IS NULL OR to_tsvector('simple'::regconfig,normalize(p.title || ' ' || p.text,NFKC)) @@ plainto_tsquery('simple'::regconfig,$12))
       AND ($2<>'following' OR (p.parent_id IS NULL AND EXISTS(SELECT 1 FROM hash_talk.community_follows f WHERE f.profile_id=$1 AND f.community_id=p.community_id))
         OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))
       AND ($2<>'saved' OR pref.saved) AND ($2<>'hidden' OR pref.hidden)
@@ -164,6 +171,7 @@ export class CommunityDiscoveryStore {
         current.cursor?.id ?? null,
         communityPageSize + 1,
         filter.order,
+        filter.search ?? null,
       ],
     );
     return this.projectFeed(client, page(found.rows, current), {

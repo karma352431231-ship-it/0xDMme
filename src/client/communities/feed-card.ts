@@ -22,8 +22,10 @@ import { postPreview } from './post-preview.ts';
 import { postSharing } from './post-sharing.ts';
 import { postViews } from './post-views.ts';
 import { postHeader, postTagLink } from './presentation.ts';
+import { highlightPostSearch } from './search-highlight.ts';
 
 interface FeedCardOptions {
+  search?: string;
   controller: Communities;
   profiles: FeedProfileFollows;
   privacy: ExternalMediaConsent;
@@ -46,6 +48,8 @@ export function renderFeedCard(
   const { controller, privacy, signal, signedIn, run, valid, changed } =
     options;
   const row = entryCard(post);
+  const title = row.querySelector('h2');
+  if (title && options.search) highlightPostSearch(title, options.search);
   const avatar = postHeader(row, post, entry.community);
   appendReplyContext(row, entry, signal, privacy);
   followControl(row, entry, options);
@@ -162,7 +166,7 @@ function postContent(
   options: FeedCardOptions,
 ): void {
   if (post.status === 'visible') {
-    row.append(postPreview(post.text, gifUrls(post.text)));
+    row.append(postPreview(post.text, gifUrls(post.text), options.search));
     options.addCleanup(
       showPostExternalMedia(row, post.text, {
         privacy: options.privacy,

@@ -681,6 +681,10 @@ export function startCommunities(
     discoveryMounted = true;
     discovery.mount(container, {
       view,
+      search:
+        returnBookmark?.search ??
+        new URLSearchParams(lastList ?? '').get('q') ??
+        '',
       signedIn: session !== null,
       bookmark: returnBookmark,
       followChanged: async () => {

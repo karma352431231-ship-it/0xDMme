@@ -1,4 +1,6 @@
 import { watchRankingUpdates } from './ranking-live.ts';
+import { postSearchQuery } from '../../shared/post-search/index.ts';
+import { feedSearchScope, appendFeedSearchSummary } from './feed-search.ts';
 import { rankingScopes, mountDiscoveryRanking } from './account-ranking.ts';
 import { renderFeedCard } from './feed-card.ts';
 import { renderCommunityRanking } from './ranking-view.ts';
@@ -62,6 +64,7 @@ export function startCommunityDiscovery(
   let busy: Promise<void> | null = null;
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
+    search = '',
     order: FeedOrder = 'mixed',
     period: DiscoveryPeriod = 'all',
     exploreOrder: ExploreFilter['order'] = 'trending',
@@ -129,7 +132,7 @@ export function startCommunityDiscovery(
         ['feed', t('Discover')],
         ['following', t('follow.following')],
       ] as const) {
-        link(scopes, label, `#communities?view=${key}`);
+        link(scopes, label, feedSearchScope(key, search));
         if (view === key)
           scopes.lastElementChild?.setAttribute('aria-current', 'page');
       }
@@ -198,6 +201,7 @@ export function startCommunityDiscovery(
       },
     );
     mountPublicSearchToolbar(toolbar, abort.signal);
+    appendFeedSearchSummary(toolbar, search);
     postShortcut(toolbar);
     rankingTopicFilter(mounted, {
       active: view === 'explore',
@@ -221,6 +225,7 @@ export function startCommunityDiscovery(
     if (view === 'explore' && selectedTopics.length)
       data.set('topics', selectedTopics.join(','));
     if (cursor) data.set('after', cursor);
+    if (search && view !== 'explore') data.set('q', search);
     return data.toString();
   }
   function scope(): FeedScope {
@@ -244,6 +249,7 @@ export function startCommunityDiscovery(
           period,
           community: null,
           tag: null,
+          ...(search ? { search } : {}),
         },
         after: cursor,
       });
@@ -332,6 +338,7 @@ export function startCommunityDiscovery(
       seen.add(post.id);
       if (seen.size > 240) seen.delete(seen.values().next().value!);
       const row = renderFeedCard(entry, {
+        search,
         controller,
         profiles,
         privacy,
@@ -491,30 +498,36 @@ export function startCommunityDiscovery(
       order,
       period,
       after: displayedAfter,
+      ...(search ? { search } : {}),
       ...feedPosition(mounted),
     };
   }
   function returningBookmark(options: {
     view: string;
+    search?: string;
     bookmark?: FeedBookmark | null;
   }): FeedBookmark | null {
     const saved =
       options.bookmark ??
       (tabBookmark?.view === options.view ? tabBookmark : null);
     tabBookmark = null;
-    return saved;
+    return saved && (saved.search ?? '') !== postSearchQuery(options.search)
+      ? null
+      : saved;
   }
   return {
     mount(
       container: HTMLElement,
       options: {
         view: string;
+        search?: string;
         signedIn: boolean;
         followChanged?: () => Promise<void>;
         bookmark?: FeedBookmark | null;
       },
     ): void {
       followChanged = options.followChanged ?? (() => Promise.resolve());
+      search = postSearchQuery(options.search);
       foreign = new Set(container.childNodes);
       const kept = park.resume(
         container,

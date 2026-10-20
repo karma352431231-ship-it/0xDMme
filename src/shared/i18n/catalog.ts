@@ -1470,6 +1470,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     '正在此设备上搜索…',
   ],
   'Searching…': ['Searching…', '正在搜索…'],
+  'Search posts for “{0}”': ['Search posts for “{0}”', '搜索包含“{0}”的帖子'],
+  'Search results for “{0}”': ['Search results for “{0}”', '“{0}”的搜索结果'],
+  'Invalid post search.': ['Invalid post search.', '帖子搜索内容无效。'],
   'Search messages': ['Search messages', '搜索消息'],
   'Find profile': ['Find profile', '查找个人资料'],
   'Find and check the profile before continuing.': [
@@ -6700,8 +6703,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<div class="profile-editor">\n<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="更换横幅"><img alt="" hidden><span class="profile-editor-hint">更换横幅</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="移除横幅" title="移除横幅" hidden>{0}</button></div>\n<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="更换图片"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="移除图片" title="移除图片" hidden>{1}</button></div>\n<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>查看我的公开个人资料</a></div></div>\n<label class="profile-editor-description"><span>简介</span><textarea data-public-description rows="3" placeholder="介绍一下自己。使用 @ 提及用户和社区。"></textarea><small data-description-count></small></label>\n<button type="button" class="primary" data-confirm-profile>确认更改</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>',
   ],
   'html.3b7e1f6a5e79': [
-    '<form role="search" aria-label="Search users and communities"><label class="public-search-field">{0}<input type="search" placeholder="Search" aria-label="Search users and communities" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>',
-    '<form role="search" aria-label="搜索用户与社区"><label class="public-search-field">{0}<input type="search" placeholder="搜索" aria-label="搜索用户与社区" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>',
+    '<form role="search" aria-label="Search posts, users and communities"><label class="public-search-field">{0}<input type="search" placeholder="Search" aria-label="Search posts, users and communities" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>',
+    '<form role="search" aria-label="搜索帖子、用户与社区"><label class="public-search-field">{0}<input type="search" placeholder="搜索" aria-label="搜索帖子、用户与社区" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>',
   ],
   'html.2d4c3af2bfc7': [
     '<legend>What to notify</legend><label><input type="checkbox" data-push-messages checked> Messages and replies</label><label><input type="checkbox" data-push-calls checked> Calls</label><label><input type="checkbox" data-push-show-calls checked> Identify the alert as a voice call</label><p>Turn off the last option for a generic alert. The contact\'s name is never shown; lock screen and sound depend on your system.</p><button type="button">Save push preferences</button>',

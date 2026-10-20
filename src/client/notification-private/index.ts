@@ -110,7 +110,7 @@ async function readDetail(
   return {
     candidate,
     title: sender,
-    body: `${sender}: ${body}`,
+    body,
     ...photoIcon(profile?.photo),
   };
 }

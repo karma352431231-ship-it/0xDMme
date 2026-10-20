@@ -244,7 +244,7 @@ export function createCommunityHandler(read: {
   async function discoveryLookup(address: URL): Promise<unknown> {
     const query = address.searchParams;
     if (address.pathname.endsWith('/feed') && read.feed) {
-      params(address, ['order', 'period', 'community', 'tag', 'after']);
+      params(address, ['order', 'period', 'community', 'tag', 'after', 'q']);
       return feedPage(
         await read.feed(
           feedFilter({
@@ -253,6 +253,7 @@ export function createCommunityHandler(read: {
             period: query.get('period') ?? 'day',
             community: query.get('community'),
             tag: query.get('tag'),
+            search: query.get('q'),
           }),
           query.get('after'),
         ),
