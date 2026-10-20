@@ -78,17 +78,26 @@ pinned identities, SDK recovery, encrypted cache and final snapshot checks.
 No browser key is enrolled, copied to a new database or sent to the server.
 Private group reading uses an invisible headless reader and never sends read ACKs.
 
-To preserve initial alert timing, the authorized private alert appears before
-local vault/SDK work. A successful detail read replaces that same notification
-silently after rechecking the exact session and still-eligible message ID.
-Local work has an eight-second deadline; missing keys, locked/busy storage,
-revocation, logout, changed consent or unread state cannot publish stale details.
-On failure the initial generic alert remains. The first alert does not wait for
-historical vault synchronization; a cold or large vault may delay the detail
-replacement. This is not a claim of zero end-to-end delay or real-device latency.
-The SDK/vault path may still need a first load to validate existing identity pins.
-New push events cancel an older detail read and replace its pending followup;
-initial alerts continue immediately while the old network/store operation exits.
+After reviewing the initial generic-then-replacement implementation, the owner
+explicitly requested testing decryption **before** alerting on 20 October 2026.
+This branch now emits one private alert with locally decrypted details after
+rechecking the exact session and still-eligible message ID. There is no preceding
+generic alert or later replacement. The single alert honors the device sound
+preference. A coalesced direct/group wake selects one eligible detail.
+
+Local decryption has an eight-second deadline. Missing keys, decryption failure
+or timeout produce one generic fallback only if a fresh check still authorizes
+that same private activity. Revocation, logout, changed consent, mute and read
+state suppress both detailed and generic alerts. A cold or large vault can
+delay the first alert: the SDK/vault path may need a first load to validate
+existing identity pins. Real-device latency is not established by these tests.
+
+New push events cancel older private alert work and replace its pending followup.
+Only one local read runs at a time; each latest request starts its deadline even
+while an older SDK/store operation releases its lock. An overdue queued request
+can alert generically without starting another read, and late decrypted results
+cannot replace it. All outstanding work stays inside `event.waitUntil`.
+Public and call alerts remain independent of private decryption.
 The existing classic worker build binds the SDK's import URL to its own URL.
 Only `/sw.js` receives the same `wasm-unsafe-eval` permission already used by the
 app and local `data:` notification images. Its network stays same-origin;

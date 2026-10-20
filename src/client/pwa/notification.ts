@@ -6,8 +6,11 @@ import { pushLanguage } from '../language/index.ts';
 import { publicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { privatePushCandidates } from '../../shared/private-notification/index.ts';
 import { appHref } from '../../shared/app-routes/index.ts';
-import type { privateNotificationDetails } from '../notification-private/index.ts';
-import { PrivateDetailUpdates } from './private-updates.ts';
+import type {
+  privateNotificationDetails,
+  PrivateNotificationDetail,
+} from '../notification-private/index.ts';
+import { PrivateNotificationAlerts } from './private-alerts.ts';
 import { PublicAlertHistory } from './public-alert-history.ts';
 
 interface NotificationPorts {
@@ -18,42 +21,32 @@ interface NotificationPorts {
     options: NotificationOptions & { renotify?: boolean },
   ) => Promise<void>;
 }
-/** One active inspection and one coalesced followup. Every async detail update
+/** One active inspection and one coalesced followup. Every private alert
  * stays inside event.waitUntil and revalidates the current session and mute. */
 export class NotificationDelivery {
   private active: Promise<void> | null = null;
   private pending = false;
   private readonly ports: NotificationPorts;
-  private readonly updates: PrivateDetailUpdates;
+  private readonly alerts: PrivateNotificationAlerts;
   constructor(ports: NotificationPorts) {
     this.ports = ports;
-    this.updates = new PrivateDetailUpdates({
+    this.alerts = new PrivateNotificationAlerts({
       read: ports.details,
       inspect,
-      show: (detail) =>
-        show(
-          ports,
-          {
-            title: detail.title,
-            body: detail.body,
-            ...(detail.icon ? { icon: detail.icon } : {}),
-            tag: '0xdmme-activity',
-          },
-          false,
-        ),
+      show: (detail, sound) => show(ports, privateAppearance(detail), sound),
     });
   }
   request(): Promise<void> {
-    this.updates.cancel();
+    this.alerts.cancel();
     this.pending = true;
     this.active ??= this.drain();
-    return this.active.then(() => this.updates.wait());
+    return this.active.then(() => this.alerts.wait());
   }
   private async drain(): Promise<void> {
     try {
       while (this.pending) {
         this.pending = false;
-        await notify(this.ports, this.updates);
+        await notify(this.ports, this.alerts);
       }
     } finally {
       this.active = null;
@@ -82,7 +75,7 @@ async function inspect(): Promise<object | null> {
 }
 async function notify(
   ports: NotificationPorts,
-  updates: PrivateDetailUpdates,
+  alerts: PrivateNotificationAlerts,
 ): Promise<void> {
   try {
     const data = await inspect();
@@ -108,14 +101,14 @@ async function notify(
       );
       return;
     }
-    await notifyMessages(ports, updates, { data, sound });
+    await notifyMessages(ports, alerts, { data, sound });
   } catch {
     // Unverified authority/mute never produces a fallback alert.
   }
 }
 async function notifyMessages(
   ports: NotificationPorts,
-  updates: PrivateDetailUpdates,
+  alerts: PrivateNotificationAlerts,
   input: { data: object; sound: boolean },
 ): Promise<void> {
   const { data, sound } = input;
@@ -129,24 +122,16 @@ async function notifyMessages(
     await show(ports, publicAppearance(preview), sound);
     await history.remember();
   }
-  // Private alerts arrive before vault/SDK work. Detail replaces the same tag
-  // silently; it never creates a second sound or makes receipt wait for a vault scan.
-  if (candidates.length || !preview)
-    await show(
-      ports,
-      {
-        title: genericNotification.title,
-        body: t(genericNotification.body),
-        tag: '0xdmme-activity',
-      },
-      sound,
-    );
   if (
     candidates.length &&
     'publicScope' in data &&
     typeof data.publicScope === 'string'
-  )
-    updates.request({ candidates, scope: data.publicScope });
+  ) {
+    alerts.request({ candidates, scope: data.publicScope, sound });
+    return;
+  }
+  if (candidates.length || !preview)
+    await show(ports, privateAppearance(null), sound);
 }
 interface Appearance {
   title: string;
@@ -154,6 +139,16 @@ interface Appearance {
   tag: string;
   icon?: string;
   data?: { href: string };
+}
+function privateAppearance(
+  detail: PrivateNotificationDetail | null,
+): Appearance {
+  return {
+    title: detail?.title ?? genericNotification.title,
+    body: detail?.body ?? t(genericNotification.body),
+    ...(detail?.icon ? { icon: detail.icon } : {}),
+    tag: '0xdmme-activity',
+  };
 }
 function show(
   ports: NotificationPorts,
