@@ -1,4 +1,4 @@
-"""Exact private-only notification code exchange; no schema, runtime or unrelated source approval."""
+"""Exact detailed notification code exchange; no schema, runtime or unrelated source approval."""
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
@@ -16,13 +16,11 @@ class PreviewNotificationsReviewTests(unittest.TestCase):
         for name in ['communities.ts', 'community-discovery.ts']:
             (self.candidate / 'src/server/database' / name).write_bytes(
                 (self.live / 'src/server/database' / name).read_bytes())
-        self.modules = ['daily.ts', 'index.ts', 'public-notice-wake.ts', 'push-private-activity.ts']
-        for name in self.modules[:3]:
+        self.modules = ['daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts']
+        for name in self.modules[:2]:
             (self.live / 'src/server/database' / name).write_text('existing notification reader')
         for name in self.modules:
             (self.candidate / 'src/server/database' / name).write_text('reviewed notification reader')
-        (self.live / 'src/server/database/public-notification-preview.ts').write_text('obsolete public push reader')
-        (self.candidate / 'src/server/database/public-notification-preview.ts').unlink(missing_ok=True)
         self.exports = {remote.PREVIEW_NOTIFICATIONS_BEFORE: fixture.export(self.live),
                         remote.PREVIEW_NOTIFICATIONS_REVIEWED: fixture.export(self.candidate)}
 
@@ -49,7 +47,7 @@ class PreviewNotificationsReviewTests(unittest.TestCase):
             self.assertFalse(remote.database_code_reviewed(self.candidate, self.live))
 
     def test_extra_source_or_migration_never_becomes_a_code_exchange(self):
-        for name in ['unreviewed.ts', 'public-notification-preview.ts', 'migrations/094-unreviewed.sql']:
+        for name in ['unreviewed.ts', 'migrations/094-unreviewed.sql']:
             path = self.candidate / 'src/server/database' / name
             path.write_text('unreviewed source or schema')
             try:
