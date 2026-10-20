@@ -59,6 +59,13 @@ the exact message-snapshot conflict. Each attempt obtains fresh authority;
 revocation, unrelated conflicts and repeated failures still close the projection
 and remain visible. No publication is retried by this helper.
 
+Directory preview verification has an account-level lifetime separate from
+selected conversation projection. Rapid contact selections and directory-only
+navigation cannot discard a valid in-flight preview read. Account replacement,
+disconnection, suspension, removals and authorization failures still invalidate
+the read and clear its projection. Snapshot confirmation, client-only decryption
+and the existing bounded retry remain required.
+
 ## Detailed push scope — owner clarification, 20 October 2026
 
 The latest instruction supersedes the intermediate private-only interpretation:

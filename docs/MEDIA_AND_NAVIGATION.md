@@ -47,6 +47,13 @@ First opens, session replacement, suspension, stream loss, removals and
 authorization notices retain their blocking checks. This approval does not
 authorize reuse across reconnects or persistent decrypted history.
 
+Returning to the contact directory hides the selected projection without ending
+that connected reuse epoch. Account suspension, stream loss and authorization
+boundaries still invalidate it. A pending contact choice remains replaceable
+and cancellable while the current maintenance owner finishes. Eligible memory
+restoration then runs before entering the foreground synchronization state;
+an unavailable window still uses the normal blocking verification path.
+
 ## Attachment processing
 
 The reported error comes from the worker error handler, rather than a rejection

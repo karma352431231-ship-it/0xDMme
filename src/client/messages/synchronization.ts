@@ -140,9 +140,9 @@ export class MessageSynchronization {
   }
   /** Accept a visible row while startup owns the engine; the latest choice
    * runs before maintenance resumes, without overlapping either operation. */
-  open(work: () => Promise<void>): Promise<void> {
+  open(work: () => Promise<void>, reuse?: () => boolean): Promise<void> {
     if (this.closed) return Promise.resolve();
-    const result = this.opening.request(work);
+    const result = this.opening.request(work, reuse);
     if (!this.busy) void this.openNext();
     return result;
   }
@@ -150,10 +150,25 @@ export class MessageSynchronization {
     this.opening.clear();
   }
   private async openNext(): Promise<void> {
+    // Keep the latest choice replaceable while the current owner finishes.
+    // Restoring a retained projection must not reserve the visible sync state.
+    await this.maintenance;
+    if (this.closed || this.busy) return;
     const pending = this.opening.take();
     if (!pending) return;
+    const current = this.options.state().generation;
     try {
-      await this.run(pending.work);
+      if (pending.reuse()) {
+        this.failed = false;
+        this.options.status();
+        this.resume();
+      } else await this.run(pending.work);
+    } catch (error: unknown) {
+      if (this.current(current)) {
+        this.failed = true;
+        this.report(error, t('Could not complete the operation.'));
+        this.options.status();
+      }
     } finally {
       pending.done();
     }
@@ -235,6 +250,7 @@ export class MessageSynchronization {
     const state = this.options.state();
     return (
       this.foregroundReady &&
+      !this.opening.waiting &&
       !this.inbox.running &&
       state.visible &&
       !state.textPending

@@ -158,6 +158,8 @@ export function coordinatorFixture(
   const fixture: Record<string, unknown> = {};
   for (const names of exports.values())
     for (const name of names) fixture[name] = noop;
+  fixture.t = (text: string) => text;
+  fixture.translatedError = (text: string) => text;
   for (const name of [
     'ContactDirectory',
     'ConversationMenu',
@@ -264,8 +266,8 @@ export function coordinatorFixture(
     publish = callback;
     return {
       ...base,
-      pause: () => {
-        state.restorablePeers.clear();
+      pause: (scope = 'account') => {
+        if (scope === 'account') state.restorablePeers.clear();
         calls.push('pause');
         publish(null);
       },
@@ -458,6 +460,17 @@ export function coordinatorFixture(
   const cancelComposition = new EventTarget();
   const compositionBar = { hidden: true };
   const compositionLabel = { textContent: '' };
+  const statusFrames: string[] = [];
+  const chatStatus = {
+    get textContent(): string {
+      return statusFrames.at(-1) ?? '';
+    },
+    set textContent(value: string) {
+      statusFrames.push(value);
+    },
+    closest: () => ({ dataset: {} }),
+    replaceChildren: noop,
+  };
   const form = Object.assign(new EventTarget(), {
     dataset: {},
     querySelector: (selector: string) =>
@@ -477,23 +490,25 @@ export function coordinatorFixture(
     addEventListener: noop,
     querySelectorAll: () => [],
     querySelector: (selector: string) =>
-      selector === '[data-compose-cancel]'
-        ? cancelComposition
-        : selector === '[data-compose-bar]'
-          ? compositionBar
-          : selector === '[data-compose-context]'
-            ? compositionLabel
-            : selector === '[data-message-form]'
-              ? form
-              : selector === '[data-message-text]'
-                ? input
-                : ['.chat-panel', '[data-direct-conversation]'].includes(
-                      selector,
-                    ) ||
-                    (selector === '[data-group-conversation]' &&
-                      state.groupVisible)
-                  ? panel
-                  : null,
+      selector === '[data-message-status]'
+        ? chatStatus
+        : selector === '[data-compose-cancel]'
+          ? cancelComposition
+          : selector === '[data-compose-bar]'
+            ? compositionBar
+            : selector === '[data-compose-context]'
+              ? compositionLabel
+              : selector === '[data-message-form]'
+                ? form
+                : selector === '[data-message-text]'
+                  ? input
+                  : ['.chat-panel', '[data-direct-conversation]'].includes(
+                        selector,
+                      ) ||
+                      (selector === '[data-group-conversation]' &&
+                        state.groupVisible)
+                    ? panel
+                    : null,
   };
   const context = {
     fixture,
@@ -562,6 +577,7 @@ export function coordinatorFixture(
     input,
     send,
     compositionBar,
+    statusFrames,
     choose: (mode: 'reply' | 'edit', view: MessageView) => choose(mode, view),
     cancelComposition: () =>
       cancelComposition.dispatchEvent(new Event('click')),

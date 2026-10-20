@@ -99,6 +99,27 @@ await test('connected session restores a previously confirmed conversation immed
   );
 });
 
+await test('A to B to A remains reusable through directory-only pauses while the live session is current', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('Verified first conversation');
+  await f.add('Verified second conversation', other);
+  await f.controller.synchronize();
+  f.controller.select(other);
+  await f.controller.synchronize();
+  const requests = f.data.requests.length;
+  for (const peer of [f.peer, other, f.peer]) {
+    f.controller.pause('conversation');
+    assert.equal(f.data.frames.at(-1), null, 'The hidden chat remains hidden');
+    assert.equal(f.controller.canRestore(peer), true);
+    f.controller.select(peer);
+    assert.equal(f.controller.restoreSelected(), true);
+    assert.equal(f.data.frames.at(-1)?.[0]?.peer, peer);
+  }
+  assert.equal(f.data.requests.length, requests);
+});
+
 for (const cause of [
   'pause',
   'removed',

@@ -1020,18 +1020,24 @@ export function startMessages(
     enterConversation();
     return true;
   }
+  function reusePeer(peer: ConversationPeer): boolean {
+    return !voice.active && !attachments.selected?.voice && visits.open(peer);
+  }
   function requestPeer(peer: ConversationPeer): Promise<void> {
     if (reopenSelectedPeer(peer)) return Promise.resolve();
-    if (!voice.active && !attachments.selected?.voice && visits.open(peer))
-      return Promise.resolve();
+    if (reusePeer(peer)) return Promise.resolve();
     const current = generation;
     const clear = directoryUi.openingPeer(peer.accountId);
     return synchronization
-      .open(async () => {
-        clear();
-        if (current === generation && !continuity.suspended)
-          await openPeer(peer);
-      })
+      .open(
+        async () => {
+          clear();
+          if (current === generation && !continuity.suspended)
+            await openPeer(peer);
+        },
+        () =>
+          current === generation && !continuity.suspended && reusePeer(peer),
+      )
       .finally(() => {
         clear();
         broadcastProfile();
@@ -1354,7 +1360,7 @@ export function startMessages(
     menu.close();
     emojiPicker.close();
     if (reason === 'invalidate') controller.close();
-    else controller.pause();
+    else controller.pause(reason === 'directory' ? 'conversation' : 'account');
     groups.suspend();
     rows = null;
     searchPanel.close();

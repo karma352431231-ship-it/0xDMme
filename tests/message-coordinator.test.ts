@@ -28,7 +28,12 @@ await test('opening an uncached conversation does not restart completed account 
   await finishStartupMaintenance(t);
   f.state.probeChanged = true;
   const before = f.calls.filter((call) => call === 'preload').length;
+  f.statusFrames.length = 0;
   await f.messages.openContact(peer('uncached'));
+  assert.ok(
+    f.statusFrames.includes('Syncing…'),
+    'The fixture observes the actual blocking history status',
+  );
   for (let tick = 0; tick < 3; tick++) {
     t.mock.timers.tick(1000);
     await turn();
@@ -92,14 +97,23 @@ await test('a retained opening queued behind an active owner reuses history afte
   assert.ok(f.calls.includes('contacts'));
   f.state.restorablePeers.add('queued-retained');
   f.calls.length = 0;
+  f.statusFrames.length = 0;
   const opening = f.messages.openContact(peer('queued-retained'));
   await turn();
   assert.ok(!f.calls.includes('restore:queued-retained'));
+  assert.ok(
+    !f.statusFrames.includes('Syncing…'),
+    'Waiting for an owner must not label a retained opening as history sync',
+  );
   f.contactLoad.resolve();
   await opening;
   assert.ok(f.calls.includes('restore:queued-retained'));
   assert.ok(!f.calls.includes('probe'));
   assert.ok(!f.calls.includes('synchronize'));
+  assert.ok(
+    !f.statusFrames.includes('Syncing…'),
+    'Reusing the retained window must not flash history synchronization',
+  );
 });
 
 await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {

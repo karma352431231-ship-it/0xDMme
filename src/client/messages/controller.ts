@@ -162,6 +162,7 @@ export class Messages {
   private readonly visibility: MessageVisibility<MessageView>;
   private session: AccountSession | null = null;
   private generation = 0;
+  private previewGeneration = 0;
   private readonly identities: PeerIdentity;
   private initializedDirectory = '';
   private pinsGeneration = -1;
@@ -215,39 +216,43 @@ export class Messages {
     });
   }
   directoryPreviews(peers: readonly string[]) {
-    const generation = this.generation;
+    const generation = this.previewGeneration;
     return retrySnapshotRead(
       () => this.readDirectoryPreviews(peers),
-      () => this.generation === generation,
+      () => this.previewGeneration === generation,
     );
   }
   private async readDirectoryPreviews(
     peers: readonly string[],
   ): Promise<Map<string, ConversationPreview>> {
     if (!peers.length) return new Map();
-    const generation = this.generation;
+    const generation = this.generation,
+      previewGeneration = this.previewGeneration,
+      guard = () => this.guardPreviews(previewGeneration);
     let snapshot: unknown;
     const previews = await this.access.withVault(false, async (a) => {
-      const guard = () => this.guard(generation),
-        api = async (operation: string, payload: Record<string, unknown>) => {
-          const value = await messageApi(a, operation, payload, guard);
-          if (operation === 'snapshot') snapshot = value;
-          return value;
-        };
+      const api = async (
+        operation: string,
+        payload: Record<string, unknown>,
+      ) => {
+        const value = await messageApi(a, operation, payload, guard);
+        if (operation === 'snapshot') snapshot = value;
+        return value;
+      };
       return readDirectoryPreviews({
         peers,
         api,
         guard,
         read: (snapshot, items) =>
-          this.readPreviewViews({ a, generation, api, snapshot, items }),
+          this.readPreviewViews({ a, generation, api, snapshot, items, guard }),
       });
     });
     await this.savePins();
-    this.guard(generation);
+    guard();
     await this.access.withVault(false, (a) =>
-      messageApi(a, 'confirm', { snapshot }, () => this.guard(generation)),
+      messageApi(a, 'confirm', { snapshot }, guard),
     );
-    this.guard(generation);
+    guard();
     return previews;
   }
   private async readPreviewViews(c: {
@@ -259,6 +264,7 @@ export class Messages {
     ) => Promise<unknown>;
     snapshot: unknown;
     items: MessageItem[];
+    guard: () => void;
   }): Promise<MessageView[]> {
     const views: MessageView[] = [],
       missing: MessageItem[] = [];
@@ -268,7 +274,7 @@ export class Messages {
       else missing.push(item);
     }
     if (!missing.length) return views;
-    const machine = await this.machine(c.a, c.generation);
+    const machine = await this.machine(c.a, c.generation, c.api);
     try {
       await machine.prepare(c.a);
       await this.receive(c.a, machine, c.generation, c.api);
@@ -297,6 +303,7 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.previewGeneration++;
     this.pinsGeneration = -1;
     this.pauseSynchronization();
     this.prefetch.reset();
@@ -309,9 +316,13 @@ export class Messages {
     this.index.reset();
     this.offlineIndex.reset();
   }
-  /** A pause ends immediate reuse; candidates still support a fresh probe. */
-  pause(): void {
-    this.conversations.invalidateReuse();
+  /** Leaving the conversation hides its projection. Account suspension also
+   * ends immediate reuse; candidates still support a fresh probe. */
+  pause(scope: 'account' | 'conversation' = 'account'): void {
+    if (scope === 'account') {
+      this.previewGeneration++;
+      this.conversations.invalidateReuse();
+    }
     this.pinsGeneration = -1;
     this.probedSnapshot = null;
     this.pauseSynchronization();
@@ -320,6 +331,7 @@ export class Messages {
   /** A removal hint carries no IDs. Block content access immediately while
    * retaining verified candidates for the authenticated incremental response. */
   removed(): void {
+    this.previewGeneration++;
     this.conversations.clear();
     this.pauseSynchronization();
     this.confirmed = null;
@@ -327,6 +339,7 @@ export class Messages {
     this.visibility.close('pending');
   }
   hide(): void {
+    this.previewGeneration++;
     this.pinsGeneration = -1;
     this.conversations.clear();
     this.probedSnapshot = null;
@@ -342,6 +355,7 @@ export class Messages {
     this.visibility.hint();
   }
   setLiveConnected(connected: boolean): void {
+    if (!connected) this.previewGeneration++;
     this.conversations.connection(connected);
   }
   canRestore(peer: string): boolean {
@@ -387,6 +401,10 @@ export class Messages {
   private guard(generation: number): void {
     if (generation !== this.generation)
       throw new Error('Session or synchronization changed.');
+  }
+  private guardPreviews(generation: number): void {
+    if (generation !== this.previewGeneration)
+      throw new Error('Account preview verification changed.');
   }
   private async machine(
     a: VaultAuthority,
@@ -1537,7 +1555,8 @@ export class Messages {
     guard?: () => void;
     consume?: (views: MessageView[]) => Promise<void>;
   }): Promise<Map<string, MessageView>> {
-    const views = new Map<string, MessageView>(),
+    const guard = c.guard ?? (() => this.guard(c.generation)),
+      views = new Map<string, MessageView>(),
       histories = new Map<string, Awaited<ReturnType<Messages['history']>>>(),
       keys = new Map<string, RecoveryKey>();
     // The existing export transport bounds both count (32) and ciphertext bytes.
@@ -1553,8 +1572,7 @@ export class Messages {
         op: string,
         data: Record<string, unknown>,
       ): Promise<unknown> => {
-        c.guard?.();
-        this.guard(c.generation);
+        guard();
         if (op !== 'object') return c.api(op, data);
         const id = String(data['id']);
         if (response.packets.has(id))
@@ -1581,8 +1599,7 @@ export class Messages {
       };
       const batchViews: MessageView[] = [];
       for (const item of remaining.slice(0, response.count)) {
-        c.guard?.();
-        this.guard(c.generation);
+        guard();
         if (c.skipUnavailable && !response.packets.has(item.id)) continue;
         batchViews.push(await this.readOne(context, item));
       }

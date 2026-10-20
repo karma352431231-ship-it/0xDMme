@@ -108,6 +108,95 @@ await test('logout during queued work suppresses the old action, result and pend
   assert.equal(f.projections(), 0);
   assert.deepEqual(f.notices, []);
 });
+await test('only the latest retained opening runs after maintenance without a foreground sync frame', async (t) => {
+  const f = fixture(t),
+    presence = deferred<void>(),
+    calls: string[] = [],
+    frames: boolean[] = [];
+  f.options.presence = () => presence.promise;
+  f.options.status = () => frames.push(f.sync.busy);
+  const maintenance = f.sync.maintainPresence();
+  await turn();
+  const open = (peer: string) =>
+    f.sync.open(
+      () => {
+        calls.push(`fetch:${peer}`);
+        return Promise.resolve();
+      },
+      () => {
+        calls.push(`restore:${peer}`);
+        return true;
+      },
+    );
+  const first = open('A');
+  await turn();
+  const second = open('B'),
+    last = open('A');
+  await Promise.all([first, second]);
+  assert.deepEqual(calls, []);
+  assert.equal(f.sync.busy, false);
+  presence.resolve();
+  await Promise.all([maintenance, last]);
+  assert.deepEqual(calls, ['restore:A']);
+  assert.ok(frames.length > 0);
+  assert.ok(frames.every((busy) => !busy));
+});
+
+for (const cancel of ['reset', 'close'] as const)
+  await test(`${cancel} settles a retained opening before held maintenance completes`, async (t) => {
+    const f = fixture(t),
+      presence = deferred<void>();
+    f.options.presence = () => presence.promise;
+    const maintenance = f.sync.maintainPresence();
+    await turn();
+    let settled = false,
+      restored = false;
+    const opening = f.sync
+      .open(
+        () => Promise.reject(new Error('Cancelled work ran')),
+        () => {
+          restored = true;
+          return true;
+        },
+      )
+      .then(() => {
+        settled = true;
+      });
+    await turn();
+    f.state.generation++;
+    f.sync[cancel]();
+    await turn();
+    assert.equal(settled, true);
+    presence.resolve();
+    await Promise.all([maintenance, opening]);
+    assert.equal(restored, false);
+    assert.deepEqual(f.notices, []);
+  });
+
+await test('an invalidated retained opening falls back to verification and restore errors are reported', async (t) => {
+  const f = fixture(t);
+  let verified = false;
+  await f.sync.open(
+    () => {
+      verified = f.sync.busy;
+      return Promise.resolve();
+    },
+    () => false,
+  );
+  assert.equal(verified, true);
+  await f.sync.open(
+    () => Promise.reject(new Error('Unexpected fallback')),
+    () => {
+      throw new Error('Synthetic projection failure');
+    },
+  );
+  assert.equal(f.sync.failed, true);
+  assert.equal(f.sync.busy, false);
+  assert.deepEqual(f.notices, [
+    'The operation could not be completed. Please try again.',
+  ]);
+});
+
 await test('prefetch alternates direct and groups, stops completed branches and cancels for user work', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t),
