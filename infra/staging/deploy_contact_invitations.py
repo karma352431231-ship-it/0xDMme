@@ -7,7 +7,7 @@ import deploy_background as background
 import deploy_profile_directory as directory
 
 BEFORE = '74608210ba76752c0603308a3c7897a8c7bbcdef'
-REVIEWED = '449fedf81c3dac1415179191fd29776a99652700'
+REVIEWED = '2b63580cc63c316a8c25cec98d26d668584bf21a'
 TABLES = directory.TABLES
 OMIT_COLUMNS = {'contact_controls': ('invite_hash', 'revision'),
                 'content_usage_legacy': ('used_bytes',)}
