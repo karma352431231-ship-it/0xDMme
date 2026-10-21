@@ -96,6 +96,6 @@ export class SocialReadReceipts {
       ],
     );
     if (updated.rows.some((row) => row.read_epoch !== null))
-      await this.social.changed(context, [peer]);
+      await this.social.changed(context, [peer], 'handle-receipts');
   }
 }
