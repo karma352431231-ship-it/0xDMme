@@ -28,8 +28,10 @@ def review(candidate, live):
         name = 'infra/staging/' + unit
         if base.digest(candidate / name) != base.digest(live / name):
             raise RuntimeError('Games catalog migration does not authorize unit changes.')
-    if any(previous.directory.ranking.capacity.psql(sql) != b't' for sql in
-           [CATALOG.format(comparison='NOT LIKE'), previous.COUNTER_CHECKS, previous.GLOBAL_CHECK]):
+    # Writers are still online during review: each audit reads one stable view.
+    if any(previous.directory.ranking.capacity.psql(
+            'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;' + sql + ';ROLLBACK') != b't'
+           for sql in [CATALOG.format(comparison='NOT LIKE'), previous.COUNTER_CHECKS, previous.GLOBAL_CHECK]):
         raise RuntimeError('Games catalog predecessor constraint or accounting differs.')
 
 
