@@ -91,9 +91,11 @@ export class MatrixStore {
         });
         await assertGroupContentQuota(client, input.groupId);
         await assertContentCapacity(client, this.capacity);
-        this.contacts.changed(client, [
-          ...new Set(input.envelopes.map((e) => e.account)),
-        ]);
+        this.contacts.changed(
+          client,
+          [...new Set(input.envelopes.map((e) => e.account))],
+          { category: 'group-messages' },
+        );
         return {};
       },
     );

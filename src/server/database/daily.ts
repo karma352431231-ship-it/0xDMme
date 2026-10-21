@@ -176,9 +176,12 @@ export class DailyStore {
         [a.session.accountId, ids],
       );
       await this.budget(c, a.session.accountId);
-      if (updated.rowCount) this.contacts.changed(c, [a.session.accountId]);
+      if (updated.rowCount)
+        this.contacts.changed(c, [a.session.accountId], {
+          category: 'private-receipts',
+        });
       if (updated.rows.some((row) => row.share_epoch !== null))
-        this.contacts.changed(c, [peer]);
+        this.contacts.changed(c, [peer], { category: 'private-receipts' });
     });
   }
   async receipts(a: ContactAuthority, ids: string[]): Promise<string[]> {

@@ -62,7 +62,9 @@ export class SocialDmStore {
         this.profiles.accountFor(context.client, id),
       ),
     );
-    this.contacts.changed(context.client, accounts);
+    this.contacts.changed(context.client, accounts, {
+      category: 'handle-messages',
+    });
   }
   async deliveryBatch(
     context: SocialContext,

@@ -14,7 +14,7 @@ async function queueRecipients(
     ), batches AS (
       SELECT account_id,(row_number() OVER(ORDER BY account_id)-1)/64 AS batch FROM recipients
     ) SELECT pg_notify('hash_talk_content_changes',json_build_object(
-      'accounts',json_agg(account_id),'removed',false,'authorization',false)::text)
+      'accounts',json_agg(account_id),'removed',false,'authorization',false,'categories',json_build_array('activity'))::text)
       FROM batches GROUP BY batch`,
     [source.value],
   );
@@ -46,7 +46,7 @@ export async function wakePublicActivity(
   recipient: string,
 ): Promise<void> {
   await client.query(
-    `SELECT pg_notify('hash_talk_content_changes',json_build_object('accounts',json_build_array(account_id),'removed',false,'authorization',false)::text) FROM hash_talk.public_profiles WHERE id=$1`,
+    `SELECT pg_notify('hash_talk_content_changes',json_build_object('accounts',json_build_array(account_id),'removed',false,'authorization',false,'categories',json_build_array('activity'))::text) FROM hash_talk.public_profiles WHERE id=$1`,
     [recipient],
   );
 }

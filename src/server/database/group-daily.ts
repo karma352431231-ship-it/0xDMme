@@ -68,7 +68,9 @@ export class GroupDailyStore {
         [a.session.accountId, input.groupId, input.mutedUntil],
       );
       await this.budget(client, a.session.accountId);
-      this.contacts.changed(client, [a.session.accountId]);
+      this.contacts.changed(client, [a.session.accountId], {
+        category: 'group-receipts',
+      });
     });
   }
   async read(
@@ -94,11 +96,14 @@ export class GroupDailyStore {
       );
       await this.budget(client, a.session.accountId);
       if (changed.rowCount)
-        this.contacts.changed(client, [a.session.accountId]);
+        this.contacts.changed(client, [a.session.accountId], {
+          category: 'group-receipts',
+        });
       if (changed.rows.some((r) => r.share_epoch !== null))
         this.contacts.changed(
           client,
           state.members.map((m) => m.accountId),
+          { category: 'group-receipts' },
         );
     });
   }

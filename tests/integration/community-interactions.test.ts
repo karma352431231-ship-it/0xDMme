@@ -294,6 +294,7 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
             accounts: [recipient.login.session.accountId],
             removed: false,
             authorization: false,
+            categories: ['activity'],
           },
         ]);
       } finally {

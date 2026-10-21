@@ -191,7 +191,12 @@ export class GroupStore {
       if (event.kind === 'delete')
         await assertContentReclamationCapacity(client, this.capacity);
       else await assertContentCapacity(client, this.capacity);
-      this.contacts.changed(client, changedMembers(previous, event), true);
+      const affected = changedMembers(previous, event);
+      this.contacts.changed(client, affected, {
+        category: 'group-messages',
+        authorization: true,
+      });
+      this.contacts.changed(client, affected, { category: 'activity' });
       return { head: hash, status: 'saved' };
     });
   }
@@ -428,7 +433,12 @@ export class GroupStore {
       );
       await assertGroupTextQuota(client, consent.groupId);
       await assertContentCapacity(client, this.capacity);
-      this.contacts.changed(client, [consent.actor, consent.target]);
+      this.contacts.changed(client, [consent.actor, consent.target], {
+        category: 'group-messages',
+      });
+      this.contacts.changed(client, [consent.actor, consent.target], {
+        category: 'activity',
+      });
     });
   }
   private async checkProposalTarget(
@@ -504,7 +514,12 @@ export class GroupStore {
       await client.query('DELETE FROM hash_talk.group_consents WHERE id=$1', [
         id,
       ]);
-      this.contacts.changed(client, [consent.actor, consent.target]);
+      this.contacts.changed(client, [consent.actor, consent.target], {
+        category: 'group-messages',
+      });
+      this.contacts.changed(client, [consent.actor, consent.target], {
+        category: 'activity',
+      });
     });
   }
   async history(

@@ -1,4 +1,7 @@
 import type pg from 'pg';
+import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
+import { ChangeBatch, TransactionChanges } from './transaction-changes.ts';
+import type { ChangeDetails } from './transaction-changes.ts';
 import type { ContentWriteAllocations } from './content-write-allocations.ts';
 import { withAllocationTransaction } from './allocation-transaction.ts';
 import { AccountError } from '../../shared/account/index.ts';
@@ -55,14 +58,9 @@ function existingRequest(relation: Relation | null, actor: string): boolean {
 }
 export class ContactStore {
   private readonly pool: pg.Pool;
-  private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
-  private readonly relayChanges: boolean;
+  private readonly changeHints: TransactionChanges;
   private readonly allocations: ContentWriteAllocations | undefined;
   private readonly invitations: ContactInvitations;
-  private readonly pendingChanges = new WeakMap<
-    pg.PoolClient,
-    { accounts: Set<string>; authorization: boolean; removed: boolean }
-  >();
   constructor(input: {
     pool: pg.Pool;
     changes?: import('./changes.ts').DatabaseChanges;
@@ -71,8 +69,10 @@ export class ContactStore {
     capacity: ContentCapacity;
   }) {
     this.pool = input.pool;
-    this.changes = input.changes;
-    this.relayChanges = input.relayChanges;
+    this.changeHints = new TransactionChanges(
+      input.changes,
+      input.relayChanges,
+    );
     this.allocations = input.allocations;
     this.invitations = new ContactInvitations(input.capacity);
   }
@@ -80,20 +80,21 @@ export class ContactStore {
   changed(
     client: pg.PoolClient,
     accounts: readonly string[],
-    authorization = false,
+    details: boolean | ChangeDetails = false,
   ): void {
-    const pending = this.pendingChanges.get(client);
-    if (!pending) throw new Error('Change requires a coordinated transaction.');
-    for (const account of accounts) pending.accounts.add(account);
-    pending.authorization ||= authorization;
+    this.changeHints.changed(
+      client,
+      accounts,
+      typeof details === 'boolean' ? { authorization: details } : details,
+    );
   }
   /** A removal is a closing signal, published only after this transaction commits. */
-  removed(client: pg.PoolClient, accounts: readonly string[]): void {
-    this.changed(client, accounts);
-    const pending = this.pendingChanges.get(client);
-    if (!pending)
-      throw new Error('Deletion requires a coordinated transaction.');
-    pending.removed = true;
+  removed(
+    client: pg.PoolClient,
+    accounts: readonly string[],
+    category?: LiveChangeCategory,
+  ): void {
+    this.changeHints.removed(client, accounts, category);
   }
   private async transaction<T>(
     authority: ContactAuthority | null,
@@ -104,46 +105,26 @@ export class ContactStore {
     access: ContactAccess = 'write',
     peer?: ContactPeer,
   ): Promise<T> {
-    const pending = {
-      accounts: new Set<string>(),
-      authorization: false,
-      removed: false,
-    };
+    const pending = new ChangeBatch();
     const execute = async (client: pg.PoolClient) => {
-      this.pendingChanges.set(client, pending);
+      this.changeHints.attach(client, pending);
       try {
         const participants = await this.admit(client, authority, {
           access,
           peer,
         });
         const result = await work(client, participants);
-        if (this.relayChanges) {
-          const accounts = Array.from(pending.accounts);
-          for (let offset = 0; offset < accounts.length; offset += 64)
-            await client.query(
-              "SELECT pg_notify('hash_talk_content_changes',$1)",
-              [
-                JSON.stringify({
-                  accounts: accounts.slice(offset, offset + 64),
-                  authorization: pending.authorization,
-                  removed: pending.removed,
-                }),
-              ],
-            );
-        }
+        await this.changeHints.relay(client, pending);
         return result;
       } finally {
-        this.pendingChanges.delete(client);
+        this.changeHints.detach(client);
       }
     };
     const result =
       access === 'pair' && this.allocations
         ? await this.allocations.transaction(this.pool, execute)
         : await withAllocationTransaction(this.pool, execute);
-    this.changes?.committed(pending.accounts, {
-      authorization: pending.authorization,
-      removed: pending.removed,
-    });
+    this.changeHints.committed(pending);
     return result;
   }
   private async admit(
@@ -210,7 +191,7 @@ export class ContactStore {
       'INSERT INTO hash_talk.contact_controls(account_id,revision) SELECT unnest($1::uuid[]),1 ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.contact_controls.revision+1',
       [ids],
     );
-    this.changed(client, ids);
+    this.changed(client, ids, { category: 'contacts' });
   }
   private async account(client: pg.PoolClient, id: string): Promise<Peer> {
     const result = await client.query<Peer>(
@@ -738,7 +719,10 @@ export class ContactStore {
         relationRemoved && targetId ? [id, targetId] : [id],
       );
       if (input.blocked)
-        this.changed(client, [id, ...target.rows.map((row) => row.id)], true);
+        this.changed(client, [id, ...target.rows.map((row) => row.id)], {
+          category: 'contacts',
+          authorization: true,
+        });
     });
   }
   async unblock(

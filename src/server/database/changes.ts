@@ -1,5 +1,11 @@
+import {
+  isLiveChangeCategory,
+  liveChangeCategories,
+} from '../../shared/live-changes/index.ts';
+import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
 export interface CommittedChange {
   accounts: readonly string[];
+  categories: readonly LiveChangeCategory[] | null;
   authorization: boolean;
   removed: boolean;
   revoked: readonly string[];
@@ -33,6 +39,7 @@ export class DatabaseChanges {
   committed(
     accounts: Iterable<string>,
     details: {
+      categories?: readonly LiveChangeCategory[] | null;
       authorization?: boolean;
       removed?: boolean;
       revoked?: readonly string[];
@@ -43,6 +50,7 @@ export class DatabaseChanges {
     if (!unique.length) return;
     const change = {
       accounts: unique,
+      categories: changeCategories(details.categories),
       authorization: details.authorization ?? false,
       removed: details.removed ?? false,
       revoked: details.revoked ?? [],
@@ -60,4 +68,16 @@ export class DatabaseChanges {
       observer.failed();
     }
   }
+}
+
+/** A legacy, empty, or unfamiliar scope requires general authenticated recovery. */
+export function changeCategories(value: unknown): LiveChangeCategory[] | null {
+  if (
+    !Array.isArray(value) ||
+    !value.length ||
+    value.length > liveChangeCategories.length ||
+    !value.every(isLiveChangeCategory)
+  )
+    return null;
+  return [...new Set(value)];
 }

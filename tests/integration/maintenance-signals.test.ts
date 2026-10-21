@@ -29,6 +29,7 @@ await test('workers: after-commit notifications, private bridge and exclusive co
   let lost = false,
     work = 0,
     changed = 0;
+  const categories: unknown[] = [];
   signals.holdWorker('content', () => {
     lost = true;
   });
@@ -51,6 +52,7 @@ await test('workers: after-commit notifications, private bridge and exclusive co
     notify: (event) => {
       assert.deepEqual(event.accounts, [account]);
       assert.ok(event.removed);
+      categories.push(event.categories);
       changed++;
     },
     failed: () => {},
@@ -89,6 +91,29 @@ await test('workers: after-commit notifications, private bridge and exclusive co
   ]);
   await sql.query('COMMIT');
   await until(() => work > initial && changed === 1);
+  assert.deepEqual(categories, [null]);
+  await sql.query('BEGIN');
+  await sql.query("SELECT pg_notify('hash_talk_content_changes',$1)", [
+    JSON.stringify({
+      accounts: [account],
+      removed: true,
+      authorization: false,
+      categories: ['private-receipts'],
+    }),
+  ]);
+  await sql.query('COMMIT');
+  await until(() => changed === 2);
+  assert.deepEqual(categories[1], ['private-receipts']);
+  await sql.query("SELECT pg_notify('hash_talk_content_changes',$1)", [
+    JSON.stringify({
+      accounts: [account],
+      removed: true,
+      authorization: false,
+      categories: ['future-category'],
+    }),
+  ]);
+  await until(() => changed === 3);
+  assert.equal(categories[2], null);
   const duplicate = new WorkSignals(config.databaseUrl);
   duplicate.holdWorker('content', () => {});
   try {

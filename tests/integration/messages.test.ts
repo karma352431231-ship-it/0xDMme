@@ -745,14 +745,16 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
           'X-Hash-Talk-CSRF': user.session.csrf,
         };
       }
-      async function stream(user: User) {
+      async function stream(user: User, categories = false) {
         const controller = new AbortController();
         controllers.push(controller);
         const timeout = setTimeout(() => controller.abort(), 5000);
         const response = await fetch(root + 'live', {
           method: 'POST',
           headers: headers(user),
-          body: JSON.stringify(await proof(user, 'live', {})),
+          body: JSON.stringify(
+            await proof(user, 'live', categories ? { categories: true } : {}),
+          ),
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -763,9 +765,23 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
         );
         assert.ok(response.body);
         const reader = response.body.getReader(),
-          parser = new WakeupFrames();
+          parser = new WakeupFrames(),
+          decoder = new TextDecoder();
+        let categoryFrames = '';
+        const accept = (part: Uint8Array, wanted: string): boolean => {
+          if (!categories)
+            return parser.accept(part).some((event) => event === wanted);
+          categoryFrames += decoder.decode(part, { stream: true });
+          const marker = `event: ${wanted}\ndata: {}\n\n`;
+          const position = categoryFrames.indexOf(marker);
+          if (position < 0) return false;
+          categoryFrames = categoryFrames.slice(position + marker.length);
+          return true;
+        };
         const next = async (
-          wanted: import('../../src/client/message-live/index.ts').LiveEvent,
+          wanted:
+            | import('../../src/client/message-live/index.ts').LiveEvent
+            | import('../../src/shared/live-changes/index.ts').LiveChangeCategory,
         ) => {
           const deadline = setTimeout(() => controller.abort(), 5000);
           try {
@@ -773,7 +789,7 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
               const part = await reader.read();
               assert.equal(part.done, false);
               assert.ok(part.value);
-              if (parser.accept(part.value).includes(wanted)) return;
+              if (accept(part.value, wanted)) return;
             }
           } finally {
             clearTimeout(deadline);
@@ -797,6 +813,16 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
           409,
         );
         streams.push(await stream(alice), await stream(bob));
+        const categorized = await stream(bob, true);
+        streams.push(categorized);
+        const invalidCapability = await fetch(root + 'live', {
+          method: 'POST',
+          headers: headers(alice),
+          body: JSON.stringify(
+            await proof(alice, 'live', { categories: 'true' }),
+          ),
+        });
+        assert.equal(invalidCapability.status, 400);
         const p = await packet('Conteúdo sintético enviado por evento');
         const response = await fetch(root + 'publish', {
           method: 'POST',
@@ -805,7 +831,10 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
         });
         assert.equal(response.status, 200);
         const acceptance = object(await response.json());
-        await Promise.all(streams.map((item) => item.next('changed')));
+        await Promise.all([
+          ...streams.slice(0, 2).map((item) => item.next('changed')),
+          categorized.next('private-messages'),
+        ]);
         const snap = await op(bob, 'snapshot');
         assert.ok(await op(bob, 'object', { id: p.id, snapshot: snap }));
         assert.equal(

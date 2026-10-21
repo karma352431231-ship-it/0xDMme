@@ -114,6 +114,7 @@ export class GroupMessageStore {
         this.contacts.changed(
           client,
           state.members.map((m) => m.accountId),
+          { category: 'group-messages' },
         );
         return { status: 'accepted', hash };
       },
@@ -461,6 +462,7 @@ export class GroupMessageStore {
             // Only senders' delivery checks changed. Waking every member for
             // every ACK would multiply refreshes by the group's size.
             [...new Set(result.rows.map((row) => row.sender))],
+            { category: 'group-receipts' },
           );
       },
     );
