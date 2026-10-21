@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ConfirmedConversations } from '../src/client/messages/confirmed-conversations.ts';
+import type { MessageView } from '../src/client/messages/controller.ts';
+import { messageStates } from '../src/client/message-state/index.ts';
 
 const window = (text = 'Fictícia') => ({
   snapshot: '{}',
@@ -50,4 +52,68 @@ await test('confirmed changes invalidate only the affected conversation and adva
   assert.equal(cache.read('intact')!.views, views);
   assert.equal(cache.read('intact')!.snapshot, JSON.stringify(next));
   assert.equal(cache.read('older')!.snapshot, JSON.stringify({ revision: 0 }));
+});
+
+await test('two conversations retain their messages and profile verification metadata without holding profile photo bodies', () => {
+  const cache = new ConfirmedConversations<MessageView>();
+  cache.connection(true);
+  const photo = Buffer.alloc(1024 * 1024, 1).toString('base64');
+  const message = (id: string): MessageView => ({
+    id,
+    kind: 'text',
+    text: 'Small verified message',
+    peer: 'first',
+    own: false,
+    hash: 'a'.repeat(64),
+    state: messageStates.received,
+    sequence: 1,
+    author: 'sender',
+  });
+  const messages = Array.from({ length: 16 }, (_, index) =>
+    message(`message-${index}`),
+  );
+  const profiles = [false, true].map((own, index): MessageView => ({
+    ...message(`profile-${index}`),
+    kind: 'profile',
+    own,
+    text: JSON.stringify({
+      name: 'Synthetic profile',
+      revision: 2,
+      photo: { type: 'image/png', base64: photo },
+    }),
+  }));
+  const original = {
+    snapshot: '{}',
+    views: [...messages, ...profiles],
+    oldest: 1,
+  };
+  cache.remember('first', original);
+  cache.remember('second', {
+    ...original,
+    views: original.views.map((view) => ({ ...view, peer: 'second' })),
+  });
+  const restored = cache.reusable('first');
+  assert.ok(
+    restored,
+    'Profile photo bodies must not evict the previous conversation',
+  );
+  assert.ok(cache.reusable('second'));
+  assert.deepEqual(
+    restored.views.filter((view) => view.kind !== 'profile'),
+    messages,
+  );
+  for (const [index, profile] of profiles.entries()) {
+    const retained: MessageView | undefined = restored.views.find(
+      (view) => view.id === profile.id,
+    );
+    assert.deepEqual(retained, { ...profile, text: '' });
+    assert.ok(
+      original.views[16 + index]!.text.includes(photo),
+      'The source profile stays available to its original owner',
+    );
+  }
+  assert.ok(
+    JSON.stringify(restored).length < 20_000,
+    'The retained representation contains metadata and small messages only',
+  );
 });

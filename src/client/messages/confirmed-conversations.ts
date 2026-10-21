@@ -7,6 +7,7 @@ import type {
 } from '../../shared/chat-sync-diagnostics/index.ts';
 interface ConversationView {
   text: string;
+  kind?: string;
 }
 export interface ConfirmedConversation<T> {
   snapshot: string;
@@ -17,6 +18,8 @@ export interface ConfirmedConversation<T> {
 /** Session-only verified candidates. Immediate display is allowed only within
  * the same uninterrupted live epoch; other candidates need a fresh check.
  * Keep at most 16 conversations, 4096 rows and 8 MiB of estimated text/storage.
+ * Profile cards keep verification metadata only; their bodies belong to the
+ * existing encrypted profile store and do not render as message rows.
  * Persistent copies remain encrypted under their existing quota. */
 export class ConfirmedConversations<T extends ConversationView> {
   private readonly windows = new Map<
@@ -116,7 +119,13 @@ export class ConfirmedConversations<T extends ConversationView> {
   }
   remember(peer: string, value: ConfirmedConversation<T>): void {
     this.remove(peer, 'replaced');
-    const bytes = value.views.reduce(
+    const retained = {
+      ...value,
+      views: value.views.map((view) =>
+        view.kind === 'profile' ? { ...view, text: '' } : view,
+      ),
+    };
+    const bytes = retained.views.reduce(
       (total, view) => total + view.text.length * 2 + 1024,
       value.snapshot.length * 2,
     );
@@ -129,7 +138,7 @@ export class ConfirmedConversations<T extends ConversationView> {
       return;
     }
     this.windows.set(peer, {
-      value,
+      value: retained,
       bytes,
       epoch: this.connected ? this.epoch : null,
     });

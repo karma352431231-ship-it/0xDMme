@@ -349,5 +349,35 @@ export function resumeFixture() {
         isRemoved: () => false,
       } as unknown as VaultSync,
     });
-  return { controller, data, session, peer, add, access, notificationReader };
+  const addProfile = async (text: string, from = peer, own = false) => {
+    const item = await add(text, from);
+    item.kind = 'profile';
+    if (own) {
+      item.sender = session.accountId;
+      item.recipient = from;
+    }
+    data.records.delete(`cache:${item.id}`);
+    data.records.set(`profile:${item.id}`, {
+      id: item.id,
+      peer: from,
+      own,
+      sequence: item.sequence,
+      hash: item.hash,
+      draft: [{ text }],
+      verification: {
+        text: verifiedReceipt(data.snapshot, item, await digest(text)),
+      },
+    });
+    return item;
+  };
+  return {
+    controller,
+    data,
+    session,
+    peer,
+    add,
+    addProfile,
+    access,
+    notificationReader,
+  };
 }

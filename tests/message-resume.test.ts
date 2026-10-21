@@ -120,6 +120,59 @@ await test('A to B to A remains reusable through directory-only pauses while the
   assert.equal(f.data.requests.length, requests);
 });
 
+await test('A to B to A keeps navigation available with large verified profile photos and still authenticates their hashes', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  const text = JSON.stringify({
+    name: 'Synthetic profile',
+    revision: 1,
+    photo: {
+      type: 'image/png',
+      base64: Buffer.alloc(1024 * 1024, 1).toString('base64'),
+    },
+  });
+  for (const peer of [f.peer, other]) {
+    for (let index = 0; index < 16; index++)
+      await f.add(`Small message ${index}`, peer);
+    await f.addProfile(text, peer);
+    await f.addProfile(text, peer, true);
+  }
+  for (const peer of [f.peer, other]) {
+    f.controller.select(peer);
+    await f.controller.synchronize();
+  }
+  const requests = f.data.requests.length,
+    reads = f.data.authorityReads;
+  for (const peer of [f.peer, other, f.peer]) {
+    assert.equal(f.controller.canRestore(peer), true);
+    f.controller.select(peer);
+    assert.equal(f.controller.restoreSelected(), true);
+    const restored = f.data.frames.at(-1)!;
+    assert.equal(restored.filter((view) => view.kind === 'text').length, 16);
+    assert.equal(restored.filter((view) => view.kind === 'profile').length, 2);
+    assert.ok(
+      restored
+        .filter((view) => view.kind === 'profile')
+        .every((view) => view.text === ''),
+    );
+  }
+  assert.equal(f.data.requests.length, requests);
+  assert.equal(f.data.authorityReads, reads);
+  assert.equal(
+    await f.controller.probe(),
+    false,
+    'Metadata-only profiles still participate in authenticated delivery checking',
+  );
+  const profile = f.data.items.find(
+    (item) => item.kind === 'profile' && item.sender === f.peer,
+  )!;
+  profile.hash = 'e'.repeat(64);
+  await assert.rejects(f.controller.probe(), /Delivery state does not match/u);
+  assert.equal(f.data.frames.at(-1), null);
+  assert.equal(f.controller.canRestore(f.peer), false);
+});
+
 await test('a live hint blocks retained navigation until the current snapshot is authenticated again', async () => {
   const f = resumeFixture(),
     other = crypto.randomUUID();

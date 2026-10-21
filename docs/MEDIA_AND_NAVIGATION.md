@@ -62,6 +62,16 @@ windows for a different snapshot are discarded. A same-session profile name or
 revision change also invalidates reuse so an older profile is not reused on
 navigation. Existing count, row and byte budgets remain unchanged.
 
+Profile card bodies are excluded from the navigation cache. Each profile entry
+retains its packet ID, hash, sender/peer, sequence and delivery metadata with an
+empty text body; the complete verified card and photo remain in the existing
+encrypted profile store. The cache therefore budgets actual message content and
+profile verification metadata, rather than duplicate base64 photo bodies.
+Original verified views are not mutated. Reopening still checks profile IDs and
+hashes through the authenticated delivery/snapshot path, including rejection on
+a mismatched profile hash. Profile changes, removals and session invalidation
+keep their existing cache lifecycle.
+
 Message row identity is owned by `messages/row-keys.ts`. Receipt-only updates
 retain rows, while edits, deletions and changed reply excerpts update only the
 affected presentation and release its media resources. The deleting tab alerts
