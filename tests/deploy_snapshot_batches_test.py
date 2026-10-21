@@ -50,3 +50,29 @@ console.log(JSON.stringify({passed:true}));
         self.assertIn('REPEATABLE READ READ ONLY', recorded[0])
         self.assertIn('rows:100000,bytes:128*1024*1024', recorded[0])
         self.assertIn('query_timeout:15000,statement_timeout:12000', recorded[0])
+
+    def test_omitted_additions_are_validated_and_bound_as_query_parameters(self):
+        for omitted in [{'unknown': ['change_kind']}, {'message_changes': ['x); DROP TABLE accounts;']},
+                        {'message_changes': 'change_kind'}]:
+            with self.assertRaisesRegex(RuntimeError, 'column contract'):
+                batches.snapshot(lambda _: b'{}', '', omit_columns=omitted)
+        recorded = []
+        batches.snapshot(lambda source: recorded.append(source) or b'{}', '',
+                         omit_columns={'message_changes': ['change_kind']})
+        self.assertIn('"message_changes": ["change_kind"]', recorded[0])
+        script = """
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+""" + batches.SCRIPT + """
+let calls=0;
+const budget={rows:1000,bytes:1000,omit:{message_changes:['change_kind']}};
+const client={async query(sql,values){
+ calls++;assert.ok(sql.includes('to_jsonb(t)-$1::text[]'));
+ assert.deepEqual(values[0],['change_kind']);assert.equal(values[1],1000);
+ return {rows:[]};
+}};
+assert.equal((await fingerprintTable(client,'message_changes',[['revision','bigint']],budget)).count,0);
+assert.equal(calls,1);
+"""
+        subprocess.run([shutil.which('node'), '--input-type=module', '-e', script],
+                       capture_output=True, check=True, timeout=15)

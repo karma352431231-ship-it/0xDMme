@@ -1,5 +1,6 @@
 """Bounded keyset fingerprints for the three reviewed large predecessor tables."""
 import json
+import re
 
 KEYS = {
     'message_references': [('message_id', 'uuid'), ('account_id', 'uuid'), ('device_id', 'uuid')],
@@ -17,9 +18,13 @@ async function fingerprintTable(client,name,keys,budget) {
  while(true) {
   const values=cursor?[...cursor]:[];
   const where=cursor?' WHERE ('+columns.join(',')+')>('+keys.map(([,type],i)=>'$'+(i+1)+'::'+type).join(',')+')':'';
+  let projection='to_jsonb(t)';
+  if(budget.omit?.[name]?.length) {
+   values.push(budget.omit[name]);projection='(to_jsonb(t)-$'+values.length+'::text[])';
+  }
   const limit=Math.min(1000,budget.rows-count+1);values.push(limit);
-  const query="SELECT encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex') AS digest,"+
-   'octet_length(to_jsonb(t)::text) AS bytes,jsonb_build_array('+columns.map(key=>key+'::text').join(',')+') AS key'+
+  const query="SELECT encode(sha256(convert_to("+projection+"::text,'UTF8')),'hex') AS digest,"+
+   'octet_length('+projection+'::text) AS bytes,jsonb_build_array('+columns.map(key=>key+'::text').join(',')+') AS key'+
    ' FROM hash_talk.'+name+' t'+where+' ORDER BY '+columns.join(',')+' LIMIT $'+values.length;
   const page=(await client.query(query,values)).rows;
   for(const row of page) {
@@ -33,7 +38,12 @@ async function fingerprintTable(client,name,keys,budget) {
 """
 
 
-def snapshot(node, preamble):
+def snapshot(node, preamble, *, omit_columns=None):
+    omit_columns = omit_columns or {}
+    if any(name not in KEYS or not isinstance(columns, (tuple, list)) or
+           any(not isinstance(column, str) or not re.fullmatch(r'[a-z][a-z0-9_]*', column)
+               for column in columns) for name, columns in omit_columns.items()):
+        raise RuntimeError('Invalid paged snapshot column contract.')
     script = """
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
@@ -42,7 +52,7 @@ const pg=createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
 const client=new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:15000,statement_timeout:12000});
 try {
  await client.connect();await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
- const result={},budget={rows:100000,bytes:128*1024*1024};
+ const result={},budget={rows:100000,bytes:128*1024*1024,omit:""" + json.dumps(omit_columns) + """};
  for(const [name,keys] of Object.entries(""" + json.dumps(KEYS) + """))
   result[name]=await fingerprintTable(client,name,keys,budget);
  await client.query('ROLLBACK');console.log(JSON.stringify(result));
