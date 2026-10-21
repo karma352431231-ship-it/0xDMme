@@ -66,6 +66,36 @@ disconnection, suspension, removals and authorization failures still invalidate
 the read and clear its projection. Snapshot confirmation, client-only decryption
 and the existing bounded retry remain required.
 
+## Immediate preview from a verified chat window — 20 October 2026
+
+Publishing the selected private chat's complete verified latest window now also
+publishes its contact preview in the same synchronous callback, before history
+rendering. No second packet read, authority acquisition, network request or
+read ACK is required for this projection. This bypasses the remaining startup
+warmup and an unrelated slow account-preview batch for that contact only.
+The account-wide preview reader remains responsible for other contacts and
+fresh read receipts. Existing receipts are preserved only for the same message.
+
+The controller supplies the peer and latest-page flag. Offline views, local-only
+archives and older pages cannot overwrite the online latest preview. Projection
+uses the existing edited-text/media presentation, excludes hidden profile rows
+and does not expose pending drafts. A verified empty latest window or removal
+gate clears the affected preview; existing account/session invalidation still
+clears the complete list.
+
+The loader tracks a revision for direct verified publications. If an older
+account-wide read finishes afterward, its result is discarded and one coalesced
+fresh read supplies the remaining list. A failed authorization/snapshot check
+still clears all previews, including direct publications; stale generation
+responses cannot publish after session replacement. No additional event queue,
+plaintext storage or cache budget is introduced.
+
+The projection rule lives in `messages/verified-previews.ts`; the existing
+controller and screen add publication metadata and wiring only. Regression tests
+cover startup deferral, slow account reads, stale responses, empty/deleted latest
+messages, edits, read receipts, older pages, offline/archive exclusion and
+authorization loss. Real-device timing still requires testing after publication.
+
 ## Detailed push scope — owner clarification, 20 October 2026
 
 The latest instruction supersedes the intermediate private-only interpretation:

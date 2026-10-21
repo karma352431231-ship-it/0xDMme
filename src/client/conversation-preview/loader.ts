@@ -14,6 +14,7 @@ export interface ConversationPreview {
 export class ConversationPreviewLoader {
   readonly values = new Map<string, ConversationPreview>();
   private generation = 0;
+  private revision = 0;
   private active = false;
   private pending: readonly string[] | null = null;
   failed = false;
@@ -30,9 +31,21 @@ export class ConversationPreviewLoader {
   }
   clear(): void {
     this.generation++;
+    this.revision++;
     this.pending = null;
     this.values.clear();
     this.failed = false;
+  }
+  /** Accept only a complete, already verified latest conversation window.
+   * A concurrent older account read must not overwrite this publication. */
+  publish(peer: string, preview: ConversationPreview | null): void {
+    const previous = this.values.get(peer);
+    if (preview && JSON.stringify(previous) === JSON.stringify(preview)) return;
+    if (!preview && !previous && !this.active) return;
+    this.revision++;
+    if (preview) this.values.set(peer, preview);
+    else this.values.delete(peer);
+    this.changed();
   }
   async refresh(peers: readonly string[]): Promise<void> {
     if (this.active) {
@@ -41,10 +54,15 @@ export class ConversationPreviewLoader {
     }
     this.active = true;
     this.failed = false;
-    const generation = this.generation;
+    const generation = this.generation,
+      revision = this.revision;
     try {
       const values = await this.load(peers);
       if (generation !== this.generation) return;
+      if (revision !== this.revision) {
+        this.pending ??= peers;
+        return;
+      }
       this.values.clear();
       for (const [peer, preview] of values) this.values.set(peer, preview);
       this.changed();

@@ -5,6 +5,8 @@ import type { TestContext } from 'node:test';
 import type { startMessages } from '../../src/client/messages/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 import type { MessageView } from '../../src/client/messages/controller.ts';
+import type { ConversationProjection } from '../../src/client/messages/controller.ts';
+import type { HistoryUpdate } from '../../src/client/message-visibility/index.ts';
 import type { LiveEvent } from '../../src/client/message-live/index.ts';
 import type { VaultWorkOptions } from '../../src/client/vault-authority/index.ts';
 import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
@@ -42,6 +44,7 @@ const real = new Set([
   './profile-broadcast.ts',
   './activity.ts',
   './visits.ts',
+  './verified-previews.ts',
   '../conversation-preview/index.ts',
 ]);
 const bundle = await build({
@@ -107,6 +110,7 @@ export function coordinatorFixture(
     holdGroups: false,
     holdContacts: false,
     holdHistory: false,
+    historyRows: [] as MessageView[],
     holdSave: false,
     holdSend: false,
     withProfile: false,
@@ -260,10 +264,15 @@ export function coordinatorFixture(
   fixture.Messages = function (
     _access: unknown,
     _sync: unknown,
-    callback: typeof publish,
+    callback: (
+      rows: MessageView[] | null,
+      update: HistoryUpdate,
+      projection: ConversationProjection,
+    ) => void,
     published: (value: { id: string; peer: string }) => void,
   ) {
-    publish = callback;
+    publish = (rows) =>
+      callback(rows, 'history', { peer: selectedPeer, latest: true });
     return {
       ...base,
       pause: (scope = 'account') => {
@@ -321,8 +330,9 @@ export function coordinatorFixture(
           priority: options.priority,
         });
         calls.push('synchronize');
-        if (state.holdHistory) return history.promise.then(() => publish([]));
-        return Promise.resolve().then(() => publish([]));
+        if (state.holdHistory)
+          return history.promise.then(() => publish(state.historyRows));
+        return Promise.resolve().then(() => publish(state.historyRows));
       },
       compose: (peer: string) => {
         calls.push('compose:' + peer);

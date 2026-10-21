@@ -132,6 +132,10 @@ export interface MessageView {
   state: string;
   hash: string;
 }
+export interface ConversationProjection {
+  peer: string | null;
+  latest: boolean;
+}
 interface Outbox {
   outboxOrder?: string;
   createdAt?: number;
@@ -193,13 +197,19 @@ export class Messages {
     publish: (
       rows: readonly MessageView[] | null,
       update: HistoryUpdate,
+      projection: ConversationProjection,
     ) => void,
     published: (value: { id: string; peer: string }) => void = () => {},
   ) {
     this.access = access;
     this.sync = sync;
     this.identities = new PeerIdentity(sync);
-    this.visibility = new MessageVisibility(publish);
+    this.visibility = new MessageVisibility((value, update) =>
+      publish(value, update, {
+        peer: this.selected,
+        latest: this.before === null,
+      }),
+    );
     this.published = published;
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {

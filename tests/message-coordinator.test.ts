@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { coordinatorFixture } from './fixtures/message-coordinator.ts';
 import { decodeDailyText, encodeDailyText } from '../src/shared/daily/index.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
+import { messageStates } from '../src/client/message-state/index.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function finishStartupMaintenance(
   t: import('node:test').TestContext,
@@ -17,6 +18,43 @@ const peer = (accountId: string): Peer => ({
   ecosystem: 'evm',
   address: '0x' + '1'.repeat(40),
   name: 'Synthetic',
+});
+
+await test('the selected chat preview publishes before remaining startup maintenance and clears on authorization loss', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.holdGroups = true;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  f.state.probeChanged = true;
+  f.state.historyRows = [
+    {
+      id: 'new-message',
+      kind: 'text',
+      text: 'New verified preview',
+      peer: 'preview-peer',
+      own: false,
+      hash: 'a'.repeat(64),
+      state: messageStates.received,
+      sequence: 2,
+    },
+  ];
+  const opening = f.messages.openContact(peer('preview-peer'));
+  await turn();
+  f.groupLoad.resolve();
+  await opening;
+  assert.equal(f.previews().get('preview-peer')?.text, 'New verified preview');
+  assert.ok(
+    !f.calls.includes('heartbeat'),
+    'Preview publication does not wait for startup presence',
+  );
+  f.emit('authorization');
+  assert.equal(f.previews().size, 0);
 });
 
 await test('opening an uncached conversation does not restart completed account inboxes; live activity still does', async (t) => {

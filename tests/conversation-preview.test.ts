@@ -200,3 +200,75 @@ await test('public preview selects the latest sent or received message and queri
   assert.equal(previews.get(peers[1]!)?.text, 'latest1');
   assert.equal(previews.get(peers[1]!)?.delivery, undefined);
 });
+
+await test('a verified preview publishes immediately and an older list response cannot overwrite it', async () => {
+  const stale = deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  const current =
+    deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  const frames: string[] = [];
+  let calls = 0;
+  const loader = new ConversationPreviewLoader({
+    load: () => (++calls === 1 ? stale.promise : current.promise),
+    changed: () => frames.push(loader.values.get('peer')?.text ?? ''),
+  });
+  const older = conversationPreview({
+    id: 'old',
+    sequence: 1,
+    kind: 'text',
+    text: 'old',
+    displayText: 'old',
+    own: false,
+  });
+  const latest = { ...older, id: 'new', sequence: 2, text: 'latest' };
+  loader.publish('peer', older);
+  const loading = loader.refresh(['peer', 'other']);
+  loader.publish('peer', latest);
+  assert.equal(loader.values.get('peer')?.text, 'latest');
+  stale.resolve(new Map([['peer', older]]));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(loader.values.get('peer')?.text, 'latest');
+  assert.equal(calls, 2);
+  current.resolve(
+    new Map([
+      ['peer', latest],
+      ['other', older],
+    ]),
+  );
+  await loading;
+  assert.deepEqual(frames, ['old', 'latest', 'latest']);
+  assert.equal(loader.values.get('other')?.text, 'old');
+});
+
+await test('an empty verified window cannot be resurrected by an older list read and a real list failure clears direct previews', async () => {
+  const held = deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  const preview = conversationPreview({
+    id: 'old',
+    kind: 'text',
+    text: 'old',
+    displayText: 'old',
+    own: false,
+  });
+  let calls = 0;
+  const loader = new ConversationPreviewLoader({
+    load: () => (++calls === 1 ? held.promise : Promise.resolve(new Map())),
+    changed: () => {},
+  });
+  loader.publish('peer', preview);
+  const loading = loader.refresh(['peer']);
+  loader.publish('peer', null);
+  held.resolve(new Map([['peer', preview]]));
+  await loading;
+  assert.equal(loader.values.size, 0);
+  const failure =
+    deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  const failed = new ConversationPreviewLoader({
+    load: () => failure.promise,
+    changed: () => {},
+  });
+  const pending = failed.refresh(['peer']);
+  failed.publish('peer', preview);
+  failure.reject(new Error('Current authorization denied'));
+  await pending;
+  assert.equal(failed.failed, true);
+  assert.equal(failed.values.size, 0);
+});

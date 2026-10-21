@@ -7,6 +7,7 @@ import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { ConnectedConversationVisits } from './visits.ts';
 import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
+import { publishVerifiedConversationPreview } from './verified-previews.ts';
 import { TextSendQueue } from './text-send.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -195,10 +196,18 @@ export function startMessages(
   const controller = new Messages(
     access,
     sync,
-    (value, update) => {
+    (value, update, projection) => {
       pendingRender++;
       rows = value;
       outgoing.observed(value);
+      publishVerifiedConversationPreview({
+        rows: value,
+        update,
+        projection,
+        previews,
+        online: navigator.onLine,
+        localOnly: selected?.localOnly ?? false,
+      });
       renderHistory(update);
     },
     (value) => {

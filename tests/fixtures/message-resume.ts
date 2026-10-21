@@ -7,6 +7,7 @@ import { verifiedReceipt } from '../../src/client/messages/index-sync.ts';
 import type {
   Messages,
   MessageView,
+  ConversationProjection,
 } from '../../src/client/messages/controller.ts';
 import type { MessageItem } from '../../src/client/messages/history.ts';
 import type {
@@ -109,6 +110,12 @@ export function resumeFixture() {
     failure: null as string | null,
     confirmation: null as (() => Promise<Response>) | null,
     frames: [] as (MessageView[] | null)[],
+    publication: undefined as
+      | ((
+          rows: readonly MessageView[] | null,
+          projection: ConversationProjection,
+        ) => void)
+      | undefined,
     authorityReads: 0,
     beforeDelivery: undefined as (() => void) | undefined,
     beforeLocalRead: undefined as ((name: string) => void) | undefined,
@@ -300,10 +307,11 @@ export function resumeFixture() {
   const controller = new context.messageController.Messages(
     access,
     {} as VaultSync,
-    (rows) => {
+    (rows, _update, projection) => {
       data.frames.push(
         rows === null ? null : Array.from(rows, (row) => ({ ...row })),
       );
+      data.publication?.(rows, projection);
     },
   );
   controller.setSession(session);
