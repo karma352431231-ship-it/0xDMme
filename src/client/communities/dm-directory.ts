@@ -1,3 +1,4 @@
+import { expectedInterruption } from '../synchronization-work/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -68,6 +69,7 @@ export class DmDirectory {
       if (!this.current(generation)) return;
       paintDmDirectoryPreviews(host, previews);
     } catch (error: unknown) {
+      if (expectedInterruption(error)) throw error;
       if (this.current(generation))
         host.replaceChildren(
           el(

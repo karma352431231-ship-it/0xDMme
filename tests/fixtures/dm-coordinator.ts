@@ -36,7 +36,11 @@ const adapted: Record<string, string[]> = {
   './elements.ts': ['communityElement'],
 };
 const bundle = await build({
-  entryPoints: [entry],
+  stdin: {
+    contents: `export { startSocialDmUi } from './${entry}'; export { WorkInterruption } from './src/client/synchronization-work/index.ts';`,
+    resolveDir: process.cwd(),
+    loader: 'ts',
+  },
   bundle: true,
   write: false,
   platform: 'browser',
@@ -98,6 +102,11 @@ export function dmCoordinatorFixture(t: TestContext) {
     priority: VaultWorkOptions['priority'];
   }[] = [];
   let hold = false;
+  let cancellations = 0;
+  let readFailure: Error | null = null;
+  let mediaPeer: string | null = null;
+  const media = deferred<boolean>();
+  const composerStates: { pending: boolean }[] = [];
   let emit: (event: LiveEvent) => void = () => {};
   let liveChanged: () => void = () => {};
   let liveCurrent = true,
@@ -165,6 +174,9 @@ export function dmCoordinatorFixture(t: TestContext) {
     SocialDms: function () {
       // Keep the actual session/cancellation guards and signed list transport.
       return Object.assign(new SocialDms(access, new VaultSync(access)), {
+        cancel: () => {
+          cancellations++;
+        },
         initialize: (options: VaultWorkOptions = {}) => {
           priorities.push({
             operation: 'initialize',
@@ -191,11 +203,16 @@ export function dmCoordinatorFixture(t: TestContext) {
         ) => {
           priorities.push({ operation: 'read', priority: options.priority });
           calls.push('read:' + peer);
-          return Promise.resolve(page());
+          return readFailure
+            ? Promise.reject(readFailure)
+            : Promise.resolve(page());
         },
         cached: () => Promise.resolve(page()),
         pending: () => Promise.resolve(null),
-        mediaDraft: () => Promise.resolve(false),
+        mediaDraft: (peer: string) => {
+          calls.push('media:' + peer);
+          return peer === mediaPeer ? media.promise : Promise.resolve(false);
+        },
         directoryPreviews: () => Promise.resolve(new Map()),
         messageStates: () => Promise.resolve([]),
         markRead: asyncNoop,
@@ -215,7 +232,8 @@ export function dmCoordinatorFixture(t: TestContext) {
       active: false,
       editing: null,
       bind: noop,
-      update: noop,
+      update: (state: { pending: boolean }) =>
+        composerStates.push({ ...state }),
       restoreDraft: noop,
       leave: noop,
       cancelEdit: noop,
@@ -286,6 +304,7 @@ export function dmCoordinatorFixture(t: TestContext) {
   const context = runInNewContext(bundle.outputFiles[0]!.text + '\ndmUi;', {
     fixture,
     console,
+    performance,
     crypto,
     TextDecoder,
     TextEncoder,
@@ -301,7 +320,10 @@ export function dmCoordinatorFixture(t: TestContext) {
     window,
     navigator: { onLine: true },
     HTMLElement: DmNode,
-  }) as { startSocialDmUi: typeof startSocialDmUi };
+  }) as {
+    startSocialDmUi: typeof startSocialDmUi;
+    WorkInterruption: typeof import('../../src/client/synchronization-work/index.ts').WorkInterruption;
+  };
   const ui = context.startSocialDmUi(
     {} as Parameters<typeof startSocialDmUi>[0],
     {} as Parameters<typeof startSocialDmUi>[1],
@@ -315,6 +337,21 @@ export function dmCoordinatorFixture(t: TestContext) {
     host: host as unknown as HTMLElement,
     calls,
     priorities,
+    composerStates,
+    holdMedia: (peer: string) => {
+      mediaPeer = peer;
+    },
+    releaseMedia: () => {
+      mediaPeer = null;
+      media.resolve(true);
+    },
+    get cancellations() {
+      return cancellations;
+    },
+    continuation: () => new context.WorkInterruption('continuation'),
+    failRead: (error: Error) => {
+      readFailure = error;
+    },
     visibility: (value: 'visible' | 'hidden') => {
       document.visibilityState = value;
       document.dispatchEvent(new Event('visibilitychange'));

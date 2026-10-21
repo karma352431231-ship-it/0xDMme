@@ -1,5 +1,16 @@
+import { DmContinuations } from './dm-continuation.ts';
+import { expectedInterruption } from '../synchronization-work/index.ts';
 /** Directory notification reads share the existing account wakeups. */
 export class DmUnreadUpdates {
+  private readonly continuation = new DmContinuations({
+    available: () =>
+      this.active &&
+      this.enabled &&
+      !this.running &&
+      document.visibilityState === 'visible' &&
+      navigator.onLine,
+    run: () => this.request(),
+  });
   private generation = 0;
   private active = false;
   private enabled = false;
@@ -17,6 +28,7 @@ export class DmUnreadUpdates {
     this.ports = ports;
   }
   reset(active: boolean): void {
+    this.continuation.clear();
     this.generation++;
     this.active = active;
     this.enabled = false;
@@ -29,6 +41,7 @@ export class DmUnreadUpdates {
     this.request();
   }
   invalidate(): void {
+    this.continuation.clear();
     this.generation++;
     this.pending = false;
     this.ports.changed(0);
@@ -51,12 +64,17 @@ export class DmUnreadUpdates {
     try {
       const count = await this.read(generation);
       if (generation === this.generation) this.ports.changed(count);
-    } catch {
-      // Unknown authority must not retain another session's notification state.
-      if (generation === this.generation) this.ports.changed(0);
+    } catch (error: unknown) {
+      if (generation === this.generation && expectedInterruption(error)) {
+        this.continuation.request();
+      } else {
+        // Unknown authority must not retain another session's notification state.
+        if (generation === this.generation) this.ports.changed(0);
+      }
     } finally {
       this.running = false;
       if (this.pending) this.request();
+      this.continuation.resume();
     }
   }
   private async read(generation: number): Promise<number> {

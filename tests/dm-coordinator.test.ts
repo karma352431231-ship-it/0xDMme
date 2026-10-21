@@ -171,3 +171,77 @@ await test('hidden handle hints coalesce until visible and removal still closes 
     'Healthy visibility and call-only hints must not create idle history polling',
   );
 });
+
+await test('public A/B/C navigation preserves account preparation and restores verified A while B IO is held', async (t) => {
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.hold();
+  f.ui.mount(f.host, 'B');
+  await turn();
+  f.ui.mount(f.host, 'C');
+  f.ui.mount(f.host, 'A');
+  assert.equal(f.views.at(-1)?.title.textContent, 'A');
+  assert.equal(f.views.at(-1)?.history.hidden, false);
+  assert.equal(f.cancellations, 0);
+  f.release('B');
+  await turn();
+  await turn();
+  assert.equal(f.views.at(-1)?.title.textContent, 'A');
+  assert.equal(f.calls.includes('read:C'), false);
+  assert.equal(f.calls.includes('read:B'), false);
+});
+await test('public continuation preserves the shown page; a real abort remains a visible failure', async (t) => {
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.failRead(f.continuation());
+  f.ui.mount(f.host, 'A');
+  await turn();
+  assert.equal(f.views.at(-1)?.history.hidden, false);
+  assert.equal(f.cancellations, 0);
+  f.failRead(new DOMException('Actual transport abort', 'AbortError'));
+  await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  await turn();
+  assert.equal(f.views.at(-1)?.history.hidden, true);
+  assert.match(
+    f.views.at(-1)?.gate.textContent ?? '',
+    /operation could not be completed/u,
+  );
+});
+for (const event of [
+  'removed',
+  'authorization',
+  'revoked',
+  'ended',
+  'invalidated',
+] as const)
+  await test(`public memory navigation discards all projections immediately on ${event}`, async (t) => {
+    const f = dmCoordinatorFixture(t);
+    f.ui.mount(f.host, 'A');
+    await turn();
+    f.emit(event);
+    f.hold();
+    f.ui.mount(f.host, 'A');
+    await turn();
+    assert.match(f.host.textContent ?? '', /Opening conversation/u);
+    f.release('A');
+    await turn();
+  });
+
+await test('a delayed public media-draft result cannot change the composer after navigating back to a confirmed chat', async (t) => {
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.holdMedia('B');
+  f.ui.mount(f.host, 'B');
+  await turn();
+  assert.ok(f.calls.includes('media:B'));
+  f.ui.mount(f.host, 'A');
+  f.composerStates.length = 0;
+  f.releaseMedia();
+  await turn();
+  await turn();
+  assert.equal(f.views.at(-1)?.title.textContent, 'A');
+  assert.ok(f.composerStates.every((state) => !state.pending));
+});
