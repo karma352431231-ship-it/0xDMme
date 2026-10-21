@@ -425,3 +425,77 @@ await test('partial journal pages never expose an incomplete catalog or lose ear
   });
   assert.ok(firstPeer.some((item) => item.id === a.id));
 });
+
+for (const after of [0, 16]) {
+  await test(`a different background cut at ${after} cannot replace a partial foreground catalog`, async () => {
+    const index = new MessageIndex();
+    const rows = Array.from({ length: 144 }, (_, i) => row(i + 1));
+    const cursors: number[] = [];
+    const snapshot = { revision: 1 };
+    const context = {
+      account: sender,
+      selected: recipient,
+      before: null,
+      snapshot,
+      deleted: async () => {},
+      api: (_op: string, payload: Record<string, unknown>) => {
+        const start = Number(payload['after']);
+        cursors.push(start);
+        return Promise.resolve({
+          items: rows.slice(start, start + 16),
+          next: start + 16 < rows.length ? start + 16 : null,
+        });
+      },
+    };
+    await assert.rejects(index.read(context), IncompleteMessageIndex);
+    index.rememberConfirmedPage({
+      account: sender,
+      selected: recipient,
+      snapshot: { revision: 2 },
+      after,
+      page: { items: rows.slice(after, after + 16), next: after + 16 },
+    });
+    const window = await index.read(context);
+    assert.deepEqual(cursors, [0, 16, 32, 48, 64, 80, 96, 112, 128]);
+    assert.deepEqual(
+      window.map((item) => item.sequence),
+      rows.slice(128).map((item) => item.sequence),
+    );
+  });
+}
+
+await test('a journal page with a matching cursor cannot falsely complete a partial full catalog', async () => {
+  const index = new MessageIndex(),
+    rows = Array.from({ length: 144 }, (_, n) => row(n + 1));
+  const snapshot = { revision: 2 },
+    cursors: number[] = [];
+  const context = {
+    snapshot,
+    account: sender,
+    selected: recipient,
+    before: null,
+    deleted: async () => {},
+    api: (_op: string, payload: Record<string, unknown>) => {
+      const after = Number(payload['after']);
+      cursors.push(after);
+      return Promise.resolve({
+        items: rows.slice(after, after + 16),
+        next: after + 16 < rows.length ? after + 16 : null,
+      });
+    },
+  };
+  await assert.rejects(index.read(context), IncompleteMessageIndex);
+  index.rememberJournalPage({
+    ...context,
+    from: { revision: 1 },
+    after: 128,
+    page: { items: [rows[128]!], next: null },
+  });
+  const window = await index.read(context);
+  assert.equal(cursors.length, 9);
+  assert.equal(cursors.at(-1), 128);
+  assert.deepEqual(
+    window.map((item) => item.sequence),
+    Array.from({ length: 16 }, (_, n) => 129 + n),
+  );
+});

@@ -1,3 +1,4 @@
+import { afterMessageWork, awaitMessageWork } from './continuation.ts';
 export { notificationMessages } from './notification.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
@@ -704,11 +705,12 @@ export function startMessages(
     const text = node('[data-message-status]');
     if (!text) return;
     if (renderUploadStatus(text)) return;
+    const syncing = synchronization.busy || synchronization.historyPending;
     const upToDate =
-      !synchronization.busy &&
+      !syncing &&
       !synchronization.failed &&
       message === t('Conversations updated.');
-    text.textContent = synchronization.busy
+    text.textContent = syncing
       ? t('Syncing…')
       : upToDate
         ? t('Updated')
@@ -870,8 +872,12 @@ export function startMessages(
   async function transmit(): Promise<void> {
     if (navigator.onLine) {
       await sendPending();
-      await synchronizeVisible();
-      await controller.savePins();
+      if (
+        !(await synchronizeVisible({ priority: 'interactive' }, () =>
+          controller.savePins(),
+        ))
+      )
+        return;
     }
   }
   async function forward(
@@ -1127,11 +1133,12 @@ export function startMessages(
       return;
     }
     if (visits.restore()) return;
-    await synchronizeVisible();
-    await controller.savePins();
+    await synchronizeVisible({ priority: 'interactive' }, async () => {
+      await controller.savePins();
+      await historyUi.markRead(daily);
+    });
     // Opening one conversation only needs its read receipts. Account-wide
     // presence, push settings and peer states keep their periodic lifecycle.
-    await historyUi.markRead(daily);
   }
   function selectPeer(peer: ConversationPeer): void {
     showDirectConversation();
@@ -1231,7 +1238,7 @@ export function startMessages(
         live.start();
     } catch (error: unknown) {
       if (current === generation) {
-        controller.hide();
+        controller.hideFailedRead(error);
         options.directorySettled?.(session);
       }
       throw error;
@@ -1249,7 +1256,11 @@ export function startMessages(
       return;
     if (changed) {
       synchronization.prepareHistory('direct');
-      await controller.synchronize(work);
+      await synchronization.history(
+        () => controller.synchronize(work),
+        () => controller.savePins(work),
+      );
+      return;
     }
     await controller.savePins(work);
   }
@@ -1263,12 +1274,18 @@ export function startMessages(
   }
   async function synchronizeVisible(
     work: VaultWorkOptions = { priority: 'interactive' },
-  ): Promise<void> {
-    if (!conversationMounted('[data-direct-conversation]')) return;
+    settled?: () => Promise<void>,
+  ): Promise<boolean> {
+    if (!conversationMounted('[data-direct-conversation]')) return true;
     if (await controller.probe(work)) {
       await controller.loadPins(work);
-      await controller.synchronize(work);
+      return synchronization.history(
+        () => controller.synchronize(work),
+        settled,
+      );
     }
+    await settled?.();
+    return true;
   }
   async function submit(): Promise<void> {
     if (selected?.localOnly)
@@ -1292,8 +1309,9 @@ export function startMessages(
     await renderPending();
     if (navigator.onLine) {
       await sendPending();
-      await synchronizeVisible();
-      await controller.savePins();
+      await synchronizeVisible({ priority: 'interactive' }, () =>
+        controller.savePins(),
+      );
     }
     if (startupWarmup.pending) await historyUi.markRead(daily);
     else await dailyTick();
@@ -1372,28 +1390,35 @@ export function startMessages(
     if (synchronization.busy)
       throw new Error('Wait for conversations to update, then try again.');
     let result: SearchPage | null = null;
-    await run(async () => {
-      if (after?.startsWith('groups:')) {
-        const page = await groups.search(
-          query,
-          after.slice('groups:'.length) || null,
-        );
-        result = {
-          ...page,
-          next: page.next === null ? null : 'groups:' + page.next,
-        };
-        return;
-      }
-      if (navigator.onLine) {
-        await controller.initialize();
-        await controller.synchronize();
-      }
+    const search = async () => {
       const page = await controller.search(query, after);
       result = {
         ...page,
         next: page.next ?? (groups.entries.length ? 'groups:' : null),
       };
-    });
+    };
+    await awaitMessageWork(
+      async () => {
+        if (after?.startsWith('groups:')) {
+          const page = await groups.search(
+            query,
+            after.slice('groups:'.length) || null,
+          );
+          result = {
+            ...page,
+            next: page.next === null ? null : 'groups:' + page.next,
+          };
+          return;
+        }
+        if (!navigator.onLine) return search();
+        await controller.initialize();
+        return afterMessageWork(() => controller.synchronize(), search);
+      },
+      (work) =>
+        synchronization.run(async () => {
+          await synchronization.history(work);
+        }),
+    );
     if (!result) throw new Error(message);
     return result;
   }
@@ -1524,7 +1549,8 @@ export function startMessages(
     if (!live.current && (await controller.probe())) {
       if (!conversationMounted('[data-direct-conversation]')) return;
       synchronization.prepareHistory();
-      await controller.synchronize();
+      if (!(await synchronization.history(() => controller.synchronize())))
+        return;
       await controller.savePins();
     }
   }
@@ -1670,6 +1696,7 @@ export function startMessages(
   }
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
+      if (synchronization.resumeHistory()) return;
       if (live.connected) {
         void run(() => refresh({ priority: 'interactive' }));
         return;
@@ -1689,7 +1716,9 @@ export function startMessages(
         if (selected.localOnly)
           await controller.openArchive(selected.accountId);
         else if (navigator.onLine)
-          await controller.synchronize({ priority: 'interactive' });
+          await synchronization.history(() =>
+            controller.synchronize({ priority: 'interactive' }),
+          );
         else await controller.openOffline(selected.accountId);
         await controller.savePins();
       });

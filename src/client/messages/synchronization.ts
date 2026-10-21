@@ -1,3 +1,5 @@
+import { MessageContinuationQueue, afterMessageWork } from './continuation.ts';
+import type { MessageWork, MessageWorkResult } from './continuation.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageChangeFollowup } from './change-followup.ts';
@@ -60,6 +62,8 @@ export class MessageSynchronization {
   private receiptProjectionPending = false;
   private maintenance: Promise<void> | null = null;
   private readonly inbox: MessageInbox;
+  private readonly continuation: MessageContinuationQueue;
+  private historyGeneration = 0;
   private automaticAttempts = 0;
   private lastTransferAttempt = 0;
   private readonly opening = new ConversationOpening();
@@ -68,6 +72,14 @@ export class MessageSynchronization {
 
   constructor(options: SynchronizationOperations) {
     this.options = options;
+    this.continuation = new MessageContinuationQueue({
+      available: () => this.canSynchronize() && !options.state().liveConnecting,
+      run: async (work) => {
+        await this.run(async () => {
+          await this.history(work);
+        });
+      },
+    });
     this.inbox = new MessageInbox({
       ready: () => this.canPreload(),
       generation: () => options.state().generation,
@@ -83,7 +95,10 @@ export class MessageSynchronization {
       },
     });
     this.updates = new LiveUpdates({
-      available: () => this.canSynchronize() && !options.state().liveConnecting,
+      available: () =>
+        this.canSynchronize() &&
+        !this.continuation.waiting &&
+        !options.state().liveConnecting,
       run: (update) => {
         const work: VaultWorkOptions =
           this.interactiveChange && options.state().visible
@@ -109,6 +124,7 @@ export class MessageSynchronization {
   resume(work: VaultWorkOptions = {}): void {
     if (this.updates.waiting && this.options.state().visible)
       this.interactiveChange ||= work.priority === 'interactive';
+    this.continuation.resume();
     this.updates.resume();
     this.followup.resume();
     this.inbox.resume();
@@ -185,6 +201,8 @@ export class MessageSynchronization {
     return result;
   }
   cancelOpening(): void {
+    this.historyGeneration++;
+    this.continuation.clear();
     this.opening.clear();
   }
   private async openNext(): Promise<void> {
@@ -194,6 +212,8 @@ export class MessageSynchronization {
     if (this.closed || this.busy) return;
     const pending = this.opening.take();
     if (!pending) return;
+    this.historyGeneration++;
+    this.continuation.clear();
     const current = this.options.state().generation;
     try {
       if (pending.reuse()) {
@@ -211,6 +231,14 @@ export class MessageSynchronization {
       pending.done();
     }
   }
+  resumeHistory(): boolean {
+    if (!this.continuation.waiting) return false;
+    this.resume();
+    return true;
+  }
+  get historyPending(): boolean {
+    return this.continuation.waiting;
+  }
   get openingRequested(): boolean {
     return this.opening.waiting;
   }
@@ -221,6 +249,7 @@ export class MessageSynchronization {
       this.busy ||
       this.maintenance !== null ||
       this.updates.waiting ||
+      this.continuation.waiting ||
       this.opening.waiting
     );
   }
@@ -231,11 +260,16 @@ export class MessageSynchronization {
       (this.interactiveChange ||
         this.visibleChange !== null ||
         this.busy ||
+        this.continuation.waiting ||
         this.opening.waiting)
     );
   }
   get backgroundReady(): boolean {
-    return this.canSynchronize() && !this.updates.waiting;
+    return (
+      this.canSynchronize() &&
+      !this.updates.waiting &&
+      !this.continuation.waiting
+    );
   }
   async background(work: () => Promise<void>): Promise<void> {
     await this.maintain(work, (error) => {
@@ -256,7 +290,11 @@ export class MessageSynchronization {
       this.failed = false;
       await work();
       if (!this.current(current)) return false;
-      if (this.options.state().online && !this.opening.waiting)
+      if (
+        this.options.state().online &&
+        !this.opening.waiting &&
+        !this.continuation.waiting
+      )
         this.options.complete();
       return true;
     } catch (error: unknown) {
@@ -268,6 +306,26 @@ export class MessageSynchronization {
     } finally {
       await this.finishRun(current);
     }
+  }
+  /** Adopt a bounded read without replaying the enclosing user operation. */
+  async history(
+    work: MessageWork,
+    settled?: () => Promise<void>,
+  ): Promise<boolean> {
+    const current = this.options.state().generation,
+      history = this.historyGeneration;
+    this.continuation.clear();
+    const result = await (settled ? afterMessageWork(work, settled) : work());
+    if (!this.current(current) || history !== this.historyGeneration) {
+      result?.cancel();
+      return false;
+    }
+    return this.acceptHistory(result);
+  }
+  private acceptHistory(result: MessageWorkResult): boolean {
+    if (!result) return true;
+    this.continuation.request(result);
+    return false;
   }
   private async projectPending(current: number): Promise<void> {
     if (this.current(current)) {
@@ -327,7 +385,11 @@ export class MessageSynchronization {
   }
   private canPreload(): boolean {
     const state = this.options.state();
-    return this.canSynchronize() && !state.startupPending;
+    return (
+      this.backgroundReady &&
+      !state.startupPending &&
+      !this.continuation.waiting
+    );
   }
   private async receivedPage(scope: HistoryKind): Promise<void> {
     if (this.visibleUpdatePending) {
@@ -396,7 +458,11 @@ export class MessageSynchronization {
         this.failed = false;
         await work();
         if (!this.current(current)) return;
-        if (this.options.state().online && completion === 'full')
+        if (
+          this.options.state().online &&
+          completion === 'full' &&
+          !this.continuation.waiting
+        )
           this.options.complete();
         await this.projectPending(current);
         if (!this.busy) this.options.status();

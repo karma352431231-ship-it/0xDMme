@@ -88,6 +88,10 @@ const bundle = await build({
 export function coordinatorFixture(
   t: TestContext,
   hooks: Pick<Parameters<typeof startMessages>[2], 'liveEvent'> = {},
+  controller?: Pick<
+    import('../../src/client/messages/controller.ts').Messages,
+    'probe' | 'synchronize' | 'select' | 'hide' | 'hideFailedRead' | 'pause'
+  >,
 ) {
   const calls: string[] = [];
   const directoryWork: VaultWorkOptions[] = [];
@@ -263,7 +267,7 @@ export function coordinatorFixture(
   fixture.encodeDailyText = encodeDailyText;
   fixture.decodeDailyText = decodeDailyText;
   fixture.dailyViews = () => [];
-  fixture.Messages = function (
+  const syntheticMessages = function (
     _access: unknown,
     _sync: unknown,
     callback: (
@@ -286,6 +290,11 @@ export function coordinatorFixture(
       removed: () => {
         state.restorablePeers.clear();
         calls.push('removed');
+        publish(null);
+      },
+      hideFailedRead: () => {
+        state.restorablePeers.clear();
+        calls.push('hide');
         publish(null);
       },
       hide: () => {
@@ -381,6 +390,7 @@ export function coordinatorFixture(
         ),
     };
   };
+  fixture.Messages = syntheticMessages;
   fixture.startGroups = () => ({
     ...base,
     entries: [],
@@ -471,6 +481,7 @@ export function coordinatorFixture(
   });
   const send = { disabled: true, hidden: false };
   const cancelComposition = new EventTarget();
+  const refreshButton = new EventTarget();
   const compositionBar = { hidden: true };
   const compositionLabel = { textContent: '' };
   const statusFrames: string[] = [];
@@ -494,6 +505,15 @@ export function coordinatorFixture(
           : null,
     querySelectorAll: () => [],
   });
+  const controls = new Map<string, unknown>([
+    ['[data-message-refresh]', refreshButton],
+    ['[data-message-status]', chatStatus],
+    ['[data-compose-cancel]', cancelComposition],
+    ['[data-compose-bar]', compositionBar],
+    ['[data-compose-context]', compositionLabel],
+    ['[data-message-form]', form],
+    ['[data-message-text]', input],
+  ]);
   const panel = {
     isConnected: true,
     hidden: false,
@@ -502,27 +522,39 @@ export function coordinatorFixture(
     getClientRects: () => (state.chatVisible ? [{}] : []),
     addEventListener: noop,
     querySelectorAll: () => [],
-    querySelector: (selector: string) =>
-      selector === '[data-message-status]'
-        ? chatStatus
-        : selector === '[data-compose-cancel]'
-          ? cancelComposition
-          : selector === '[data-compose-bar]'
-            ? compositionBar
-            : selector === '[data-compose-context]'
-              ? compositionLabel
-              : selector === '[data-message-form]'
-                ? form
-                : selector === '[data-message-text]'
-                  ? input
-                  : ['.chat-panel', '[data-direct-conversation]'].includes(
-                        selector,
-                      ) ||
-                      (selector === '[data-group-conversation]' &&
-                        state.groupVisible)
-                    ? panel
-                    : null,
+    querySelector: (selector: string) => {
+      const control = controls.get(selector);
+      if (control) return control;
+      const shown =
+        ['.chat-panel', '[data-direct-conversation]'].includes(selector) ||
+        (selector === '[data-group-conversation]' && state.groupVisible);
+      return shown ? panel : null;
+    },
   };
+  if (controller) {
+    const synthetic = syntheticMessages;
+    fixture.Messages = function (...args: Parameters<typeof synthetic>) {
+      const stub = synthetic(...args);
+      return {
+        ...stub,
+        hideFailedRead: controller.hideFailedRead.bind(controller),
+        probe: controller.probe.bind(controller),
+        synchronize: controller.synchronize.bind(controller),
+        select: (peer: string | null) => {
+          stub.select(peer);
+          controller.select(peer);
+        },
+        hide: () => {
+          stub.hide();
+          controller.hide();
+        },
+        pause: () => {
+          stub.pause();
+          controller.pause();
+        },
+      };
+    };
+  }
   const context = {
     fixture,
     coordinator: undefined as
@@ -534,6 +566,7 @@ export function coordinatorFixture(
     AbortController,
     AbortSignal,
     Event,
+    Error,
     crypto,
     TextEncoder,
     setTimeout,
@@ -592,6 +625,7 @@ export function coordinatorFixture(
     compositionBar,
     statusFrames,
     choose: (mode: 'reply' | 'edit', view: MessageView) => choose(mode, view),
+    retry: () => refreshButton.dispatchEvent(new Event('click')),
     cancelComposition: () =>
       cancelComposition.dispatchEvent(new Event('click')),
     submit: () => form.dispatchEvent(new Event('submit', { cancelable: true })),

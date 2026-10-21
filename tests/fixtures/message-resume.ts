@@ -127,6 +127,9 @@ export function resumeFixture(incremental = false) {
     changes: null as MessageItem[] | null,
     cacheReads: [] as string[],
     requests: [] as string[],
+    pages: [] as { after: number; through: number }[],
+    beforePage: undefined as (() => Promise<void>) | undefined,
+    pageFailure: null as number | null,
     failure: null as string | null,
     confirmation: null as (() => Promise<Response>) | null,
     frames: [] as (MessageView[] | null)[],
@@ -236,12 +239,16 @@ export function resumeFixture(incremental = false) {
   };
   const relationsResponse = (input?: RequestInit): Promise<Response> => {
     const body = JSON.parse(requestBody(input)) as {
-      payload: { ids: string[] };
+      payload: { ids: string[]; snapshot: unknown };
     };
+    const through = isSyncSnapshot(body.payload.snapshot)
+      ? body.payload.snapshot.anchor
+      : Number.MAX_SAFE_INTEGER;
     return Promise.resolve(
       Response.json({
         items: data.items.filter(
           (item) =>
+            item.sequence <= through &&
             item.relation &&
             body.payload.ids.includes(item.relation.id) &&
             !item.deleted,
@@ -250,11 +257,23 @@ export function resumeFixture(incremental = false) {
       }),
     );
   };
-  const pageResponse = (input?: RequestInit): Promise<Response> => {
+  const pageResponse = async (input?: RequestInit): Promise<Response> => {
     if (typeof input?.body !== 'string') throw new Error('Página ausente.');
-    const body = JSON.parse(input.body) as { payload: { after: number } };
+    const body = JSON.parse(input.body) as {
+      payload: { after: number; snapshot: unknown };
+    };
+    const through = isSyncSnapshot(body.payload.snapshot)
+      ? body.payload.snapshot.anchor
+      : Number.MAX_SAFE_INTEGER;
+    data.pages.push({ after: body.payload.after, through });
+    await data.beforePage?.();
+    if (data.pageFailure)
+      return Response.json(
+        { error: 'Synthetic interruption.' },
+        { status: data.pageFailure },
+      );
     const remaining = data.items.filter(
-      (item) => item.sequence > body.payload.after,
+      (item) => item.sequence > body.payload.after && item.sequence <= through,
     );
     const items = remaining.slice(0, 16);
     return Promise.resolve(

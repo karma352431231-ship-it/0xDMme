@@ -23,6 +23,7 @@ export class MessageInbox {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private abort: AbortController | null = null;
   private retryAt = 0;
+  private readonly continuing = new Set<HistoryKind>();
   running = false;
 
   constructor(ports: InboxPorts) {
@@ -34,6 +35,7 @@ export class MessageInbox {
   reset(): void {
     this.pause();
     this.retryAt = 0;
+    this.continuing.clear();
     this.request();
   }
   /** Yield after the active bounded page commits; avoid fetching it again. */
@@ -54,12 +56,14 @@ export class MessageInbox {
       !this.preparation.pending
     )
       return;
+    const next = this.preparation.next();
+    const delay = next && this.continuing.has(next.kind) ? 0 : 1000;
     this.timer = setTimeout(
       () => {
         this.timer = null;
         void this.receive();
       },
-      Math.max(1000, this.retryAt - Date.now()),
+      Math.max(delay, this.retryAt - Date.now()),
     );
   }
   private async receive(): Promise<void> {
@@ -101,6 +105,8 @@ export class MessageInbox {
     );
     if (signal.aborted || !this.ports.current(generation)) return;
     this.preparation.complete(turn, more);
+    if (more) this.continuing.add(turn.kind);
+    else this.continuing.delete(turn.kind);
     this.retryAt = 0;
     await this.ports.received(turn.kind);
   }

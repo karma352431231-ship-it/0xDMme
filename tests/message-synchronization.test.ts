@@ -1,3 +1,7 @@
+import {
+  MessageContinuation,
+  awaitMessageWork,
+} from '../src/client/messages/continuation.ts';
 import { ApiResponseError } from '../src/client/api-response/index.ts';
 import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
@@ -1213,3 +1217,146 @@ await test('generic maintenance and scoped group metadata share a single pending
   }
   assert.equal(groupRequests, 1);
 });
+
+await test('bounded continuation yields to a queued send with zero added scheduling delay', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const f = fixture(t);
+  const calls: string[] = [];
+  let textPending = false,
+    admittedAt = 0,
+    sentAt = 0,
+    resumedAt = 0;
+  const initialState = f.options.state;
+  f.options.state = () => ({ ...initialState(), textPending });
+  await f.sync.run(async () => {
+    await f.sync.history(() => {
+      for (let page = 0; page < 8; page++) {
+        t.mock.timers.tick(5);
+        if (page === 0) {
+          textPending = true;
+          admittedAt = Date.now();
+        }
+        calls.push('page');
+      }
+      return Promise.resolve(
+        new MessageContinuation(() => {
+          resumedAt = Date.now();
+          calls.push('last-page');
+          return Promise.resolve();
+        }),
+      );
+    });
+  });
+  assert.equal(f.sync.failed, false);
+  assert.deepEqual(f.notices, []);
+  assert.equal(
+    f.completed(),
+    0,
+    'An unfinished turn must not announce completion',
+  );
+  await f.sync.run(() => {
+    sentAt = Date.now();
+    calls.push('send');
+    textPending = false;
+    return Promise.resolve();
+  });
+  t.mock.timers.tick(0);
+  await turn();
+  assert.deepEqual(calls, [
+    ...Array<string>(8).fill('page'),
+    'send',
+    'last-page',
+  ]);
+  assert.equal(
+    sentAt - admittedAt,
+    35,
+    'Only the rest of the existing bounded turn precedes this send',
+  );
+  assert.equal(
+    resumedAt - sentAt,
+    0,
+    'An available continuation adds no fixed page delay',
+  );
+  assert.equal(f.completed(), 1);
+});
+for (const cancel of ['reset', 'cancelOpening', 'close'] as const) {
+  await test(`${cancel} drops a queued continuation before it reads or publishes`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t);
+    let resumed = 0;
+    await f.sync.run(async () => {
+      await f.sync.history(() =>
+        Promise.resolve(
+          new MessageContinuation(() => {
+            resumed++;
+            return Promise.resolve();
+          }),
+        ),
+      );
+    });
+    f.sync[cancel]();
+    t.mock.timers.tick(0);
+    await turn();
+    assert.equal(resumed, 0);
+    assert.deepEqual(f.notices, []);
+  });
+}
+await test('the next runnable receipt page does not wait one second between pages', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  let pages = 0;
+  f.options.preloadDirect = () => Promise.resolve(++pages < 3);
+  f.sync.prepareHistory('direct');
+  f.sync.resume();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(pages, 1);
+  t.mock.timers.tick(0);
+  await turn();
+  assert.equal(pages, 1, 'The other inbox retains its existing turn');
+  t.mock.timers.tick(1000);
+  await turn(); // the other inbox retains its initial scheduling window
+  t.mock.timers.tick(0);
+  await turn();
+  assert.equal(pages, 2);
+  t.mock.timers.tick(0);
+  await turn();
+  assert.equal(pages, 3);
+});
+
+for (const outcome of ['complete', 'cancel', 'failure'] as const) {
+  await test(`a waiting request settles after continuation ${outcome}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t);
+    let settled = false;
+    const request = awaitMessageWork(
+      () =>
+        Promise.resolve(
+          new MessageContinuation(() => {
+            if (outcome === 'failure')
+              return Promise.reject(new Error('Synthetic read failed'));
+            return Promise.resolve();
+          }),
+        ),
+      (work) =>
+        f.sync.run(async () => {
+          await f.sync.history(work);
+        }),
+    );
+    const observed = request.then(
+      () => {
+        settled = true;
+      },
+      (error: unknown) => {
+        settled = true;
+        assert.match(String(error), /superseded|Synthetic read failed/);
+      },
+    );
+    await turn();
+    assert.equal(settled, false);
+    if (outcome === 'cancel') f.sync.cancelOpening();
+    else t.mock.timers.tick(0);
+    await observed;
+    assert.equal(settled, true);
+  });
+}
