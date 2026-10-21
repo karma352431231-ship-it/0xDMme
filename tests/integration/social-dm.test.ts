@@ -954,8 +954,27 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
           { online: false, lastSeen: false, readReceipts: enabled },
         );
       await configure(true);
-      await request();
-      await request();
+      const receiptSignals: unknown[] = [];
+      const stopReceiptSignals = db.changes.subscribe({
+        notify: (change) =>
+          receiptSignals.push({
+            accounts: change.accounts,
+            categories: change.categories,
+          }),
+        failed: () => assert.fail('Receipt signal failed'),
+      });
+      try {
+        await request();
+        await request();
+        assert.deepEqual(receiptSignals, [
+          {
+            accounts: [alice.login.session.accountId],
+            categories: ['handle-receipts'],
+          },
+        ]);
+      } finally {
+        stopReceiptSignals();
+      }
       assert.deepEqual(await state(), [
         { id: packet.id, received: true, read: true },
       ]);

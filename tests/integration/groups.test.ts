@@ -1080,12 +1080,33 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         }),
         { status: 403 },
       );
-      await message(messages, owner, 'group-message-delete', {
-        ...scope,
-        id: original.packet.id,
-        hash,
-        revision: owner.directory.revision,
+      const deletionSignals: unknown[] = [];
+      const stopDeletionSignals = db.changes.subscribe({
+        notify: (change) =>
+          deletionSignals.push({
+            accounts: change.accounts,
+            categories: change.categories,
+            removed: change.removed,
+          }),
+        failed: () => assert.fail('Deletion signal failed'),
       });
+      try {
+        await message(messages, owner, 'group-message-delete', {
+          ...scope,
+          id: original.packet.id,
+          hash,
+          revision: owner.directory.revision,
+        });
+        assert.deepEqual(deletionSignals, [
+          {
+            accounts: joined.members.map((member) => member.accountId),
+            categories: ['group-messages'],
+            removed: true,
+          },
+        ]);
+      } finally {
+        stopDeletionSignals();
+      }
       assert.equal(
         await message(messages, member, 'group-message-available', {
           ...scope,

@@ -189,6 +189,7 @@ export class GroupMessageUpdates {
         this.services.contacts.removed(
           client,
           state.members.map((member) => member.accountId),
+          'group-messages',
         );
       },
     );

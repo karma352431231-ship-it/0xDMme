@@ -1,5 +1,6 @@
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
+import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -56,15 +57,17 @@ export class SocialDmStore {
   maintenance<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
     return this.contacts.withMaintenance(work);
   }
-  async changed(context: SocialContext, profiles: string[]): Promise<void> {
+  async changed(
+    context: SocialContext,
+    profiles: string[],
+    category: LiveChangeCategory = 'handle-messages',
+  ): Promise<void> {
     const accounts = await Promise.all(
       [...new Set(profiles)].map((id) =>
         this.profiles.accountFor(context.client, id),
       ),
     );
-    this.contacts.changed(context.client, accounts, {
-      category: 'handle-messages',
-    });
+    this.contacts.changed(context.client, accounts, { category });
   }
   async deliveryBatch(
     context: SocialContext,
