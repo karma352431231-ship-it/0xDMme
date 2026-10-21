@@ -1,3 +1,4 @@
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
 import { AuthorityWork } from './authority-work.ts';
@@ -404,7 +405,10 @@ export class DeviceController {
     return this.run(async (session) => {
       await this.loadIdentity(session);
       if (offline) await this.restoreOffline(session);
-      else await this.synchronize(session);
+      else
+        await measureWork(this, 'authority/directory', () =>
+          this.synchronize(session),
+        );
       if (!this.current || !this.ring || !this.identity)
         throw new Error('Authorize or recover this device to open the vault.');
       const ring = this.ring;

@@ -121,6 +121,7 @@ import {
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { backupMessageApi } from '../message-api/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import {
   MessageIndex,
   IncompleteMessageIndex,
@@ -358,7 +359,7 @@ export class Messages {
     if (!missing.length) return views;
     const machine = await this.machine(c.a, c.generation, c.api);
     try {
-      await machine.prepare(c.a);
+      await measureWork(this, 'sdk/prepare', () => machine.prepare(c.a));
       await this.receive(c.a, machine, c.generation, c.api);
       const fetched = await this.readBatch({
         ...c,
@@ -572,7 +573,7 @@ export class Messages {
     api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<MessageCrypto> {
-    return openMessageMachine(a, api);
+    return measureWork(this, 'sdk/open', () => openMessageMachine(a, api));
   }
   private async recoverable(
     a: VaultAuthority,
@@ -608,7 +609,7 @@ export class Messages {
         await this.recoverable(a, generation);
         const machine = await this.machine(a, generation);
         try {
-          await machine.prepare(a);
+          await measureWork(this, 'sdk/prepare', () => machine.prepare(a));
           this.guard(generation);
           this.initializedDirectory = a.directory;
         } finally {
@@ -1290,7 +1291,7 @@ export class Messages {
           : await this.machine(c.a, c.generation, c.api);
         try {
           if (!c.turn) {
-            await machine.prepare(c.a);
+            await measureWork(this, 'sdk/prepare', () => machine.prepare(c.a));
             await this.receive(c.a, machine, c.generation, c.api);
           }
           return await this.readBatch({
@@ -1695,6 +1696,16 @@ export class Messages {
     api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<void> {
+    await measureWork(this, 'sdk/key-inbox', () =>
+      this.drainKeyInbox(a, machine, api),
+    );
+  }
+  /** Up to 16 Olm batches of 16; ACK only after the SDK persisted each event. */
+  private async drainKeyInbox(
+    a: VaultAuthority,
+    machine: MessageCrypto,
+    api: (op: string, data: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<void> {
     this.transportPending = false;
     for (let batch = 0; batch < 16; batch++) {
       const raw = object(await api('matrix-inbox', {})),
@@ -1932,7 +1943,7 @@ export class Messages {
           open: async () => {
             const machine = await this.machine(a, generation, api);
             try {
-              await machine.prepare(a);
+              await measureWork(this, 'sdk/prepare', () => machine.prepare(a));
               await this.receive(a, machine, generation, api);
               return machine;
             } catch (error: unknown) {
