@@ -39,11 +39,15 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-manifest-${{ matrix.os }}
-          path: |
-            dist/release/release-manifest.json
-            dist/web/source-*.tar.gz
+          path: dist/release/release-manifest.json
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-source-${{ matrix.os }}
+          path: dist/web/source-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
   compare:
     needs: build
