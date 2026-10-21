@@ -22,6 +22,9 @@ type Operation =
   | 'account-receive'
   | 'account-applied'
   | 'group-receive'
+  | 'group-selected-read'
+  | 'group-receipts'
+  | 'group-counters'
   | 'group-directory'
   | 'transmit';
 
@@ -83,16 +86,22 @@ async function assembled(
     },
     unread: () => Promise.resolve(),
     groupProjection: () => {
-      record('group-directory');
+      record('group-counters');
       return Promise.resolve();
     },
     presence: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
-    // Mirrors `refreshChangedSelected`: a selected group refreshes the group
-    // directory; a selected private chat runs its own probe/synchronize.
-    changes: () => {
+    // Mirrors `refreshChangedSelected` and `GroupReceipt.changed`: an open
+    // group reads only itself for content or receipts, and only a general
+    // wakeup refreshes the directory; an open private chat probes itself.
+    changes: (_work, scope) => {
       if (selected === 'groups') {
-        record('group-directory');
+        const operations = {
+          all: 'group-directory',
+          content: 'group-selected-read',
+          receipts: 'group-receipts',
+        } as const;
+        record(operations[scope]);
         return Promise.resolve();
       }
       if (selected === 'direct') {
@@ -258,19 +267,19 @@ const groupCases: {
   },
 ];
 for (const groupCase of groupCases) {
-  await test(
-    `F3: group content does not refresh the group directory (${groupCase.name})`,
-    {
-      todo: 'phase 3: separate group content receipt from directory/profile work',
-    },
-    async (t) => {
-      const f = await assembled(t, groupCase.selected);
-      f.emit(groupCase.event);
-      await f.advance(5000);
-      assert.equal(f.count('group-directory'), 0, 'no group directory refresh');
-      if (groupCase.content)
-        assert.equal(f.count('group-receive'), 1, 'one group content receipt');
-      assert.deepEqual(f.failures, []);
-    },
-  );
+  await test(`F3: group content does not refresh the group directory (${groupCase.name})`, async (t) => {
+    const f = await assembled(t, groupCase.selected);
+    f.emit(groupCase.event);
+    await f.advance(5000);
+    assert.equal(f.count('group-directory'), 0, 'no group directory refresh');
+    const open = groupCase.selected === 'groups';
+    if (groupCase.content)
+      assert.equal(
+        f.count(open ? 'group-selected-read' : 'group-receive'),
+        1,
+        'one group content receipt',
+      );
+    else assert.equal(f.count('group-receipts'), 1, 'receipts only');
+    assert.deepEqual(f.failures, []);
+  });
 }

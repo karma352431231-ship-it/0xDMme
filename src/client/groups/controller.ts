@@ -687,6 +687,29 @@ export class GroupController {
       );
     }
   }
+  /** Delivery/read metadata for the open group's own messages, without
+   * decoding history or reading the group directory. */
+  async refreshReceipts(): Promise<void> {
+    const selected = this.selected;
+    if (!selected || selected.localOnly) return;
+    const own = this.views
+      .filter((v) => v.own && !v.localOnly)
+      .map((v) => v.id);
+    if (!own.length) return;
+    const generation = this.generation,
+      guard = this.selection.capture(() => this.guard(generation));
+    const raw = await this.withAuthority(
+      (c) =>
+        c.api('group-daily-receipts', {
+          groupId: selected.state.groupId,
+          head: selected.head,
+          ids: own,
+        }),
+      guard,
+    );
+    guard();
+    if (this.selected === selected) this.applyReceipts(raw);
+  }
   private applyReceipts(raw: unknown): void {
     if (!Array.isArray(raw) || raw.length > 16)
       throw new Error('Invalid group delivery checks.');

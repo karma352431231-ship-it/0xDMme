@@ -424,6 +424,15 @@ export function coordinatorFixture(
       calls.push('groups');
       return state.holdGroups ? groupLoad.promise : Promise.resolve();
     },
+    // A general wakeup refreshes the directory like `refresh`.
+    changed: (change: 'content' | 'receipts' | 'all') => {
+      calls.push(change === 'all' ? 'groups' : 'group-' + change);
+      return state.holdGroups ? groupLoad.promise : Promise.resolve();
+    },
+    counters: () => {
+      calls.push('group-counters');
+      return Promise.resolve();
+    },
     pendingWork: () => Promise.resolve(state.groupPending),
     resumePending: () => {
       calls.push('group-retry');

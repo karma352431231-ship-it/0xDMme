@@ -4,6 +4,7 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import type { ChangeFollowupScope } from './change-followup.ts';
 import { MessageLiveUpdates } from './live-updates.ts';
 import { SelectedPreviewAdmission } from './preview-admission.ts';
 import { ConversationActivity } from './activity.ts';
@@ -462,7 +463,7 @@ export function startMessages(
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
     unread: () => activity.refresh(),
-    groupProjection: () => groups.refresh(),
+    groupProjection: () => groups.counters(),
     presence: dailyTick,
     refresh,
     changes: refreshChangedSelected,
@@ -1263,8 +1264,9 @@ export function startMessages(
   }
   async function refreshChangedSelected(
     work: VaultWorkOptions = {},
+    scope: ChangeFollowupScope = 'all',
   ): Promise<void> {
-    if (groups.selected) return groups.refresh();
+    if (groups.selected) return groups.changed(scope);
     const peer = selected;
     if (!peer || !conversationMounted('[data-direct-conversation]')) return;
     if (peer.localOnly) return refreshSelected();

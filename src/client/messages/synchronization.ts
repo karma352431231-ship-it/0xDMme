@@ -42,7 +42,11 @@ interface SynchronizationOperations {
   groupProjection?: () => Promise<void>;
   presence: () => Promise<void>;
   refresh: (work: VaultWorkOptions) => Promise<void>;
-  changes: (work: VaultWorkOptions) => Promise<void>;
+  /** Check the open conversation for a categorized change of this scope. */
+  changes: (
+    work: VaultWorkOptions,
+    scope: ChangeFollowupScope,
+  ) => Promise<void>;
   changeMaintenance: readonly [
     () => Promise<void>,
     () => Promise<void>,
@@ -483,7 +487,7 @@ export class MessageSynchronization {
       await this.checkAutomatically(
         async () => {
           await retrySnapshotRead(
-            () => this.options.changes(work),
+            () => this.options.changes(work, plan.scope),
             () => this.current(current),
           );
           if (this.current(current)) this.followup.queue(plan);

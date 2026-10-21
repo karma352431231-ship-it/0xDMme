@@ -79,6 +79,15 @@ directly. Removing or editing the shown preview, recovery rows and non-journal
 cuts keep one bounded list read, deferred while startup or a text send is
 pending.
 
+Group content and receipt hints no longer refresh the group directory. With
+the group open, a content hint re-reads only that group after verifying it,
+and a receipt hint fetches only its delivery/read metadata without decoding
+history; both then refresh the unread counters and alerts. A background group
+page refreshes counters only. Only a general wakeup refreshes the group list,
+governance and profiles, which may stage or publish a profile. Group cuts
+still follow the current revision equality contract until the finite group
+protocol is reviewed.
+
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without
 waiting for presence or push preferences; its receipt hint reconciles the changed
