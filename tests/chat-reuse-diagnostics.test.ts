@@ -1,0 +1,251 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import type { TestContext } from 'node:test';
+import {
+  installChatSyncDiagnostics,
+  traceChatSync,
+  traceChatSyncFailure,
+} from '../src/client/chat-sync-diagnostics/index.ts';
+import { chatSyncEvent } from '../src/shared/chat-sync-diagnostics/index.ts';
+import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
+import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
+import { ConfirmedConversations } from '../src/client/messages/confirmed-conversations.ts';
+import { ConnectedConversationVisits } from '../src/client/messages/visits.ts';
+
+function fixture(t: TestContext, installed = true) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const host = new EventTarget();
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: host,
+  });
+  if (installed) installChatSyncDiagnostics(host as Window);
+  const recording = new Recording(),
+    stop = observeReuseDecisions(recording.record);
+  t.after(() => {
+    stop();
+    if (original) Object.defineProperty(globalThis, 'window', original);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  return { host, recording, stop };
+}
+const window = (revision = 1) => ({
+  snapshot: JSON.stringify({ revision }),
+  views: [{ text: 'Private synthetic message' }],
+  oldest: 1,
+});
+
+await test('capture reports the exact loss of cache eligibility and correlates the same contact without identity or content', (t) => {
+  const f = fixture(t),
+    cache = new ConfirmedConversations<{ text: string }>();
+  const peer = 'private-contact-account-id';
+  cache.connection(true);
+  cache.remember(peer, window());
+  assert.ok(cache.reusable(peer));
+  cache.hint();
+  assert.equal(cache.reusable(peer), null);
+  cache.confirm({ revision: 1 });
+  assert.ok(cache.reusable(peer));
+  cache.connection(false);
+  assert.equal(cache.reusable(peer), null);
+  cache.connection(true);
+  assert.equal(cache.reusable(peer), null);
+  cache.clear('removal');
+  assert.equal(cache.reusable(peer), null);
+  const events = f.recording.report().events;
+  assert.equal(
+    events.find((event) => event.kind === 'reuse-coverage')?.['available'],
+    true,
+  );
+  assert.deepEqual(
+    events
+      .filter((event) => event.kind === 'reuse-cache-check')
+      .map((event) => event['reason']),
+    [
+      'eligible',
+      'pending-confirmation',
+      'eligible',
+      'disconnected',
+      'epoch-mismatch',
+      'missing',
+    ],
+  );
+  const slots = new Set(
+    events
+      .filter(
+        (event) =>
+          event['conversation'] !== 0 && event['conversation'] !== undefined,
+      )
+      .map((event) => event['conversation']),
+  );
+  assert.equal(slots.size, 1);
+  assert.ok(
+    events.some(
+      (event) =>
+        event.kind === 'reuse-cache-cleared' && event['reason'] === 'removal',
+    ),
+  );
+  assert.ok(!JSON.stringify(f.recording.report()).includes('private-contact'));
+  assert.ok(
+    !JSON.stringify(f.recording.report()).includes('Private synthetic'),
+  );
+});
+
+await test('cache eviction distinguishes message deltas, stale snapshots and each budget without changing admission', (t) => {
+  const f = fixture(t),
+    cache = new ConfirmedConversations<{ text: string }>();
+  for (let i = 0; i < 17; i++) cache.remember(String(i), window());
+  assert.equal(cache.read('0'), null);
+  cache.advance({ revision: 1 }, { revision: 2 }, ['1']);
+  cache.confirm({ revision: 3 });
+  cache.remember('huge', {
+    ...window(),
+    views: [{ text: 'x'.repeat(5 * 1024 * 1024) }],
+  });
+  cache.remember('many', {
+    ...window(),
+    views: Array.from({ length: 4097 }, () => ({ text: '' })),
+  });
+  const reasons = f.recording
+    .report()
+    .events.filter((event) => event.kind === 'reuse-cache-removed')
+    .map((event) => event['reason']);
+  for (const reason of [
+    'conversation-limit',
+    'message-delta',
+    'snapshot-changed',
+    'byte-limit',
+    'row-limit',
+  ])
+    assert.ok(reasons.includes(reason));
+});
+
+await test('old app coverage is explicit and forged event fields never enter the report', (t) => {
+  const f = fixture(t, false);
+  assert.equal(f.recording.report().events[0]?.['available'], false);
+  f.host.dispatchEvent(
+    new CustomEvent(chatSyncEvent, {
+      detail: {
+        version: 1,
+        source: 1,
+        conversation: 2,
+        event: 'navigation',
+        reason: 'engine-unavailable',
+        busy: true,
+        maintenance: false,
+        peer: 'private-id',
+        content: 'private-text',
+        epoch: Infinity,
+      },
+    }),
+  );
+  assert.equal(f.recording.report().events.at(-1)?.['busy'], true);
+  assert.ok(!JSON.stringify(f.recording.report()).includes('private-'));
+  const length = f.recording.report().events.length;
+  f.host.dispatchEvent(
+    new CustomEvent(chatSyncEvent, {
+      detail: {
+        version: 1,
+        source: 1,
+        conversation: 2,
+        event: 'navigation',
+        reason: 'private-reason',
+      },
+    }),
+  );
+  assert.equal(f.recording.report().events.length, length);
+});
+
+await test('stop disables internal capture and the ten-minute deadline cannot retain later decisions', (t) => {
+  const f = fixture(t),
+    owner = {};
+  traceChatSync(owner, 'private-peer', {
+    event: 'navigation',
+    reason: 'engine-unavailable',
+    busy: true,
+  });
+  const length = f.recording.report().events.length;
+  f.stop();
+  traceChatSync(owner, 'private-peer', {
+    event: 'navigation',
+    reason: 'restored',
+  });
+  assert.equal(f.recording.report().events.length, length);
+  let emitted = 0;
+  f.host.addEventListener(chatSyncEvent, () => emitted++);
+  const stopAgain = observeReuseDecisions(f.recording.record);
+  emitted = 0;
+  t.mock.method(performance, 'now', () => 1_000_000);
+  traceChatSync(owner, 'private-peer', {
+    event: 'navigation',
+    reason: 'restored',
+  });
+  assert.equal(emitted, 0);
+  stopAgain();
+});
+
+await test('failed verification records local supersession without exporting exception text', (t) => {
+  const f = fixture(t);
+  traceChatSyncFailure(
+    {},
+    {
+      reason: 'probe-failed',
+      current: false,
+      error: new Error('Private exception with contact data'),
+    },
+  );
+  assert.equal(
+    f.recording.report().events.at(-1)?.['failure'],
+    'generation-changed',
+  );
+  assert.ok(
+    !JSON.stringify(f.recording.report()).includes('Private exception'),
+  );
+});
+
+await test('navigation distinguishes engine ownership from a retained window awaiting confirmation', (t) => {
+  const f = fixture(t),
+    cache = new ConfirmedConversations<{ text: string }>(),
+    owner = {};
+  let available = false,
+    selected = 0;
+  cache.connection(true);
+  cache.remember('private-peer', window());
+  const visits = new ConnectedConversationVisits<string>({
+    connected: () => true,
+    available: () => available,
+    backgroundReady: () => false,
+    reusable: (peer) => cache.reusable(peer) !== null,
+    select: () => {
+      selected++;
+    },
+    restore: () => true,
+    background: (work) => work(),
+    check: () => Promise.resolve(),
+    failed: () => assert.fail('Unexpected verification failure'),
+    diagnostic: (peer, reason) =>
+      traceChatSync(owner, peer, {
+        event: 'navigation',
+        reason,
+        maintenance: !available,
+      }),
+  });
+  t.after(() => visits.reset());
+  assert.equal(visits.open('private-peer'), false);
+  assert.equal(selected, 0);
+  available = true;
+  cache.hint();
+  assert.equal(visits.open('private-peer'), false);
+  assert.equal(selected, 0);
+  cache.confirm({ revision: 1 });
+  assert.equal(visits.open('private-peer'), true);
+  assert.equal(selected, 1);
+  const navigation = f.recording
+    .report()
+    .events.filter((event) => event.kind === 'reuse-navigation');
+  assert.deepEqual(
+    navigation.map((event) => event['reason']),
+    ['engine-unavailable', 'window-unavailable', 'restored'],
+  );
+  assert.equal(navigation[0]?.['maintenance'], true);
+});

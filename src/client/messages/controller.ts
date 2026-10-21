@@ -4,6 +4,10 @@ import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
+import {
+  traceChatSync,
+  traceChatSyncFailure,
+} from '../chat-sync-diagnostics/index.ts';
 import { probeConfirmed } from './confirmed-probe.ts';
 import { readDelivery } from './delivery.ts';
 import { readDirectoryPreviews } from './directory-previews.ts';
@@ -308,7 +312,7 @@ export class Messages {
     this.pinsGeneration = -1;
     this.pauseSynchronization();
     this.prefetch.reset();
-    this.conversations.clear();
+    this.conversations.clear('controller-close');
     this.probedSnapshot = null;
     this.confirmed = null;
     this.verified.clear();
@@ -322,7 +326,7 @@ export class Messages {
   pause(scope: 'account' | 'conversation' = 'account'): void {
     if (scope === 'account') {
       this.previewGeneration++;
-      this.conversations.invalidateReuse();
+      this.conversations.invalidateReuse('account-pause');
     }
     this.pinsGeneration = -1;
     this.probedSnapshot = null;
@@ -333,7 +337,7 @@ export class Messages {
    * retaining verified candidates for the authenticated incremental response. */
   removed(): void {
     this.previewGeneration++;
-    this.conversations.clear();
+    this.conversations.clear('removal');
     this.pauseSynchronization();
     this.confirmed = null;
     this.probedSnapshot = null;
@@ -342,7 +346,7 @@ export class Messages {
   hide(): void {
     this.previewGeneration++;
     this.pinsGeneration = -1;
-    this.conversations.clear();
+    this.conversations.clear('hidden');
     this.probedSnapshot = null;
     this.pauseSynchronization();
     this.index.reset();
@@ -369,16 +373,35 @@ export class Messages {
     const candidate = this.selected
       ? this.conversations.reusable(this.selected)
       : null;
-    if (!candidate || candidate !== this.confirmed) return false;
+    if (!candidate || candidate !== this.confirmed) {
+      traceChatSync(this.conversations, this.selected, {
+        event: 'projection',
+        reason: !this.selected
+          ? 'no-selection'
+          : candidate
+            ? 'projection-mismatch'
+            : 'window-unavailable',
+      });
+      return false;
+    }
     const token = this.visibility.refresh();
     this.visibility.stage(token, candidate.views);
     this.visibility.complete(token);
+    traceChatSync(this.conversations, this.selected, {
+      event: 'projection',
+      reason: 'restored',
+    });
     return true;
   }
   select(peer: string | null, older = false): void {
     this.pauseSynchronization();
     this.probedSnapshot = null;
     const candidate = peer && !older ? this.conversations.read(peer) : null;
+    traceChatSync(this.conversations, peer, {
+      event: 'candidate-read',
+      reason: candidate ? 'candidate-present' : 'missing',
+      older,
+    });
     this.confirmed = candidate;
     this.verified.clear();
     this.generation++;
@@ -1044,7 +1067,12 @@ export class Messages {
       this.rememberConversation();
     } catch (error: unknown) {
       if (!(error instanceof IncompleteMessageIndex)) this.index.reset();
-      this.conversations.clear();
+      this.conversations.clear('sync-failed');
+      traceChatSyncFailure(this.conversations, {
+        reason: 'sync-failed',
+        current: generation === this.generation,
+        error,
+      });
       this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();
@@ -1798,7 +1826,12 @@ export class Messages {
         options,
       );
     } catch (error: unknown) {
-      this.conversations.clear();
+      this.conversations.clear('probe-failed');
+      traceChatSyncFailure(this.conversations, {
+        reason: 'probe-failed',
+        current: generation === this.generation,
+        error,
+      });
       this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();

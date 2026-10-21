@@ -1,4 +1,5 @@
 import { MessageWarmup } from './warmup.ts';
+import type { ChatSyncReason } from '../../shared/chat-sync-diagnostics/index.ts';
 
 interface VisitPorts<T> {
   connected: () => boolean;
@@ -10,6 +11,7 @@ interface VisitPorts<T> {
   background: (step: () => Promise<void>) => Promise<void>;
   check: () => Promise<void>;
   failed: () => void;
+  diagnostic?: (peer: T, reason: ChatSyncReason) => void;
 }
 
 /** Memory-only navigation is immediate. Its coalesced check yields to normal
@@ -37,14 +39,19 @@ export class ConnectedConversationVisits<T> {
     });
   }
   open(peer: T): boolean {
-    if (
-      !this.ports.connected() ||
-      !this.ports.available() ||
-      !this.ports.reusable(peer)
-    )
-      return false;
+    if (!this.ports.connected()) return this.result(peer, 'not-connected');
+    if (!this.ports.available()) return this.result(peer, 'engine-unavailable');
+    if (!this.ports.reusable(peer))
+      return this.result(peer, 'window-unavailable');
     this.ports.select(peer);
-    return this.restore();
+    return this.result(
+      peer,
+      this.restore() ? 'restored' : 'projection-unavailable',
+    );
+  }
+  private result(peer: T, reason: ChatSyncReason): boolean {
+    this.ports.diagnostic?.(peer, reason);
+    return reason === 'restored';
   }
   restore(): boolean {
     if (!this.ports.connected() || !this.ports.restore()) return false;

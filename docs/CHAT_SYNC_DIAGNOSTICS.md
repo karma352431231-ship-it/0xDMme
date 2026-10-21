@@ -88,7 +88,8 @@ Normal live updates and periodic recovery remain active. Foreground mutations
 and current SDK work retain their exclusive lifetime; an occupied engine may
 still delay a requested opening until its current safe operation finishes.
 
-Stream loss, browser suspension or navigation pause invalidate immediate reuse.
+Stream loss and account/browser suspension invalidate immediate reuse.
+Returning to the contact directory alone preserves the connected reuse epoch.
 Removals, authorization changes, session replacement and verification failures
 discard eligibility. Reconnecting alone cannot make an old candidate eligible;
 it needs a new authenticated verification. First opens, older pages and evicted
@@ -101,3 +102,45 @@ and every invalidation boundary, while coordinator tests cover immediate
 selection, an enabled composer and one background check for a navigation burst.
 Real-device timing and the unexplained idle trigger still require a new capture;
 synthetic results do not establish either latency or stream behavior on Opera.
+
+## Internal reuse decisions — 20 October 2026
+
+The meter now asks an updated app build to enable an explicit, local diagnostic
+bridge for this capture. `reuse-coverage.available` reports whether that bridge
+answered. An old app keeps the network/UI capture but displays an update notice;
+an absent internal event must never be interpreted as proof of a cache hit.
+
+The new timeline records the decisions themselves:
+
+| Event                       | Evidence                                                                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reuse-cache-stored`        | A verified window entered the bounded cache.                                                                                                                                             |
+| `reuse-cache-removed`       | One window was replaced or discarded: changed snapshot, affected message delta, conversation count, rows or byte budget.                                                                 |
+| `reuse-cache-cleared`       | The complete cache was discarded: profile change, controller close, removal, hidden/invalidated projection or verification failure.                                                      |
+| `reuse-cache-invalidated`   | Content remained a candidate but became ineligible because of a live hint, account pause or disconnected live epoch.                                                                     |
+| `reuse-cache-confirmed`     | The authenticated snapshot completed its cache reconciliation.                                                                                                                           |
+| `reuse-cache-check`         | The actual lookup found an eligible window, no window, pending confirmation, a disconnected stream or a different live epoch.                                                            |
+| `reuse-navigation`          | The visit was restored or blocked by connection, engine ownership, unavailable history, voice preview or projection. Busy, maintenance and pending-text flags accompany visit decisions. |
+| `reuse-projection`          | The controller restored the window or rejected its projection.                                                                                                                           |
+| `reuse-verification-failed` | A failed probe/read discarded reuse; distinguishes a changed local generation from authorization, conflict, abort and other failure categories. No exception text is exported.           |
+
+Events include cache totals, current/window epochs and anonymous source and
+conversation slots. Conversation slots link the same contact across DOM
+replacement within the capture, retaining at most 128 recent mappings. Source
+slots distinguish controller/navigation and cache instances. Bundle-only caller
+positions locate the discard or denial without exporting arbitrary stack text.
+The bridge retains no events and uses no persistent storage or network IO. Its
+temporary mappings are cleared on stop or after ten minutes. Reports retain the
+existing 1,500-event bound and disclose dropped events.
+
+Install the new console meter **before** A→B→A, then include the idle interval.
+There is no retrospective eviction history: a window already missing when the
+capture started has an unknown earlier cause. Start before a reload/reconnect
+only if the meter is reinstalled afterward; reloading ends the previous capture.
+This instrumentation preserves synchronization, admission, eviction and authority
+rules. New capture evidence is still needed to identify the user's actual cause.
+
+The new bridge and protocol own diagnostic delivery. The existing message
+screen/controller hotspots receive small trace calls only; their separate
+navigation/rendering and verification/storage extraction remains described in
+[message receiving](MESSAGE_RECEIVING.md#ownership-and-review-order).

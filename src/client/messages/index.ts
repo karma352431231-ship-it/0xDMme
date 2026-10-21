@@ -6,6 +6,7 @@ import { MessageSynchronization } from './synchronization.ts';
 import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { ConnectedConversationVisits } from './visits.ts';
+import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
 import { TextSendQueue } from './text-send.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -484,6 +485,13 @@ export function startMessages(
     backgroundReady: () => synchronization.backgroundReady,
     reusable: (peer) =>
       !peer.localOnly && controller.canRestore(peer.accountId),
+    diagnostic: (peer, reason) =>
+      traceChatSync(controller, peer.accountId, {
+        event: 'navigation',
+        reason,
+        ...synchronization.reuseDiagnostics(),
+        textPending: textQueue.pending,
+      }),
     select: selectPeer,
     restore: () => controller.restoreSelected(),
     background: (step) => synchronization.background(step),
@@ -1021,6 +1029,11 @@ export function startMessages(
     return true;
   }
   function reusePeer(peer: ConversationPeer): boolean {
+    if (voice.active || attachments.selected?.voice)
+      traceChatSync(controller, peer.accountId, {
+        event: 'navigation',
+        reason: 'voice-preview',
+      });
     return !voice.active && !attachments.selected?.voice && visits.open(peer);
   }
   function requestPeer(peer: ConversationPeer): Promise<void> {

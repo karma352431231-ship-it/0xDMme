@@ -46,6 +46,8 @@ export class Recording {
         conversationSlots:
           'anonymous-DOM-rows; replacement-may-assign-a-new-slot',
         wakeups: 'local-controls-cross-tab-device-and-service-worker-hints',
+        reuse:
+          'availability-in-reuse-coverage; internal-decisions-since-installation-only; no-earlier-eviction-history',
       },
       events: this.events.map((event) => ({ ...event })),
     };

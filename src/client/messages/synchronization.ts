@@ -267,6 +267,16 @@ export class MessageSynchronization {
       !state.suspended
     );
   }
+  reuseDiagnostics() {
+    const state = this.options.state();
+    return {
+      busy: this.busy,
+      maintenance: this.maintenance !== null,
+      session: state.session,
+      online: state.online,
+      suspended: state.suspended,
+    };
+  }
   private canPreload(): boolean {
     const state = this.options.state();
     return this.canSynchronize() && !state.startupPending;

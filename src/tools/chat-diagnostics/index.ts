@@ -5,6 +5,7 @@ import { observeControlFrames } from './stream.ts';
 import { observePage, observeLag } from './page.ts';
 import { observeSubmissions } from './submissions.ts';
 import { observeSyncTriggers } from './triggers.ts';
+import { observeReuseDecisions } from './reuse.ts';
 
 interface DiagnosticWindow extends Window {
   __0xdmmeLag?: ReturnType<typeof start>;
@@ -61,6 +62,13 @@ function start() {
     stopHooks.push(observeControlFrames(recording.record));
     stopHooks.push(observePage(recording.record));
     stopHooks.push(observeSyncTriggers(recording.record));
+    stopHooks.push(
+      observeReuseDecisions(recording.record, (available) => {
+        if (!available)
+          label.textContent =
+            'Meter active · update the app to capture internal reuse decisions';
+      }),
+    );
     stopHooks.push(observeSubmissions(recording.record));
     stopHooks.push(observeLag(recording.record));
     const lifecycle = new AbortController();
