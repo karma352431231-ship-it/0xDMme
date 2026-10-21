@@ -1100,6 +1100,16 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
   await t.test(
     'blocking a profile without a request creates no consent and allows unblocking through the list',
     async () => {
+      const blockSignals: unknown[] = [];
+      const stopBlockSignals = db.changes.subscribe({
+        notify: (change) =>
+          blockSignals.push({
+            accounts: change.accounts,
+            categories: change.categories,
+          }),
+        failed: () => assert.fail('Block signal failed'),
+      });
+      t.after(stopBlockSignals);
       await operate(alice, 'block', { peer: op.id, blocked: true });
       assert.equal(
         socialRelation(await operate(alice, 'state', { peer: op.id })).blocked,
@@ -1137,6 +1147,17 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
         true,
       );
       await operate(alice, 'block', { peer: op.id, blocked: false });
+      stopBlockSignals();
+      assert.deepEqual(
+        blockSignals,
+        Array.from({ length: 4 }, () => ({
+          accounts: [
+            alice.login.session.accountId,
+            outsider.login.session.accountId,
+          ],
+          categories: ['activity', 'handle-messages'],
+        })),
+      );
     },
   );
   await t.test(
