@@ -368,3 +368,10 @@ function groupRelationFields(data: Record<string, unknown>): {
     throw new AccountError(400, 'Only text can be used to edit a message.');
   return { relation: groupEditRelation(data['relation']) };
 }
+
+export {
+  groupDescription,
+  groupProfileDescription,
+  profileDescriptionUpdate,
+  groupDescriptionLimit,
+} from './description.ts';

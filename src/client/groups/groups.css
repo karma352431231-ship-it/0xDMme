@@ -437,3 +437,30 @@ dialog.group-dialog button.group-photo-trigger {
   min-height: 8rem;
   box-sizing: border-box;
 }
+
+.group-create-photo-actions {
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.group-create-avatar {
+  overflow: hidden;
+}
+.group-create-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.group-description-section {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.group-description-section > p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.group-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 5rem;
+}

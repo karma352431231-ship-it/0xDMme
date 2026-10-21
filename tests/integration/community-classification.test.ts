@@ -112,6 +112,41 @@ await test('community classification persists atomically, stays fixed and filter
     (await communities.read(id)).classification,
     state.community.classification,
   );
+  const gamesId = crypto.randomUUID();
+  ids.push(gamesId);
+  const games = communityState(
+    await owner.operate('create', {
+      id: gamesId,
+      meta: { name: 'Synthetic Games', description: '', rules: '' },
+      classification: { nsfw: false, topics: ['games'] },
+    }),
+  );
+  assert.deepEqual(games.community.classification?.topics, ['games']);
+  await assert.rejects(
+    pool.query(
+      "UPDATE hash_talk.community_classifications SET topics=ARRAY['tech'] WHERE community_id=$1",
+      [gamesId],
+    ),
+  );
+  const invalidId = crypto.randomUUID();
+  ids.push(invalidId);
+  await owner.operate('create', {
+    id: invalidId,
+    meta: { name: 'Synthetic valid', description: '', rules: '' },
+    classification: { nsfw: false, topics: ['games'] },
+  });
+  // Use INSERT to exercise the migrated catalog check independently of the immutable UPDATE trigger.
+  await pool.query(
+    'DELETE FROM hash_talk.community_classifications WHERE community_id=$1',
+    [invalidId],
+  );
+  await assert.rejects(
+    pool.query(
+      "INSERT INTO hash_talk.community_classifications(community_id,topics) VALUES($1,ARRAY['unknown'])",
+      [invalidId],
+    ),
+    /known_topics/,
+  );
   await owner.operate('create', input);
   await assert.rejects(
     owner.operate('create', {

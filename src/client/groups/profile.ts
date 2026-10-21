@@ -1,10 +1,12 @@
-import { readGroupPage } from './reader.ts';
-import { sendGroupPending } from './outbox.ts';
 import type { GroupContext } from './authority.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
 import type { GroupPhoto } from '../../shared/group-messages/index.ts';
-import { groupProfilePhoto } from '../../shared/group-messages/index.ts';
+import {
+  groupProfilePhoto,
+  groupProfileDescription,
+} from '../../shared/group-messages/index.ts';
+import { publishGroupProfile } from './profile-edit.ts';
 import { object } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
@@ -38,6 +40,7 @@ export async function stageCurrentProfile(
         version: 1,
         title,
         photo: groupProfilePhoto(raw) ?? null,
+        description: groupProfileDescription(raw) ?? '',
       }),
       selection: null,
       kind: 'profile',
@@ -56,53 +59,5 @@ export async function publishGroupPhoto(
     photo: GroupPhoto | null;
   },
 ): Promise<void> {
-  const page = await readGroupPage(
-    c,
-    await c.api('group-profile', {
-      groupId: c.group.state.groupId,
-      head: c.group.head,
-    }),
-  );
-  const latest = page.views.find((view) => view.kind === 'profile');
-  if (latest?.id === c.id) {
-    if (
-      canonical(
-        groupProfilePhoto(JSON.parse(latest.text) as unknown) ?? null,
-      ) !== canonical(c.photo)
-    )
-      throw new Error('Photo request repeated with different content.');
-    return;
-  }
-  const cache = new GroupCache(c.authority, c.group.state.groupId),
-    raw = await cache.get('profile');
-  if (raw === null)
-    throw new Error('Refresh the group before changing its photo.');
-  const pending = await cache.get(`outbox:${c.id}`);
-  if (pending === null)
-    await composeGroup({
-      authority: c.authority,
-      groupId: c.group.state.groupId,
-      text: JSON.stringify({
-        version: 1,
-        title: groupTitle(raw),
-        photo: c.photo,
-      }),
-      selection: null,
-      kind: 'profile',
-      id: c.id,
-    });
-  else assertPendingPhoto(pending, c.photo);
-  await sendGroupPending(c);
-}
-
-function assertPendingPhoto(pending: unknown, photo: GroupPhoto | null): void {
-  const draft = object(pending);
-  if (
-    draft['kind'] !== 'profile' ||
-    typeof draft['text'] !== 'string' ||
-    canonical(
-      groupProfilePhoto(JSON.parse(draft['text']) as unknown) ?? null,
-    ) !== canonical(photo)
-  )
-    throw new Error('Local photo request does not match.');
+  await publishGroupProfile({ ...c, patch: { photo: c.photo } });
 }

@@ -1,3 +1,8 @@
+import {
+  groupDescription,
+  groupProfileDescription,
+  profileDescriptionUpdate,
+} from '../src/shared/group-messages/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { encode } from '../src/shared/account/index.ts';
@@ -49,6 +54,7 @@ await test('existing backup preserves the avatar in profile text without changin
     version: 1,
     title: 'Grupo',
     photo: fixtureGroupPhoto(),
+    description: 'Private group description',
   });
   const record = backupRecord({
     type: 'group-message',
@@ -64,4 +70,32 @@ await test('existing backup preserves the avatar in profile text without changin
   });
   assert.equal(record.type, 'group-message');
   if (record.type === 'group-message') assert.equal(record.text, text);
+});
+
+await test('description is bounded plain text; legacy profiles preserve it and an explicit empty update removes it', () => {
+  assert.equal(
+    groupDescription('  First line\nSecond line  '),
+    'First line\nSecond line',
+  );
+  assert.equal(
+    groupProfileDescription({ version: 1, title: 'Synthetic' }),
+    undefined,
+  );
+  assert.deepEqual(
+    profileDescriptionUpdate(
+      { version: 1, title: 'Renamed' },
+      { description: 'Keep this' },
+    ),
+    { description: 'Keep this' },
+  );
+  assert.deepEqual(
+    profileDescriptionUpdate(
+      { description: '' },
+      { description: 'Remove this' },
+    ),
+    { description: '' },
+  );
+  for (const value of [null, {}, 'x'.repeat(1001), 'bad\u0000value'])
+    assert.throws(() => groupDescription(value));
+  assert.equal(groupDescription('x'.repeat(1000)).length, 1000);
 });

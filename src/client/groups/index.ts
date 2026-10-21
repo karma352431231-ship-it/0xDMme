@@ -1,3 +1,4 @@
+import { GroupDescriptionUi } from './description-ui.ts';
 import { GroupHistoryWork } from './history-work.ts';
 import type { MessageWork } from '../synchronization-work/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
@@ -331,6 +332,13 @@ export function startGroups(
     if (controller.historyPending) notice = t('Syncing…');
     render();
   }
+  const descriptionUi = new GroupDescriptionUi({
+    selected: () => controller.selected,
+    account: () => session?.accountId,
+    load: () => controller.description(),
+    save: (input) => controller.updateDescription(input),
+    run,
+  });
   const messageActions = new GroupMessageActions({
     run,
     edit: async (view, text) => {
@@ -497,10 +505,13 @@ export function startGroups(
       people.clear();
       photoView.reset();
       photoUi.reset();
+      descriptionUi.reset();
       displayedGroup = group?.state.groupId ?? null;
     }
     if (!group) return;
     updateGroupSettingsIdentity(host, group);
+    if (node<HTMLDialogElement>('[data-group-settings]')?.open)
+      descriptionUi.show(group);
   }
   function renderGroupPhoto(group: GroupSummary): void {
     const targets = [
@@ -964,6 +975,7 @@ export function startGroups(
         'Send or remove the voice preview before changing conversations.',
       );
     controller.deselect();
+    descriptionUi.reset();
     attachments.clearSelection();
     attachments.clearMedia();
     emoji.close();
@@ -974,6 +986,7 @@ export function startGroups(
     people.clear();
     photoView.reset();
     photoUi.reset();
+    descriptionUi.reset();
     actions.reset();
     externalRows.clear();
     externalAbort.abort();
@@ -1100,6 +1113,7 @@ export function startGroups(
       people.clear();
       photoView.reset();
       photoUi.reset();
+      descriptionUi.reset();
       actions.reset();
       if (revoked) controller.revokeAuthority();
       else controller.hide();
@@ -1130,8 +1144,12 @@ export function startGroups(
         .forEach((node) =>
           node.addEventListener('click', () => photoUi.open()),
         );
+      descriptionUi.mount(container);
       bindGroupSettings(container, {
-        opened: renderMembers,
+        opened: () => {
+          renderMembers();
+          if (controller.selected) descriptionUi.show(controller.selected);
+        },
         closed: () => people.clear(),
       });
       attachments.mount(container, run);

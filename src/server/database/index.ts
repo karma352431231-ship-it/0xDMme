@@ -220,6 +220,7 @@ const migrations = [
   '094-single-use-contact-invitations.sql',
   '095-public-post-search.sql',
   '096-message-sync-fences.sql',
+  '097-community-games-topic.sql',
 ];
 
 export interface MaintenanceSnapshot {

@@ -1,4 +1,12 @@
 import { GroupMessageLease } from './message-lease.ts';
+import { cachedGroupDescription } from './description.ts';
+import {
+  creationProfile,
+  assertCreationProfile,
+  stageCreationProfile,
+} from './creation-profile.ts';
+import { publishGroupProfile } from './profile-edit.ts';
+import { groupDescription } from '../../shared/group-messages/index.ts';
 import { MessageContinuation } from '../synchronization-work/index.ts';
 import type { MessageWorkResult } from '../synchronization-work/index.ts';
 import {
@@ -737,8 +745,49 @@ export class GroupController {
     });
     await this.identities.save();
   }
-  async create(title: string): Promise<string> {
-    const checked = groupTitle({ version: 1, title });
+  async description(): Promise<{ description: string; sequence: number }> {
+    const selected = this.selected;
+    if (!selected) return { description: '', sequence: 0 };
+    return this.withLocalAuthority((authority) =>
+      cachedGroupDescription(authority, selected),
+    );
+  }
+
+  async updateDescription(input: {
+    group: string;
+    id: string;
+    description: string;
+    sequence: number;
+  }): Promise<void> {
+    if (this.selected?.state.groupId !== input.group || this.selected.localOnly)
+      throw new Error('Open a connected group first.');
+    const description = groupDescription(input.description);
+    await this.identities.load();
+    await this.authority.mutate(async (c) => {
+      const group = await c.governance.verify(input.group);
+      if (!groupManager(group.state, c.authority.session.accountId))
+        throw new Error(
+          'Only the owner or administrator can change the description.',
+        );
+      await this.machine(c, (machine) =>
+        publishGroupProfile({
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+          id: input.id,
+          sequence: input.sequence,
+          patch: { description },
+        }),
+      );
+    });
+    await this.identities.save();
+  }
+  async create(
+    title: string,
+    initial: { description?: string; photo?: GroupPhoto | null } = {},
+  ): Promise<string> {
+    const profile = creationProfile(title, initial);
     let created: string | null = null;
     this.warning = '';
     await this.identities.load();
@@ -746,34 +795,26 @@ export class GroupController {
       await this.authority.mutate(async (c) => {
         const catalog = new GroupCatalog(c.authority),
           pending = await catalog.creation();
-        if (pending && pending.title !== checked)
-          throw new Error(
-            'Resume the pending creation with the same name or discard that request before creating another group.',
+        if (pending)
+          assertCreationProfile(
+            {
+              version: 1,
+              title: pending.title,
+              description: pending.description,
+              photo: pending.photo,
+            },
+            profile,
           );
         const event =
             pending?.event ??
             (await createGroupEvent(c.authority, crypto.randomUUID())),
           id = event.groupId;
-        await catalog.saveCreation(event, checked);
+        await catalog.saveCreation(event, profile);
         this.creationPending = true;
         await this.commit(c, event);
         created = id;
-        await catalog.save({ state: event, title: checked });
-        await new GroupCache(c.authority, id).put('profile', {
-          version: 1,
-          title: checked,
-          epoch: 0,
-          sequence: 0,
-        });
-        await catalog.clearCreation();
+        await stageCreationProfile(c.authority, event, profile);
         this.creationPending = false;
-        await composeGroup({
-          authority: c.authority,
-          groupId: id,
-          text: JSON.stringify({ version: 1, title: checked }),
-          selection: null,
-          kind: 'profile',
-        });
         const group = { state: event, head: await groupEventHash(event) };
         await this.machine(c, (machine) =>
           sendGroupPending({

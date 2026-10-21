@@ -1,7 +1,10 @@
 import { applyGroupRemovals } from './removals.ts';
 import { groupEditRelation } from '../../shared/group-messages/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
-import { profilePhotoUpdate } from '../../shared/group-messages/index.ts';
+import {
+  profilePhotoUpdate,
+  profileDescriptionUpdate,
+} from '../../shared/group-messages/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest, fingerprint } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -319,6 +322,7 @@ async function preserveProfile(
     version: 1,
     title,
     ...profilePhotoUpdate(JSON.parse(text) as unknown, previous),
+    ...profileDescriptionUpdate(JSON.parse(text) as unknown, previous),
     epoch: packet.epoch,
     sequence: c.item.sequence,
   });

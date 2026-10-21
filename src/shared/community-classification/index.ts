@@ -13,6 +13,7 @@ export const communityTopics = [
   { id: 'celebrity', label: 'community.topic.celebrity' },
   { id: 'nft', label: 'community.topic.nft' },
   { id: 'tiktok', label: 'community.topic.tiktok' },
+  { id: 'games', label: 'community.topic.games' },
 ] as const;
 export type CommunityTopic = (typeof communityTopics)[number]['id'];
 export interface CommunityClassification {
