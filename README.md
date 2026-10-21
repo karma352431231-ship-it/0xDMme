@@ -1,8 +1,8 @@
 # 0xDMme
 
-**0xDMme** is a private web/PWA messenger with wallet-based sign-in and end-to-end encryption: message content and decryption secrets stay on the user's devices. The canonical origin is **https://0xdmme.app**, currently an isolated [test environment](https://0xdmme.app/) with valid public HTTPS. It is not a V1 release and not yet intended for real chat data.
+**0xDMme** is a private web/PWA messenger with wallet-based sign-in and client-side end-to-end encryption for private messaging, designed to keep plaintext and decryption secrets on authorized devices. The canonical origin is **https://0xdmme.app**, currently an isolated [test environment](https://0xdmme.app/) with valid public HTTPS. It is not a V1 release and not yet intended for real chat data.
 
-Wallet authentication and end-to-end encryption are requirements being implemented and validated, not guarantees of already available software.
+Security properties remain subject to the implementation limits, testing and independent review described below.
 
 ## Status
 
@@ -17,6 +17,30 @@ Implemented areas include:
 - Independent backups, notifications, message actions, encrypted local search, voice messages and public communities with profiles and feeds.
 
 Voice calls (WebRTC with a dedicated TURN server) are implemented locally but not active in the test environment. Physical mobile acceptance and the final security acceptance are still pending.
+
+## Security, cryptography and independent audit
+
+Private direct and group messaging uses Matrix Crypto (Olm/Megolm) in the client. The private vault and recovery flows use client-side Web Crypto and encrypted recovery material. Private plaintext and decryption secrets are intended to remain on authorized devices; the backend transports and stores encrypted private payloads. Public community content is intended for publication and is outside this private-message E2EE claim. Servers can still observe operational metadata.
+
+The project's source, dependency lockfile, tests and [frontend corresponding sources](docs/FRONTEND_SOURCES.md) are available for independent inspection and cryptographic review. Reviewers can inspect the protocols and integration, reproduce builds and run tests with synthetic data without obtaining VPS credentials or real conversations. Auditability is not a completed audit: the project does **not** claim a completed independent cryptographic audit or production security acceptance. The [recovery key authorization review](docs/E2EE_RECOVERY_AUTHORIZATION.md) documents a specific correction and its regression coverage, rather than certifying the whole application.
+
+E2EE does not protect plaintext on a compromised endpoint or against malicious frontend code while secrets are in use. Initial contact identity trust remains a separate limitation. Recovery intentionally preserves readable history for authorized devices: possession of the relevant recovery key and encrypted history can expose that history, and revocation cannot erase copies already received. Recoverable history must not be assumed to inherit all session forward-secrecy properties.
+
+### Verify the public release externally
+
+Release verification runs on a trusted computer outside the app, without SSH access or an app account:
+
+1. Obtain the expected **full Git commit** from an independently trusted release announcement or code review. Use a trusted checkout of the verifier, Node 24 and a GitHub CLI supporting `gh attestation verify` with the policy flags listed in [Verifiable releases](docs/VERIFIABLE_RELEASES.md#independent-verification).
+2. Download `release-manifest.json` from the matching GitHub release, tagged `proof-<full-commit>`. Publication requires the owner to explicitly run [Publish authenticated release proof](.github/workflows/release-proof.yml) on `main` after that exact commit passes CI. A successful deploy or CI run does not automatically publish a signed proof; a missing or invalid proof cannot establish authenticated release identity.
+3. Replace `FULL_COMMIT` below with that expected 40-character commit and run:
+
+   ```sh
+   npm run release:verify -- public /path/to/release-manifest.json FULL_COMMIT
+   ```
+
+The verifier authenticates the manifest against the expected repository, signing workflow and commit, then downloads the public files from **https://0xdmme.app** and checks their sizes and SHA-256 hashes. It checks actual response bodies without trusting server-reported version labels or ETags. A successful result includes `"verified": true` and `"scope": "public"`. Independent Mac/Linux CI builds must also produce identical manifests; see [reproduction and signing](docs/VERIFIABLE_RELEASES.md#reproduction-and-signing) for the exact build toolchain and procedure.
+
+**Important:** this establishes the identity of the public bytes observed by the verifier. It does not remotely attest all backend execution, prove identical delivery to every visitor or establish E2EE correctness. The public proof contains only source/release identifiers, file hashes and build-tool versions; it excludes VPS access details, installed private configuration, keys and user data. Read the [verification scope and limits](docs/VERIFIABLE_RELEASES.md#acceptance-and-limits) alongside any result.
 
 ## Local setup
 
@@ -48,6 +72,8 @@ Local PostgreSQL metrics: `npm run observe:database`, with the same private `.en
 - [Localization](docs/I18N.md): official languages and how app text is added.
 - [Licenses](LICENSES.md): frontend distribution and third-party components.
 - [Frontend corresponding sources](docs/FRONTEND_SOURCES.md): contents of the source download and how to rebuild the frontend.
+- [Verifiable releases](docs/VERIFIABLE_RELEASES.md): reproducible builds, signed proof publication, external verification and its limits.
+- [Recovery key authorization review](docs/E2EE_RECOVERY_AUTHORIZATION.md): the scoped cryptographic correction and its regression coverage.
 
 ## Workflow
 
