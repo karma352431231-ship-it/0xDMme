@@ -399,6 +399,10 @@ for (const language of ['en', 'zh-CN'] as const)
       'open',
       function (this: GroupController) {
         this.selected = current;
+        // Selection can be set before the first page settles. An unrelated
+        // status paint is not evidence that an empty window was verified.
+        this.historyPending = false;
+        ui.status();
         this.historyPending = pending;
         return Promise.resolve();
       },

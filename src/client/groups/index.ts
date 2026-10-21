@@ -185,7 +185,7 @@ export function startGroups(
       conversation: selected
         ? `${selected.state.groupId}:${!!selected.localOnly}`
         : null,
-      ready: !controller.historyPending,
+      ready: false,
     });
     if (label)
       label.textContent =
@@ -311,7 +311,11 @@ export function startGroups(
     settled: async () => {
       const selected = controller.selected;
       await refreshVault();
-      if (controller.selected !== selected) return;
+      if (!selected || controller.selected !== selected) return;
+      loading.update({
+        conversation: `${selected.state.groupId}:${!!selected.localOnly}`,
+        ready: true,
+      });
       notice = controller.warning || t('Group opened.');
       render();
       await pending();
