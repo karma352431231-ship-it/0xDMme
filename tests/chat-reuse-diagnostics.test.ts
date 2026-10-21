@@ -91,7 +91,7 @@ await test('capture reports the exact loss of cache eligibility and correlates t
   );
 });
 
-await test('cache eviction distinguishes message deltas, stale snapshots and each budget without changing admission', (t) => {
+await test('cache diagnostics distinguish retained stale candidates from budget eviction', (t) => {
   const f = fixture(t),
     cache = new ConfirmedConversations<{ text: string }>();
   for (let i = 0; i < 17; i++) cache.remember(String(i), window());
@@ -108,7 +108,9 @@ await test('cache eviction distinguishes message deltas, stale snapshots and eac
   });
   const reasons = f.recording
     .report()
-    .events.filter((event) => event.kind === 'reuse-cache-removed')
+    .events.filter((event) =>
+      ['reuse-cache-removed', 'reuse-cache-invalidated'].includes(event.kind),
+    )
     .map((event) => event['reason']);
   for (const reason of [
     'conversation-limit',

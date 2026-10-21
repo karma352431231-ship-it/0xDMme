@@ -49,8 +49,10 @@ export class ConfirmedConversations<T extends ConversationView> {
   confirm(snapshot: unknown): void {
     const current = canonical(snapshot);
     for (const [peer, window] of this.windows)
-      if (canonical(JSON.parse(window.value.snapshot) as unknown) !== current)
-        this.remove(peer, 'snapshot-changed');
+      if (canonical(JSON.parse(window.value.snapshot) as unknown) !== current) {
+        window.epoch = null;
+        this.trace(peer, 'cache-invalidated', 'snapshot-changed');
+      }
     this.pending = false;
     this.trace(null, 'cache-confirmed', 'confirmed');
   }
@@ -94,8 +96,12 @@ export class ConfirmedConversations<T extends ConversationView> {
         canonical(from)
       )
         continue;
-      if (affected.has(peer)) this.remove(peer, 'message-delta');
-      else {
+      if (affected.has(peer)) {
+        // Retain the old cursor/content for an authenticated delta on reopen.
+        // It is not eligible for immediate publication until revalidated.
+        window.epoch = null;
+        this.trace(peer, 'cache-invalidated', 'message-delta');
+      } else {
         const next = JSON.stringify(snapshot),
           change = (next.length - window.value.snapshot.length) * 2;
         window.value.snapshot = next;

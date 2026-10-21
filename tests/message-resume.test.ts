@@ -458,6 +458,79 @@ await test('preparation with no selected conversation makes all content ready be
   assert.ok(!data.requests.includes('backup-window'));
 });
 
+await test('a cached conversation receives only new packets after a switch and keeps unrelated conversations reusable', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('First conversation');
+  await f.add('Second conversation', other);
+  await f.controller.synchronize();
+  f.controller.select(other);
+  await f.controller.synchronize();
+  f.data.snapshot.revision++;
+  const added = await f.add('New incoming message');
+  f.data.changes = [added];
+  f.controller.hint();
+  f.controller.select(f.peer);
+  const reads = f.data.cacheReads.length,
+    requests = f.data.requests.length;
+  assert.equal(await f.controller.probe(), true);
+  await f.controller.synchronize();
+  assert.deepEqual(f.data.cacheReads.slice(reads), [`cache:${added.id}`]);
+  assert.ok(!f.data.requests.slice(requests).includes('page'));
+  assert.ok(!f.data.requests.slice(requests).includes('relations'));
+  assert.equal(f.controller.canRestore(other), true);
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['First conversation', 'New incoming message'],
+  );
+});
+
+await test('a removal hint retains candidates but cannot expose them before current confirmation', async () => {
+  const f = resumeFixture(),
+    other = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  await f.add('First conversation');
+  await f.add('Second conversation', other);
+  await f.controller.synchronize();
+  f.controller.select(other);
+  await f.controller.synchronize();
+  f.data.snapshot.revision++;
+  f.data.changes = [];
+  const requests = f.data.requests.length,
+    reads = f.data.cacheReads.length;
+  f.controller.removed();
+  assert.equal(f.data.frames.at(-1), null);
+  assert.equal(f.controller.canRestore(f.peer), false);
+  assert.equal(await f.controller.probe(), true);
+  await f.controller.synchronize();
+  assert.equal(f.data.cacheReads.length, reads);
+  assert.ok(!f.data.requests.slice(requests).includes('page'));
+  assert.ok(!f.data.requests.slice(requests).includes('relations'));
+  assert.equal(f.controller.canRestore(f.peer), true);
+  assert.equal(f.controller.canRestore(other), true);
+});
+
+await test('an incremental result rejected at final confirmation closes history and cannot authorize navigation', async () => {
+  const f = resumeFixture();
+  f.controller.setLiveConnected(true);
+  await f.add('Already verified');
+  await f.controller.synchronize();
+  f.data.snapshot.revision++;
+  f.data.changes = [await f.add('Unconfirmed update')];
+  f.controller.hint();
+  assert.equal(await f.controller.probe(), true);
+  f.data.failure = 'confirm';
+  await assert.rejects(f.controller.synchronize());
+  assert.equal(f.data.frames.at(-1), null);
+  assert.equal(f.controller.canRestore(f.peer), false);
+  assert.ok(
+    !f.data.frames.some((frame) =>
+      frame?.some((row) => row.text === 'Unconfirmed update'),
+    ),
+  );
+});
+
 await test('deletion and failure also discard other retained conversations', async () => {
   for (const cause of ['hide', 'delivery'] as const) {
     const { controller, data, add, peer } = resumeFixture();
@@ -555,6 +628,7 @@ await test('editing one message queries only the delta, reuses content and prese
   await controller.synchronize();
   assert.ok(data.requests.slice(before).includes('changes'));
   assert.ok(!data.requests.slice(before).includes('page'));
+  assert.ok(!data.requests.slice(before).includes('relations'));
   assert.deepEqual(data.cacheReads.slice(reads), [`cache:${edit.id}`]);
   assert.equal(data.frames.at(-1)?.length, 3);
   controller.select(other);

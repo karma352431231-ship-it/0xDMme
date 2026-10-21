@@ -40,6 +40,7 @@ await test('confirmed changes invalidate only the affected conversation and adva
     from = { revision: 1 },
     next = { revision: 2 };
   const candidate = { ...window(), snapshot: JSON.stringify(from) };
+  cache.connection(true);
   cache.remember('affected', { ...candidate });
   cache.remember('intact', { ...candidate });
   cache.remember('older', {
@@ -48,7 +49,9 @@ await test('confirmed changes invalidate only the affected conversation and adva
   });
   const views = cache.read('intact')!.views;
   cache.advance(from, next, ['affected']);
-  assert.equal(cache.read('affected'), null);
+  assert.equal(cache.reusable('affected'), null);
+  assert.deepEqual(cache.read('affected'), candidate);
+  assert.ok(cache.reusable('intact'));
   assert.equal(cache.read('intact')!.views, views);
   assert.equal(cache.read('intact')!.snapshot, JSON.stringify(next));
   assert.equal(cache.read('older')!.snapshot, JSON.stringify({ revision: 0 }));

@@ -9,6 +9,7 @@ import {
   traceChatSyncFailure,
 } from '../chat-sync-diagnostics/index.ts';
 import { probeConfirmed } from './confirmed-probe.ts';
+import { readIncrementalWindow } from './incremental-window.ts';
 import { readDelivery } from './delivery.ts';
 import { readDirectoryPreviews } from './directory-previews.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
@@ -347,9 +348,8 @@ export class Messages {
    * retaining verified candidates for the authenticated incremental response. */
   removed(): void {
     this.previewGeneration++;
-    this.conversations.clear('removal');
+    this.conversations.hint();
     this.pauseSynchronization();
-    this.confirmed = null;
     this.probedSnapshot = null;
     this.visibility.close('pending');
   }
@@ -1005,6 +1005,22 @@ export class Messages {
           const api = (op: string, d: Record<string, unknown>) =>
               messageApi(a, op, d, () => this.guard(generation)),
             snapshot = probed ?? (await api('snapshot', {}));
+          const incremental = await readIncrementalWindow({
+            candidate: this.confirmed,
+            snapshot,
+            account: a.session.accountId,
+            peer: selected,
+            before: this.before,
+            api,
+            remove: (item) =>
+              this.indexItem({ a, generation, selected, api }, item),
+            read: (items) =>
+              this.readWindow({ a, generation, api, snapshot, items }),
+            delivery: (views) =>
+              this.refreshDelivery(snapshot, generation, views, a),
+          });
+          if (incremental)
+            return { ...incremental, snapshot, account: a.session.accountId };
           const items = await this.synchronizeIndex({
             a,
             generation,
@@ -1019,38 +1035,14 @@ export class Messages {
             }),
             48,
           ).items;
-          const window = [...items, ...related],
-            views: MessageView[] = [],
-            missing: MessageItem[] = [];
-          for (const item of window) {
-            const cached =
-              this.verified.read(snapshot, item) ??
-              (await this.readCached(a, snapshot, item));
-            if (cached) views.push(cached);
-            else missing.push(item);
-          }
-          if (missing.length) {
-            const machine = await this.machine(a, generation);
-            try {
-              await machine.prepare(a);
-              await this.receive(a, machine, generation);
-              const fetched = await this.readBatch({
-                a,
-                generation,
-                api,
-                snapshot,
-                machine,
-                items: missing,
-                skipUnavailable: false,
-              });
-              views.push(...fetched.values());
-            } finally {
-              machine.close();
-            }
-          }
-          const byId = new Map(views.map((view) => [view.id, view]));
-          const ordered = window.map((item) => byId.get(item.id)!);
-          await indexSearch(a, ordered);
+          const window = [...items, ...related];
+          const ordered = await this.readWindow({
+            a,
+            generation,
+            api,
+            snapshot,
+            items: window,
+          });
           const delivered = await this.refreshDelivery(
             snapshot,
             generation,
@@ -1072,7 +1064,24 @@ export class Messages {
       await this.confirmVisible(token, staged.snapshot, generation, options);
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
-      this.verified.remember(staged.snapshot, staged.window, staged.liveViews);
+      if ('changes' in staged) {
+        this.index.rememberChanges({
+          ...staged,
+          items: staged.changes,
+          selected,
+        });
+        this.conversations.advance(staged.from, staged.snapshot, [
+          ...new Set(
+            staged.changes.map((item) => messagePeer(staged.account, item)),
+          ),
+        ]);
+        this.verified.clear();
+      } else
+        this.verified.remember(
+          staged.snapshot,
+          staged.window,
+          staged.liveViews,
+        );
       this.confirmConversationChanges(staged.snapshot);
       this.rememberConversation();
     } catch (error: unknown) {
@@ -1089,6 +1098,44 @@ export class Messages {
       this.visibility.fail(token);
       throw error;
     }
+  }
+  /** Open only the requested packets, keeping durable verification and the
+   * same unavailable-packet handling for full and incremental windows. */
+  private async readWindow(c: {
+    a: VaultAuthority;
+    generation: number;
+    api: (operation: string, data: Record<string, unknown>) => Promise<unknown>;
+    snapshot: unknown;
+    items: MessageItem[];
+  }): Promise<MessageView[]> {
+    const views = new Map<string, MessageView>(),
+      missing: MessageItem[] = [];
+    for (const item of c.items) {
+      const cached =
+        this.verified.read(c.snapshot, item) ??
+        (await this.readCached(c.a, c.snapshot, item));
+      if (cached) views.set(item.id, cached);
+      else missing.push(item);
+    }
+    if (missing.length) {
+      const machine = await this.machine(c.a, c.generation, c.api);
+      try {
+        await machine.prepare(c.a);
+        await this.receive(c.a, machine, c.generation, c.api);
+        const fetched = await this.readBatch({
+          ...c,
+          items: missing,
+          machine,
+          skipUnavailable: false,
+        });
+        for (const [id, view] of fetched) views.set(id, view);
+      } finally {
+        machine.close();
+      }
+    }
+    const ordered = c.items.map((item) => views.get(item.id)!);
+    await indexSearch(c.a, ordered);
+    return ordered;
   }
   private async confirmVisible(
     token: number,
@@ -1828,7 +1875,6 @@ export class Messages {
           }
           const snapshot = await api('snapshot', {});
           this.guard(generation);
-          this.confirmed = null;
           this.probedSnapshot = snapshot;
           this.visibility.discard(token);
           return true;
