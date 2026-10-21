@@ -1,3 +1,7 @@
+import { dmFailure } from './dm-failures.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
+import { DmProjections } from './dm-projections.ts';
+import { DmContinuations } from './dm-continuation.ts';
 import { EmojiPicker } from '../emoji/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
@@ -84,6 +88,7 @@ export function startSocialDmUi(
         if (pending) await controller.sendMedia(selected);
         if (text.trim()) await sendText(selected, text);
       }
+      if (selected !== peer) return;
       before = null;
       await conversation();
     },
@@ -127,7 +132,21 @@ export function startSocialDmUi(
       refreshes.resume();
     },
   });
+  const projections = new DmProjections();
   const workQueue = new DmWork();
+  const continuations = new DmContinuations({
+    available: () =>
+      !!session &&
+      (!!container || publicDirectory.available) &&
+      !busy &&
+      !composer.active &&
+      !live.connecting &&
+      navigator.onLine &&
+      document.visibilityState === 'visible',
+    run: () => {
+      void run(reload);
+    },
+  });
   const refreshes = new LiveUpdates({
     available: () =>
       (!!container || publicDirectory.available) &&
@@ -210,20 +229,24 @@ export function startSocialDmUi(
       container.replaceChildren(communityElement('p', message, 'chat-gate'));
   }
   async function run(work: () => Promise<void>): Promise<void> {
-    const old = generation;
+    const old = generation,
+      account = session,
+      queuedAt = performance.now();
     await workQueue.run(async () => {
       if (old !== generation) return;
       const expected = verification;
       busy = true;
       composer.update(composerState());
       try {
-        await work();
+        await measureWork(controller, 'dm-foreground', work, queuedAt);
+        continuations.clear();
       } catch (error: unknown) {
-        if (
-          old === generation &&
-          expected === verification &&
-          !(error instanceof DOMException && error.name === 'AbortError')
-        ) {
+        const failure = dmFailure(error, {
+          sameSession: sameSession(account, session),
+          current: old === generation && expected === verification,
+        });
+        if (failure === 'continue') continuations.request();
+        else if (failure !== 'ignore') {
           closeGate();
           status(
             error instanceof Error
@@ -235,10 +258,13 @@ export function startSocialDmUi(
         busy = false;
         if (old === generation) composer.update(composerState());
         refreshes.resume();
+        continuations.resume();
       }
     });
   }
   function closeGate(): void {
+    projections.clear();
+    continuations.clear();
     verification++;
     controller.cancel();
     writable = false;
@@ -448,11 +474,25 @@ export function startSocialDmUi(
     current.request.hidden = gate === null;
     current.request.textContent = gate ?? '';
     writable = !data.offline && gate === null;
-    await messages(current, selected, old, { cached: data.page, work });
+    const page = await messages(current, selected, old, {
+      cached: data.page,
+      work,
+    });
+    projections.remember(
+      { ...data, page },
+      {
+        current: currentVerification(old, expected),
+        live: live.current,
+        before,
+      },
+    );
   }
   function paintHeader(
     current: DmView,
-    data: Awaited<ReturnType<typeof loadConversation>>,
+    data: Pick<
+      Awaited<ReturnType<typeof loadConversation>>,
+      'profile' | 'value' | 'offline'
+    >,
   ): void {
     if (!data.profile) {
       current.title.textContent = t('DM history on this device');
@@ -469,25 +509,27 @@ export function startSocialDmUi(
     selected: string,
     old: number,
     input: { cached: DmPage | null; work: VaultWorkOptions },
-  ): Promise<void> {
-    const expected = verification;
+  ): Promise<DmPage | undefined> {
+    const expected = verification,
+      canWrite = writable;
     const page =
       input.cached ??
-      (writable
+      (canWrite
         ? await controller.read(selected, before, input.work)
         : await controller.cached(selected, before, input.work));
-    const draft = writable
+    const draft = canWrite
       ? await controller.pending(selected, input.work)
       : null;
-    pendingMedia = writable
+    const mediaPending = canWrite
       ? await controller.mediaDraft(selected, input.work)
       : false;
     if (old !== generation || expected !== verification) return;
+    pendingMedia = mediaPending;
     if (draft) {
       messageId = draft.id;
       composer.restoreDraft(draft.text);
     }
-    renderHistory(current, page, { selected, localMedia: !writable });
+    renderHistory(current, page, { selected, localMedia: !canWrite });
     current.history.hidden = false;
     composer.update(composerState());
     const usable = () =>
@@ -497,7 +539,7 @@ export function startSocialDmUi(
       document.visibilityState === 'visible' &&
       current.history.isConnected &&
       current.history.getClientRects().length > 0;
-    if (writable)
+    if (canWrite)
       await readVisibleDm({
         history: current.history,
         controller,
@@ -507,6 +549,7 @@ export function startSocialDmUi(
         usable,
         changed: () => unread.request(),
       });
+    return page;
   }
   function options(
     current: DmView,
@@ -529,6 +572,7 @@ export function startSocialDmUi(
         icon: blocked ? 'unblock' : 'block',
       },
       async () => {
+        projections.clear();
         await controller.request('block', {
           peer: selected,
           blocked: !blocked,
@@ -677,32 +721,34 @@ export function startSocialDmUi(
   function editable(item: DmItem): boolean {
     return item.own && item.kind === 'text';
   }
-  function leave(): void {
-    if (!publicDirectory.available) {
-      stopLifecycle?.();
-      stopLifecycle = null;
-    }
+  function clearView(): void {
     workQueue.reset();
+    continuations.clear();
     refreshes.clear();
     if (view) clearDmChecks(view.history);
     emojiPicker.reset();
     clearRows();
     composer.leave();
-    if (!publicDirectory.available) {
-      streamCurrent = false;
-      live.stop();
-      if (fallback) clearInterval(fallback);
-      fallback = null;
-    }
     playback.close();
     generation++;
-    controller.cancel();
     container = null;
     view = null;
     viewKey = '';
     writable = false;
     pendingMedia = false;
     messageId = crypto.randomUUID();
+  }
+  function leave(): void {
+    clearView();
+    if (!publicDirectory.available) {
+      projections.clear();
+      stopLifecycle?.();
+      stopLifecycle = null;
+      streamCurrent = false;
+      live.stop();
+      if (fallback) clearInterval(fallback);
+      fallback = null;
+    }
   }
   return {
     ready: () => unread.start(),
@@ -718,7 +764,7 @@ export function startSocialDmUi(
       unread.request();
     },
     mount(node: HTMLElement, id: string | null, local = false): void {
-      leave();
+      clearView();
       container = node;
       peer = id;
       localOnly = local;
@@ -736,7 +782,22 @@ export function startSocialDmUi(
         );
         return;
       }
-      status(id ? t('Opening conversation…') : t('Loading handle messages…'));
+      const restored = id
+        ? projections.get(id, live.current && navigator.onLine && !localOnly)
+        : null;
+      if (restored && id) {
+        const current = frame(id);
+        paintHeader(current, restored);
+        options(current, id, restored.profile, restored.value);
+        renderHistory(current, restored.page, {
+          selected: id,
+          localMedia: false,
+        });
+        current.history.hidden = false;
+        writable = true;
+        composer.update(composerState());
+      } else
+        status(id ? t('Opening conversation…') : t('Loading handle messages…'));
       const old = generation;
       void run(async () => {
         const profile =
@@ -756,6 +817,7 @@ export function startSocialDmUi(
       if (sameSession(value, session)) return;
       const node = container;
       publicDirectory.clear();
+      projections.clear();
       leave();
       session = value;
       ownProfile = null;

@@ -62,6 +62,9 @@
 .community-topic-dot[data-topic='tiktok'] {
   background: var(--topic-tiktok);
 }
+.community-topic-dot[data-topic='games'] {
+  background: var(--topic-games);
+}
 .community-nsfw-badge {
   font-weight: 750;
   color: var(--warn);

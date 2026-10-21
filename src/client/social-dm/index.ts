@@ -6,7 +6,9 @@ import {
 } from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { projectDmMessages } from './presentation.ts';
-import { synchronizeDmHistory } from './history-sync.ts';
+import { DmHistorySynchronization, confirmDmHistory } from './history-sync.ts';
+import type { DmHistorySnapshot } from './history-sync.ts';
+import { WorkInterruption } from '../synchronization-work/index.ts';
 import { readDmDirectoryPreviews } from './directory-previews.ts';
 import { dmUnreadCursors, dmUnreadCount, markDmRead } from './unread.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
@@ -102,6 +104,7 @@ export class SocialDms {
   private readonly access: VaultAccess;
   private readonly sync: VaultSync;
   private generation = 0;
+  private readonly history = new DmHistorySynchronization();
   private session: AccountSession | null = null;
   private readonly removals = new RemovalIndex();
   private machine: MessageCrypto | null = null;
@@ -119,10 +122,12 @@ export class SocialDms {
     this.generation++;
     this.session = session;
     this.removals.reset();
+    this.history.reset();
     this.close();
   }
   cancel(): void {
     this.generation++;
+    this.history.reset();
     this.close();
   }
   close(): void {
@@ -131,7 +136,7 @@ export class SocialDms {
   }
   private guard(generation: number): void {
     if (generation !== this.generation || !this.session)
-      throw new Error('DM session changed.');
+      throw new WorkInterruption('session');
   }
   private privateApi(authority: VaultAuthority, generation: number): SocialApi {
     if (
@@ -738,11 +743,11 @@ export class SocialDms {
   }
   private async synchronizeHistory(
     options: VaultWorkOptions = {},
-  ): Promise<unknown> {
+  ): Promise<DmHistorySnapshot | null> {
     const generation = this.generation;
-    let snapshot: unknown = null;
+    let snapshot: DmHistorySnapshot | null = null;
     if (navigator.onLine) {
-      snapshot = await synchronizeDmHistory({
+      snapshot = await this.history.run({
         snapshot: () => this.request('personal-snapshot', {}, options),
         guard: () => this.guard(generation),
         page: (snapshot, after) => this.historyPage(snapshot, after, options),
@@ -805,14 +810,10 @@ export class SocialDms {
               )
             : [],
       });
-      if (
-        snapshot !== null &&
-        canonical(
+      if (snapshot !== null)
+        confirmDmHistory(
+          snapshot,
           await this.privateApi(a, generation)('personal-snapshot', {}),
-        ) !== canonical(snapshot)
-      )
-        throw new Error(
-          'DM history changed while reading. Resume synchronization.',
         );
       this.guard(generation);
       return previews;

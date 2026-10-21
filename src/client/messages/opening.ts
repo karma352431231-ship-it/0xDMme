@@ -24,6 +24,13 @@ export class ConversationOpening {
       };
     });
   }
+  reuse(): boolean {
+    const pending = this.pending;
+    if (!pending?.reuse()) return false;
+    if (this.pending === pending) this.pending = null;
+    pending.done();
+    return true;
+  }
   take(): PendingOpening | null {
     const pending = this.pending;
     this.pending = null;

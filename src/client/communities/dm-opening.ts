@@ -1,3 +1,4 @@
+import { WorkInterruption } from '../synchronization-work/index.ts';
 import { socialRelation } from '../../shared/social-dm/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
@@ -28,7 +29,7 @@ export async function openDmConversation(
   options: VaultWorkOptions = {},
 ): Promise<SocialRelation> {
   const value = await source.state(peer, options);
-  if (!usable()) throw new DOMException('DM ended.', 'AbortError');
+  if (!usable()) throw new WorkInterruption('navigation');
   if (
     value &&
     (value.state === 'approved' ||

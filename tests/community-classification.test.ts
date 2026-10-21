@@ -52,6 +52,35 @@ await test('community topics: up to two unique known topics, canonical order and
     AccountError,
   );
 });
+await test('Games is an accepted fixed topic and an independent ranking filter', (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: communityDocument(),
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else Reflect.deleteProperty(globalThis, 'document');
+    setActiveLanguage('en');
+  });
+  assert.deepEqual(
+    communityCreationClassification({ nsfw: false, topics: ['games', 'tech'] }),
+    { nsfw: false, topics: ['games', 'tech'] },
+  );
+  assert.deepEqual(
+    exploreFilter({ order: 'new', period: 'day', topics: ['games'] }).topics,
+    ['games'],
+  );
+  for (const locale of ['en', 'zh-CN'] as const) {
+    setActiveLanguage(locale);
+    assert.match(
+      classificationBadges({ nsfw: false, topics: ['games'] }).textContent ??
+        '',
+      locale === 'en' ? /Games/ : /游戏/,
+    );
+  }
+  setActiveLanguage('en');
+});
 await test('new communities require a topic while historical empty classifications remain valid', () => {
   for (const input of [
     undefined,

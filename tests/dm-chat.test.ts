@@ -102,5 +102,8 @@ await test('leaving a DM while its state loads cannot create a conversation in t
   );
   usable = false;
   state.resolve(null);
-  await assert.rejects(opening, { name: 'AbortError' });
+  await assert.rejects(opening, {
+    name: 'WorkInterruption',
+    origin: 'navigation',
+  });
 });

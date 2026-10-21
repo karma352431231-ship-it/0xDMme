@@ -1,3 +1,4 @@
+import { deferred, waitForBoundary } from '../fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
@@ -1158,6 +1159,106 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
           categories: ['activity', 'handle-messages'],
         })),
       );
+    },
+  );
+  await t.test(
+    'public history anchor excludes no earlier pending transaction',
+    async () => {
+      const aliceAuthority = {
+        session: alice.login.session,
+        directory: alice.directory,
+      };
+      const bobAuthority = {
+        session: bob.login.session,
+        directory: bob.directory,
+      };
+      const entered = deferred<number>(),
+        release = deferred<void>();
+      const packets = await Promise.all(
+        [0, 1].map(() =>
+          am.encrypt({
+            authority: a.authority,
+            peerHistory: b.authority.events,
+            recovery: [ar, br],
+            id: crypto.randomUUID(),
+            text: 'Concurrent history fixture',
+          }),
+        ),
+      );
+      // Exercise the production admission transaction used by publish and the real
+      // snapshot/page readers. Packet crypto validity is covered above.
+      const insert = (index: number) =>
+        db.socialDm.withActor(aliceAuthority, async (context) => {
+          const body = packets[index]!;
+          const row = await context.client.query<{ sequence: string }>(
+            'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6) RETURNING sequence::text',
+            [
+              body.id,
+              body.sender,
+              body.recipient,
+              await digest(canonical(body)),
+              JSON.stringify(body),
+              Buffer.byteLength(JSON.stringify(body)) + 512,
+            ],
+          );
+          const sequence = Number(row.rows[0]!.sequence);
+          if (index === 0) {
+            entered.resolve(sequence);
+            await release.promise;
+          }
+          return sequence;
+        });
+      const lower = insert(0);
+      const firstSequence = await waitForBoundary(entered.promise);
+      let snapshotSettled = false;
+      const higher = insert(1),
+        snapshot = db.socialHistory.snapshot(bobAuthority).then((value) => {
+          snapshotSettled = true;
+          return value;
+        });
+      try {
+        await waitForBoundary(
+          (async () => {
+            const deadline = Date.now() + 2500;
+            while (Date.now() < deadline) {
+              const waiting = await inspector.query<{ count: number }>(
+                "SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%contact-admission%'",
+              );
+              if (waiting.rows[0]!.count >= 2) return;
+              await new Promise<void>((resolve) => setTimeout(resolve, 2));
+            }
+            throw new Error(
+              'Concurrent readers did not reach the admission lock.',
+            );
+          })(),
+        );
+        assert.equal(
+          snapshotSettled,
+          false,
+          'Snapshot must wait while an earlier sequence can still commit',
+        );
+      } finally {
+        release.resolve();
+      }
+      try {
+        await Promise.all([lower, higher]);
+        const target = await snapshot;
+        assert.ok(target && target.anchor >= firstSequence);
+        const page = await db.socialHistory.page(bobAuthority, {
+          snapshot: target,
+          after: firstSequence - 1,
+          actions: true,
+          edits: true,
+        });
+        assert.ok(page.items.some((row) => row.id === packets[0]!.id));
+        const next = await db.socialHistory.snapshot(bobAuthority);
+        assert.ok(next && next.anchor >= (await higher));
+      } finally {
+        await inspector.query(
+          'DELETE FROM hash_talk.social_messages WHERE id=ANY($1::uuid[])',
+          [packets.map((body) => body.id)],
+        );
+      }
     },
   );
   await t.test(

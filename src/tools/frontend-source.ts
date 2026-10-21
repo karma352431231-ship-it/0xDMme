@@ -10,6 +10,8 @@ const authored = [
   'src/shared/app-routes',
   'src/shared/chat-sync-diagnostics',
   'src/client/chat-sync-diagnostics',
+  'src/client/synchronization-work',
+  'src/client/synchronization-diagnostics',
   'src/shared/community-address',
   'src/client/app-navigation',
   'src/client/language',

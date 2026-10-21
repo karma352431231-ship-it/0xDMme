@@ -1,3 +1,8 @@
+import {
+  groupDescription,
+  groupPhoto,
+} from '../../shared/group-messages/index.ts';
+import type { GroupPhoto } from '../../shared/group-messages/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { groupEvent } from '../../shared/groups/index.ts';
@@ -81,7 +86,12 @@ export class GroupCatalog {
     }
     return { items, next: page.next };
   }
-  async creation(): Promise<{ event: GroupEvent; title: string } | null> {
+  async creation(): Promise<{
+    event: GroupEvent;
+    title: string;
+    description: string;
+    photo: GroupPhoto | null;
+  } | null> {
     const row = await localGet<LocalCipher>(this.scope, 'creation');
     if (!row) return null;
     const data = object(await this.open('creation', row)),
@@ -91,10 +101,18 @@ export class GroupCatalog {
       event.actor !== this.authority.session.accountId
     )
       throw new Error('Invalid local creation.');
-    return { event, title: groupTitle({ version: 1, title: data['title'] }) };
+    return {
+      event,
+      title: groupTitle({ version: 1, title: data['title'] }),
+      description: groupDescription(data['description'] ?? ''),
+      photo: groupPhoto(data['photo'] ?? null),
+    };
   }
-  saveCreation(event: GroupEvent, title: string): Promise<void> {
-    return this.put('creation', { event, title });
+  saveCreation(
+    event: GroupEvent,
+    profile: { title: string; description: string; photo: GroupPhoto | null },
+  ): Promise<void> {
+    return this.put('creation', { event, ...profile });
   }
   clearCreation(): Promise<void> {
     return localDelete(this.scope, 'creation');

@@ -4,7 +4,10 @@ import {
   verifyGroupDeletion,
 } from '../src/shared/group-messages/index.ts';
 import { messageBody } from '../src/shared/messages/index.ts';
-import { groupProfilePhoto } from '../src/shared/group-messages/index.ts';
+import {
+  groupProfilePhoto,
+  groupProfileDescription,
+} from '../src/shared/group-messages/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initAsync } from '@matrix-org/matrix-sdk-crypto-wasm';
@@ -223,7 +226,12 @@ await test("real Megolm recovers only the member's addressed period and rejects 
     'administrative photo stays encrypted and recoverable only by members of the period',
     async () => {
       const photo = fixtureGroupPhoto(),
-        text = JSON.stringify({ version: 1, title: 'Grupo', photo });
+        text = JSON.stringify({
+          version: 1,
+          title: 'Grupo',
+          photo,
+          description: 'Members only description',
+        });
       const payload = await sender.encryptGroup({
         authority: owner.authority,
         state,
@@ -235,6 +243,10 @@ await test("real Megolm recovers only the member's addressed period and rejects 
         kind: 'profile',
       });
       assert.equal(JSON.stringify(payload).includes(photo.base64), false);
+      assert.equal(
+        JSON.stringify(payload).includes('Members only description'),
+        false,
+      );
       const capsule = payload.keys.archives.find(
         (a) => a.accountId === member.accountId,
       )!;
@@ -246,6 +258,10 @@ await test("real Megolm recovers only the member's addressed period and rejects 
         exported: openRoomKey(readerKey, capsule),
       });
       assert.deepEqual(groupProfilePhoto(JSON.parse(opened) as unknown), photo);
+      assert.equal(
+        groupProfileDescription(JSON.parse(opened) as unknown),
+        'Members only description',
+      );
     },
   );
   await t.test(

@@ -1,3 +1,4 @@
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 
 interface WaitingWork {
@@ -23,7 +24,8 @@ export class AuthorityWork {
       return Promise.reject(
         new Error('Wait for conversations to update, then try again.'),
       );
-    const deadline = performance.now() + 8000;
+    const queuedAt = performance.now();
+    const deadline = queuedAt + 8000;
     return new Promise<T>((resolve, reject) => {
       const entry: WaitingWork = {
         interactive: priority === 'interactive',
@@ -40,7 +42,14 @@ export class AuthorityWork {
             return;
           }
           try {
-            resolve(await work(Math.min(8000, remaining)));
+            resolve(
+              await measureWork(
+                this,
+                'authority-queue',
+                () => work(Math.min(8000, remaining)),
+                queuedAt,
+              ),
+            );
           } catch (error: unknown) {
             reject(
               error instanceof Error

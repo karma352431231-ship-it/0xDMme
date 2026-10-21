@@ -140,7 +140,8 @@ await test('A to B to A keeps navigation available with large verified profile p
   }
   for (const peer of [f.peer, other]) {
     f.controller.select(peer);
-    await f.controller.synchronize();
+    let next = await f.controller.synchronize();
+    while (next) next = await next.resume();
   }
   const requests = f.data.requests.length,
     reads = f.data.authorityReads;
@@ -389,7 +390,10 @@ await test('pause during confirmation cancels publication and cannot turn in-pro
       release = () => resolve(Response.json({}));
     });
   const loading = controller.synchronize();
-  const rejected = assert.rejects(loading, /superseded|replaced/);
+  const rejected = assert.rejects(loading, {
+    name: 'WorkInterruption',
+    origin: 'authorization',
+  });
   const deadline = Date.now() + 2000;
   while (!release && Date.now() < deadline) await setImmediate();
   assert.ok(release, 'A leitura não chegou à confirmação dentro do prazo.');
@@ -596,9 +600,10 @@ await test('large history continues its partially checked index on resume instea
   const pending = await controller.synchronize();
   assert.ok(pending);
   assert.equal(data.frames.at(-1), null);
-  assert.equal(data.requests.filter((op) => op === 'page').length, 8);
+  assert.equal(data.requests.filter((op) => op === 'page').length, 1);
   controller.pause();
-  await pending.resume();
+  let next = await controller.synchronize();
+  while (next) next = await next.resume();
   assert.equal(data.requests.filter((op) => op === 'page').length, 9);
   assert.equal(data.frames.at(-1)?.length, 16);
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Fictícia 128');
@@ -851,4 +856,61 @@ await test('headless private notification reads the exact verified message witho
   abort.abort();
   await assert.rejects(reader.read(f.peer, item.id));
   reader.close();
+});
+
+await test('late confirmation from A cannot replace a restored B or discard valid C', async () => {
+  const f = resumeFixture(true),
+    b = crypto.randomUUID(),
+    c = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  for (const peer of [f.peer, b, c]) await f.add('Synthetic', peer);
+  for (const peer of [f.peer, b, c]) {
+    f.controller.select(peer);
+    await f.controller.synchronize();
+  }
+  f.controller.select(f.peer);
+  const gate = deferred<Response>(),
+    entered = deferred<void>();
+  f.data.confirmation = () => {
+    entered.resolve();
+    return gate.promise;
+  };
+  const loading = f.controller.synchronize();
+  const rejected = assert.rejects(loading, {
+    name: 'WorkInterruption',
+    origin: 'navigation',
+  });
+  await entered.promise;
+  f.controller.select(b);
+  assert.equal(f.controller.restoreSelected(), true);
+  gate.resolve(Response.json({}));
+  await rejected;
+  assert.ok(f.data.frames.at(-1)?.every((row) => row.peer === b));
+  assert.equal(f.controller.canRestore(c), true);
+});
+await test('late authorization denial still closes current account access after a selection change', async () => {
+  const f = resumeFixture(true),
+    b = crypto.randomUUID();
+  f.controller.setLiveConnected(true);
+  for (const peer of [f.peer, b]) await f.add('Synthetic', peer);
+  for (const peer of [f.peer, b]) {
+    f.controller.select(peer);
+    await f.controller.synchronize();
+  }
+  f.controller.select(f.peer);
+  const gate = deferred<Response>(),
+    entered = deferred<void>();
+  f.data.confirmation = () => {
+    entered.resolve();
+    return gate.promise;
+  };
+  const loading = f.controller.synchronize();
+  const rejected = assert.rejects(loading);
+  await entered.promise;
+  f.controller.select(b);
+  assert.equal(f.controller.restoreSelected(), true);
+  gate.resolve(Response.json({ error: 'Denied' }, { status: 403 }));
+  await rejected;
+  assert.equal(f.data.frames.at(-1), null);
+  assert.equal(f.controller.canRestore(b), false);
 });

@@ -1,3 +1,4 @@
+import { expectedInterruption } from '../synchronization-work/index.ts';
 import { MessageWarmup } from './warmup.ts';
 import type { ChatSyncReason } from '../../shared/chat-sync-diagnostics/index.ts';
 
@@ -25,13 +26,15 @@ export class ConnectedConversationVisits<T> {
       available: ports.backgroundReady,
       run: ports.background,
       changed: () => this.resume(),
-      failed: ports.failed,
+      failed: (error) => {
+        if (!expectedInterruption(error)) ports.failed();
+      },
       steps: [
         async () => {
           try {
             await ports.check();
           } catch (error: unknown) {
-            ports.failed();
+            if (!expectedInterruption(error)) ports.failed();
             throw error;
           }
         },

@@ -1,8 +1,9 @@
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { messageBody } from '../../shared/messages/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
-export async function messageApi(
+async function requestMessage(
   authority: VaultAuthority,
   operation: string,
   payload: Record<string, unknown>,
@@ -28,6 +29,16 @@ export async function messageApi(
   const data = await readApiJson(response, `messages/${operation}`);
   guard();
   return data;
+}
+export function messageApi(
+  authority: VaultAuthority,
+  operation: string,
+  payload: Record<string, unknown>,
+  control: (() => void) | { guard: () => void; signal: AbortSignal },
+): Promise<unknown> {
+  return measureWork(authority, `messages/${operation}`, () =>
+    requestMessage(authority, operation, payload, control),
+  );
 }
 export type SigningAuthority = Pick<
   VaultAuthority,

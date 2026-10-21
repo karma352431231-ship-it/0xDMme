@@ -1,3 +1,4 @@
+import { GroupCreationFields } from './creation-fields.ts';
 import {
   t,
   translatedError,
@@ -5,7 +6,6 @@ import {
 } from '../../shared/i18n/index.ts';
 import { GroupPeople } from './people.ts';
 import type { GroupProfile } from './people.ts';
-import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -29,6 +29,7 @@ export class GroupActionsUi {
   private readonly options: GroupActionsOptions;
   private dialog: HTMLDialogElement | null = null;
   private busy = false;
+  private readonly creation = new GroupCreationFields();
   private readonly contacts: Contacts;
   private readonly people: GroupPeople;
   constructor(options: GroupActionsOptions) {
@@ -42,6 +43,7 @@ export class GroupActionsUi {
   }
   reset(): void {
     this.people.clear();
+    this.creation.reset();
     this.dialog?.close();
     this.dialog?.remove();
     this.dialog = null;
@@ -63,7 +65,10 @@ export class GroupActionsUi {
       if (this.busy) event.preventDefault();
     });
     dialog.addEventListener('close', () => {
-      if (this.dialog === dialog) this.people.clear();
+      if (this.dialog === dialog) {
+        this.people.clear();
+        this.creation.reset();
+      }
       dialog.remove();
       if (this.dialog === dialog) this.dialog = null;
     });
@@ -103,22 +108,16 @@ export class GroupActionsUi {
   }
   showCreate(): void {
     const dialog = this.show(t('Create private group'), t('html.c392c59440f2'));
-    const titleInput =
-      dialog.querySelector<HTMLInputElement>('input[name=title]');
-    titleInput?.addEventListener('input', () => {
-      const avatar = dialog.querySelector<HTMLElement>('[data-create-avatar]');
-      if (avatar)
-        paintAvatar(avatar, {
-          label: titleInput.value,
-          seed: titleInput.value,
-        });
-    });
+    this.creation.mount(dialog);
     dialog.querySelector('form')?.addEventListener('submit', (event) => {
       event.preventDefault();
       void this.perform(async () => {
         const title =
-          dialog.querySelector<HTMLInputElement>('input')?.value ?? '';
-        const id = await this.options.controller.create(title);
+          dialog.querySelector<HTMLInputElement>('input[name=title]')?.value ??
+          '';
+        const profile = await this.creation.read();
+        if (this.dialog !== dialog) return;
+        const id = await this.options.controller.create(title, profile);
         await this.options.refresh();
         await this.options.open(id);
         dialog.close();

@@ -1,4 +1,4 @@
-import { t } from '../../shared/i18n/index.ts';
+import { WorkInterruption } from '../synchronization-work/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -15,18 +15,27 @@ export interface Snapshot {
 export interface IndexItem extends GroupRemovalItem {
   deleted: boolean;
 }
-type ReadContext = GroupReadContext;
+type ReadContext = Omit<GroupReadContext, 'machine'> & { indexPages?: number };
 interface Progress {
   key: string;
   after: number;
   items: IndexItem[];
   from: number | null;
+  complete: boolean;
 }
-export class IncompleteGroupIndex extends Error {}
+export class IncompleteGroupIndex extends WorkInterruption {
+  constructor() {
+    super('continuation');
+  }
+}
 export class GroupMessageIndex {
-  private progress: Progress | null = null;
-  clear(): void {
-    this.progress = null;
+  private readonly progress = new Map<string, Progress>();
+  clear(groupId?: string): void {
+    if (groupId) this.progress.delete(groupId);
+    else this.progress.clear();
+  }
+  confirmed(snapshot: Snapshot): void {
+    this.progress.delete(snapshot.groupId);
   }
   async read(
     c: ReadContext,
@@ -35,24 +44,53 @@ export class GroupMessageIndex {
   ): Promise<IndexItem[] | null> {
     if (from?.revision === snapshot.revision) return [];
     const key = canonical([snapshot, c.authority.session.accountId]);
-    const progress = this.start(key, from),
+    const progress = this.start(snapshot.groupId, key, from),
       deadline = Date.now() + 45000;
-    this.progress = progress;
-    for (let page = 0; page < 8 && Date.now() < deadline; page++) {
+    if (progress.complete) return this.result(progress);
+    for (
+      let page = 0;
+      page < (c.indexPages ?? 8) && Date.now() < deadline;
+      page++
+    ) {
       if (!(await this.page(c, snapshot, progress))) continue;
-      this.progress = null;
-      return progress.from === null
-        ? null
-        : [...new Map(progress.items.map((item) => [item.id, item])).values()];
+      progress.complete = true;
+      return this.result(progress);
     }
-    throw new IncompleteGroupIndex(
-      t('Group index partially verified. Continue syncing.'),
-    );
+    throw new IncompleteGroupIndex();
   }
-  private start(key: string, from: Snapshot | null): Progress {
-    if (this.progress?.key === key) return this.progress;
+  private result(progress: Progress): IndexItem[] | null {
+    return progress.from === null
+      ? null
+      : [...new Map(progress.items.map((item) => [item.id, item])).values()];
+  }
+  private start(groupId: string, key: string, from: Snapshot | null): Progress {
+    const existing = this.progress.get(groupId);
+    if (existing?.key === key) return existing;
     const revision = from?.revision ?? null;
-    return { key, after: revision ?? 0, from: revision, items: [] };
+    const progress = {
+      key,
+      after: revision ?? 0,
+      from: revision,
+      items: [],
+      complete: false,
+    };
+    this.progress.delete(groupId);
+    this.progress.set(groupId, progress);
+    while (this.progress.size > 16)
+      this.progress.delete(this.progress.keys().next().value!);
+    return progress;
+  }
+  private trim(current: string): void {
+    let total = [...this.progress.values()].reduce(
+      (sum, progress) => sum + progress.items.length,
+      0,
+    );
+    for (const [id, progress] of this.progress) {
+      if (total <= 256) break;
+      if (id === current) continue;
+      this.progress.delete(id);
+      total -= progress.items.length;
+    }
   }
   private async page(
     c: ReadContext,
@@ -79,8 +117,9 @@ export class GroupMessageIndex {
       { ...c, groupId: snapshot.groupId, head: snapshot.head },
       items,
     );
-    appendChanges(progress, items);
     const next = readCursor(raw, { progress, snapshot, items });
+    appendChanges(progress, items);
+    this.trim(snapshot.groupId);
     if (next === null) return true;
     progress.after = next;
     return false;

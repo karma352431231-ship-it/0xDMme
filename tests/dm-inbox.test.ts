@@ -1,3 +1,4 @@
+import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -170,4 +171,31 @@ await test('returning to a visible app resumes handle receipt without entering a
   browserDocument.dispatchEvent(new Event('visibilitychange'));
   await turn();
   assert.equal(receipts, 1);
+});
+
+await test('public receipt continues bounded pages automatically without clearing confirmed notification state', async (t) => {
+  onlineBrowser(t);
+  let receipts = 0;
+  const counts: number[] = [];
+  const inbox = createDmInbox(
+    {
+      list: () => Promise.resolve({ items: [relation()], next: null }),
+      receive: () => {
+        receipts++;
+        return receipts < 4
+          ? Promise.reject(new WorkInterruption('continuation'))
+          : Promise.resolve();
+      },
+      unread: () => Promise.resolve(1),
+    },
+    (count) => counts.push(count),
+  );
+  inbox.reset(true);
+  inbox.start();
+  for (let n = 0; n < 20 && counts.at(-1) !== 1; n++)
+    await new Promise<void>((resolve) => setTimeout(resolve, 2));
+  assert.equal(receipts, 4);
+  assert.equal(counts.at(-1), 1);
+  assert.equal(counts.filter((count) => count === 0).length, 1);
+  inbox.reset(false);
 });

@@ -1,3 +1,4 @@
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { exclusive } from '../device-storage/index.ts';
 
@@ -10,8 +11,11 @@ export async function authorityTurn<T>(
   operation: () => Promise<T>,
   options: { waitMs: number; priority?: 'interactive' },
 ): Promise<T> {
+  const queuedAt = performance.now();
+  const measured = () =>
+    measureWork(operation, 'storage-exclusive', operation, queuedAt);
   const locks = navigator.locks;
-  if (!locks) return exclusive(accountId, operation, options.waitMs);
+  if (!locks) return exclusive(accountId, measured, options.waitMs);
   const deadline = performance.now() + options.waitMs;
   const signal = AbortSignal.timeout(options.waitMs);
   const acquire = () => {
@@ -26,7 +30,7 @@ export async function authorityTurn<T>(
       accountId,
       () => {
         signal.throwIfAborted();
-        return operation();
+        return measured();
       },
       remaining,
     );
