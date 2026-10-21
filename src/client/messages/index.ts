@@ -225,6 +225,7 @@ export function startMessages(
     },
     {
       recovery: () => synchronization.requestInbox('direct'),
+      stale: () => synchronization.request('probe', {}, 'direct'),
       published: (value) => {
         outgoing.acknowledge(value);
         renderHistory();
@@ -387,6 +388,7 @@ export function startMessages(
     request: (update, work, scope) =>
       synchronization.request(update, work, scope),
     inbox: (scope) => synchronization.requestInbox(scope),
+    receive: (scope) => synchronization.receive(scope),
     projection: (work, scope) => synchronization.requestProjection(work, scope),
     counters: (scope) => synchronization.requestCounters(scope),
     previews: () => {
@@ -1251,7 +1253,18 @@ export function startMessages(
     const changed = await controller.probe(work);
     if (selected !== peer || !conversationMounted('[data-direct-conversation]'))
       return;
-    if (changed) {
+    await applyProbe(changed, work);
+  }
+  /** Ordinary appends reach the open window through the account receiver.
+   * Removals, authority changes and a window the receiver passed need the
+   * selected history read; it is never the routine path for new messages. */
+  async function applyProbe(
+    changed: boolean,
+    work: VaultWorkOptions,
+  ): Promise<void> {
+    if (changed && controller.handOffAdvance())
+      synchronization.receive('direct');
+    else if (changed) {
       synchronization.prepareHistory('direct');
       await synchronization.history(
         () => controller.synchronize(work),

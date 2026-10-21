@@ -5,6 +5,8 @@ import {
   guardProjectionFailure,
 } from '../synchronization-work/index.ts';
 import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
+import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
+import { receiverOwnsAdvance, windowBehind } from './receiver-coverage.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
 import { MessageReceiveTurn } from './receive-turn.ts';
@@ -165,6 +167,8 @@ interface MessageControllerEvents {
   recovery?: () => void;
   published?: (value: { id: string; peer: string }) => void;
   verified?: (peer: string, views: MessageView[]) => void;
+  /** The open window fell behind the account receiver and needs a read. */
+  stale?: () => void;
 }
 interface Outbox {
   outboxOrder?: string;
@@ -222,6 +226,7 @@ export class Messages {
   private readonly recoveryAlarm: MessageRecoveryWakeup;
   private recoveryWake = 0;
   private recoveryHandled = 0;
+  private receiverCut: MessageSyncSnapshot | null = null;
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
   private prefetchAbort: AbortController | null = null;
@@ -232,6 +237,7 @@ export class Messages {
     peer: string,
     views: MessageView[],
   ) => void;
+  private readonly stale: () => void;
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -260,6 +266,8 @@ export class Messages {
       typeof events === 'function' ? events : (events.published ?? (() => {}));
     this.verifiedProjection =
       typeof events === 'function' ? () => {} : (events.verified ?? (() => {}));
+    this.stale =
+      typeof events === 'function' ? () => {} : (events.stale ?? (() => {}));
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {
     const session = this.session,
@@ -377,6 +385,7 @@ export class Messages {
     this.conversations.clear('controller-close');
     this.probedSnapshot = null;
     this.confirmed = null;
+    this.receiverCut = null;
     this.verified.clear();
     this.generation++;
     this.visibility.close();
@@ -434,6 +443,21 @@ export class Messages {
     this.probedSnapshot = null;
     this.conversations.hint();
     this.visibility.hint();
+  }
+  /** Leave a probed append-only advance to the account receiver, which updates
+   * the open window from its own commit; otherwise keep it for a read. */
+  handOffAdvance(): boolean {
+    if (
+      !this.confirmed ||
+      !receiverOwnsAdvance({
+        window: this.confirmed.snapshot,
+        probed: this.probedSnapshot,
+        receiver: this.receiverCut,
+      })
+    )
+      return false;
+    this.probedSnapshot = null;
+    return true;
   }
   setLiveConnected(connected: boolean): void {
     if (connected) this.recoveryWake++;
@@ -1968,7 +1992,7 @@ export class Messages {
       this.index.rememberTailPage(catalog);
     else this.index.rememberConfirmedPage(catalog);
     const blocked = new Set(batch.pending.map((item) => item.peer));
-    this.conversations.updateVerified({
+    const covered = this.conversations.updateVerified({
       from: batch.from,
       snapshot: batch.snapshot,
       hints,
@@ -1985,10 +2009,31 @@ export class Messages {
           batch.views.filter((view) => view.peer === peer),
         ),
     });
-    if (!this.selected || !batch.complete || blocked.has(this.selected)) return;
-    const candidate = this.conversations.read(this.selected);
-    if (!candidate || candidate.snapshot !== JSON.stringify(batch.snapshot))
+    if (batch.complete) this.receiverCut = batch.snapshot;
+    if (
+      !this.selected ||
+      this.before !== null ||
+      !batch.complete ||
+      blocked.has(this.selected)
+    )
       return;
+    this.publishSelectedReceipt(batch.snapshot, covered.has(this.selected));
+  }
+  /** The open latest window shows the receiver's commit when the batch covered
+   * it; a window the cut passed without covering asks for its own read. */
+  private publishSelectedReceipt(
+    snapshot: MessageSyncSnapshot,
+    covered: boolean,
+  ): void {
+    if (!covered) {
+      if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
+        this.stale();
+      return;
+    }
+    const candidate = this.selected
+      ? this.conversations.read(this.selected)
+      : null;
+    if (!candidate) return;
     this.confirmed = candidate;
     this.verified.clear();
     const token = this.visibility.refresh();

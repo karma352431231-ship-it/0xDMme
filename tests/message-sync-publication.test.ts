@@ -290,3 +290,61 @@ await test('a repaired closed conversation advances its older coverage and publi
   );
   assert.equal(publications.length, 1);
 });
+
+await test('an append-only journal cut covers a window the open chat read between its endpoints; a removal fence or a window ahead never replays rows', () => {
+  const cache = new ConfirmedConversations<typeof view>();
+  cache.connection(true);
+  const at = (revision: number, invalidation = 0): MessageSyncSnapshot => ({
+    ...from,
+    revision,
+    anchor: revision,
+    invalidation,
+  });
+  const arrived = { ...view, id: crypto.randomUUID(), sequence: 4 };
+  const cut = (snapshot: MessageSyncSnapshot) => {
+    const published: string[] = [];
+    const covered = cache.updateVerified({
+      from: at(1),
+      snapshot,
+      hints: cache.hintVersion,
+      complete: true,
+      blocked: new Set(),
+      publish: (peer) => published.push(peer),
+      project: (_peer, rows) => [...rows, arrived],
+    });
+    return { covered: [...covered], published };
+  };
+  const remember = (revision: number, invalidation = 0) =>
+    cache.remember(peer, {
+      snapshot: JSON.stringify(at(revision, invalidation)),
+      views: [view],
+      oldest: 1,
+    });
+
+  remember(3);
+  assert.deepEqual(cut(at(5)), { covered: [peer], published: [peer] });
+  assert.equal(cache.reusable(peer)!.snapshot, JSON.stringify(at(5)));
+  assert.deepEqual(
+    cache.reusable(peer)!.views.map((row) => row.id),
+    [view.id, arrived.id],
+  );
+
+  // A removal between the window and the cut advanced the fence.
+  remember(3);
+  assert.deepEqual(cut(at(5, 4)), { covered: [], published: [] });
+  assert.equal(cache.reusable(peer), null);
+
+  // A window older than the cut's start misses the changes before it.
+  remember(0);
+  assert.deepEqual(cut(at(5)), { covered: [], published: [] });
+  assert.equal(cache.reusable(peer), null);
+
+  // A window ahead of the cut keeps its verified rows untouched.
+  remember(6);
+  assert.deepEqual(cut(at(5)), { covered: [], published: [] });
+  assert.deepEqual(
+    cache.reusable(peer)!.views.map((row) => row.id),
+    [view.id],
+  );
+  assert.equal(cache.reusable(peer)!.snapshot, JSON.stringify(at(6)));
+});

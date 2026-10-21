@@ -7,22 +7,26 @@ import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
-import type { HistoryKind } from './preparation.ts';
+import type { HistoryKind, PreparationTurn } from './preparation.ts';
 
 interface InboxPorts {
   ready: () => boolean;
+  /** Live receipt eligibility; send quiet time and decoration do not apply. */
+  receiptReady: () => boolean;
   generation: () => number;
   current: (generation: number) => boolean;
   direct: (signal: AbortSignal) => Promise<boolean>;
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
-  received: (scope: HistoryKind) => void | Promise<void>;
-  failed: (error: unknown) => void;
+  /** `live` reports whether the page answered live demand. */
+  received: (scope: HistoryKind, live: boolean) => void | Promise<void>;
+  failed: (error: unknown, live: boolean) => void;
 }
 
 /** Account-wide receipt scheduling. Each owner verifies and durably stores one
- * bounded page; this module never selects a chat or acknowledges reading it. */
+ * bounded page; this module never selects a chat or acknowledges reading it.
+ * Live demand runs promptly; speculative preparation keeps its quiet delay. */
 export class MessageInbox {
   private readonly ports: InboxPorts;
   private readonly preparation = new HistoryPreparation();
@@ -33,6 +37,8 @@ export class MessageInbox {
   });
   private retryAt = 0;
   private readonly continuing = new Set<HistoryKind>();
+  private readonly demanded = new Set<HistoryKind>();
+  private active: { live: boolean; done: Promise<void> } | null = null;
   running = false;
 
   constructor(ports: InboxPorts) {
@@ -41,10 +47,20 @@ export class MessageInbox {
   request(scope?: HistoryKind): void {
     this.preparation.request(scope);
   }
+  /** A live change hint: receive this area ahead of speculative preparation. */
+  demand(scope: HistoryKind): void {
+    this.preparation.request(scope);
+    this.demanded.add(scope);
+  }
+  /** Runnable live demand, which decorative maintenance must not delay. */
+  get urgent(): boolean {
+    return this.demanded.size > 0 && this.retryAt <= Date.now();
+  }
   reset(): void {
     this.pause();
     this.retryAt = 0;
     this.continuing.clear();
+    this.demanded.clear();
     this.request();
   }
   /** Yield after the active bounded page commits; avoid fetching it again. */
@@ -58,18 +74,29 @@ export class MessageInbox {
     this.abort?.abort(new WorkInterruption('scheduler'));
     this.ports.pause();
   }
+  /** Foreground work waits for a live page to commit instead of discarding its
+   * progress; speculative preparation is still interrupted. */
+  async settle(): Promise<void> {
+    if (!this.active?.live) {
+      this.pause();
+      return;
+    }
+    this.defer();
+    await this.active.done;
+  }
   resume(): void {
     if (
       this.running ||
       this.timer !== null ||
       this.continuationTask.pending ||
-      !this.ports.ready() ||
       !this.preparation.pending
     )
       return;
-    const next = this.preparation.next();
-    const delay = next && this.continuing.has(next.kind) ? 0 : 1000;
-    const wait = Math.max(delay, this.retryAt - Date.now());
+    const next = this.preparation.next(this.demanded);
+    if (!next || !this.ready(next.kind)) return;
+    const prompt =
+      this.demanded.has(next.kind) || this.continuing.has(next.kind);
+    const wait = Math.max(prompt ? 0 : 1000, this.retryAt - Date.now());
     if (wait <= 0) {
       this.continuationTask.schedule();
       return;
@@ -79,30 +106,44 @@ export class MessageInbox {
       void this.receive();
     }, wait);
   }
+  private ready(kind: HistoryKind): boolean {
+    return this.demanded.has(kind)
+      ? this.ports.receiptReady()
+      : this.ports.ready();
+  }
   private async receive(): Promise<void> {
-    if (!this.ports.ready() || this.running) return;
+    if (this.running) return;
+    const turn = this.preparation.next(this.demanded);
+    if (!turn || !this.ready(turn.kind)) return;
     this.running = true;
     const abort = new AbortController(),
       generation = this.ports.generation();
     this.abort = abort;
+    let settled = () => {};
+    this.active = {
+      live: this.demanded.has(turn.kind),
+      done: new Promise<void>((resolve) => {
+        settled = resolve;
+      }),
+    };
     try {
       await measureWork(this, 'inbox', () =>
-        this.receivePage(abort.signal, generation),
+        this.receivePage(turn, abort.signal, generation),
       );
     } catch (error: unknown) {
-      this.resumeInterrupted(error);
+      this.resumeInterrupted(error, turn);
       this.fail(error, abort.signal, generation);
     } finally {
       this.running = false;
+      this.active = null;
+      settled();
       if (this.abort === abort) this.abort = null;
       this.ports.changed();
       if (this.ports.current(generation)) this.resume();
     }
   }
-  private resumeInterrupted(error: unknown): void {
+  private resumeInterrupted(error: unknown, turn: PreparationTurn): void {
     if (!expectedInterruption(error)) return;
-    const turn = this.preparation.next();
-    if (!turn) return;
     this.continuing.add(turn.kind);
     this.preparation.complete(turn, true);
   }
@@ -113,17 +154,16 @@ export class MessageInbox {
       !this.ports.current(generation)
     )
       return;
-    this.ports.failed(error);
+    this.ports.failed(error, this.active?.live ?? false);
     this.retryAt =
       Date.now() +
       (error instanceof AccountError && error.status === 409 ? 1000 : 61000);
   }
   private async receivePage(
+    turn: PreparationTurn,
     signal: AbortSignal,
     generation: number,
   ): Promise<void> {
-    const turn = this.preparation.next();
-    if (!turn) return;
     const more = await retrySnapshotRead(
       () =>
         turn.kind === 'groups'
@@ -135,7 +175,9 @@ export class MessageInbox {
     this.preparation.complete(turn, more);
     if (more) this.continuing.add(turn.kind);
     else this.continuing.delete(turn.kind);
+    // A hint that arrived during this page keeps its demand for the successor.
+    if (!this.preparation.has(turn.kind)) this.demanded.delete(turn.kind);
     this.retryAt = 0;
-    await this.ports.received(turn.kind);
+    await this.ports.received(turn.kind, this.active?.live ?? false);
   }
 }

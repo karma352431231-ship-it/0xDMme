@@ -90,7 +90,13 @@ export function coordinatorFixture(
   hooks: Pick<Parameters<typeof startMessages>[2], 'liveEvent'> = {},
   controller?: Pick<
     import('../../src/client/messages/controller.ts').Messages,
-    'probe' | 'synchronize' | 'select' | 'hide' | 'hideFailedRead' | 'pause'
+    | 'probe'
+    | 'handOffAdvance'
+    | 'synchronize'
+    | 'select'
+    | 'hide'
+    | 'hideFailedRead'
+    | 'pause'
   >,
 ) {
   const calls: string[] = [];
@@ -128,6 +134,9 @@ export function coordinatorFixture(
     groupSelected: false,
     groupPending: false,
     probeChanged: false,
+    // Whether a changed probe is an append the account receiver will apply.
+    receiverOwnsAdvance: false,
+    pageFailure: null as Error | null,
     restorablePeers: new Set<string>(),
     signals: [] as AbortSignal[],
   };
@@ -337,6 +346,10 @@ export function coordinatorFixture(
         calls.push('probe');
         return Promise.resolve(state.probeChanged);
       },
+      handOffAdvance: () => {
+        if (state.receiverOwnsAdvance) calls.push('hand-off');
+        return state.receiverOwnsAdvance;
+      },
       synchronize: (options: VaultWorkOptions = {}) => {
         priorities.push({
           operation: 'synchronize',
@@ -367,6 +380,7 @@ export function coordinatorFixture(
       synchronizeAll: (signal: AbortSignal) => {
         calls.push('preload');
         state.signals.push(signal);
+        if (state.pageFailure) return Promise.reject(state.pageFailure);
         return state.holdPage ? page.promise : Promise.resolve(false);
       },
       select: (peer: string | null) => {
@@ -542,6 +556,7 @@ export function coordinatorFixture(
         ...stub,
         hideFailedRead: controller.hideFailedRead.bind(controller),
         probe: controller.probe.bind(controller),
+        handOffAdvance: controller.handOffAdvance.bind(controller),
         synchronize: controller.synchronize.bind(controller),
         select: (peer: string | null) => {
           stub.select(peer);

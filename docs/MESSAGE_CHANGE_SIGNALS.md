@@ -43,11 +43,29 @@ telemetry, schema, dependency or cryptographic-format change is authorized.
 ## Receiving and presentation
 
 Private account receipt, the conversation list and the selected history retain
-their distinct lifetimes and presentation responsibilities. Their verified
-message work is coordinated: a visible selected update runs before counters,
-preview refreshes and unrelated maintenance. Completed verified history can
-publish its contact preview without another packet read. The list and account
-inbox continue working when no conversation is selected.
+their distinct lifetimes and presentation responsibilities. The account
+receiver is the single owner of ordinary private content: a private hint
+demands one prompt receiver turn whichever chat is open, without the client
+coalescing window or the speculative preparation delay. The open chat, retained
+inactive windows and their previews are updated from that same verified commit;
+the selected conversation no longer runs a second reader for new messages.
+
+A journal cut from F to T covers a retained window read at W by another
+verified reader when F <= W <= T and the fences of W and T are equal. Removals
+advance the invalidation fence, so equal fences prove no removal separates
+them. A window ahead of the cut keeps its rows untouched, so older rows cannot
+resurrect a later removal. The selected history read remains for opening,
+removal or authority changes, and a window a completed cut passed without
+covering it.
+
+Live receipt waits only for an active foreground owner or a requested opening.
+The text send quiet period, startup decoration and queued checks do not delay
+it, and decorative maintenance yields to runnable live receipt. A foreground
+action waits for an in-flight live page to commit instead of discarding it;
+speculative preparation is still interrupted. Sending and receiving therefore
+alternate during continuous typing. A live receipt failure offers the retry
+action, as the selected read it replaced did. The list and account inbox
+continue working when no conversation is selected.
 
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without

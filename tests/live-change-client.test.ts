@@ -165,6 +165,7 @@ function routingFixture() {
     request: (update, work, scope) =>
       operations.push([update, work.priority, scope].join(':')),
     inbox: (scope) => operations.push('inbox:' + scope),
+    receive: (scope) => operations.push('receive:' + scope),
     projection: (work) =>
       operations.push('projection:' + String(work.priority)),
     counters: (scope) => operations.push('counts:' + scope),
@@ -174,10 +175,10 @@ function routingFixture() {
   return { router, operations, external, state };
 }
 
-await test('private live content uses the visible direct pipeline without preparing groups or public consumers', () => {
+await test('private live content goes to the account receiver, not a second reader for the open chat, groups or public consumers', () => {
   const f = routingFixture();
   f.router.event('private-messages');
-  assert.deepEqual(f.operations, ['hint', 'probe:interactive:direct']);
+  assert.deepEqual(f.operations, ['hint', 'receive:direct']);
   f.operations.length = 0;
   f.router.event('group-messages');
   assert.deepEqual(f.operations, ['inbox:groups']);
@@ -197,7 +198,7 @@ await test('no selected chat still receives account messages; removal closes bef
   const f = routingFixture();
   f.state.selected = null;
   f.router.event('private-messages');
-  assert.deepEqual(f.operations, ['hint', 'inbox:direct']);
+  assert.deepEqual(f.operations, ['hint', 'receive:direct']);
   f.operations.length = 0;
   f.router.event('removed');
   assert.deepEqual(f.operations, ['invalidate:removed', 'probe::']);
