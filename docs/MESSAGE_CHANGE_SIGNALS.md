@@ -31,7 +31,10 @@ telemetry, schema, dependency or cryptographic-format change is authorized.
   current lifetime and closure behavior.
 - Cross-process notifications and cross-tab delivery preserve category and
   compatibility boundaries. An old parser must not silently miss a new hint or
-  repeatedly disconnect from a newly categorized stream.
+  repeatedly disconnect from a newly categorized stream. Ephemeral cross-tab
+  coordination uses a new protocol scope: old tabs retain their legacy stream
+  until updated, while updated tabs share one categorized stream. This can
+  temporarily keep one stream per protocol version during mixed-version use.
 - A hint schedules current authenticated reads. It never grants access, proves
   completeness, acknowledges delivery/read, or replaces snapshot confirmation.
   Initial connection, reconnect, suspension and legacy fallback preserve full
@@ -66,6 +69,19 @@ and need are demonstrated by focused tests. Repeated work must not be removed by
 skipping identity or membership verification.
 
 ## Validation and acceptance
+
+The implementation keeps event vocabulary in `shared/live-changes`, transactional
+registration in `server/database/transaction-changes`, client admission/routing
+in `messages/live-updates` and `messages/preview-admission`, and scoped followup
+in `messages/change-followup`. Send-batch proof has its own `messages/send-batch`
+module. These modules expose narrow contracts rather than importing other
+features' internals. App entry points only connect the existing owners.
+
+The existing message screen and controller remain hotspots. A separate reviewed
+extraction should isolate packet verification/storage first, then selected
+conversation rendering/navigation. Preserve cancellation, SDK ownership,
+recovery, removal, receipt and snapshot regression coverage during those cuts;
+moving those existing responsibilities is outside this repair.
 
 Regression checks must cover category routing, legacy and mixed-version
 behavior, rollback, immediate closing signals, reconnection, bounded coalescing,

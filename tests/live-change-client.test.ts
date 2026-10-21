@@ -99,7 +99,9 @@ await test('stream capability uses one freshly signed legacy fallback and rememb
     globalThis.fetch = original;
   });
   globalThis.fetch = (_url, options) => {
-    const body = JSON.parse(String(options?.body)) as {
+    const raw = options?.body;
+    assert.equal(typeof raw, 'string');
+    const body = JSON.parse(raw as string) as {
       payload: unknown;
       signature: string;
     };
@@ -165,6 +167,7 @@ function routingFixture() {
     inbox: (scope) => operations.push('inbox:' + scope),
     projection: (work) =>
       operations.push('projection:' + String(work.priority)),
+    counters: (scope) => operations.push('counts:' + scope),
     previews: () => operations.push('previews'),
     external: (event) => external.push(event),
   });
@@ -185,6 +188,9 @@ await test('private live content uses the visible direct pipeline without prepar
   assert.deepEqual(f.operations, []);
   f.router.event('private-receipts');
   assert.deepEqual(f.operations, ['projection:interactive']);
+  f.operations.length = 0;
+  f.router.event('group-receipts');
+  assert.deepEqual(f.operations, ['counts:groups']);
 });
 
 await test('no selected chat still receives account messages; removal closes before general reconciliation', () => {

@@ -103,6 +103,37 @@ await test('live arrivals update the bell without manual refresh, once per new r
   await settle();
   assert.equal(f.counts.at(-1), 2);
 });
+await test('private content and receipts do not reload unrelated activity sources', async (t) => {
+  let reads = 0;
+  const f = fixture(t, {
+    requests: () => {
+      reads++;
+      return Promise.resolve([]);
+    },
+  });
+  f.activity.ready();
+  t.mock.timers.tick(150);
+  await settle();
+  assert.equal(reads, 1);
+  for (const event of [
+    'private-messages',
+    'private-receipts',
+    'handle-messages',
+    'handle-receipts',
+    'group-messages',
+    'group-receipts',
+    'status',
+  ] as const)
+    f.activity.event(event);
+  t.mock.timers.tick(150);
+  await settle();
+  assert.equal(reads, 1);
+  f.activity.event('activity');
+  f.activity.event('contacts');
+  t.mock.timers.tick(150);
+  await settle();
+  assert.equal(reads, 2);
+});
 await test('an arrival during a read queues one follow-up; revocation rejects an older response', async (t) => {
   let release = () => {},
     reads = 0;

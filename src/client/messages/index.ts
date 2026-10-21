@@ -228,12 +228,7 @@ export function startMessages(
     load: (peers) => controller.directoryPreviews(peers),
     changed: renderContacts,
     available: () =>
-      !!session &&
-      navigator.onLine &&
-      !continuity.suspended &&
-      !textQueue.pending &&
-      !synchronization.visibleUpdatePending &&
-      !synchronization.busy,
+      synchronization.backgroundReady && !synchronization.visibleUpdatePending,
     exclude: () =>
       previewAdmission.exclude(
         selected?.accountId ?? null,
@@ -375,6 +370,7 @@ export function startMessages(
       synchronization.request(update, work, scope),
     inbox: (scope) => synchronization.requestInbox(scope),
     projection: (work) => synchronization.requestProjection(work),
+    counters: (scope) => synchronization.requestCounters(scope),
     previews: () => {
       void previews.refresh(
         directoryData.peers
@@ -413,7 +409,10 @@ export function startMessages(
       startupPending: startupWarmup.pending,
       textPending: textQueue.pending,
     }),
-    status,
+    status: () => {
+      status();
+      previews.resume();
+    },
     visibleSettled: () => previews.resume(),
     notice: (value) => {
       message = value;
@@ -437,6 +436,7 @@ export function startMessages(
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
     unread: () => activity.refresh(),
+    groupProjection: () => groups.refresh(),
     presence: dailyTick,
     refresh,
     changes: refreshChangedSelected,
