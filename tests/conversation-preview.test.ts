@@ -272,3 +272,86 @@ await test('an empty verified window cannot be resurrected by an older list read
   assert.equal(failed.failed, true);
   assert.equal(failed.values.size, 0);
 });
+
+await test('deferred list requests coalesce and omit the selected verified peer before any network read', async () => {
+  let available = false;
+  const requests: string[][] = [];
+  const latest = conversationPreview({
+    id: 'selected-message',
+    sequence: 2,
+    kind: 'text',
+    text: 'Verified selected history',
+    displayText: 'Verified selected history',
+    own: false,
+  });
+  const loader = new ConversationPreviewLoader({
+    available: () => available,
+    exclude: () => ['selected'],
+    load: (peers) => {
+      requests.push([...peers]);
+      return Promise.resolve(new Map([['other', latest]]));
+    },
+    changed: () => {},
+  });
+  await loader.refresh(['selected', 'obsolete']);
+  await loader.refresh(['selected']);
+  loader.publish('selected', latest);
+  assert.equal(requests.length, 0);
+  available = true;
+  loader.resume();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(
+    requests.length,
+    0,
+    'Selected-only updates need no second lookup or decryption',
+  );
+  assert.equal(loader.values.get('selected'), latest);
+  await loader.refresh(['selected', 'other']);
+  assert.deepEqual(requests, [['other']]);
+  assert.equal(loader.values.get('selected'), latest);
+  assert.equal(loader.values.get('other'), latest);
+});
+
+await test('an active preview read settles but cannot start its queued replacement ahead of visible verification', async () => {
+  const first = deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  let available = true;
+  const requests: string[][] = [];
+  const loader = new ConversationPreviewLoader({
+    available: () => available,
+    load: (peers) => {
+      requests.push([...peers]);
+      return requests.length === 1 ? first.promise : Promise.resolve(new Map());
+    },
+    changed: () => {},
+  });
+  const pending = loader.refresh(['first']);
+  available = false;
+  await loader.refresh(['superseded']);
+  await loader.refresh(['latest']);
+  first.resolve(new Map());
+  await pending;
+  assert.deepEqual(requests, [['first']]);
+  available = true;
+  loader.resume();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(requests, [['first'], ['latest']]);
+});
+
+await test('session invalidation drops a deferred list refresh without reviving it on resume', async () => {
+  let available = false,
+    requests = 0;
+  const loader = new ConversationPreviewLoader({
+    available: () => available,
+    load: () => {
+      requests++;
+      return Promise.resolve(new Map());
+    },
+    changed: () => {},
+  });
+  await loader.refresh(['old-session']);
+  loader.clear();
+  available = true;
+  loader.resume();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(requests, 0);
+});

@@ -22,12 +22,18 @@ export class ConversationPreviewLoader {
     peers: readonly string[],
   ) => Promise<Map<string, ConversationPreview>>;
   private readonly changed: () => void;
+  private readonly available: () => boolean;
+  private readonly exclude: () => readonly string[];
   constructor(options: {
     load: ConversationPreviewLoader['load'];
     changed: () => void;
+    available?: () => boolean;
+    exclude?: () => readonly string[];
   }) {
     this.load = options.load;
     this.changed = options.changed;
+    this.available = options.available ?? (() => true);
+    this.exclude = options.exclude ?? (() => []);
   }
   clear(): void {
     this.generation++;
@@ -48,24 +54,29 @@ export class ConversationPreviewLoader {
     this.changed();
   }
   async refresh(peers: readonly string[]): Promise<void> {
-    if (this.active) {
-      this.pending = peers;
-      return;
-    }
+    this.pending = peers;
+    await this.drain();
+  }
+  /** Resume one coalesced list read after foreground verification settles. */
+  resume(): void {
+    void this.drain();
+  }
+  private async drain(): Promise<void> {
+    if (this.active || this.pending === null || !this.available()) return;
+    const peers = this.pending;
+    this.pending = null;
     this.active = true;
     this.failed = false;
     const generation = this.generation,
       revision = this.revision;
     try {
-      const values = await this.load(peers);
+      const values = await this.loadEligible(peers);
       if (generation !== this.generation) return;
       if (revision !== this.revision) {
         this.pending ??= peers;
         return;
       }
-      this.values.clear();
-      for (const [peer, preview] of values) this.values.set(peer, preview);
-      this.changed();
+      this.replace(values);
     } catch {
       // Never leave a previous preview visible after a failed permission/snapshot check.
       if (generation === this.generation) {
@@ -75,9 +86,25 @@ export class ConversationPreviewLoader {
       }
     } finally {
       this.active = false;
-      const pending = this.pending;
-      this.pending = null;
-      if (pending) await this.refresh(pending);
+      await this.drain();
     }
+  }
+  private loadEligible(
+    peers: readonly string[],
+  ): Promise<Map<string, ConversationPreview>> {
+    const excluded = new Set(this.exclude());
+    const eligible = peers.filter((peer) => !excluded.has(peer));
+    return eligible.length || !peers.length
+      ? this.load(eligible)
+      : Promise.resolve(new Map<string, ConversationPreview>());
+  }
+  private replace(values: ReadonlyMap<string, ConversationPreview>): void {
+    // The selected verified window owns its preview; list reads serve other peers.
+    const excluded = new Set(this.exclude());
+    for (const peer of this.values.keys())
+      if (!excluded.has(peer)) this.values.delete(peer);
+    for (const [peer, preview] of values)
+      if (!excluded.has(peer)) this.values.set(peer, preview);
+    this.changed();
   }
 }

@@ -7,7 +7,12 @@ import { MessageSynchronization } from '../src/client/messages/synchronization.t
 import { deferred } from './fixtures/deferred.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
-function fixture(t: TestContext) {
+function fixture(
+  t: TestContext,
+  overrides: Partial<
+    ConstructorParameters<typeof MessageSynchronization>[0]
+  > = {},
+) {
   const state = {
     generation: 0,
     connected: true,
@@ -16,6 +21,7 @@ function fixture(t: TestContext) {
     visible: true,
     suspended: false,
     liveConnecting: false,
+    startupPending: false,
   };
   const notices: string[] = [];
   let completed = 0,
@@ -48,6 +54,7 @@ function fixture(t: TestContext) {
     pending: () => Promise.resolve(['synthetic']),
     sendPending: () => Promise.resolve(),
   };
+  Object.assign(options, overrides);
   const sync = new MessageSynchronization(options);
   t.after(() => sync.close());
   return {
@@ -659,7 +666,7 @@ await test('a queued visible-change recheck waits while hidden and resumes its f
   assert.deepEqual(priorities, ['interactive']);
 });
 
-await test('a visible live-history request yields prefetch cooperatively and retains the signed recheck priority', async (t) => {
+await test('a visible live-history request lets the bounded page commit before its signed recheck', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t),
     page = deferred<boolean>();
@@ -681,8 +688,8 @@ await test('a visible live-history request yields prefetch cooperatively and ret
   f.sync.request('probe', { priority: 'interactive' });
   assert.equal(
     signal.aborted,
-    true,
-    'A foreground live recheck must request cooperative prefetch release',
+    false,
+    'A live recheck must retain the current authenticated page and its cursor',
   );
   t.mock.timers.tick(150);
   await turn();
@@ -806,3 +813,240 @@ await test('a live snapshot race is retried with fresh work before publishing an
   assert.equal(calls, 2);
   assert.deepEqual(f.notices, []);
 });
+
+await test('visible history verification excludes counters from the critical network path', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    history = deferred<void>(),
+    counts = deferred<void>();
+  let historyRequests = 0,
+    counterRequests = 0,
+    settled = 0;
+  f.options.changes = () => {
+    historyRequests++;
+    return history.promise;
+  };
+  f.options.unread = () => {
+    counterRequests++;
+    return counts.promise;
+  };
+  f.options.visibleSettled = () => settled++;
+  f.sync.request('probe', { priority: 'interactive' }, 'direct');
+  assert.equal(f.sync.visibleUpdatePending, true);
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(historyRequests, 1);
+  assert.equal(
+    counterRequests,
+    0,
+    'Slow counts cannot delay the selected read',
+  );
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(counterRequests, 0);
+  history.resolve();
+  await turn();
+  assert.equal(f.sync.visibleUpdatePending, false);
+  assert.equal(settled, 1);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(counterRequests, 1, 'Counts continue once history is verified');
+  counts.resolve();
+  await turn();
+});
+
+await test('a live update retains current receipt progress and reserves the next turn before counts or another inbox', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    page = deferred<boolean>(),
+    history = deferred<void>();
+  let directRequests = 0,
+    groupRequests = 0,
+    counterRequests = 0,
+    historyRequests = 0;
+  let pageSignal: AbortSignal | undefined;
+  f.options.preloadDirect = (signal) => {
+    pageSignal = signal;
+    directRequests++;
+    return page.promise;
+  };
+  f.options.preloadGroups = () => {
+    groupRequests++;
+    return Promise.resolve(false);
+  };
+  f.options.unread = () => {
+    counterRequests++;
+    return Promise.resolve();
+  };
+  f.options.changes = () => {
+    historyRequests++;
+    return history.promise;
+  };
+  f.sync.resume();
+  t.mock.timers.tick(1000);
+  await turn();
+  f.sync.request('probe', { priority: 'interactive' }, 'direct');
+  assert.equal(pageSignal?.aborted, false);
+  page.resolve(false);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(historyRequests, 1);
+  assert.equal(
+    directRequests,
+    1,
+    'The in-flight encrypted page was not restarted',
+  );
+  assert.equal(counterRequests, 0);
+  assert.equal(groupRequests, 0);
+  assert.equal(
+    f.completed(),
+    0,
+    'The page cannot start account previews ahead of visible verification',
+  );
+  history.resolve();
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(counterRequests, 1);
+  assert.equal(
+    f.completed(),
+    1,
+    'The committed page still refreshes other contacts after the selected view',
+  );
+});
+
+await test('a scoped account receipt refresh does not probe the selected chat or restart the other inbox', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  let directRequests = 0,
+    groupRequests = 0,
+    selectedRequests = 0;
+  f.options.preloadDirect = () => {
+    directRequests++;
+    return Promise.resolve(false);
+  };
+  f.options.preloadGroups = () => {
+    groupRequests++;
+    return Promise.resolve(false);
+  };
+  f.options.changes = () => {
+    selectedRequests++;
+    return Promise.resolve();
+  };
+  f.sync.resume();
+  for (let page = 0; page < 2; page++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  directRequests = 0;
+  groupRequests = 0;
+  f.sync.requestInbox('groups');
+  t.mock.timers.tick(1000);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(groupRequests, 1);
+  assert.equal(directRequests, 0);
+  assert.equal(selectedRequests, 0);
+});
+
+await test('receipt metadata verification never starts a direct or group ciphertext page', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  let directRequests = 0,
+    groupRequests = 0,
+    metadataRequests = 0;
+  f.options.preloadDirect = () => {
+    directRequests++;
+    return Promise.resolve(false);
+  };
+  f.options.preloadGroups = () => {
+    groupRequests++;
+    return Promise.resolve(false);
+  };
+  f.options.changes = () => {
+    metadataRequests++;
+    return Promise.resolve();
+  };
+  f.sync.resume();
+  for (let page = 0; page < 2; page++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  directRequests = 0;
+  groupRequests = 0;
+  f.sync.requestProjection({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(metadataRequests, 1);
+  assert.equal(directRequests, 0);
+  assert.equal(groupRequests, 0);
+});
+
+for (const scenario of [
+  { hints: ['receipts', 'receipts'], counters: 0, decorations: 0, full: 0 },
+  { hints: ['content', 'receipts'], counters: 1, decorations: 0, full: 0 },
+  {
+    hints: ['receipts', 'content', 'all'],
+    counters: 1,
+    decorations: 3,
+    full: 1,
+  },
+  {
+    hints: ['all', 'receipts', 'content'],
+    counters: 1,
+    decorations: 3,
+    full: 1,
+  },
+] as const)
+  await test(`coalesced ${scenario.hints.join('/')} wakeups preserve only their required network owners`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let counterRequests = 0,
+      decorationRequests = 0,
+      selectedRequests = 0;
+    const decorate = () => {
+      decorationRequests++;
+      return Promise.resolve();
+    };
+    const f = fixture(t, {
+      unread: () => {
+        counterRequests++;
+        return Promise.resolve();
+      },
+      changeMaintenance: [decorate, decorate, decorate],
+      changes: () => {
+        selectedRequests++;
+        return Promise.resolve();
+      },
+    });
+    f.state.startupPending = true;
+    for (const hint of scenario.hints) {
+      if (hint === 'receipts')
+        f.sync.requestProjection({ priority: 'interactive' });
+      else if (hint === 'content')
+        f.sync.request('probe', { priority: 'interactive' }, 'direct');
+      else f.sync.request('probe', { priority: 'interactive' });
+    }
+    t.mock.timers.tick(150);
+    await turn();
+    assert.equal(selectedRequests, 1);
+    assert.equal(
+      counterRequests,
+      0,
+      'Only selected verification is on the critical path',
+    );
+    assert.equal(
+      f.completed(),
+      scenario.full,
+      'Scoped activity does not start unrelated preview reads',
+    );
+    for (let step = 0; step < 6; step++) {
+      t.mock.timers.tick(1000);
+      await turn();
+    }
+    assert.equal(counterRequests, scenario.counters);
+    assert.equal(decorationRequests, scenario.decorations);
+  });

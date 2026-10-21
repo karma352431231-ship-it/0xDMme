@@ -13,6 +13,19 @@ async function finishStartupMaintenance(
     await turn();
   }
 }
+async function advanceMaintenanceUntil(
+  t: import('node:test').TestContext,
+  ready: () => boolean,
+): Promise<void> {
+  for (let step = 0; step < 12 && !ready(); step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(
+    ready(),
+    'The requested maintenance owner must continue within bounded turns',
+  );
+}
 const peer = (accountId: string): Peer => ({
   accountId,
   ecosystem: 'evm',
@@ -132,7 +145,7 @@ await test('a retained opening queued behind an active owner reuses history afte
   await turn();
   t.mock.timers.tick(1000);
   await turn();
-  assert.ok(f.calls.includes('contacts'));
+  await advanceMaintenanceUntil(t, () => f.calls.includes('contacts'));
   f.state.restorablePeers.add('queued-retained');
   f.calls.length = 0;
   f.statusFrames.length = 0;
@@ -154,7 +167,7 @@ await test('a retained opening queued behind an active owner reuses history afte
   );
 });
 
-await test('live message counts refresh before selected history and deferred contact maintenance', async (t) => {
+await test('selected history refreshes before counters and deferred contact maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -167,8 +180,10 @@ await test('live message counts refresh before selected history and deferred con
   f.emit('changed');
   t.mock.timers.tick(150);
   await turn();
-  assert.ok(f.calls.includes('states'));
-  assert.ok(f.calls.indexOf('states') < f.calls.indexOf('probe'));
+  assert.ok(f.calls.includes('probe'));
+  assert.ok(!f.calls.includes('states'));
+  await advanceMaintenanceUntil(t, () => f.calls.includes('states'));
+  assert.ok(f.calls.indexOf('probe') < f.calls.indexOf('states'));
   assert.ok(
     !f.calls.includes('heartbeat'),
     'Presence must not delay the unread update',
@@ -551,7 +566,7 @@ await test('screen prepares messages without a click; ready and tab return canno
 });
 
 for (const selected of [false, true])
-  await test(`a live hint yields prefetch only for a selected visible conversation; removal closes immediately: selected=${selected}`, async (t) => {
+  await test(`a live hint preserves the active page; removal closes immediately: selected=${selected}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const f = coordinatorFixture(t);
     if (selected) await f.messages.openContact(peer('selected-live'));
@@ -566,8 +581,8 @@ for (const selected of [false, true])
     f.emit('changed');
     t.mock.timers.tick(150);
     await turn();
-    assert.equal(signal.aborted, selected);
-    assert.equal(f.calls.slice(before).includes('abort-direct'), selected);
+    assert.equal(signal.aborted, false);
+    assert.equal(f.calls.slice(before).includes('abort-direct'), false);
     f.emit('removed');
     assert.equal(signal.aborted, true);
     assert.ok(f.calls.includes('removed'));
@@ -666,7 +681,9 @@ await test('effective suspension cancels preparation and closes the view; resume
   await turn();
   t.mock.timers.tick(1000);
   await turn();
-  assert.ok(f.calls.slice(frozen).includes('contacts'));
+  await advanceMaintenanceUntil(t, () =>
+    f.calls.slice(frozen).includes('contacts'),
+  );
   assert.ok(f.calls.slice(frozen).includes('live-start'));
 });
 
@@ -959,11 +976,9 @@ await test('a text saved during a live recheck transmits before unrelated mainte
   await turn();
   t.mock.timers.tick(1000);
   await turn();
-  for (let step = 0; step < 3; step++) {
-    t.mock.timers.tick(1000);
-    await turn();
-  }
-  assert.ok(f.calls.slice(before).includes('groups'));
+  await advanceMaintenanceUntil(t, () =>
+    f.calls.slice(before).includes('groups'),
+  );
   f.state.holdGroups = false;
   f.groupLoad.resolve();
   await turn();
@@ -981,6 +996,7 @@ await test('a newer visible live hint yields after current contacts before unrel
   await turn();
   t.mock.timers.tick(1000);
   await turn();
+  await advanceMaintenanceUntil(t, () => f.calls.includes('contacts'));
   const before = f.calls.length;
   f.emit('changed');
   t.mock.timers.tick(150);
@@ -1065,7 +1081,9 @@ await test('a reply after a verified live check is not trapped behind contacts o
     t.mock.timers.tick(1000);
     await turn();
   }
-  assert.ok(f.calls.slice(before).includes('contacts'));
+  await advanceMaintenanceUntil(t, () =>
+    f.calls.slice(before).includes('contacts'),
+  );
   f.state.holdContacts = false;
   f.contactLoad.resolve();
   await turn();
