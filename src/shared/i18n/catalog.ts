@@ -1,5 +1,15 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'Message deletion or authorization changed. Reconcile the affected history.':
+    [
+      'Message deletion or authorization changed. Reconcile the affected history.',
+      '消息删除或授权发生变化。正在重新核对相关历史记录。',
+    ],
+  'Some conversations need key recovery or renewed consent. Other conversations continue syncing.':
+    [
+      'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
+      '部分对话需要恢复密钥或重新授权，其他对话会继续同步。',
+    ],
   'ranking.reload': ['Reload from the start', '从头重新加载'],
   'ranking.overall': ['Rankings', '排行榜'],
   'ranking.scope': ['Ranking category', '排行榜类别'],

@@ -4,7 +4,6 @@ import {
   VerifiedWindow,
   verifiedReceipt,
   verifiedReceiptHash,
-  MessagePrefetch,
 } from '../src/client/messages/index-sync.ts';
 import type { MessageItem } from '../src/client/messages/history.ts';
 import { assertPacketIdentity } from '../src/client/messages/history.ts';
@@ -154,26 +153,6 @@ await test('encrypted copy from another conversation or after reload requires cu
     () => verifiedReceiptHash('{}', snapshot, received),
     /[Ii]nvalid/,
   );
-});
-
-await test('global preparation resumes an interrupted page and restarts on snapshot change without skipping invalid pages', () => {
-  const prefetch = new MessagePrefetch(),
-    first = { items: [item], next: 1 };
-  assert.equal(prefetch.cursor(snapshot), 0);
-  assert.equal(prefetch.cursor(snapshot), 0);
-  assert.throws(
-    () => prefetch.commit(snapshot, { ...first, next: 2 }),
-    /pagination/,
-  );
-  assert.equal(prefetch.cursor(snapshot), 0);
-  prefetch.commit(snapshot, first);
-  assert.equal(prefetch.cursor(snapshot), 1);
-  prefetch.commit(snapshot, { items: [], next: null });
-  assert.equal(prefetch.cursor(snapshot), null);
-  assert.equal(prefetch.cursor({ ...snapshot, revision: 2 }), 0);
-  assert.throws(() => prefetch.commit(snapshot, first), /changed/);
-  prefetch.reset();
-  assert.equal(prefetch.cursor(snapshot), 0);
 });
 
 await test('index cannot assign another author, recipient, type or revision to the authenticated packet', () => {

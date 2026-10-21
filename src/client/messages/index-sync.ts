@@ -1,3 +1,8 @@
+import {
+  isSyncSnapshot,
+  sameSyncFence,
+  supportsMessageDelta,
+} from '../../shared/message-sync/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readMessageDelta } from './delta.ts';
@@ -53,6 +58,7 @@ export class MessageIndex {
     api: Api;
     deleted: (item: MessageItem) => Promise<void>;
   }): Promise<MessageItem[]> {
+    this.resumeTail(c);
     await this.advance(c);
     const scan = this.start(c);
     const deadline = Date.now() + 45000;
@@ -93,6 +99,72 @@ export class MessageIndex {
     scan.after = c.page.next ?? c.page.items.at(-1)?.sequence ?? scan.after;
     scan.complete = c.page.next === null;
   }
+  rememberTailPage(c: {
+    from: unknown;
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    after: number;
+    page: ReturnType<typeof messageItems>;
+  }): void {
+    const scan = this.scan;
+    if (!scan || scan.overflow) return;
+    if (
+      scan.complete &&
+      scan.identity === canonical([c.from, c.account, null])
+    ) {
+      scan.identity = canonical([c.snapshot, c.account, null]);
+      scan.snapshot = c.snapshot;
+      scan.after = c.after;
+      scan.complete = false;
+    }
+    if (scan.identity !== canonical([c.snapshot, c.account, null])) return;
+    this.rememberConfirmedPage(c);
+  }
+  rememberJournalPage(c: {
+    from: unknown;
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    after: number;
+    page: ReturnType<typeof messageItems>;
+  }): void {
+    const scan = this.scan;
+    if (!scan || scan.overflow) return;
+    if (
+      scan.complete &&
+      scan.identity === canonical([c.from, c.account, null])
+    ) {
+      scan.identity = canonical([c.snapshot, c.account, null]);
+      scan.snapshot = c.snapshot;
+      scan.complete = false;
+      scan.after = 0;
+    }
+    if (!sameJournalPosition(scan, c)) return;
+    assertMessagePage(c.page, c.after);
+    for (const item of c.page.items) {
+      removeIndexedItem(scan, c.account, item);
+      this.collect(scan, { ...c, before: null }, item);
+    }
+    scan.after = c.page.next ?? c.page.items.at(-1)?.sequence ?? scan.after;
+    scan.complete = c.page.next === null;
+  }
+  private resumeTail(c: {
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    before: number | null;
+  }): void {
+    const scan = this.scan;
+    if (!scan || !canResumeTail(scan, c)) return;
+    this.rememberTailPage({
+      ...c,
+      from: scan.snapshot,
+      after: isSyncSnapshot(scan.snapshot) ? scan.snapshot.anchor : 0,
+      page: { items: [], next: null },
+    });
+    if (this.scan) this.scan.complete = false;
+  }
   private async advance(c: {
     snapshot: unknown;
     account: string;
@@ -102,13 +174,7 @@ export class MessageIndex {
     deleted: (item: MessageItem) => Promise<void>;
   }): Promise<void> {
     const scan = this.scan;
-    if (
-      !scan?.complete ||
-      c.before !== null ||
-      scan.overflow ||
-      scan.identity === canonical([c.snapshot, c.account, c.before])
-    )
-      return;
+    if (!scan || !this.canAdvance(c)) return;
     const expected = canonical([scan.snapshot, c.account, null]);
     if (scan.identity !== expected) return;
     const items = await readMessageDelta(c.api, scan.snapshot, c.snapshot);
@@ -118,6 +184,20 @@ export class MessageIndex {
       if (item.deleted) await c.deleted(item);
     }
     this.rememberChanges({ ...c, from: scan.snapshot, items });
+  }
+  private canAdvance(c: {
+    snapshot: unknown;
+    account: string;
+    before: number | null;
+  }): boolean {
+    const scan = this.scan;
+    return (
+      supportsMessageDelta(c.snapshot) &&
+      Boolean(scan?.complete) &&
+      c.before === null &&
+      !scan?.overflow &&
+      scan?.identity !== canonical([c.snapshot, c.account, c.before])
+    );
   }
   /** Called only after the background reader has verified removals, durable
    * packet writes/receipts and the current snapshot's final confirmation. */
@@ -257,6 +337,8 @@ export function assertMessagePage(
   page: ReturnType<typeof messageItems>,
   after: number,
 ): void {
+  if (new Set(page.items.map((item) => item.id)).size !== page.items.length)
+    throw new Error('Duplicate message page.');
   let previous = after;
   for (const item of page.items) {
     if (item.sequence <= previous)
@@ -365,43 +447,45 @@ export function verifiedReceiptHash(
     : null;
 }
 
-/** Commits a page cursor only after its durable writes, receipts and confirmation.
- * Cancellation/retry revisits the same page; a different snapshot restarts it. */
-export class MessagePrefetch {
-  private snapshot: unknown = null;
-  get completedSnapshot(): unknown {
-    return this.complete ? this.snapshot : null;
-  }
-  finish(snapshot: unknown): void {
-    this.snapshot = snapshot;
-    this.identity = canonical(snapshot);
-    this.after = 0;
-    this.complete = true;
-  }
-  private identity = '';
-  private after = 0;
-  private complete = false;
-  reset(): void {
-    this.snapshot = null;
-    this.identity = '';
-    this.after = 0;
-    this.complete = false;
-  }
-  cursor(snapshot: unknown): number | null {
-    const identity = canonical(snapshot);
-    if (identity !== this.identity) {
-      this.snapshot = snapshot;
-      this.identity = identity;
-      this.after = 0;
-      this.complete = false;
-    }
-    return this.complete ? null : this.after;
-  }
-  commit(snapshot: unknown, page: ReturnType<typeof messageItems>): void {
-    if (canonical(snapshot) !== this.identity)
-      throw new Error('Synchronization changed.');
-    assertMessagePage(page, this.after);
-    this.after = page.next ?? page.items.at(-1)?.sequence ?? this.after;
-    this.complete = page.next === null;
-  }
+function canResumeTail(
+  scan: Scan,
+  c: { snapshot: unknown; before: number | null },
+): boolean {
+  return (
+    scan.complete &&
+    !scan.overflow &&
+    c.before === null &&
+    tailFence(scan.snapshot, c.snapshot)
+  );
+}
+function tailFence(from: unknown, snapshot: unknown): boolean {
+  return (
+    isSyncSnapshot(from) &&
+    isSyncSnapshot(snapshot) &&
+    snapshot.source === 'tail' &&
+    sameSyncFence(from, snapshot) &&
+    snapshot.anchor > from.anchor
+  );
+}
+
+function removeIndexedItem(
+  scan: Scan,
+  account: string,
+  item: MessageItem,
+): void {
+  const window = scan.windows.get(messagePeer(account, item));
+  if (!window) return;
+  const before = window.items.length;
+  window.items = window.items.filter((row) => row.id !== item.id);
+  scan.count -= before - window.items.length;
+}
+
+function sameJournalPosition(
+  scan: Scan,
+  c: { snapshot: unknown; account: string; after: number },
+): boolean {
+  return (
+    scan.identity === canonical([c.snapshot, c.account, null]) &&
+    scan.after === c.after
+  );
 }

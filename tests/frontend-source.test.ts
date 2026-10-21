@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -23,10 +31,12 @@ await test('portable package preserves exact sources and licenses without privat
     'src/client/groups/admission.ts',
     'src/shared/groups/index.ts',
     'src/shared/groups/links.ts',
+    'docs/VERIFIABLE_RELEASES.md',
     'LICENSES.md',
     'package-lock.json',
   ];
   const archive = await frontendSource(root, new Set(sources));
+  assert.equal(archive[9], 255, 'GZip must not encode the build host OS');
   const path = join(temporary, 'source.tar.gz');
   await writeFile(path, archive);
   const execute = promisify(execFile);
@@ -48,6 +58,12 @@ await test('portable package preserves exact sources and licenses without privat
     });
     assert.deepEqual(stdout, await readFile(join(root, source)));
   }
+  await execute('tar', ['-xzf', path, '-C', temporary]);
+  for (const source of sources) {
+    await utimes(join(temporary, source), 100, 200);
+    await chmod(join(temporary, source), 0o755);
+  }
+  assert.deepEqual(await frontendSource(temporary, new Set(sources)), archive);
 });
 
 await test('source packaging preserves more than 1024 files and rejects an unbounded source tree', async (t) => {

@@ -5,7 +5,17 @@ import type { MessageRemovalAllocations } from './message-removal-allocations.ts
 import type { MessageAllocations } from './message-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
-import { latestMessageItems, messageIndexPage } from './message-index.ts';
+import { expectMessageSync, nextMessageSync } from './message-sync.ts';
+import {
+  isSyncSnapshot,
+  messageReadThrough,
+} from '../../shared/message-sync/index.ts';
+import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
+import {
+  latestMessageItems,
+  messageIndexPage,
+  messageDeliveryItems,
+} from './message-index.ts';
 import type { AttachmentStore } from './attachments.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -35,6 +45,7 @@ interface MessageReceiptRecord {
   hash: string;
   available: boolean;
   original_id: string;
+  sequence: string;
 }
 export interface MessageSnapshot {
   revision: number;
@@ -337,6 +348,7 @@ export class MessageStore {
     authority: ContactAuthority,
     id: string,
     hash: string,
+    snapshot?: MessageSnapshot,
   ): Promise<void> {
     return this.contacts.withMessageParticipants(
       authority,
@@ -349,6 +361,8 @@ export class MessageStore {
           !participants.includes(row.recipient)
         )
           throw new AccountError(404, 'Message unavailable.');
+        if (Number(row.sequence) > messageReadThrough(snapshot))
+          throw new AccountError(404, 'Message outside the confirmed cut.');
         if (!row.available || row.hash !== hash)
           throw new AccountError(
             409,
@@ -395,7 +409,7 @@ export class MessageStore {
     id: string,
   ): Promise<MessageReceiptRecord | null> {
     const result = await client.query<MessageReceiptRecord>(
-      `SELECT id,sender,recipient,hash,body IS NOT NULL AS available,coalesce(relation->>'id',id::text) AS original_id
+      `SELECT id,sender,recipient,sequence::text,hash,body IS NOT NULL AS available,coalesce(relation->>'id',id::text) AS original_id
        FROM hash_talk.message_packets WHERE id=$1`,
       [id],
     );
@@ -413,6 +427,53 @@ export class MessageStore {
     await client.query(
       "UPDATE hash_talk.message_packets SET queue_active=false WHERE id=$1 AND queue_active AND NOT EXISTS(SELECT 1 FROM hash_talk.message_references WHERE message_id=$1 AND status='pending')",
       [id],
+    );
+  }
+  async syncPeerPage(
+    authority: ContactAuthority,
+    input: {
+      snapshot: MessageSyncSnapshot;
+      peer: string;
+      after: number;
+      through: number;
+    },
+  ) {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      await this.expect(client, authority, input.snapshot);
+      if (input.through > input.snapshot.anchor || input.after > input.through)
+        throw new AccountError(
+          400,
+          'Recovery range exceeds its confirmed cut.',
+        );
+      return messageIndexPage(client, authority, {
+        after: input.after,
+        through: input.through,
+        peer: input.peer,
+      });
+    });
+  }
+  async syncProbe(
+    authority: ContactAuthority,
+    input: { from: MessageSyncSnapshot; ids: string[] },
+  ) {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      const snapshot = await nextMessageSync(client, authority, input.from);
+      const items =
+        canonical(snapshot) === canonical(input.from)
+          ? await messageDeliveryItems(client, authority, {
+              ids: input.ids,
+              through: snapshot.anchor,
+            })
+          : null;
+      return { snapshot, items };
+    });
+  }
+  async syncState(
+    authority: ContactAuthority,
+    from: MessageSyncSnapshot | null,
+  ): Promise<MessageSyncSnapshot> {
+    return this.contacts.withMessageRead(authority, (client) =>
+      nextMessageSync(client, authority, from),
     );
   }
   async snapshot(authority: ContactAuthority): Promise<MessageSnapshot> {
@@ -441,6 +502,8 @@ export class MessageStore {
     authority: ContactAuthority,
     snapshot: MessageSnapshot,
   ): Promise<void> {
+    if (isSyncSnapshot(snapshot))
+      return expectMessageSync(client, authority, snapshot);
     if (canonical(snapshot) !== canonical(await this.state(client, authority)))
       throw new AccountError(
         409,
@@ -453,7 +516,12 @@ export class MessageStore {
   ): Promise<{ items: unknown[]; next: number | null }> {
     return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
-      return messageIndexPage(client, authority, input.after);
+      return messageIndexPage(client, authority, {
+        after: input.after,
+        through: isSyncSnapshot(input.snapshot)
+          ? input.snapshot.anchor
+          : Number.MAX_SAFE_INTEGER,
+      });
     });
   }
   async changes(
@@ -471,7 +539,14 @@ export class MessageStore {
   ) {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
-      return latestMessageItems(client, authority, input.peers);
+      return latestMessageItems(
+        client,
+        authority,
+        input.peers,
+        isSyncSnapshot(input.snapshot)
+          ? input.snapshot.anchor
+          : Number.MAX_SAFE_INTEGER,
+      );
     });
   }
   async relations(
@@ -482,8 +557,13 @@ export class MessageStore {
     return this.contacts.withMessageRead(a, async (c) => {
       await this.expect(c, a, snapshot);
       const r = await c.query<Record<string, unknown>>(
-        `SELECT * FROM (SELECT DISTINCT ON (m.relation->>'id',m.relation->>'type',m.sender) m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.sender_revision,m.recipient_revision,m.queue_active,false AS deleted,NULL AS deletion,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.relation->>'id'=ANY($3::text[]) AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid)) ORDER BY m.relation->>'id',m.relation->>'type',m.sender,m.sequence DESC) current ORDER BY sequence::bigint`,
-        [a.session.accountId, a.session.deviceId, ids],
+        `SELECT * FROM (SELECT DISTINCT ON (m.relation->>'id',m.relation->>'type',m.sender) m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.sender_revision,m.recipient_revision,m.queue_active,false AS deleted,NULL AS deletion,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.relation->>'id'=ANY($3::text[]) AND m.sequence<=$4 AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid)) ORDER BY m.relation->>'id',m.relation->>'type',m.sender,m.sequence DESC) current ORDER BY sequence::bigint`,
+        [
+          a.session.accountId,
+          a.session.deviceId,
+          ids,
+          isSyncSnapshot(snapshot) ? snapshot.anchor : Number.MAX_SAFE_INTEGER,
+        ],
       );
       return {
         items: r.rows.map((r) => ({ ...r, sequence: Number(r['sequence']) })),
@@ -505,11 +585,10 @@ export class MessageStore {
   ): Promise<unknown[]> {
     return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
-      const rows = await client.query(
-        "SELECT m.id,m.hash,m.queue_active,EXISTS(SELECT 1 FROM hash_talk.message_references r WHERE r.message_id=m.id AND r.account_id=m.recipient AND r.status='received') AS recipient_received FROM hash_talk.message_packets m WHERE m.id=ANY($1::uuid[]) AND (m.sender=$2 OR m.recipient=$2) AND m.body IS NOT NULL",
-        [input.ids, authority.session.accountId],
-      );
-      return rows.rows as unknown[];
+      return messageDeliveryItems(client, authority, {
+        ids: input.ids,
+        through: messageReadThrough(input.snapshot),
+      });
     });
   }
   async history(
@@ -548,6 +627,7 @@ export class MessageStore {
       authority,
       id,
       expect: (client) => this.expect(client, authority, snapshot),
+      ...(isSyncSnapshot(snapshot) ? { through: snapshot.anchor } : {}),
     });
   }
   async backupWindow(
@@ -559,6 +639,7 @@ export class MessageStore {
       authority,
       ids,
       expect: (client) => this.expect(client, authority, snapshot),
+      ...(isSyncSnapshot(snapshot) ? { through: snapshot.anchor } : {}),
     });
   }
 }

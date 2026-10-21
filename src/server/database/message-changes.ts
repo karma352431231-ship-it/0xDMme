@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 import { changedMessageItems } from './message-index.ts';
 interface Snapshot {
@@ -14,18 +15,21 @@ export async function recordMessageChanges(
   client: Pick<pg.PoolClient, 'query'>,
   accounts: string[],
   ids: string[] | null,
+  kind: 'append' | 'remove' | 'reset' = ids === null ? 'reset' : 'append',
 ): Promise<void> {
   const changes =
     ids && ids.length > 0 && ids.length <= 65 ? [...new Set(ids)] : null;
   for (const account of [...new Set(accounts)].sort()) {
     const head = await client.query<{ revision: string }>(
-      'INSERT INTO hash_talk.message_heads(account_id,revision) VALUES($1,1) ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.message_heads.revision+1 RETURNING revision::text',
-      [account],
+      `INSERT INTO hash_talk.message_heads(account_id,revision,invalidation_revision) VALUES($1,1,CASE WHEN $2 THEN 1 ELSE 0 END)
+       ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.message_heads.revision+1,
+       invalidation_revision=CASE WHEN $2 THEN hash_talk.message_heads.revision+1 ELSE hash_talk.message_heads.invalidation_revision END RETURNING revision::text`,
+      [account, kind !== 'append'],
     );
     const revision = Number(head.rows[0]!.revision);
     await client.query(
-      'INSERT INTO hash_talk.message_changes(account_id,revision,ids,charge) VALUES($1,$2,$3,$4)',
-      [account, revision, changes, 512 + 16 * (changes?.length ?? 0)],
+      'INSERT INTO hash_talk.message_changes(account_id,revision,ids,charge,change_kind) VALUES($1,$2,$3,$4,$5)',
+      [account, revision, changes, 512 + 16 * (changes?.length ?? 0), kind],
     );
     await client.query(
       'DELETE FROM hash_talk.message_changes WHERE account_id=$1 AND revision<=$2',
@@ -41,7 +45,11 @@ export async function readMessageChanges(
   range: { from: Snapshot; snapshot: Snapshot },
 ) {
   const { from, snapshot } = range;
-  if (requiresReset(from, snapshot)) return { reset: true };
+  if (
+    requiresReset(from, snapshot) ||
+    (isSyncSnapshot(snapshot) && !isSyncSnapshot(from))
+  )
+    return { reset: true };
   const result = await client.query<{ revision: string; ids: string[] | null }>(
     'SELECT changes.revision::text,changes.ids FROM hash_talk.message_changes changes WHERE changes.account_id=$1 AND changes.revision>$2 AND changes.revision<=$3 ORDER BY changes.revision LIMIT 256',
     [a.session.accountId, from.revision, snapshot.revision],

@@ -9,14 +9,9 @@ import {
   initAsync,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { object } from '../../shared/account/index.ts';
-import {
-  canonical,
-  digest,
-  eventHash,
-  verifyHistory,
-} from '../../shared/devices/index.ts';
+import { canonical, digest, eventHash } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import { matrixUser, verifyRecoveryKey } from '../../shared/messages/index.ts';
+import { matrixUser } from '../../shared/messages/index.ts';
 import type { RecoveryKey } from '../../shared/messages/index.ts';
 import {
   attachmentContent,
@@ -37,7 +32,10 @@ import type {
   StatusPacket,
   StatusEnvelope,
 } from '../../shared/status/index.ts';
-import { archiveRoomKey } from '../message-recovery/index.ts';
+import {
+  archiveRoomKey,
+  currentRecoveryKey,
+} from '../message-recovery/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 const silentLogger = {
   debug: () => {},
@@ -166,16 +164,9 @@ export class StatusEncryption {
   }): Promise<StatusEnvelope> {
     this.assertAuthority(input.authority);
     const { recovery, history } = input;
-    const current = await verifyHistory(history, recovery.accountId);
-    const signer = history[recovery.authorityRevision - 1];
-    if (
-      !current ||
-      !signer ||
-      recovery.epoch !== current.epoch ||
-      !current.devices.some((d) => d.id === recovery.deviceId)
-    )
-      throw new Error('Recipient recovery not authorized.');
-    await verifyRecoveryKey(recovery, signer);
+    const current = history.at(-1);
+    if (!current) throw new Error('Recipient recovery not authorized.');
+    await currentRecoveryKey(recovery, history, recovery.accountId);
     const envelope = statusEnvelope({
       version: 1,
       id: this.sealed.id,

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
+import { MessageStorageError } from '../../src/client/message-storage/index.ts';
+import {
+  isSyncSnapshot,
+  sameSyncFence,
+} from '../../src/shared/message-sync/index.ts';
 import { digest } from '../../src/shared/devices/index.ts';
 import { mergeHistory } from '../../src/client/local-history/index.ts';
 import { verifiedReceipt } from '../../src/client/messages/index-sync.ts';
@@ -31,6 +36,7 @@ const adapters: Record<string, string[]> = {
     'searchHistory',
   ],
   'message-storage': [
+    'MessageStorageError',
     'localGet',
     'localPut',
     'localDelete',
@@ -69,7 +75,7 @@ const bundle = await build({
               /^\.\.\/(local-history|message-storage|message-search)\/index\.ts$/,
           },
           ({ path, importer }) =>
-            importer.endsWith('/messages/controller.ts')
+            importer.includes('/messages/')
               ? { path: path.split('/')[1]!, namespace: 'fixture' }
               : undefined,
         );
@@ -86,7 +92,7 @@ const bundle = await build({
 const source = bundle.outputFiles[0]?.text ?? '';
 if (!source) throw new Error('Fixture de retomada ausente.');
 
-export function resumeFixture() {
+export function resumeFixture(incremental = false) {
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),
@@ -101,7 +107,21 @@ export function resumeFixture() {
   };
   const peer = crypto.randomUUID();
   const data = {
-    snapshot: { revision: 1, contacts: 1, directory: 'b'.repeat(64) },
+    snapshot: {
+      revision: 1,
+      contacts: 1,
+      directory: 'b'.repeat(64),
+      ...(incremental
+        ? {
+            version: 2 as const,
+            account: session.accountId,
+            device: session.deviceId,
+            anchor: 0,
+            invalidation: 0,
+            source: 'full' as const,
+          }
+        : {}),
+    },
     items: [] as MessageItem[],
     records: new Map<string, unknown>(),
     changes: null as MessageItem[] | null,
@@ -141,6 +161,7 @@ export function resumeFixture() {
     throw new Error('Operação fora do contrato de retomada.');
   };
   const fixture = {
+    MessageStorageError,
     conversationHistory: () => Promise.resolve([]),
     relatedHistory: () => Promise.resolve([]),
     mergeHistory,
@@ -152,10 +173,14 @@ export function resumeFixture() {
       data.cacheReads.push(name);
       return Promise.resolve(data.records.get(name) ?? null);
     },
-    localPut: unused,
+    localPut: (_scope: string, name: string, value: unknown) => {
+      data.records.set(name, value);
+      return Promise.resolve();
+    },
     localDelete: unused,
     localPage: unused,
-    sealLocal: unused,
+    sealLocal: (_a: unknown, name: string, text: string) =>
+      Promise.resolve({ id: name, text, bytes: new Uint8Array(text.length) }),
     enqueueOutbox: unused,
     outboxPage: (_scope: string, names: readonly string[]) =>
       Promise.resolve(
@@ -179,7 +204,11 @@ export function resumeFixture() {
       payload: { snapshot: unknown };
     };
     const same =
-      JSON.stringify(body.payload.snapshot) === JSON.stringify(data.snapshot);
+      JSON.stringify(body.payload.snapshot) === JSON.stringify(data.snapshot) ||
+      (isSyncSnapshot(body.payload.snapshot) &&
+        isSyncSnapshot(data.snapshot) &&
+        sameSyncFence(body.payload.snapshot, data.snapshot) &&
+        body.payload.snapshot.revision <= data.snapshot.revision);
     return Promise.resolve(
       Response.json(same ? {} : { error: 'Estado alterado.' }, {
         status: same ? 200 : 409,
@@ -240,7 +269,12 @@ export function resumeFixture() {
     const body = JSON.parse(requestBody(input)) as {
       payload: { snapshot: unknown };
     };
-    if (JSON.stringify(body.payload.snapshot) !== JSON.stringify(data.snapshot))
+    if (!(
+      JSON.stringify(body.payload.snapshot) === JSON.stringify(data.snapshot) ||
+      (isSyncSnapshot(body.payload.snapshot) &&
+        isSyncSnapshot(data.snapshot) &&
+        sameSyncFence(body.payload.snapshot, data.snapshot))
+    ))
       return Promise.resolve(
         Response.json(
           { error: 'Messages or permissions changed. Sync again.' },
@@ -258,24 +292,67 @@ export function resumeFixture() {
       ),
     );
   };
-  const respond = (path: string, input?: RequestInit): Promise<Response> => {
-    const operation = path.split('/').at(-1)!;
-    data.requests.push(operation);
-    if (operation === data.failure)
-      return Promise.resolve(
-        Response.json({ error: 'Not authorized.' }, { status: 403 }),
-      );
-    if (operation === 'snapshot')
-      return Promise.resolve(Response.json(data.snapshot));
-    if (operation === 'changes') return changesResponse(input);
-    if (operation === 'page') return pageResponse(input);
-    if (operation === 'preview')
+  const snapshotResponse = (input?: RequestInit): Promise<Response> => {
+    const body = JSON.parse(requestBody(input)) as {
+      payload: { from?: unknown };
+    };
+    const from = body.payload.from;
+    if (incremental && isSyncSnapshot(from)) {
+      if (from.revision === data.snapshot.revision)
+        return Promise.resolve(Response.json(from));
       return Promise.resolve(
         Response.json({
-          items: data.items.filter((item) => !item.relation),
-          next: null,
+          ...data.snapshot,
+          source: data.changes === null ? 'full' : 'journal',
         }),
       );
+    }
+    return Promise.resolve(Response.json(data.snapshot));
+  };
+  const probeResponse = (input?: RequestInit): Promise<Response> => {
+    data.beforeDelivery?.();
+    const body = JSON.parse(requestBody(input)) as {
+      payload: { from: unknown };
+    };
+    const from = body.payload.from;
+    const same =
+      isSyncSnapshot(from) && from.revision === data.snapshot.revision;
+    return Promise.resolve(
+      Response.json({
+        snapshot: same ? from : data.snapshot,
+        items: same
+          ? data.items.map((row) => ({
+              id: row.id,
+              hash: row.hash,
+              queue_active: false,
+              recipient_received: true,
+            }))
+          : null,
+      }),
+    );
+  };
+  const previewResponse = (): Promise<Response> =>
+    Promise.resolve(
+      Response.json({
+        items: data.items.filter((item) => !item.relation),
+        next: null,
+      }),
+    );
+  const deniedResponse = (): Promise<Response> =>
+    Promise.resolve(
+      Response.json({ error: 'Not authorized.' }, { status: 403 }),
+    );
+  const respond = (path: string, input?: RequestInit): Promise<Response> => {
+    // This fixture intentionally retains legacy snapshots to exercise compatibility.
+    const wireOperation = path.split('/').at(-1)!;
+    const operation = legacyOperation(wireOperation);
+    data.requests.push(operation);
+    if (operation === data.failure) return deniedResponse();
+    if (operation === 'snapshot') return snapshotResponse(input);
+    if (operation === 'sync-probe') return probeResponse(input);
+    if (operation === 'changes') return changesResponse(input);
+    if (operation === 'page') return pageResponse(input);
+    if (operation === 'preview') return previewResponse();
     if (operation === 'relations') return relationsResponse(input);
     if (operation === 'delivery') return deliveryResponse(input);
     if (operation === 'confirm') return confirmResponse(input);
@@ -337,6 +414,11 @@ export function resumeFixture() {
       status: 'received',
     };
     data.items.push(item);
+    if (incremental)
+      Object.assign(data.snapshot, {
+        anchor: item.sequence,
+        revision: data.snapshot.revision + 1,
+      });
     data.records.set(`cache:${item.id}`, {
       text,
       verification: {
@@ -388,4 +470,8 @@ export function resumeFixture() {
     access,
     notificationReader,
   };
+}
+
+function legacyOperation(operation: string): string {
+  return operation === 'sync-state' ? 'snapshot' : operation;
 }

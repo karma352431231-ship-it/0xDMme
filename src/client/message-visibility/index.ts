@@ -100,6 +100,17 @@ export class MessageVisibility<T> {
       throw error;
     }
   }
+  /** V2 checks a finite cut and its security fence. Ordinary append hints
+   * queue the next cut; close() still invalidates this token immediately. */
+  async confirmCut(token: number, check: () => Promise<void>): Promise<void> {
+    try {
+      await check();
+      this.complete(token, this.verificationVersion(token));
+    } catch (error: unknown) {
+      this.fail(token);
+      throw error;
+    }
+  }
   fail(token: number): void {
     if (token === this.token) this.close();
   }

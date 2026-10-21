@@ -7,6 +7,7 @@ import type { ContentCapacity } from './content-capacity.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 
 interface OpeningRecord {
+  sequence: string;
   id: string;
   sender: string;
   recipient: string;
@@ -14,10 +15,12 @@ interface OpeningRecord {
   original_id: string;
 }
 interface OpeningInput {
+  through?: number;
   authority: ContactAuthority;
   expect: (client: pg.PoolClient) => Promise<void>;
 }
 interface OpeningContext {
+  through?: number;
   client: pg.PoolClient;
   authority: ContactAuthority;
   participants: readonly string[];
@@ -54,6 +57,7 @@ export class MessageOpening {
           authority: input.authority,
           participants,
           missing: [],
+          ...(input.through === undefined ? {} : { through: input.through }),
         };
         const packet = await this.open(context, input.id);
         await this.persist(context);
@@ -73,6 +77,7 @@ export class MessageOpening {
           authority: input.authority,
           participants,
           missing: [],
+          ...(input.through === undefined ? {} : { through: input.through }),
         };
         const rows = await this.export(context, input.ids);
         await this.persist(context);
@@ -101,13 +106,14 @@ export class MessageOpening {
   ): Promise<OpeningRecord> {
     const { client, authority, participants } = context;
     const result = await client.query<OpeningRecord>(
-      `SELECT id,sender,recipient,body IS NOT NULL AS available,coalesce(relation->>'id',id::text) AS original_id
+      `SELECT id,sender,recipient,sequence::text,body IS NOT NULL AS available,coalesce(relation->>'id',id::text) AS original_id
        FROM hash_talk.message_packets WHERE id=$1`,
       [id],
     );
     const row = result.rows[0];
     if (
       !row ||
+      Number(row.sequence) > (context.through ?? Number.MAX_SAFE_INTEGER) ||
       ![row.sender, row.recipient].includes(authority.session.accountId) ||
       !participants.includes(row.sender) ||
       !participants.includes(row.recipient)

@@ -436,17 +436,20 @@ await test('probe provides the snapshot for the next load without repeating the 
 });
 
 await test('preparation with no selected conversation makes all content ready before the first click', async () => {
-  const { controller, data, add, peer } = resumeFixture();
+  const { controller, data, add, peer } = resumeFixture(true);
   const other = crypto.randomUUID();
   await add('Primeira conversa');
   await add('Segunda conversa', other);
   controller.select(null);
   assert.equal(
     await controller.synchronizeAll(new AbortController().signal),
-    false,
+    true,
   );
   assert.equal(data.frames.at(-1), null);
-  assert.equal(data.cacheReads.length, 2);
+  assert.equal(
+    data.cacheReads.filter((name) => name.startsWith('cache:')).length,
+    2,
+  );
   const before = data.requests.length;
   for (const selected of [peer, other]) {
     controller.select(selected);
@@ -639,7 +642,7 @@ await test('editing one message queries only the delta, reuses content and prese
 });
 
 await test('complete preparation queries only changes without rereading intact messages', async () => {
-  const { controller, data, add } = resumeFixture();
+  const { controller, data, add } = resumeFixture(true);
   await add('Preservada');
   controller.select(null);
   const signal = new AbortController().signal;
@@ -655,7 +658,10 @@ await test('complete preparation queries only changes without rereading intact m
     'changes',
     'confirm',
   ]);
-  assert.deepEqual(data.cacheReads.slice(reads), [`cache:${added.id}`]);
+  assert.deepEqual(
+    data.cacheReads.slice(reads).filter((name) => name.startsWith('cache:')),
+    [`cache:${added.id}`],
+  );
 });
 
 await test('deletion failure keeps the gate closed and discards retained candidates', async () => {

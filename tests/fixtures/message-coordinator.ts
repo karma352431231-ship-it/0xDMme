@@ -271,12 +271,13 @@ export function coordinatorFixture(
       update: HistoryUpdate,
       projection: ConversationProjection,
     ) => void,
-    published: (value: { id: string; peer: string }) => void,
+    events: { published: (value: { id: string; peer: string }) => void },
   ) {
     publish = (rows) =>
       callback(rows, 'history', { peer: selectedPeer, latest: true });
     return {
       ...base,
+      synchronizationIssues: [],
       pause: (scope = 'account') => {
         if (scope === 'account') state.restorablePeers.clear();
         calls.push('pause');
@@ -350,7 +351,7 @@ export function coordinatorFixture(
         priorities.push({ operation: 'send', priority: options.priority });
         calls.push('send-pending');
         if (state.holdSend) await sending.promise;
-        for (const draft of drafts.splice(0, 16)) published(draft);
+        for (const draft of drafts.splice(0, 16)) events.published(draft);
       },
       synchronizeAll: (signal: AbortSignal) => {
         calls.push('preload');

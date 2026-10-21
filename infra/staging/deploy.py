@@ -206,15 +206,19 @@ def executor_code(config):
     # Keep ordinary code publication within the existing source budget without
     # transporting an unused worker installer or directory migration. Later
     # invitation/search verifiers import the directory transition's contracts.
+    if 'media_worker' not in config:
+        names.remove('deploy_media_worker')
     if not config.get('worker_boot'):
         names.remove('deploy_worker_boot')
     if not any(config.get(mode) is True for mode in
-               ['profile_directory', 'contact_invitations', 'post_search']):
+               ['profile_directory', 'contact_invitations', 'post_search', 'message_sync']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
-    if config.get('post_search') is True:
+    if config.get('post_search') is True or config.get('message_sync') is True:
         names.append('deploy_post_search')
+    if config.get('message_sync') is True:
+        names.append('deploy_message_sync')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -304,7 +308,10 @@ def main():
     parser.add_argument('--profile-directory', action='store_true', help='Apply the separately approved 092→093 profile directory migration.')
     parser.add_argument('--contact-invitations', action='store_true', help='Apply the separately approved 093→094 contact invitation migration.')
     parser.add_argument('--post-search', action='store_true', help='Apply the separately approved 094→095 public post search index.')
+    parser.add_argument('--message-sync', action='store_true', help='Apply the separately approved 095→096 incremental message synchronization transition.')
     args = parser.parse_args()
+    if args.message_sync and (args.prepare or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
+        parser.error('Message synchronization requires its separate --check or --activate release.')
     if args.post_search and (args.prepare or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
         parser.error('Post search requires its separate --check or --activate release.')
     if args.contact_invitations and (args.prepare or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
@@ -325,6 +332,8 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.message_sync:
+        config['message_sync'] = True
     if args.post_search:
         config['post_search'] = True
     if args.contact_invitations:
