@@ -48,6 +48,7 @@ async function fixture(t: TestContext) {
     '.nvmrc': '24.14.0',
     'dist/web/index.html': '<!doctype html><p>Synthetic public app</p>',
     'dist/web/sw.js': '// synthetic worker',
+    'dist/web/wallet-metamask.svg': '<svg xmlns="http://www.w3.org/2000/svg"/>',
     '.local/VPS_SSH_TARGET': 'synthetic-user@192.0.2.123',
     '.env': 'SYNTHETIC_PRIVATE_VALUE=never-publish',
   };
@@ -60,6 +61,7 @@ async function fixture(t: TestContext) {
     JSON.stringify([
       { path: '/index.html', type: 'text/html' },
       { path: '/sw.js', type: 'text/javascript' },
+      { path: '/wallet-metamask.svg', type: 'image/svg+xml' },
     ]),
   );
   const input = {

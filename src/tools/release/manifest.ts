@@ -38,6 +38,14 @@ export function sourcePath(value: string): boolean {
 export function assetPath(value: string): boolean {
   const name = value.endsWith('.br') ? value.slice(0, -3) : value;
   if (
+    [
+      '/wallet-metamask.svg',
+      '/wallet-phantom.svg',
+      '/wallet-backpack.png',
+    ].includes(name)
+  )
+    return true;
+  if (
     /^\/(?:index|wallet|recovery|phantom-probe|matrix-crypto-18\.9\.0-sources)\.html$/u.test(
       name,
     )
