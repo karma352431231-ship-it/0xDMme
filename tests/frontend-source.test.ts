@@ -31,6 +31,7 @@ await test('portable package preserves exact sources and licenses without privat
     'src/client/groups/admission.ts',
     'src/shared/groups/index.ts',
     'src/shared/groups/links.ts',
+    'docs/VERIFIABLE_RELEASES.md',
     'LICENSES.md',
     'package-lock.json',
   ];

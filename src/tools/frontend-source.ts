@@ -200,6 +200,7 @@ const authored = [
   'LICENSES.md',
   'LICENSE-GPL-3.0.txt',
   'docs/FRONTEND_SOURCES.md',
+  'docs/VERIFIABLE_RELEASES.md',
   'vendor/libsodium-0.8.4/README.md',
 ];
 
