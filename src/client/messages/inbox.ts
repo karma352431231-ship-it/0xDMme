@@ -11,7 +11,7 @@ interface InboxPorts {
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
-  received: () => void | Promise<void>;
+  received: (scope: HistoryKind) => void | Promise<void>;
   failed: (error: unknown) => void;
 }
 
@@ -102,6 +102,6 @@ export class MessageInbox {
     if (signal.aborted || !this.ports.current(generation)) return;
     this.preparation.complete(turn, more);
     this.retryAt = 0;
-    await this.ports.received();
+    await this.ports.received(turn.kind);
   }
 }
