@@ -41,3 +41,24 @@ await test('notice during a page or session change cannot be lost through an old
   preparation.complete(preparation.next()!, false);
   assert.equal(preparation.pending, false);
 });
+
+await test('a scoped wakeup keeps completed unrelated histories idle', () => {
+  const preparation = new HistoryPreparation();
+  preparation.complete(preparation.next()!, false);
+  preparation.complete(preparation.next()!, false);
+  preparation.request('groups');
+  assert.equal(preparation.next()?.kind, 'groups');
+  preparation.complete(preparation.next()!, false);
+  assert.equal(preparation.pending, false);
+});
+
+await test('a direct hint cannot invalidate an active group receipt completion', () => {
+  const preparation = new HistoryPreparation();
+  preparation.complete(preparation.next()!, false);
+  const group = preparation.next()!;
+  preparation.request('direct');
+  preparation.complete(group, false);
+  assert.equal(preparation.next()?.kind, 'direct');
+  preparation.complete(preparation.next()!, false);
+  assert.equal(preparation.pending, false);
+});

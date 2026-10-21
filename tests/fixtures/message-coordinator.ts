@@ -36,6 +36,8 @@ for (const match of source.matchAll(
 }
 const real = new Set([
   './synchronization.ts',
+  './live-updates.ts',
+  './preview-admission.ts',
   './startup.ts',
   './continuity.ts',
   './warmup.ts',

@@ -1,7 +1,9 @@
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { MessageWarmup } from './warmup.ts';
+import { MessageChangeFollowup } from './change-followup.ts';
+import type { ChangeFollowupScope } from './change-followup.ts';
 import { MessageInbox } from './inbox.ts';
+import type { HistoryKind } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
@@ -40,15 +42,18 @@ interface SynchronizationOperations {
   periodicWork: () => Promise<boolean>;
   pending: () => Promise<readonly unknown[]>;
   sendPending: () => Promise<void>;
+  visibleSettled?: () => void;
 }
 
 /** Scheduling and cancellation only. Authority and crypto stay in their owners. */
 export class MessageSynchronization {
   private readonly options: SynchronizationOperations;
   private readonly updates: LiveUpdates;
-  private readonly followup: MessageWarmup;
+  private readonly followup: MessageChangeFollowup;
   private closed = false;
   private interactiveChange = false;
+  private visibleChange: symbol | null = null;
+  private receiptProjectionPending = false;
   private maintenance: Promise<void> | null = null;
   private readonly inbox: MessageInbox;
   private automaticAttempts = 0;
@@ -69,6 +74,11 @@ export class MessageSynchronization {
       changed: () => this.resume(),
       received: async () => {
         const generation = options.state().generation;
+        if (this.visibleUpdatePending) {
+          this.receiptProjectionPending = true;
+          this.followup.queue('content');
+          return;
+        }
         await options.unread();
         if (this.current(generation)) options.complete();
       },
@@ -85,16 +95,18 @@ export class MessageSynchronization {
             ? { priority: 'interactive' }
             : {};
         this.interactiveChange = false;
+        const scope = this.followup.take();
         if (update === 'refresh') void this.run(() => options.refresh(work));
-        else void this.checkChanges(work);
+        else void this.checkChanges(work, scope);
       },
     });
-    this.followup = new MessageWarmup({
+    this.followup = new MessageChangeFollowup({
       available: () => this.backgroundReady,
       run: (step) => this.background(step),
       changed: () => this.resume(),
       failed: (error) =>
         this.report(error, t('Could not complete the operation.')),
+      unread: () => this.refreshUnread(),
       steps: options.changeMaintenance,
     });
   }
@@ -105,19 +117,40 @@ export class MessageSynchronization {
     this.followup.resume();
     this.inbox.resume();
   }
-  prepareHistory(): void {
-    this.inbox.request();
+  prepareHistory(scope?: HistoryKind): void {
+    this.inbox.request(scope);
   }
-  request(update: LiveUpdate = 'refresh', work: VaultWorkOptions = {}): void {
+  requestInbox(scope: HistoryKind): void {
+    this.prepareHistory(scope);
+    this.resume();
+  }
+  request(
+    update: LiveUpdate = 'refresh',
+    work: VaultWorkOptions = {},
+    scope?: HistoryKind,
+  ): void {
+    this.prepareHistory(scope);
+    this.queueUpdate(update, work, scope ? 'content' : 'all');
+  }
+  /** Delivery/read metadata changes do not imply a new encrypted receipt page. */
+  requestProjection(work: VaultWorkOptions = {}): void {
+    this.queueUpdate('probe', work, 'receipts');
+  }
+  private queueUpdate(
+    update: LiveUpdate,
+    work: VaultWorkOptions,
+    scope: ChangeFollowupScope,
+  ): void {
     if (work.priority === 'interactive' && this.options.state().visible)
-      this.stopPreload();
+      this.inbox.defer();
     this.interactiveChange ||= work.priority === 'interactive';
-    this.prepareHistory();
     this.automaticAttempts = 0;
+    this.followup.admit(scope);
     this.updates.request(update);
   }
   startRefresh(): void {
     this.followup.reset();
+    this.receiptProjectionPending = false;
     this.interactiveChange = false;
     this.updates.clear();
     this.lastTransferAttempt = Date.now();
@@ -125,6 +158,8 @@ export class MessageSynchronization {
   reset(): void {
     this.followup.reset();
     this.interactiveChange = false;
+    this.visibleChange = null;
+    this.receiptProjectionPending = false;
     this.cancelOpening();
     this.updates.clear();
     this.automaticAttempts = 0;
@@ -184,6 +219,16 @@ export class MessageSynchronization {
       this.maintenance !== null ||
       this.updates.waiting ||
       this.opening.waiting
+    );
+  }
+  /** Queued/running visible verification takes precedence over list decoration. */
+  get visibleUpdatePending(): boolean {
+    return (
+      this.options.state().visible &&
+      (this.interactiveChange ||
+        this.visibleChange !== null ||
+        this.busy ||
+        this.opening.waiting)
     );
   }
   get backgroundReady(): boolean {
@@ -281,29 +326,56 @@ export class MessageSynchronization {
     const state = this.options.state();
     return this.canSynchronize() && !state.startupPending;
   }
-  private async checkChanges(work: VaultWorkOptions): Promise<void> {
+  private async refreshUnread(): Promise<void> {
+    const generation = this.options.state().generation;
+    await this.options.unread();
+    if (!this.current(generation) || !this.receiptProjectionPending) return;
+    this.receiptProjectionPending = false;
+    this.options.complete();
+  }
+  private async checkChanges(
+    work: VaultWorkOptions,
+    scope: ChangeFollowupScope,
+  ): Promise<void> {
     const current = this.options.state().generation;
-    await this.checkAutomatically(async () => {
-      await this.options.unread();
-      if (!this.current(current)) return;
-      await retrySnapshotRead(
-        () => this.options.changes(work),
-        () => this.current(current),
+    const visible = work.priority === 'interactive' ? Symbol() : null;
+    if (visible) this.visibleChange = visible;
+    try {
+      await this.checkAutomatically(
+        async () => {
+          await retrySnapshotRead(
+            () => this.options.changes(work),
+            () => this.current(current),
+          );
+          if (this.current(current)) this.followup.queue(scope);
+        },
+        scope === 'all' ? 'full' : 'projection',
       );
-      if (this.current(current)) this.followup.queue();
-    });
+    } finally {
+      if (visible && this.visibleChange === visible) {
+        this.visibleChange = null;
+        if (this.current(current)) {
+          this.options.visibleSettled?.();
+          this.resume();
+        }
+      }
+    }
   }
 
   /** Automatic reads share the maintenance lock. An interactive operation can
    * reserve busy and wait for them instead of being rejected as another sync. */
-  private async checkAutomatically(work: () => Promise<void>): Promise<void> {
+  private async checkAutomatically(
+    work: () => Promise<void>,
+    completion: 'full' | 'projection' = 'full',
+  ): Promise<void> {
     const current = this.options.state().generation;
     await this.maintain(
       async () => {
         this.failed = false;
         await work();
         if (!this.current(current)) return;
-        if (this.options.state().online) this.options.complete();
+        if (this.options.state().online && completion === 'full')
+          this.options.complete();
         await this.projectPending(current);
         if (!this.busy) this.options.status();
       },

@@ -1,6 +1,7 @@
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
+import type { HistoryKind } from './preparation.ts';
 
 interface InboxPorts {
   ready: () => boolean;
@@ -27,17 +28,21 @@ export class MessageInbox {
   constructor(ports: InboxPorts) {
     this.ports = ports;
   }
-  request(): void {
-    this.preparation.request();
+  request(scope?: HistoryKind): void {
+    this.preparation.request(scope);
   }
   reset(): void {
     this.pause();
     this.retryAt = 0;
     this.request();
   }
-  pause(): void {
+  /** Yield after the active bounded page commits; avoid fetching it again. */
+  defer(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
+  }
+  pause(): void {
+    this.defer();
     this.abort?.abort();
     this.ports.pause();
   }
