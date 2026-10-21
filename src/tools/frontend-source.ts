@@ -290,7 +290,10 @@ export async function frontendSource(
     throw new Error('Source count exceeds the limit.');
   // File contents only: no machine-specific archive metadata.
   const stdout = await sourceTar(root, included);
-  return gzipSync(stdout, { level: 9 });
+  const archive = gzipSync(stdout, { level: 9 });
+  // RFC 1952: OS=255 is portable. Node otherwise writes the build host's OS.
+  archive[9] = 255;
+  return archive;
 }
 function verifyInputs(
   root: string,

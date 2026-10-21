@@ -36,6 +36,7 @@ await test('portable package preserves exact sources and licenses without privat
     'package-lock.json',
   ];
   const archive = await frontendSource(root, new Set(sources));
+  assert.equal(archive[9], 255, 'GZip must not encode the build host OS');
   const path = join(temporary, 'source.tar.gz');
   await writeFile(path, archive);
   const execute = promisify(execFile);

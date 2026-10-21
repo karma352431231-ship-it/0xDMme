@@ -13,7 +13,7 @@ The **Source code and licenses** link (Profile → About the app, also available
 ## Packaging limits
 
 - Up to 2,048 distinct files. The ceiling was raised from 1,024 on 2026-10-19; tests preserve 1,025 distinct files exactly and reject 2,049.
-- A 24 MiB budget for the intermediate tar tree, gzip level 9, and a canonical USTAR format with sorted paths, zero timestamps and numeric owners, fixed 0644 file modes, and no ACLs, extended attributes, usernames or per-file extended headers from the build machine.
+- A 24 MiB budget for the intermediate tar tree, gzip level 9 with the portable OS marker 255, and a canonical USTAR format with sorted paths, zero timestamps and numeric owners, fixed 0644 file modes, and no ACLs, extended attributes, usernames or per-file extended headers from the build machine.
 - The owner removed the individual 2 MiB ceiling for `source-<hash>.tar.gz` in October 2026, across packaging, serving and deployment HTTP verification. Other asset and attachment limits are unchanged, as are the total deploy artifact and release budgets.
 - The source archive stays outside the PWA offline cache.
 - No source, notice or license is ever omitted to fit a budget.
