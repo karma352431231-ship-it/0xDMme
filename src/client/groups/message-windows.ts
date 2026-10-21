@@ -18,7 +18,7 @@ interface Window {
   views: GroupView[];
   before: number | null;
 }
-interface ReadContext extends GroupReadContext {
+interface ReadContext extends Omit<GroupReadContext, 'machine'> {
   indexPages?: number;
   guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;

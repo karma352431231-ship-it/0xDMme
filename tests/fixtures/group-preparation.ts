@@ -45,7 +45,12 @@ const bundle = await build({
       name: 'group-preparation-adapters',
       setup(builder) {
         builder.onResolve({ filter: /.*/ }, ({ path, importer }) => {
-          if (adapters[path] && importer.endsWith('/groups/controller.ts'))
+          if (
+            adapters[path] &&
+            ['/groups/controller.ts', '/groups/message-lease.ts'].some(
+              (suffix) => importer.endsWith(suffix),
+            )
+          )
             return { path, namespace: 'fixture' };
         });
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({
@@ -87,6 +92,7 @@ export function groupPreparationFixture() {
     pages: [] as number[],
     views: [] as GroupView[],
     signals: [] as AbortSignal[],
+    openings: 0,
     active: 0,
     maximum: 0,
     request: (_operation: string) => {
@@ -108,6 +114,7 @@ export function groupPreparationFixture() {
     fixture: {
       group: { state, head },
       open: () => {
+        data.openings++;
         data.active++;
         data.maximum = Math.max(data.maximum, data.active);
         return Promise.resolve({

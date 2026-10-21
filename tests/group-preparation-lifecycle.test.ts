@@ -73,6 +73,12 @@ await test('A/B/C navigation during continuous private arrival preserves the act
       operation !== 'group-message-confirm'
     )
       return Promise.resolve();
+    if (operation === 'group-message-index')
+      assert.equal(
+        f.data.openings,
+        0,
+        'Metadata-only index pages must not initialize the SDK',
+      );
     incoming.push(++next);
     sync.requestInbox('direct');
     for (const peer of ['A', 'B', 'C']) assert.equal(visits.open(peer), true);

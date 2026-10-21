@@ -15,7 +15,7 @@ export interface Snapshot {
 export interface IndexItem extends GroupRemovalItem {
   deleted: boolean;
 }
-type ReadContext = GroupReadContext & { indexPages?: number };
+type ReadContext = Omit<GroupReadContext, 'machine'> & { indexPages?: number };
 interface Progress {
   key: string;
   after: number;

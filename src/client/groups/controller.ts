@@ -1,3 +1,4 @@
+import { GroupMessageLease } from './message-lease.ts';
 import { MessageContinuation } from '../synchronization-work/index.ts';
 import type { MessageWorkResult } from '../synchronization-work/index.ts';
 import {
@@ -306,7 +307,7 @@ export class GroupController {
             if (this.selected?.state.groupId === raw.groupId) {
               this.selected = summary;
               if (this.visible())
-                await this.openVerified(c, group, machine, null).catch(
+                await this.openVerified(c, group, null, machine).catch(
                   (error: unknown) => {
                     if (!expectedInterruption(error)) throw error;
                   },
@@ -494,32 +495,26 @@ export class GroupController {
     const prepared =
       progress.before === null &&
       this.messageWindows.prepared(group.state.groupId);
-    const page = await this.machine(c, (machine) =>
-      this.messageWindows.read(
+    const lease = new GroupMessageLease({
+      ...c,
+      group,
+      identities: this.identities,
+    });
+    let page;
+    try {
+      page = await this.messageWindows.read(
         {
           ...c,
           indexPages: 1,
           group,
-          machine,
           identities: this.identities,
-          read: async (raw) => {
-            const result = await readGroupPage(
-              { ...c, group, machine, identities: this.identities },
-              raw,
-            );
-            c.guard();
-            if (result.receipts.length)
-              await c.api('group-message-received', {
-                groupId: group.state.groupId,
-                head: group.head,
-                items: result.receipts,
-              });
-            return result;
-          },
+          read: (raw) => lease.read(raw),
         },
         progress.before,
-      ),
-    );
+      );
+    } finally {
+      lease.close();
+    }
     c.guard();
     progress.before = prepared ? null : page.before;
     if (progress.before === null) {
@@ -563,9 +558,7 @@ export class GroupController {
       this.warning = '';
       if (c.authority.offline)
         throw new Error('Connect to check current group membership.');
-      return this.machine(c, (machine) =>
-        this.openVerified(c, group, machine, older ? this.before : null),
-      );
+      return this.openVerified(c, group, older ? this.before : null);
     }, guard);
     guard();
     await this.identities.save(guard);
@@ -576,12 +569,16 @@ export class GroupController {
   private async openVerified(
     c: GroupContext,
     group: GroupState,
-    machine: import('../message-crypto/index.ts').MessageCrypto,
     before: number | null,
+    machine?: import('../message-crypto/index.ts').MessageCrypto,
   ): Promise<boolean> {
     const generation = this.generation,
       guard = this.selection.capture(() => this.guard(generation));
     this.warning = '';
+    const lease = new GroupMessageLease(
+      { ...c, group, identities: this.identities },
+      machine,
+    );
     try {
       const page = await this.messageWindows.read(
         {
@@ -589,21 +586,8 @@ export class GroupController {
           guard,
           indexPages: 1,
           group,
-          machine,
           identities: this.identities,
-          read: async (raw) => {
-            const result = await readGroupPage(
-              { ...c, group, machine, identities: this.identities },
-              raw,
-            );
-            if (result.receipts.length)
-              await c.api('group-message-received', {
-                groupId: group.state.groupId,
-                head: group.head,
-                items: result.receipts,
-              });
-            return result;
-          },
+          read: (raw) => lease.read(raw),
         },
         before,
       );
@@ -621,6 +605,8 @@ export class GroupController {
       this.views = [];
       this.historyPending = false;
       throw error;
+    } finally {
+      lease.close();
     }
     await this.readViews(async (op, payload) => {
       guard();

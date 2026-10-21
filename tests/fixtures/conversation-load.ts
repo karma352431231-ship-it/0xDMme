@@ -176,7 +176,6 @@ export async function runConversationLoad(paint: (text: string) => void) {
       sign: () => Promise.resolve('synthetic'),
     },
     group: { state, head },
-    machine: {} as Parameters<GroupMessageWindows['read']>[0]['machine'],
     identities: {} as Parameters<GroupMessageWindows['read']>[0]['identities'],
     indexPages: 1,
     api: async (operation: string, data: Record<string, unknown>) => {
