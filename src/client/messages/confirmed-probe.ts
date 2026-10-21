@@ -1,3 +1,9 @@
+import { canonical } from '../../shared/devices/index.ts';
+import { object } from '../../shared/account/index.ts';
+import {
+  isSyncSnapshot,
+  syncSnapshot,
+} from '../../shared/message-sync/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { MessageVisibility } from '../message-visibility/index.ts';
 import { readDelivery } from './delivery.ts';
@@ -13,8 +19,10 @@ export async function probeConfirmed<T extends DeliveryView>(input: {
   api: Api;
   visibility: MessageVisibility<T>;
   token: number;
+  advanced?: (snapshot: unknown) => void;
 }): Promise<T[] | null> {
   const snapshot: unknown = JSON.parse(input.candidate.snapshot);
+  if (isSyncSnapshot(snapshot)) return probeFiniteCut({ ...input, snapshot });
   for (let attempt = 0; attempt < 3; attempt++) {
     const version = input.visibility.verificationVersion(input.token);
     let views: T[];
@@ -37,4 +45,46 @@ export async function probeConfirmed<T extends DeliveryView>(input: {
     return views;
   }
   throw new Error(t('New updates arrived during verification. Sync again.'));
+}
+
+/** One probe combines head discovery with the first delivery batch. Later
+ * arrivals never invalidate this cut, but must still schedule its successor. */
+async function probeFiniteCut<T extends DeliveryView>(input: {
+  snapshot: unknown;
+  candidate: { views: readonly T[] };
+  api: Api;
+  visibility: MessageVisibility<T>;
+  token: number;
+  advanced?: (snapshot: unknown) => void;
+}): Promise<T[] | null> {
+  const ids = input.candidate.views
+    .filter((view) => !view.archived)
+    .slice(0, 18)
+    .map((view) => view.id);
+  const value = object(
+    await input.api('sync-probe', { from: input.snapshot, ids }),
+  );
+  const next = syncSnapshot(value['snapshot']);
+  if (canonical(next) !== canonical(input.snapshot)) {
+    input.advanced?.(next);
+    return null;
+  }
+  let first = true;
+  const views = await readDelivery({
+    snapshot: input.snapshot,
+    views: input.candidate.views,
+    api: (op, data) => {
+      if (op === 'delivery' && first) {
+        first = false;
+        return Promise.resolve(value['items']);
+      }
+      return input.api(op, data);
+    },
+  });
+  input.visibility.stage(input.token, views);
+  input.visibility.complete(
+    input.token,
+    input.visibility.verificationVersion(input.token),
+  );
+  return views;
 }

@@ -33,6 +33,7 @@ const authored = [
   'src/client/message-forward',
   'src/client/message-presentation',
   'src/shared/message-presentation',
+  'src/shared/message-sync',
   'src/client/transient-menu',
   'src/client/scrollbars',
   'src/shared/community-followers',

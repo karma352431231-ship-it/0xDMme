@@ -1,3 +1,4 @@
+import { supportsMessageDelta } from '../../shared/message-sync/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import { readMessageDelta } from './delta.ts';
 import { messagePeer } from './index-sync.ts';
@@ -28,7 +29,7 @@ export async function readIncrementalWindow<T extends DeltaView>(input: {
   read: (items: MessageItem[]) => Promise<T[]>;
   delivery: (views: T[]) => Promise<T[]>;
 }) {
-  if (!input.candidate || !input.peer || input.before !== null) return null;
+  if (!input.candidate || !eligible(input)) return null;
   const from: unknown = JSON.parse(input.candidate.snapshot);
   if (canonical(from) === canonical(input.snapshot)) return null;
   const items = await readMessageDelta(input.api, from, input.snapshot);
@@ -121,4 +122,16 @@ function boundWindow<T extends DeltaView>(views: T[]): T[] | null {
   );
   // Preserve the existing relation-window contract; never silently drop actions.
   return result.filter((view) => view.relation).length > 48 ? null : result;
+}
+
+function eligible(input: {
+  peer: string | null;
+  before: number | null;
+  snapshot: unknown;
+}): boolean {
+  return (
+    input.peer !== null &&
+    input.before === null &&
+    supportsMessageDelta(input.snapshot)
+  );
 }

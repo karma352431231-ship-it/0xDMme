@@ -1,3 +1,5 @@
+import { retainedMessageView } from './cache-projection.ts';
+import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
@@ -8,6 +10,8 @@ import type {
 interface ConversationView {
   text: string;
   kind?: string;
+  sequence?: number;
+  relation?: unknown;
 }
 export interface ConfirmedConversation<T> {
   snapshot: string;
@@ -31,6 +35,10 @@ export class ConfirmedConversations<T extends ConversationView> {
   private connected = false;
   private epoch = 0;
   private pending = false;
+  private hints = 0;
+  get hintVersion(): number {
+    return this.hints;
+  }
   private profile = '';
 
   setProfile(session: AccountSession | null): void {
@@ -43,6 +51,7 @@ export class ConfirmedConversations<T extends ConversationView> {
   }
 
   hint(): void {
+    this.hints++;
     this.pending = true;
     this.trace(null, 'cache-invalidated', 'live-hint');
   }
@@ -111,6 +120,39 @@ export class ConfirmedConversations<T extends ConversationView> {
     }
     this.trim();
   }
+  updateVerified(input: {
+    hints: number;
+    publish?: (peer: string, rows: T[]) => void;
+    recovered?: ReadonlySet<string>;
+    from: unknown;
+    snapshot: unknown;
+    complete: boolean;
+    blocked: ReadonlySet<string>;
+    project: (peer: string, rows: T[]) => T[];
+  }): void {
+    for (const [peer, window] of [...this.windows]) {
+      const covered =
+        input.complete &&
+        !input.blocked.has(peer) &&
+        coveredWindow(window.value.snapshot, peer, input);
+      const views = input.project(peer, window.value.views);
+      this.remember(peer, {
+        ...window.value,
+        views,
+        oldest: oldestSequence(views, window.value.oldest),
+        snapshot: covered
+          ? JSON.stringify(input.snapshot)
+          : window.value.snapshot,
+      });
+      if (!covered) this.invalidateWindow(peer);
+      else input.publish?.(peer, views);
+    }
+    if (input.hints === this.hints) this.pending = false;
+  }
+  private invalidateWindow(peer: string): void {
+    const window = this.windows.get(peer);
+    if (window) window.epoch = null;
+  }
   read(peer: string): ConfirmedConversation<T> | null {
     const window = this.windows.get(peer);
     this.trace(
@@ -127,9 +169,7 @@ export class ConfirmedConversations<T extends ConversationView> {
     this.remove(peer, 'replaced');
     const retained = {
       ...value,
-      views: value.views.map((view) =>
-        view.kind === 'profile' ? { ...view, text: '' } : view,
-      ),
+      views: value.views.map(retainedMessageView),
     };
     const bytes = retained.views.reduce(
       (total, view) => total + view.text.length * 2 + 1024,
@@ -196,4 +236,28 @@ export class ConfirmedConversations<T extends ConversationView> {
       pending: this.pending,
     });
   }
+}
+
+function oldestSequence(
+  rows: ConversationView[],
+  fallback: number | null,
+): number | null {
+  return (
+    rows.find(
+      (row) =>
+        row.kind !== 'profile' && !row.relation && row.sequence !== undefined,
+    )?.sequence ?? fallback
+  );
+}
+
+function coveredWindow(
+  snapshot: string,
+  peer: string,
+  input: { from: unknown; snapshot: unknown; recovered?: ReadonlySet<string> },
+): boolean {
+  return (
+    canonical(JSON.parse(snapshot) as unknown) === canonical(input.from) ||
+    (isSyncSnapshot(input.snapshot) && input.snapshot.source === 'full') ||
+    Boolean(input.recovered?.has(peer))
+  );
 }

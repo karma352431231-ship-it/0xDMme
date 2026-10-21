@@ -20,7 +20,7 @@ function row(sequence: number, deleted = false) {
     sender_revision: 1,
     recipient_revision: 1,
     queue_active: true,
-    status: 'pending',
+    status: 'pending' as const,
   };
 }
 await test('bounded rounds continue the same snapshot without releasing a partial index; changes restart', async () => {
@@ -319,4 +319,109 @@ await test('delta outside the account or incomplete response cannot advance the 
       [target.id],
     );
   }
+});
+
+await test('a finite suffix reuses its completed catalog after append-journal expiry', async () => {
+  const index = new MessageIndex(),
+    items = Array.from({ length: 20 }, (_, n) => row(n + 1)),
+    requested: number[] = [];
+  const snapshot = {
+    version: 2 as const,
+    account: sender,
+    device: crypto.randomUUID(),
+    revision: 20,
+    anchor: 20,
+    invalidation: 0,
+    directory: 'a'.repeat(64),
+    contacts: 0,
+    source: 'full' as const,
+  };
+  const context = {
+    snapshot,
+    account: sender,
+    selected: recipient,
+    before: null,
+    deleted: async () => {},
+    api: (_operation: string, data: Record<string, unknown>) => {
+      const after = Number(data['after']);
+      requested.push(after);
+      const remaining = items.filter((item) => item.sequence > after);
+      const page = remaining.slice(0, 16);
+      return Promise.resolve({
+        items: page,
+        next: remaining.length > 16 ? page.at(-1)!.sequence : null,
+      });
+    },
+  };
+  await index.read(context);
+  requested.length = 0;
+  items.push(row(21));
+  const updated = await index.read({
+    ...context,
+    snapshot: { ...snapshot, revision: 21, anchor: 21, source: 'tail' },
+  });
+  assert.deepEqual(requested, [20]);
+  assert.equal(updated.at(-1)!.sequence, 21);
+});
+
+await test('partial journal pages never expose an incomplete catalog or lose earlier changed peers', async () => {
+  const index = new MessageIndex(),
+    first = row(1),
+    other = crypto.randomUUID();
+  const from = {
+    version: 2 as const,
+    account: sender,
+    device: crypto.randomUUID(),
+    revision: 1,
+    anchor: 1,
+    invalidation: 0,
+    directory: 'a'.repeat(64),
+    contacts: 0,
+    source: 'journal' as const,
+  };
+  const context = {
+    snapshot: from,
+    account: sender,
+    selected: recipient,
+    before: null,
+    deleted: async () => {},
+    api: () => Promise.resolve({ items: [first], next: null }),
+  };
+  await index.read(context);
+  const a = row(2),
+    b = { ...row(3), recipient: other },
+    snapshot = { ...from, revision: 3, anchor: 3 };
+  index.rememberJournalPage({
+    ...context,
+    from,
+    snapshot,
+    after: 0,
+    page: { items: [a], next: 2 },
+  });
+  index.rememberJournalPage({
+    ...context,
+    from,
+    snapshot,
+    after: 2,
+    page: { items: [b], next: null },
+  });
+  const result = await index.read({
+    ...context,
+    snapshot,
+    selected: other,
+    api: () =>
+      Promise.reject(
+        new Error('Catalog must already cover both committed pages'),
+      ),
+  });
+  assert.deepEqual(
+    result.map((item) => item.id),
+    [b.id],
+  );
+  const firstPeer = await index.read({
+    ...context,
+    snapshot,
+    api: () => Promise.reject(new Error('No rescan')),
+  });
+  assert.ok(firstPeer.some((item) => item.id === a.id));
 });

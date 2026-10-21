@@ -35,5 +35,6 @@ export async function deleteMessageCopies(
     client,
     [input.sender, input.recipient],
     changed.rows.map((item) => item.id),
+    'remove',
   );
 }

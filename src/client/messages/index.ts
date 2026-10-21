@@ -222,9 +222,20 @@ export function startMessages(
       });
       renderHistory(update);
     },
-    (value) => {
-      outgoing.acknowledge(value);
-      renderHistory();
+    {
+      recovery: () => synchronization.requestInbox('direct'),
+      published: (value) => {
+        outgoing.acknowledge(value);
+        renderHistory();
+      },
+      verified: (peer, verifiedRows) =>
+        publishVerifiedConversationPreview({
+          rows: verifiedRows,
+          projection: { peer, latest: true },
+          previews,
+          online: navigator.onLine,
+          localOnly: false,
+        }),
     },
   );
   const previews = new ConversationPreviewLoader({
@@ -428,9 +439,13 @@ export function startMessages(
             .filter((peer) => !peer.localOnly)
             .map((peer) => peer.accountId),
         );
-      message = controller.transportPending
-        ? t('Some sends are still pending. They will resume automatically.')
-        : t('Conversations updated.');
+      message = controller.synchronizationIssues.length
+        ? t(
+            'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
+          )
+        : controller.transportPending
+          ? t('Some sends are still pending. They will resume automatically.')
+          : t('Conversations updated.');
     },
     renderPending,
     pause: () => {

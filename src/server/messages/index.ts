@@ -1,4 +1,9 @@
 import { callContext } from '../call-context/index.ts';
+import { messageSyncOperations } from './sync.ts';
+import {
+  isSyncSnapshot,
+  syncSnapshot,
+} from '../../shared/message-sync/index.ts';
 import { SocialDmService, socialDmOperations } from '../social-dm/index.ts';
 import { AttachmentService } from '../attachments/index.ts';
 import { representativeOperations } from '../representatives/index.ts';
@@ -58,6 +63,7 @@ function sequence(value: unknown): number {
   return integer(value, Number.MAX_SAFE_INTEGER);
 }
 function snapshot(input: unknown): MessageSnapshot {
+  if (isSyncSnapshot(input)) return syncSnapshot(input);
   const data = object(input);
   keys(data, ['revision', 'directory', 'contacts']);
   return {
@@ -191,6 +197,7 @@ export class MessageService {
         keys(d, ['after']);
         return db.backups.page(a, sequence(d['after']));
       },
+      ...messageSyncOperations(db.messages),
       snapshot: (a, d) => {
         keys(d, []);
         return db.messages.snapshot(a);
@@ -274,6 +281,7 @@ export class MessageService {
             a,
             uuid(row['id']),
             fingerprint(row['hash']),
+            snapshot(d['snapshot']),
           );
         }
         await db.messages.confirmSnapshot(a, snapshot(d['snapshot']));

@@ -4,6 +4,7 @@ export interface RecordRow {
   value: unknown;
   size: number;
 }
+export class MessageStorageError extends Error {}
 /** Strict durable transactions; only ciphertext/public protocol data enters this database. */
 export function transaction<T>(
   scope: string,
@@ -26,7 +27,11 @@ export function transaction<T>(
         /* Already completed. */
       }
       db?.close();
-      reject(new Error('Message storage on the device was not confirmed.'));
+      reject(
+        new MessageStorageError(
+          'Message storage on the device was not confirmed.',
+        ),
+      );
     }
     opening.onerror = fail;
     opening.onblocked = fail;

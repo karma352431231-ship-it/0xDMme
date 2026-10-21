@@ -1,9 +1,21 @@
+import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
+import { syncMessageApi as messageApi } from './sync-transport.ts';
+import { readMessageWindow } from './window-read.ts';
+import { MessageReceiveTurn } from './receive-turn.ts';
+import { MessageRecoveryWakeup } from './recovery-wakeup.ts';
+import { MessageReadTarget } from './read-target.ts';
+import { MessageSyncReceiver } from './sync-receiver.ts';
+import type { SyncReceiverPorts } from './sync-receiver.ts';
+import { loadSyncProgress, saveSyncProgress } from './sync-progress.ts';
+import {
+  projectCachedConversation,
+  retainedMessageView,
+} from './cache-projection.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
-import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
 import {
   traceChatSync,
@@ -94,12 +106,11 @@ import {
   MegolmDecryptionError,
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
-import { messageApi, backupMessageApi } from '../message-api/index.ts';
+import { backupMessageApi } from '../message-api/index.ts';
 import {
   MessageIndex,
   IncompleteMessageIndex,
   VerifiedWindow,
-  MessagePrefetch,
   messagePeer,
   verifiedReceipt,
   verifiedReceiptHash,
@@ -137,6 +148,11 @@ export interface MessageView {
 export interface ConversationProjection {
   peer: string | null;
   latest: boolean;
+}
+interface MessageControllerEvents {
+  recovery?: () => void;
+  published?: (value: { id: string; peer: string }) => void;
+  verified?: (peer: string, views: MessageView[]) => void;
 }
 interface Outbox {
   outboxOrder?: string;
@@ -188,11 +204,21 @@ export class Messages {
   private readonly conversations = new ConfirmedConversations<MessageView>();
   private probedSnapshot: unknown = null;
   private readonly index = new MessageIndex();
-  private readonly prefetch = new MessagePrefetch();
+  private readonly readTarget = new MessageReadTarget();
+  private readonly receiver = new MessageSyncReceiver();
+  private readonly recoveryAlarm: MessageRecoveryWakeup;
+  private recoveryWake = 0;
+  private recoveryHandled = 0;
+  synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
+    [];
   private prefetchAbort: AbortController | null = null;
   private readonly verified = new VerifiedWindow<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
   private readonly published: (value: { id: string; peer: string }) => void;
+  private readonly verifiedProjection: (
+    peer: string,
+    views: MessageView[],
+  ) => void;
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -201,7 +227,9 @@ export class Messages {
       update: HistoryUpdate,
       projection: ConversationProjection,
     ) => void,
-    published: (value: { id: string; peer: string }) => void = () => {},
+    events:
+      | MessageControllerEvents
+      | ((value: { id: string; peer: string }) => void) = {},
   ) {
     this.access = access;
     this.sync = sync;
@@ -212,7 +240,13 @@ export class Messages {
         latest: this.before === null,
       }),
     );
-    this.published = published;
+    this.recoveryAlarm = new MessageRecoveryWakeup(
+      typeof events === 'function' ? () => {} : (events.recovery ?? (() => {})),
+    );
+    this.published =
+      typeof events === 'function' ? events : (events.published ?? (() => {}));
+    this.verifiedProjection =
+      typeof events === 'function' ? () => {} : (events.verified ?? (() => {}));
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {
     const session = this.session,
@@ -320,10 +354,12 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.readTarget.reset();
+    this.synchronizationIssues = [];
+    this.recoveryAlarm.clear();
     this.previewGeneration++;
     this.pinsGeneration = -1;
     this.pauseSynchronization();
-    this.prefetch.reset();
     this.conversations.clear('controller-close');
     this.probedSnapshot = null;
     this.confirmed = null;
@@ -355,6 +391,8 @@ export class Messages {
     this.visibility.close('pending');
   }
   hide(): void {
+    this.recoveryAlarm.clear();
+    this.readTarget.reset();
     this.previewGeneration++;
     this.pinsGeneration = -1;
     this.conversations.clear('hidden');
@@ -367,11 +405,13 @@ export class Messages {
   }
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
+    this.recoveryWake++;
     this.probedSnapshot = null;
     this.conversations.hint();
     this.visibility.hint();
   }
   setLiveConnected(connected: boolean): void {
+    if (connected) this.recoveryWake++;
     if (!connected) this.previewGeneration++;
     this.conversations.connection(connected);
   }
@@ -405,6 +445,7 @@ export class Messages {
     return true;
   }
   select(peer: string | null, older = false): void {
+    this.readTarget.reset();
     this.pauseSynchronization();
     this.probedSnapshot = null;
     const candidate = peer && !older ? this.conversations.read(peer) : null;
@@ -1025,7 +1066,14 @@ export class Messages {
         async (a) => {
           const api = (op: string, d: Record<string, unknown>) =>
               messageApi(a, op, d, () => this.guard(generation)),
-            snapshot = probed ?? (await api('snapshot', {}));
+            snapshot = this.readTarget.take(
+              probed ??
+                (await api('snapshot', {
+                  from: this.confirmed
+                    ? (JSON.parse(this.confirmed.snapshot) as unknown)
+                    : null,
+                })),
+            );
           const incremental = await readIncrementalWindow({
             candidate: this.confirmed,
             snapshot,
@@ -1105,8 +1153,12 @@ export class Messages {
         );
       this.confirmConversationChanges(staged.snapshot);
       this.rememberConversation();
+      this.readTarget.reset();
     } catch (error: unknown) {
-      if (!(error instanceof IncompleteMessageIndex)) this.index.reset();
+      if (!(error instanceof IncompleteMessageIndex)) {
+        this.index.reset();
+        this.readTarget.reset();
+      }
       this.conversations.clear('sync-failed');
       traceChatSyncFailure(this.conversations, {
         reason: 'sync-failed',
@@ -1128,35 +1180,36 @@ export class Messages {
     api: (operation: string, data: Record<string, unknown>) => Promise<unknown>;
     snapshot: unknown;
     items: MessageItem[];
+    turn?: MessageReceiveTurn<MessageView>;
   }): Promise<MessageView[]> {
-    const views = new Map<string, MessageView>(),
-      missing: MessageItem[] = [];
-    for (const item of c.items) {
-      const cached =
-        this.verified.read(c.snapshot, item) ??
-        (await this.readCached(c.a, c.snapshot, item));
-      if (cached) views.set(item.id, cached);
-      else missing.push(item);
-    }
-    if (missing.length) {
-      const machine = await this.machine(c.a, c.generation, c.api);
-      try {
-        await machine.prepare(c.a);
-        await this.receive(c.a, machine, c.generation, c.api);
-        const fetched = await this.readBatch({
-          ...c,
-          items: missing,
-          machine,
-          skipUnavailable: false,
-        });
-        for (const [id, view] of fetched) views.set(id, view);
-      } finally {
-        machine.close();
-      }
-    }
-    const ordered = c.items.map((item) => views.get(item.id)!);
-    await indexSearch(c.a, ordered);
-    return ordered;
+    return readMessageWindow({
+      items: c.items,
+      cached: async (item) =>
+        c.turn
+          ? c.turn.cachedView(item.id)
+          : (this.verified.read(c.snapshot, item) ??
+            (await this.readCached(c.a, c.snapshot, item))),
+      missing: async (items) => {
+        const machine = c.turn
+          ? await c.turn.sdk()
+          : await this.machine(c.a, c.generation, c.api);
+        try {
+          if (!c.turn) {
+            await machine.prepare(c.a);
+            await this.receive(c.a, machine, c.generation, c.api);
+          }
+          return await this.readBatch({
+            ...c,
+            items,
+            machine,
+            skipUnavailable: false,
+          });
+        } finally {
+          if (!c.turn) machine.close();
+        }
+      },
+      complete: (views) => indexSearch(c.a, views),
+    });
   }
   private async confirmVisible(
     token: number,
@@ -1164,7 +1217,10 @@ export class Messages {
     generation: number,
     options: VaultWorkOptions = {},
   ): Promise<void> {
-    await this.visibility.confirm(token, async () => {
+    const confirm = isSyncSnapshot(snapshot)
+      ? this.visibility.confirmCut.bind(this.visibility)
+      : this.visibility.confirm.bind(this.visibility);
+    await confirm(token, async () => {
       const check = (a: VaultAuthority) =>
         messageApi(a, 'confirm', { snapshot }, () => this.guard(generation));
       await this.access.withVault(false, check, options);
@@ -1764,76 +1820,127 @@ export class Messages {
       this.guard(generation);
     };
     try {
-      const more = await this.access.withVault(false, async (a) => {
+      return await this.access.withVault(false, async (a) => {
         guard();
-        if (a.session.accountId !== this.session?.accountId)
-          throw new Error('Account changed.');
         const api = (op: string, data: Record<string, unknown>) =>
           messageApi(a, op, data, { guard, signal: combined });
-        const source = await readPrefetchPage(api, this.prefetch);
-        if (!source) return false;
-        const { snapshot, from, delta, page, after } = source;
-        const missing: MessageItem[] = [];
-        for (const item of page.items) {
-          guard();
-          messagePeer(a.session.accountId, item);
-          if (item.deleted)
-            await this.indexItem({ a, generation, selected: null, api }, item);
-          else if (!(await this.readCached(a, snapshot, item)))
-            missing.push(item);
-        }
-        if (missing.length) {
-          const machine = await this.machine(a, generation, api);
-          try {
-            await machine.prepare(a);
-            await this.receive(a, machine, generation, api);
-            await this.readBatch({
-              a,
-              generation,
-              api,
-              snapshot,
-              machine,
-              items: missing,
-              skipUnavailable: true,
-              guard,
-              consume: (views) => indexSearch(a, views),
-            });
-            guard();
-          } finally {
-            machine.close();
-          }
-        }
-        await api('confirm', { snapshot });
-        guard();
-        if (delta) {
-          this.prefetch.finish(snapshot);
-          this.index.rememberChanges({
-            from,
-            snapshot,
-            account: a.session.accountId,
-            selected: this.selected,
-            items: page.items,
-          });
-          this.confirmConversationChanges(snapshot);
-          return false;
-        }
-        this.prefetch.commit(snapshot, page);
-        this.index.rememberConfirmedPage({
-          snapshot,
-          account: a.session.accountId,
-          selected: this.selected,
-          after,
-          page,
+        const hints = this.conversations.hintVersion,
+          recoveryWake = this.recoveryWake;
+        const turn = new MessageReceiveTurn<MessageView>({
+          api,
+          guard,
+          cache: async (snapshot, item) => {
+            const view = await this.readCached(a, snapshot, item);
+            return view ? retainedMessageView(view) : null;
+          },
+          open: async () => {
+            const machine = await this.machine(a, generation, api);
+            try {
+              await machine.prepare(a);
+              await this.receive(a, machine, generation, api);
+              return machine;
+            } catch (error: unknown) {
+              machine.close();
+              throw error;
+            }
+          },
         });
-        return page.next !== null;
+        try {
+          const more = await this.receiver.step({
+            account: a.session.accountId,
+            device: a.session.deviceId,
+            wakeRecovery: recoveryWake !== this.recoveryHandled,
+            invalidate: () => {
+              this.readTarget.reset();
+              this.confirmed = null;
+              this.probedSnapshot = null;
+              this.conversations.invalidateReuse('sync-failed');
+              this.visibility.close('pending');
+            },
+            status: (pending) => {
+              this.synchronizationIssues = pending;
+            },
+            failureReason: (error) =>
+              error instanceof MegolmDecryptionError &&
+              error.code === DecryptionErrorCode.MissingRoomKey
+                ? 'key'
+                : 'verification',
+            api,
+            guard,
+            load: () => loadSyncProgress(a),
+            save: (state) => saveSyncProgress(a, state),
+            remove: (item) =>
+              this.indexItem({ a, generation, selected: null, api }, item),
+            prepare: (snapshot, items) => turn.prepare(snapshot, items),
+            finish: () => turn.flush(),
+            read: (snapshot, items) =>
+              this.readWindow({
+                a,
+                generation,
+                api: turn.api,
+                snapshot,
+                items,
+                turn,
+              }).then((views) => views.map(retainedMessageView)),
+            commit: (batch) => this.commitInboxBatch(batch, hints),
+            suspendedState: messageStates.suspended,
+          });
+          this.recoveryHandled = recoveryWake;
+          return more;
+        } finally {
+          turn.close();
+        }
       });
-      guard();
-      await this.identities.save(guard);
-      guard();
-      return more;
     } finally {
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
     }
+  }
+  private commitInboxBatch(
+    batch: Parameters<SyncReceiverPorts<MessageView>['commit']>[0],
+    hints: number,
+  ): void {
+    this.synchronizationIssues = batch.pending;
+    this.recoveryAlarm.wait(batch.pending);
+    const catalog = {
+      from: batch.from,
+      snapshot: batch.snapshot,
+      account: batch.snapshot.account,
+      selected: this.selected,
+      after: batch.after,
+      page: batch.page,
+    };
+    if (batch.snapshot.source === 'journal')
+      this.index.rememberJournalPage(catalog);
+    else if (batch.snapshot.source === 'tail')
+      this.index.rememberTailPage(catalog);
+    else this.index.rememberConfirmedPage(catalog);
+    const blocked = new Set(batch.pending.map((item) => item.peer));
+    this.conversations.updateVerified({
+      from: batch.from,
+      snapshot: batch.snapshot,
+      hints,
+      complete: batch.complete,
+      blocked,
+      recovered: new Set(batch.recovered),
+      publish: this.verifiedProjection,
+      project: (peer, views) =>
+        projectCachedConversation(
+          views,
+          batch.items.filter(
+            (item) => messagePeer(batch.snapshot.account, item) === peer,
+          ),
+          batch.views.filter((view) => view.peer === peer),
+        ),
+    });
+    if (!this.selected || !batch.complete || blocked.has(this.selected)) return;
+    const candidate = this.conversations.read(this.selected);
+    if (!candidate || candidate.snapshot !== JSON.stringify(batch.snapshot))
+      return;
+    this.confirmed = candidate;
+    this.verified.clear();
+    const token = this.visibility.refresh();
+    this.visibility.stage(token, candidate.views);
+    this.visibility.complete(token, this.visibility.verificationVersion(token));
   }
   async backupMedia(
     view: MessageView,
@@ -1880,9 +1987,13 @@ export class Messages {
             messageApi(authority, operation, payload, () =>
               this.guard(generation),
             );
+          let advanced: unknown = null;
           if (this.confirmed) {
             const views = await probeConfirmed({
               candidate: this.confirmed,
+              advanced: (snapshot) => {
+                advanced = snapshot;
+              },
               api,
               visibility: this.visibility,
               token,
@@ -1894,7 +2005,13 @@ export class Messages {
               return false;
             }
           }
-          const snapshot = await api('snapshot', {});
+          const snapshot =
+            advanced ??
+            (await api('snapshot', {
+              from: this.confirmed
+                ? (JSON.parse(this.confirmed.snapshot) as unknown)
+                : null,
+            }));
           this.guard(generation);
           this.probedSnapshot = snapshot;
           this.visibility.discard(token);

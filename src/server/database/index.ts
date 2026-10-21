@@ -219,6 +219,7 @@ const migrations = [
   '093-profile-directory-orders.sql',
   '094-single-use-contact-invitations.sql',
   '095-public-post-search.sql',
+  '096-message-sync-fences.sql',
 ];
 
 export interface MaintenanceSnapshot {

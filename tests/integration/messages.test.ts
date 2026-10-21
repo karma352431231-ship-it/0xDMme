@@ -1,3 +1,4 @@
+import { signedMessageSyncContract } from './signed-message-sync-contract.ts';
 import { VolumeContentCapacity } from '../../src/server/storage-capacity/index.ts';
 import { vaultQuota } from '../../src/shared/vault/index.ts';
 import { withPendingUploadPressure } from './upload-pressure-fixture.ts';
@@ -583,6 +584,33 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
   }
   const accepted = await packet('Conteúdo sintético privado'),
     hash = await digest(JSON.stringify(accepted));
+  await signedMessageSyncContract(t, {
+    inspector,
+    create,
+    approve,
+    op,
+    block: (recipient, sender) =>
+      contactChange(recipient, 'block', {
+        wallet: {
+          ecosystem: 'evm',
+          address: sender.wallet.address.toLowerCase(),
+        },
+        blocked: true,
+      }),
+    make: async (a, b) => {
+      const recoveryKeys = await Promise.all([recovery(a), recovery(b)]),
+        sdk = await machine(a);
+      return async (text, relation) =>
+        sdk.encrypt({
+          authority: await authority(a),
+          peerHistory: b.events,
+          recovery: recoveryKeys,
+          id: crypto.randomUUID(),
+          text,
+          ...(relation ? { relation } : {}),
+        });
+    },
+  });
   await t.test(
     'only current consent and signature admit content; false confirmation cannot change the queue',
     async () => {

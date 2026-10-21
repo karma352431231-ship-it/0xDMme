@@ -8,12 +8,19 @@ const projection =
 export async function messageIndexPage(
   client: pg.PoolClient,
   a: ContactAuthority,
-  after: number,
+  range: { after: number; through: number; peer?: string },
 ) {
   const result = await client.query<Record<string, unknown>>(
     projection +
-      ' WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4',
-    [a.session.accountId, a.session.deviceId, after, messagePageSize + 1],
+      ' WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 AND m.sequence<=$5 AND ($6::uuid IS NULL OR m.sender=$6 OR m.recipient=$6) ORDER BY m.sequence LIMIT $4',
+    [
+      a.session.accountId,
+      a.session.deviceId,
+      range.after,
+      messagePageSize + 1,
+      range.through,
+      range.peer ?? null,
+    ],
   );
   const items = result.rows.slice(0, messagePageSize).map(sequenceRow);
   return {
@@ -39,7 +46,9 @@ export async function changedMessageItems(
     throw new Error('Incomplete change index.');
   return result.rows.map(sequenceRow);
 }
-function sequenceRow(row: Record<string, unknown>) {
+function sequenceRow(
+  row: Record<string, unknown>,
+): Record<string, unknown> & { sequence: number } {
   return { ...row, sequence: Number(row['sequence']) };
 }
 
@@ -48,15 +57,16 @@ export async function latestMessageItems(
   client: pg.PoolClient,
   authority: ContactAuthority,
   peers: string[],
+  through = Number.MAX_SAFE_INTEGER,
 ) {
   const latest = await client.query<{ id: string }>(
     `SELECT DISTINCT ON (CASE WHEN sender=$1 THEN recipient ELSE sender END) id
      FROM hash_talk.message_packets m
      WHERE ((sender=$1 AND recipient=ANY($2::uuid[])) OR (recipient=$1 AND sender=ANY($2::uuid[])))
-     AND kind<>'profile' AND relation IS NULL AND body IS NOT NULL
+     AND sequence<=$3 AND kind<>'profile' AND relation IS NULL AND body IS NOT NULL
      AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)
      ORDER BY CASE WHEN sender=$1 THEN recipient ELSE sender END, sequence DESC LIMIT 16`,
-    [authority.session.accountId, peers],
+    [authority.session.accountId, peers, through],
   );
   return {
     items: await changedMessageItems(
@@ -66,4 +76,16 @@ export async function latestMessageItems(
     ),
     next: null,
   };
+}
+
+export async function messageDeliveryItems(
+  client: pg.PoolClient,
+  authority: ContactAuthority,
+  input: { ids: string[]; through: number },
+): Promise<unknown[]> {
+  const rows = await client.query(
+    "SELECT m.id,m.hash,m.queue_active,EXISTS(SELECT 1 FROM hash_talk.message_references r WHERE r.message_id=m.id AND r.account_id=m.recipient AND r.status='received') AS recipient_received FROM hash_talk.message_packets m WHERE m.id=ANY($1::uuid[]) AND (m.sender=$2 OR m.recipient=$2) AND m.body IS NOT NULL AND m.sequence<=$3",
+    [input.ids, authority.session.accountId, input.through],
+  );
+  return rows.rows as unknown[];
 }
