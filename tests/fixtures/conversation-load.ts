@@ -1,3 +1,4 @@
+import { SynchronizationTask } from '../../src/client/synchronization-work/index.ts';
 import { MessageSynchronization } from '../../src/client/messages/synchronization.ts';
 import { ConnectedConversationVisits } from '../../src/client/messages/visits.ts';
 import { AuthorityWork } from '../../src/client/devices/authority-work.ts';
@@ -62,6 +63,8 @@ export async function runConversationLoad(paint: (text: string) => void) {
     sendToReceiptMs: null as number | null,
     sendToDisplayMs: null as number | null,
   };
+  let continueTurn = () => {};
+  const task = new SynchronizationTask(() => continueTurn());
   const pending: number[] = [],
     navigation: Promise<void>[] = [];
   let active = 0,
@@ -241,7 +244,10 @@ export async function runConversationLoad(paint: (text: string) => void) {
         }
         return Promise.resolve();
       });
-      await delay();
+      await new Promise<void>((resolve) => {
+        continueTurn = resolve;
+        task.schedule();
+      });
     }
     await Promise.all(navigation);
     await delay();
@@ -252,6 +258,7 @@ export async function runConversationLoad(paint: (text: string) => void) {
       sendQueuedAt: sendAt > 0,
     };
   } finally {
+    task.clear();
     observer?.disconnect();
     visits.reset();
     sync.close();

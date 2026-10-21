@@ -1,6 +1,7 @@
 import {
   expectedInterruption,
   WorkInterruption,
+  SynchronizationTask,
 } from '../synchronization-work/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
@@ -27,6 +28,9 @@ export class MessageInbox {
   private readonly preparation = new HistoryPreparation();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private abort: AbortController | null = null;
+  private readonly continuationTask = new SynchronizationTask(() => {
+    void this.receive();
+  });
   private retryAt = 0;
   private readonly continuing = new Set<HistoryKind>();
   running = false;
@@ -45,6 +49,7 @@ export class MessageInbox {
   }
   /** Yield after the active bounded page commits; avoid fetching it again. */
   defer(): void {
+    this.continuationTask.clear();
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
   }
@@ -57,19 +62,22 @@ export class MessageInbox {
     if (
       this.running ||
       this.timer !== null ||
+      this.continuationTask.pending ||
       !this.ports.ready() ||
       !this.preparation.pending
     )
       return;
     const next = this.preparation.next();
     const delay = next && this.continuing.has(next.kind) ? 0 : 1000;
-    this.timer = setTimeout(
-      () => {
-        this.timer = null;
-        void this.receive();
-      },
-      Math.max(delay, this.retryAt - Date.now()),
-    );
+    const wait = Math.max(delay, this.retryAt - Date.now());
+    if (wait <= 0) {
+      this.continuationTask.schedule();
+      return;
+    }
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.receive();
+    }, wait);
   }
   private async receive(): Promise<void> {
     if (!this.ports.ready() || this.running) return;

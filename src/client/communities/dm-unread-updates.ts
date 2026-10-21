@@ -63,7 +63,10 @@ export class DmUnreadUpdates {
     this.pending = false;
     try {
       const count = await this.read(generation);
-      if (generation === this.generation) this.ports.changed(count);
+      if (generation === this.generation) {
+        this.continuation.clear();
+        this.ports.changed(count);
+      }
     } catch (error: unknown) {
       if (generation === this.generation && expectedInterruption(error)) {
         this.continuation.request();

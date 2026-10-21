@@ -239,6 +239,7 @@ export function startSocialDmUi(
       composer.update(composerState());
       try {
         await measureWork(controller, 'dm-foreground', work, queuedAt);
+        continuations.clear();
       } catch (error: unknown) {
         const failure = dmFailure(error, {
           sameSession: sameSession(account, session),

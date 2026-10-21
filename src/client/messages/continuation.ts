@@ -1,4 +1,7 @@
-import { MessageContinuation } from '../synchronization-work/index.ts';
+import {
+  MessageContinuation,
+  SynchronizationTask,
+} from '../synchronization-work/index.ts';
 import type {
   MessageWork,
   MessageWorkResult,
@@ -24,7 +27,7 @@ export async function afterMessageWork(
  * unavailable owners resume from lifecycle events, without polling. */
 export class MessageContinuationQueue {
   private next: MessageContinuation | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly task = new SynchronizationTask(() => this.resumeNext());
   private readonly ports: {
     available: () => boolean;
     run: (work: MessageWork) => Promise<void>;
@@ -41,20 +44,19 @@ export class MessageContinuationQueue {
     this.resume();
   }
   clear(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.task.clear();
     this.next?.cancel();
     this.next = null;
   }
   resume(): void {
-    if (this.timer !== null || !this.next || !this.ports.available()) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      if (!this.next || !this.ports.available()) return;
-      const next = this.next;
-      this.next = null;
-      void this.ports.run(next.resume);
-    }, 0);
+    if (this.task.pending || !this.next || !this.ports.available()) return;
+    this.task.schedule();
+  }
+  private resumeNext(): void {
+    if (!this.next || !this.ports.available()) return;
+    const next = this.next;
+    this.next = null;
+    void this.ports.run(next.resume);
   }
 }
 

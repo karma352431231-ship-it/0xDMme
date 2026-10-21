@@ -71,3 +71,5 @@ export function guardProjectionFailure(
 
 export { MessageContinuation } from './continuation.ts';
 export type { MessageWork, MessageWorkResult } from './continuation.ts';
+
+export { SynchronizationTask } from './posted-task.ts';

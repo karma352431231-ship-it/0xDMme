@@ -1,7 +1,8 @@
-/** A continuation yields to input without adding a fixed per-page delay.
- * One timer per owner; real failures never enter this queue automatically. */
+import { SynchronizationTask } from '../synchronization-work/index.ts';
+/** One posted task per owner, yielding to input without per-page timer clamping.
+ * A batch reuses two ports; completion, view changes and session cleanup close them. */
 export class DmContinuations {
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly task = new SynchronizationTask(() => this.dispatch());
   private pending = false;
   private readonly ports: { available: () => boolean; run: () => void };
   constructor(ports: { available: () => boolean; run: () => void }) {
@@ -12,17 +13,16 @@ export class DmContinuations {
     this.resume();
   }
   resume(): void {
-    if (this.timer !== null || !this.pending || !this.ports.available()) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      if (!this.ports.available()) return;
-      this.pending = false;
-      this.ports.run();
-    }, 0);
+    if (this.task.pending || !this.pending || !this.ports.available()) return;
+    this.task.schedule();
+  }
+  private dispatch(): void {
+    if (!this.pending || !this.ports.available()) return;
+    this.pending = false;
+    this.ports.run();
   }
   clear(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.task.clear();
     this.pending = false;
   }
 }
