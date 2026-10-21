@@ -1,3 +1,4 @@
+import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
 import type { ServerResponse } from 'node:http';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
@@ -8,7 +9,8 @@ interface Stream {
   validate: () => Promise<boolean>;
   checking: Promise<boolean> | null;
   callWakeups: boolean;
-  pending: Set<'changed' | 'call'>;
+  categories: boolean;
+  pending: Set<'changed' | 'call' | LiveChangeCategory>;
   timer: ReturnType<typeof setTimeout> | null;
   expiry: ReturnType<typeof setTimeout>;
 }
@@ -31,6 +33,7 @@ export class MessageLive {
     response: ServerResponse;
     validate: () => Promise<boolean>;
     callWakeups?: boolean;
+    categories?: boolean;
   }): void {
     if (this.closed) throw new AccountError(503, 'Live update unavailable.');
     const remaining = Date.parse(input.session.expiresAt) - Date.now();
@@ -40,6 +43,7 @@ export class MessageLive {
     const stream: Stream = {
       ...input,
       callWakeups: input.callWakeups === true,
+      categories: input.categories === true,
       checking: null,
       pending: new Set(),
       timer: null,
@@ -106,10 +110,19 @@ export class MessageLive {
     // authorization, it must not wait behind normal batching/access checks.
     // It never grants access; subsequent changed/read operations still validate.
     if (change.removed) this.write(stream, 'event: removed\ndata: {}\n\n');
-    this.queue(stream, 'changed');
+    if (!stream.categories || !change.categories) this.queue(stream, 'changed');
+    else for (const category of change.categories) this.queue(stream, category);
   }
-  private queue(stream: Stream, event: 'changed' | 'call'): void {
+  private queue(
+    stream: Stream,
+    event: 'changed' | 'call' | LiveChangeCategory,
+  ): void {
     if (!this.has(stream)) return;
+    if (event === 'changed') {
+      const call = stream.pending.has('call');
+      stream.pending.clear();
+      if (call) stream.pending.add('call');
+    } else if (event !== 'call' && stream.pending.has('changed')) return;
     stream.pending.add(event);
     if (stream.timer) return;
     stream.timer = setTimeout(() => {

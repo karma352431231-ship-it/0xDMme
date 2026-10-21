@@ -190,8 +190,12 @@ export class BackupStore {
     );
     if (item.kind === 'message') await this.collectMessage(c, item.id);
     if (item.kind === 'dm-message') await this.social.collect(c, item.id);
-    if (item.kind === 'message') this.contacts.removed(c, [account]);
-    else this.contacts.changed(c, [account]);
+    if (item.kind === 'message')
+      this.contacts.removed(c, [account], 'private-messages');
+    else
+      this.contacts.changed(c, [account], {
+        category: item.kind === 'dm-message' ? 'handle-messages' : 'vault',
+      });
     return true;
   }
   private async cleanVault(

@@ -399,7 +399,7 @@ export class StatusStore {
       await assertVaultQuota(client, draft.author);
       await assertContentCapacity(client, this.services.capacity);
       // The signal dispatcher pages recipient hints immediately after this commit.
-      this.contacts.changed(client, [draft.author]);
+      this.contacts.changed(client, [draft.author], { category: 'status' });
       return { status: 'published', hash };
     });
   }
@@ -499,7 +499,7 @@ export class StatusStore {
         "UPDATE hash_talk.status_posts SET state='deleting',body=NULL,charge=512,notice_pending=true,notice_after=NULL WHERE id=$1",
         [id],
       );
-      this.contacts.changed(client, [row.author]);
+      this.contacts.changed(client, [row.author], { category: 'status' });
     });
   }
   async garbage(): Promise<{ id: string }[]> {
@@ -523,6 +523,7 @@ export class StatusStore {
         this.contacts.changed(
           client,
           viewers.rows.map((r) => r.account_id),
+          { category: 'status' },
         );
         await client.query(
           'DELETE FROM hash_talk.status_recipients WHERE (status_id,account_id) IN (SELECT status_id,account_id FROM hash_talk.status_recipients WHERE status_id=$1 ORDER BY account_id LIMIT 64)',
@@ -536,7 +537,7 @@ export class StatusStore {
           'SELECT 1 WHERE EXISTS(SELECT 1 FROM hash_talk.status_recipients WHERE status_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.status_pages WHERE status_id=$1)',
           [row.id],
         );
-        this.contacts.changed(client, [row.author]);
+        this.contacts.changed(client, [row.author], { category: 'status' });
         return !remaining.rowCount;
       });
       if (done) retired.push(candidate);
@@ -572,6 +573,7 @@ export class StatusStore {
       this.contacts.changed(
         client,
         recipients.rows.map((r) => r.account_id),
+        { category: 'status' },
       );
       await client.query(
         'UPDATE hash_talk.status_posts SET notice_after=$2,notice_pending=$3 WHERE id=$1',

@@ -516,6 +516,8 @@ export function createAccountHandler(options: {
         response,
         validate,
         callWakeups: input.callWakeups,
+        categories:
+          object(object(input.proof)['payload'])['categories'] === true,
       });
   }
   async function devicePost(

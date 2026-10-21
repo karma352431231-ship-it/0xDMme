@@ -289,7 +289,7 @@ export class MessageStore {
     ids: string[],
   ): Promise<void> {
     await recordMessageChanges(client, accounts, ids);
-    this.contacts.changed(client, accounts);
+    this.contacts.changed(client, accounts, { category: 'private-messages' });
   }
   async remove(
     authority: ContactAuthority,
@@ -325,7 +325,11 @@ export class MessageStore {
           sender: row.sender,
           recipient: row.recipient,
         });
-        this.contacts.removed(client, [row.sender, row.recipient]);
+        this.contacts.removed(
+          client,
+          [row.sender, row.recipient],
+          'private-messages',
+        );
       },
     );
   }
@@ -367,7 +371,9 @@ export class MessageStore {
         if (!updated.rowCount) return;
         await this.retireRevoked(client, row.id);
         if (accountId === row.recipient)
-          this.contacts.changed(client, [row.sender]);
+          this.contacts.changed(client, [row.sender], {
+            category: 'private-receipts',
+          });
       },
     );
   }

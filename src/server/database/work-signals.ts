@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { object, keys, uuid } from '../../shared/account/index.ts';
+import { changeCategories } from './changes.ts';
 import type { DatabaseChanges } from './changes.ts';
 
 const topics = [
@@ -132,7 +133,12 @@ export class WorkSignals {
   private contentChanged(payload: string | undefined): void {
     try {
       const data = object(JSON.parse(payload ?? ''));
-      keys(data, ['accounts', 'removed', 'authorization']);
+      keys(
+        data,
+        Object.hasOwn(data, 'categories')
+          ? ['accounts', 'removed', 'authorization', 'categories']
+          : ['accounts', 'removed', 'authorization'],
+      );
       const accounts = data['accounts'];
       if (
         !Array.isArray(accounts) ||
@@ -144,6 +150,7 @@ export class WorkSignals {
       this.changes?.committed(
         accounts.map((value: unknown) => uuid(value)),
         {
+          categories: changeCategories(data['categories']),
           removed: data['removed'],
           authorization: data['authorization'],
         },

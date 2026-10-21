@@ -146,7 +146,12 @@ export class MessageService {
     this.actions = {
       'call-context': callContext(db),
       live: (a, d) => {
-        keys(d, []);
+        keys(d, Object.hasOwn(d, 'categories') ? ['categories'] : []);
+        if (
+          Object.hasOwn(d, 'categories') &&
+          typeof d['categories'] !== 'boolean'
+        )
+          throw new AccountError(400, 'Invalid live capability.');
         return Promise.resolve(a.directory);
       },
       'playback-allowed': (a, d) => {

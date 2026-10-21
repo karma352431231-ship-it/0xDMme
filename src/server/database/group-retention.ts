@@ -127,6 +127,7 @@ export class GroupRetentionStore {
           this.contacts.changed(
             client,
             state.members.map((m) => m.accountId),
+            { category: 'group-messages' },
           );
       },
     );
@@ -239,6 +240,7 @@ export class GroupRetentionStore {
       this.contacts.changed(
         client,
         state.members.map((m) => m.accountId),
+        { category: 'group-messages' },
       );
     }
   }
@@ -255,6 +257,7 @@ export class GroupRetentionStore {
       this.contacts.changed(
         client,
         state.members.map((m) => m.accountId),
+        { category: 'group-messages' },
       );
     const remaining = await client.query(
       'SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 LIMIT 1',
@@ -291,6 +294,7 @@ export class GroupRetentionStore {
       this.contacts.changed(
         client,
         state.members.map((m) => m.accountId),
+        { category: 'group-messages' },
       );
     const pending = await client.query(
       `SELECT 1 WHERE EXISTS(SELECT 1 FROM hash_talk.group_packets WHERE group_id=$1 AND body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes WHERE group_id=$1 AND body IS NOT NULL)`,
@@ -308,6 +312,7 @@ export class GroupRetentionStore {
       this.contacts.changed(
         client,
         state.members.map((m) => m.accountId),
+        { category: 'group-messages' },
       );
     }
   }
