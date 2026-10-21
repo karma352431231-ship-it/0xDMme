@@ -3,7 +3,13 @@ import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
 import { MessageReceiveTurn } from './receive-turn.ts';
 import { MessageRecoveryWakeup } from './recovery-wakeup.ts';
-import { MessageReadTarget } from './read-target.ts';
+import {
+  MessageReadTarget,
+  interruptedMessageRead,
+  retainsMessageReadFence,
+} from './read-target.ts';
+import { MessageContinuation } from './continuation.ts';
+import type { MessageWorkResult } from './continuation.ts';
 import { MessageSyncReceiver } from './sync-receiver.ts';
 import type { SyncReceiverPorts } from './sync-receiver.ts';
 import { loadSyncProgress, saveSyncProgress } from './sync-progress.ts';
@@ -390,6 +396,10 @@ export class Messages {
     this.probedSnapshot = null;
     this.visibility.close('pending');
   }
+  hideFailedRead(error: unknown): void {
+    if (interruptedMessageRead(error)) this.pause('conversation');
+    else this.hide();
+  }
   hide(): void {
     this.recoveryAlarm.clear();
     this.readTarget.reset();
@@ -462,6 +472,18 @@ export class Messages {
     this.selected = peer;
     this.before = older ? this.oldest : null;
     if (candidate) this.oldest = candidate.oldest;
+  }
+  private concealChangedFence(token: number, snapshot: unknown): void {
+    if (
+      !this.confirmed ||
+      retainsMessageReadFence(
+        JSON.parse(this.confirmed.snapshot) as unknown,
+        snapshot,
+      )
+    )
+      return;
+    this.conversations.invalidateReuse('snapshot-changed');
+    this.visibility.conceal(token);
   }
   private rememberConversation(): void {
     if (this.confirmed)
@@ -1054,7 +1076,9 @@ export class Messages {
         throw error;
     }
   }
-  async synchronize(options: VaultWorkOptions = {}): Promise<void> {
+  async synchronize(
+    options: VaultWorkOptions = {},
+  ): Promise<MessageWorkResult> {
     const probed = this.probedSnapshot;
     this.probedSnapshot = null;
     const token = this.visibility.refresh(),
@@ -1074,6 +1098,7 @@ export class Messages {
                     : null,
                 })),
             );
+          this.concealChangedFence(token, snapshot);
           const incremental = await readIncrementalWindow({
             candidate: this.confirmed,
             snapshot,
@@ -1155,7 +1180,15 @@ export class Messages {
       this.rememberConversation();
       this.readTarget.reset();
     } catch (error: unknown) {
-      if (!(error instanceof IncompleteMessageIndex)) {
+      if (error instanceof IncompleteMessageIndex) {
+        this.guard(generation);
+        this.visibility.discard(token);
+        return new MessageContinuation(async () => {
+          this.guard(generation);
+          return this.synchronize(options);
+        });
+      }
+      if (!interruptedMessageRead(error)) {
         this.index.reset();
         this.readTarget.reset();
       }
@@ -2013,6 +2046,7 @@ export class Messages {
                 : null,
             }));
           this.guard(generation);
+          this.concealChangedFence(token, snapshot);
           this.probedSnapshot = snapshot;
           this.visibility.discard(token);
           return true;
@@ -2020,6 +2054,10 @@ export class Messages {
         options,
       );
     } catch (error: unknown) {
+      if (!interruptedMessageRead(error)) {
+        this.index.reset();
+        this.readTarget.reset();
+      }
       this.conversations.clear('probe-failed');
       traceChatSyncFailure(this.conversations, {
         reason: 'probe-failed',

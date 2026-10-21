@@ -55,6 +55,15 @@ export class MessageVisibility<T> {
   hint(): void {
     this.changeVersion++;
   }
+  /** A newly authenticated destructive/authority fence conceals the old view
+   * immediately, while the current reader may continue validating the new cut. */
+  conceal(token: number): void {
+    this.assert(token);
+    this.staged = [];
+    this.visible = false;
+    this.retained = false;
+    this.publish(null, 'history');
+  }
   /** A probe found new content; drop its staged work before the full read. */
   discard(token: number): void {
     this.assert(token);

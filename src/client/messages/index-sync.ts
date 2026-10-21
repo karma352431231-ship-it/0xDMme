@@ -29,6 +29,7 @@ interface Scan {
   selected: string | null;
   after: number;
   complete: boolean;
+  journal: boolean;
   windows: Map<
     string,
     { items: MessageItem[]; profiles: Map<string, MessageItem> }
@@ -91,6 +92,7 @@ export class MessageIndex {
     after: number;
     page: ReturnType<typeof messageItems>;
   }): void {
+    if (!this.acceptsConfirmedPage(c)) return;
     const scan = this.start({ ...c, before: null });
     if (scan.after !== c.after || scan.complete) return;
     assertMessagePage(c.page, c.after);
@@ -98,6 +100,17 @@ export class MessageIndex {
       this.collect(scan, { ...c, before: null }, item);
     scan.after = c.page.next ?? c.page.items.at(-1)?.sequence ?? scan.after;
     scan.complete = c.page.next === null;
+  }
+  private acceptsConfirmedPage(c: {
+    snapshot: unknown;
+    account: string;
+    after: number;
+  }): boolean {
+    if (this.scan?.identity === canonical([c.snapshot, c.account, null]))
+      return true;
+    // Foreign cuts cannot replace an unfinished owner, even when their page
+    // would be rejected. New catalogs must start at their own first page.
+    return (!this.scan || this.scan.complete) && c.after === 0;
   }
   rememberTailPage(c: {
     from: unknown;
@@ -139,7 +152,10 @@ export class MessageIndex {
       scan.snapshot = c.snapshot;
       scan.complete = false;
       scan.after = 0;
+      scan.journal = true;
     }
+    // Journal pages extend a complete base; they cannot complete a fresh full
+    // scan merely because its sequence cursor happens to match their cursor.
     if (!sameJournalPosition(scan, c)) return;
     assertMessagePage(c.page, c.after);
     for (const item of c.page.items) {
@@ -267,6 +283,7 @@ export class MessageIndex {
         selected: c.selected,
         after: 0,
         complete: false,
+        journal: false,
         windows: new Map(),
         count: 0,
         overflow: false,
@@ -485,6 +502,7 @@ function sameJournalPosition(
   c: { snapshot: unknown; account: string; after: number },
 ): boolean {
   return (
+    scan.journal &&
     scan.identity === canonical([c.snapshot, c.account, null]) &&
     scan.after === c.after
   );

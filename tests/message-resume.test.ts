@@ -591,14 +591,14 @@ await test('snapshot changed between probe and load rejects publication even wit
 });
 
 await test('large history continues its partially checked index on resume instead of restarting', async () => {
-  const { controller, data, add, peer } = resumeFixture();
+  const { controller, data, add } = resumeFixture();
   for (let index = 0; index < 144; index++) await add(`Fictícia ${index}`);
-  await assert.rejects(controller.synchronize(), /partially verified/);
+  const pending = await controller.synchronize();
+  assert.ok(pending);
   assert.equal(data.frames.at(-1), null);
   assert.equal(data.requests.filter((op) => op === 'page').length, 8);
   controller.pause();
-  controller.select(peer);
-  await controller.synchronize();
+  await pending.resume();
   assert.equal(data.requests.filter((op) => op === 'page').length, 9);
   assert.equal(data.frames.at(-1)?.length, 16);
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Fictícia 128');
