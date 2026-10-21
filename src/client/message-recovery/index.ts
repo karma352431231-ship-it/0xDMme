@@ -1,3 +1,5 @@
+import { currentRecoveryKey } from './authorization.ts';
+export { currentRecoveryKey } from './authorization.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import {
   BackupDecryptionKey,
@@ -144,10 +146,11 @@ export async function ensureMessageRecovery(
     raw = await api('recovery-register', {
       key: await createRecoveryKey(authority),
     });
-  const key = recoveryKey(raw),
-    event = authority.events[key.authorityRevision - 1];
-  if (!event) throw new Error('Recovery authority missing.');
-  await verifyRecoveryKey(key, event);
+  const key = await currentRecoveryKey(
+    raw,
+    authority.events,
+    authority.session.accountId,
+  );
   const secret = await openRecoveryKey(key, authority);
   secret.free();
   return key;

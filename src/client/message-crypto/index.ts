@@ -49,11 +49,7 @@ import {
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { object } from '../../shared/account/index.ts';
-import {
-  canonical,
-  eventHash,
-  verifyHistory,
-} from '../../shared/devices/index.ts';
+import { canonical, eventHash } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import {
   matrixBindingProof,
@@ -64,7 +60,6 @@ import {
   packetProof,
   verifyMatrixBinding,
   verifyPacket,
-  verifyRecoveryKey,
 } from '../../shared/messages/index.ts';
 import type {
   MatrixBinding,
@@ -75,7 +70,10 @@ import type {
 import { messagePresentation } from '../../shared/message-presentation/index.ts';
 import type { MessagePresentation } from '../../shared/message-presentation/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
-import { archiveRoomKey } from '../message-recovery/index.ts';
+import {
+  archiveRoomKey,
+  currentRecoveryKey,
+} from '../message-recovery/index.ts';
 export interface GroupEncryptionInput {
   authority: VaultAuthority;
   state: GroupEvent;
@@ -399,6 +397,12 @@ export class MessageCrypto {
       peer = peerHistory.at(-1);
     if (!peer || input.recovery.length !== 2 || !text.trim())
       throw new Error('Recipient, recovery or text missing.');
+    await currentRecoveryKey(
+      input.recovery[0],
+      authority.events,
+      authority.session.accountId,
+    );
+    await currentRecoveryKey(input.recovery[1], peerHistory, peer.accountId);
     await this.prepare(authority);
     await this.trustDevices(authority.events);
     await this.trustDevices(peerHistory);
@@ -696,16 +700,7 @@ export class MessageCrypto {
   }): Promise<void> {
     const { account, recovery, history } = input;
     if (!account || !recovery) throw new Error('Member recovery missing.');
-    const current = await verifyHistory(history, account),
-      event = history[recovery.authorityRevision - 1];
-    if (
-      !current ||
-      !event ||
-      recovery.accountId !== account ||
-      !current.devices.some((d) => d.id === recovery.deviceId)
-    )
-      throw new Error('Recovery or device lacks current authorization.');
-    await verifyRecoveryKey(recovery, event);
+    await currentRecoveryKey(recovery, history, account);
   }
   private async claimGroupSessions(
     accounts: string[],
