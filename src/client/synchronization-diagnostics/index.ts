@@ -7,6 +7,8 @@ import type { WorkDiagnosticFields } from '../../shared/chat-sync-diagnostics/in
 const now = () => globalThis.performance?.now() ?? Date.now();
 
 function outcome(error: unknown): NonNullable<WorkDiagnosticFields['outcome']> {
+  if (error instanceof AccountError && [401, 403, 409].includes(error.status))
+    return apiOutcome(error);
   const interruption = workInterruption(error);
   if (interruption)
     return interruption.expected ? 'interrupted' : 'authorization';

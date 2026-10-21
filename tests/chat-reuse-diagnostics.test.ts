@@ -1,3 +1,4 @@
+import { expectedInterruption } from '../src/client/synchronization-work/index.ts';
 import { measureWork } from '../src/client/synchronization-diagnostics/index.ts';
 import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
 import { ApiResponseError } from '../src/client/api-response/index.ts';
@@ -292,4 +293,27 @@ await test('local work diagnostics identify queue/run timings and cancellation c
   assert.equal(events[1]?.['origin'], 'replacement');
   assert.equal(events[2]?.['outcome'], 'timeout');
   assert.ok(!JSON.stringify(events).includes('Private'));
+});
+
+await test('authorization status takes precedence over an expected body-cancellation cause', async (t) => {
+  const f = fixture(t);
+  for (const status of [401, 403, 409]) {
+    const error = new ApiResponseError({
+      operation: 'messages/group-message-confirm',
+      status,
+      failure: 'cancelled',
+      cause: new WorkInterruption('scheduler'),
+    });
+    assert.equal(expectedInterruption(error), false);
+    await assert.rejects(
+      measureWork({}, 'messages/group-message-confirm', () =>
+        Promise.reject(error),
+      ),
+    );
+  }
+  const outcomes = f.recording
+    .report()
+    .events.filter((event) => event.kind === 'reuse-work')
+    .map((event) => event['outcome']);
+  assert.deepEqual(outcomes, ['authorization', 'authorization', 'conflict']);
 });

@@ -33,6 +33,8 @@ export function workInterruption(error: unknown): WorkInterruption | null {
   return null;
 }
 export function expectedInterruption(error: unknown): boolean {
+  if (error instanceof AccountError && [401, 403, 409].includes(error.status))
+    return false;
   return workInterruption(error)?.expected === true;
 }
 /** Selection work has its own lifetime; changing it never ends the account owner. */
