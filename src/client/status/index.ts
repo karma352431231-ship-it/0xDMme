@@ -490,7 +490,9 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     liveConnection(value: boolean): void {
       connected = value;
     },
-    event(event: LiveEvent): void {
+    event(signal: LiveEvent): void {
+      const event = scopedLiveEvent(signal, ['status', 'contacts', 'vault']);
+      if (!event || event === 'call') return;
       if (event === 'authorization') return;
       clearOpened();
       if (['invalidated', 'revoked', 'ended'].includes(event)) {
@@ -520,3 +522,4 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     },
   };
 }
+import { scopedLiveEvent } from '../message-live/scope.ts';

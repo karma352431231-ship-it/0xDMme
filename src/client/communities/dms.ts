@@ -94,7 +94,12 @@ export function startSocialDmUi(
   let streamCurrent = false;
   const live = new LiveMessages({
     access,
-    event: (event) => {
+    event: (signal) => {
+      const event = scopedLiveEvent(signal, [
+        'handle-messages',
+        'handle-receipts',
+      ]);
+      if (!event) return;
       if (event === 'call') return;
       if (!container && !publicDirectory.available) return;
       if (
@@ -701,7 +706,12 @@ export function startSocialDmUi(
   }
   return {
     ready: () => unread.start(),
-    event(event: LiveEvent): void {
+    event(signal: LiveEvent): void {
+      const event = scopedLiveEvent(signal, [
+        'handle-messages',
+        'handle-receipts',
+      ]);
+      if (!event) return;
       if (event === 'call') return;
       if (['authorization', 'revoked', 'ended', 'invalidated'].includes(event))
         unread.invalidate();
@@ -782,3 +792,4 @@ function sameSession(
     a?.csrf === b?.csrf
   );
 }
+import { scopedLiveEvent } from '../message-live/scope.ts';

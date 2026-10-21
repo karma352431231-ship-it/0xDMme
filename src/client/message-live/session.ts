@@ -17,7 +17,7 @@ export function sameLiveSession(
 export async function liveScope(session: LiveSession): Promise<string> {
   const bytes = new TextEncoder().encode(
     JSON.stringify([
-      '0xdmme-live-1',
+      '0xdmme-live-2',
       session.accountId,
       session.deviceId,
       session.csrf,
@@ -25,7 +25,7 @@ export async function liveScope(session: LiveSession): Promise<string> {
   );
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return (
-    '0xdmme-live-1:' +
+    '0xdmme-live-2:' +
     Array.from(new Uint8Array(digest), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('')

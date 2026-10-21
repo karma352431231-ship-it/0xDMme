@@ -1,4 +1,5 @@
 import type { LiveEvent, LiveSnapshot } from './protocol.ts';
+import { isLiveEvent } from './protocol.ts';
 
 export type LiveSignal =
   | { kind: 'hello'; peer: string; retry: boolean }
@@ -55,16 +56,7 @@ function stateRoute(value: Record<string, unknown>): boolean {
   return (
     value['peer'] === undefined &&
     typeof value['event'] === 'string' &&
-    [
-      'ready',
-      'changed',
-      'call',
-      'removed',
-      'authorization',
-      'invalidated',
-      'revoked',
-      'ended',
-    ].includes(value['event'])
+    isLiveEvent(value['event'])
   );
 }
 function state(value: Record<string, unknown>): boolean {

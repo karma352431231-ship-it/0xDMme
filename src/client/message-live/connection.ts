@@ -1,22 +1,18 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
-import {
-  ApiResponseError,
-  fetchApi,
-  readApiJson,
-} from '../api-response/index.ts';
-import { prepareMessageRequest } from '../message-api/index.ts';
+import { ApiResponseError, readApiJson } from '../api-response/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { WakeupFrames, terminalLiveEvent } from './protocol.ts';
 import type { LiveEvent, LivePhase, LiveSnapshot } from './protocol.ts';
-import { sameLiveSession } from './session.ts';
 import type { LiveSession } from './session.ts';
+import { LiveRequest } from './request.ts';
 export class LiveConnection {
   private readonly access: VaultAccess;
   private readonly event: (event: LiveEvent) => void;
   private readonly changed: () => void;
   private readonly pulse: () => void;
   private readonly session: LiveSession | undefined;
+  private readonly request = new LiveRequest();
   phase: LivePhase = 'paused';
   get snapshot(): LiveSnapshot {
     return { phase: this.phase, activity: this.lastActivity };
@@ -130,32 +126,18 @@ export class LiveConnection {
     controller: AbortController,
     generation: number,
   ): Promise<void> {
-    // Only prepare the signed request inside the vault lock. Never hold it for the stream's lifetime.
-    const request = await this.access.withVault(false, (a) => {
-      if (controller.signal.aborted || generation !== this.generation)
-        throw new DOMException('Aborted', 'AbortError');
-      if (this.session && !sameLiveSession(this.session, a.session))
-        throw new AccountError(401, 'Session changed.');
-      return prepareMessageRequest(a, 'live', {});
-    });
-    if (generation !== this.generation) return;
     let watchdog = setTimeout(() => controller.abort(), 15000);
     const reset = () => {
       clearTimeout(watchdog);
       watchdog = setTimeout(() => controller.abort(), 15000);
     };
     try {
-      const headers = new Headers(request.headers);
-      headers.set('X-0xdmme-Call-Wake', '1');
-      const response = await fetchApi(
-        'messages/live',
-        '/api/account/messages/live',
-        {
-          ...request,
-          headers,
-          signal: controller.signal,
-        },
-      );
+      const response = await this.request.open({
+        access: this.access,
+        session: this.session,
+        signal: controller.signal,
+        current: () => generation === this.generation,
+      });
       if (!response.ok) await readApiJson(response, 'messages/live');
       if (
         !response.ok ||

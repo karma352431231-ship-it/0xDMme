@@ -1,5 +1,6 @@
 import { LiveUpdates } from '../message-live/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
+import { scopedLiveEvent } from '../message-live/scope.ts';
 
 /** Generic hints trigger current signed reads, never carry notification data. */
 export class ActivityUpdates {
@@ -65,7 +66,8 @@ export class ActivityUpdates {
     this.timer = null;
   }
   event(event: LiveEvent): void {
-    if (['ready', 'changed', 'removed', 'authorization'].includes(event))
+    const hint = scopedLiveEvent(event, ['activity', 'contacts', 'vault']);
+    if (hint && ['ready', 'changed', 'removed', 'authorization'].includes(hint))
       this.request();
   }
   request(): void {

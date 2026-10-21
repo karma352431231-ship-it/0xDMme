@@ -1,4 +1,7 @@
-export type LiveEvent =
+import { isLiveChangeCategory } from '../../shared/live-changes/index.ts';
+import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
+
+export type LiveControlEvent =
   | 'ready'
   | 'changed'
   | 'call'
@@ -7,7 +10,24 @@ export type LiveEvent =
   | 'invalidated'
   | 'revoked'
   | 'ended';
+export type LiveEvent = LiveControlEvent | LiveChangeCategory;
 export type LiveUpdate = 'probe' | 'refresh';
+
+export function isLiveEvent(value: string): value is LiveEvent {
+  return (
+    isLiveChangeCategory(value) ||
+    [
+      'ready',
+      'changed',
+      'call',
+      'removed',
+      'authorization',
+      'invalidated',
+      'revoked',
+      'ended',
+    ].includes(value)
+  );
+}
 
 export class WakeupFrames {
   private readonly decoder = new TextDecoder('utf-8', { fatal: true });
@@ -21,12 +41,11 @@ export class WakeupFrames {
     if (this.buffer.length > 128) throw new Error('Update notice incomplete.');
     return frames.flatMap((frame) => {
       if (frame === ': heartbeat') return [];
-      const match =
-        /^event: (ready|changed|call|removed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
-          frame,
-        );
-      if (!match) throw new Error('Invalid update notice.');
-      return [match[1] as LiveEvent];
+      const match = /^event: ([a-z-]+)\ndata: \{\}$/u.exec(frame);
+      const event = match?.[1];
+      if (!event || !isLiveEvent(event))
+        throw new Error('Invalid update notice.');
+      return [event];
     });
   }
 }

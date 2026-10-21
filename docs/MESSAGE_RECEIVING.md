@@ -1,5 +1,11 @@
 # Receiving messages without opening a chat
 
+The owner approved categorized live signals and coordinated private receipt on
+21 October 2026. The [current change contract](MESSAGE_CHANGE_SIGNALS.md)
+supersedes the earlier broad wakeup/decoration ordering where it conflicts;
+account-wide receipt, fresh authorization and visible-only read acknowledgements
+remain mandatory.
+
 The owner requested account-wide receipt independent of the selected contact on
 20 October 2026 and explicitly authorized splitting the chat hotspot first.
 

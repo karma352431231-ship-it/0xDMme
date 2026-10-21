@@ -3,6 +3,8 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import { MessageLiveUpdates } from './live-updates.ts';
+import { SelectedPreviewAdmission } from './preview-admission.ts';
 import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { ConnectedConversationVisits } from './visits.ts';
@@ -192,6 +194,7 @@ export function startMessages(
         !!attachments.selected?.voice;
   }
   const outgoing = new OutgoingTexts();
+  const previewAdmission = new SelectedPreviewAdmission();
   let pendingRender = 0;
   const controller = new Messages(
     access,
@@ -200,6 +203,12 @@ export function startMessages(
       pendingRender++;
       rows = value;
       outgoing.observed(value);
+      previewAdmission.observe({
+        rows: value,
+        projection,
+        online: navigator.onLine,
+        localOnly: selected?.localOnly ?? false,
+      });
       publishVerifiedConversationPreview({
         rows: value,
         update,
@@ -218,6 +227,18 @@ export function startMessages(
   const previews = new ConversationPreviewLoader({
     load: (peers) => controller.directoryPreviews(peers),
     changed: renderContacts,
+    available: () =>
+      !!session &&
+      navigator.onLine &&
+      !continuity.suspended &&
+      !textQueue.pending &&
+      !synchronization.visibleUpdatePending &&
+      !synchronization.busy,
+    exclude: () =>
+      previewAdmission.exclude(
+        selected?.accountId ?? null,
+        conversationVisible('[data-direct-conversation]'),
+      ),
   });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
@@ -333,27 +354,35 @@ export function startMessages(
       if (label) label.textContent = live.notice;
       synchronization.resume();
     },
-    event: (event) => {
-      if (event === 'call') {
-        options.liveEvent?.(event);
-        return;
-      }
+    event: (event) => liveUpdates.event(event),
+  });
+  const liveUpdates = new MessageLiveUpdates({
+    selected: () => (groups.selected ? 'groups' : selected ? 'direct' : null),
+    visible: () =>
+      conversationVisible(
+        groups.selected
+          ? '[data-group-conversation]'
+          : '[data-direct-conversation]',
+      ),
+    invalidate: (event) => {
       invalidateGroupAuthority(event);
-      if (event === 'ready') void checkVoiceAuthority();
-      if (event === 'authorization') void checkVoiceAuthority();
+      if (event === 'ready' || event === 'authorization')
+        void checkVoiceAuthority();
       hideLiveHistory(event);
-      const work: VaultWorkOptions =
-        ['changed', 'removed'].includes(event) &&
-        selected !== null &&
-        conversationVisible('[data-direct-conversation]')
-          ? { priority: 'interactive' }
-          : {};
-      requestRefresh(
-        ['changed', 'ready', 'removed'].includes(event) ? 'probe' : 'refresh',
-        work,
-      );
-      options.liveEvent?.(event);
     },
+    hint: () => controller.hint(),
+    request: (update, work, scope) =>
+      synchronization.request(update, work, scope),
+    inbox: (scope) => synchronization.requestInbox(scope),
+    projection: (work) => synchronization.requestProjection(work),
+    previews: () => {
+      void previews.refresh(
+        directoryData.peers
+          .filter((peer) => !peer.localOnly)
+          .map((peer) => peer.accountId),
+      );
+    },
+    external: (event) => options.liveEvent?.(event),
   });
   // Confirmed contacts get the new card after a profile change, not only on open.
   const profileBroadcast = new ProfileBroadcast({
@@ -385,6 +414,7 @@ export function startMessages(
       textPending: textQueue.pending,
     }),
     status,
+    visibleSettled: () => previews.resume(),
     notice: (value) => {
       message = value;
     },
