@@ -1,5 +1,6 @@
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
+import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
@@ -811,36 +812,53 @@ export class Messages {
   async sendPending(options: VaultWorkOptions = {}): Promise<void> {
     if (!(await this.pending()).length) return;
     const generation = this.generation;
-    let targets: string[] = [];
     // Opening a retained window defers the vault read, not identity validation
     // before distributing keys or publishing new ciphertext.
     if (this.pinsGeneration !== generation) await this.loadPins(options);
     this.guard(generation);
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
-    await this.access.withVault(
-      false,
-      async (a) => {
-        const page = await outboxPage<Outbox>(a.session.accountId);
-        targets = page.map((item) => item.name);
-        for (const peer of new Set(page.map((row) => row.value.peer)))
-          await this.history({ a, generation }, peer, null);
+    await sendPinnedBatch({
+      prepare: () => {
+        this.guard(generation);
+        return this.access.withVault(
+          false,
+          async (a) => {
+            this.guard(generation);
+            return PinnedSendBatch.prepare({
+              authority: a,
+              entries: await outboxPage<Outbox>(a.session.accountId),
+              history: (peer) => this.history({ a, generation }, peer, null),
+            });
+          },
+          options,
+        );
       },
-      options,
-    );
-    if (!targets.length) return;
-    await this.savePins(options);
+      preserve: () => this.savePins(options),
+      transmit: (batch) => this.transmitBatch({ batch, generation, options }),
+    });
+  }
+  private transmitBatch(input: {
+    batch: PinnedSendBatch;
+    generation: number;
+    options: VaultWorkOptions;
+  }): Promise<boolean> {
+    const { batch, generation, options } = input;
     this.guard(generation);
-    await this.access.withVault(
+    return this.access.withVault(
       false,
       async (a) => {
         this.guard(generation);
+        if (!batch.current(a)) return false;
         const api = (op: string, d: Record<string, unknown>) =>
           messageApi(a, op, d, () => this.guard(generation));
         const own = await this.recoverable(a, generation),
           machine = await this.machine(a, generation);
         try {
-          const page = await outboxPage<Outbox>(a.session.accountId, targets);
+          const page = await outboxPage<Outbox>(
+            a.session.accountId,
+            batch.names,
+          );
           for (const { name, value } of page)
             await this.sendOne({
               a,
@@ -850,10 +868,12 @@ export class Messages {
               generation,
               name,
               value,
+              history: batch.history(name, value),
             });
         } finally {
           machine.close();
         }
+        return true;
       },
       options,
     );
@@ -866,6 +886,7 @@ export class Messages {
     generation: number;
     name: string;
     value: Outbox;
+    history: import('../../shared/devices/index.ts').DirectoryEvent[];
   }): Promise<void> {
     const { a, api, own, machine, generation, name, value } = context;
     if (await this.alreadyAccepted(api, value)) {
@@ -874,7 +895,7 @@ export class Messages {
       await this.retainOutbox(a, value);
       return;
     }
-    const history = await this.history({ a, generation }, value.peer, null),
+    const history = context.history,
       last = history.at(-1);
     if (!last) throw new Error('Contact directory missing.');
     if (
