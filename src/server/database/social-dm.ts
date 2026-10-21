@@ -293,6 +293,7 @@ export class SocialDmStore {
       );
       await this.limits(context);
       await this.changed(context, [context.actor.id, input.peer]);
+      await this.changed(context, [context.actor.id, input.peer], 'activity');
     });
   }
 }
