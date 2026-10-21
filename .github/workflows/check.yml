@@ -83,3 +83,6 @@ jobs:
           HASH_TALK_MEDIA_FFMPEG: /usr/bin/ffmpeg
           HASH_TALK_MEDIA_FFPROBE: /usr/bin/ffprobe
           HASH_TALK_DATABASE_URL: postgresql://hash_talk_test:synthetic-ci-only@127.0.0.1:5432/hash_talk_test
+
+  reproducible-release:
+    uses: ./.github/workflows/release-build.yml

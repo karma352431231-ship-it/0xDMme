@@ -13,7 +13,7 @@ The **Source code and licenses** link (Profile → About the app, also available
 ## Packaging limits
 
 - Up to 2,048 distinct files. The ceiling was raised from 1,024 on 2026-10-19; tests preserve 1,025 distinct files exactly and reject 2,049.
-- A 24 MiB budget for the intermediate tar tree, gzip level 9, and a portable USTAR format with numeric owners and no ACLs, extended attributes or per-file extended headers from the build machine.
+- A 24 MiB budget for the intermediate tar tree, gzip level 9, and a canonical USTAR format with sorted paths, zero timestamps and numeric owners, fixed 0644 file modes, and no ACLs, extended attributes, usernames or per-file extended headers from the build machine.
 - The owner removed the individual 2 MiB ceiling for `source-<hash>.tar.gz` in October 2026, across packaging, serving and deployment HTTP verification. Other asset and attachment limits are unchanged, as are the total deploy artifact and release budgets.
 - The source archive stays outside the PWA offline cache.
 - No source, notice or license is ever omitted to fit a budget.
@@ -39,3 +39,7 @@ No database, backend access or credential is needed, and nothing is downloaded d
 ## Licensing
 
 GPL-3.0-only covers the authored sources listed in [LICENSES.md](../LICENSES.md) and the build scripts shipped in the archive. Third-party licenses are in the package directories and in the libraries' preferred-source archives. The same-origin downloads do not depend on making the whole repository public. Interface updates must update the corresponding sources; never replace these files with links to different versions.
+
+## Public release verification
+
+[Verifiable releases](VERIFIABLE_RELEASES.md) adds independent Mac/Linux build comparison, an explicitly published authenticated manifest and an external verifier. Exact reproduction uses Node 24.14.0 and npm 11.9.0. These proofs cover release artifacts and observed public bytes; they do not expose private VPS records or establish an E2EE audit.

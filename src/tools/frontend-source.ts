@@ -1,10 +1,8 @@
 import { gzipSync } from 'node:zlib';
-import { execFile } from 'node:child_process';
 import { lstat, readdir } from 'node:fs/promises';
 import { resolve, relative, sep } from 'node:path';
-import { promisify } from 'node:util';
 
-const execute = promisify(execFile);
+import { sourceTar } from './source-tar.ts';
 // File-count growth stays inside the existing 24 MiB expanded archive budget.
 const maximumSourceFiles = 2048;
 const authored = [
@@ -192,6 +190,8 @@ const authored = [
   'src/shared/wallet-recovery',
   'src/tools/build-web.ts',
   'src/tools/frontend-source.ts',
+  'src/tools/source-tar.ts',
+  'src/tools/bounded-file.ts',
   'src/tools/frontend-vendor-source.ts',
   'package.json',
   'package-lock.json',
@@ -287,32 +287,8 @@ export async function frontendSource(
   verifyInputs(root, inputs, included);
   if (included.size > maximumSourceFiles)
     throw new Error('Source count exceeds the limit.');
-  // Explicit paths only: no repository-wide archive, shell, .local or backend.
-  // Plain ustar: the same files without per-file extended metadata (macOS
-  // xattrs, ACLs, sub-second times) or machine-specific owner names.
-  const { stdout } = await execute(
-    'tar',
-    [
-      '--format',
-      'ustar',
-      '-cf',
-      '-',
-      '--numeric-owner',
-      '--no-xattrs',
-      '--no-acls',
-      '--no-recursion',
-      '-C',
-      root,
-      '--',
-      ...included,
-    ],
-    {
-      encoding: 'buffer',
-      maxBuffer: 24 * 1024 * 1024,
-      timeout: 30_000,
-      env: { ...process.env, COPYFILE_DISABLE: '1' },
-    },
-  );
+  // File contents only: no machine-specific archive metadata.
+  const stdout = await sourceTar(root, included);
   return gzipSync(stdout, { level: 9 });
 }
 function verifyInputs(
