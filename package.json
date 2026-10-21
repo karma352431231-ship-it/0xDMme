@@ -37,7 +37,10 @@
     "licenses": "node src/tools/check-licenses.ts",
     "i18n:check": "node src/tools/check-localization.ts",
     "observe:database": "node --env-file-if-exists=.env src/tools/observe-database.ts",
-    "dev:mobile": "npm run build && node --env-file=.local/web-test.env src/server/web-mobile.ts"
+    "dev:mobile": "npm run build && node --env-file=.local/web-test.env src/server/web-mobile.ts",
+    "release:manifest": "node src/tools/release/create.ts",
+    "release:verify": "node src/tools/release/verify.ts",
+    "release:build": "npm run build && npm run release:manifest"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
