@@ -24,11 +24,24 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run release:build
-      # Only the explicit public manifest leaves the job. No workspace archive.
+      - name: Describe public source archive encoding
+        run: |
+          node --input-type=module - <<'JS'
+          import { readFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          import { gunzipSync } from 'node:zlib';
+          const manifest = JSON.parse(await readFile('dist/release/release-manifest.json', 'utf8'));
+          const source = manifest.assets.find((entry) => /^\/source-[a-f0-9]{16}\.tar\.gz$/.test(entry.path));
+          const content = await readFile('dist/web' + source.path);
+          console.log(JSON.stringify({ zlib: process.versions.zlib, header: [...content.subarray(0, 10)], tarSha256: createHash('sha256').update(gunzipSync(content)).digest('hex') }));
+          JS
+      # Explicit public proof/source files only; never archive a workspace.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-manifest-${{ matrix.os }}
-          path: dist/release/release-manifest.json
+          path: |
+            dist/release/release-manifest.json
+            dist/web/source-*.tar.gz
           if-no-files-found: error
           retention-days: 30
 
