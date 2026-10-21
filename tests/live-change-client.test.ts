@@ -6,12 +6,13 @@ import { scopedLiveEvent } from '../src/client/message-live/scope.ts';
 import { liveSignal } from '../src/client/message-live/signals.ts';
 import { LiveRequest } from '../src/client/message-live/request.ts';
 import { MessageLiveUpdates } from '../src/client/messages/live-updates.ts';
-import type { LiveEvent } from '../src/client/message-live/protocol.ts';
+import type { LiveEvent } from '../src/client/message-live/index.ts';
 import type {
   VaultAccess,
   VaultAuthority,
 } from '../src/client/vault-authority/index.ts';
 import type { HistoryKind } from '../src/client/messages/preparation.ts';
+import { controlFrames } from '../src/tools/chat-diagnostics/stream.ts';
 
 await test('closed category frames survive fragmentation and shared-tab validation without extra data', () => {
   const parser = new WakeupFrames(),
@@ -20,6 +21,13 @@ await test('closed category frames survive fragmentation and shared-tab validati
     liveChangeCategories
       .map((event) => `event: ${event}\ndata: {}\n\n`)
       .join(''),
+  );
+  assert.deepEqual(controlFrames(bytes), liveChangeCategories);
+  assert.deepEqual(
+    controlFrames(
+      new TextEncoder().encode('event: arbitrary-private-label\ndata: {}\n\n'),
+    ),
+    [],
   );
   for (const byte of bytes)
     events.push(...parser.accept(new Uint8Array([byte])));

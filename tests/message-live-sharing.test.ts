@@ -184,6 +184,30 @@ await test('same-session tabs share one native lock and SSE, targeted joining do
   );
 });
 
+await test('category-capable tabs relay scoped hints through one stream without broadcasting message data', async (t) => {
+  const f = fixture(t),
+    a = authority();
+  const peers = Array.from({ length: 3 }, () => f.peer(a));
+  await until(() => peers.every((peer) => peer.live.current));
+  f.send('private-messages');
+  f.send('handle-receipts');
+  await until(() =>
+    peers.every((peer) => peer.events.includes('handle-receipts')),
+  );
+  assert.equal(f.requests(), 1);
+  for (const peer of peers)
+    assert.deepEqual(peer.events, [
+      'ready',
+      'private-messages',
+      'handle-receipts',
+    ]);
+  assert.match(
+    await liveScope(a.session),
+    /^0xdmme-live-2:/u,
+    'old tabs retain their own legacy stream instead of silently ignoring new category hints',
+  );
+});
+
 await test('scope separates account, device and session; terminal authorization only stops matching tabs and releases queued ownership', async (t) => {
   const f = fixture(t),
     a = authority();

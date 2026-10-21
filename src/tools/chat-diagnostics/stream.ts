@@ -1,4 +1,17 @@
 import type { RecordEvent } from './recording.ts';
+import { isLiveChangeCategory } from '../../shared/live-changes/index.ts';
+
+const controls = new Set([
+  'heartbeat',
+  'ready',
+  'changed',
+  'call',
+  'removed',
+  'authorization',
+  'invalidated',
+  'revoked',
+  'ended',
+]);
 
 /** A stream may already be open before a console snippet is installed. Observe
  * only complete frames matching the app's empty control protocol. Never clone,
@@ -8,13 +21,9 @@ export function controlFrames(value: unknown): string[] {
   if (!(value instanceof Uint8Array) || value.length > 4096) return [];
   if (value[0] !== 58 && value[0] !== 101) return [];
   const text = new TextDecoder().decode(value);
-  if (
-    !/^(?:(?:: heartbeat|event: (?:ready|changed|removed|authorization|invalidated|revoked|ended)\ndata: \{\})\n\n)+$/u.test(
-      text,
-    )
-  )
+  if (!/^(?:(?:: heartbeat|event: [a-z-]+\ndata: \{\})\n\n)+$/u.test(text))
     return [];
-  return text
+  const events = text
     .split('\n\n')
     .filter(Boolean)
     .map((frame) =>
@@ -22,6 +31,11 @@ export function controlFrames(value: unknown): string[] {
         ? 'heartbeat'
         : frame.slice(7, frame.indexOf('\n')),
     );
+  return events.every(
+    (event) => controls.has(event) || isLiveChangeCategory(event),
+  )
+    ? events
+    : [];
 }
 
 export function observeControlFrames(record: RecordEvent): () => void {

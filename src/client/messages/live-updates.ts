@@ -4,7 +4,7 @@ import type {
   LiveControlEvent,
   LiveEvent,
   LiveUpdate,
-} from '../message-live/protocol.ts';
+} from '../message-live/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { HistoryKind } from './preparation.ts';
 
@@ -53,24 +53,24 @@ export class MessageLiveUpdates {
   }
   private category(event: LiveChangeCategory): void {
     const scope = messageScopes.get(event);
-    if (scope) {
-      if (scope === 'direct') this.ports.hint();
-      if (this.ports.selected() === scope && this.ports.visible())
-        this.ports.request('probe', this.work(), scope);
-      else this.ports.inbox(scope);
-      return;
-    }
+    if (scope) return this.message(scope);
     const receipts = receiptScopes.get(event);
-    if (receipts) {
-      if (this.ports.selected() === receipts && this.ports.visible())
-        this.ports.projection(this.work());
-      else if (receipts === 'direct') this.ports.previews();
-      return;
-    }
+    if (receipts) return this.receipts(receipts);
     if (event === 'contacts' || event === 'vault') {
       this.ports.invalidate('changed');
       this.ports.request('refresh', this.work());
     }
+  }
+  private message(scope: HistoryKind): void {
+    if (scope === 'direct') this.ports.hint();
+    if (this.ports.selected() === scope && this.ports.visible())
+      this.ports.request('probe', this.work(), scope);
+    else this.ports.inbox(scope);
+  }
+  private receipts(scope: HistoryKind): void {
+    if (this.ports.selected() === scope && this.ports.visible())
+      this.ports.projection(this.work());
+    else if (scope === 'direct') this.ports.previews();
   }
   private control(event: LiveControlEvent): void {
     if (event === 'call') return;

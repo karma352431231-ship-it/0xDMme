@@ -4,7 +4,7 @@ import type { LiveEvent } from './protocol.ts';
 import { LiveConnection } from './connection.ts';
 import { SharedLiveConnection } from './shared.ts';
 export { WakeupFrames } from './protocol.ts';
-export type { LiveEvent, LiveUpdate } from './protocol.ts';
+export type { LiveControlEvent, LiveEvent, LiveUpdate } from './protocol.ts';
 import type { LiveUpdate } from './protocol.ts';
 
 /** Account rechecks do not replace entering a chat or reconnecting SSE.
