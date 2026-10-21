@@ -346,6 +346,7 @@ export function startMessages(
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
       );
+    synchronization.cancelOpening();
     selected = null;
     enterConversation();
     clearContext();
