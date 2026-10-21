@@ -85,6 +85,227 @@ import {
   profileCard,
 } from '../../src/client/message-profile/index.ts';
 import { object } from '../../src/shared/account/index.ts';
+import { groupParticipant } from '../fixtures/group-participant.ts';
+import { messageReceiptFixture } from '../fixtures/message-receipt-database.ts';
+import { deferred, waitForBoundary } from '../fixtures/deferred.ts';
+import { matrixSend } from '../../src/server/matrix-protocol/index.ts';
+
+async function revocationRaceLogin(
+  accounts: AccountService,
+  wallet = Wallet.createRandom(),
+) {
+  const challenge = await accounts.challenge({
+      ecosystem: 'evm',
+      address: wallet.address,
+      chainId: 1,
+      deviceId: crypto.randomUUID(),
+    }),
+    login = await accounts.login(
+      {
+        id: challenge.id,
+        signature: await wallet.signMessage(challenge.message),
+      },
+      challenge.browserToken,
+    );
+  return { ...login, wallet };
+}
+
+async function revocationRaceUser(input: {
+  accounts: AccountService;
+  devices: DeviceService;
+}) {
+  const login = await revocationRaceLogin(input.accounts),
+    participant = await groupParticipant({
+      accountId: login.session.accountId,
+      deviceId: login.session.deviceId,
+    });
+  await input.devices.commit(login.session, {
+    event: participant.directory,
+    profile: null,
+  });
+  return {
+    ...participant,
+    ...login,
+    authority: { ...participant.authority, session: login.session },
+  };
+}
+type RevocationRaceUser = Awaited<ReturnType<typeof revocationRaceUser>>;
+
+async function revocationContact(
+  contacts: ContactService,
+  user: RevocationRaceUser,
+  input: { operation: string; payload: Record<string, unknown> },
+) {
+  const proof = { directory: user.head, payload: input.payload };
+  return contacts.operate(input.operation, user.session, {
+    ...proof,
+    signature: await user.authority.sign(
+      contactBody(user.accountId, user.deviceId, input.operation, proof),
+    ),
+  });
+}
+
+async function revocationMessage(
+  messages: MessageService,
+  user: RevocationRaceUser,
+  input: { operation: string; payload: Record<string, unknown> },
+) {
+  const proof = {
+    deviceId: user.deviceId,
+    directory: user.head,
+    payload: input.payload,
+  };
+  return messages.operate(input.operation, user.session, {
+    ...proof,
+    signature: await user.authority.sign(
+      messageBody(user.accountId, user.deviceId, input.operation, proof),
+    ),
+  });
+}
+
+await test('recipient revocation after verified directory and key claims blocks the pending Matrix envelope', async (t) => {
+  const c = await messageReceiptFixture(t),
+    accounts = new AccountService({
+      store: c.db.authentication,
+      origin: 'http://127.0.0.1:45119',
+    }),
+    devices = new DeviceService(c.db.devices),
+    contacts = new ContactService(c.db.contacts, c.db.devices),
+    messages = new MessageService(c.db, c.db.devices),
+    sender = await revocationRaceUser({ accounts, devices }),
+    peer = await revocationRaceUser({ accounts, devices });
+  const state = object(
+    await revocationContact(contacts, peer, {
+      operation: 'state',
+      payload: {},
+    }),
+  );
+  await revocationContact(contacts, peer, {
+    operation: 'configure',
+    payload: { revision: state['revision'], mode: 'wallet', inviteHash: null },
+  });
+  const senderState = object(
+    await revocationContact(contacts, sender, {
+      operation: 'state',
+      payload: {},
+    }),
+  );
+  await revocationContact(contacts, sender, {
+    operation: 'request',
+    payload: {
+      revision: senderState['revision'],
+      target: peer.accountId,
+      invite: null,
+    },
+  });
+  const peerState = object(
+    await revocationContact(contacts, peer, {
+      operation: 'state',
+      payload: {},
+    }),
+  );
+  await revocationContact(contacts, peer, {
+    operation: 'respond',
+    payload: {
+      revision: peerState['revision'],
+      target: sender.accountId,
+      accept: true,
+    },
+  });
+  const keys = await Promise.all(
+    [sender, peer].map((user) => createRecoveryKey(user.authority)),
+  );
+  for (const [index, user] of [sender, peer].entries())
+    await revocationMessage(messages, user, {
+      operation: 'recovery-register',
+      payload: { key: keys[index] },
+    });
+  const ready = deferred<void>(),
+    release = deferred<void>(),
+    operations: string[] = [];
+  const reader = await MessageCrypto.create({
+    accountId: peer.accountId,
+    deviceId: peer.deviceId,
+    store: null,
+    transport: (operation, payload) =>
+      revocationMessage(messages, peer, { operation, payload }),
+  });
+  t.after(() => reader.close());
+  await reader.prepare(peer.authority);
+  const directory = object(
+    await revocationMessage(messages, sender, {
+      operation: 'peer-directory',
+      payload: { accountId: peer.accountId, after: 0 },
+    }),
+  );
+  assert.equal(directory['head'], peer.head);
+  const writer = await MessageCrypto.create({
+    accountId: sender.accountId,
+    deviceId: sender.deviceId,
+    store: null,
+    transport: async (operation, payload) => {
+      operations.push(operation);
+      if (
+        operation === 'matrix-send' &&
+        matrixSend(payload).envelopes.some(
+          (envelope) =>
+            envelope.account === peer.accountId &&
+            envelope.device === peer.deviceId,
+        )
+      ) {
+        ready.resolve();
+        await release.promise;
+      }
+      return revocationMessage(messages, sender, { operation, payload });
+    },
+  });
+  t.after(() => writer.close());
+  const pending = writer.encrypt({
+    authority: sender.authority,
+    peerHistory: [peer.directory],
+    recovery: keys,
+    id: crypto.randomUUID(),
+    text: 'Synthetic revocation race',
+  });
+  const rejected = assert.rejects(pending, {
+    status: 403,
+    message: 'Recipient device revoked.',
+  });
+  void rejected.catch(() => undefined);
+  try {
+    await waitForBoundary(ready.promise);
+    assert.ok(operations.includes('matrix-query'));
+    assert.ok(operations.includes('matrix-claim'));
+    const recovered = await revocationRaceLogin(accounts, peer.wallet),
+      identity = await createIdentity(
+        recovered.session.deviceId,
+        'Synthetic recovered recipient',
+      ),
+      ring = freshKeyring(peer.accountId, peer.ring),
+      event = await prepareEvent({
+        accountId: peer.accountId,
+        previous: peer.directory,
+        kind: 'recover',
+        signer: 'recovery',
+        signing: peer.recovery.signing,
+        root: peer.directory.root,
+        identities: [identity.public],
+        ring,
+        profile: null,
+      });
+    await devices.commit(recovered.session, { event, profile: null });
+    assert.ok(event.revoked.includes(peer.deviceId));
+  } finally {
+    release.resolve();
+    await rejected;
+  }
+  const envelopes = await c.inspector.query<{ count: string }>(
+    'SELECT count(*)::text FROM hash_talk.matrix_envelopes WHERE sender=$1 AND account_id=$2 AND device_id=$3',
+    [sender.accountId, peer.accountId, peer.deviceId],
+  );
+  assert.equal(envelopes.rows[0]?.count, '0');
+});
+
 await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, blocking, quotas and devices', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
