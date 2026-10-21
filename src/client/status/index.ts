@@ -11,6 +11,7 @@ import { statusIsActive } from '../../shared/status/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
+import { scopedLiveEvent } from '../message-live/index.ts';
 import { Contacts } from '../contacts/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
@@ -522,4 +523,3 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     },
   };
 }
-import { scopedLiveEvent } from '../message-live/scope.ts';

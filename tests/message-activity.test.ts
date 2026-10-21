@@ -4,7 +4,7 @@ import { ConversationActivity } from '../src/client/messages/activity.ts';
 import type { PeerState } from '../src/client/daily/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 
-function fixture() {
+function fixture(readVisible = () => Promise.resolve()) {
   const state = { generation: 0, alerts: 0, reads: 0, mute: 0 };
   let values = new Map<string, PeerState>([
     [
@@ -17,6 +17,7 @@ function fixture() {
     generation: () => state.generation,
     current: (generation) => generation === state.generation,
     peers: () => [{ id: 'peer', settings: 'saved-peer' }],
+    readVisible,
     previous: () => values,
     publish: (next) => {
       values = next;
@@ -47,13 +48,33 @@ await test('an authorized unread update publishes its badge and sound together w
   assert.equal(f.state.alerts, 1);
 });
 await test('session replacement discards old unread counts and sound', async () => {
-  const f = fixture(),
+  let acknowledgements = 0;
+  const f = fixture(() => {
+      acknowledgements++;
+      return Promise.resolve();
+    }),
     work = f.activity.refresh();
   f.state.generation++;
   f.read.resolve(f.next());
   await work;
   assert.equal(f.values().get('peer')?.unread, 1);
   assert.equal(f.state.alerts, 0);
+  assert.equal(acknowledgements, 0);
+});
+await test('an incoming message sounds before visible acknowledgement can clear its unread count', async () => {
+  const visible = deferred<void>(),
+    f = fixture(() => {
+      assert.equal(f.values().get('peer')?.unread, 2);
+      assert.equal(f.state.alerts, 1);
+      return visible.promise;
+    }),
+    work = f.activity.refresh();
+  f.read.resolve(f.next());
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.state.alerts, 1);
+  visible.resolve();
+  await work;
+  assert.equal(f.state.reads, 1);
 });
 await test('archive mute is enforced before an unread increase can sound', async () => {
   const f = fixture(),

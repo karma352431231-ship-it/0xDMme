@@ -82,6 +82,7 @@ export class MessageLiveUpdates {
     const update = ['changed', 'ready', 'removed'].includes(event)
       ? 'probe'
       : 'refresh';
-    this.ports.request(update, this.work());
+    const work = event === 'changed' || event === 'removed' ? this.work() : {};
+    this.ports.request(update, work);
   }
 }

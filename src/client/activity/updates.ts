@@ -1,6 +1,5 @@
-import { LiveUpdates } from '../message-live/index.ts';
+import { LiveUpdates, scopedLiveEvent } from '../message-live/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
-import { scopedLiveEvent } from '../message-live/scope.ts';
 
 /** Generic hints trigger current signed reads, never carry notification data. */
 export class ActivityUpdates {

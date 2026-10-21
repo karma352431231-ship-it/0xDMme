@@ -320,6 +320,7 @@ export function startMessages(
         ...(peer.localOnly ? { localOnly: true } : {}),
       })),
     daily,
+    readVisible: () => historyUi.markRead(daily),
     previous: () => states,
     publish: (next) => {
       states = next;
@@ -438,10 +439,7 @@ export function startMessages(
     },
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
-    unread: async () => {
-      await historyUi.markRead(daily);
-      await activity.refresh();
-    },
+    unread: () => activity.refresh(),
     groupProjection: () => groups.refresh(),
     presence: dailyTick,
     refresh,
@@ -1345,8 +1343,6 @@ export function startMessages(
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
     const current = generation;
-    if (document.visibilityState === 'visible') await historyUi.markRead(daily);
-    if (current !== generation || !connected()) return;
     await activity.refresh();
     if (current !== generation || !connected()) return;
     await pushSettings?.refresh();

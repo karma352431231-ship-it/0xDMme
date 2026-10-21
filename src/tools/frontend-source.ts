@@ -120,6 +120,7 @@ const authored = [
   'src/client/notification-sound',
   'src/client/push-settings',
   'src/client/message-live',
+  'src/shared/live-changes',
   'src/client/voice-audio',
   'src/client/voice-recording',
   'src/client/voice-playback',

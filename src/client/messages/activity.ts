@@ -5,6 +5,7 @@ interface ActivityPorts {
   current: (generation: number) => boolean;
   peers: () => readonly { id: string; settings: string; localOnly?: boolean }[];
   daily: Pick<Daily, 'states' | 'keepArchivedSilent'>;
+  readVisible: () => Promise<void>;
   previous: () => ReadonlyMap<string, PeerState>;
   publish: (states: Map<string, PeerState>) => void;
   alert: () => void;
@@ -61,5 +62,6 @@ export class ConversationActivity {
         state.mutedUntil <= Date.now()
       )
         this.ports.alert();
+    await this.ports.readVisible();
   }
 }

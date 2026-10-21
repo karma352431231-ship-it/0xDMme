@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { liveChangeCategories } from '../src/shared/live-changes/index.ts';
 import { WakeupFrames } from '../src/client/message-live/protocol.ts';
-import { scopedLiveEvent } from '../src/client/message-live/scope.ts';
+import { scopedLiveEvent } from '../src/client/message-live/index.ts';
 import { liveSignal } from '../src/client/message-live/signals.ts';
 import { LiveRequest } from '../src/client/message-live/request.ts';
 import { MessageLiveUpdates } from '../src/client/messages/live-updates.ts';
@@ -202,4 +202,11 @@ await test('no selected chat still receives account messages; removal closes bef
   f.router.event('removed');
   assert.deepEqual(f.operations, ['invalidate:removed', 'probe::']);
   assert.deepEqual(f.external, ['private-messages', 'removed']);
+});
+
+await test('authorization closes visible history immediately while full reconciliation keeps maintenance priority', () => {
+  const f = routingFixture();
+  f.router.event('authorization');
+  assert.deepEqual(f.operations, ['invalidate:authorization', 'refresh::']);
+  assert.deepEqual(f.external, ['authorization']);
 });

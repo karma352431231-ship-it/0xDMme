@@ -4,6 +4,7 @@ import type { LiveEvent } from './protocol.ts';
 import { LiveConnection } from './connection.ts';
 import { SharedLiveConnection } from './shared.ts';
 export { WakeupFrames } from './protocol.ts';
+export { scopedLiveEvent } from './scope.ts';
 export type { LiveControlEvent, LiveEvent, LiveUpdate } from './protocol.ts';
 import type { LiveUpdate } from './protocol.ts';
 

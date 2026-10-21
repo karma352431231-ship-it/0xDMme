@@ -49,6 +49,12 @@ preview refreshes and unrelated maintenance. Completed verified history can
 publish its contact preview without another packet read. The list and account
 inbox continue working when no conversation is selected.
 
+Authorized unread counts and mute rules still decide sound before visible
+history is acknowledged as read. Acknowledgement follows that projection without
+waiting for presence or push preferences; its receipt hint reconciles the changed
+counts. This preserves incoming sound while removing the extra per-peer state
+query previously attached to every visible read confirmation.
+
 Coalescing retains bounded pending work and yields between safe operations; it
 does not overlap SDK/store ownership or abandon accepted messages. Pending or
 failed work cannot publish stale content after removal, authorization loss,

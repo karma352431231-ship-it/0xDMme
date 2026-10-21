@@ -33,6 +33,36 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('a categorized private update verifies the visible chat before counters without unrelated maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  f.emit('ready');
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  await f.messages.openContact(peer('categorized-private'));
+  await finishStartupMaintenance(t);
+  f.calls.length = 0;
+  f.state.probeChanged = true;
+  f.emit('private-messages');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.includes('synchronize'));
+  assert.ok(!f.calls.includes('states'));
+  await advanceMaintenanceUntil(t, () => f.calls.includes('states'));
+  assert.ok(f.calls.indexOf('synchronize') < f.calls.indexOf('states'));
+  await finishStartupMaintenance(t);
+  for (const unrelated of ['contacts', 'groups', 'heartbeat'])
+    assert.ok(!f.calls.includes(unrelated), unrelated);
+  f.calls.length = 0;
+  f.emit('handle-messages');
+  f.emit('activity');
+  f.emit('status');
+  await finishStartupMaintenance(t);
+  assert.deepEqual(f.calls, []);
+});
+
 await test('the selected chat preview publishes before remaining startup maintenance and clears on authorization loss', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
@@ -192,6 +222,7 @@ await test('selected history refreshes before counters and deferred contact main
 });
 
 await test('mobile directory and app tabs retain previews; authority loss and permanent departure clear them', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   await f.messages.openContact(peer('preview-peer'));
   await turn();
@@ -209,7 +240,9 @@ await test('mobile directory and app tabs retain previews; authority loss and pe
   assert.equal(f.previews().size, 0);
   f.state.chatVisible = true;
   await f.messages.openContact(peer('preview-peer'));
+  t.mock.timers.tick(150);
   await turn();
+  await finishStartupMaintenance(t);
   f.messages.leave();
   assert.equal(
     f.previews().get('preview-peer')?.text,

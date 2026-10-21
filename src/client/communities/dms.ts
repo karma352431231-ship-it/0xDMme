@@ -9,7 +9,7 @@ import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
-import { LiveMessages } from '../message-live/index.ts';
+import { LiveMessages, scopedLiveEvent } from '../message-live/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { SocialDms } from '../social-dm/index.ts';
 import type {
@@ -792,4 +792,3 @@ function sameSession(
     a?.csrf === b?.csrf
   );
 }
-import { scopedLiveEvent } from '../message-live/scope.ts';

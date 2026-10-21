@@ -294,7 +294,7 @@ await test('read receipts patch checks without replacing the message and suppres
   });
   assert.equal(f.receipts.length, 1);
   assert.deepEqual(f.receipts[0]?.outgoing, ['own']);
-  assert.deepEqual([...f.receipts[0]!.read], ['own']);
+  assert.deepEqual([...f.receipts[0].read], ['own']);
   assert.equal(f.history.children[0], message);
   assert.equal(f.clears(), clears);
   assert.match(
