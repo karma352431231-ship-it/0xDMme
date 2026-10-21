@@ -58,6 +58,7 @@ export class MessageIndex {
     before: number | null;
     api: Api;
     deleted: (item: MessageItem) => Promise<void>;
+    pagesPerTurn?: number;
   }): Promise<MessageItem[]> {
     this.resumeTail(c);
     await this.advance(c);
@@ -65,7 +66,7 @@ export class MessageIndex {
     const deadline = Date.now() + 45000;
     for (
       let round = 0;
-      !scan.complete && round < 8 && Date.now() < deadline;
+      !scan.complete && round < (c.pagesPerTurn ?? 8) && Date.now() < deadline;
       round++
     ) {
       const page = messageItems(

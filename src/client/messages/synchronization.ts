@@ -1,3 +1,5 @@
+import { expectedInterruption } from '../synchronization-work/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { MessageContinuationQueue, afterMessageWork } from './continuation.ts';
 import type { MessageWork, MessageWorkResult } from './continuation.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
@@ -197,7 +199,7 @@ export class MessageSynchronization {
   open(work: () => Promise<void>, reuse?: () => boolean): Promise<void> {
     if (this.closed) return Promise.resolve();
     const result = this.opening.request(work, reuse);
-    if (!this.busy) void this.openNext();
+    void this.openNext();
     return result;
   }
   cancelOpening(): void {
@@ -208,6 +210,8 @@ export class MessageSynchronization {
   private async openNext(): Promise<void> {
     // Keep the latest choice replaceable while the current owner finishes.
     // Restoring a retained projection must not reserve the visible sync state.
+    if (this.closed) return;
+    if (this.restoreOpening()) return;
     await this.maintenance;
     if (this.closed || this.busy) return;
     const pending = this.opening.take();
@@ -222,7 +226,7 @@ export class MessageSynchronization {
         this.resume();
       } else await this.run(pending.work);
     } catch (error: unknown) {
-      if (this.current(current)) {
+      if (this.current(current) && !expectedInterruption(error)) {
         this.failed = true;
         this.report(error, t('Could not complete the operation.'));
         this.options.status();
@@ -230,6 +234,22 @@ export class MessageSynchronization {
     } finally {
       pending.done();
     }
+  }
+  private restoreOpening(): boolean {
+    try {
+      if (!this.opening.reuse()) return false;
+      this.failed = false;
+      this.options.status();
+      this.resume();
+    } catch (error: unknown) {
+      this.opening.clear();
+      if (!expectedInterruption(error)) {
+        this.failed = true;
+        this.report(error, t('Could not complete the operation.'));
+        this.options.status();
+      }
+    }
+    return true;
   }
   resumeHistory(): boolean {
     if (!this.continuation.waiting) return false;
@@ -288,7 +308,7 @@ export class MessageSynchronization {
       await this.maintenance;
       if (!this.current(current)) return false;
       this.failed = false;
-      await work();
+      await measureWork(this, 'foreground', work);
       if (!this.current(current)) return false;
       if (
         this.options.state().online &&
@@ -298,10 +318,7 @@ export class MessageSynchronization {
         this.options.complete();
       return true;
     } catch (error: unknown) {
-      if (this.current(current)) {
-        this.failed = true;
-        this.report(error, t('Could not complete the operation.'));
-      }
+      this.failCurrent(error, current);
       return false;
     } finally {
       await this.finishRun(current);
@@ -361,6 +378,10 @@ export class MessageSynchronization {
       state.visible &&
       !state.textPending
     );
+  }
+  get presentationReady(): boolean {
+    const state = this.options.state();
+    return !this.closed && state.session && state.online && !state.suspended;
   }
   get foregroundReady(): boolean {
     const state = this.options.state();
@@ -488,11 +509,12 @@ export class MessageSynchronization {
     this.stopPreload();
     this.maintenance = Promise.resolve()
       .then(() => {
-        if (this.current(current)) return work();
+        if (this.current(current))
+          return measureWork(this, 'maintenance', work);
       })
       .catch((error: unknown) => {
         if (!this.current(current)) return;
-        failure(error);
+        if (!expectedInterruption(error)) failure(error);
         if (!this.busy) this.options.status();
       })
       .finally(() => {
@@ -538,7 +560,13 @@ export class MessageSynchronization {
       this.options.status();
     }
   }
+  private failCurrent(error: unknown, generation: number): void {
+    if (!this.current(generation) || expectedInterruption(error)) return;
+    this.failed = true;
+    this.report(error, t('Could not complete the operation.'));
+  }
   private report(error: unknown, fallback: string): void {
+    if (expectedInterruption(error)) return;
     this.options.notice(
       error instanceof Error ? translatedError(error.message) : fallback,
     );

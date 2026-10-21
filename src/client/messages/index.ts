@@ -255,6 +255,7 @@ export function startMessages(
     playback,
     daily,
     run,
+    history: (work, settled) => synchronization.history(work, settled),
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
     profile: (id) =>
@@ -540,7 +541,7 @@ export function startMessages(
   });
   const visits = new ConnectedConversationVisits<ConversationPeer>({
     connected: () => live.current && navigator.onLine && !continuity.suspended,
-    available: () => synchronization.foregroundReady && !textQueue.pending,
+    available: () => synchronization.presentationReady,
     backgroundReady: () => synchronization.backgroundReady,
     reusable: (peer) =>
       !peer.localOnly && controller.canRestore(peer.accountId),
@@ -1141,6 +1142,7 @@ export function startMessages(
     // presence, push settings and peer states keep their periodic lifecycle.
   }
   function selectPeer(peer: ConversationPeer): void {
+    synchronization.cancelOpening();
     showDirectConversation();
     enterConversation();
     clearContext();

@@ -1,3 +1,6 @@
+import { GroupHistoryWork } from './history-work.ts';
+import type { MessageWork } from '../synchronization-work/index.ts';
+import { expectedInterruption } from '../synchronization-work/index.ts';
 export { readGroupNotification } from './notification.ts';
 import {
   t,
@@ -59,6 +62,10 @@ interface GroupOptions {
   playback: VoicePlayback;
   daily: Daily;
   run: (work: () => Promise<void>) => Promise<void>;
+  history?: (
+    work: MessageWork,
+    settled?: () => Promise<void>,
+  ) => Promise<boolean>;
   changed: () => void;
   select: () => void;
   isBusy: () => boolean;
@@ -186,6 +193,7 @@ export function startGroups(
       try {
         await work();
       } catch (error: unknown) {
+        if (expectedInterruption(error)) return;
         notice =
           error instanceof Error
             ? translatedError(error.message)
@@ -251,37 +259,56 @@ export function startGroups(
     renderIncoming();
     renderCreation();
     options.changed();
+    await resumeIncompleteHistory(selected);
     await refreshSelected(selected);
+  }
+  async function resumeIncompleteHistory(
+    selected: string | undefined,
+  ): Promise<void> {
+    if (!selected || controller.selected?.state.groupId !== selected) return;
+    if (controller.historyPending) await readHistory(selected, false, false);
   }
   function updateOwnerNotice(previous: GroupSummary | null): void {
     if (previous && previous.state.owner !== controller.selected?.state.owner)
       notice = t('Group ownership updated.');
   }
   async function refreshSelected(selected: string | undefined): Promise<void> {
+    if (!selected || controller.selected?.state.groupId !== selected) return;
     if (
       document.visibilityState !== 'visible' ||
       !host?.getClientRects().length
     )
       return;
-    if (
-      selected &&
-      controller.entries.some((g) => g.state.groupId === selected)
-    ) {
-      const group = controller.entries.find(
-        (g) => g.state.groupId === selected,
-      );
-      if (group?.localOnly) await controller.open(selected, false, true);
-      await resumePending();
-      await refreshVault();
+    const group = controller.entries.find(
+      (group) => group.state.groupId === selected,
+    );
+    if (!group) {
+      controller.deselect();
       render();
-    } else if (selected) {
-      controller.close();
-      render();
+      return;
     }
+    if (group.localOnly) await readHistory(selected, false, true);
+    await resumePending();
+    await refreshVault();
+    render();
   }
   async function resumePending(): Promise<void> {
     if (await controller.resumePending()) await reopen();
   }
+  const historyWork = new GroupHistoryWork({
+    controller,
+    schedule: options.history,
+    settled: async () => {
+      const selected = controller.selected;
+      await refreshVault();
+      if (controller.selected !== selected) return;
+      notice = controller.warning || t('Group opened.');
+      render();
+      await pending();
+    },
+  });
+  const readHistory = (id: string, older: boolean, localOnly: boolean) =>
+    historyWork.open({ id, older, localOnly });
   async function open(group: GroupSummary | string): Promise<void> {
     messageActions.close();
     const id = typeof group === 'string' ? group : group.state.groupId,
@@ -297,14 +324,12 @@ export function startGroups(
     emoji.close();
     if (host) host.hidden = false;
     try {
-      await controller.open(id, false, localOnly);
+      await readHistory(id, false, localOnly);
     } finally {
       options.changed();
     }
-    await refreshVault();
-    notice = controller.warning || t('Group opened.');
+    if (controller.historyPending) notice = t('Syncing…');
     render();
-    await pending();
   }
   const messageActions = new GroupMessageActions({
     run,
@@ -777,11 +802,8 @@ export function startGroups(
   async function reopen(older = false): Promise<void> {
     const id = controller.selected?.state.groupId;
     if (!id) return;
-    await controller.open(id, older, !!controller.selected?.localOnly);
-    await refreshVault();
-    if (controller.warning) notice = controller.warning;
+    await readHistory(id, older, !!controller.selected?.localOnly);
     render();
-    await pending();
   }
   function bind(selector: string, handler: () => void): void {
     node(selector)?.addEventListener('click', handler);
@@ -941,7 +963,7 @@ export function startGroups(
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
       );
-    controller.close();
+    controller.deselect();
     attachments.clearSelection();
     attachments.clearMedia();
     emoji.close();

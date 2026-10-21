@@ -1,3 +1,6 @@
+import { measureWork } from '../src/client/synchronization-diagnostics/index.ts';
+import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
+import { ApiResponseError } from '../src/client/api-response/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -250,4 +253,43 @@ await test('navigation distinguishes engine ownership from a retained window awa
     ['engine-unavailable', 'window-unavailable', 'restored'],
   );
   assert.equal(navigation[0]?.['maintenance'], true);
+});
+
+await test('local work diagnostics identify queue/run timings and cancellation cause without logging error text or secrets', async (t) => {
+  const f = fixture(t),
+    owner = {};
+  await measureWork(
+    owner,
+    'group-preparation',
+    () => Promise.resolve(),
+    performance.now() - 12,
+  );
+  const error = new ApiResponseError({
+    operation: 'messages/group-message-confirm',
+    status: 0,
+    failure: 'cancelled',
+    cause: new WorkInterruption('replacement'),
+    message: 'Private content must never appear',
+  });
+  await assert.rejects(
+    measureWork(owner, 'messages/group-message-confirm', () =>
+      Promise.reject(error),
+    ),
+  );
+  await assert.rejects(
+    measureWork(owner, 'sdk-open', () =>
+      Promise.reject(new DOMException('Private secret', 'TimeoutError')),
+    ),
+  );
+  const events = f.recording
+    .report()
+    .events.filter((event) => event.kind === 'reuse-work');
+  assert.equal(events.length, 3);
+  assert.equal(events[0]?.['outcome'], 'complete');
+  assert.ok(Number(events[0]?.['queueMs']) >= 12);
+  assert.equal(events[1]?.['operation'], 'messages/group-message-confirm');
+  assert.equal(events[1]?.['outcome'], 'interrupted');
+  assert.equal(events[1]?.['origin'], 'replacement');
+  assert.equal(events[2]?.['outcome'], 'timeout');
+  assert.ok(!JSON.stringify(events).includes('Private'));
 });

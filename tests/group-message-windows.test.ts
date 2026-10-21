@@ -1,3 +1,5 @@
+import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
+import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GroupMessageWindows } from '../src/client/groups/message-windows.ts';
@@ -284,3 +286,109 @@ await test("edit in one group preserves another group's candidate without reread
     ['group-message-snapshot', 'group-message-confirm'],
   );
 });
+
+async function completeRead(
+  windows: GroupMessageWindows,
+  c: Parameters<GroupMessageWindows['read']>[0],
+) {
+  for (let turn = 0; turn < 64; turn++) {
+    try {
+      return await windows.read(c, null);
+    } catch (error) {
+      if (!(error instanceof IncompleteGroupIndex)) throw error;
+    }
+  }
+  throw new Error('Bounded fixture did not complete');
+}
+await test('cancel during group-message-confirm preserves confirmed state and completed index, without publishing the unconfirmed window', async () => {
+  const { c, data, add } = await fixture(),
+    windows = new GroupMessageWindows();
+  add('Confirmed');
+  const original = await completeRead(windows, c);
+  windows.finishPreparation(c.group.state.groupId);
+  const added = add('Unconfirmed');
+  data.changed = [added];
+  data.revision++;
+  const api = c.api;
+  let interrupted = true;
+  c.api = async (op, input) => {
+    if (op === 'group-message-confirm' && interrupted)
+      throw new WorkInterruption('replacement');
+    return api(op, input);
+  };
+  await assert.rejects(windows.read(c, null), WorkInterruption);
+  assert.equal(original.views.length, 1);
+  assert.equal(windows.prepared(c.group.state.groupId), true);
+  const indexPages = data.calls.filter(
+    (call) => call.op === 'group-message-changes',
+  ).length;
+  interrupted = false;
+  const restored = await completeRead(windows, c);
+  assert.equal(restored.views.length, 2);
+  assert.equal(
+    data.calls.filter((call) => call.op === 'group-message-changes').length,
+    indexPages,
+  );
+});
+await test('one-page group turns preserve every cursor and canceling final confirmation never completes preparation', async () => {
+  const { c, data, add } = await fixture(),
+    windows = new GroupMessageWindows();
+  for (let n = 0; n < 144; n++) add('Synthetic');
+  const bounded = { ...c, indexPages: 1 };
+  for (let turn = 0; turn < 9; turn++) {
+    const before = data.calls.filter(
+      (call) => call.op === 'group-message-index',
+    ).length;
+    await assert.rejects(windows.read(bounded, null), IncompleteGroupIndex);
+    assert.equal(
+      data.calls.filter((call) => call.op === 'group-message-index').length,
+      before + 1,
+    );
+    assert.equal(data.decoded.length, 0);
+  }
+  let cancelled = false;
+  const guarded = {
+    ...bounded,
+    guard: () => {
+      if (cancelled) throw new WorkInterruption('navigation');
+    },
+    api: async (op: string, input: Record<string, unknown>) => {
+      const result = await c.api(op, input);
+      if (op === 'group-message-confirm') cancelled = true;
+      return result;
+    },
+  };
+  await assert.rejects(windows.read(guarded, null), WorkInterruption);
+  assert.equal(windows.prepared(c.group.state.groupId), false);
+  const pages = data.calls.filter(
+    (call) => call.op === 'group-message-index',
+  ).length;
+  const result = await completeRead(windows, bounded);
+  assert.equal(result.views.length, 16);
+  assert.equal(
+    data.calls.filter((call) => call.op === 'group-message-index').length,
+    pages,
+  );
+});
+for (const status of [403, 409]) {
+  await test(`a ${status} denial after a canceled confirmation discards the candidate and its index`, async () => {
+    const { c, data, add } = await fixture(),
+      windows = new GroupMessageWindows();
+    add('Synthetic');
+    await completeRead(windows, c);
+    const api = c.api;
+    c.api = (op, input) =>
+      op === 'group-message-confirm'
+        ? Promise.reject(new AccountError(status, 'Denied'))
+        : api(op, input);
+    await assert.rejects(windows.read(c, null), AccountError);
+    c.api = api;
+    const before = data.calls.length;
+    await completeRead(windows, c);
+    assert.ok(
+      data.calls
+        .slice(before)
+        .some((call) => call.op === 'group-message-index'),
+    );
+  });
+}

@@ -1,3 +1,11 @@
+import { MessageContinuation } from '../synchronization-work/index.ts';
+import type { MessageWorkResult } from '../synchronization-work/index.ts';
+import {
+  SelectionWork,
+  WorkInterruption,
+  expectedInterruption,
+} from '../synchronization-work/index.ts';
+import { IncompleteGroupIndex } from './message-index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { GroupMessageWindows } from './message-windows.ts';
 import { groupManager } from '../../shared/groups/index.ts';
@@ -81,6 +89,7 @@ export class GroupController {
   private readonly authority: GroupAuthority;
   private session: AccountSession | null = null;
   private generation = 0;
+  private readonly selection = new SelectionWork();
   private prefetchAbort: AbortController | null = null;
   private prefetch: GroupPrefetch = {
     after: null,
@@ -134,20 +143,30 @@ export class GroupController {
     }
     this.session = session;
   }
-  close(): void {
+  /** Leave only the visible group; account receipt and confirmed cursors survive. */
+  deselect(): void {
+    this.selection.invalidate();
     this.historyPending = false;
-    this.pauseSynchronization();
-    this.resetSynchronization();
-    this.generation++;
     this.selected = null;
     this.views = [];
     this.before = null;
   }
+  close(): void {
+    this.deselect();
+    this.historyPending = false;
+    this.pauseSynchronization();
+    this.resetSynchronization();
+    this.generation++;
+  }
   removed(): void {
+    this.selection.invalidate('removal');
+    this.messageWindows.clear();
     this.pauseSynchronization();
     this.historyPending = true;
   }
   hide(): void {
+    this.resetSynchronization();
+    this.selection.invalidate('authorization');
     this.messageWindows.clear();
     this.historyPending = false;
     this.pauseSynchronization();
@@ -159,14 +178,17 @@ export class GroupController {
     this.hide();
   }
   private guard(generation: number): void {
-    if (this.generation !== generation)
-      throw new Error('Session or group changed.');
+    if (this.generation !== generation) throw new WorkInterruption('session');
   }
   private withAuthority<T>(
     work: (context: GroupContext) => Promise<T>,
+    selection?: () => void,
   ): Promise<T> {
     const generation = this.generation;
-    return this.authority.run(() => this.guard(generation), work);
+    return this.authority.run(() => {
+      this.guard(generation);
+      selection?.();
+    }, work);
   }
   private async machine<T>(
     c: GroupContext,
@@ -214,7 +236,6 @@ export class GroupController {
     );
   }
   async refresh(more = false): Promise<void> {
-    if (!more) this.resetSynchronization();
     if (!navigator.onLine) return this.refreshLocal(more);
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
     await this.identities.load();
@@ -285,7 +306,11 @@ export class GroupController {
             if (this.selected?.state.groupId === raw.groupId) {
               this.selected = summary;
               if (this.visible())
-                await this.openVerified(c, group, machine, null);
+                await this.openVerified(c, group, machine, null).catch(
+                  (error: unknown) => {
+                    if (!expectedInterruption(error)) throw error;
+                  },
+                );
             }
           }
         });
@@ -324,7 +349,8 @@ export class GroupController {
     try {
       // A selected group can be outside the first list page. Verify it directly
       // rather than treating pagination as removal from the group.
-      await this.open(selected.state.groupId);
+      const next = await this.open(selected.state.groupId);
+      if (next) this.historyPending = true;
     } catch (error: unknown) {
       if (!(error instanceof AccountError) || error.status !== 403) throw error;
       this.selected = { ...selected, localOnly: true };
@@ -382,7 +408,7 @@ export class GroupController {
     this.incomingNext = page['next'] === null ? null : uuid(page['next']);
   }
   pauseSynchronization(): void {
-    this.prefetchAbort?.abort();
+    this.prefetchAbort?.abort(new WorkInterruption('scheduler'));
   }
   private resetSynchronization(): void {
     this.prefetch = {
@@ -395,7 +421,7 @@ export class GroupController {
   }
   /** Prepares every authorized group without selecting it or marking it read. */
   async synchronizeAll(signal: AbortSignal): Promise<boolean> {
-    if (this.prefetch.complete) return false;
+    if (this.prefetch.complete) this.resetSynchronization();
     const generation = this.generation,
       abort = new AbortController();
     this.prefetchAbort = abort;
@@ -472,6 +498,7 @@ export class GroupController {
       this.messageWindows.read(
         {
           ...c,
+          indexPages: 1,
           group,
           machine,
           identities: this.identities,
@@ -500,42 +527,67 @@ export class GroupController {
       progress.groups.shift();
     }
   }
-  async open(groupId: string, older = false, localOnly = false): Promise<void> {
-    if (!navigator.onLine || localOnly) return this.openLocal(groupId, older);
+  async open(
+    groupId: string,
+    older = false,
+    localOnly = false,
+  ): Promise<MessageWorkResult> {
+    this.selection.invalidate('replacement');
     const generation = this.generation;
-    this.views = [];
+    const guard = this.selection.capture(() => this.guard(generation));
+    return this.openSelected({ groupId, older, localOnly, guard });
+  }
+  private async openSelected(input: {
+    groupId: string;
+    older: boolean;
+    localOnly: boolean;
+    guard: () => void;
+  }): Promise<MessageWorkResult> {
+    const { groupId, older, localOnly, guard } = input;
+    guard();
+    if (!navigator.onLine || localOnly) return this.openLocal(groupId, older);
     await this.identities.load();
-    this.guard(generation);
-    await this.withAuthority(async (c) => {
+    guard();
+    const complete = await this.withAuthority(async (c) => {
       const group = await c.governance.verify(groupId),
-        cache = new GroupCache(c.authority, groupId);
-      const profile = await cache.get('profile'),
-        title =
+        profile = await new GroupCache(c.authority, groupId).get('profile');
+      guard();
+      if (this.selected?.state.groupId !== groupId) this.views = [];
+      this.selected = {
+        ...group,
+        title:
           profile === null
             ? t('Group {0}', [groupId.slice(0, 8)])
-            : groupTitle(profile);
-      this.selected = { ...group, title };
+            : groupTitle(profile),
+      };
       this.warning = '';
       if (c.authority.offline)
         throw new Error('Connect to check current group membership.');
-      await this.machine(c, async (machine) => {
-        await this.openVerified(c, group, machine, older ? this.before : null);
-      });
-    });
-    await this.identities.save();
-    this.guard(generation);
+      return this.machine(c, (machine) =>
+        this.openVerified(c, group, machine, older ? this.before : null),
+      );
+    }, guard);
+    guard();
+    await this.identities.save(guard);
+    guard();
+    if (!complete)
+      return new MessageContinuation(() => this.openSelected(input));
   }
   private async openVerified(
     c: GroupContext,
     group: GroupState,
     machine: import('../message-crypto/index.ts').MessageCrypto,
     before: number | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    const generation = this.generation,
+      guard = this.selection.capture(() => this.guard(generation));
     this.warning = '';
     try {
       const page = await this.messageWindows.read(
         {
           ...c,
+          guard,
+          indexPages: 1,
           group,
           machine,
           identities: this.identities,
@@ -555,17 +607,34 @@ export class GroupController {
         },
         before,
       );
+      guard();
       this.before = page.before;
       this.views = page.views;
       this.historyPending = false;
     } catch (error: unknown) {
+      guard();
+      if (error instanceof IncompleteGroupIndex) {
+        this.historyPending = true;
+        return false;
+      }
+      if (expectedInterruption(error)) throw error;
       this.views = [];
       this.historyPending = false;
       throw error;
     }
-    await this.readViews(c.api, group);
+    await this.readViews(async (op, payload) => {
+      guard();
+      const result = await c.api(op, payload);
+      guard();
+      return result;
+    }, group);
+    guard();
+    return true;
   }
   private async openLocal(groupId: string, older: boolean): Promise<void> {
+    this.selection.invalidate('replacement');
+    const generation = this.generation,
+      guard = this.selection.capture(() => this.guard(generation));
     const group = this.entries.find((g) => g.state.groupId === groupId);
     if (!group) throw new Error('Local group copy missing.');
     await this.withAuthority(async (c) => {
@@ -574,14 +643,16 @@ export class GroupController {
         groupId,
         older ? this.before : null,
       );
+      guard();
       this.selected = { ...group, localOnly: true };
       this.views = page.views;
       this.historyPending = false;
+      guard();
       this.before = page.before;
       this.warning = t(
         'Independent local copy. Sending and administration require verified current membership.',
       );
-    });
+    }, guard);
   }
   historyChanged(): void {
     this.historyLoaded = false;

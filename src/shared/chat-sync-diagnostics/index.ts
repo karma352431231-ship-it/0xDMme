@@ -1,3 +1,5 @@
+import { copyWorkDiagnostic } from './work.ts';
+import type { WorkDiagnosticFields } from './work.ts';
 export const chatSyncControl = '0xdmme-chat-sync-diagnostic-control';
 export const chatSyncEvent = '0xdmme-chat-sync-diagnostic-event';
 export const chatSyncEvents = [
@@ -12,9 +14,11 @@ export const chatSyncEvents = [
   'navigation',
   'projection',
   'verification-failed',
+  'work',
 ] as const;
 export const chatSyncReasons = [
   'capture-started',
+  'settled',
   'stored',
   'replaced',
   'snapshot-changed',
@@ -55,7 +59,7 @@ const failures = [
   'aborted',
   'failed',
 ] as const;
-export interface ChatSyncDecision {
+export interface ChatSyncDecision extends WorkDiagnosticFields {
   event: (typeof chatSyncEvents)[number];
   reason: ChatSyncReason;
   windows?: number;
@@ -105,6 +109,7 @@ export function readChatSyncTrace(value: unknown): ChatSyncTrace | null {
   )
     return null;
   copyState(input, result);
+  copyWorkDiagnostic(input, result);
   if (failures.some((failure) => failure === input['failure']))
     result['failure'] = input['failure'];
   if (Array.isArray(input['callers']))
@@ -158,3 +163,5 @@ function copyState(
   ])
     if (typeof input[key] === 'boolean') result[key] = input[key];
 }
+
+export type { WorkDiagnosticFields } from './work.ts';

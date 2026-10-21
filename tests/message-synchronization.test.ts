@@ -1,3 +1,4 @@
+import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
 import {
   MessageContinuation,
   awaitMessageWork,
@@ -144,11 +145,11 @@ await test('only the latest retained opening runs after maintenance without a fo
   const second = open('B'),
     last = open('A');
   await Promise.all([first, second]);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['restore:A', 'restore:B', 'restore:A']);
   assert.equal(f.sync.busy, false);
   presence.resolve();
   await Promise.all([maintenance, last]);
-  assert.deepEqual(calls, ['restore:A']);
+  assert.deepEqual(calls, ['restore:A', 'restore:B', 'restore:A']);
   assert.ok(frames.length > 0);
   assert.ok(frames.every((busy) => !busy));
 });
@@ -160,12 +161,14 @@ for (const cancel of ['reset', 'close'] as const)
     f.options.presence = () => presence.promise;
     const maintenance = f.sync.maintainPresence();
     await turn();
-    let settled = false,
+    let eligible = false,
+      settled = false,
       restored = false;
     const opening = f.sync
       .open(
         () => Promise.reject(new Error('Cancelled work ran')),
         () => {
+          if (!eligible) return false;
           restored = true;
           return true;
         },
@@ -178,6 +181,7 @@ for (const cancel of ['reset', 'close'] as const)
     f.sync[cancel]();
     await turn();
     assert.equal(settled, true);
+    eligible = true;
     presence.resolve();
     await Promise.all([maintenance, opening]);
     assert.equal(restored, false);
@@ -1358,5 +1362,94 @@ for (const outcome of ['complete', 'cancel', 'failure'] as const) {
     else t.mock.timers.tick(0);
     await observed;
     assert.equal(settled, true);
+  });
+}
+
+for (const busy of [false, true]) {
+  await test(`retained presentation bypasses unrelated ${busy ? 'foreground work' : 'maintenance'} without overlapping engine work`, async (t) => {
+    const f = fixture(t),
+      gate = deferred<void>();
+    f.state.startupPending = true;
+    let displayed = false,
+      engineWork = 0;
+    const owner = busy
+      ? f.sync.run(() => gate.promise)
+      : f.sync.background(() => gate.promise);
+    await turn();
+    assert.equal(f.sync.foregroundReady, false);
+    assert.equal(f.sync.presentationReady, true);
+    await f.sync.open(
+      () => {
+        engineWork++;
+        return Promise.resolve();
+      },
+      () => {
+        displayed = true;
+        return true;
+      },
+    );
+    assert.equal(displayed, true);
+    assert.equal(engineWork, 0);
+    gate.resolve();
+    await owner;
+    assert.deepEqual(f.notices, []);
+  });
+}
+for (const origin of [
+  'navigation',
+  'replacement',
+  'scheduler',
+  'continuation',
+] as const) {
+  await test(`an internal ${origin} interruption retains pending work without a connection failure or 61s backoff`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t);
+    let calls = 0;
+    f.options.preloadGroups = () => {
+      calls++;
+      return calls === 1
+        ? Promise.reject(
+            new ApiResponseError({
+              operation: 'messages/group-message-confirm',
+              status: 0,
+              failure: 'cancelled',
+              cause: new WorkInterruption(origin),
+            }),
+          )
+        : Promise.resolve(false);
+    };
+    f.sync.resume();
+    t.mock.timers.tick(1000);
+    await turn();
+    t.mock.timers.tick(1000);
+    await turn();
+    assert.equal(calls, 1);
+    t.mock.timers.tick(0);
+    await turn();
+    assert.equal(calls, 2);
+    assert.deepEqual(f.notices, []);
+    assert.equal(f.sync.failed, false);
+  });
+}
+for (const error of [
+  new DOMException('Unknown abort', 'AbortError'),
+  new DOMException('Timeout', 'TimeoutError'),
+  new AccountError(403, 'Revoked'),
+]) {
+  await test(`a real ${error.name} failure is still reported and backed off`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t);
+    let calls = 0;
+    f.options.preloadDirect = () => {
+      calls++;
+      return Promise.reject(error);
+    };
+    f.sync.resume();
+    t.mock.timers.tick(1000);
+    await turn();
+    assert.equal(f.notices.length, 1);
+    t.mock.timers.tick(0);
+    await turn();
+    assert.equal(calls, 1);
   });
 }

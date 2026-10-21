@@ -65,6 +65,7 @@ export class ApiResponseError extends AccountError {
     failure: ApiFailure;
     responseType?: ResponseType;
     message?: string | undefined;
+    cause?: unknown;
   }) {
     const operation = operationLabel(input.operation);
     const type = input.responseType ?? 'missing';
@@ -86,6 +87,7 @@ export class ApiResponseError extends AccountError {
         type,
       ]),
     );
+    this.cause = input.cause;
     this.operation = operation;
     this.reason = reason;
     this.failure = input.failure;
@@ -121,6 +123,7 @@ export async function fetchApi(
       operation,
       status: 0,
       failure: transportFailure(error, options.signal),
+      cause: options.signal?.aborted ? options.signal.reason : error,
     });
   }
 }
@@ -159,6 +162,7 @@ export async function readApiJson(
       operation,
       status: response.status,
       responseType: type,
+      cause: requestSignals.get(response)?.reason ?? error,
       failure:
         error instanceof SyntaxError
           ? 'invalid-json'

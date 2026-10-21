@@ -160,7 +160,7 @@ await test('switching retained conversations projects immediately and coalesces 
   assert.equal(f.state.restorablePeers.size, 0);
 });
 
-await test('a retained opening queued behind an active owner reuses history after that owner finishes', async (t) => {
+await test('a retained opening displays while unrelated contact maintenance still owns the engine', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -181,7 +181,7 @@ await test('a retained opening queued behind an active owner reuses history afte
   f.statusFrames.length = 0;
   const opening = f.messages.openContact(peer('queued-retained'));
   await turn();
-  assert.ok(!f.calls.includes('restore:queued-retained'));
+  assert.ok(f.calls.includes('restore:queued-retained'));
   assert.ok(
     !f.statusFrames.includes('Syncing…'),
     'Waiting for an owner must not label a retained opening as history sync',

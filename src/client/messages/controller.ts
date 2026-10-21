@@ -1,3 +1,9 @@
+import {
+  SelectionWork,
+  WorkInterruption,
+  expectedInterruption,
+  guardProjectionFailure,
+} from '../synchronization-work/index.ts';
 import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
@@ -194,6 +200,7 @@ export class Messages {
   private readonly visibility: MessageVisibility<MessageView>;
   private session: AccountSession | null = null;
   private generation = 0;
+  private readonly selection = new SelectionWork();
   private previewGeneration = 0;
   private readonly identities: PeerIdentity;
   private initializedDirectory = '';
@@ -360,6 +367,7 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.selection.invalidate('session');
     this.readTarget.reset();
     this.synchronizationIssues = [];
     this.recoveryAlarm.clear();
@@ -382,14 +390,18 @@ export class Messages {
       this.previewGeneration++;
       this.conversations.invalidateReuse('account-pause');
     }
+    this.selection.invalidate(
+      scope === 'account' ? 'authorization' : 'navigation',
+    );
     this.pinsGeneration = -1;
     this.probedSnapshot = null;
-    this.pauseSynchronization();
+    if (scope === 'account') this.pauseSynchronization();
     this.visibility.close();
   }
   /** A removal hint carries no IDs. Block content access immediately while
    * retaining verified candidates for the authenticated incremental response. */
   removed(): void {
+    this.selection.invalidate('removal');
     this.previewGeneration++;
     this.conversations.hint();
     this.pauseSynchronization();
@@ -397,10 +409,13 @@ export class Messages {
     this.visibility.close('pending');
   }
   hideFailedRead(error: unknown): void {
+    if (expectedInterruption(error)) return;
     if (interruptedMessageRead(error)) this.pause('conversation');
     else this.hide();
   }
   hide(): void {
+    this.selection.invalidate('authorization');
+    this.generation++;
     this.recoveryAlarm.clear();
     this.readTarget.reset();
     this.previewGeneration++;
@@ -455,8 +470,9 @@ export class Messages {
     return true;
   }
   select(peer: string | null, older = false): void {
-    this.readTarget.reset();
-    this.pauseSynchronization();
+    if (older || this.before !== null) this.readTarget.reset();
+    this.pinsGeneration = -1;
+    this.selection.invalidate();
     this.probedSnapshot = null;
     const candidate = peer && !older ? this.conversations.read(peer) : null;
     traceChatSync(this.conversations, peer, {
@@ -466,7 +482,6 @@ export class Messages {
     });
     this.confirmed = candidate;
     this.verified.clear();
-    this.generation++;
     this.visibility.close();
     this.offlineIndex.reset();
     this.selected = peer;
@@ -502,8 +517,7 @@ export class Messages {
       this.conversations.advance(changes.from, changes.snapshot, changes.peers);
   }
   private guard(generation: number): void {
-    if (generation !== this.generation)
-      throw new Error('Session or synchronization changed.');
+    if (generation !== this.generation) throw new WorkInterruption('session');
   }
   private guardPreviews(generation: number): void {
     if (generation !== this.previewGeneration)
@@ -1083,13 +1097,14 @@ export class Messages {
     this.probedSnapshot = null;
     const token = this.visibility.refresh(),
       generation = this.generation,
-      selected = this.selected;
+      selected = this.selected,
+      guard = this.selection.capture(() => this.guard(generation));
     try {
       const staged = await this.access.withVault(
         false,
         async (a) => {
           const api = (op: string, d: Record<string, unknown>) =>
-              messageApi(a, op, d, () => this.guard(generation)),
+              messageApi(a, op, d, () => guard()),
             snapshot = this.readTarget.take(
               probed ??
                 (await api('snapshot', {
@@ -1148,15 +1163,16 @@ export class Messages {
         },
         options,
       );
+      guard();
       await this.savePins(options);
-      this.guard(generation);
+      guard();
       const views = staged.views;
       this.oldest =
         views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
         this.before;
       this.visibility.stage(token, views);
       await this.confirmVisible(token, staged.snapshot, generation, options);
-      this.guard(generation);
+      guard();
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       if ('changes' in staged) {
         this.index.rememberChanges({
@@ -1180,11 +1196,14 @@ export class Messages {
       this.rememberConversation();
       this.readTarget.reset();
     } catch (error: unknown) {
+      guardProjectionFailure(error, guard, () => this.visibility.close());
+      if (expectedInterruption(error)) throw error;
+
       if (error instanceof IncompleteMessageIndex) {
-        this.guard(generation);
+        guard();
         this.visibility.discard(token);
         return new MessageContinuation(async () => {
-          this.guard(generation);
+          guard();
           return this.synchronize(options);
         });
       }
@@ -1281,10 +1300,11 @@ export class Messages {
   async openArchive(peer: string): Promise<void> {
     this.selected = peer;
     const generation = this.generation,
-      token = this.visibility.begin();
+      token = this.visibility.begin(),
+      guard = this.selection.capture(() => this.guard(generation));
     const open = async (a: VaultAuthority) => {
       const views = await this.includeHistory(a, [], generation);
-      this.guard(generation);
+      guard();
       this.oldest =
         views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
         this.before;
@@ -1310,9 +1330,10 @@ export class Messages {
     remote: readonly MessageView[],
     generation: number,
   ): Promise<MessageView[]> {
+    const guard = this.selection.capture(() => this.guard(generation));
     if (!this.selected) return [...remote];
     const local = await conversationHistory(a, this.selected, this.before);
-    this.guard(generation);
+    guard();
     const merged = mergeHistory(
       remote,
       local.map((r) => this.historicalView(a, r)),
@@ -1321,9 +1342,7 @@ export class Messages {
       .filter((r) => !r.relation && r.kind !== 'profile')
       .slice(-16);
     const ids = new Set(base.map((r) => r.id));
-    const related = await relatedHistory(a, [...ids], () =>
-      this.guard(generation),
-    );
+    const related = await relatedHistory(a, [...ids], () => guard());
     const combined = mergeHistory(
       merged,
       related.map((r) => this.historicalView(a, r)),
@@ -1343,6 +1362,7 @@ export class Messages {
     selected: string | null;
   }): Promise<MessageItem[]> {
     return this.index.read({
+      pagesPerTurn: 1,
       ...c,
       account: c.a.session.accountId,
       before: this.before,
@@ -1839,7 +1859,7 @@ export class Messages {
     });
   }
   pauseSynchronization(): void {
-    this.prefetchAbort?.abort();
+    this.prefetchAbort?.abort(new WorkInterruption('scheduler'));
   }
   /** One global page per idle turn; user actions abort its network requests.
    * No views/read receipts are published, and the SDK lock is released each turn. */
@@ -2011,15 +2031,14 @@ export class Messages {
     const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
-      generation = this.generation;
+      generation = this.generation,
+      guard = this.selection.capture(() => this.guard(generation));
     try {
       return await this.access.withVault(
         false,
         async (authority) => {
           const api = (operation: string, payload: Record<string, unknown>) =>
-            messageApi(authority, operation, payload, () =>
-              this.guard(generation),
-            );
+            messageApi(authority, operation, payload, () => guard());
           let advanced: unknown = null;
           if (this.confirmed) {
             const views = await probeConfirmed({
@@ -2031,7 +2050,7 @@ export class Messages {
               visibility: this.visibility,
               token,
             });
-            this.guard(generation);
+            guard();
             if (views) {
               this.confirmed = { ...this.confirmed, views };
               this.rememberConversation();
@@ -2045,7 +2064,7 @@ export class Messages {
                 ? (JSON.parse(this.confirmed.snapshot) as unknown)
                 : null,
             }));
-          this.guard(generation);
+          guard();
           this.concealChangedFence(token, snapshot);
           this.probedSnapshot = snapshot;
           this.visibility.discard(token);
@@ -2054,6 +2073,9 @@ export class Messages {
         options,
       );
     } catch (error: unknown) {
+      guardProjectionFailure(error, guard, () => this.visibility.close());
+      if (expectedInterruption(error)) throw error;
+
       if (!interruptedMessageRead(error)) {
         this.index.reset();
         this.readTarget.reset();
@@ -2089,21 +2111,22 @@ export class Messages {
       throw new Error('Connected: sync before opening history.');
     const token = this.visibility.begin(),
       generation = this.generation,
+      guard = this.selection.capture(() => this.guard(generation)),
       locator = await localLocator();
     if (!locator) throw new Error('No authorized local copy on this device.');
     try {
       await this.access.withLocalVault(locator, async (a) => {
         const removed = new RemovalIndex();
-        await removed.load(a, () => this.guard(generation));
+        await removed.load(a, () => guard());
         const cached = await this.offlineIndex.read({
             account: a.session.accountId,
             peer,
             before: this.before,
-            guard: () => this.guard(generation),
+            guard: () => guard(),
           }),
           views: MessageView[] = [];
         for (const value of cached) {
-          this.guard(generation);
+          guard();
           views.push({
             kind: value.kind ?? 'text',
             ...(value.relation ? { relation: value.relation } : {}),
@@ -2127,12 +2150,13 @@ export class Messages {
           });
         }
         if (peer) await this.offlineProfiles(a, peer, views);
+        guard();
         this.selected = peer;
         const merged = await this.includeHistory(a, views, generation);
         this.oldest =
           merged.filter((v) => !v.relation && v.kind !== 'profile')[0]
             ?.sequence ?? this.before;
-        this.guard(generation);
+        guard();
         this.visibility.stage(token, merged);
         this.visibility.complete(token);
         this.offlineIndex.reset();

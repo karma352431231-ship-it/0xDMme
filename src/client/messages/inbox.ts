@@ -1,3 +1,8 @@
+import {
+  expectedInterruption,
+  WorkInterruption,
+} from '../synchronization-work/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
@@ -45,7 +50,7 @@ export class MessageInbox {
   }
   pause(): void {
     this.defer();
-    this.abort?.abort();
+    this.abort?.abort(new WorkInterruption('scheduler'));
     this.ports.pause();
   }
   resume(): void {
@@ -73,22 +78,37 @@ export class MessageInbox {
       generation = this.ports.generation();
     this.abort = abort;
     try {
-      await this.receivePage(abort.signal, generation);
+      await measureWork(this, 'inbox', () =>
+        this.receivePage(abort.signal, generation),
+      );
     } catch (error: unknown) {
-      if (!abort.signal.aborted && this.ports.current(generation)) {
-        this.ports.failed(error);
-        this.retryAt =
-          Date.now() +
-          (error instanceof AccountError && error.status === 409
-            ? 1000
-            : 61000);
-      }
+      this.resumeInterrupted(error);
+      this.fail(error, abort.signal, generation);
     } finally {
       this.running = false;
       if (this.abort === abort) this.abort = null;
       this.ports.changed();
       if (this.ports.current(generation)) this.resume();
     }
+  }
+  private resumeInterrupted(error: unknown): void {
+    if (!expectedInterruption(error)) return;
+    const turn = this.preparation.next();
+    if (!turn) return;
+    this.continuing.add(turn.kind);
+    this.preparation.complete(turn, true);
+  }
+  private fail(error: unknown, signal: AbortSignal, generation: number): void {
+    if (
+      signal.aborted ||
+      expectedInterruption(error) ||
+      !this.ports.current(generation)
+    )
+      return;
+    this.ports.failed(error);
+    this.retryAt =
+      Date.now() +
+      (error instanceof AccountError && error.status === 409 ? 1000 : 61000);
   }
   private async receivePage(
     signal: AbortSignal,

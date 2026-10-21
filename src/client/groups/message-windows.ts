@@ -1,3 +1,4 @@
+import { expectedInterruption } from '../synchronization-work/index.ts';
 import {
   GroupMessageIndex,
   IncompleteGroupIndex,
@@ -18,6 +19,8 @@ interface Window {
   before: number | null;
 }
 interface ReadContext extends GroupReadContext {
+  indexPages?: number;
+  guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;
 }
 /** Session-only bounded candidates. Metadata continuity and final confirmation
@@ -45,7 +48,10 @@ export class GroupMessageWindows {
     try {
       return await this.readCurrent(c, before);
     } catch (error: unknown) {
-      if (!(error instanceof IncompleteGroupIndex)) {
+      if (
+        !(error instanceof IncompleteGroupIndex) &&
+        !expectedInterruption(error)
+      ) {
         this.discard(c.group.state.groupId);
       }
       throw error;
@@ -53,7 +59,7 @@ export class GroupMessageWindows {
   }
   private discard(group: string): void {
     this.states.delete(group);
-    this.index.clear();
+    this.index.clear(group);
     for (const [key, window] of this.windows)
       if (window.snapshot.groupId === group) this.windows.delete(key);
   }
@@ -61,6 +67,7 @@ export class GroupMessageWindows {
     c: ReadContext,
     before: number | null,
   ): Promise<Window> {
+    c.guard?.();
     const snapshot = await currentGroupSnapshot(c),
       scope = canonical([
         c.authority.session.accountId,
@@ -79,8 +86,11 @@ export class GroupMessageWindows {
       changed,
       previous,
     });
+    c.guard?.();
     await c.api('group-message-confirm', wire(snapshot));
+    c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
+    this.index.confirmed(snapshot);
     return result;
   }
   private previousState(snapshot: Snapshot, scope: string) {
