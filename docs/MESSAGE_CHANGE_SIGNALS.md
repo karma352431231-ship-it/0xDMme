@@ -101,3 +101,28 @@ remain separate from implementation and local verification.
 work while preserving the existing security and privacy boundaries. Local tests
 do not establish physical-device or VPS delivery latency; repeat the paired
 capture after any separately authorized activation.
+
+## Authorized integration and publication — 21 October 2026
+
+The owner requested integration of `codex/categorized-message-flow` at
+`f5df9d6203a41569fba05645ef2b26d4d116f41f` into `main` and activation through
+the existing deployment command. The live database source matches `b20d1be`.
+The executor pins the complete database trees for that exact code-only exchange;
+all migrations, dependency contracts and runtime requirements stay identical.
+The publication commit adds the exact transition guard, synthetic guard tests
+and this record on top of the requested application commit. The existing
+publisher also transports optional worker/directory installers only when their
+explicit mode needs them, retaining the same source and SSH-argument budgets.
+Invitation/search verifiers retain their directory-contract dependency.
+
+Require the exact integrated main commit to pass the complete CI workflow before
+activation. Preserve the existing push trust-store mitigation and separately
+approved provider egress maintenance. Access, baseline hashes, operational
+scripts and live-test evidence stay in ignored `.local/`. Use the current
+executor's own worker lifecycle, preservation and rollback checks; do not change
+shared services, packages, infrastructure or database schema for this release.
+
+**Ponto importante:** publication updates categorized message/receipt routing and
+may briefly interrupt the app's own services during the existing release swap.
+CI and deployment health checks do not establish physical-device delivery
+latency or browser acceptance; those remain separate observations.

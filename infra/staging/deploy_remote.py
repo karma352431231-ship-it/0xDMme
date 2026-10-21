@@ -262,6 +262,29 @@ CONVERSATION_FLOW_REVIEWED = '4f03719b2e82209f23e0760b65aaf24f67494b67'
 # Owner-requested preview/local detailed push repair; exact trees, no schema/runtime change.
 PREVIEW_NOTIFICATIONS_BEFORE = 'f049623ec2ff065e4c4d6c1c369ee75295aa876f'
 PREVIEW_NOTIFICATIONS_REVIEWED = '1a9d2de89b38a048c7c60953de86f5f13bd5f05a'
+# Owner authorized main integration and activation of f5df9d6 on 21/10/2026.
+# Pin both complete database trees; all SQL, dependencies and runtime stay exact.
+CATEGORIZED_MESSAGES_BEFORE = 'b20d1be827f665311aef26d72e98e1e1240821b0'
+CATEGORIZED_MESSAGES_REVIEWED = 'f5df9d6203a41569fba05645ef2b26d4d116f41f'
+CATEGORIZED_MESSAGES_MODULES = frozenset({
+    'backups.ts',
+    'changes.ts',
+    'contacts.ts',
+    'daily.ts',
+    'group-daily.ts',
+    'group-message-updates.ts',
+    'group-messages.ts',
+    'group-retention.ts',
+    'groups.ts',
+    'matrix.ts',
+    'messages.ts',
+    'public-notice-wake.ts',
+    'social-dm.ts',
+    'social-read-receipts.ts',
+    'status.ts',
+    'transaction-changes.ts',
+    'work-signals.ts',
+})
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -459,6 +482,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(CATEGORIZED_MESSAGES_MODULES), CATEGORIZED_MESSAGES_BEFORE, CATEGORIZED_MESSAGES_REVIEWED),
         ({'daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts'},
          PREVIEW_NOTIFICATIONS_BEFORE, PREVIEW_NOTIFICATIONS_REVIEWED),
         ({'social-read-receipts.ts', 'social-unread.ts'}, CONVERSATION_FLOW_BEFORE, CONVERSATION_FLOW_REVIEWED),

@@ -57,8 +57,8 @@ class DeploymentTests(unittest.TestCase):
                  'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
-            config = {'files': {}}
-            # Keep the original aggregate transport stress as module count grows.
+            config = {'files': {}, 'profile_directory': True, 'worker_boot': {'fixture': True}}
+            # Stress all module sources independently of the mutually exclusive CLI modes.
             repetitions = 8100 // len(names)
             for name in names:
                 path = root / 'infra/staging' / (name + '.py')
