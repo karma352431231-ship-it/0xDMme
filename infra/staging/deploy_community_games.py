@@ -14,7 +14,7 @@ CATALOG = """SELECT count(*)=1 FROM pg_constraint
 SCHEMA_CHECK = CATALOG.format(comparison='LIKE') + """
  AND (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgenabled='O'
  AND tgrelid='hash_talk.community_classifications'::regclass
- AND tgname IN ('community_classification_usage','community_classification_fixed'))=2
+ AND tgname='community_classification_fixed')=1
  AND EXISTS(SELECT 1 FROM pg_constraint
  WHERE conrelid='hash_talk.community_classifications'::regclass
  AND conname='community_classification_known_topics' AND convalidated)"""
@@ -28,8 +28,9 @@ def review(candidate, live):
         name = 'infra/staging/' + unit
         if base.digest(candidate / name) != base.digest(live / name):
             raise RuntimeError('Games catalog migration does not authorize unit changes.')
-    if previous.directory.ranking.capacity.psql(CATALOG.format(comparison='NOT LIKE')) != b't':
-        raise RuntimeError('Games catalog predecessor constraint differs.')
+    if any(previous.directory.ranking.capacity.psql(sql) != b't' for sql in
+           [CATALOG.format(comparison='NOT LIKE'), previous.COUNTER_CHECKS, previous.GLOBAL_CHECK]):
+        raise RuntimeError('Games catalog predecessor constraint or accounting differs.')
 
 
 def snapshot():
