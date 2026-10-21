@@ -606,6 +606,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 97:
+        import deploy_community_games
+        return deploy_community_games.review(candidate, live)
     if count == 96:
         import deploy_message_sync
         return deploy_message_sync.review(candidate, live)
@@ -1307,6 +1310,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 97:
+            import deploy_community_games
+            return deploy_community_games.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 96:
             import deploy_message_sync
             return deploy_message_sync.activate(config, work, candidate, before)
