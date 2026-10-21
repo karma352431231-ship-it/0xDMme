@@ -23,7 +23,7 @@ import type {
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
-import { setActiveLanguage } from '../src/shared/i18n/index.ts';
+import { setActiveLanguage, t as translate } from '../src/shared/i18n/index.ts';
 
 function group(): GroupSummary {
   const owner = crypto.randomUUID();
@@ -374,3 +374,69 @@ await test('missing or unavailable private photos retain group initials in both 
     }
   }
 });
+
+for (const language of ['en', 'zh-CN'] as const)
+  await test(`group preparation shows loading only before its first verified window in ${language}`, async (t) => {
+    dom(t);
+    setActiveLanguage(language);
+    const current = group(),
+      notice = new CommunityNode(),
+      history = new CommunityNode(),
+      host = Object.assign(new CommunityNode(), { insertAdjacentHTML() {} }),
+      aside = new CommunityNode();
+    const nodes = new Map([
+      ['[data-group-notice]', notice],
+      ['[data-group-history]', history],
+    ]);
+    t.mock.method(
+      host,
+      'querySelector',
+      (selector: string) => nodes.get(selector) ?? null,
+    );
+    let pending = true;
+    t.mock.method(
+      GroupController.prototype,
+      'open',
+      function (this: GroupController) {
+        this.selected = current;
+        this.historyPending = pending;
+        return Promise.resolve();
+      },
+    );
+    const access = {} as VaultAccess;
+    const options = {
+      run: (work: () => Promise<void>) => work(),
+      history: async (
+        work: () => Promise<void>,
+        settled?: () => Promise<void>,
+      ) => {
+        await work();
+        if (!pending) await settled?.();
+        return !pending;
+      },
+      changed: () => {},
+      select: () => {},
+      isBusy: () => false,
+      alert: () => {},
+      peers: () => [],
+      profile: () => Promise.resolve(null),
+    } as unknown as Parameters<typeof startGroups>[2];
+    const ui = startGroups(access, new VaultSync(access), options);
+    ui.mount(host as unknown as HTMLElement, aside as unknown as HTMLElement);
+    await ui.open(current);
+    assert.equal(notice.textContent, translate('Syncing…'));
+    assert.equal(history.hidden, true);
+    pending = false;
+    await ui.open(current);
+    assert.equal(notice.textContent, '');
+    assert.equal(history.hidden, false);
+    pending = true;
+    await ui.open(current);
+    assert.equal(notice.textContent, '');
+    assert.equal(
+      history.hidden,
+      true,
+      'Unconfirmed group history stays hidden without repeated sync copy',
+    );
+    ui.leave();
+  });

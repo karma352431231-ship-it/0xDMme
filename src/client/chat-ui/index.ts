@@ -23,6 +23,7 @@ const icons = {
 export { bindRecordGesture, showRecording } from './voice.ts';
 export { sendOnEnter } from './enter.ts';
 export { ChatAvatarPhoto } from './avatar-photo.ts';
+export { ChatHistoryLoading } from './history-loading.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;

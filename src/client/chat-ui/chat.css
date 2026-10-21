@@ -53,6 +53,11 @@
   font-size: var(--fs-caption);
   color: var(--text-muted);
 }
+/* Quiet at every width, including tablets. Actionable notices and transfers
+   retain the connection/retry controls. Initial loading lives in the thread. */
+.chat-panel .chat-feedback[data-state='ok'] {
+  display: none;
+}
 .chat-panel .chat-feedback p {
   margin: 0;
   font-size: var(--fs-caption);

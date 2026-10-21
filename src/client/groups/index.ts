@@ -22,6 +22,7 @@ import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import {
   chatIcon,
+  ChatHistoryLoading,
   chatCollapse,
   chatComposer,
   bindChatComposer,
@@ -101,6 +102,7 @@ export function startGroups(
   let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
   let externalAbort = new AbortController();
   const externalRows = new ExternalTextHistory();
+  const loading = new ChatHistoryLoading();
   const voice = new VoiceRecording({
     changed: () => voiceStatus(),
     completed: (selection) => {
@@ -178,12 +180,19 @@ export function startGroups(
         ? ''
         : notice;
     const label = node('[data-group-notice]');
+    const selected = controller.selected;
+    const initialLoading = loading.update({
+      conversation: selected
+        ? `${selected.state.groupId}:${!!selected.localOnly}`
+        : null,
+      ready: !controller.historyPending,
+    });
     if (label)
-      label.textContent = [t('Group opened.'), t('Message sent.')].includes(
-        notice,
-      )
-        ? ''
-        : notice;
+      label.textContent =
+        [t('Group opened.'), t('Message sent.')].includes(notice) ||
+        (notice === t('Syncing…') && !initialLoading)
+          ? ''
+          : notice;
     const compose = node<HTMLFormElement>('[data-group-compose]');
     if (compose) compose.hidden = !!controller.selected?.localOnly;
     voiceStatus();
@@ -1087,6 +1096,7 @@ export function startGroups(
         return;
       }
       session = value;
+      loading.reset();
       messageActions.close();
       actions.setSession(value);
       externalRows.clear();

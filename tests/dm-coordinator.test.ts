@@ -245,3 +245,24 @@ await test('a delayed public media-draft result cannot change the composer after
   assert.equal(f.views.at(-1)?.title.textContent, 'A');
   assert.ok(f.composerStates.every((state) => !state.pending));
 });
+
+await test('continuous public DM updates keep an already loaded thread quiet and visible', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  for (let round = 0; round < 6; round++) {
+    f.emit(round % 2 ? 'handle-receipts' : 'handle-messages');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.equal(
+      f.views.at(-1),
+      current,
+      'Refresh must retain the current frame',
+    );
+    assert.equal(current.history.hidden, false);
+    assert.doesNotMatch(current.gate.textContent, /[Ss]ync|Opening|Loading/u);
+  }
+  assert.ok(f.calls.filter((operation) => operation === 'read:A').length > 1);
+});

@@ -9,6 +9,7 @@ import { ChatNode } from './fixtures/chat-dom.ts';
 import { encodeDailyText } from '../src/shared/daily/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 import { OutgoingTexts } from '../src/client/messages/outgoing-text.ts';
+import { setActiveLanguage, t as translate } from '../src/shared/i18n/index.ts';
 
 function row(id: string, own = false): MessageView {
   return {
@@ -117,6 +118,9 @@ function fixture(t: TestContext) {
     },
     deselect: () => {
       selected = null;
+    },
+    select: (accountId: string) => {
+      selected = { ...selected!, accountId };
     },
   };
 }
@@ -259,7 +263,8 @@ await test('verified window renders; null gate removes old rows and never expose
   assert.equal(f.history.hidden, false);
   assert.match(f.history.textContent, /Synthetic message/u);
   f.ui.render(null);
-  assert.equal(f.gate.hidden, false);
+  assert.equal(f.gate.hidden, true);
+  assert.equal(f.gate.textContent, '');
   assert.equal(f.history.hidden, true);
   assert.equal(f.history.children.length, 0);
   f.ui.render([row('new')]);
@@ -441,3 +446,66 @@ await test('reply updates its quotation when the original changes and preserves 
   assert.match(f.history.children[1]!.textContent, /Nova versão/);
   assert.equal(f.history.children[2], otherNode);
 });
+
+for (const language of ['en', 'zh-CN'] as const)
+  await test(`initial history loading is visible once per selection; revalidation stays quiet in ${language}`, (t) => {
+    const f = fixture(t);
+    setActiveLanguage(language);
+    t.after(() => setActiveLanguage('en'));
+    f.ui.render(null);
+    assert.equal(f.history.hidden, true);
+    assert.equal(f.gate.hidden, false);
+    assert.equal(
+      f.gate.textContent,
+      translate(
+        'Syncing messages… History opens after updates and deletions are checked.',
+      ),
+    );
+    // A verified empty conversation has finished its first load too.
+    f.ui.render([]);
+    assert.equal(f.history.hidden, false);
+    assert.equal(f.gate.hidden, true);
+    for (const next of [
+      [row('incoming')],
+      [{ ...row('incoming'), text: 'Edited message' }],
+      [],
+    ]) {
+      f.ui.render(null);
+      assert.equal(
+        f.history.hidden,
+        true,
+        'Concealment still follows the authority gate',
+      );
+      assert.equal(
+        f.gate.hidden,
+        true,
+        'Revalidation must not announce another initial load',
+      );
+      assert.equal(f.gate.textContent, '');
+      f.ui.render(next);
+      assert.equal(f.history.hidden, false);
+      assert.equal(f.gate.hidden, true);
+    }
+    f.select('another-peer');
+    f.ui.render(null);
+    assert.equal(
+      f.gate.hidden,
+      false,
+      'A new selection needs its own first load',
+    );
+    f.ui.render([row('another-message')]);
+    f.ui.clear();
+    f.ui.render(null);
+    assert.equal(
+      f.gate.hidden,
+      false,
+      'Session reset cannot inherit the previous loading state',
+    );
+    f.deselect();
+    f.ui.render(null);
+    assert.equal(
+      f.gate.hidden,
+      true,
+      'No conversation means no history loading indicator',
+    );
+  });

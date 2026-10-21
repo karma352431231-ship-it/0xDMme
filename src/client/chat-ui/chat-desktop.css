@@ -20,10 +20,6 @@
     padding: 2px 18px;
     border-radius: 0;
   }
-  /* Up to date: no strip. Sync, failures and notices still show it. */
-  #app-shell .chat-panel .chat-feedback[data-state='ok'] {
-    display: none;
-  }
   #app-shell .chat-panel .chat-header {
     align-items: center;
     gap: 12px;
