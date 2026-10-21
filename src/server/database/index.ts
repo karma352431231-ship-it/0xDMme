@@ -221,6 +221,7 @@ const migrations = [
   '095-public-post-search.sql',
   '096-message-sync-fences.sql',
   '097-community-games-topic.sql',
+  '098-group-message-fences.sql',
 ];
 
 export interface MaintenanceSnapshot {

@@ -11,12 +11,16 @@ export interface Snapshot {
   head: string;
   directory: string;
   revision: number;
+  /** A finite cut (v2 server): highest sequence and removal fence. */
+  anchor?: number;
+  invalidation?: number;
 }
 export interface IndexItem extends GroupRemovalItem {
   deleted: boolean;
 }
 type ReadContext = Omit<GroupReadContext, 'machine'> & { indexPages?: number };
 interface Progress {
+  snapshot: Snapshot;
   key: string;
   after: number;
   items: IndexItem[];
@@ -37,6 +41,13 @@ export class GroupMessageIndex {
   confirmed(snapshot: Snapshot): void {
     this.progress.delete(snapshot.groupId);
   }
+  /** An unfinished finite cut survives later appends: continue it instead of
+   * restarting at the newer revision. A removal fence, authority change or a
+   * v1 server selects the fresh snapshot. */
+  target(fresh: Snapshot): Snapshot {
+    const retained = this.progress.get(fresh.groupId)?.snapshot;
+    return retained && continuesCut(retained, fresh) ? retained : fresh;
+  }
   async read(
     c: ReadContext,
     snapshot: Snapshot,
@@ -44,7 +55,7 @@ export class GroupMessageIndex {
   ): Promise<IndexItem[] | null> {
     if (from?.revision === snapshot.revision) return [];
     const key = canonical([snapshot, c.authority.session.accountId]);
-    const progress = this.start(snapshot.groupId, key, from),
+    const progress = this.start({ snapshot, key, from }),
       deadline = Date.now() + 45000;
     if (progress.complete) return this.result(progress);
     for (
@@ -63,11 +74,18 @@ export class GroupMessageIndex {
       ? null
       : [...new Map(progress.items.map((item) => [item.id, item])).values()];
   }
-  private start(groupId: string, key: string, from: Snapshot | null): Progress {
+  private start(input: {
+    snapshot: Snapshot;
+    key: string;
+    from: Snapshot | null;
+  }): Progress {
+    const { snapshot, key, from } = input,
+      groupId = snapshot.groupId;
     const existing = this.progress.get(groupId);
     if (existing?.key === key) return existing;
     const revision = from?.revision ?? null;
     const progress = {
+      snapshot,
       key,
       after: revision ?? 0,
       from: revision,
@@ -157,19 +175,40 @@ export async function currentGroupSnapshot(c: ReadContext): Promise<Snapshot> {
 }
 function readSnapshot(input: unknown): Snapshot {
   const value = object(input);
-  return {
+  const snapshot = {
     groupId: uuid(value['groupId']),
     head: fingerprint(value['head']),
     directory: fingerprint(value['directory']),
     revision: integer(value['revision'], Number.MAX_SAFE_INTEGER),
   };
+  if (value['anchor'] === undefined && value['invalidation'] === undefined)
+    return snapshot;
+  const invalidation = integer(value['invalidation'], snapshot.revision);
+  return {
+    ...snapshot,
+    anchor: integer(value['anchor'], Number.MAX_SAFE_INTEGER),
+    invalidation,
+  };
 }
+/** Scope fields for cut-bound reads; a v1 snapshot sends only `revision`. */
 export function wire(snapshot: Snapshot) {
   return {
     groupId: snapshot.groupId,
     head: snapshot.head,
     revision: snapshot.revision,
+    ...(snapshot.anchor === undefined
+      ? {}
+      : { anchor: snapshot.anchor, invalidation: snapshot.invalidation }),
   };
+}
+function continuesCut(retained: Snapshot, fresh: Snapshot): boolean {
+  return (
+    retained.invalidation !== undefined &&
+    retained.invalidation === fresh.invalidation &&
+    retained.head === fresh.head &&
+    retained.directory === fresh.directory &&
+    retained.revision <= fresh.revision
+  );
 }
 function readIndex(raw: Record<string, unknown>, c: ReadContext): IndexItem[] {
   const values = raw['items'];

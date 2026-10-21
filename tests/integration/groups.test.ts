@@ -1176,6 +1176,145 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
     },
   );
   await t.test(
+    'a finite cut survives later appends and edits, bounds every read and still fences removals',
+    async () => {
+      const scope = { groupId: joined.groupId, head: groupHead };
+      const publish = async (
+        text: string,
+        relation?: NonNullable<typeof repeated.packet.relation>,
+      ) => {
+        const encrypted = await sender.encryptGroup({
+          authority: ownVault(owner),
+          state: joined,
+          histories: participants.map((u) => [u.directory]),
+          recovery,
+          transport: groupTransport,
+          id: crypto.randomUUID(),
+          text,
+          ...(relation ? { relation } : {}),
+        });
+        await message(messages, owner, 'group-message-publish', {
+          packet: encrypted.packet,
+          keys: encrypted.keys,
+        });
+        return encrypted.packet;
+      };
+      const ids = (value: unknown) =>
+        (object(value)['items'] as { id: string }[]).map((row) => row.id);
+      const sequence = await inspector.query<{ cache: string }>(
+        "SELECT seqcache::text AS cache FROM pg_sequence WHERE seqrelid=pg_get_serial_sequence('hash_talk.group_packets','sequence')::regclass",
+      );
+      assert.equal(sequence.rows[0]?.cache, '1');
+      const first = await publish('Before the cut');
+      const firstHash = await digest(canonical(first));
+      const cut = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      const finite = {
+        ...scope,
+        revision: cut['revision'],
+        anchor: cut['anchor'],
+        invalidation: cut['invalidation'],
+      };
+      const later = await publish('After the cut');
+      const edit = await publish('Edited after the cut', {
+        id: first.id,
+        hash: firstHash,
+        author: owner.accountId,
+        type: 'edit',
+      });
+      await assert.rejects(
+        message(messages, member, 'group-message-confirm', {
+          ...scope,
+          revision: cut['revision'],
+        }),
+        { status: 409 },
+        'a v1 scope keeps revision equality',
+      );
+      const indexed: string[] = [];
+      for (let after = 0, page = 0; page < 64; page++) {
+        const raw = object(
+          await message(messages, member, 'group-message-index', {
+            ...finite,
+            after,
+          }),
+        );
+        indexed.push(...ids(raw));
+        if (raw['next'] === null) break;
+        after = Number(raw['next']);
+      }
+      assert.ok(indexed.includes(first.id));
+      assert.ok(!indexed.includes(later.id) && !indexed.includes(edit.id));
+      assert.deepEqual(
+        ids(
+          await message(messages, member, 'group-message-objects', {
+            ...finite,
+            ids: [first.id, later.id],
+          }),
+        ),
+        [first.id],
+      );
+      const recent = ids(
+        await message(messages, member, 'group-message-recent', {
+          ...scope,
+          before: null,
+          anchor: cut['anchor'],
+        }),
+      );
+      assert.ok(recent.includes(first.id) && !recent.includes(later.id));
+      assert.deepEqual(
+        object(
+          await message(messages, member, 'group-message-relations', {
+            ...finite,
+            ids: [first.id],
+          }),
+        )['ids'],
+        [],
+        'an edit after the cut belongs to its successor',
+      );
+      await message(messages, member, 'group-message-confirm', finite);
+      const next = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      const successor = {
+        ...scope,
+        revision: next['revision'],
+        anchor: next['anchor'],
+        invalidation: next['invalidation'],
+      };
+      const delta = object(
+        await message(messages, member, 'group-message-changes', {
+          ...successor,
+          from: cut['revision'],
+          after: cut['revision'],
+        }),
+      );
+      assert.equal(delta['reset'], false);
+      assert.deepEqual(new Set(ids(delta)), new Set([later.id, edit.id]));
+      await message(messages, owner, 'group-message-delete', {
+        ...scope,
+        id: later.id,
+        hash: await digest(canonical(later)),
+        revision: owner.directory.revision,
+      });
+      await assert.rejects(
+        message(messages, member, 'group-message-confirm', successor),
+        { status: 409 },
+        'a later removal still rejects the cut',
+      );
+      const fenced = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      assert.equal(fenced['invalidation'], fenced['revision']);
+      await message(messages, member, 'group-message-confirm', {
+        ...scope,
+        revision: fenced['revision'],
+        anchor: fenced['anchor'],
+        invalidation: fenced['invalidation'],
+      });
+    },
+  );
+  await t.test(
     'original accepts up to 64 edits and rejects the next without changing the snapshot',
     async () => {
       const make = (

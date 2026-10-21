@@ -84,9 +84,21 @@ the group open, a content hint re-reads only that group after verifying it,
 and a receipt hint fetches only its delivery/read metadata without decoding
 history; both then refresh the unread counters and alerts. A background group
 page refreshes counters only. Only a general wakeup refreshes the group list,
-governance and profiles, which may stage or publish a profile. Group cuts
-still follow the current revision equality contract until the finite group
-protocol is reviewed.
+governance and profiles, which may stage or publish a profile.
+
+Group reads use finite cuts (migration 098, owner-approved on 21 October
+2026). The group snapshot also returns `anchor`, the highest packet sequence
+under the group row lock that serializes inserts, and `invalidation`, the
+latest revision that removed or concealed content: an author deletion or
+retention cleanup clearing a body or setting a deletion, or media moving to
+`deleting`. A scope carrying both bounds stays current through later appends,
+edits and other media transitions, and every index, change, object, relation
+and recent read is bounded by its anchor; a later removal still returns 409.
+An unfinished cut is continued after later appends instead of restarting.
+Scopes without the bounds keep exact revision equality, so older clients keep
+working. The migration fails if the packet identity does not use `CACHE 1`.
+Media upload transitions still bump the revision, as the owner decided.
+Deploying 098 needs its own reviewed transition.
 
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without

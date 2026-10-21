@@ -51,10 +51,25 @@ function receipts(value: unknown): { id: string; hash: string }[] {
     throw new AccountError(400, 'Duplicate receipts.');
   return result;
 }
+/** v1 scopes carry only `revision`; v2 finite cuts add both server-chosen
+ * bounds from the snapshot. A partial v2 scope is rejected by `keys`. */
 function messageScope(d: Record<string, unknown>, fields: string[]) {
-  return {
-    ...scope(d, ['revision', ...fields]),
+  const finite = Object.hasOwn(d, 'anchor');
+  const base = {
+    ...scope(d, [
+      'revision',
+      ...(finite ? ['anchor', 'invalidation'] : []),
+      ...fields,
+    ]),
     revision: integer(d['revision'], Number.MAX_SAFE_INTEGER),
+  };
+  if (!finite) return base;
+  return {
+    ...base,
+    cut: {
+      anchor: integer(d['anchor'], Number.MAX_SAFE_INTEGER),
+      invalidation: integer(d['invalidation'], Number.MAX_SAFE_INTEGER),
+    },
   };
 }
 function messageIds(value: unknown): string[] {
@@ -135,7 +150,13 @@ export function groupDeliveryActions(
       }),
     'group-message-recent': (a, d) =>
       store.recent(a, {
-        ...scope(d, ['before']),
+        ...scope(d, [
+          'before',
+          ...(Object.hasOwn(d, 'anchor') ? ['anchor'] : []),
+        ]),
+        ...(Object.hasOwn(d, 'anchor')
+          ? { anchor: integer(d['anchor'], Number.MAX_SAFE_INTEGER) }
+          : {}),
         before:
           d['before'] === null
             ? null

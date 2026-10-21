@@ -37,9 +37,11 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
   };
   const data = {
     revision: 1,
+    // A v2 server also returns the cut's anchor and removal fence.
+    finite: null as { invalidation: number } | null,
     views: [] as GroupView[],
     changed: [] as GroupView[],
-    calls: [] as { op: string; ids: unknown }[],
+    calls: [] as { op: string; ids: unknown; revision?: unknown }[],
     decoded: [] as string[],
     fail: false,
     failure: null as string | null,
@@ -55,10 +57,17 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
       head,
       directory: participant.authority.directory,
       revision: data.revision,
+      ...(data.finite
+        ? { anchor: data.views.length, invalidation: data.finite.invalidation }
+        : {}),
     }),
     'group-message-index': (d) => {
+      const anchor = d['anchor'] === undefined ? Infinity : Number(d['anchor']);
       const rows = data.views
-        .filter((view) => view.sequence > Number(d['after']))
+        .filter(
+          (view) =>
+            view.sequence > Number(d['after']) && view.sequence <= anchor,
+        )
         .slice(0, 16);
       return { items: rows.map(metadata), next: rows.at(-1)?.sequence ?? null };
     },
@@ -96,7 +105,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     machine: {} as GroupReadContext['machine'],
     identities: {} as GroupReadContext['identities'],
     api: (op: string, d: Record<string, unknown>) => {
-      data.calls.push({ op, ids: d['ids'] });
+      data.calls.push({ op, ids: d['ids'], revision: d['revision'] });
       if (op === data.failure)
         return Promise.reject(new Error('Check rejected'));
       return Promise.resolve(handlers[op]!(d));
@@ -392,3 +401,42 @@ for (const status of [403, 409]) {
     );
   });
 }
+
+await test('an unfinished finite cut survives later appends; a removal fence restarts it', async () => {
+  const appendCase = async (removal: boolean) => {
+    const { c, data, add } = await fixture(),
+      windows = new GroupMessageWindows();
+    data.finite = { invalidation: 0 };
+    for (let index = 0; index < 144; index++) add('Sintética');
+    await assert.rejects(windows.read(c, null), IncompleteGroupIndex);
+    add('Later append');
+    data.revision++;
+    if (removal) data.finite = { invalidation: data.revision };
+    // A restarted cut may need further bounded reads of its own.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await windows.read(c, null);
+        break;
+      } catch (error: unknown) {
+        if (!(error instanceof IncompleteGroupIndex)) throw error;
+      }
+    }
+    const index = data.calls.filter(
+      (call) => call.op === 'group-message-index',
+    );
+    return {
+      index: index.length,
+      revisions: new Set(index.map((call) => call.revision)),
+      confirmed: data.calls.findLast(
+        (call) => call.op === 'group-message-confirm',
+      )?.revision,
+    };
+  };
+  const kept = await appendCase(false);
+  assert.equal(kept.index, 10, 'partial progress continues');
+  assert.deepEqual(kept.revisions, new Set([1]), 'the same cut to the end');
+  assert.equal(kept.confirmed, 1);
+  const restarted = await appendCase(true);
+  assert.deepEqual(restarted.revisions, new Set([1, 2]));
+  assert.equal(restarted.confirmed, 2, 'the fresh cut after a removal');
+});
