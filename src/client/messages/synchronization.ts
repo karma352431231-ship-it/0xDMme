@@ -1,7 +1,10 @@
 import { retrySnapshotRead } from './snapshot-retry.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageChangeFollowup } from './change-followup.ts';
-import type { ChangeFollowupScope } from './change-followup.ts';
+import type {
+  ChangeFollowupPlan,
+  ChangeFollowupScope,
+} from './change-followup.ts';
 import { MessageInbox } from './inbox.ts';
 import type { HistoryKind } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
@@ -30,6 +33,7 @@ interface SynchronizationOperations {
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
   preloadGroups: (signal: AbortSignal) => Promise<boolean>;
   unread: () => Promise<void>;
+  groupProjection?: () => Promise<void>;
   presence: () => Promise<void>;
   refresh: (work: VaultWorkOptions) => Promise<void>;
   changes: (work: VaultWorkOptions) => Promise<void>;
@@ -72,16 +76,7 @@ export class MessageSynchronization {
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
       changed: () => this.resume(),
-      received: async () => {
-        const generation = options.state().generation;
-        if (this.visibleUpdatePending) {
-          this.receiptProjectionPending = true;
-          this.followup.queue('content');
-          return;
-        }
-        await options.unread();
-        if (this.current(generation)) options.complete();
-      },
+      received: (scope) => this.receivedPage(scope),
       failed: (error) => {
         this.report(error, t('Could not prepare conversation history.'));
         options.status();
@@ -107,6 +102,7 @@ export class MessageSynchronization {
       failed: (error) =>
         this.report(error, t('Could not complete the operation.')),
       unread: () => this.refreshUnread(),
+      groups: () => this.refreshGroups(),
       steps: options.changeMaintenance,
     });
   }
@@ -130,22 +126,29 @@ export class MessageSynchronization {
     scope?: HistoryKind,
   ): void {
     this.prepareHistory(scope);
-    this.queueUpdate(update, work, scope ? 'content' : 'all');
+    this.queueUpdate(update, work, scope ? 'content' : 'all', scope);
   }
   /** Delivery/read metadata changes do not imply a new encrypted receipt page. */
-  requestProjection(work: VaultWorkOptions = {}): void {
-    this.queueUpdate('probe', work, 'receipts');
+  requestProjection(
+    work: VaultWorkOptions = {},
+    scope: HistoryKind = 'direct',
+  ): void {
+    this.queueUpdate('probe', work, 'receipts', scope);
+  }
+  requestCounters(scope: HistoryKind): void {
+    this.followup.counters(scope);
   }
   private queueUpdate(
     update: LiveUpdate,
     work: VaultWorkOptions,
     scope: ChangeFollowupScope,
+    kind: HistoryKind = 'direct',
   ): void {
     if (work.priority === 'interactive' && this.options.state().visible)
       this.inbox.defer();
     this.interactiveChange ||= work.priority === 'interactive';
     this.automaticAttempts = 0;
-    this.followup.admit(scope);
+    this.followup.admit(scope, kind);
     this.updates.request(update);
   }
   startRefresh(): void {
@@ -326,6 +329,25 @@ export class MessageSynchronization {
     const state = this.options.state();
     return this.canSynchronize() && !state.startupPending;
   }
+  private async receivedPage(scope: HistoryKind): Promise<void> {
+    if (this.visibleUpdatePending) {
+      if (scope === 'direct') this.receiptProjectionPending = true;
+      this.followup.counters(scope);
+      return;
+    }
+    if (scope === 'groups') {
+      await this.refreshGroups();
+      return;
+    }
+    const generation = this.options.state().generation;
+    await this.options.unread();
+    if (this.current(generation)) this.options.complete();
+  }
+  private async refreshGroups(): Promise<void> {
+    const work =
+      this.options.groupProjection ?? this.options.changeMaintenance[1];
+    await work();
+  }
   private async refreshUnread(): Promise<void> {
     const generation = this.options.state().generation;
     await this.options.unread();
@@ -335,7 +357,7 @@ export class MessageSynchronization {
   }
   private async checkChanges(
     work: VaultWorkOptions,
-    scope: ChangeFollowupScope,
+    plan: ChangeFollowupPlan,
   ): Promise<void> {
     const current = this.options.state().generation;
     const visible = work.priority === 'interactive' ? Symbol() : null;
@@ -347,9 +369,9 @@ export class MessageSynchronization {
             () => this.options.changes(work),
             () => this.current(current),
           );
-          if (this.current(current)) this.followup.queue(scope);
+          if (this.current(current)) this.followup.queue(plan);
         },
-        scope === 'all' ? 'full' : 'projection',
+        plan.scope === 'all' ? 'full' : 'projection',
       );
     } finally {
       if (visible && this.visibleChange === visible) {

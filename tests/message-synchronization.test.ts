@@ -248,6 +248,11 @@ await test('account inbox receives private and group pages without a mounted or 
   const f = fixture(t);
   f.state.connected = false;
   const received: string[] = [];
+  let groupProjections = 0;
+  f.options.groupProjection = () => {
+    groupProjections++;
+    return Promise.resolve();
+  };
   f.options.preloadDirect = () => {
     received.push('private');
     return Promise.resolve(false);
@@ -264,8 +269,13 @@ await test('account inbox receives private and group pages without a mounted or 
   assert.deepEqual(received, ['private', 'group']);
   assert.equal(
     f.completed(),
-    2,
-    'Each received page refreshes directory projections',
+    1,
+    'Private receipt updates private previews only',
+  );
+  assert.equal(
+    groupProjections,
+    1,
+    'Group receipt refreshes group badges and list metadata',
   );
   t.mock.timers.tick(10000);
   await turn();
@@ -786,9 +796,19 @@ await test('verified private pages refresh the directory before a slow group inb
   t.mock.timers.tick(1000);
   await turn();
   assert.equal(f.completed(), 1, 'Group receipt is still pending');
+  let groupProjections = 0;
+  f.options.groupProjection = () => {
+    groupProjections++;
+    return Promise.resolve();
+  };
   group.resolve(false);
   await turn();
-  assert.equal(f.completed(), 2);
+  assert.equal(groupProjections, 1);
+  assert.equal(
+    f.completed(),
+    1,
+    'Group completion does not repeat private previews',
+  );
 });
 
 await test('a live snapshot race is retried with fresh work before publishing an automatic error', async (t) => {
@@ -987,7 +1007,7 @@ await test('receipt metadata verification never starts a direct or group ciphert
 });
 
 for (const scenario of [
-  { hints: ['receipts', 'receipts'], counters: 0, decorations: 0, full: 0 },
+  { hints: ['receipts', 'receipts'], counters: 1, decorations: 0, full: 0 },
   { hints: ['content', 'receipts'], counters: 1, decorations: 0, full: 0 },
   {
     hints: ['receipts', 'content', 'all'],
@@ -1050,3 +1070,146 @@ for (const scenario of [
     assert.equal(counterRequests, scenario.counters);
     assert.equal(decorationRequests, scenario.decorations);
   });
+
+await test('a same-account receipt clears a remote unread count after selected verification without broad maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const selected = deferred<void>();
+  let displayedUnread = 3,
+    currentUnread = 3,
+    counterRequests = 0,
+    decorationRequests = 0;
+  const decorate = () => {
+    decorationRequests++;
+    return Promise.resolve();
+  };
+  const f = fixture(t, {
+    changes: () => selected.promise,
+    unread: () => {
+      counterRequests++;
+      displayedUnread = currentUnread;
+      return Promise.resolve();
+    },
+    changeMaintenance: [decorate, decorate, decorate],
+  });
+  f.state.startupPending = true;
+  currentUnread = 0;
+  f.sync.requestProjection({ priority: 'interactive' });
+  f.sync.requestProjection({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(
+    counterRequests,
+    0,
+    'Unread projection cannot hold up the selected verification',
+  );
+  assert.equal(displayedUnread, 3);
+  selected.resolve();
+  await turn();
+  for (let step = 0; step < 5; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.equal(
+    displayedUnread,
+    0,
+    'A read on another device clears this account badge',
+  );
+  assert.equal(
+    counterRequests,
+    1,
+    'Repeated receipt hints use one fresh count read',
+  );
+  assert.equal(decorationRequests, 0);
+  assert.equal(
+    f.completed(),
+    0,
+    'Receipt counts do not request unrelated previews',
+  );
+});
+
+await test('unselected group receipts coalesce one metadata refresh without private or ciphertext work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let groupRequests = 0,
+    privateRequests = 0,
+    ciphertextRequests = 0;
+  const f = fixture(t, {
+    groupProjection: () => {
+      groupRequests++;
+      return Promise.resolve();
+    },
+    unread: () => {
+      privateRequests++;
+      return Promise.resolve();
+    },
+    preloadGroups: () => {
+      ciphertextRequests++;
+      return Promise.resolve(false);
+    },
+  });
+  f.state.startupPending = true;
+  f.sync.requestCounters('groups');
+  f.sync.requestCounters('groups');
+  for (let step = 0; step < 4; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.equal(groupRequests, 1);
+  assert.equal(privateRequests, 0);
+  assert.equal(ciphertextRequests, 0);
+  assert.equal(f.completed(), 0);
+});
+
+await test('selected group metadata is verified once without repeating its projection or private counts', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let selectedGroupRequests = 0,
+    backgroundGroupRequests = 0,
+    privateRequests = 0;
+  const f = fixture(t, {
+    changes: () => {
+      selectedGroupRequests++;
+      return Promise.resolve();
+    },
+    groupProjection: () => {
+      backgroundGroupRequests++;
+      return Promise.resolve();
+    },
+    unread: () => {
+      privateRequests++;
+      return Promise.resolve();
+    },
+  });
+  f.state.startupPending = true;
+  f.sync.requestProjection({ priority: 'interactive' }, 'groups');
+  t.mock.timers.tick(150);
+  await turn();
+  for (let step = 0; step < 4; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.equal(selectedGroupRequests, 1);
+  assert.equal(backgroundGroupRequests, 0);
+  assert.equal(privateRequests, 0);
+});
+
+await test('generic maintenance and scoped group metadata share a single pending group read', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let groupRequests = 0;
+  const f = fixture(t, {
+    groupProjection: () => {
+      groupRequests++;
+      return Promise.resolve();
+    },
+  });
+  f.state.startupPending = true;
+  f.sync.request('probe', { priority: 'interactive' });
+  f.sync.requestCounters('groups');
+  t.mock.timers.tick(150);
+  await turn();
+  for (let step = 0; step < 6; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.equal(groupRequests, 1);
+});

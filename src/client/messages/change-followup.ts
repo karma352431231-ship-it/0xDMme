@@ -1,61 +1,103 @@
-import { MessageWarmup } from './warmup.ts';
+import type { HistoryKind } from './preparation.ts';
 
 type Step = () => Promise<void>;
+type FollowupTask = 'direct' | 'contacts' | 'groups' | 'presence';
 export type ChangeFollowupScope = 'receipts' | 'content' | 'all';
+export interface ChangeFollowupPlan {
+  scope: ChangeFollowupScope;
+  direct: boolean;
+}
+const scopeRank: Record<ChangeFollowupScope, number> = {
+  receipts: 0,
+  content: 1,
+  all: 2,
+};
+const taskOrder: readonly FollowupTask[] = [
+  'direct',
+  'contacts',
+  'groups',
+  'presence',
+];
 
-/** Categorized wakeups coalesce without promoting receipt metadata into account
- * maintenance. Counters precede optional decoration, after visible verification. */
+/** Categorized metadata owners share one bounded continuation. Repeated group
+ * receipts and generic decoration cannot schedule the same group read twice. */
 export class MessageChangeFollowup {
-  private pending: ChangeFollowupScope | null = null;
-  private readonly counts: MessageWarmup;
-  private readonly decoration: MessageWarmup;
-  constructor(options: {
+  private pending: ChangeFollowupPlan | null = null;
+  private readonly tasks = new Set<FollowupTask>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private running = false;
+  private readonly options: {
     available: () => boolean;
     run: (step: Step) => Promise<void>;
     changed: () => void;
     failed: (error: unknown) => void;
     unread: Step;
+    groups: Step;
     steps: readonly [Step, Step, Step];
-  }) {
-    const ports = {
-      run: options.run,
-      changed: options.changed,
-      failed: options.failed,
-    };
-    this.counts = new MessageWarmup({
-      ...ports,
-      available: options.available,
-      steps: [options.unread],
-    });
-    this.decoration = new MessageWarmup({
-      ...ports,
-      available: () => options.available() && !this.counts.pending,
-      steps: options.steps,
-    });
+  };
+  constructor(options: MessageChangeFollowup['options']) {
+    this.options = options;
   }
-  admit(scope: ChangeFollowupScope): void {
-    if (scope === 'all' || this.pending === 'all') this.pending = 'all';
-    else if (scope === 'content' || this.pending === 'content')
-      this.pending = 'content';
-    else this.pending = 'receipts';
+  admit(scope: ChangeFollowupScope, kind: HistoryKind = 'direct'): void {
+    const previous = this.pending?.scope ?? 'receipts';
+    const effective = scopeRank[previous] > scopeRank[scope] ? previous : scope;
+    const direct =
+      effective === 'all' || kind === 'direct' || this.pending?.direct === true;
+    this.pending = { scope: effective, direct };
   }
-  take(): ChangeFollowupScope {
-    const scope = this.pending ?? 'all';
+  take(): ChangeFollowupPlan {
+    const plan = this.pending ?? { scope: 'all', direct: true };
     this.pending = null;
-    return scope;
+    return plan;
   }
-  queue(scope: ChangeFollowupScope = 'all'): void {
-    if (scope === 'receipts') return;
-    this.counts.queue();
-    if (scope === 'all') this.decoration.queue();
+  queue(plan: ChangeFollowupPlan): void {
+    if (plan.direct) this.tasks.add('direct');
+    if (plan.scope === 'all')
+      for (const task of taskOrder) this.tasks.add(task);
+    this.resume();
+  }
+  counters(kind: HistoryKind): void {
+    this.tasks.add(kind);
+    this.resume();
   }
   resume(): void {
-    this.counts.resume();
-    this.decoration.resume();
+    if (
+      this.timer !== null ||
+      this.running ||
+      !this.tasks.size ||
+      !this.options.available()
+    )
+      return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.step().catch(this.options.failed);
+    }, 1000);
   }
   reset(): void {
     this.pending = null;
-    this.counts.reset();
-    this.decoration.reset();
+    this.tasks.clear();
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+  }
+  private async step(): Promise<void> {
+    if (!this.options.available()) return;
+    const task = taskOrder.find((candidate) => this.tasks.has(candidate));
+    if (!task) return;
+    this.tasks.delete(task);
+    this.running = true;
+    try {
+      await this.options.run(this.operation(task));
+    } catch (error: unknown) {
+      this.options.failed(error);
+    } finally {
+      this.running = false;
+      this.options.changed();
+      this.resume();
+    }
+  }
+  private operation(task: FollowupTask): Step {
+    if (task === 'direct') return this.options.unread;
+    if (task === 'groups') return this.options.groups;
+    return task === 'contacts' ? this.options.steps[0] : this.options.steps[2];
   }
 }
