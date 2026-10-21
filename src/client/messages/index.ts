@@ -9,7 +9,10 @@ import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { ConnectedConversationVisits } from './visits.ts';
 import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
-import { publishVerifiedConversationPreview } from './verified-previews.ts';
+import {
+  publishVerifiedConversationPreview,
+  publishVerifiedPreviewReceipts,
+} from './verified-previews.ts';
 import { TextSendQueue } from './text-send.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -369,7 +372,7 @@ export function startMessages(
     request: (update, work, scope) =>
       synchronization.request(update, work, scope),
     inbox: (scope) => synchronization.requestInbox(scope),
-    projection: (work) => synchronization.requestProjection(work),
+    projection: (work, scope) => synchronization.requestProjection(work, scope),
     counters: (scope) => synchronization.requestCounters(scope),
     previews: () => {
       void previews.refresh(
@@ -435,7 +438,10 @@ export function startMessages(
     },
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
-    unread: () => activity.refresh(),
+    unread: async () => {
+      await historyUi.markRead(daily);
+      await activity.refresh();
+    },
     groupProjection: () => groups.refresh(),
     presence: dailyTick,
     refresh,
@@ -544,13 +550,8 @@ export function startMessages(
   const peerTitle = (peer: ConversationPeer) =>
     agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
-    readConfirmed: async (peer) => {
-      const current = generation;
-      const state = await daily.state(peer);
-      if (current !== generation) return;
-      states.set(peer, state);
-      renderContacts();
-    },
+    receiptsVerified: (window) =>
+      publishVerifiedPreviewReceipts({ ...window, previews }),
     peerPhoto: showPeerPhoto,
     node,
     context: () => ({
@@ -1234,7 +1235,7 @@ export function startMessages(
     if (selected !== peer || !conversationMounted('[data-direct-conversation]'))
       return;
     if (changed) {
-      synchronization.prepareHistory();
+      synchronization.prepareHistory('direct');
       await controller.synchronize(work);
     }
     await controller.savePins(work);
@@ -1344,13 +1345,14 @@ export function startMessages(
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
     const current = generation;
+    if (document.visibilityState === 'visible') await historyUi.markRead(daily);
+    if (current !== generation || !connected()) return;
     await activity.refresh();
     if (current !== generation || !connected()) return;
     await pushSettings?.refresh();
     await daily.configure(preferences());
     await daily.heartbeat(document.visibilityState === 'visible');
     if (current !== generation || !connected()) return;
-    if (document.visibilityState === 'visible') await historyUi.markRead(daily);
   }
   async function searchPage(
     query: string,

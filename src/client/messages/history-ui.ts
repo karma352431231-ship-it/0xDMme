@@ -51,6 +51,11 @@ interface HistoryPresentation {
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
   readConfirmed?: (peer: string) => Promise<void>;
+  receiptsVerified?: (window: {
+    peer: string;
+    outgoing: readonly string[];
+    read: ReadonlySet<string>;
+  }) => void;
   outgoing?: () => readonly OutgoingText[];
   retryOutgoing?: () => void;
   externalMedia?: ExternalMediaConsent;
@@ -420,6 +425,7 @@ export class MessageHistoryUi {
     if (receipts === null || !this.stillVisible(peer, views)) return;
     this.readIds = receipts;
     this.renderStates();
+    this.options.receiptsVerified?.({ peer, outgoing, read: receipts });
     if (incoming.length) await this.options.readConfirmed?.(peer);
   }
 }

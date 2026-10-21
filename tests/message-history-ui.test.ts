@@ -50,6 +50,11 @@ function fixture(t: TestContext) {
     name: '',
   };
   const outgoing = new OutgoingTexts();
+  const receipts: {
+    peer: string;
+    outgoing: readonly string[];
+    read: ReadonlySet<string>;
+  }[] = [];
   let retries = 0;
   let visible = true,
     clears = 0;
@@ -75,6 +80,7 @@ function fixture(t: TestContext) {
       Promise.reject(new Error('No media transport in this fixture')),
     run: (work) => work(),
     composerChanged() {},
+    receiptsVerified: (window) => receipts.push(window),
     outgoing: () => outgoing.forPeer(selected?.accountId),
     retryOutgoing: () => {
       retries++;
@@ -96,6 +102,7 @@ function fixture(t: TestContext) {
   return {
     ui,
     outgoing,
+    receipts,
     retries: () => retries,
     history,
     gate,
@@ -285,6 +292,9 @@ await test('read receipts patch checks without replacing the message and suppres
   await f.ui.markRead({
     readConversation: () => Promise.resolve(new Set(['own'])),
   });
+  assert.equal(f.receipts.length, 1);
+  assert.deepEqual(f.receipts[0]?.outgoing, ['own']);
+  assert.deepEqual([...f.receipts[0]!.read], ['own']);
   assert.equal(f.history.children[0], message);
   assert.equal(f.clears(), clears);
   assert.match(
@@ -307,6 +317,11 @@ await test('read receipts patch checks without replacing the message and suppres
   f.deselect();
   pending.resolve(new Set(['own']));
   await reading;
+  assert.equal(
+    f.receipts.length,
+    1,
+    'stale receipts cannot update the contact preview',
+  );
   assert.equal(f.history.children.length, 0);
   assert.equal(f.gate.hidden, false);
 });

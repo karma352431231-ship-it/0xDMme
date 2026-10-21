@@ -19,7 +19,7 @@ interface MessageLivePorts {
     scope?: HistoryKind,
   ) => void;
   inbox: (scope: HistoryKind) => void;
-  projection: (work: VaultWorkOptions) => void;
+  projection: (work: VaultWorkOptions, scope: HistoryKind) => void;
   counters: (scope: HistoryKind) => void;
   previews: () => void;
   external: (event: LiveEvent) => void;
@@ -70,7 +70,7 @@ export class MessageLiveUpdates {
   }
   private receipts(scope: HistoryKind): void {
     if (this.ports.selected() === scope && this.ports.visible())
-      this.ports.projection(this.work());
+      this.ports.projection(this.work(), scope);
     else {
       this.ports.counters(scope);
       if (scope === 'direct') this.ports.previews();

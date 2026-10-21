@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { publishVerifiedConversationPreview } from '../src/client/messages/verified-previews.ts';
+import {
+  publishVerifiedConversationPreview,
+  publishVerifiedPreviewReceipts,
+} from '../src/client/messages/verified-previews.ts';
 import { ConversationPreviewLoader } from '../src/client/conversation-preview/index.ts';
 import type { MessageView } from '../src/client/messages/controller.ts';
 import { messageStates } from '../src/client/message-state/index.ts';
@@ -87,4 +90,30 @@ await test('a verified empty window and the removal gate clear only the affected
   publishVerifiedConversationPreview({ ...f, rows: null, update: 'pending' });
   assert.equal(f.previews.values.has('peer'), false);
   assert.equal(f.previews.values.has('other'), true);
+});
+await test('selected receipts update the exact latest outgoing preview without rereading any message', () => {
+  const f = fixture(),
+    row = message();
+  publishVerifiedConversationPreview({ ...f, rows: [row] });
+  publishVerifiedPreviewReceipts({
+    peer: 'peer',
+    outgoing: [row.id],
+    read: new Set([row.id]),
+    previews: f.previews,
+  });
+  assert.equal(f.previews.values.get('peer')?.read, true);
+  publishVerifiedPreviewReceipts({
+    peer: 'peer',
+    outgoing: ['older'],
+    read: new Set(),
+    previews: f.previews,
+  });
+  assert.equal(f.previews.values.get('peer')?.read, true);
+  publishVerifiedPreviewReceipts({
+    peer: 'peer',
+    outgoing: [row.id],
+    read: new Set(),
+    previews: f.previews,
+  });
+  assert.equal(f.previews.values.get('peer')?.read, false);
 });

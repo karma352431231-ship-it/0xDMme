@@ -13,6 +13,22 @@ interface PreviewPublication {
   previews: ConversationPreviewLoader;
 }
 
+/** Selected-window receipts already passed the UI's current-window guard.
+ * Update only a latest preview whose exact outgoing message was in that read. */
+export function publishVerifiedPreviewReceipts(input: {
+  peer: string;
+  outgoing: readonly string[];
+  read: ReadonlySet<string>;
+  previews: ConversationPreviewLoader;
+}): void {
+  const preview = input.previews.values.get(input.peer);
+  if (!preview?.own || !input.outgoing.includes(preview.id)) return;
+  input.previews.publish(input.peer, {
+    ...preview,
+    read: input.read.has(preview.id),
+  });
+}
+
 /** The controller's complete verified publication is the authority boundary.
  * Older pages, archives, offline views and pending drafts cannot replace the
  * latest online directory preview. No read ACK or additional IO is needed. */
