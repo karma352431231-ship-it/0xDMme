@@ -112,8 +112,8 @@ await test('opening an uncached conversation does not restart completed account 
   f.statusFrames.length = 0;
   await f.messages.openContact(peer('uncached'));
   assert.ok(
-    f.statusFrames.includes('Syncing…'),
-    'The fixture observes the actual blocking history status',
+    !f.statusFrames.includes('Syncing…'),
+    'Initial loading belongs to the history gate, not the global operation strip',
   );
   for (let tick = 0; tick < 3; tick++) {
     t.mock.timers.tick(1000);
@@ -1145,4 +1145,52 @@ await test('a selected group is checked before deferred directory maintenance', 
     f.calls.slice(before).filter((call) => call === 'groups').length,
     1,
   );
+});
+
+await test('sending and continuous private updates never announce sync after history opens; actual failures keep retry visible', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  f.emit('ready');
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('quiet-chat'));
+  await finishStartupMaintenance(t);
+  f.statusFrames.length = 0;
+  f.state.holdSend = true;
+  f.input.value = 'An ordinary outgoing message';
+  f.submit();
+  await turn();
+  assert.ok(f.calls.includes('send-pending'));
+  assert.equal(f.feedback.dataset['state'], 'ok');
+  assert.deepEqual(new Set(f.statusFrames), new Set(['']));
+  f.sending.resolve();
+  await turn();
+  for (const event of [
+    'private-messages',
+    'private-receipts',
+    'removed',
+  ] as const) {
+    f.emit(event);
+    await finishStartupMaintenance(t);
+    assert.equal(f.feedback.dataset['state'], 'ok');
+    assert.ok(!f.statusFrames.includes('Syncing…'));
+  }
+  f.state.historyFailure = new Error('Could not prepare conversation history.');
+  f.emit('private-messages');
+  await finishStartupMaintenance(t);
+  assert.equal(f.feedback.dataset['state'], 'notice');
+  assert.equal(
+    f.statusFrames.at(-1),
+    'Could not prepare conversation history.',
+  );
+  assert.equal(f.refreshButton.textContent, 'Try again');
+  f.state.historyFailure = null;
+  f.retry();
+  await turn();
+  await finishStartupMaintenance(t);
+  assert.equal(f.feedback.dataset['state'], 'ok');
+  assert.equal(f.statusFrames.at(-1), '');
 });

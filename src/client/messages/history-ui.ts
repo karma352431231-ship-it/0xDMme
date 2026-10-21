@@ -8,6 +8,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
 import {
   ChatAvatarPhoto,
+  ChatHistoryLoading,
   historyPosition,
   updateMessageStates,
 } from '../chat-ui/index.ts';
@@ -83,6 +84,7 @@ export class MessageHistoryUi {
   private views: readonly MessageView[] | null = null;
   private headerPhoto: AbortController | null = null;
   private readonly avatarPhoto = new ChatAvatarPhoto();
+  private readonly loading = new ChatHistoryLoading();
   private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
@@ -100,6 +102,7 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.loading.reset();
     this.avatarPhoto.clear();
     this.headerPhoto?.abort();
     this.forwarding?.clear();
@@ -142,11 +145,20 @@ export class MessageHistoryUi {
   private renderGate(history: HTMLElement): void {
     history.hidden = this.views === null;
     const gate = this.options.node('[data-message-gate]');
+    const selected = this.options.context().selected;
+    const loading = this.loading.update({
+      conversation: selected
+        ? `${selected.accountId}:${!!selected.localOnly}`
+        : null,
+      ready: this.views !== null,
+    });
     if (gate) {
-      gate.hidden = this.views !== null;
-      gate.textContent = t(
-        'Syncing messages… History opens after updates and deletions are checked.',
-      );
+      gate.hidden = !loading;
+      gate.textContent = loading
+        ? t(
+            'Syncing messages… History opens after updates and deletions are checked.',
+          )
+        : '';
     }
     const older = this.options.node('[data-message-older]');
     if (older) older.hidden = dailyViews(this.views ?? []).length === 0;

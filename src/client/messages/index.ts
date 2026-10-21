@@ -707,17 +707,11 @@ export function startMessages(
     const text = node('[data-message-status]');
     if (!text) return;
     if (renderUploadStatus(text)) return;
-    const syncing = synchronization.busy || synchronization.historyPending;
     const upToDate =
-      !syncing &&
-      !synchronization.failed &&
-      message === t('Conversations updated.');
-    text.textContent = syncing
-      ? t('Syncing…')
-      : upToDate
-        ? t('Updated')
-        : message;
-    // The desktop workspace hides the strip while everything is up to date.
+      !synchronization.failed && message === t('Conversations updated.');
+    // Initial loading belongs to the selected history gate. Ordinary sends,
+    // edits, removals and account maintenance must not announce another sync.
+    text.textContent = upToDate ? '' : message;
     const strip = text.closest<HTMLElement>('.chat-feedback');
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
   }

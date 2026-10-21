@@ -116,6 +116,7 @@ export function coordinatorFixture(
     holdGroups: false,
     holdContacts: false,
     holdHistory: false,
+    historyFailure: null as Error | null,
     historyRows: [] as MessageView[],
     holdSave: false,
     holdSend: false,
@@ -342,6 +343,7 @@ export function coordinatorFixture(
           priority: options.priority,
         });
         calls.push('synchronize');
+        if (state.historyFailure) return Promise.reject(state.historyFailure);
         if (state.holdHistory)
           return history.promise.then(() => publish(state.historyRows));
         return Promise.resolve().then(() => publish(state.historyRows));
@@ -481,10 +483,11 @@ export function coordinatorFixture(
   });
   const send = { disabled: true, hidden: false };
   const cancelComposition = new EventTarget();
-  const refreshButton = new EventTarget();
+  const refreshButton = Object.assign(new EventTarget(), { textContent: '' });
   const compositionBar = { hidden: true };
   const compositionLabel = { textContent: '' };
   const statusFrames: string[] = [];
+  const feedback = { dataset: {} as Record<string, string> };
   const chatStatus = {
     get textContent(): string {
       return statusFrames.at(-1) ?? '';
@@ -492,7 +495,7 @@ export function coordinatorFixture(
     set textContent(value: string) {
       statusFrames.push(value);
     },
-    closest: () => ({ dataset: {} }),
+    closest: () => feedback,
     replaceChildren: noop,
   };
   const form = Object.assign(new EventTarget(), {
@@ -624,6 +627,8 @@ export function coordinatorFixture(
     send,
     compositionBar,
     statusFrames,
+    feedback,
+    refreshButton,
     choose: (mode: 'reply' | 'edit', view: MessageView) => choose(mode, view),
     retry: () => refreshButton.dispatchEvent(new Event('click')),
     cancelComposition: () =>

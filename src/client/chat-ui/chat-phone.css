@@ -3,9 +3,6 @@
  */
 @media (max-width: 700px) {
   /* Open chat */
-  #app-shell .chat-panel .chat-feedback[data-state='ok'] {
-    display: none;
-  }
   #app-shell .chat-panel .chat-header {
     align-items: center;
     gap: 8px;
