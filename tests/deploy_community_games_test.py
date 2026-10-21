@@ -32,8 +32,11 @@ class CommunityGamesDeploymentTests(unittest.TestCase):
         with (patch.object(base, 'reviewed_database') as reviewed,
               patch.object(base, 'verify_community_tables'),
               patch.object(base, 'digest', return_value='same'),
-              patch.object(sql, 'psql', return_value=b't')):
+              patch.object(sql, 'psql', return_value=b't') as checked):
             games.review(Path('candidate'), Path('live'))
+        self.assertEqual(len(checked.call_args_list), 3)
+        self.assertTrue(all(call.args[0].startswith('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;')
+                            and call.args[0].endswith(';ROLLBACK') for call in checked.call_args_list))
         self.assertEqual(reviewed.call_args.args[2], {'before': games.BEFORE,
             'reviewed': games.REVIEWED, 'versions': 97, 'previous_versions': 96})
         for digests, schema in [(['changed', 'old'], b't'), (['same'] * 8, b'f')]:
