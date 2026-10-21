@@ -12,7 +12,8 @@ interface MessageLivePorts {
   selected: () => HistoryKind | null;
   visible: () => boolean;
   invalidate: (event: LiveControlEvent) => void;
-  hint: () => void;
+  /** A private append arrived; retained verified windows stay reusable. */
+  appended: () => void;
   request: (
     update: LiveUpdate,
     work: VaultWorkOptions,
@@ -67,7 +68,7 @@ export class MessageLiveUpdates {
     // One account receiver owns ordinary private content, including the open
     // chat; the selected conversation never runs a second reader for it.
     if (scope === 'direct') {
-      this.ports.hint();
+      this.ports.appended();
       this.ports.receive('direct');
       return;
     }

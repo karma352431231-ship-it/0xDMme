@@ -32,6 +32,8 @@ interface SynchronizationOperations {
   status: () => void;
   notice: (message: string) => void;
   complete: () => void;
+  /** A receiver page settled; defaults to `complete`. */
+  receiptComplete?: () => void;
   renderPending: () => Promise<void>;
   pause: () => void;
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
@@ -453,7 +455,10 @@ export class MessageSynchronization {
     }
     const generation = this.options.state().generation;
     await this.options.unread();
-    if (this.current(generation)) this.options.complete();
+    if (this.current(generation)) this.completeReceipt();
+  }
+  private completeReceipt(): void {
+    (this.options.receiptComplete ?? this.options.complete)();
   }
   private async refreshGroups(): Promise<void> {
     const work =
@@ -465,7 +470,7 @@ export class MessageSynchronization {
     await this.options.unread();
     if (!this.current(generation) || !this.receiptProjectionPending) return;
     this.receiptProjectionPending = false;
-    this.options.complete();
+    this.completeReceipt();
   }
   private async checkChanges(
     work: VaultWorkOptions,

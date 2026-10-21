@@ -132,7 +132,7 @@ async function assembled(
     selected: () => selected,
     visible: () => state.visible,
     invalidate() {},
-    hint() {},
+    appended() {},
     request: (update, work, scope) => sync.request(update, work, scope),
     inbox: (scope) => sync.requestInbox(scope),
     receive: (scope) => sync.receive(scope),

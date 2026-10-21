@@ -67,6 +67,18 @@ alternate during continuous typing. A live receipt failure offers the retry
 action, as the selected read it replaced did. The list and account inbox
 continue working when no conversation is selected.
 
+An append hint keeps retained verified windows reusable; only a generic or
+removal wakeup blocks reuse, until a receiver batch that started after it
+commits, so sustained appends cannot starve navigation. The receiver keeps the
+validated manifest of the frozen journal cut in memory (at most 256 metadata
+items) while it applies the cut's pages, instead of fetching it again for each
+page; a restart, another cut or any failure fetches it again, and each page
+still confirms the cut's fence. The conversation list follows the receiver's
+commits: a live journal page's new message becomes its conversation's preview
+directly. Removing or editing the shown preview, recovery rows and non-journal
+cuts keep one bounded list read, deferred while startup or a text send is
+pending.
+
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without
 waiting for presence or push preferences; its receipt hint reconciles the changed

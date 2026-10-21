@@ -225,6 +225,35 @@ await test('a hint arriving during cache application cannot be swallowed by its 
   assert.equal(cache.reusable(peer), null);
 });
 
+await test('sustained append hints keep verified windows reusable; an unsafe hint blocks reuse until a later batch', () => {
+  const cache = new ConfirmedConversations<typeof view>();
+  cache.connection(true);
+  cache.remember(peer, {
+    snapshot: JSON.stringify(from),
+    views: [view],
+    oldest: 1,
+  });
+  const apply = (hints: number) =>
+    cache.updateVerified({
+      from,
+      snapshot: next,
+      hints,
+      complete: true,
+      blocked: new Set(),
+      project: (_peer, rows) => rows,
+    });
+  cache.appended();
+  assert.ok(cache.reusable(peer), 'an append keeps known content usable');
+  cache.hint();
+  assert.equal(cache.reusable(peer), null, 'an unsafe hint blocks reuse');
+  const started = cache.hintVersion;
+  // Appends keep arriving while the batch that follows the unsafe hint runs.
+  cache.appended();
+  cache.appended();
+  apply(started);
+  assert.ok(cache.reusable(peer), 'later appends cannot starve reuse');
+});
+
 await test('unfinished target survives append hints; security changes select a new target', () => {
   const target = new MessageReadTarget();
   assert.equal(target.take(from), from);

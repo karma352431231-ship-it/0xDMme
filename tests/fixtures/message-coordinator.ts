@@ -47,6 +47,7 @@ const real = new Set([
   './activity.ts',
   './visits.ts',
   './verified-previews.ts',
+  './receipt-previews.ts',
   '../conversation-preview/index.ts',
 ]);
 const bundle = await build({
@@ -313,6 +314,7 @@ export function coordinatorFixture(
         publish(null);
       },
       hint: () => calls.push('hint'),
+      appended: () => calls.push('appended'),
       setLiveConnected: (connected: boolean) => {
         if (!connected) state.restorablePeers.clear();
       },

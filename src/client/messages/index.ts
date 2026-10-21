@@ -15,6 +15,7 @@ import {
   publishVerifiedPreviewReceipts,
 } from './verified-previews.ts';
 import { TextSendQueue } from './text-send.ts';
+import { ReceiptPreviews } from './receipt-previews.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
@@ -238,6 +239,7 @@ export function startMessages(
           online: navigator.onLine,
           localOnly: false,
         }),
+      receipt: (receipt) => receiptPreviews.commit(receipt),
     },
   );
   const previews = new ConversationPreviewLoader({
@@ -250,6 +252,17 @@ export function startMessages(
         selected?.accountId ?? null,
         conversationVisible('[data-direct-conversation]'),
       ),
+  });
+  const receiptPreviews = new ReceiptPreviews({
+    previews,
+    excluded: () =>
+      previewAdmission.exclude(
+        selected?.accountId ?? null,
+        conversationVisible('[data-direct-conversation]'),
+      ),
+    online: () => navigator.onLine,
+    lookupAllowed: () => !startupWarmup.pending && !textQueue.pending,
+    lookup: refreshDirectoryPreviews,
   });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
@@ -384,20 +397,14 @@ export function startMessages(
         void checkVoiceAuthority();
       hideLiveHistory(event);
     },
-    hint: () => controller.hint(),
+    appended: () => controller.appended(),
     request: (update, work, scope) =>
       synchronization.request(update, work, scope),
     inbox: (scope) => synchronization.requestInbox(scope),
     receive: (scope) => synchronization.receive(scope),
     projection: (work, scope) => synchronization.requestProjection(work, scope),
     counters: (scope) => synchronization.requestCounters(scope),
-    previews: () => {
-      void previews.refresh(
-        directoryData.peers
-          .filter((peer) => !peer.localOnly)
-          .map((peer) => peer.accountId),
-      );
-    },
+    previews: refreshDirectoryPreviews,
     external: (event) => options.liveEvent?.(event),
   });
   // Confirmed contacts get the new card after a profile change, not only on open.
@@ -439,18 +446,13 @@ export function startMessages(
     },
     complete: () => {
       if (!startupWarmup.pending && !textQueue.pending)
-        void previews.refresh(
-          directoryData.peers
-            .filter((peer) => !peer.localOnly)
-            .map((peer) => peer.accountId),
-        );
-      message = controller.synchronizationIssues.length
-        ? t(
-            'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
-          )
-        : controller.transportPending
-          ? t('Some sends are still pending. They will resume automatically.')
-          : t('Conversations updated.');
+        refreshDirectoryPreviews();
+      announceSynchronized();
+    },
+    // The receiver already updated the list from its commit.
+    receiptComplete: () => {
+      receiptPreviews.settle();
+      announceSynchronized();
     },
     renderPending,
     pause: () => {
@@ -716,6 +718,22 @@ export function startMessages(
     text.textContent = upToDate ? '' : message;
     const strip = text.closest<HTMLElement>('.chat-feedback');
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
+  }
+  function refreshDirectoryPreviews(): void {
+    void previews.refresh(
+      directoryData.peers
+        .filter((peer) => !peer.localOnly)
+        .map((peer) => peer.accountId),
+    );
+  }
+  function announceSynchronized(): void {
+    message = controller.synchronizationIssues.length
+      ? t(
+          'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
+        )
+      : controller.transportPending
+        ? t('Some sends are still pending. They will resume automatically.')
+        : t('Conversations updated.');
   }
   function status(): void {
     textQueue.resume();

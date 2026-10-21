@@ -39,6 +39,7 @@ export class ConfirmedConversations<T extends ConversationView> {
   private epoch = 0;
   private pending = false;
   private hints = 0;
+  private unsafeHint = 0;
   get hintVersion(): number {
     return this.hints;
   }
@@ -53,10 +54,18 @@ export class ConfirmedConversations<T extends ConversationView> {
     this.profile = profile;
   }
 
+  /** Generic or removal wakeup: retained content may be unsafe, so reuse
+   * waits for a receiver batch that started after this hint. */
   hint(): void {
     this.hints++;
+    this.unsafeHint = this.hints;
     this.pending = true;
     this.trace(null, 'cache-invalidated', 'live-hint');
+  }
+  /** Ordinary append wakeup: new rows may exist, but retained verified content
+   * stays safe to show; the receiver publishes the new rows from its commit. */
+  appended(): void {
+    this.hints++;
   }
   confirm(snapshot: unknown): void {
     const current = canonical(snapshot);
@@ -163,7 +172,8 @@ export class ConfirmedConversations<T extends ConversationView> {
         input.publish?.(peer, views);
       }
     }
-    if (input.hints === this.hints) this.pending = false;
+    // Later append hints never keep reuse blocked; a later unsafe hint does.
+    if (input.hints >= this.unsafeHint) this.pending = false;
     return coveredPeers;
   }
   private invalidateWindow(peer: string): void {

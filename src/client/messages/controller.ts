@@ -163,12 +163,24 @@ export interface ConversationProjection {
   peer: string | null;
   latest: boolean;
 }
+/** A committed receiver page; its views are verified and durably stored. */
+export interface ReceiptCommit {
+  account: string;
+  /** Whether the page belongs to an append journal cut. */
+  journal: boolean;
+  /** The page's live change items, without recovery ranges. */
+  items: readonly MessageItem[];
+  views: readonly MessageView[];
+  /** Retained windows that published this page themselves. */
+  covered: ReadonlySet<string>;
+}
 interface MessageControllerEvents {
   recovery?: () => void;
   published?: (value: { id: string; peer: string }) => void;
   verified?: (peer: string, views: MessageView[]) => void;
   /** The open window fell behind the account receiver and needs a read. */
   stale?: () => void;
+  receipt?: (receipt: ReceiptCommit) => void;
 }
 interface Outbox {
   outboxOrder?: string;
@@ -237,7 +249,7 @@ export class Messages {
     peer: string,
     views: MessageView[],
   ) => void;
-  private readonly stale: () => void;
+  private readonly events: MessageControllerEvents;
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -266,8 +278,7 @@ export class Messages {
       typeof events === 'function' ? events : (events.published ?? (() => {}));
     this.verifiedProjection =
       typeof events === 'function' ? () => {} : (events.verified ?? (() => {}));
-    this.stale =
-      typeof events === 'function' ? () => {} : (events.stale ?? (() => {}));
+    this.events = typeof events === 'function' ? {} : events;
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {
     const session = this.session,
@@ -442,6 +453,14 @@ export class Messages {
     this.recoveryWake++;
     this.probedSnapshot = null;
     this.conversations.hint();
+    this.visibility.hint();
+  }
+  /** A private append hint. Unlike a generic wakeup, retained windows stay
+   * reusable; in-flight verification still cannot publish stale rows. */
+  appended(): void {
+    this.recoveryWake++;
+    this.probedSnapshot = null;
+    this.conversations.appended();
     this.visibility.hint();
   }
   /** Leave a probed append-only advance to the account receiver, which updates
@@ -2010,6 +2029,13 @@ export class Messages {
         ),
     });
     if (batch.complete) this.receiverCut = batch.snapshot;
+    this.events.receipt?.({
+      account: batch.snapshot.account,
+      journal: batch.snapshot.source === 'journal',
+      items: batch.page.items,
+      views: batch.views,
+      covered,
+    });
     if (
       !this.selected ||
       this.before !== null ||
@@ -2027,7 +2053,7 @@ export class Messages {
   ): void {
     if (!covered) {
       if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
-        this.stale();
+        this.events.stale?.();
       return;
     }
     const candidate = this.selected
