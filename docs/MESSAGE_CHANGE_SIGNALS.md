@@ -100,6 +100,18 @@ working. The migration fails if the packet identity does not use `CACHE 1`.
 Media upload transitions still bump the revision, as the owner decided.
 Deploying 098 needs its own reviewed transition.
 
+Private sends keep their outbound Megolm session while the audience is
+unchanged (owner-approved on 21 October 2026). Each send batch opens a new SDK
+wrapper, which used to invalidate the session on its first message and send a
+new room key to every device of both accounts. The message controller now keeps
+a session-scoped memory of the audience, both directory hashes, that each SDK
+identity already shared the session with. It is memory only and bounded; it is
+cleared on logout, session change, authority suspension and hide, and a reload
+starts empty, so the next send rotates once. Any device added, revoked or reset
+on either side changes the audience and rotates, and another SDK identity never
+reuses an entry. An audience is recorded only after the key share succeeded.
+The SDK's own rotation limits still apply.
+
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without
 waiting for presence or push preferences; its receipt hint reconciles the changed

@@ -1,3 +1,5 @@
+import type { PrivateAudiences } from './audiences.ts';
+export { PrivateAudiences } from './audiences.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { optionalRelation } from '../../shared/daily/index.ts';
@@ -166,9 +168,15 @@ export class MessageCrypto {
   private closed = false;
   private sending: Promise<void> = Promise.resolve();
   private lastGroupKeys: GroupKeys | null = null;
-  private constructor(machine: OlmMachine, transport: MessageTransport) {
+  private readonly audiences: PrivateAudiences | null;
+  private constructor(
+    machine: OlmMachine,
+    transport: MessageTransport,
+    audiences: PrivateAudiences | null,
+  ) {
     this.machine = machine;
     this.transport = transport;
+    this.audiences = audiences;
     machine.roomKeyRequestsEnabled = false;
     machine.roomKeyForwardingEnabled = false;
   }
@@ -177,6 +185,8 @@ export class MessageCrypto {
     deviceId: string;
     store: StoreHandle | null;
     transport: MessageTransport;
+    /** Session-scoped private audiences; without it each wrapper rotates. */
+    audiences?: PrivateAudiences;
   }): Promise<MessageCrypto> {
     await prepareMessageRuntime();
     const machine = input.store
@@ -193,7 +203,7 @@ export class MessageCrypto {
           undefined,
           silentLogger,
         );
-    return new MessageCrypto(machine, input.transport);
+    return new MessageCrypto(machine, input.transport, input.audiences ?? null);
   }
   private assertOpen(): void {
     if (this.closed) throw new Error('Cryptographic session ended.');
@@ -389,6 +399,31 @@ export class MessageCrypto {
     );
     return job;
   }
+  private identityKey(): string {
+    const keys = this.machine.identityKeys,
+      curve = keys.curve25519;
+    try {
+      return curve.toBase64();
+    } finally {
+      curve.free();
+      keys.free();
+    }
+  }
+  /** Keep the SDK's outbound session only while this identity already shared
+   * it with the same audience in this wrapper or signed-in session. */
+  private async rotateChangedAudience(
+    room: string,
+    membership: string,
+  ): Promise<string> {
+    const identity = this.identityKey();
+    if (
+      this.rooms.get(room) !== membership &&
+      !this.audiences?.matches(identity, room, membership)
+    )
+      await this.machine.invalidateGroupSession(new RoomId(room));
+    this.rooms.set(room, membership);
+    return identity;
+  }
   private async encryptIndividual(
     input: Parameters<MessageCrypto['encrypt']>[0],
   ): Promise<MessagePacket> {
@@ -408,9 +443,7 @@ export class MessageCrypto {
     await this.trustDevices(peerHistory);
     const room = messageRoom(authority.session.accountId, peer.accountId);
     const membership = canonical([authority.directory, await eventHash(peer)]);
-    if (this.rooms.get(room) !== membership)
-      await this.machine.invalidateGroupSession(new RoomId(room));
-    this.rooms.set(room, membership);
+    const identity = await this.rotateChangedAudience(room, membership);
     const users = () => [
       new UserId(matrixUser(authority.session.accountId)),
       new UserId(matrixUser(peer.accountId)),
@@ -440,6 +473,7 @@ export class MessageCrypto {
     } finally {
       settings.free();
     }
+    this.audiences?.remember(identity, room, membership);
     const value = roomContent({
       text,
       id,

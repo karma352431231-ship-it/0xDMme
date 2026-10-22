@@ -7,6 +7,7 @@ import {
 import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
 import { receiverOwnsAdvance, windowBehind } from './receiver-coverage.ts';
+import { PrivateAudiences } from '../message-crypto/index.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
 import { MessageReceiveTurn } from './receive-turn.ts';
@@ -240,6 +241,7 @@ export class Messages {
   private recoveryWake = 0;
   private recoveryHandled = 0;
   private receiverCut: MessageSyncSnapshot | null = null;
+  private readonly audiences = new PrivateAudiences();
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
   private prefetchAbort: AbortController | null = null;
@@ -398,6 +400,7 @@ export class Messages {
     this.probedSnapshot = null;
     this.confirmed = null;
     this.receiverCut = null;
+    this.audiences.clear();
     this.verified.clear();
     this.generation++;
     this.visibility.close();
@@ -410,6 +413,8 @@ export class Messages {
     if (scope === 'account') {
       this.previewGeneration++;
       this.conversations.invalidateReuse('account-pause');
+      // Authority suspension or revocation: the next send rotates its session.
+      this.audiences.clear();
     }
     this.selection.invalidate(
       scope === 'account' ? 'authorization' : 'navigation',
@@ -436,6 +441,7 @@ export class Messages {
   }
   hide(): void {
     this.selection.invalidate('authorization');
+    this.audiences.clear();
     this.generation++;
     this.recoveryAlarm.clear();
     this.readTarget.reset();
@@ -573,7 +579,9 @@ export class Messages {
     api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<MessageCrypto> {
-    return measureWork(this, 'sdk/open', () => openMessageMachine(a, api));
+    return measureWork(this, 'sdk/open', () =>
+      openMessageMachine(a, api, this.audiences),
+    );
   }
   private async recoverable(
     a: VaultAuthority,
