@@ -605,6 +605,7 @@ export class DeviceController {
       this.ring && current
         ? { directory: await eventHash(current), events: this.events.length }
         : null;
+    if (this.verified) this.signingLane.verifiedChanged();
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },

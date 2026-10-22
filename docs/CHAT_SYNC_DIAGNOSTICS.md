@@ -239,3 +239,11 @@ request is therefore unchanged, and the server still checks the session, the
 signed directory and this device on every request. Community and public
 profile requests use the lane; public DMs, the vault and message work stay in
 the exclusive turn.
+
+The feed then still waited for `SessionBoot`, which released communities and
+the public profile only after the whole message warmup. With the signing lane
+that wait has no purpose: a mounted feed and the public profile start on
+session change again. Work reaching the lane before the first exclusive turn
+verified the device directory waits up to eight seconds for that verification
+instead of queueing for the exclusive turn. Public DMs, which still share that
+turn, keep starting from `SessionBoot` after the private directory's warmup.
