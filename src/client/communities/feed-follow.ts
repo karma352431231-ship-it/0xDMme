@@ -1,3 +1,4 @@
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
@@ -13,6 +14,7 @@ export interface FeedProfileFollows {
 interface FollowOptions {
   controller: Communities;
   profiles: FeedProfileFollows;
+  participation: PublicActionAccess;
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
   changed: () => Promise<void>;
@@ -35,6 +37,14 @@ export function feedFollowControl(
     options
       .run(async () => {
         if (!options.valid()) return;
+        if (
+          !(await options.participation.allow(
+            'follow-community',
+            options.signal,
+          )) ||
+          !options.valid()
+        )
+          return;
         if (mobile()) await choose();
         else await followCommunity(!following);
       })

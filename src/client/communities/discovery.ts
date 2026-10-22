@@ -1,3 +1,4 @@
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import { watchRankingUpdates } from './ranking-live.ts';
 import { postSearchQuery } from '../../shared/post-search/index.ts';
 import { feedSearchScope, appendFeedSearchSummary } from './feed-search.ts';
@@ -53,6 +54,7 @@ export function startCommunityDiscovery(
   controller: Communities,
   privacy: ExternalMediaConsent,
   profiles: FeedProfileFollows,
+  participation: PublicActionAccess,
 ) {
   let mounted: HTMLElement | null = null,
     list: HTMLElement | null = null,
@@ -341,6 +343,7 @@ export function startCommunityDiscovery(
         search,
         controller,
         profiles,
+        participation,
         privacy,
         signal: abort.signal,
         signedIn,

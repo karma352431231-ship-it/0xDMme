@@ -1,3 +1,4 @@
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { postState } from '../../shared/community-posts/index.ts';
@@ -28,6 +29,7 @@ interface FeedCardOptions {
   search?: string;
   controller: Communities;
   profiles: FeedProfileFollows;
+  participation: PublicActionAccess;
   privacy: ExternalMediaConsent;
   signal: AbortSignal;
   signedIn: boolean;
@@ -144,13 +146,14 @@ function followControl(
   options: FeedCardOptions,
 ): void {
   const header = row.querySelector<HTMLElement>('.community-post-header');
-  if (!header || !options.signedIn || entry.ownCommunity) return;
+  if (!header || entry.ownCommunity) return;
   feedFollowControl(
     header,
     { community: entry.community, author: entry.post.author },
     {
       controller: options.controller,
       profiles: options.profiles,
+      participation: options.participation,
       run: options.run,
       valid: options.valid,
       changed: () => options.followChanged(),

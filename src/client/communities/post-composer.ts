@@ -1,3 +1,4 @@
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
 import { bindComposerBackdrop } from './composer-backdrop.ts';
@@ -20,16 +21,23 @@ export class PostComposer {
   private abort = new AbortController();
   private stage = new AbortController();
   private busy = false;
+  private opening: AbortController | null = null;
   private readonly disabledNodes = new Map<HTMLElement, boolean>();
   private draft: HTMLElement | null = null;
   private feedback: HTMLElement | null = null;
   private readonly controller: Communities;
   private readonly privacy: ExternalMediaConsent;
-  constructor(controller: Communities, privacy: ExternalMediaConsent) {
+  private readonly participation: PublicActionAccess;
+  constructor(
+    controller: Communities,
+    privacy: ExternalMediaConsent,
+    participation: PublicActionAccess,
+  ) {
     this.controller = controller;
     this.privacy = privacy;
+    this.participation = participation;
   }
-  bind(signedIn: () => boolean): void {
+  bind(): void {
     document.addEventListener('click', (event) => {
       if (
         !(event.target instanceof Element) ||
@@ -37,13 +45,38 @@ export class PostComposer {
       )
         return;
       event.preventDefault();
-      if (signedIn()) this.open();
-      else showToast(t('Sign in through Profile to create a post.'));
+      this.open();
     });
   }
 
   open(community?: string): void {
-    if (this.dialog || this.busy) return;
+    if (this.dialog || this.busy || this.opening) return;
+    const opening = new AbortController();
+    this.opening = opening;
+    const pending = { once: true, signal: opening.signal };
+    window.addEventListener('hashchange', () => opening.abort(), pending);
+    window.addEventListener('popstate', () => opening.abort(), pending);
+    window.addEventListener('pagehide', () => opening.abort(), pending);
+    void this.participation
+      .allow('post', opening.signal)
+      .then((allowed) => {
+        if (allowed && !opening.signal.aborted) this.show(community);
+      })
+      .catch((error: unknown) => {
+        if (!opening.signal.aborted)
+          showToast(
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Post unavailable.'),
+          );
+      })
+      .finally(() => {
+        opening.abort();
+        if (this.opening === opening) this.opening = null;
+      });
+  }
+
+  private show(community?: string): void {
     this.abort = new AbortController();
     const dialog = el('dialog', '', 'community-scope post-composer-dialog');
     this.dialog = dialog;
@@ -244,6 +277,8 @@ export class PostComposer {
   }
 
   close(): void {
+    this.opening?.abort();
+    this.opening = null;
     this.abort.abort();
     this.stage.abort();
     this.dialog?.close();

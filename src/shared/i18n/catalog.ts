@@ -1,5 +1,33 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'Create public profile': ['Create public profile', '创建公开个人资料'],
+  'Not now': ['Not now', '暂时不用'],
+
+  'A public profile is required': [
+    'A public profile is required',
+    '需要公开个人资料',
+  ],
+  'Create a public profile to follow this community.': [
+    'Create a public profile to follow this community.',
+    '创建公开个人资料后即可关注此社区。',
+  ],
+  'Create a public profile to follow this profile.': [
+    'Create a public profile to follow this profile.',
+    '创建公开个人资料后即可关注此用户。',
+  ],
+  'Create a public profile to publish a post.': [
+    'Create a public profile to publish a post.',
+    '创建公开个人资料后即可发帖。',
+  ],
+  'Create a public profile to create a community.': [
+    'Create a public profile to create a community.',
+    '创建公开个人资料后即可创建社区。',
+  ],
+  'Open account settings to sign in and create your public profile.': [
+    'Open account settings to sign in and create your public profile.',
+    '打开账户设置以登录并创建公开个人资料。',
+  ],
+
   'Message deletion or authorization changed. Reconcile the affected history.':
     [
       'Message deletion or authorization changed. Reconcile the affected history.',

@@ -331,6 +331,7 @@ export function discoveryFixture(options: FixtureOptions = {}) {
       set: () =>
         Promise.resolve({ following: false, notify: false, revision: 0 }),
     },
+    { allow: () => Promise.resolve(options.signedIn ?? false) },
   );
   const mount = () => {
     host.replaceChildren();

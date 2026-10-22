@@ -132,6 +132,7 @@ const conversationBadge = conversationBadgeHost
   : () => {};
 const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
+  publicProfile: () => publicProfiles.exists(),
   unreadChanged: (count) => conversationBadge('public', count),
 });
 // Ranking beside the feed and the Chat | Communities switch (16/10/2026).

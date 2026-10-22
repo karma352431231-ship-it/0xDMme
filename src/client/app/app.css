@@ -22,6 +22,7 @@
 @import '../public-media/picture.css';
 @import '../image-viewer/image-viewer.css';
 @import '../communities/community.css';
+@import '../public-action-guidance/public-action-guidance.css';
 @import '../communities/post-sharing.css';
 @import '../communities/post-composer.css';
 @import '../communities/reply-composer.css';
