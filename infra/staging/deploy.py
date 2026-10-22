@@ -211,16 +211,19 @@ def executor_code(config):
     if not config.get('worker_boot'):
         names.remove('deploy_worker_boot')
     if not any(config.get(mode) is True for mode in
-               ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games']):
+               ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
+                'group_fences']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
-    if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games']):
+    if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
     if config.get('community_games') is True:
         names.append('deploy_community_games')
+    if config.get('group_fences') is True:
+        names.append('deploy_group_fences')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -312,7 +315,10 @@ def main():
     parser.add_argument('--post-search', action='store_true', help='Apply the separately approved 094→095 public post search index.')
     parser.add_argument('--message-sync', action='store_true', help='Apply the separately approved 095→096 incremental message synchronization transition.')
     parser.add_argument('--community-games', action='store_true', help='Apply the approved 096→097 Games topic constraint.')
+    parser.add_argument('--group-fences', action='store_true', help='Apply the approved 097→098 finite group cut fence.')
     args = parser.parse_args()
+    if args.group_fences and (args.prepare or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
+        parser.error('Group message fences require their separate --check or --activate release.')
     if args.community_games and (args.prepare or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
         parser.error('Games catalog requires its separate --check or --activate release.')
     if args.message_sync and (args.prepare or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
@@ -337,6 +343,8 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.group_fences:
+        config['group_fences'] = True
     if args.community_games:
         config['community_games'] = True
     if args.message_sync:
