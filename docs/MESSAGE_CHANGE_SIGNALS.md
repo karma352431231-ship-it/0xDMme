@@ -65,7 +65,12 @@ action waits for an in-flight live page to commit instead of discarding it;
 speculative preparation is still interrupted. Sending and receiving therefore
 alternate during continuous typing. Counters, sound and visible read
 receipts after a committed page run outside the receipt turn, so a slow
-follow-up never holds the next live page. A live receipt failure offers the retry
+follow-up never holds the next live page. Live receipt asks for interactive
+authority priority, ahead of queued maintenance. While a visible, focused app
+window exists, the service worker shows no private message alert and does not
+decrypt one (owner-approved on 22 October 2026): the app already shows the
+message and plays its own alert, and a second decryption would hold the shared
+account lock the app's receipt waits for. Calls and public alerts still show. A live receipt failure offers the retry
 action, as the selected read it replaced did. The list and account inbox
 continue working when no conversation is selected.
 

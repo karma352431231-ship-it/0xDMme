@@ -8,6 +8,7 @@ import { retrySnapshotRead } from './snapshot-retry.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 import type { HistoryKind, PreparationTurn } from './preparation.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 
 interface InboxPorts {
   ready: () => boolean;
@@ -15,7 +16,8 @@ interface InboxPorts {
   receiptReady: () => boolean;
   generation: () => number;
   current: (generation: number) => boolean;
-  direct: (signal: AbortSignal) => Promise<boolean>;
+  /** Live demand asks for interactive authority priority. */
+  direct: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
@@ -183,7 +185,10 @@ export class MessageInbox {
       () =>
         turn.kind === 'groups'
           ? this.ports.groups(signal)
-          : this.ports.direct(signal),
+          : this.ports.direct(
+              signal,
+              this.active?.live ? { priority: 'interactive' } : {},
+            ),
       () => !signal.aborted && this.ports.current(generation),
     );
     if (signal.aborted || !this.ports.current(generation)) return false;

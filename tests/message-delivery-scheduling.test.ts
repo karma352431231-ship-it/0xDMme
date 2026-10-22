@@ -38,6 +38,7 @@ async function assembled(
 ) {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const log: { operation: Operation; at: number }[] = [];
+  const priorities: (string | undefined)[] = [];
   const failures: unknown[] = [];
   let origin = 0;
   const record = (operation: Operation) =>
@@ -62,8 +63,9 @@ async function assembled(
     pause() {},
     // A page that takes `receiveMs` and honours its abort signal, so a
     // foreground interruption discards it like the real receiver.
-    preloadDirect: (signal) => {
+    preloadDirect: (signal, work) => {
       record('account-receive');
+      priorities.push(work.priority);
       const applied = () => {
         record('account-applied');
         return false;
@@ -197,7 +199,7 @@ async function assembled(
     'warm-up prepared both histories',
   );
   log.length = 0;
-  return f;
+  return { ...f, priorities };
 }
 
 await test('F1: a private append with the chat open is applied once by the account receiver', async (t) => {
@@ -306,4 +308,12 @@ await test('slow counters and read receipts after a page never hold the next liv
     second !== null && second <= promptReceiptMs,
     `second receipt started at ${second} ms, budget ${promptReceiptMs} ms`,
   );
+});
+
+await test('live receipt asks for interactive authority priority; speculative preparation does not', async (t) => {
+  const f = await assembled(t, null);
+  assert.deepEqual(f.priorities, [undefined], 'warm-up preparation');
+  f.emit('private-messages');
+  await f.advance(500);
+  assert.deepEqual(f.priorities, [undefined, 'interactive']);
 });

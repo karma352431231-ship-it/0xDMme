@@ -460,7 +460,7 @@ export function startMessages(
       controller.pauseSynchronization();
       groups.pauseSynchronization();
     },
-    preloadDirect: (signal) => controller.synchronizeAll(signal),
+    preloadDirect: (signal, work) => controller.synchronizeAll(signal, work),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
     unread: () => activity.refresh(),
     groupProjection: () => groups.counters(),

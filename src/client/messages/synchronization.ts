@@ -36,7 +36,10 @@ interface SynchronizationOperations {
   receiptComplete?: () => void;
   renderPending: () => Promise<void>;
   pause: () => void;
-  preloadDirect: (signal: AbortSignal) => Promise<boolean>;
+  preloadDirect: (
+    signal: AbortSignal,
+    work: VaultWorkOptions,
+  ) => Promise<boolean>;
   preloadGroups: (signal: AbortSignal) => Promise<boolean>;
   unread: () => Promise<void>;
   groupProjection?: () => Promise<void>;
@@ -94,7 +97,7 @@ export class MessageSynchronization {
       receiptReady: () => this.receiptReady,
       generation: () => options.state().generation,
       current: (generation) => this.current(generation),
-      direct: (signal) => options.preloadDirect(signal),
+      direct: (signal, work) => options.preloadDirect(signal, work),
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
       changed: () => this.resume(),

@@ -21,6 +21,8 @@ interface WorkerScope {
     }): Promise<
       {
         url: string;
+        focused?: boolean;
+        visibilityState?: DocumentVisibilityState;
         focus(): Promise<unknown>;
         postMessage(message: unknown): void;
       }[]
@@ -209,9 +211,27 @@ async function wakeOpenClients(): Promise<void> {
     // Live hints, return-to-app reconciliation and the foreground fallback remain active.
   }
 }
+/** A visible, focused same-origin window. Failure keeps the system alert. */
+async function focusedAppWindow(): Promise<boolean> {
+  try {
+    const windows = await scope.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+    return windows.some(
+      (client) =>
+        new URL(client.url).origin === scope.location.origin &&
+        client.visibilityState === 'visible' &&
+        client.focused === true,
+    );
+  } catch {
+    return false;
+  }
+}
 const notifications = new NotificationDelivery({
   details: privateNotificationDetails,
   wake: wakeOpenClients,
+  focusedApp: focusedAppWindow,
   show: (title, options) => scope.registration.showNotification(title, options),
 });
 scope.addEventListener('push', (event) => {
