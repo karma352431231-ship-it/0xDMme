@@ -5,7 +5,7 @@ import { dailyViews } from '../daily-text/index.ts';
 import { messageTime } from '../message-presentation/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { MessageView } from './controller.ts';
-import type { TextDraft } from './text-send.ts';
+import type { TextDraft } from '../text-send/index.ts';
 
 export interface OutgoingText extends TextDraft {
   saved: boolean;

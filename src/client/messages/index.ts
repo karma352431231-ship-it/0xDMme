@@ -15,7 +15,7 @@ import {
   publishVerifiedConversationPreview,
   publishVerifiedPreviewReceipts,
 } from './verified-previews.ts';
-import { TextSendQueue } from './text-send.ts';
+import { TextSendQueue } from '../text-send/index.ts';
 import { ReceiptPreviews } from './receipt-previews.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
