@@ -509,3 +509,17 @@ for (const language of ['en', 'zh-CN'] as const)
       'No conversation means no history loading indicator',
     );
   });
+await test('an own message the server accepted shows one gray check instead of the delivery state text', (t) => {
+  const f = fixture(t),
+    accepted: MessageView = {
+      ...row('accepted', true),
+      state: 'Aceita · entrega por aparelho pendente',
+    };
+  delete accepted.delivery;
+  f.ui.render([accepted]);
+  const meta = f.history.children[0]!.querySelector('.message-meta')!;
+  const icon = meta.children[0]!;
+  assert.match(icon.getAttribute('class')!, /gray/u);
+  // Only the check remains; its accessible label is not visible text.
+  assert.equal(meta.textContent, icon.textContent);
+});

@@ -132,6 +132,7 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     changed();
   };
   text?.addEventListener('input', resize);
+  keepFocusOnSend(form, text);
   // Text, a photo or a voice preview: Enter sends whatever Enviar would send.
   if (text)
     sendOnEnter(text, () => {
@@ -148,6 +149,20 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
         if (!file || file.disabled) return;
         file.click();
       });
+    });
+}
+
+/** Tapping send must not move focus off the field: on touch keyboards that
+ * closes the keyboard and shifts the layout under the finger mid-tap. The
+ * click itself still fires and sends. */
+function keepFocusOnSend(
+  form: HTMLElement,
+  text: HTMLTextAreaElement | null,
+): void {
+  const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
+  for (const type of ['pointerdown', 'mousedown'] as const)
+    send?.addEventListener(type, (event) => {
+      if (text && document.activeElement === text) event.preventDefault();
     });
 }
 

@@ -1014,6 +1014,8 @@ export function startMessages(
       field.value = '';
       clearContext();
       field.dispatchEvent(new Event('input'));
+      // Keep typing: the chat and its keyboard stay as they were.
+      field.focus();
       return true;
     } catch (error: unknown) {
       reportTextSaveError(error);
