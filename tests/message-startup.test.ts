@@ -142,6 +142,7 @@ await test('authorized contacts appear during a slow runtime transfer; messages 
   let directorySettled = false;
   const startup = fixture
     .start({
+      loadVault: () => Promise.resolve(),
       loadPins: () => Promise.resolve(),
       loadContacts: () => {
         contacts.resolve();
@@ -172,6 +173,7 @@ for (const failure of ['runtime', 'directory', 'logout'] as const)
       settled = false;
     const startup = fixture
       .start({
+        loadVault: () => Promise.resolve(),
         loadPins: () => Promise.resolve(),
         loadContacts: () => directory.promise,
         guard: () => {
@@ -203,6 +205,7 @@ await test('startup settles its directory task even when the runtime fails first
   let settled = false;
   const startup = fixture
     .start({
+      loadVault: () => Promise.resolve(),
       loadPins: () => Promise.resolve(),
       loadContacts: () => {
         started.resolve();
@@ -229,4 +232,39 @@ await test('startup settles its directory task even when the runtime fails first
   directory.resolve();
   await startup;
   assert.equal(settled, true);
+});
+
+await test('contacts render from the refreshed vault before identity pins open; startup waits for the pins', async () => {
+  const runtime = delayed(),
+    fixture = controller(() => runtime.promise);
+  const pins = delayed(),
+    order: string[] = [];
+  let completed = false;
+  runtime.resolve();
+  const startup = fixture
+    .start({
+      loadVault: () => {
+        order.push('vault');
+        return Promise.resolve();
+      },
+      loadContacts: () => {
+        order.push('contacts');
+        return Promise.resolve();
+      },
+      loadPins: () => {
+        order.push('pins');
+        return pins.promise;
+      },
+      guard: () => {},
+      settled: () => order.push('settled'),
+    })
+    .then(() => {
+      completed = true;
+    });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(order, ['vault', 'contacts', 'settled', 'pins']);
+  assert.equal(completed, false, 'Histories and sends need the loaded pins');
+  pins.resolve();
+  await startup;
+  assert.equal(completed, true);
 });

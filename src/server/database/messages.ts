@@ -14,6 +14,7 @@ import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
 import {
   latestMessageItems,
   messageIndexPage,
+  messagePeerWindow,
   messageDeliveryItems,
 } from './message-index.ts';
 import type { AttachmentStore } from './attachments.ts';
@@ -449,6 +450,23 @@ export class MessageStore {
         after: input.after,
         through: input.through,
         peer: input.peer,
+      });
+    });
+  }
+  async syncPeerWindow(
+    authority: ContactAuthority,
+    input: {
+      snapshot: MessageSyncSnapshot;
+      peer: string;
+      before: number | null;
+    },
+  ) {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      await this.expect(client, authority, input.snapshot);
+      return messagePeerWindow(client, authority, {
+        peer: input.peer,
+        through: input.snapshot.anchor,
+        before: input.before,
       });
     });
   }

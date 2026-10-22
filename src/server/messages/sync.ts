@@ -28,6 +28,21 @@ export function messageSyncOperations(store: MessageStore) {
         data['from'] === null ? null : syncSnapshot(data['from']),
       );
     },
+    'sync-peer-window': (
+      a: ContactAuthority,
+      input: Record<string, unknown>,
+    ) => {
+      const data = object(input);
+      keys(data, ['snapshot', 'peer', 'before']);
+      return store.syncPeerWindow(a, {
+        snapshot: syncSnapshot(data['snapshot']),
+        peer: uuid(data['peer']),
+        before:
+          data['before'] === null
+            ? null
+            : integer(data['before'], Number.MAX_SAFE_INTEGER),
+      });
+    },
     'sync-peer-page': (a: ContactAuthority, input: Record<string, unknown>) => {
       const data = object(input);
       keys(data, ['snapshot', 'peer', 'after', 'through']);

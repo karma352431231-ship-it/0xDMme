@@ -128,6 +128,7 @@ export function resumeFixture(incremental = false) {
     cacheReads: [] as string[],
     requests: [] as string[],
     pages: [] as { after: number; through: number }[],
+    windows: [] as { peer: string; through: number }[],
     beforePage: undefined as (() => Promise<void>) | undefined,
     pageFailure: null as number | null,
     failure: null as string | null,
@@ -257,6 +258,47 @@ export function resumeFixture(incremental = false) {
       }),
     );
   };
+  // Same window a complete scan collects for the peer, as the server returns it.
+  const windowResponse = async (input?: RequestInit): Promise<Response> => {
+    if (typeof input?.body !== 'string') throw new Error('Missing window.');
+    const body = JSON.parse(input.body) as {
+      payload: { snapshot: unknown; peer: string; before: number | null };
+    };
+    const { peer, before } = body.payload;
+    const through = isSyncSnapshot(body.payload.snapshot)
+      ? body.payload.snapshot.anchor
+      : Number.MAX_SAFE_INTEGER;
+    data.windows.push({ peer, through });
+    await data.beforePage?.();
+    if (data.pageFailure)
+      return Response.json(
+        { error: 'Synthetic interruption.' },
+        { status: data.pageFailure },
+      );
+    const rows = data.items.filter(
+      (item) =>
+        (item.sender === peer || item.recipient === peer) &&
+        item.sequence <= through,
+    );
+    const roots = rows
+      .filter(
+        (item) =>
+          item.kind !== 'profile' &&
+          !item.relation &&
+          !item.deleted &&
+          (before === null || item.sequence < before),
+      )
+      .slice(-16);
+    const profiles = new Map<string, (typeof rows)[number]>();
+    for (const item of rows)
+      if (item.kind === 'profile') profiles.set(item.sender, item);
+    return Response.json({
+      items: [...profiles.values(), ...roots].sort(
+        (a, b) => a.sequence - b.sequence,
+      ),
+      next: null,
+    });
+  };
   const pageResponse = async (input?: RequestInit): Promise<Response> => {
     if (typeof input?.body !== 'string') throw new Error('Página ausente.');
     const body = JSON.parse(input.body) as {
@@ -361,21 +403,29 @@ export function resumeFixture(incremental = false) {
     Promise.resolve(
       Response.json({ error: 'Not authorized.' }, { status: 403 }),
     );
+  const responses: Record<
+    string,
+    ((input?: RequestInit) => Promise<Response>) | undefined
+  > = {
+    snapshot: snapshotResponse,
+    'sync-probe': probeResponse,
+    changes: changesResponse,
+    page: pageResponse,
+    'sync-peer-window': windowResponse,
+    preview: () => previewResponse(),
+    relations: relationsResponse,
+    delivery: deliveryResponse,
+    confirm: confirmResponse,
+  };
   const respond = (path: string, input?: RequestInit): Promise<Response> => {
     // This fixture intentionally retains legacy snapshots to exercise compatibility.
     const wireOperation = path.split('/').at(-1)!;
     const operation = legacyOperation(wireOperation);
     data.requests.push(operation);
     if (operation === data.failure) return deniedResponse();
-    if (operation === 'snapshot') return snapshotResponse(input);
-    if (operation === 'sync-probe') return probeResponse(input);
-    if (operation === 'changes') return changesResponse(input);
-    if (operation === 'page') return pageResponse(input);
-    if (operation === 'preview') return previewResponse();
-    if (operation === 'relations') return relationsResponse(input);
-    if (operation === 'delivery') return deliveryResponse(input);
-    if (operation === 'confirm') return confirmResponse(input);
-    throw new Error('Requisição inesperada: ' + operation);
+    const handler = responses[operation];
+    if (!handler) throw new Error('Unexpected request: ' + operation);
+    return handler(input);
   };
   const context = {
     fixture,

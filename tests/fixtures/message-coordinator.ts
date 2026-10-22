@@ -338,6 +338,17 @@ export function coordinatorFixture(
         calls.push('pins');
         return Promise.resolve();
       },
+      // Startup splits the same identity work around contact loading.
+      synchronizeIdentities: (options: VaultWorkOptions = {}) => {
+        priorities.push({ operation: 'pins', priority: options.priority });
+        calls.push('vault');
+        return Promise.resolve();
+      },
+      loadSynchronizedPins: (options: VaultWorkOptions = {}) => {
+        priorities.push({ operation: 'pins', priority: options.priority });
+        calls.push('pins');
+        return Promise.resolve();
+      },
       savePins: asyncNoop,
       shareProfile: (peer: string) => {
         calls.push('profile:' + peer);

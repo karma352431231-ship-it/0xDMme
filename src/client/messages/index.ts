@@ -1240,8 +1240,9 @@ export function startMessages(
     const work: VaultWorkOptions = { ...initialWork, ...requested };
     try {
       await loadMessageDirectory({
-        loadPins: () => controller.loadPins(work),
+        loadVault: () => controller.synchronizeIdentities(work),
         loadContacts: () => refreshContacts(false, work),
+        loadPins: () => controller.loadSynchronizedPins(work),
         guard: () => {
           if (current !== generation) throw new Error('Session changed.');
         },

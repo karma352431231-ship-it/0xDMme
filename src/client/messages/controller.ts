@@ -137,6 +137,7 @@ import {
   verifiedReceiptHash,
 } from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
+import { readPeerWindow } from './peer-window.ts';
 import type { CachedText } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import {
@@ -639,6 +640,20 @@ export class Messages {
   async loadPins(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     await this.identities.load(options);
+    this.guard(generation);
+    this.pinsGeneration = generation;
+  }
+  /** Startup refreshes the vault first so the contact list can render from its
+   * verified heads; identity pins are opened afterwards from that same state,
+   * still before any history read or send can use them. */
+  async synchronizeIdentities(options: VaultWorkOptions = {}): Promise<void> {
+    const generation = this.generation;
+    await this.identities.synchronize(options);
+    this.guard(generation);
+  }
+  async loadSynchronizedPins(options: VaultWorkOptions = {}): Promise<void> {
+    const generation = this.generation;
+    await this.identities.loadCurrent(options);
     this.guard(generation);
     this.pinsGeneration = generation;
   }
@@ -1422,13 +1437,23 @@ export class Messages {
     snapshot: unknown;
     selected: string | null;
   }): Promise<MessageItem[]> {
-    return this.index.read({
-      pagesPerTurn: 1,
+    const read = {
       ...c,
       account: c.a.session.accountId,
       before: this.before,
-      deleted: (item) => this.indexItem(c, item),
-    });
+      deleted: (item: MessageItem) => this.indexItem(c, item),
+    };
+    const indexed = await this.index.completed(read);
+    if (indexed) return indexed;
+    // Finite cuts open one conversation without an account-wide scan; legacy
+    // snapshots keep the complete index their deletion checks rely on.
+    if (c.selected !== null && isSyncSnapshot(c.snapshot))
+      return readPeerWindow({
+        ...read,
+        snapshot: c.snapshot,
+        peer: c.selected,
+      });
+    return this.index.read({ ...read, pagesPerTurn: 1 });
   }
   private async indexItem(
     c: {
