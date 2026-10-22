@@ -21,6 +21,7 @@ type Operation =
   | 'selected-read'
   | 'account-receive'
   | 'account-applied'
+  | 'counters'
   | 'group-receive'
   | 'group-selected-read'
   | 'group-receipts'
@@ -33,7 +34,7 @@ const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function assembled(
   t: TestContext,
   selected: HistoryKind | null,
-  timing: { receiveMs?: number } = {},
+  timing: { receiveMs?: number; countersMs?: number } = {},
 ) {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const log: { operation: Operation; at: number }[] = [];
@@ -84,7 +85,13 @@ async function assembled(
       record('group-receive');
       return Promise.resolve(false);
     },
-    unread: () => Promise.resolve(),
+    // Counters, sound and read receipts after a page; slow when requested.
+    unread: () => {
+      record('counters');
+      return new Promise<void>((resolve) =>
+        setTimeout(resolve, timing.countersMs ?? 0),
+      );
+    },
     groupProjection: () => {
       record('group-counters');
       return Promise.resolve();
@@ -283,3 +290,20 @@ for (const groupCase of groupCases) {
     assert.deepEqual(f.failures, []);
   });
 }
+
+await test('slow counters and read receipts after a page never hold the next live receipt', async (t) => {
+  // Field capture 22/10: a 4 s post-page follow-up delayed the next messages.
+  const f = await assembled(t, 'direct', { countersMs: 3000 });
+  f.emit('private-messages');
+  await f.advance(500);
+  assert.equal(f.count('account-receive'), 1);
+  assert.equal(f.count('counters'), 1, 'the first follow-up is still running');
+  f.emit('private-messages');
+  await f.advance(500);
+  const second = f.first('account-receive');
+  assert.equal(f.count('account-receive'), 2, 'the next message is received');
+  assert.ok(
+    second !== null && second <= promptReceiptMs,
+    `second receipt started at ${second} ms, budget ${promptReceiptMs} ms`,
+  );
+});
