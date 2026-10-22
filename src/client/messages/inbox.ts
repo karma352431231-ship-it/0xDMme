@@ -19,7 +19,8 @@ interface InboxPorts {
   groups: (signal: AbortSignal) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
-  /** `live` reports whether the page answered live demand. */
+  /** After a committed page, outside the turn; `live` reports whether the
+   * page answered live demand. */
   received: (scope: HistoryKind, live: boolean) => void | Promise<void>;
   failed: (error: unknown, live: boolean) => void;
 }
@@ -120,14 +121,16 @@ export class MessageInbox {
       generation = this.ports.generation();
     this.abort = abort;
     let settled = () => {};
+    const live = this.demanded.has(turn.kind);
     this.active = {
-      live: this.demanded.has(turn.kind),
+      live,
       done: new Promise<void>((resolve) => {
         settled = resolve;
       }),
     };
+    let committed = false;
     try {
-      await measureWork(this, 'inbox', () =>
+      committed = await measureWork(this, 'inbox', () =>
         this.receivePage(turn, abort.signal, generation),
       );
     } catch (error: unknown) {
@@ -141,6 +144,18 @@ export class MessageInbox {
       this.ports.changed();
       if (this.ports.current(generation)) this.resume();
     }
+    if (committed) this.followUp(turn.kind, live, generation);
+  }
+  /** Counters, sound and visible read receipts follow a committed page outside
+   * the turn, so the next live page never waits for them. Their own failures
+   * are reported without delaying receipt. */
+  private followUp(kind: HistoryKind, live: boolean, generation: number): void {
+    void Promise.resolve()
+      .then(() => this.ports.received(kind, live))
+      .catch((error: unknown) => {
+        if (this.ports.current(generation) && !expectedInterruption(error))
+          this.ports.failed(error, false);
+      });
   }
   private resumeInterrupted(error: unknown, turn: PreparationTurn): void {
     if (!expectedInterruption(error)) return;
@@ -163,7 +178,7 @@ export class MessageInbox {
     turn: PreparationTurn,
     signal: AbortSignal,
     generation: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const more = await retrySnapshotRead(
       () =>
         turn.kind === 'groups'
@@ -171,13 +186,13 @@ export class MessageInbox {
           : this.ports.direct(signal),
       () => !signal.aborted && this.ports.current(generation),
     );
-    if (signal.aborted || !this.ports.current(generation)) return;
+    if (signal.aborted || !this.ports.current(generation)) return false;
     this.preparation.complete(turn, more);
     if (more) this.continuing.add(turn.kind);
     else this.continuing.delete(turn.kind);
     // A hint that arrived during this page keeps its demand for the successor.
     if (!this.preparation.has(turn.kind)) this.demanded.delete(turn.kind);
     this.retryAt = 0;
-    await this.ports.received(turn.kind, this.active?.live ?? false);
+    return true;
   }
 }

@@ -63,7 +63,9 @@ The text send quiet period, startup decoration and queued checks do not delay
 it, and decorative maintenance yields to runnable live receipt. A foreground
 action waits for an in-flight live page to commit instead of discarding it;
 speculative preparation is still interrupted. Sending and receiving therefore
-alternate during continuous typing. A live receipt failure offers the retry
+alternate during continuous typing. Counters, sound and visible read
+receipts after a committed page run outside the receipt turn, so a slow
+follow-up never holds the next live page. A live receipt failure offers the retry
 action, as the selected read it replaced did. The list and account inbox
 continue working when no conversation is selected.
 
