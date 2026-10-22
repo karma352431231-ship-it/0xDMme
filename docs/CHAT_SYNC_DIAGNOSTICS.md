@@ -193,3 +193,30 @@ unchanged. Activation requires the exact pushed integration commit to pass the
 full CI workflow, a local build, preservation checks and retained code rollback.
 The existing controller/screen hotspots still require the separate verification
 and rendering extractions described in [message receiving](MESSAGE_RECEIVING.md#ownership-and-review-order).
+
+## Startup priority and batched authority turns — 22 October 2026
+
+After the bounded opening shipped, captures still showed the contact list
+about 7 seconds after the first authority turn with one tab and 13–18 seconds
+with two. Until then the account ran 23–35 exclusive turns one after another;
+every turn read the device directory again, which was half of all requests.
+
+Communities and the public profile started their session work from their own
+session change, outside `SessionBoot`, so public DMs, the feed and profile
+state queued first. The live stream's two signed handshake turns then waited
+as maintenance behind them, and the directory refresh waits for that
+handshake. Both modules now accept a coordinated startup option and, with it,
+wait for the `ready()` call `SessionBoot` makes after the private directory's
+first load. A visible page signs the live handshake with interactive priority.
+
+`AuthorityWork.hold` lets operations already waiting for the same account and
+priority follow a running operation inside its native turn: at most three
+followers within one second, and any failure ends the batch. Maintenance never
+takes a follower while interactive work waits, and interactive batches keep
+the four-to-one maintenance share. A follower reuses the directory its leader
+read; nothing survives the turn. Every request still carries the signed
+directory, and the server checks the current session, the directory and this
+device's membership on each one. Callers settle inside the turn, so the native
+lock may be released slightly after a caller resumes.
+
+Real-browser timing still needs a new one- and two-tab capture.
