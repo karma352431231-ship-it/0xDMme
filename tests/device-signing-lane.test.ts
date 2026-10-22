@@ -66,12 +66,44 @@ for (const [name, position] of [
     assert.equal(calls.exclusive, 1);
   });
 
-await test('without verified state the work runs in an exclusive turn without a check', async () => {
-  const { subject, calls } = lane({ verified: null });
-  assert.equal(
-    await subject.run((authority) => Promise.resolve(authority.directory)),
-    'exclusive',
+await test('startup work waits for the first verification instead of taking the exclusive turn', async () => {
+  let state: VerifiedSigner | null = null;
+  const positions: number[] = [];
+  const verified = new SigningLane({
+    verified: () => state,
+    position: (_signer, after) => {
+      positions.push(after);
+      return Promise.resolve({ events: 0, revision: 3, head: directory });
+    },
+    exclusive: () => Promise.reject(new Error('Not expected.')),
+  });
+  const running = verified.run((authority) =>
+    Promise.resolve(authority.directory),
   );
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(positions, []);
+  state = {
+    session: { accountId: 'account', deviceId: 'device', csrf: 'csrf' },
+    directory,
+    events: 3,
+    sign: () => Promise.resolve('signature'),
+    current: () => true,
+  };
+  verified.verifiedChanged();
+  assert.equal(await running, directory);
+  assert.deepEqual(positions, [3]);
+});
+
+await test('without any verification in eight seconds the work runs in an exclusive turn', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { subject, calls } = lane({ verified: null });
+  const running = subject.run((authority) =>
+    Promise.resolve(authority.directory),
+  );
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(calls.exclusive, 0);
+  t.mock.timers.tick(8000);
+  assert.equal(await running, 'exclusive');
   assert.deepEqual(calls, { positions: [], exclusive: 1 });
 });
 

@@ -156,7 +156,11 @@ async function page(
     'startVault',
     'startCalls',
   ])
-    fixture[name] = () => ({ ...feature, ready: () => readied.push(name) });
+    fixture[name] = () => ({
+      ...feature,
+      ready: () => readied.push(name),
+      sessionReady: () => readied.push(name),
+    });
   Object.assign(fixture, {
     mountEnrollmentLogin: (node: Node) => enrollments.push(node),
     startAccount: (options: { changed: typeof changed }) => {
