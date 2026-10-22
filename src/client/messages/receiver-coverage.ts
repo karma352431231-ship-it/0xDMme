@@ -23,6 +23,16 @@ export function receiverOwnsAdvance(input: {
   );
 }
 
+/** The durable checkpoint, shared by every tab of this device, passed the cut
+ * this tab last committed or observed: another tab applied those changes and
+ * this tab's projections did not receive them. */
+export function advancedElsewhere(
+  own: MessageSyncSnapshot | null,
+  durable: MessageSyncSnapshot | null,
+): boolean {
+  return own !== null && durable !== null && durable.revision > own.revision;
+}
+
 /** A completed receiver cut passed the open window without covering it, so
  * later cuts cannot cover it either until the window is read again. */
 export function windowBehind(

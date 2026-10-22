@@ -228,6 +228,7 @@ export function startMessages(
     {
       recovery: () => synchronization.requestInbox('direct'),
       stale: () => synchronization.request('probe', {}, 'direct'),
+      elsewhere: () => refreshDirectoryPreviews(),
       published: (value) => {
         outgoing.acknowledge(value);
         renderHistory();

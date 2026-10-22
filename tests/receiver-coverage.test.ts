@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  advancedElsewhere,
   receiverOwnsAdvance,
   windowBehind,
 } from '../src/client/messages/receiver-coverage.ts';
@@ -93,4 +94,11 @@ await test('a completed cut past the open window marks it behind', () => {
   assert.equal(windowBehind(JSON.stringify(at(5)), at(5)), false);
   assert.equal(windowBehind(JSON.stringify(at(6)), at(5)), false);
   assert.equal(windowBehind(JSON.stringify({ revision: 1 }), at(5)), false);
+});
+
+await test('only a durable checkpoint past the cut this tab knows was advanced elsewhere', () => {
+  assert.equal(advancedElsewhere(at(4), at(5)), true);
+  assert.equal(advancedElsewhere(at(5), at(5)), false, 'own commit');
+  assert.equal(advancedElsewhere(null, at(5)), false, 'first observation');
+  assert.equal(advancedElsewhere(at(5), null), false, 'no checkpoint yet');
 });

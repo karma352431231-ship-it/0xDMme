@@ -70,7 +70,14 @@ authority priority, ahead of queued maintenance. While a visible, focused app
 window exists, the service worker shows no private message alert and does not
 decrypt one (owner-approved on 22 October 2026): the app already shows the
 message and plays its own alert, and a second decryption would hold the shared
-account lock the app's receipt waits for. Calls and public alerts still show. A live receipt failure offers the retry
+account lock the app's receipt waits for. Calls and public alerts still show.
+
+Tabs of one device share the receiver's durable checkpoint, and only visible
+tabs receive. Each receiver turn reports the checkpoint it loaded; when another
+tab advanced it past the cut this tab knows, this tab's open latest window,
+already stored locally by the other tab, is read again and the list refreshes
+its previews. A receipt that was idle because another tab applied it no longer
+leaves the open chat stale. A live receipt failure offers the retry
 action, as the selected read it replaced did. The list and account inbox
 continue working when no conversation is selected.
 
