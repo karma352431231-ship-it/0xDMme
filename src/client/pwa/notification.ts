@@ -15,6 +15,8 @@ import { PublicAlertHistory } from './public-alert-history.ts';
 
 interface NotificationPorts {
   wake: () => Promise<void>;
+  /** Whether a visible, focused app window already shows new messages. */
+  focusedApp: () => Promise<boolean>;
   details: typeof privateNotificationDetails;
   show: (
     title: string,
@@ -122,6 +124,10 @@ async function notifyMessages(
     await show(ports, publicAppearance(preview), sound);
     await history.remember();
   }
+  // The focused app already shows the message and plays its own alert.
+  // Decrypting it again here would also hold the shared account lock that
+  // the app's own receipt is waiting for. Calls and public alerts still show.
+  if (candidates.length && (await ports.focusedApp())) return;
   if (
     candidates.length &&
     'publicScope' in data &&

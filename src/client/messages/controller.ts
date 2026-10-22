@@ -1925,7 +1925,10 @@ export class Messages {
   }
   /** One global page per idle turn; user actions abort its network requests.
    * No views/read receipts are published, and the SDK lock is released each turn. */
-  async synchronizeAll(signal: AbortSignal): Promise<boolean> {
+  async synchronizeAll(
+    signal: AbortSignal,
+    work: VaultWorkOptions = {},
+  ): Promise<boolean> {
     const generation = this.generation,
       abort = new AbortController();
     this.prefetchAbort = abort;
@@ -1935,77 +1938,83 @@ export class Messages {
       this.guard(generation);
     };
     try {
-      return await this.access.withVault(false, async (a) => {
-        guard();
-        const api = (op: string, data: Record<string, unknown>) =>
-          messageApi(a, op, data, { guard, signal: combined });
-        const hints = this.conversations.hintVersion,
-          recoveryWake = this.recoveryWake;
-        const turn = new MessageReceiveTurn<MessageView>({
-          api,
-          guard,
-          cache: async (snapshot, item) => {
-            const view = await this.readCached(a, snapshot, item);
-            return view ? retainedMessageView(view) : null;
-          },
-          open: async () => {
-            const machine = await this.machine(a, generation, api);
-            try {
-              await measureWork(this, 'sdk/prepare', () => machine.prepare(a));
-              await this.receive(a, machine, generation, api);
-              return machine;
-            } catch (error: unknown) {
-              machine.close();
-              throw error;
-            }
-          },
-        });
-        try {
-          const more = await this.receiver.step({
-            account: a.session.accountId,
-            device: a.session.deviceId,
-            wakeRecovery: recoveryWake !== this.recoveryHandled,
-            invalidate: () => {
-              this.readTarget.reset();
-              this.confirmed = null;
-              this.probedSnapshot = null;
-              this.conversations.invalidateReuse('sync-failed');
-              this.visibility.close('pending');
-            },
-            status: (pending) => {
-              this.synchronizationIssues = pending;
-            },
-            failureReason: (error) =>
-              error instanceof MegolmDecryptionError &&
-              error.code === DecryptionErrorCode.MissingRoomKey
-                ? 'key'
-                : 'verification',
+      return await this.access.withVault(
+        false,
+        async (a) => {
+          guard();
+          const api = (op: string, data: Record<string, unknown>) =>
+            messageApi(a, op, data, { guard, signal: combined });
+          const hints = this.conversations.hintVersion,
+            recoveryWake = this.recoveryWake;
+          const turn = new MessageReceiveTurn<MessageView>({
             api,
             guard,
-            load: () => loadSyncProgress(a),
-            save: (state) => saveSyncProgress(a, state),
-            remove: (item) =>
-              this.indexItem({ a, generation, selected: null, api }, item),
-            prepare: (snapshot, items) => turn.prepare(snapshot, items),
-            finish: () => turn.flush(),
-            read: (snapshot, items) =>
-              this.readWindow({
-                a,
-                generation,
-                api: turn.api,
-                snapshot,
-                items,
-                turn,
-              }).then((views) => views.map(retainedMessageView)),
-            commit: (batch) => this.commitInboxBatch(batch, hints),
-            suspendedState: messageStates.suspended,
+            cache: async (snapshot, item) => {
+              const view = await this.readCached(a, snapshot, item);
+              return view ? retainedMessageView(view) : null;
+            },
+            open: async () => {
+              const machine = await this.machine(a, generation, api);
+              try {
+                await measureWork(this, 'sdk/prepare', () =>
+                  machine.prepare(a),
+                );
+                await this.receive(a, machine, generation, api);
+                return machine;
+              } catch (error: unknown) {
+                machine.close();
+                throw error;
+              }
+            },
           });
-          this.recoveryHandled = recoveryWake;
-          return more;
-        } finally {
-          turn.close();
-        }
-      });
+          try {
+            const more = await this.receiver.step({
+              account: a.session.accountId,
+              device: a.session.deviceId,
+              wakeRecovery: recoveryWake !== this.recoveryHandled,
+              invalidate: () => {
+                this.readTarget.reset();
+                this.confirmed = null;
+                this.probedSnapshot = null;
+                this.conversations.invalidateReuse('sync-failed');
+                this.visibility.close('pending');
+              },
+              status: (pending) => {
+                this.synchronizationIssues = pending;
+              },
+              failureReason: (error) =>
+                error instanceof MegolmDecryptionError &&
+                error.code === DecryptionErrorCode.MissingRoomKey
+                  ? 'key'
+                  : 'verification',
+              api,
+              guard,
+              load: () => loadSyncProgress(a),
+              save: (state) => saveSyncProgress(a, state),
+              remove: (item) =>
+                this.indexItem({ a, generation, selected: null, api }, item),
+              prepare: (snapshot, items) => turn.prepare(snapshot, items),
+              finish: () => turn.flush(),
+              read: (snapshot, items) =>
+                this.readWindow({
+                  a,
+                  generation,
+                  api: turn.api,
+                  snapshot,
+                  items,
+                  turn,
+                }).then((views) => views.map(retainedMessageView)),
+              commit: (batch) => this.commitInboxBatch(batch, hints),
+              suspendedState: messageStates.suspended,
+            });
+            this.recoveryHandled = recoveryWake;
+            return more;
+          } finally {
+            turn.close();
+          }
+        },
+        work,
+      );
     } finally {
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
     }

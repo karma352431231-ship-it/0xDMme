@@ -26,6 +26,7 @@ function fixture(t: TestContext, sound = true) {
   const detailed = deferred<PrivateNotificationDetail[]>();
   const started = deferred<AbortSignal>();
   const reads: AbortSignal[] = [];
+  const app = { focused: false };
   const globals = {
     fetch,
     caches: Object.getOwnPropertyDescriptor(globalThis, 'caches'),
@@ -60,6 +61,7 @@ function fixture(t: TestContext, sound = true) {
   });
   const delivery = new NotificationDelivery({
     wake: () => Promise.resolve(),
+    focusedApp: () => Promise.resolve(app.focused),
     show: (title, options) => {
       notifications.push({ title, options });
       return Promise.resolve();
@@ -77,6 +79,7 @@ function fixture(t: TestContext, sound = true) {
     icon: 'data:image/png;base64,c3ludGhldGlj',
   };
   return {
+    app,
     delivery,
     inspection,
     notifications,
@@ -256,4 +259,16 @@ await test('notification candidates admit only bounded private contact/group loc
     ]),
   );
   assert.throws(() => privatePushCandidates([{}, {}, {}]));
+});
+
+await test('a focused app window receives private messages itself; calls still alert', async (t) => {
+  const f = fixture(t);
+  f.app.focused = true;
+  await f.delivery.request();
+  assert.deepEqual(f.reads, [], 'no second decryption under the account lock');
+  assert.equal(f.notifications.length, 0, 'no system alert over the open app');
+  Object.assign(f.inspection, { call: true, showCall: true });
+  await f.delivery.request();
+  assert.equal(f.notifications.length, 1, 'an incoming call still alerts');
+  assert.equal(f.notifications[0]?.options.tag, '0xdmme-call');
 });
