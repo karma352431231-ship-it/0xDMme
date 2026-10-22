@@ -8,6 +8,7 @@ import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
 import {
   advancedElsewhere,
+  StaleWindowReport,
   receiverOwnsAdvance,
   windowBehind,
 } from './receiver-coverage.ts';
@@ -247,6 +248,7 @@ export class Messages {
   private recoveryWake = 0;
   private recoveryHandled = 0;
   private receiverCut: MessageSyncSnapshot | null = null;
+  private readonly staleWindow = new StaleWindowReport();
   private readonly audiences = new PrivateAudiences();
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
@@ -406,6 +408,7 @@ export class Messages {
     this.probedSnapshot = null;
     this.confirmed = null;
     this.receiverCut = null;
+    this.staleWindow.clear();
     this.audiences.clear();
     this.verified.clear();
     this.generation++;
@@ -2034,8 +2037,12 @@ export class Messages {
     const elsewhere = advancedElsewhere(this.receiverCut, durable);
     if (!this.receiverCut || durable.revision > this.receiverCut.revision)
       this.receiverCut = durable;
-    if (this.latestWindowBehind(durable)) this.events.stale?.();
+    if (this.latestWindowBehind(durable)) this.reportStale(durable);
     if (elsewhere) this.events.elsewhere?.();
+  }
+  private reportStale(cut: MessageSyncSnapshot): void {
+    if (this.selected && this.staleWindow.raise(this.selected, cut))
+      this.events.stale?.();
   }
   private latestWindowBehind(cut: MessageSyncSnapshot): boolean {
     return (
@@ -2107,7 +2114,7 @@ export class Messages {
   ): void {
     if (!covered) {
       if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
-        this.events.stale?.();
+        this.reportStale(snapshot);
       return;
     }
     const candidate = this.selected

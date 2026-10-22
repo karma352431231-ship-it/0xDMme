@@ -42,3 +42,22 @@ export function windowBehind(
   const snapshot = JSON.parse(window) as unknown;
   return isSyncSnapshot(snapshot) && snapshot.revision < cut.revision;
 }
+
+/** A window behind a cut is reported once per open chat and durable revision.
+ * The read it asks for can be followed by another idle receiver turn that
+ * still sees the same cut; reporting it again would schedule reads without
+ * end. Another chat, or a later cut, is reported again. */
+export class StaleWindowReport {
+  private peer: string | null = null;
+  private revision = -1;
+  raise(peer: string, cut: MessageSyncSnapshot): boolean {
+    if (peer === this.peer && cut.revision <= this.revision) return false;
+    this.peer = peer;
+    this.revision = cut.revision;
+    return true;
+  }
+  clear(): void {
+    this.peer = null;
+    this.revision = -1;
+  }
+}
