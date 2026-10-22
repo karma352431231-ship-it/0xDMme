@@ -5,6 +5,9 @@ import {
   guardProjectionFailure,
 } from '../synchronization-work/index.ts';
 import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
+import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
+import { receiverOwnsAdvance, windowBehind } from './receiver-coverage.ts';
+import { PrivateAudiences } from '../message-crypto/index.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
 import { MessageReceiveTurn } from './receive-turn.ts';
@@ -119,6 +122,7 @@ import {
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { backupMessageApi } from '../message-api/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import {
   MessageIndex,
   IncompleteMessageIndex,
@@ -161,10 +165,24 @@ export interface ConversationProjection {
   peer: string | null;
   latest: boolean;
 }
+/** A committed receiver page; its views are verified and durably stored. */
+export interface ReceiptCommit {
+  account: string;
+  /** Whether the page belongs to an append journal cut. */
+  journal: boolean;
+  /** The page's live change items, without recovery ranges. */
+  items: readonly MessageItem[];
+  views: readonly MessageView[];
+  /** Retained windows that published this page themselves. */
+  covered: ReadonlySet<string>;
+}
 interface MessageControllerEvents {
   recovery?: () => void;
   published?: (value: { id: string; peer: string }) => void;
   verified?: (peer: string, views: MessageView[]) => void;
+  /** The open window fell behind the account receiver and needs a read. */
+  stale?: () => void;
+  receipt?: (receipt: ReceiptCommit) => void;
 }
 interface Outbox {
   outboxOrder?: string;
@@ -222,6 +240,8 @@ export class Messages {
   private readonly recoveryAlarm: MessageRecoveryWakeup;
   private recoveryWake = 0;
   private recoveryHandled = 0;
+  private receiverCut: MessageSyncSnapshot | null = null;
+  private readonly audiences = new PrivateAudiences();
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
   private prefetchAbort: AbortController | null = null;
@@ -232,6 +252,7 @@ export class Messages {
     peer: string,
     views: MessageView[],
   ) => void;
+  private readonly events: MessageControllerEvents;
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -260,6 +281,7 @@ export class Messages {
       typeof events === 'function' ? events : (events.published ?? (() => {}));
     this.verifiedProjection =
       typeof events === 'function' ? () => {} : (events.verified ?? (() => {}));
+    this.events = typeof events === 'function' ? {} : events;
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {
     const session = this.session,
@@ -339,7 +361,7 @@ export class Messages {
     if (!missing.length) return views;
     const machine = await this.machine(c.a, c.generation, c.api);
     try {
-      await machine.prepare(c.a);
+      await measureWork(this, 'sdk/prepare', () => machine.prepare(c.a));
       await this.receive(c.a, machine, c.generation, c.api);
       const fetched = await this.readBatch({
         ...c,
@@ -377,6 +399,8 @@ export class Messages {
     this.conversations.clear('controller-close');
     this.probedSnapshot = null;
     this.confirmed = null;
+    this.receiverCut = null;
+    this.audiences.clear();
     this.verified.clear();
     this.generation++;
     this.visibility.close();
@@ -389,6 +413,8 @@ export class Messages {
     if (scope === 'account') {
       this.previewGeneration++;
       this.conversations.invalidateReuse('account-pause');
+      // Authority suspension or revocation: the next send rotates its session.
+      this.audiences.clear();
     }
     this.selection.invalidate(
       scope === 'account' ? 'authorization' : 'navigation',
@@ -415,6 +441,7 @@ export class Messages {
   }
   hide(): void {
     this.selection.invalidate('authorization');
+    this.audiences.clear();
     this.generation++;
     this.recoveryAlarm.clear();
     this.readTarget.reset();
@@ -434,6 +461,29 @@ export class Messages {
     this.probedSnapshot = null;
     this.conversations.hint();
     this.visibility.hint();
+  }
+  /** A private append hint. Unlike a generic wakeup, retained windows stay
+   * reusable; in-flight verification still cannot publish stale rows. */
+  appended(): void {
+    this.recoveryWake++;
+    this.probedSnapshot = null;
+    this.conversations.appended();
+    this.visibility.hint();
+  }
+  /** Leave a probed append-only advance to the account receiver, which updates
+   * the open window from its own commit; otherwise keep it for a read. */
+  handOffAdvance(): boolean {
+    if (
+      !this.confirmed ||
+      !receiverOwnsAdvance({
+        window: this.confirmed.snapshot,
+        probed: this.probedSnapshot,
+        receiver: this.receiverCut,
+      })
+    )
+      return false;
+    this.probedSnapshot = null;
+    return true;
   }
   setLiveConnected(connected: boolean): void {
     if (connected) this.recoveryWake++;
@@ -529,7 +579,9 @@ export class Messages {
     api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<MessageCrypto> {
-    return openMessageMachine(a, api);
+    return measureWork(this, 'sdk/open', () =>
+      openMessageMachine(a, api, this.audiences),
+    );
   }
   private async recoverable(
     a: VaultAuthority,
@@ -565,7 +617,7 @@ export class Messages {
         await this.recoverable(a, generation);
         const machine = await this.machine(a, generation);
         try {
-          await machine.prepare(a);
+          await measureWork(this, 'sdk/prepare', () => machine.prepare(a));
           this.guard(generation);
           this.initializedDirectory = a.directory;
         } finally {
@@ -1247,7 +1299,7 @@ export class Messages {
           : await this.machine(c.a, c.generation, c.api);
         try {
           if (!c.turn) {
-            await machine.prepare(c.a);
+            await measureWork(this, 'sdk/prepare', () => machine.prepare(c.a));
             await this.receive(c.a, machine, c.generation, c.api);
           }
           return await this.readBatch({
@@ -1652,6 +1704,16 @@ export class Messages {
     api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<void> {
+    await measureWork(this, 'sdk/key-inbox', () =>
+      this.drainKeyInbox(a, machine, api),
+    );
+  }
+  /** Up to 16 Olm batches of 16; ACK only after the SDK persisted each event. */
+  private async drainKeyInbox(
+    a: VaultAuthority,
+    machine: MessageCrypto,
+    api: (op: string, data: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<void> {
     this.transportPending = false;
     for (let batch = 0; batch < 16; batch++) {
       const raw = object(await api('matrix-inbox', {})),
@@ -1889,7 +1951,7 @@ export class Messages {
           open: async () => {
             const machine = await this.machine(a, generation, api);
             try {
-              await machine.prepare(a);
+              await measureWork(this, 'sdk/prepare', () => machine.prepare(a));
               await this.receive(a, machine, generation, api);
               return machine;
             } catch (error: unknown) {
@@ -1968,7 +2030,7 @@ export class Messages {
       this.index.rememberTailPage(catalog);
     else this.index.rememberConfirmedPage(catalog);
     const blocked = new Set(batch.pending.map((item) => item.peer));
-    this.conversations.updateVerified({
+    const covered = this.conversations.updateVerified({
       from: batch.from,
       snapshot: batch.snapshot,
       hints,
@@ -1985,10 +2047,38 @@ export class Messages {
           batch.views.filter((view) => view.peer === peer),
         ),
     });
-    if (!this.selected || !batch.complete || blocked.has(this.selected)) return;
-    const candidate = this.conversations.read(this.selected);
-    if (!candidate || candidate.snapshot !== JSON.stringify(batch.snapshot))
+    if (batch.complete) this.receiverCut = batch.snapshot;
+    this.events.receipt?.({
+      account: batch.snapshot.account,
+      journal: batch.snapshot.source === 'journal',
+      items: batch.page.items,
+      views: batch.views,
+      covered,
+    });
+    if (
+      !this.selected ||
+      this.before !== null ||
+      !batch.complete ||
+      blocked.has(this.selected)
+    )
       return;
+    this.publishSelectedReceipt(batch.snapshot, covered.has(this.selected));
+  }
+  /** The open latest window shows the receiver's commit when the batch covered
+   * it; a window the cut passed without covering asks for its own read. */
+  private publishSelectedReceipt(
+    snapshot: MessageSyncSnapshot,
+    covered: boolean,
+  ): void {
+    if (!covered) {
+      if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
+        this.events.stale?.();
+      return;
+    }
+    const candidate = this.selected
+      ? this.conversations.read(this.selected)
+      : null;
+    if (!candidate) return;
     this.confirmed = candidate;
     this.verified.clear();
     const token = this.visibility.refresh();

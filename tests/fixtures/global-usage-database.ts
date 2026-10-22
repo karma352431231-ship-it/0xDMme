@@ -46,6 +46,12 @@ export async function globalUsageSources(client: pg.Client) {
   ).rows;
 }
 
+/** Columns later additive migrations derive from existing data. Upgrade
+ * fingerprints compare every pre-existing column; 098 fills the group removal
+ * fence from the existing revision. */
+const derivedColumns: Record<string, string[]> = {
+  groups: ['message_invalidation'],
+};
 export async function globalSourceSnapshot(
   client: pg.Client,
   sources: { name: string }[],
@@ -67,8 +73,9 @@ export async function globalSourceSnapshot(
       hash: string | null;
       bytes: string;
     }>(
-      `SELECT count(*)::text AS count,md5(string_agg(t::text,'|' ORDER BY t::text)) AS hash,
+      `SELECT count(*)::text AS count,md5(string_agg((to_jsonb(t)-$1::text[])::text,'|' ORDER BY (to_jsonb(t)-$1::text[])::text)) AS hash,
         coalesce(sum(${expression}),0)::text AS bytes FROM hash_talk.${name} t`,
+      [derivedColumns[name] ?? []],
     );
     rows.push({ name, ...result.rows[0]! });
   }

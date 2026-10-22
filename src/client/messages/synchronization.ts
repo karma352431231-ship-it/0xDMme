@@ -32,6 +32,8 @@ interface SynchronizationOperations {
   status: () => void;
   notice: (message: string) => void;
   complete: () => void;
+  /** A receiver page settled; defaults to `complete`. */
+  receiptComplete?: () => void;
   renderPending: () => Promise<void>;
   pause: () => void;
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
@@ -40,7 +42,11 @@ interface SynchronizationOperations {
   groupProjection?: () => Promise<void>;
   presence: () => Promise<void>;
   refresh: (work: VaultWorkOptions) => Promise<void>;
-  changes: (work: VaultWorkOptions) => Promise<void>;
+  /** Check the open conversation for a categorized change of this scope. */
+  changes: (
+    work: VaultWorkOptions,
+    scope: ChangeFollowupScope,
+  ) => Promise<void>;
   changeMaintenance: readonly [
     () => Promise<void>,
     () => Promise<void>,
@@ -62,6 +68,7 @@ export class MessageSynchronization {
   private interactiveChange = false;
   private visibleChange: symbol | null = null;
   private receiptProjectionPending = false;
+  private receiptFailed = false;
   private maintenance: Promise<void> | null = null;
   private readonly inbox: MessageInbox;
   private readonly continuation: MessageContinuationQueue;
@@ -84,14 +91,22 @@ export class MessageSynchronization {
     });
     this.inbox = new MessageInbox({
       ready: () => this.canPreload(),
+      receiptReady: () => this.receiptReady,
       generation: () => options.state().generation,
       current: (generation) => this.current(generation),
       direct: (signal) => options.preloadDirect(signal),
       groups: (signal) => options.preloadGroups(signal),
       pause: () => options.pause(),
       changed: () => this.resume(),
-      received: (scope) => this.receivedPage(scope),
-      failed: (error) => {
+      received: (scope, live) => {
+        if (live && this.receiptFailed)
+          this.failed = this.receiptFailed = false;
+        return this.receivedPage(scope);
+      },
+      // Live receipt delivers the open chat, so its failure offers a retry
+      // like the selected history read it replaced.
+      failed: (error, live) => {
+        if (live) this.failed = this.receiptFailed = true;
         this.report(error, t('Could not prepare conversation history.'));
         options.status();
       },
@@ -138,6 +153,12 @@ export class MessageSynchronization {
     this.prepareHistory(scope);
     this.resume();
   }
+  /** A live content hint. The account receiver applies it promptly, whichever
+   * chat is open; the open chat is updated from the same verified commit. */
+  receive(scope: HistoryKind): void {
+    this.inbox.demand(scope);
+    this.resume();
+  }
   request(
     update: LiveUpdate = 'refresh',
     work: VaultWorkOptions = {},
@@ -178,6 +199,7 @@ export class MessageSynchronization {
   }
   reset(): void {
     this.followup.reset();
+    this.receiptFailed = false;
     this.interactiveChange = false;
     this.visibleChange = null;
     this.receiptProjectionPending = false;
@@ -284,11 +306,13 @@ export class MessageSynchronization {
         this.opening.waiting)
     );
   }
+  /** Decoration and speculative work also yield to runnable live receipt. */
   get backgroundReady(): boolean {
     return (
       this.canSynchronize() &&
       !this.updates.waiting &&
-      !this.continuation.waiting
+      !this.continuation.waiting &&
+      !this.inbox.urgent
     );
   }
   async background(work: () => Promise<void>): Promise<void> {
@@ -298,12 +322,14 @@ export class MessageSynchronization {
   }
   async run(work: () => Promise<void>): Promise<boolean> {
     if (this.closed || this.busy) return false;
-    this.stopPreload();
     this.busy = true;
+    // A live receipt page commits first; speculative preparation is interrupted.
+    const receipt = this.inbox.settle();
     this.failed = false;
     const current = this.options.state().generation;
     this.options.status();
     try {
+      await receipt;
       // A user action waits for automatic maintenance instead of being dropped.
       await this.maintenance;
       if (!this.current(current)) return false;
@@ -379,6 +405,15 @@ export class MessageSynchronization {
       !state.textPending
     );
   }
+  /** Live receipt waits only for an active owner or a requested opening. Send
+   * quiet time, startup decoration and queued checks do not delay delivery. */
+  private get receiptReady(): boolean {
+    return (
+      this.foregroundReady &&
+      !this.opening.waiting &&
+      this.options.state().visible
+    );
+  }
   get presentationReady(): boolean {
     const state = this.options.state();
     return !this.closed && state.session && state.online && !state.suspended;
@@ -424,7 +459,10 @@ export class MessageSynchronization {
     }
     const generation = this.options.state().generation;
     await this.options.unread();
-    if (this.current(generation)) this.options.complete();
+    if (this.current(generation)) this.completeReceipt();
+  }
+  private completeReceipt(): void {
+    (this.options.receiptComplete ?? this.options.complete)();
   }
   private async refreshGroups(): Promise<void> {
     const work =
@@ -436,7 +474,7 @@ export class MessageSynchronization {
     await this.options.unread();
     if (!this.current(generation) || !this.receiptProjectionPending) return;
     this.receiptProjectionPending = false;
-    this.options.complete();
+    this.completeReceipt();
   }
   private async checkChanges(
     work: VaultWorkOptions,
@@ -449,7 +487,7 @@ export class MessageSynchronization {
       await this.checkAutomatically(
         async () => {
           await retrySnapshotRead(
-            () => this.options.changes(work),
+            () => this.options.changes(work, plan.scope),
             () => this.current(current),
           );
           if (this.current(current)) this.followup.queue(plan);

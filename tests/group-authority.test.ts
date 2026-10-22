@@ -23,8 +23,17 @@ function fixture() {
     key: () => Promise.reject(new Error('Sem chave neste teste de ciclo.')),
     sign: () => Promise.resolve('assinatura-sintética'),
   };
+  const ownership = { entries: 0, holding: 0 };
   const access: VaultAccess = {
-    withVault: (_offline, work) => work(vault),
+    withVault: async (_offline, work) => {
+      ownership.entries++;
+      ownership.holding++;
+      try {
+        return await work(vault);
+      } finally {
+        ownership.holding--;
+      }
+    },
     withLocalVault: () => Promise.reject(new Error('Sem cofre offline.')),
   };
   const authority = new GroupAuthority({
@@ -32,7 +41,7 @@ function fixture() {
     identities: new PeerIdentity(new VaultSync(access)),
     session: () => session,
   });
-  return { authority, vault, session };
+  return { authority, vault, session, ownership };
 }
 
 await test('view invalidation hides an old read without rejecting confirmation of its own creation or entry', async () => {
@@ -86,4 +95,31 @@ await test('vault authority must match the current account, device and session',
       /Account changed/u,
     );
   }
+});
+
+await test('a rate-limited group read waits outside the vault and runs again under fresh authority', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const { authority, ownership } = fixture();
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return Promise.resolve(
+      requests === 1
+        ? Response.json({ error: 'Too many requests.' }, { status: 429 })
+        : Response.json({ items: [] }),
+    );
+  });
+  const read = authority.run(
+    () => {},
+    (context) => context.api('group-message-snapshot', {}),
+  );
+  for (let step = 0; step < 70 && requests < 2; step++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    if (requests === 1)
+      assert.equal(ownership.holding, 0, 'the wait releases the vault');
+    t.mock.timers.tick(1000);
+  }
+  assert.deepEqual(await read, { items: [] });
+  assert.equal(requests, 2);
+  assert.equal(ownership.entries, 2, 'the retry reacquires authority');
 });

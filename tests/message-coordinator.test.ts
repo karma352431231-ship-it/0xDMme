@@ -33,7 +33,7 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
-await test('a categorized private update verifies the visible chat before counters without unrelated maintenance', async (t) => {
+await test('a private update with the chat open is received once by the account receiver before counters, without unrelated maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -46,13 +46,18 @@ await test('a categorized private update verifies the visible chat before counte
   f.calls.length = 0;
   f.state.probeChanged = true;
   f.emit('private-messages');
-  t.mock.timers.tick(150);
+  // Prompt: no client coalescing window or preparation delay.
+  t.mock.timers.tick(1);
   await turn();
-  assert.ok(f.calls.includes('synchronize'));
-  assert.ok(!f.calls.includes('states'));
+  assert.deepEqual(
+    f.calls.filter((call) => call === 'preload'),
+    ['preload'],
+  );
   await advanceMaintenanceUntil(t, () => f.calls.includes('states'));
-  assert.ok(f.calls.indexOf('synchronize') < f.calls.indexOf('states'));
+  assert.ok(f.calls.indexOf('preload') < f.calls.indexOf('states'));
   await finishStartupMaintenance(t);
+  for (const selectedRead of ['probe', 'synchronize'])
+    assert.ok(!f.calls.includes(selectedRead), selectedRead);
   for (const unrelated of ['contacts', 'groups', 'heartbeat'])
     assert.ok(!f.calls.includes(unrelated), unrelated);
   f.calls.length = 0;
@@ -1178,7 +1183,7 @@ await test('sending and continuous private updates never announce sync after his
     assert.equal(f.feedback.dataset['state'], 'ok');
     assert.ok(!f.statusFrames.includes('Syncing…'));
   }
-  f.state.historyFailure = new Error('Could not prepare conversation history.');
+  f.state.pageFailure = new Error('Could not prepare conversation history.');
   f.emit('private-messages');
   await finishStartupMaintenance(t);
   assert.equal(f.feedback.dataset['state'], 'notice');
@@ -1187,7 +1192,7 @@ await test('sending and continuous private updates never announce sync after his
     'Could not prepare conversation history.',
   );
   assert.equal(f.refreshButton.textContent, 'Try again');
-  f.state.historyFailure = null;
+  f.state.pageFailure = null;
   f.retry();
   await turn();
   await finishStartupMaintenance(t);

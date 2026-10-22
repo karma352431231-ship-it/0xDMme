@@ -11,7 +11,7 @@ import { MessageStorageError } from '../message-storage/index.ts';
 import { messageItems } from './history.ts';
 import type { Api, MessageItem } from './history.ts';
 import { assertMessagePage, messagePeer } from './index-sync.ts';
-import { readMessageDelta } from './delta.ts';
+import { JournalManifest } from './journal-manifest.ts';
 import type { SyncProgress, PendingConversation } from './sync-progress.ts';
 
 interface View {
@@ -56,6 +56,7 @@ export interface SyncReceiverPorts<T extends View> {
  * ranges instead of an unbounded failed-packet queue. Network/SDK ownership is
  * supplied by the caller and never overlaps another receiver turn. */
 export class MessageSyncReceiver {
+  private readonly manifest = new JournalManifest();
   async step<T extends View>(p: SyncReceiverPorts<T>): Promise<boolean> {
     const state = await p.load();
     p.guard();
@@ -65,6 +66,7 @@ export class MessageSyncReceiver {
     try {
       return await this.consume(p, state);
     } catch (error: unknown) {
+      this.manifest.clear();
       p.guard();
       if (securityFailure(error)) p.invalidate?.();
       if (error instanceof AccountError && error.status === 409) {
@@ -107,6 +109,7 @@ export class MessageSyncReceiver {
     p.guard();
     confirmProgress(state, source.snapshot, page);
     await p.save(state);
+    if (page.next === null) this.manifest.clear();
     p.guard();
     const items = [
       ...new Map(
@@ -143,7 +146,7 @@ export class MessageSyncReceiver {
       return { snapshot, page: { items: [], next: null }, changed, idle: true };
     initializeTarget(state, snapshot);
     if (snapshot.source === 'journal' && state.discovered) {
-      const items = await readMessageDelta(p.api, state.discovered, snapshot);
+      const items = await this.manifest.read(p.api, state.discovered, snapshot);
       if (items !== null)
         return {
           snapshot,
@@ -470,11 +473,11 @@ async function verifiedRemoval<T extends View>(
 }
 
 function journalPage(
-  items: MessageItem[],
+  items: readonly MessageItem[],
   after: number,
   anchor: number,
 ): { items: MessageItem[]; next: number | null } {
-  assertMessagePage({ items, next: null }, 0);
+  assertMessagePage({ items: [...items], next: null }, 0);
   if (items.some((item) => item.sequence > anchor))
     throw new Error('Message changes exceed their confirmed cut.');
   const remaining = items.filter((item) => item.sequence > after),

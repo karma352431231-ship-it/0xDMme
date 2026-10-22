@@ -15,6 +15,11 @@ row was already selected), the syncing indicator and rendered message count,
 request/body timing, authority-lock wait/hold time, event-loop delays, stream
 control frames, local invalidations, other-tab/device wakeups and push wakeups.
 Row slots describe retained DOM elements, not durable contact identity.
+Work timings also separate the per-turn critical path: `authority/directory`
+(directory fetch and checkpoint inside each online vault turn), `sdk/open`,
+`sdk/prepare` and `sdk/key-inbox` (the bounded Olm inbox drain), next to the
+existing `authority-queue`, `storage-exclusive` and `messages/<operation>`
+request timings. They carry fixed names and durations only.
 Caller positions refer only to hashed application bundles. Existing streams and
 locks that started before installation have the coverage limits in the report.
 

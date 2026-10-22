@@ -68,7 +68,7 @@ export class GroupMessageWindows {
     before: number | null,
   ): Promise<Window> {
     c.guard?.();
-    const snapshot = await currentGroupSnapshot(c),
+    const snapshot = this.index.target(await currentGroupSnapshot(c)),
       scope = canonical([
         c.authority.session.accountId,
         c.authority.session.deviceId,
@@ -233,6 +233,9 @@ export class GroupMessageWindows {
         groupId: input.snapshot.groupId,
         head: input.snapshot.head,
         before: input.before,
+        ...(input.snapshot.anchor === undefined
+          ? {}
+          : { anchor: input.snapshot.anchor }),
       }),
     );
     const page = await c.read(raw),

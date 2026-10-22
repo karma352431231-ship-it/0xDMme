@@ -225,6 +225,35 @@ await test('a hint arriving during cache application cannot be swallowed by its 
   assert.equal(cache.reusable(peer), null);
 });
 
+await test('sustained append hints keep verified windows reusable; an unsafe hint blocks reuse until a later batch', () => {
+  const cache = new ConfirmedConversations<typeof view>();
+  cache.connection(true);
+  cache.remember(peer, {
+    snapshot: JSON.stringify(from),
+    views: [view],
+    oldest: 1,
+  });
+  const apply = (hints: number) =>
+    cache.updateVerified({
+      from,
+      snapshot: next,
+      hints,
+      complete: true,
+      blocked: new Set(),
+      project: (_peer, rows) => rows,
+    });
+  cache.appended();
+  assert.ok(cache.reusable(peer), 'an append keeps known content usable');
+  cache.hint();
+  assert.equal(cache.reusable(peer), null, 'an unsafe hint blocks reuse');
+  const started = cache.hintVersion;
+  // Appends keep arriving while the batch that follows the unsafe hint runs.
+  cache.appended();
+  cache.appended();
+  apply(started);
+  assert.ok(cache.reusable(peer), 'later appends cannot starve reuse');
+});
+
 await test('unfinished target survives append hints; security changes select a new target', () => {
   const target = new MessageReadTarget();
   assert.equal(target.take(from), from);
@@ -289,4 +318,62 @@ await test('a repaired closed conversation advances its older coverage and publi
     3,
   );
   assert.equal(publications.length, 1);
+});
+
+await test('an append-only journal cut covers a window the open chat read between its endpoints; a removal fence or a window ahead never replays rows', () => {
+  const cache = new ConfirmedConversations<typeof view>();
+  cache.connection(true);
+  const at = (revision: number, invalidation = 0): MessageSyncSnapshot => ({
+    ...from,
+    revision,
+    anchor: revision,
+    invalidation,
+  });
+  const arrived = { ...view, id: crypto.randomUUID(), sequence: 4 };
+  const cut = (snapshot: MessageSyncSnapshot) => {
+    const published: string[] = [];
+    const covered = cache.updateVerified({
+      from: at(1),
+      snapshot,
+      hints: cache.hintVersion,
+      complete: true,
+      blocked: new Set(),
+      publish: (peer) => published.push(peer),
+      project: (_peer, rows) => [...rows, arrived],
+    });
+    return { covered: [...covered], published };
+  };
+  const remember = (revision: number, invalidation = 0) =>
+    cache.remember(peer, {
+      snapshot: JSON.stringify(at(revision, invalidation)),
+      views: [view],
+      oldest: 1,
+    });
+
+  remember(3);
+  assert.deepEqual(cut(at(5)), { covered: [peer], published: [peer] });
+  assert.equal(cache.reusable(peer)!.snapshot, JSON.stringify(at(5)));
+  assert.deepEqual(
+    cache.reusable(peer)!.views.map((row) => row.id),
+    [view.id, arrived.id],
+  );
+
+  // A removal between the window and the cut advanced the fence.
+  remember(3);
+  assert.deepEqual(cut(at(5, 4)), { covered: [], published: [] });
+  assert.equal(cache.reusable(peer), null);
+
+  // A window older than the cut's start misses the changes before it.
+  remember(0);
+  assert.deepEqual(cut(at(5)), { covered: [], published: [] });
+  assert.equal(cache.reusable(peer), null);
+
+  // A window ahead of the cut keeps its verified rows untouched.
+  remember(6);
+  assert.deepEqual(cut(at(5)), { covered: [], published: [] });
+  assert.deepEqual(
+    cache.reusable(peer)!.views.map((row) => row.id),
+    [view.id],
+  );
+  assert.equal(cache.reusable(peer)!.snapshot, JSON.stringify(at(6)));
 });

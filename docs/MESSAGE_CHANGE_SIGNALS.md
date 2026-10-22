@@ -43,11 +43,74 @@ telemetry, schema, dependency or cryptographic-format change is authorized.
 ## Receiving and presentation
 
 Private account receipt, the conversation list and the selected history retain
-their distinct lifetimes and presentation responsibilities. Their verified
-message work is coordinated: a visible selected update runs before counters,
-preview refreshes and unrelated maintenance. Completed verified history can
-publish its contact preview without another packet read. The list and account
-inbox continue working when no conversation is selected.
+their distinct lifetimes and presentation responsibilities. The account
+receiver is the single owner of ordinary private content: a private hint
+demands one prompt receiver turn whichever chat is open, without the client
+coalescing window or the speculative preparation delay. The open chat, retained
+inactive windows and their previews are updated from that same verified commit;
+the selected conversation no longer runs a second reader for new messages.
+
+A journal cut from F to T covers a retained window read at W by another
+verified reader when F <= W <= T and the fences of W and T are equal. Removals
+advance the invalidation fence, so equal fences prove no removal separates
+them. A window ahead of the cut keeps its rows untouched, so older rows cannot
+resurrect a later removal. The selected history read remains for opening,
+removal or authority changes, and a window a completed cut passed without
+covering it.
+
+Live receipt waits only for an active foreground owner or a requested opening.
+The text send quiet period, startup decoration and queued checks do not delay
+it, and decorative maintenance yields to runnable live receipt. A foreground
+action waits for an in-flight live page to commit instead of discarding it;
+speculative preparation is still interrupted. Sending and receiving therefore
+alternate during continuous typing. A live receipt failure offers the retry
+action, as the selected read it replaced did. The list and account inbox
+continue working when no conversation is selected.
+
+An append hint keeps retained verified windows reusable; only a generic or
+removal wakeup blocks reuse, until a receiver batch that started after it
+commits, so sustained appends cannot starve navigation. The receiver keeps the
+validated manifest of the frozen journal cut in memory (at most 256 metadata
+items) while it applies the cut's pages, instead of fetching it again for each
+page; a restart, another cut or any failure fetches it again, and each page
+still confirms the cut's fence. The conversation list follows the receiver's
+commits: a live journal page's new message becomes its conversation's preview
+directly. Removing or editing the shown preview, recovery rows and non-journal
+cuts keep one bounded list read, deferred while startup or a text send is
+pending.
+
+Group content and receipt hints no longer refresh the group directory. With
+the group open, a content hint re-reads only that group after verifying it,
+and a receipt hint fetches only its delivery/read metadata without decoding
+history; both then refresh the unread counters and alerts. A background group
+page refreshes counters only. Only a general wakeup refreshes the group list,
+governance and profiles, which may stage or publish a profile.
+
+Group reads use finite cuts (migration 098, owner-approved on 21 October
+2026). The group snapshot also returns `anchor`, the highest packet sequence
+under the group row lock that serializes inserts, and `invalidation`, the
+latest revision that removed or concealed content: an author deletion or
+retention cleanup clearing a body or setting a deletion, or media moving to
+`deleting`. A scope carrying both bounds stays current through later appends,
+edits and other media transitions, and every index, change, object, relation
+and recent read is bounded by its anchor; a later removal still returns 409.
+An unfinished cut is continued after later appends instead of restarting.
+Scopes without the bounds keep exact revision equality, so older clients keep
+working. The migration fails if the packet identity does not use `CACHE 1`.
+Media upload transitions still bump the revision, as the owner decided.
+Deploying 098 needs its own reviewed transition.
+
+Private sends keep their outbound Megolm session while the audience is
+unchanged (owner-approved on 21 October 2026). Each send batch opens a new SDK
+wrapper, which used to invalidate the session on its first message and send a
+new room key to every device of both accounts. The message controller now keeps
+a session-scoped memory of the audience, both directory hashes, that each SDK
+identity already shared the session with. It is memory only and bounded; it is
+cleared on logout, session change, authority suspension and hide, and a reload
+starts empty, so the next send rotates once. Any device added, revoked or reset
+on either side changes the audience and rotates, and another SDK identity never
+reuses an entry. An audience is recorded only after the key share succeeded.
+The SDK's own rotation limits still apply.
 
 Authorized unread counts and mute rules still decide sound before visible
 history is acknowledged as read. Acknowledgement follows that projection without

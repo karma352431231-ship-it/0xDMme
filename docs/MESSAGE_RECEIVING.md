@@ -181,10 +181,10 @@ body on 20 October 2026. Direct-message notifications now put the sender only
 in the native title and the message alone in the body, retaining the photo.
 
 `messages/activity.ts` owns the coalesced, generation-checked unread projection
-and sound. The [categorized change flow](MESSAGE_CHANGE_SIGNALS.md) now verifies
-selected history before deferred counts, while preserving sound before visible
-read acknowledgement; a completed inbox page refreshes counts before its preview
-projection. Push settings,
+and sound. The [categorized change flow](MESSAGE_CHANGE_SIGNALS.md) now receives private
+content through the account receiver alone and updates the open chat from its
+commit, while preserving sound before visible read acknowledgement; a completed
+inbox page refreshes counts before its preview projection. Push settings,
 presence and contact maintenance no longer precede this update. Counts remain
 server-authorized; archive/mute still applies before sounding, and receipt does
 not mark messages as read. System push sound and real-device timing still need

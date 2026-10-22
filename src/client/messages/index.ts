@@ -4,6 +4,7 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import type { ChangeFollowupScope } from './change-followup.ts';
 import { MessageLiveUpdates } from './live-updates.ts';
 import { SelectedPreviewAdmission } from './preview-admission.ts';
 import { ConversationActivity } from './activity.ts';
@@ -15,6 +16,7 @@ import {
   publishVerifiedPreviewReceipts,
 } from './verified-previews.ts';
 import { TextSendQueue } from './text-send.ts';
+import { ReceiptPreviews } from './receipt-previews.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
@@ -225,6 +227,7 @@ export function startMessages(
     },
     {
       recovery: () => synchronization.requestInbox('direct'),
+      stale: () => synchronization.request('probe', {}, 'direct'),
       published: (value) => {
         outgoing.acknowledge(value);
         renderHistory();
@@ -237,6 +240,7 @@ export function startMessages(
           online: navigator.onLine,
           localOnly: false,
         }),
+      receipt: (receipt) => receiptPreviews.commit(receipt),
     },
   );
   const previews = new ConversationPreviewLoader({
@@ -249,6 +253,17 @@ export function startMessages(
         selected?.accountId ?? null,
         conversationVisible('[data-direct-conversation]'),
       ),
+  });
+  const receiptPreviews = new ReceiptPreviews({
+    previews,
+    excluded: () =>
+      previewAdmission.exclude(
+        selected?.accountId ?? null,
+        conversationVisible('[data-direct-conversation]'),
+      ),
+    online: () => navigator.onLine,
+    lookupAllowed: () => !startupWarmup.pending && !textQueue.pending,
+    lookup: refreshDirectoryPreviews,
   });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
@@ -383,19 +398,14 @@ export function startMessages(
         void checkVoiceAuthority();
       hideLiveHistory(event);
     },
-    hint: () => controller.hint(),
+    appended: () => controller.appended(),
     request: (update, work, scope) =>
       synchronization.request(update, work, scope),
     inbox: (scope) => synchronization.requestInbox(scope),
+    receive: (scope) => synchronization.receive(scope),
     projection: (work, scope) => synchronization.requestProjection(work, scope),
     counters: (scope) => synchronization.requestCounters(scope),
-    previews: () => {
-      void previews.refresh(
-        directoryData.peers
-          .filter((peer) => !peer.localOnly)
-          .map((peer) => peer.accountId),
-      );
-    },
+    previews: refreshDirectoryPreviews,
     external: (event) => options.liveEvent?.(event),
   });
   // Confirmed contacts get the new card after a profile change, not only on open.
@@ -437,18 +447,13 @@ export function startMessages(
     },
     complete: () => {
       if (!startupWarmup.pending && !textQueue.pending)
-        void previews.refresh(
-          directoryData.peers
-            .filter((peer) => !peer.localOnly)
-            .map((peer) => peer.accountId),
-        );
-      message = controller.synchronizationIssues.length
-        ? t(
-            'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
-          )
-        : controller.transportPending
-          ? t('Some sends are still pending. They will resume automatically.')
-          : t('Conversations updated.');
+        refreshDirectoryPreviews();
+      announceSynchronized();
+    },
+    // The receiver already updated the list from its commit.
+    receiptComplete: () => {
+      receiptPreviews.settle();
+      announceSynchronized();
     },
     renderPending,
     pause: () => {
@@ -458,7 +463,7 @@ export function startMessages(
     preloadDirect: (signal) => controller.synchronizeAll(signal),
     preloadGroups: (signal) => groups.synchronizeAll(signal),
     unread: () => activity.refresh(),
-    groupProjection: () => groups.refresh(),
+    groupProjection: () => groups.counters(),
     presence: dailyTick,
     refresh,
     changes: refreshChangedSelected,
@@ -714,6 +719,22 @@ export function startMessages(
     text.textContent = upToDate ? '' : message;
     const strip = text.closest<HTMLElement>('.chat-feedback');
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
+  }
+  function refreshDirectoryPreviews(): void {
+    void previews.refresh(
+      directoryData.peers
+        .filter((peer) => !peer.localOnly)
+        .map((peer) => peer.accountId),
+    );
+  }
+  function announceSynchronized(): void {
+    message = controller.synchronizationIssues.length
+      ? t(
+          'Some conversations need key recovery or renewed consent. Other conversations continue syncing.',
+        )
+      : controller.transportPending
+        ? t('Some sends are still pending. They will resume automatically.')
+        : t('Conversations updated.');
   }
   function status(): void {
     textQueue.resume();
@@ -1243,15 +1264,27 @@ export function startMessages(
   }
   async function refreshChangedSelected(
     work: VaultWorkOptions = {},
+    scope: ChangeFollowupScope = 'all',
   ): Promise<void> {
-    if (groups.selected) return groups.refresh();
+    if (groups.selected) return groups.changed(scope);
     const peer = selected;
     if (!peer || !conversationMounted('[data-direct-conversation]')) return;
     if (peer.localOnly) return refreshSelected();
     const changed = await controller.probe(work);
     if (selected !== peer || !conversationMounted('[data-direct-conversation]'))
       return;
-    if (changed) {
+    await applyProbe(changed, work);
+  }
+  /** Ordinary appends reach the open window through the account receiver.
+   * Removals, authority changes and a window the receiver passed need the
+   * selected history read; it is never the routine path for new messages. */
+  async function applyProbe(
+    changed: boolean,
+    work: VaultWorkOptions,
+  ): Promise<void> {
+    if (changed && controller.handOffAdvance())
+      synchronization.receive('direct');
+    else if (changed) {
       synchronization.prepareHistory('direct');
       await synchronization.history(
         () => controller.synchronize(work),

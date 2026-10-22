@@ -62,3 +62,14 @@ await test('a direct hint cannot invalidate an active group receipt completion',
   preparation.complete(preparation.next()!, false);
   assert.equal(preparation.pending, false);
 });
+
+await test('a demanded area runs before alternating speculative preparation', () => {
+  const preparation = new HistoryPreparation();
+  const direct = preparation.next()!;
+  preparation.complete(direct, true);
+  assert.equal(preparation.next()?.kind, 'groups');
+  assert.equal(preparation.next(new Set(['direct']))?.kind, 'direct');
+  preparation.complete(preparation.next(new Set(['direct']))!, false);
+  assert.equal(preparation.has('direct'), false);
+  assert.equal(preparation.next(new Set(['direct']))?.kind, 'groups');
+});

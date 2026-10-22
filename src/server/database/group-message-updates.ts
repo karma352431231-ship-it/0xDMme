@@ -7,10 +7,23 @@ import type { GroupStore } from './groups.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { DeviceStore } from './devices.ts';
 
+/** A finite cut (v2): later appends belong to a successor cut, while any later
+ * removal or concealment still rejects it. Every row it returns has a sequence
+ * at or below `anchor`, the highest packet sequence when the cut was chosen. */
+export interface GroupMessageCut {
+  anchor: number;
+  invalidation: number;
+}
 export interface GroupMessageScope {
   groupId: string;
   head: string;
   revision: number;
+  /** Absent for v1 scopes, which keep exact revision equality. */
+  cut?: GroupMessageCut;
+}
+/** The sequence ceiling for a scope's reads; null for v1 scopes. */
+export function cutAnchor(scope: GroupMessageScope): number | null {
+  return scope.cut?.anchor ?? null;
 }
 interface IndexRow {
   id: string;
@@ -46,7 +59,7 @@ export class GroupMessageUpdates {
       async (client) => ({
         ...scope,
         directory: a.directory,
-        revision: await this.revision(client, scope.groupId),
+        ...(await this.head(client, scope.groupId)),
       }),
     );
   }
@@ -65,8 +78,14 @@ export class GroupMessageUpdates {
       async (client, state) => {
         await this.expect(client, input);
         const rows = await client.query<IndexRow>(
-          'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND sequence>$4 ORDER BY sequence::bigint LIMIT 16',
-          [input.groupId, this.joined(state, a), state.epoch, input.after],
+          'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND sequence>$4 AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY sequence::bigint LIMIT 16',
+          [
+            input.groupId,
+            this.joined(state, a),
+            state.epoch,
+            input.after,
+            cutAnchor(input),
+          ],
         );
         return {
           items: rows.rows.map((row) => ({
@@ -108,8 +127,14 @@ export class GroupMessageUpdates {
           return { reset: true };
         const ids = [...new Set(changes.rows.map((row) => row.message_id))];
         const rows = await client.query<IndexRow>(
-          'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND id=ANY($4::uuid[]) ORDER BY sequence::bigint LIMIT 16',
-          [input.groupId, this.joined(state, a), state.epoch, ids],
+          'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND id=ANY($4::uuid[]) AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY sequence::bigint LIMIT 16',
+          [
+            input.groupId,
+            this.joined(state, a),
+            state.epoch,
+            ids,
+            cutAnchor(input),
+          ],
         );
         return {
           reset: false,
@@ -223,23 +248,52 @@ export class GroupMessageUpdates {
     if (!joined) throw new AccountError(403, 'Membership unavailable.');
     return joined;
   }
-  private async revision(
-    client: pg.PoolClient,
-    group: string,
-  ): Promise<number> {
-    const rows = await client.query<{ revision: string }>(
-      'SELECT message_revision::text AS revision FROM hash_talk.groups WHERE id=$1',
+  /** Called under the group row lock, which also serializes packet inserts,
+   * so the highest sequence bounds every packet visible at this revision. */
+  private async head(client: pg.PoolClient, group: string) {
+    const rows = await client.query<{
+      revision: string;
+      invalidation: string;
+      anchor: string;
+    }>(
+      'SELECT g.message_revision::text AS revision,g.message_invalidation::text AS invalidation,(SELECT coalesce(max(p.sequence),0)::text FROM hash_talk.group_packets p WHERE p.group_id=g.id) AS anchor FROM hash_talk.groups g WHERE g.id=$1',
       [group],
     );
-    return Number(rows.rows[0]!.revision);
+    const row = rows.rows[0]!;
+    return {
+      revision: Number(row.revision),
+      anchor: Number(row.anchor),
+      invalidation: Number(row.invalidation),
+    };
   }
   async expect(client: pg.PoolClient, scope: GroupMessageScope): Promise<void> {
-    if ((await this.revision(client, scope.groupId)) !== scope.revision)
+    const rows = await client.query<{ revision: string; invalidation: string }>(
+      'SELECT message_revision::text AS revision,message_invalidation::text AS invalidation FROM hash_talk.groups WHERE id=$1',
+      [scope.groupId],
+    );
+    const current = {
+      revision: Number(rows.rows[0]!.revision),
+      invalidation: Number(rows.rows[0]!.invalidation),
+    };
+    if (!currentCut(scope, current))
       throw new AccountError(
         409,
         'Group messages have changed. Verify them again.',
       );
   }
+}
+/** v1 scopes need the exact revision. A v2 cut stays current through later
+ * appends; a later removal advances the invalidation fence and rejects it. */
+function currentCut(
+  scope: GroupMessageScope,
+  current: { revision: number; invalidation: number },
+): boolean {
+  if (!scope.cut) return current.revision === scope.revision;
+  return (
+    scope.revision <= current.revision &&
+    scope.cut.invalidation <= scope.revision &&
+    scope.cut.invalidation === current.invalidation
+  );
 }
 export async function assertGroupEdit(
   client: pg.PoolClient,

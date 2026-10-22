@@ -1,7 +1,9 @@
 import type { HistoryKind } from './preparation.ts';
 
 type Step = () => Promise<void>;
-type FollowupTask = 'direct' | 'contacts' | 'groups' | 'presence';
+/** `groups` refreshes counters; `group-directory` the group list itself. */
+type FollowupTask =
+  'direct' | 'contacts' | 'groups' | 'group-directory' | 'presence';
 export type ChangeFollowupScope = 'receipts' | 'content' | 'all';
 export interface ChangeFollowupPlan {
   scope: ChangeFollowupScope;
@@ -16,6 +18,14 @@ const taskOrder: readonly FollowupTask[] = [
   'direct',
   'contacts',
   'groups',
+  'group-directory',
+  'presence',
+];
+/** A general wakeup refreshes the group directory, which includes counters. */
+const generalTasks: readonly FollowupTask[] = [
+  'direct',
+  'contacts',
+  'group-directory',
   'presence',
 ];
 
@@ -53,7 +63,7 @@ export class MessageChangeFollowup {
   queue(plan: ChangeFollowupPlan): void {
     if (plan.direct) this.tasks.add('direct');
     if (plan.scope === 'all')
-      for (const task of taskOrder) this.tasks.add(task);
+      for (const task of generalTasks) this.tasks.add(task);
     this.resume();
   }
   counters(kind: HistoryKind): void {
@@ -98,6 +108,7 @@ export class MessageChangeFollowup {
   private operation(task: FollowupTask): Step {
     if (task === 'direct') return this.options.unread;
     if (task === 'groups') return this.options.groups;
+    if (task === 'group-directory') return this.options.steps[1];
     return task === 'contacts' ? this.options.steps[0] : this.options.steps[2];
   }
 }

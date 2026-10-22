@@ -52,6 +52,8 @@ import { ExternalTextHistory } from '../external-media/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
+import { GroupReceipt } from './receipt.ts';
+import type { GroupChange } from './receipt.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
@@ -257,6 +259,15 @@ export function startGroups(
         options.peers().map((p) => p.accountId)),
       ...controller.entries.map((g) => g.state.groupId),
     ]);
+    await refreshStates();
+    renderIncoming();
+    renderCreation();
+    options.changed();
+    await resumeIncompleteHistory(selected);
+    await refreshSelected(selected);
+  }
+  /** Unread counts and alerts for the listed groups; no history or profiles. */
+  async function refreshStates(): Promise<void> {
     const previous = states;
     states = navigator.onLine
       ? await options.daily.groupStates()
@@ -266,11 +277,6 @@ export function startGroups(
       if (old && state.unread > old.unread && state.mutedUntil <= Date.now())
         options.alert();
     }
-    renderIncoming();
-    renderCreation();
-    options.changed();
-    await resumeIncompleteHistory(selected);
-    await refreshSelected(selected);
   }
   async function resumeIncompleteHistory(
     selected: string | undefined,
@@ -323,6 +329,25 @@ export function startGroups(
   });
   const readHistory = (id: string, older: boolean, localOnly: boolean) =>
     historyWork.open({ id, older, localOnly });
+  const receipt = new GroupReceipt({
+    visibleGroup: () => {
+      const selected = controller.selected;
+      return selected &&
+        !selected.localOnly &&
+        document.visibilityState === 'visible' &&
+        host?.getClientRects().length
+        ? selected.state.groupId
+        : null;
+    },
+    readSelected: (id) => readHistory(id, false, false),
+    receipts: async () => {
+      await controller.refreshReceipts();
+      renderHistory();
+    },
+    states: refreshStates,
+    directory: () => refresh(),
+    changed: () => options.changed(),
+  });
   async function open(group: GroupSummary | string): Promise<void> {
     messageActions.close();
     const id = typeof group === 'string' ? group : group.state.groupId,
@@ -1083,6 +1108,9 @@ export function startGroups(
     search: (query: string, after: string | null) =>
       controller.search(query, after),
     refresh,
+    /** A categorized change; only a general wakeup refreshes the directory. */
+    changed: (change: GroupChange) => receipt.changed(change),
+    counters: () => receipt.counters(),
     synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
     pauseSynchronization: () => controller.pauseSynchronization(),
     resumePending,

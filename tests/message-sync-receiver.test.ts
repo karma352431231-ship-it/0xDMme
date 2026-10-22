@@ -343,16 +343,18 @@ await test('a foreign device cut is rejected before any receipt or progress muta
   assert.equal(h.commits.length, 0);
 });
 
-await test('a 256-ID journal cut yields after 16 packets per turn without replacing its target', async () => {
+function journalCut256() {
   const h = harness(Array.from({ length: 256 }, (_, n) => item(n + 1))),
     saved = h.state();
   saved.discovered = checkpoint(0);
   h.replace(saved);
   const api = h.ports.api,
     cut = checkpoint(256, 'journal');
+  let manifests = 0;
   h.ports.api = (op, data) => {
     if (op === 'snapshot') return Promise.resolve(cut);
-    if (op === 'changes')
+    if (op === 'changes') {
+      manifests++;
       return Promise.resolve({
         reset: false,
         from: data['from'],
@@ -360,8 +362,13 @@ await test('a 256-ID journal cut yields after 16 packets per turn without replac
         items: h.rows,
         next: null,
       });
+    }
     return api(op, data);
   };
+  return { h, manifests: () => manifests };
+}
+await test('a 256-ID journal cut yields after 16 packets per turn without replacing its target or refetching its manifest', async () => {
+  const { h, manifests } = journalCut256();
   const receiver = new MessageSyncReceiver();
   for (let n = 0; n < 16; n++) {
     await receiver.step(h.ports);
@@ -370,6 +377,20 @@ await test('a 256-ID journal cut yields after 16 packets per turn without replac
   }
   assert.equal(h.state().discovered!.revision, 256);
   assert.equal(h.cached.size, 256);
+  assert.equal(manifests(), 1, 'one manifest read for the whole cut');
+});
+
+await test('a restart inside a journal cut refetches its manifest once and resumes at the saved checkpoint', async () => {
+  const { h, manifests } = journalCut256();
+  for (let n = 0; n < 5; n++) await new MessageSyncReceiver().step(h.ports);
+  assert.equal(manifests(), 5, 'each restart reads the manifest again');
+  const resumed = new MessageSyncReceiver();
+  for (let n = 5; n < 16; n++) await resumed.step(h.ports);
+  assert.equal(manifests(), 6);
+  const applied = h.commits.flatMap((commit) => commit.views.map((v) => v.id));
+  assert.equal(applied.length, 256, 'no page applied twice');
+  assert.equal(new Set(applied).size, 256);
+  assert.equal(h.state().discovered!.revision, 256);
 });
 
 await test('active recovery and new traffic share the 16-packet turn fairly', async () => {

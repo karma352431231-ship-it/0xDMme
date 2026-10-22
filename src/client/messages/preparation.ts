@@ -17,6 +17,9 @@ export class HistoryPreparation {
   get pending(): boolean {
     return this.remaining.size > 0;
   }
+  has(kind: HistoryKind): boolean {
+    return this.remaining.has(kind);
+  }
   request(kind?: HistoryKind): void {
     if (kind) this.requestKind(kind);
     else {
@@ -28,10 +31,13 @@ export class HistoryPreparation {
     this.versions[kind]++;
     this.remaining.add(kind);
   }
-  next(): PreparationTurn | null {
-    const kind = this.remaining.has(this.preferred)
-      ? this.preferred
-      : this.remaining.values().next().value;
+  /** Demanded kinds go first; otherwise partial pages alternate areas. */
+  next(demanded: ReadonlySet<HistoryKind> = new Set()): PreparationTurn | null {
+    const kind =
+      [...demanded].find((candidate) => this.remaining.has(candidate)) ??
+      (this.remaining.has(this.preferred)
+        ? this.preferred
+        : this.remaining.values().next().value);
     return kind ? { kind, version: this.versions[kind] } : null;
   }
   complete(turn: PreparationTurn, more: boolean): void {

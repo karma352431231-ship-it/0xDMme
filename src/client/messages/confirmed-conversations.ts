@@ -1,5 +1,8 @@
 import { retainedMessageView } from './cache-projection.ts';
-import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
+import {
+  isSyncSnapshot,
+  sameSyncFence,
+} from '../../shared/message-sync/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
@@ -36,6 +39,7 @@ export class ConfirmedConversations<T extends ConversationView> {
   private epoch = 0;
   private pending = false;
   private hints = 0;
+  private unsafeHint = 0;
   get hintVersion(): number {
     return this.hints;
   }
@@ -50,10 +54,18 @@ export class ConfirmedConversations<T extends ConversationView> {
     this.profile = profile;
   }
 
+  /** Generic or removal wakeup: retained content may be unsafe, so reuse
+   * waits for a receiver batch that started after this hint. */
   hint(): void {
     this.hints++;
+    this.unsafeHint = this.hints;
     this.pending = true;
     this.trace(null, 'cache-invalidated', 'live-hint');
+  }
+  /** Ordinary append wakeup: new rows may exist, but retained verified content
+   * stays safe to show; the receiver publishes the new rows from its commit. */
+  appended(): void {
+    this.hints++;
   }
   confirm(snapshot: unknown): void {
     const current = canonical(snapshot);
@@ -120,6 +132,8 @@ export class ConfirmedConversations<T extends ConversationView> {
     }
     this.trim();
   }
+  /** Apply one committed receiver batch. Returns the conversations it fully
+   * covers; only those may publish the batch as their current window. */
   updateVerified(input: {
     hints: number;
     publish?: (peer: string, rows: T[]) => void;
@@ -129,12 +143,20 @@ export class ConfirmedConversations<T extends ConversationView> {
     complete: boolean;
     blocked: ReadonlySet<string>;
     project: (peer: string, rows: T[]) => T[];
-  }): void {
+  }): ReadonlySet<string> {
+    const coveredPeers = new Set<string>();
     for (const [peer, window] of [...this.windows]) {
+      const previous = JSON.parse(window.value.snapshot) as unknown;
+      // A window ahead of this cut already holds its changes; replaying the
+      // older rows into it could resurrect a later removal.
+      if (aheadOf(previous, input.snapshot)) {
+        if (input.blocked.has(peer)) this.invalidateWindow(peer);
+        continue;
+      }
       const covered =
         input.complete &&
         !input.blocked.has(peer) &&
-        coveredWindow(window.value.snapshot, peer, input);
+        coveredWindow(previous, peer, input);
       const views = input.project(peer, window.value.views);
       this.remember(peer, {
         ...window.value,
@@ -145,9 +167,14 @@ export class ConfirmedConversations<T extends ConversationView> {
           : window.value.snapshot,
       });
       if (!covered) this.invalidateWindow(peer);
-      else input.publish?.(peer, views);
+      else {
+        coveredPeers.add(peer);
+        input.publish?.(peer, views);
+      }
     }
-    if (input.hints === this.hints) this.pending = false;
+    // Later append hints never keep reuse blocked; a later unsafe hint does.
+    if (input.hints >= this.unsafeHint) this.pending = false;
+    return coveredPeers;
   }
   private invalidateWindow(peer: string): void {
     const window = this.windows.get(peer);
@@ -251,13 +278,41 @@ function oldestSequence(
 }
 
 function coveredWindow(
-  snapshot: string,
+  snapshot: unknown,
   peer: string,
   input: { from: unknown; snapshot: unknown; recovered?: ReadonlySet<string> },
 ): boolean {
   return (
-    canonical(JSON.parse(snapshot) as unknown) === canonical(input.from) ||
+    canonical(snapshot) === canonical(input.from) ||
     (isSyncSnapshot(input.snapshot) && input.snapshot.source === 'full') ||
-    Boolean(input.recovered?.has(peer))
+    Boolean(input.recovered?.has(peer)) ||
+    appendCovered(snapshot, input)
+  );
+}
+
+/** A journal cut F->T also covers a window W read by another verified reader
+ * when F <= W <= T and no removal or authority change separates W from T:
+ * removals advance the invalidation fence, so equal fences prove none. */
+function appendCovered(
+  window: unknown,
+  input: { from: unknown; snapshot: unknown },
+): boolean {
+  const { from, snapshot } = input;
+  return (
+    isSyncSnapshot(window) &&
+    isSyncSnapshot(from) &&
+    isSyncSnapshot(snapshot) &&
+    snapshot.source === 'journal' &&
+    sameSyncFence(window, snapshot) &&
+    from.revision <= window.revision &&
+    window.revision <= snapshot.revision
+  );
+}
+
+function aheadOf(window: unknown, snapshot: unknown): boolean {
+  return (
+    isSyncSnapshot(window) &&
+    isSyncSnapshot(snapshot) &&
+    window.revision > snapshot.revision
   );
 }

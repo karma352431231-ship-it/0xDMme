@@ -78,6 +78,21 @@ export async function prepareMessageRequest(
   };
 }
 
+export function rateLimited(error: unknown): boolean {
+  return error instanceof AccountError && error.status === 429;
+}
+/** The server's rate-limit window. The guard interrupts the wait after logout
+ * or cancellation; callers decide whether they hold exclusive ownership. */
+export async function rateLimitPause(guard: () => void): Promise<void> {
+  const until = Date.now() + 61_000;
+  while (Date.now() < until) {
+    guard();
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(1000, until - Date.now())),
+    );
+  }
+  guard();
+}
 /** Export reads are repeatable; generation guards interrupt waits after logout/cancel. */
 export async function backupMessageApi(
   a: VaultAuthority,
@@ -89,20 +104,8 @@ export async function backupMessageApi(
     try {
       return await messageApi(a, op, payload, guard);
     } catch (error: unknown) {
-      if (
-        !(error instanceof AccountError) ||
-        error.status !== 429 ||
-        attempt >= 2
-      )
-        throw error;
-      const until = Date.now() + 61_000;
-      while (Date.now() < until) {
-        guard();
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, Math.min(1000, until - Date.now())),
-        );
-      }
-      guard();
+      if (!rateLimited(error) || attempt >= 2) throw error;
+      await rateLimitPause(guard);
     }
   }
 }
