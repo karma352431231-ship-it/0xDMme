@@ -914,3 +914,21 @@ await test('late authorization denial still closes current account access after 
   assert.equal(f.data.frames.at(-1), null);
   assert.equal(f.controller.canRestore(b), false);
 });
+
+await test('opening a conversation on a finite cut reads its bounded window instead of every account page', async () => {
+  const { controller, data, add } = resumeFixture(true),
+    other = crypto.randomUUID();
+  for (let n = 0; n < 200; n++) await add(`Other ${n}`, other);
+  for (let n = 0; n < 20; n++) await add(`Selected ${n}`);
+  await controller.synchronize();
+  assert.deepEqual(
+    data.frames.at(-1)?.map((row) => row.text),
+    Array.from({ length: 16 }, (_, n) => `Selected ${n + 4}`),
+  );
+  assert.equal(data.requests.filter((op) => op === 'page').length, 0);
+  assert.equal(
+    data.requests.filter((op) => op === 'sync-peer-window').length,
+    1,
+  );
+  assert.equal(data.requests.filter((op) => op === 'snapshot').length, 1);
+});

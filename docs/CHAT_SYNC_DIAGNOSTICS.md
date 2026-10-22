@@ -149,3 +149,38 @@ The new bridge and protocol own diagnostic delivery. The existing message
 screen/controller hotspots receive small trace calls only; their separate
 navigation/rendering and verification/storage extraction remains described in
 [message receiving](MESSAGE_RECEIVING.md#ownership-and-review-order).
+
+## Bounded first opening and multi-tab startup — 22 October 2026
+
+Two-tab field captures showed that the first opening of a private conversation
+after a reload read the account-wide metadata index one page per foreground
+turn. Each page paid its own state request, device authority and admission,
+and unrelated maintenance ran between pages, so opening took 10–30 seconds and
+grew with the whole account's history.
+
+On a finite (v2) cut, opening now reads only the selected conversation through
+`sync-peer-window`. The server returns, inside one authorized read transaction
+that first validates the cut, the window a complete scan would collect for that
+peer: up to 16 live roots before an optional older-history cursor and each
+participant's latest profile packet. Each direction walks the existing
+sender/sequence index downwards from the cut, so the query cost follows the
+window rather than the account. `messages/peer-window.ts` rejects any row from
+another conversation, beyond the cut, at or after the cursor, a relation or a
+deleted root before publication. Relations, packet opening, delivery and the
+final confirmation remain the same steps as for a window taken from the index.
+A catalog already complete for the cut is still reused without a request;
+legacy snapshots keep the complete index. Deletion cleanup outside the visible
+window stays with the account receiver. An integration test checks that the
+window equals the complete scan at the same cut, with interleaved conversations,
+edits, deletions, profiles and an older-history cursor.
+
+Presence heartbeats now keep only the latest desired state: while one runs,
+later visibility changes replace a single pending follow-up, so a burst of tab
+switches costs at most two account turns and still ends in the final state.
+Contact startup refreshes the vault, renders the directory from its verified
+heads and only then opens identity pins; startup, histories and sends still wait
+for those pins, and a contact row grants no message authority.
+
+Persisted startup projections and a single cross-tab owner for shared receipt
+work are not part of this change. Real-browser timing still needs a new
+two-tab capture after publication.

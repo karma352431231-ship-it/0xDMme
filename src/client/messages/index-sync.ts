@@ -84,6 +84,27 @@ export class MessageIndex {
     if (!scan.complete) throw new IncompleteMessageIndex();
     return this.window(scan, c.selected);
   }
+  /** The selected window when the catalog is already complete for this cut,
+   * after an available delta advanced it; null leaves opening to a bounded
+   * selected-window read instead of starting an account-wide scan. */
+  async completed(c: {
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    before: number | null;
+    api: Api;
+    deleted: (item: MessageItem) => Promise<void>;
+  }): Promise<MessageItem[] | null> {
+    await this.advance(c);
+    const scan = this.scan;
+    if (
+      !scan?.complete ||
+      scan.overflow ||
+      scan.identity !== canonical([c.snapshot, c.account, c.before])
+    )
+      return null;
+    return this.window(scan, c.selected);
+  }
   /** Background callers have already verified deletions, durable receipts and
    * the final snapshot. A partial catalog is never exposed by read(). */
   rememberConfirmedPage(c: {

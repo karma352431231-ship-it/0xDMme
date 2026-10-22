@@ -20,6 +20,7 @@ import { messageApi } from '../message-api/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
 import { readConversationReceipts } from './receipts.ts';
 import type { ReceiptWindow } from './receipts.ts';
+import { LatestPresence } from './latest-presence.ts';
 type OrganizationSync = Pick<
   VaultSync,
   'complete' | 'currentHeads' | 'isRemoved' | 'open' | 'refresh' | 'save'
@@ -95,9 +96,12 @@ export class Daily {
     });
     this.configured = identity;
   }
-  async heartbeat(active: boolean): Promise<void> {
+  private readonly presence = new LatestPresence(async (active) => {
     if (this.session && navigator.onLine)
       await this.api('daily-heartbeat', { active });
+  });
+  heartbeat(active: boolean): Promise<void> {
+    return this.presence.submit(active);
   }
   async state(peer: string): Promise<PeerState> {
     const head = this.groups.get(peer);

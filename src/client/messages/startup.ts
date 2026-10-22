@@ -1,8 +1,11 @@
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 
 interface DirectoryStartup {
-  loadPins: () => Promise<void>;
+  /** Completes the verified vault heads the address book reads. */
+  loadVault: () => Promise<void>;
   loadContacts: () => Promise<void>;
+  /** Opens identity pins from those heads; histories and sends wait for it. */
+  loadPins: () => Promise<void>;
   guard: () => void;
   settled?: () => void;
 }
@@ -25,9 +28,12 @@ export async function loadMessageDirectory(
   }
   operations.guard();
 }
+/** Contacts render once the vault is current, before every identity entry is
+ * opened; a row grants no message authority, and startup still resolves only
+ * after the pins are loaded. */
 async function loadDirectory(operations: DirectoryStartup): Promise<void> {
   try {
-    await operations.loadPins();
+    await operations.loadVault();
     operations.guard();
     await operations.loadContacts();
     operations.guard();
@@ -35,4 +41,6 @@ async function loadDirectory(operations: DirectoryStartup): Promise<void> {
     operations.guard();
     operations.settled?.();
   }
+  await operations.loadPins();
+  operations.guard();
 }

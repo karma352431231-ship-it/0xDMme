@@ -95,6 +95,12 @@ export class PeerIdentity {
     return this.pins.get(account) ?? null;
   }
   async load(options: VaultWorkOptions = {}): Promise<void> {
+    await this.synchronize(options);
+    await this.loadCurrent(options);
+  }
+  /** Refresh the vault until its verified heads are complete, without opening
+   * identity entries; contact presentation reads the same refreshed heads. */
+  async synchronize(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     const deadline = Date.now() + 60_000;
     do {
@@ -105,7 +111,6 @@ export class PeerIdentity {
       await this.sync.refresh(options);
       this.guard(generation);
     } while (!this.sync.complete);
-    await this.loadCurrent(options);
   }
   /** Hydrate a completely verified vault state, including our just-confirmed pin. */
   async loadCurrent(options: VaultWorkOptions = {}): Promise<void> {

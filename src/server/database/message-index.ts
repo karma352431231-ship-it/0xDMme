@@ -31,6 +31,50 @@ export async function messageIndexPage(
         : null,
   };
 }
+/** The selected conversation's latest window from the same projection a full
+ * scan collects: up to 16 live roots before the optional cursor, plus each
+ * participant's latest profile packet. Each direction walks its sender index
+ * from the cut downwards, so cost follows the window, not the account. */
+export async function messagePeerWindow(
+  client: pg.PoolClient,
+  a: ContactAuthority,
+  range: { peer: string; through: number; before: number | null },
+) {
+  const direction = (from: string, to: string, filter: string) =>
+    `(${projection} WHERE m.sender=${from} AND m.recipient=${to} AND m.sequence<=$4 AND ${filter} ORDER BY m.sequence DESC LIMIT $5)`;
+  const query = (filter: string, limit: number, extra: unknown[] = []) =>
+    client.query<Record<string, unknown>>(
+      `${direction('$1', '$3', filter)} UNION ALL ${direction('$3', '$1', filter)}`,
+      [
+        a.session.accountId,
+        a.session.deviceId,
+        range.peer,
+        range.through,
+        limit,
+        ...extra,
+      ],
+    );
+  const base = await query(
+    "m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND pr.id IS NULL AND m.sequence<$6",
+    messagePageSize,
+    [range.before ?? Number.MAX_SAFE_INTEGER],
+  );
+  const profile = await query("m.kind='profile'", 1);
+  const rows = new Map<
+    string,
+    Record<string, unknown> & { sequence: number }
+  >();
+  const latest = [...base.rows]
+    .map(sequenceRow)
+    .sort((x, y) => y.sequence - x.sequence)
+    .slice(0, messagePageSize);
+  for (const row of [...profile.rows.map(sequenceRow), ...latest])
+    rows.set(String(row['id']), row);
+  return {
+    items: [...rows.values()].sort((x, y) => x.sequence - y.sequence),
+    next: null,
+  };
+}
 export async function changedMessageItems(
   client: pg.PoolClient,
   a: ContactAuthority,
