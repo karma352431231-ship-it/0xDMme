@@ -1,3 +1,4 @@
+import { publicProfileGuidanceButton } from '../public-action-guidance/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { profileFollow } from '../../shared/profile-social/index.ts';
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
@@ -27,13 +28,13 @@ export async function followControl(
 ): Promise<void> {
   const { controller, signal } = input;
   if (!controller?.hasSession()) {
-    link(host, t('Sign in to follow'), editPublicProfileHash);
+    publicProfileGuidanceButton(host, 'follow-profile', signal);
     return;
   }
   if (!controller.profile) await controller.refresh();
   if (signal.aborted) return;
   if (!controller.profile) {
-    link(host, t('Create profile to follow'), editPublicProfileHash);
+    publicProfileGuidanceButton(host, 'follow-profile', signal);
     return;
   }
   if (controller.profile.profile.id === input.target) {

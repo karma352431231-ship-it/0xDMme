@@ -216,8 +216,15 @@ function fixture(
       return Promise.resolve(Response.json(state.community));
     throw new Error('Requisição inesperada: ' + path);
   };
+  const document = communityDocument();
+  const createElement = document.createElement;
+  document.createElement = (tag: string) =>
+    Object.assign(createElement(tag), {
+      showModal() {},
+      close() {},
+    });
   const context: Record<string, unknown> = {
-    document: communityDocument(),
+    document,
     window: new EventTarget(),
     HTMLElement: CommunityNode,
     HTMLAnchorElement: CommunityNode,
@@ -256,6 +263,7 @@ function fixture(
     {} as Parameters<typeof startCommunities>[1],
     {} as Parameters<typeof startCommunities>[2],
     {
+      publicProfile: () => Promise.resolve(true),
       profiles: {
         inspect: () => Promise.resolve(null),
         set: () =>
@@ -606,7 +614,7 @@ await test('session changes discard the old form and a late sidebar response can
   assert.ok(form);
   const field = form.querySelector('input');
   assert.ok(field);
-  field.value = 'Rascunho da conta anterior';
+  field.value = 'Draft from the previous account';
   const gate = deferred<Response>(),
     started = deferred<void>();
   data.overrides.set('/api/account/communities/list', () => {
@@ -619,11 +627,9 @@ await test('session changes discard the old form and a late sidebar response can
   gate.resolve(Response.json(data.directory));
   await settled(ui);
   assert.notEqual(host.querySelector('.community-create-fields'), form);
-  assert.equal(
-    host.querySelector('.community-create-fields')?.querySelector('input')
-      ?.value,
-    '',
-  );
+  assert.equal(host.querySelector('.community-create-fields'), null);
+  assert.ok(host.querySelector('.public-action-invitation'));
+  assert.ok(!host.textContent.includes('Draft from the previous account'));
   assert.equal(sidebar?.querySelector('.community-row'), null);
   ui.leave();
 });

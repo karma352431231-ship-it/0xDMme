@@ -1,3 +1,10 @@
+import {
+  PublicActionGate,
+  mountPublicProfileInvitation,
+  publicProfileGuidanceButton,
+} from '../public-action-guidance/index.ts';
+import { bindCommunityCreationEntry } from './creation-entry.ts';
+import { showToast } from '../toast/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { navigateApp } from '../app-navigation/index.ts';
 import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
@@ -84,22 +91,36 @@ export function startCommunities(
   privacy: ExternalMediaConsent,
   options: {
     profiles: FeedProfileFollows;
+    publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
   },
 ) {
   const { profiles } = options;
   const dms = startSocialDmUi(access, sync, privacy, options.unreadChanged);
   const controller = new Communities(access);
+  const participation = new PublicActionGate({
+    session: () => session,
+    profile: options.publicProfile,
+  });
   registerHoverCard(
-    communityHoverProvider({ controller, signedIn: () => session !== null }),
+    communityHoverProvider({
+      controller,
+      signedIn: () => session !== null,
+      participation,
+    }),
   );
-  const composer = new PostComposer(controller, privacy);
+  const composer = new PostComposer(controller, privacy, participation);
   const feedReturn = new FeedReturn();
   let returnBookmark: FeedBookmark | null = null;
   const posts = startCommunityPosts(controller, privacy, (id) =>
     composer.open(id),
   );
-  const discovery = startCommunityDiscovery(controller, privacy, profiles);
+  const discovery = startCommunityDiscovery(
+    controller,
+    privacy,
+    profiles,
+    participation,
+  );
   const followedDirectory = new CommunityDirectory({
     load: (after) => controller.list('following', after),
     rows,
@@ -113,7 +134,18 @@ export function startCommunities(
     reset: () => discovery.tabAgain(),
     keep: (bookmark) => discovery.keep(bookmark),
   });
-  composer.bind(() => session !== null);
+  composer.bind();
+  bindCommunityCreationEntry({
+    access: participation,
+    signal: () => abort.signal,
+    signedIn: () => session !== null,
+    failed: (error) =>
+      showToast(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Community unavailable.'),
+      ),
+  });
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,
     session: AccountSession | null = null;
@@ -374,11 +406,17 @@ export function startCommunities(
       rules: rules.value,
     });
   }
-  function creation(): void {
+  async function creation(): Promise<void> {
     if (!mounted || creationMounted) return;
+    const old = generation;
+    const allowed = await participation.allow('create-community', abort.signal);
+    if (old !== generation || !mounted || creationMounted) return;
     navigation();
     creationMounted = true;
-    const old = generation;
+    if (!allowed) {
+      mountPublicProfileInvitation(mounted, 'create-community');
+      return;
+    }
     mountCommunityCreation(mounted, {
       signal: abort.signal,
       run,
@@ -448,11 +486,11 @@ export function startCommunities(
     const about = communityAbout(value);
     if (about) hero.append(about);
     if (!state) {
-      communityLink(
+      publicProfileGuidanceButton(
         head,
-        t('Sign in through Profile to participate'),
-        '#settings',
-      );
+        'follow-community',
+        abort.signal,
+      ).className = 'community-follow';
       return;
     }
     participant(head, state);
@@ -466,7 +504,19 @@ export function startCommunities(
         card,
         own.following ? t('follow.following') : t('Follow'),
         () =>
-          mutate('follow', { id: own.community.id, following: !own.following }),
+          run(async () => {
+            const old = generation,
+              pending = abort.signal;
+            if (
+              (await participation.allow('follow-community', pending)) &&
+              old === generation &&
+              !pending.aborted
+            )
+              await mutateWork('follow', {
+                id: own.community.id,
+                following: !own.following,
+              });
+          }),
       );
       const follow = card.lastElementChild;
       follow?.classList.add('community-follow');
@@ -703,7 +753,7 @@ export function startCommunities(
       return;
     }
     if (view === 'create') {
-      creation();
+      await creation();
       return;
     }
     if (!selected) {
@@ -883,6 +933,7 @@ export function startCommunities(
       session = value;
       dms.setSession(value);
       if (!controller.setSession(value)) return;
+      participation.reset();
       composer.close();
       feedReturn.clear();
       returnBookmark = null;

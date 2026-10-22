@@ -1,3 +1,4 @@
+import { missingPublicProfile } from '../public-action-guidance/index.ts';
 import { replaceCommunityAddress } from '../app-navigation/index.ts';
 import type {
   Community,
@@ -26,7 +27,12 @@ export async function readCommunityDetail(options: {
     options.signal,
   );
   if (!options.valid()) return null;
-  const state = options.signedIn ? await options.state(value.id) : null;
+  const state = options.signedIn
+    ? await options.state(value.id).catch((error: unknown) => {
+        if (missingPublicProfile(error)) return null;
+        throw error;
+      })
+    : null;
   if (!options.valid()) return null;
   const community = state?.community ?? value;
   replaceCommunityAddress(community);

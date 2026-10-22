@@ -1,3 +1,4 @@
+import { publicProfileGuidanceButton } from '../public-action-guidance/index.ts';
 import {
   t,
   currentLanguage,
@@ -331,13 +332,21 @@ export function showProfilePage(
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
-      link(host, t('Sign in to follow'), '#settings');
+      publicProfileGuidanceButton(
+        host,
+        'follow-profile',
+        lifetime.signal,
+      ).className = 'profile-follow';
       return;
     }
     if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
-      link(host, t('Create profile to follow'), '#settings');
+      publicProfileGuidanceButton(
+        host,
+        'follow-profile',
+        lifetime.signal,
+      ).className = 'profile-follow';
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {

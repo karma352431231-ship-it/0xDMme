@@ -1,3 +1,8 @@
+import {
+  missingPublicProfile,
+  publicProfileGuidanceButton,
+} from '../public-action-guidance/index.ts';
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import { appRoute, communityHref } from '../../shared/app-routes/index.ts';
 import { classificationBadges } from './classification.ts';
 import {
@@ -49,6 +54,7 @@ function communityOf(link: HTMLAnchorElement): CommunityReference | null {
 export function communityHoverProvider(input: {
   controller: Communities;
   signedIn: () => boolean;
+  participation: PublicActionAccess;
 }): HoverCardProvider {
   return (link) => {
     const target = communityOf(link);
@@ -88,9 +94,12 @@ export function communityHoverProvider(input: {
           value.followers === 1 ? t('follower') : t('followers'),
         ]),
       ];
-      if (value.archived) figures.push('arquivada');
+      if (value.archived) figures.push(t('Archived'));
       card.append(el('p', figures.join(' · '), 'hover-card-stats'));
-      if (input.signedIn() && !value.archived)
+      if (value.archived) return;
+      if (!input.signedIn())
+        publicProfileGuidanceButton(actions, 'follow-community', signal);
+      else
         await followButton(actions, { ...input, id: value.id, signal, card });
     };
   };
@@ -102,9 +111,21 @@ async function followButton(
     id: string;
     signal: AbortSignal;
     card: HTMLElement;
+    participation: PublicActionAccess;
   },
 ): Promise<void> {
-  let following = (await input.controller.state(input.id)).following;
+  const state = await input.controller
+    .state(input.id)
+    .catch((error: unknown) => {
+      if (missingPublicProfile(error)) return null;
+      throw error;
+    });
+  if (!state) {
+    if (!input.signal.aborted)
+      publicProfileGuidanceButton(host, 'follow-community', input.signal);
+    return;
+  }
+  let following = state.following;
   if (input.signal.aborted) return;
   const button = el('button');
   button.type = 'button';
@@ -115,9 +136,14 @@ async function followButton(
   button.addEventListener('click', () => {
     if (button.disabled) return;
     button.disabled = true;
-    void input.controller
-      .request('follow', { id: input.id, following: !following })
-      .then((value) => {
+    void input.participation
+      .allow('follow-community', input.signal)
+      .then(async (allowed) => {
+        if (!allowed || input.signal.aborted) return;
+        const value = await input.controller.request('follow', {
+          id: input.id,
+          following: !following,
+        });
         following = communityState(value).following;
         for (const [key, held] of cache)
           if (held.value.id === input.id) cache.delete(key);

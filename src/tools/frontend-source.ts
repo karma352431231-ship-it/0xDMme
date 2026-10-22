@@ -76,6 +76,7 @@ const authored = [
   'src/client/image-crop',
   'src/shared/communities',
   'src/client/public-profile',
+  'src/client/public-action-guidance',
   'src/client/profile-shortcut',
   'src/shared/public-profile',
   'src/shared/profile-social',

@@ -1,3 +1,4 @@
+import { closePublicProfileGuidance } from '../public-action-guidance/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
@@ -236,6 +237,7 @@ export function startPublicProfile(
       activity.setSession(session);
       notices.setAccount(session?.accountId ?? null);
       if (!controller.setSession(session)) return;
+      closePublicProfileGuidance();
       review.sessionChanged();
       shortcut.clear();
       editor.clear();

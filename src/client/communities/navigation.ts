@@ -39,7 +39,7 @@ export function communityNavigation(
   menu.append(summary);
   menu.append(moreChoices(options));
   tools.append(menu);
-  if (options.signedIn) tools.append(createCommunityButton());
+  tools.append(createCommunityButton());
   container.append(tools);
 }
 
