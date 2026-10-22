@@ -220,3 +220,22 @@ device's membership on each one. Callers settle inside the turn, so the native
 lock may be released slightly after a caller resumes.
 
 Real-browser timing still needs a new one- and two-tab capture.
+
+## Separate signing lane — 22 October 2026
+
+Keeping optional owners behind the private directory made the feed wait for
+the whole message warmup, because community and public profile requests still
+queued for the exclusive account turn even though they only sign. That turn
+protects the vault, key ring and SDK store, none of which these requests use.
+
+`devices/signing-lane.ts` now runs work that needs only the session, directory
+and signature outside that turn, at most four operations at once. Each
+operation first reads the server's device directory after the event count the
+last exclusive read verified, and proceeds only when the server reports no new
+event, the same revision and the same head. Otherwise, or before any verified
+state exists, it runs in an exclusive turn, which verifies and stores the new
+directory; the lane never writes the local checkpoint. Directory freshness per
+request is therefore unchanged, and the server still checks the session, the
+signed directory and this device on every request. Community and public
+profile requests use the lane; public DMs, the vault and message work stay in
+the exclusive turn.

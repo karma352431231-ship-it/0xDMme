@@ -10,6 +10,7 @@ import type { OwnPublicProfile } from '../../shared/public-profile/index.ts';
 import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { publicModerationNotice } from '../../shared/public-moderation/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
+import { withSigner } from '../vault-authority/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 
 export class PublicProfiles {
@@ -58,7 +59,8 @@ export class PublicProfiles {
         'Connect and authorize your device to manage your public profile.',
       );
     const generation = this.generation;
-    return this.access.withVault(false, async (authority) => {
+    // Profile requests only sign; they run outside the exclusive account turn.
+    return withSigner(this.access, async (authority) => {
       if (
         authority.session.accountId !== this.session?.accountId ||
         authority.session.deviceId !== this.session.deviceId ||
