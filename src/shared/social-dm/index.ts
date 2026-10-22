@@ -7,7 +7,15 @@ import { publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 
 /** Historical wire value: UI translations must never enter signed DM directories. */
-export const socialDeviceName = 'DM device';
+export const socialDeviceName = 'Aparelho de DMs';
+/** Signed device names DM directories may contain: the historical value and
+ * 'DM device', which identities registered between 19 and 22 October 2026
+ * signed after the name was translated by mistake. Signed entries are never
+ * renamed. */
+export const socialDeviceNames: readonly string[] = [
+  socialDeviceName,
+  'DM device',
+];
 
 export interface SocialRelation {
   peer: PublicProfile;
@@ -70,7 +78,7 @@ export function socialDirectory(input: unknown): DirectoryEvent {
     event.profile !== null ||
     event.linkId !== null ||
     !['initialize', 'revoke', 'recover'].includes(event.kind) ||
-    event.devices.some((device) => device.name !== socialDeviceName)
+    event.devices.some((device) => !socialDeviceNames.includes(device.name))
   )
     throw new AccountError(
       400,
