@@ -159,3 +159,79 @@ await test('pending authority jobs have a bounded budget and do not run under a 
   assert.equal(oldAction, false);
   assert.equal(nativeRequests, 2);
 });
+
+function turns() {
+  const opened: string[] = [];
+  let busy = deferred<void>();
+  busy.resolve();
+  return {
+    opened,
+    hold: () => {
+      busy = deferred<void>();
+      return busy;
+    },
+    turn: async (key: string, body: () => Promise<void>) => {
+      opened.push(key);
+      await body();
+    },
+  };
+}
+
+await test('already waiting operations of one account and priority share a bounded turn', async () => {
+  const native = turns(),
+    queue = new AuthorityWork(native.turn),
+    gate = deferred<void>(),
+    seen: [string, boolean][] = [];
+  const job = (name: string, key = 'a') =>
+    queue.hold(key, ({ follower }) => {
+      seen.push([name, follower]);
+      return name === 'active' ? gate.promise : Promise.resolve();
+    });
+  const active = job('active');
+  const waiting = ['1', '2', '3', '4', '5'].map((name) => job(name));
+  const other = job('other', 'b');
+  gate.resolve();
+  await Promise.all([active, ...waiting, other]);
+  // Three followers at most; another account never joins the turn.
+  assert.deepEqual(seen, [
+    ['active', false],
+    ['1', true],
+    ['2', true],
+    ['3', true],
+    ['4', false],
+    ['5', true],
+    ['other', false],
+  ]);
+  assert.deepEqual(native.opened, ['a', 'a', 'b']);
+});
+
+await test('a failure ends the batch and maintenance never holds back waiting interactive work', async () => {
+  const native = turns(),
+    queue = new AuthorityWork(native.turn),
+    gate = deferred<void>(),
+    seen: [string, boolean][] = [];
+  const job = (name: string, priority?: 'interactive') =>
+    queue.hold(
+      'a',
+      ({ follower }) => {
+        seen.push([name, follower]);
+        if (name === 'failing') return Promise.reject(new Error('Denied'));
+        return name === 'active' ? gate.promise : Promise.resolve();
+      },
+      priority,
+    );
+  const active = job('active');
+  const failing = assert.rejects(job('failing', 'interactive'), /Denied/);
+  const after = job('after', 'interactive');
+  const maintenance = job('maintenance');
+  const interactive = job('interactive', 'interactive');
+  gate.resolve();
+  await Promise.all([active, failing, after, maintenance, interactive]);
+  assert.deepEqual(seen, [
+    ['active', false],
+    ['failing', false],
+    ['after', false],
+    ['interactive', true],
+    ['maintenance', false],
+  ]);
+});

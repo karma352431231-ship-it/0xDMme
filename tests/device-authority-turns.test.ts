@@ -29,6 +29,17 @@ async function pending(accountId: string, count: number): Promise<void> {
   assert.fail('The native cross-controller acquisition did not queue.');
 }
 
+// A caller settles inside its turn; followers may still use that turn.
+async function released(accountId: string) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const snapshot = await navigator.locks.query();
+    if (!snapshot.held!.some((lock) => lock.name?.endsWith(accountId)))
+      return snapshot;
+    await setImmediate();
+  }
+  return assert.fail('The native turn was not released.');
+}
+
 await test('foreground work in another controller precedes queued maintenance without overlapping the native SDK lock', async (t) => {
   const accountId = crypto.randomUUID(),
     owners = Array.from({ length: 3 }, () => controller(accountId)),
@@ -64,7 +75,7 @@ await test('foreground work in another controller precedes queued maintenance wi
   await Promise.all(jobs);
   assert.deepEqual(order, ['active', 'foreground', 'maintenance']);
   assert.equal(maximum, 1);
-  const snapshot = await navigator.locks.query();
+  const snapshot = await released(accountId);
   assert.equal(
     snapshot.held!.some((lock) => lock.name?.endsWith(accountId)),
     false,
@@ -161,7 +172,7 @@ await test('operation failure and session replacement release all admission gate
     await controller(accountId).run(() => Promise.resolve('recovered')),
     'recovered',
   );
-  const snapshot = await navigator.locks.query();
+  const snapshot = await released(accountId);
   assert.equal(
     snapshot.held!.some((lock) => lock.name?.endsWith(accountId)),
     false,
@@ -293,3 +304,50 @@ for (const stage of ['maintenance', 'turn']) {
     );
   });
 }
+
+interface Internals {
+  identity: unknown;
+  current: unknown;
+  ring: unknown;
+  directoryReadAt: number | null;
+}
+await test('operations that follow inside one turn reuse its directory read; a new turn or a failure reads again', async (t) => {
+  const accountId = crypto.randomUUID(),
+    owner = controller(accountId),
+    prototype = DeviceController.prototype as unknown as Record<
+      'loadIdentity' | 'synchronize',
+      () => Promise<void>
+    >;
+  let reads = 0;
+  t.mock.method(prototype, 'loadIdentity', function (this: Internals) {
+    this.identity = { signing: null, wrapping: null };
+    return Promise.resolve();
+  });
+  t.mock.method(prototype, 'synchronize', function (this: Internals) {
+    reads++;
+    this.current = { devices: [] };
+    this.ring = { epoch: 1, keys: [] };
+    this.directoryReadAt = performance.now();
+    return Promise.resolve();
+  });
+  const gate = deferred<void>(),
+    entered = deferred<void>();
+  const first = owner.withVault(false, async () => {
+    entered.resolve();
+    await gate.promise;
+  });
+  await waitForBoundary(entered.promise);
+  const followers = [
+    owner.withVault(false, () => Promise.resolve()),
+    owner.withVault(false, () => Promise.reject(new Error('Denied'))),
+    owner.withVault(false, () => Promise.resolve()),
+  ];
+  gate.resolve();
+  await first;
+  await followers[0];
+  await assert.rejects(followers[1]!, /Denied/);
+  await followers[2];
+  // Leader and two followers share one read; the failure ends that batch.
+  assert.equal(reads, 2);
+  await released(accountId);
+});

@@ -46,6 +46,10 @@ export function startPublicProfile(
     detail: PublicModerationDetails,
     signal: AbortSignal,
   ) => void = () => undefined,
+  /** When the app coordinates session warmups, an authorized session waits for
+   * its ready() call instead of starting profile work ahead of the private
+   * directory's first load. */
+  startup: { coordinated?: boolean } = {},
 ) {
   const controller = new PublicProfiles(access);
   const review = startModerationReview(controller, preview);
@@ -244,7 +248,7 @@ export function startPublicProfile(
       generation++;
       status = '';
       render();
-      ready();
+      if (!session || !startup.coordinated) ready();
     },
   };
 }

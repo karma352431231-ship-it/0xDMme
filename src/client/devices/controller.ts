@@ -2,6 +2,7 @@ import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
 import { AuthorityWork } from './authority-work.ts';
+import type { AuthorityTurnContext } from './authority-work.ts';
 import { authorityTurn } from './authority-turns.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
@@ -175,7 +176,12 @@ async function api(
   return data;
 }
 export class DeviceController {
-  private readonly authorityWork = new AuthorityWork();
+  private readonly authorityWork = new AuthorityWork((key, body, options) =>
+    authorityTurn(key, body, options),
+  );
+  /** When this controller last completed an online directory read, for
+   * operations that follow it inside the same native turn. */
+  private directoryReadAt: number | null = null;
   async createEnrollment(): Promise<EnrollmentCode> {
     return this.withVault(false, async (a) => {
       if (this.session?.walletConfirmed !== true)
@@ -357,34 +363,46 @@ export class DeviceController {
     this.receipt = '';
     this.receiptTarget = null;
     this.expiresAt = 0;
+    this.directoryReadAt = null;
   }
   get authorized(): boolean {
     return this.ring !== null && this.identity !== null;
   }
   async run<T>(
-    operation: (session: AccountSession) => Promise<T>,
+    operation: (
+      session: AccountSession,
+      turn: AuthorityTurnContext,
+    ) => Promise<T>,
     options: VaultWorkOptions = {},
   ): Promise<T> {
     const session = this.session;
     const generation = this.generation;
     if (!session) throw new Error('Connect the original wallet first.');
-    return this.authorityWork.run(
-      (waitMs) =>
-        authorityTurn(
-          session.accountId,
-          async () => {
-            if (generation !== this.generation)
-              throw new Error('Session changed before the operation.');
-            const result = await operation(session);
-            if (generation !== this.generation) {
-              this.ring = null;
-              throw new Error('Session changed during the operation.');
-            }
-            return result;
-          },
-          { waitMs, ...options },
-        ),
+    return this.authorityWork.hold(
+      session.accountId,
+      async (turn) => {
+        if (generation !== this.generation)
+          throw new Error('Session changed before the operation.');
+        const result = await operation(session, turn);
+        if (generation !== this.generation) {
+          this.ring = null;
+          throw new Error('Session changed during the operation.');
+        }
+        return result;
+      },
       options.priority,
+    );
+  }
+  /** A follower inside the same native turn reuses the directory its leader
+   * read under one second ago. Every request still carries the signed
+   * directory, which the server checks with the session and this device. */
+  private reusesTurnDirectory(turn: AuthorityTurnContext): boolean {
+    return (
+      turn.follower &&
+      this.directoryReadAt !== null &&
+      performance.now() - this.directoryReadAt < 1000 &&
+      this.current !== null &&
+      this.ring !== null
     );
   }
   async refresh(): Promise<void> {
@@ -402,10 +420,10 @@ export class DeviceController {
     work: (authority: VaultAuthority) => Promise<T>,
     options: VaultWorkOptions = {},
   ): Promise<T> {
-    return this.run(async (session) => {
+    return this.run(async (session, turn) => {
       await this.loadIdentity(session);
       if (offline) await this.restoreOffline(session);
-      else
+      else if (!this.reusesTurnDirectory(turn))
         await measureWork(this, 'authority/directory', () =>
           this.synchronize(session),
         );
@@ -474,6 +492,7 @@ export class DeviceController {
     });
   }
   private async restoreOffline(session: AccountSession): Promise<void> {
+    this.directoryReadAt = null;
     const checkpoint = await readCheckpoint(session.accountId);
     const current = await verifyHistory(checkpoint.events, session.accountId);
     if (
@@ -490,6 +509,7 @@ export class DeviceController {
   private async synchronize(session: AccountSession): Promise<void> {
     this.assertSession(session);
     this.ring = null;
+    this.directoryReadAt = null;
     const generation = this.generation;
     const checkpoint = await readCheckpoint(session.accountId);
     const { current, events, serverTime } = await fetchDirectory(
@@ -518,6 +538,13 @@ export class DeviceController {
       this.receipt = '';
       this.receiptTarget = null;
     }
+    await this.openDirectoryRing(session, current);
+  }
+  /** Key ring only for a trusted directory that still lists this device. */
+  private async openDirectoryRing(
+    session: AccountSession,
+    current: DirectoryEvent | null,
+  ): Promise<void> {
     if (
       current &&
       this.identity &&
@@ -526,6 +553,7 @@ export class DeviceController {
       if (current.devices.some((device) => device.id === session.deviceId))
         this.ring = await deviceSecrets(this.identity, current);
     }
+    if (this.ring) this.directoryReadAt = performance.now();
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
