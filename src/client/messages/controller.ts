@@ -6,7 +6,11 @@ import {
 } from '../synchronization-work/index.ts';
 import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
 import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
-import { receiverOwnsAdvance, windowBehind } from './receiver-coverage.ts';
+import {
+  advancedElsewhere,
+  receiverOwnsAdvance,
+  windowBehind,
+} from './receiver-coverage.ts';
 import { PrivateAudiences } from '../message-crypto/index.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { readMessageWindow } from './window-read.ts';
@@ -182,6 +186,8 @@ interface MessageControllerEvents {
   verified?: (peer: string, views: MessageView[]) => void;
   /** The open window fell behind the account receiver and needs a read. */
   stale?: () => void;
+  /** Another tab of this device received changes this tab did not project. */
+  elsewhere?: () => void;
   receipt?: (receipt: ReceiptCommit) => void;
 }
 interface Outbox {
@@ -1982,6 +1988,7 @@ export class Messages {
               status: (pending) => {
                 this.synchronizationIssues = pending;
               },
+              observed: (discovered) => this.observeDurableCut(discovered),
               failureReason: (error) =>
                 error instanceof MegolmDecryptionError &&
                 error.code === DecryptionErrorCode.MissingRoomKey
@@ -2018,6 +2025,25 @@ export class Messages {
     } finally {
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
     }
+  }
+  /** Another tab may have applied a cut through the shared durable checkpoint.
+   * Its packets are already stored locally: the open window reads them through
+   * its own window read, and the list refreshes its previews. */
+  private observeDurableCut(durable: MessageSyncSnapshot | null): void {
+    if (!durable) return;
+    const elsewhere = advancedElsewhere(this.receiverCut, durable);
+    if (!this.receiverCut || durable.revision > this.receiverCut.revision)
+      this.receiverCut = durable;
+    if (this.latestWindowBehind(durable)) this.events.stale?.();
+    if (elsewhere) this.events.elsewhere?.();
+  }
+  private latestWindowBehind(cut: MessageSyncSnapshot): boolean {
+    return (
+      !!this.selected &&
+      this.before === null &&
+      !!this.confirmed &&
+      windowBehind(this.confirmed.snapshot, cut)
+    );
   }
   private commitInboxBatch(
     batch: Parameters<SyncReceiverPorts<MessageView>['commit']>[0],

@@ -26,6 +26,9 @@ export interface SyncReceiverPorts<T extends View> {
   failureReason?: (error: unknown) => 'key' | 'verification';
   invalidate?: () => void;
   status?: (pending: PendingConversation[]) => void;
+  /** The durable checkpoint at the start of the turn, which another tab of
+   * this device may have advanced. */
+  observed?: (discovered: MessageSyncSnapshot | null) => void;
   api: Api;
   guard: () => void;
   load: () => Promise<SyncProgress>;
@@ -60,9 +63,7 @@ export class MessageSyncReceiver {
   async step<T extends View>(p: SyncReceiverPorts<T>): Promise<boolean> {
     const state = await p.load();
     p.guard();
-    p.status?.(state.pending);
-    if (p.wakeRecovery)
-      for (const pending of state.pending) pending.retryAt = 0;
+    begin(p, state);
     try {
       return await this.consume(p, state);
     } catch (error: unknown) {
@@ -339,6 +340,15 @@ export class MessageSyncReceiver {
       retryAt: Date.now() + 30000,
     });
   }
+}
+/** Report the loaded checkpoint and obligations before applying anything. */
+function begin<T extends View>(
+  p: SyncReceiverPorts<T>,
+  state: SyncProgress,
+): void {
+  p.observed?.(state.discovered);
+  p.status?.(state.pending);
+  if (p.wakeRecovery) for (const pending of state.pending) pending.retryAt = 0;
 }
 class UnsafeDeletion extends Error {
   constructor(cause: unknown) {

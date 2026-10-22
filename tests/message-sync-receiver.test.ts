@@ -412,3 +412,16 @@ await test('active recovery and new traffic share the 16-packet turn fairly', as
   assert.ok(h.state().pending.length === 0);
   assert.ok(h.commits.at(-1)!.views.some((view) => view.peer !== broken));
 });
+
+await test('the durable checkpoint another tab advanced is reported before any work, even when idle', async () => {
+  const h = harness([item(1)]);
+  const observed: (MessageSyncSnapshot | null)[] = [];
+  h.ports.observed = (discovered) => observed.push(discovered);
+  await new MessageSyncReceiver().step(h.ports);
+  const committed = h.state().discovered;
+  assert.ok(committed);
+  // Another tab of this device already applied the change: this turn is idle.
+  await new MessageSyncReceiver().step(h.ports);
+  assert.deepEqual(observed, [null, committed]);
+  assert.equal(h.commits.length, 1, 'an idle turn commits nothing');
+});
