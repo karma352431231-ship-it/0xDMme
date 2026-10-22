@@ -148,6 +148,7 @@ const authored = [
   'src/shared/attachments',
   'src/client/message-controls',
   'src/client/messages',
+  'src/client/text-send',
   'src/client/message-crypto',
   'src/client/message-profile',
   'src/client/message-recovery',

@@ -5,7 +5,7 @@ import type { LiveEvent } from '../src/client/message-live/index.ts';
 import { MessageLiveUpdates } from '../src/client/messages/live-updates.ts';
 import type { HistoryKind } from '../src/client/messages/preparation.ts';
 import { MessageSynchronization } from '../src/client/messages/synchronization.ts';
-import { TextSendQueue } from '../src/client/messages/text-send.ts';
+import { TextSendQueue } from '../src/client/text-send/index.ts';
 
 /* Delivery redesign regressions. These assemble the real live routing,
  * synchronization scheduler and text queue the way `messages/index.ts` wires

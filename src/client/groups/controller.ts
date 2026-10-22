@@ -976,6 +976,13 @@ export class GroupController {
     });
     await this.identities.save();
   }
+  /** Saves a text to that group's encrypted outbox, whichever group is open
+   * when the save runs; sending still verifies the group first. */
+  async composeText(groupId: string, text: string): Promise<void> {
+    await this.withAuthority((c) =>
+      composeGroup({ authority: c.authority, groupId, text, selection: null }),
+    );
+  }
   async compose(
     text: string,
     selection: AttachmentSelection | null,

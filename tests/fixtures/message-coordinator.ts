@@ -41,7 +41,7 @@ const real = new Set([
   './startup.ts',
   './continuity.ts',
   './warmup.ts',
-  './text-send.ts',
+  '../text-send/index.ts',
   './outgoing-text.ts',
   './profile-broadcast.ts',
   './activity.ts',

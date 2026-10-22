@@ -247,3 +247,16 @@ session change again. Work reaching the lane before the first exclusive turn
 verified the device directory waits up to eight seconds for that verification
 instead of queueing for the exclusive turn. Public DMs, which still share that
 turn, keep starting from `SessionBoot` after the private directory's warmup.
+
+## Group text queue — 22 October 2026
+
+Sending in a private group ran the whole chain as one foreground operation:
+save the draft, reload identities, verify the group, send through the SDK,
+save identities and reread the window. The composer stayed disabled until all
+of it finished, so a second message had to wait for the first. Plain group
+texts now use the same `TextSendQueue` as private chats, moved to its own
+`client/text-send` module: the composer clears at once, each text is saved in
+order to its own group's encrypted outbox (`composeText`), and one background
+transmission sends whatever is pending. Attachments and voice keep the
+foreground path. Group texts do not yet get the optimistic bubble private
+texts show; they appear once the batch is sent.

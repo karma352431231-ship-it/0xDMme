@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TextSendQueue } from '../src/client/messages/text-send.ts';
-import type { TextDraft } from '../src/client/messages/text-send.ts';
+import { TextSendQueue } from '../src/client/text-send/index.ts';
+import type { TextDraft } from '../src/client/text-send/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));

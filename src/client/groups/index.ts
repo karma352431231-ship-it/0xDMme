@@ -58,6 +58,7 @@ import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
+import { groupTextQueue } from './text-queue.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -146,9 +147,44 @@ export function startGroups(
   function sidebar<T extends HTMLElement>(selector: string): T | null {
     return aside?.querySelector<T>(selector) ?? null;
   }
+  const texts = groupTextQueue({
+    save: (groupId, text) => controller.composeText(groupId, text),
+    send: async () => {
+      let sent = false;
+      await options.run(async () => {
+        await controller.sendPending();
+        sent = true;
+        await reopen();
+      });
+      return sent;
+    },
+    more: async () => (await controller.pending()).length > 0,
+    available: () => !!controller.selected && navigator.onLine,
+    changed: () => {
+      composerStatus();
+      status();
+    },
+    failed: (error) => {
+      notice =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Could not complete the group operation.');
+      status();
+    },
+  });
+  /** Plain text uses the background queue; attachments and voice do not. */
+  function canQueueText(): boolean {
+    return (
+      !!controller.selected &&
+      !controller.selected.localOnly &&
+      !voice.active &&
+      attachments.selected === null
+    );
+  }
   function composerStatus(): void {
     updateChatComposer(node('[data-group-compose]'), {
       blocked: options.isBusy() || !controller.selected,
+      textSendBlocked: canQueueText() ? texts.full : undefined,
       recording: voice.active,
       attachment: attachments.selected !== null,
     });
@@ -884,6 +920,7 @@ export function startGroups(
       'submit',
       (event) => {
         event.preventDefault();
+        if (queueText()) return;
         void run(async () => {
           const input = node<HTMLTextAreaElement>('[data-group-text]');
           await controller.compose(input?.value ?? '', attachments.selected);
@@ -900,6 +937,29 @@ export function startGroups(
       },
     );
     bind('[data-group-older]', () => void run(() => reopen(true)));
+    function queueText(): boolean {
+      const input = node<HTMLTextAreaElement>('[data-group-text]'),
+        group = controller.selected;
+      if (!input || !group || !canQueueText() || !input.value.trim())
+        return false;
+      try {
+        texts.enqueue({
+          id: crypto.randomUUID(),
+          peer: group.state.groupId,
+          text: input.value,
+        });
+      } catch (error: unknown) {
+        notice =
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Could not complete the group operation.');
+        status();
+        return true;
+      }
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      return true;
+    }
     bind('[data-group-emoji]', () => {
       const anchor = node('[data-group-emoji]'),
         input = node<HTMLTextAreaElement>('[data-group-text]');
@@ -1128,6 +1188,7 @@ export function startGroups(
         return;
       }
       session = value;
+      texts.reset();
       loading.reset();
       messageActions.close();
       actions.setSession(value);
