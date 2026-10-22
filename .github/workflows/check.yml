@@ -37,7 +37,9 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Cold dependency setup took 5m; shard 1 needs another 5m27s on the active release.
+    # Bound the entire job while keeping every test and its own deadlines unchanged.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
