@@ -9,6 +9,7 @@ import type {
   CommunityPage,
   CommunityState,
 } from '../../shared/communities/index.ts';
+import { withSigner } from '../vault-authority/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { signedCommunityRequest } from './signed-request.ts';
 import type { CommunitySigner } from './signed-request.ts';
@@ -90,7 +91,8 @@ export class Communities {
           authority.session.csrf === this.session.csrf &&
           generation === this.generation,
       });
-    if (operation !== 'media-part') return this.access.withVault(false, send);
+    // Community requests only sign; they run outside the exclusive account turn.
+    if (operation !== 'media-part') return withSigner(this.access, send);
     try {
       return await send(await this.parts.get());
     } catch (error: unknown) {

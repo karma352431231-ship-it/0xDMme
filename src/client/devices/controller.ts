@@ -4,6 +4,8 @@ import { authoritySignature } from './authority-signature.ts';
 import { AuthorityWork } from './authority-work.ts';
 import type { AuthorityTurnContext } from './authority-work.ts';
 import { authorityTurn } from './authority-turns.ts';
+import { SigningLane } from './signing-lane.ts';
+import type { VerifiedSigner } from './signing-lane.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   boundedText,
@@ -40,6 +42,7 @@ import {
 } from '../device-keys/index.ts';
 import type { Keyring, LocalIdentity } from '../device-keys/index.ts';
 import type {
+  SigningAuthority,
   VaultAuthority,
   VaultLocator,
   VaultWorkOptions,
@@ -153,7 +156,7 @@ async function fetchDirectory(
 }
 
 async function api(
-  session: AccountSession,
+  session: Pick<AccountSession, 'csrf'>,
   path: string,
   input?: unknown,
 ): Promise<unknown> {
@@ -182,6 +185,26 @@ export class DeviceController {
   /** When this controller last completed an online directory read, for
    * operations that follow it inside the same native turn. */
   private directoryReadAt: number | null = null;
+  /** Directory hash and event count the last exclusive read verified while
+   * this device held a key ring; replaced only when a read completes. */
+  private verified: { directory: string; events: number } | null = null;
+  private readonly signingLane = new SigningLane({
+    verified: () => this.verifiedSigner(),
+    position: (signer, after) =>
+      measureWork(this, 'authority/signing-directory', async () => {
+        const page = readPage(
+          await api(signer.session, 'devices/read', {
+            after,
+          }),
+        );
+        return {
+          events: page.events.length,
+          revision: page.revision,
+          head: page.head,
+        };
+      }),
+    exclusive: (work) => this.withVault(false, (authority) => work(authority)),
+  });
   async createEnrollment(): Promise<EnrollmentCode> {
     return this.withVault(false, async (a) => {
       if (this.session?.walletConfirmed !== true)
@@ -364,6 +387,7 @@ export class DeviceController {
     this.receiptTarget = null;
     this.expiresAt = 0;
     this.directoryReadAt = null;
+    this.verified = null;
   }
   get authorized(): boolean {
     return this.ring !== null && this.identity !== null;
@@ -411,6 +435,28 @@ export class DeviceController {
       await this.synchronize(session);
       await this.restoreWalletPending(session);
     });
+  }
+  /** Signed requests that touch no vault key, secret or SDK state. */
+  withSigner<T>(work: (authority: SigningAuthority) => Promise<T>): Promise<T> {
+    return this.signingLane.run(work);
+  }
+  private verifiedSigner(): VerifiedSigner | null {
+    const session = this.session,
+      identity = this.identity,
+      verified = this.verified,
+      generation = this.generation;
+    if (!session || !identity || !verified) return null;
+    return {
+      session: {
+        accountId: session.accountId,
+        deviceId: session.deviceId,
+        csrf: session.csrf,
+      },
+      directory: verified.directory,
+      events: verified.events,
+      sign: this.signingAuthority(session, identity.signing),
+      current: () => generation === this.generation,
+    };
   }
   private signingAuthority(session: AccountSession, key: CryptoKey) {
     return authoritySignature(key, () => this.assertSession(session));
@@ -493,6 +539,7 @@ export class DeviceController {
   }
   private async restoreOffline(session: AccountSession): Promise<void> {
     this.directoryReadAt = null;
+    this.verified = null;
     const checkpoint = await readCheckpoint(session.accountId);
     const current = await verifyHistory(checkpoint.events, session.accountId);
     if (
@@ -554,6 +601,10 @@ export class DeviceController {
         this.ring = await deviceSecrets(this.identity, current);
     }
     if (this.ring) this.directoryReadAt = performance.now();
+    this.verified =
+      this.ring && current
+        ? { directory: await eventHash(current), events: this.events.length }
+        : null;
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
