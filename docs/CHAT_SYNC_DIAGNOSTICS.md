@@ -184,3 +184,12 @@ for those pins, and a contact row grants no message authority.
 Persisted startup projections and a single cross-tab owner for shared receipt
 work are not part of this change. Real-browser timing still needs a new
 two-tab capture after publication.
+
+The owner requested integration of `898865f` into `main` and VPS activation on
+22 October 2026. The existing deployment command pins both complete database
+trees from `60eada3` to `898865f`, accepting only `message-index.ts` and
+`messages.ts`. All migrations, write paths, dependencies and Node remain
+unchanged. Activation requires the exact pushed integration commit to pass the
+full CI workflow, a local build, preservation checks and retained code rollback.
+The existing controller/screen hotspots still require the separate verification
+and rendering extractions described in [message receiving](MESSAGE_RECEIVING.md#ownership-and-review-order).

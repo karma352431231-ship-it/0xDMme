@@ -266,6 +266,11 @@ PREVIEW_NOTIFICATIONS_REVIEWED = '1a9d2de89b38a048c7c60953de86f5f13bd5f05a'
 # Pin both complete database trees; all SQL, dependencies and runtime stay exact.
 CATEGORIZED_MESSAGES_BEFORE = 'b20d1be827f665311aef26d72e98e1e1240821b0'
 CATEGORIZED_MESSAGES_REVIEWED = 'f5df9d6203a41569fba05645ef2b26d4d116f41f'
+# Owner requested main integration and activation of 898865f on 22/10/2026.
+# Exact selected-conversation read only; all SQL, writes and runtime stay fixed.
+PEER_WINDOW_BEFORE = '60eada368f929361a68e4a0599cd4198228aad9a'
+PEER_WINDOW_REVIEWED = '898865f55a3bc68552aabd784f0d264cfe6bf228'
+PEER_WINDOW_MODULES = frozenset({'message-index.ts', 'messages.ts'})
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -482,6 +487,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(PEER_WINDOW_MODULES), PEER_WINDOW_BEFORE, PEER_WINDOW_REVIEWED),
         (set(CATEGORIZED_MESSAGES_MODULES), CATEGORIZED_MESSAGES_BEFORE, CATEGORIZED_MESSAGES_REVIEWED),
         ({'daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts'},
          PREVIEW_NOTIFICATIONS_BEFORE, PREVIEW_NOTIFICATIONS_REVIEWED),
