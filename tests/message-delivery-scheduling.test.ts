@@ -34,13 +34,20 @@ const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function assembled(
   t: TestContext,
   selected: HistoryKind | null,
-  timing: { receiveMs?: number; countersMs?: number } = {},
+  timing: {
+    receiveMs?: number;
+    countersMs?: number;
+    /** Another tab of this device already applied the cut: every receiver
+     * turn is idle and reports the open window behind until it is read. */
+    behind?: boolean;
+  } = {},
 ) {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const log: { operation: Operation; at: number }[] = [];
   const priorities: (string | undefined)[] = [];
   const failures: unknown[] = [];
   let origin = 0;
+  let behind = false;
   const record = (operation: Operation) =>
     log.push({ operation, at: Date.now() - origin });
   const state = {
@@ -66,6 +73,8 @@ async function assembled(
     preloadDirect: (signal, work) => {
       record('account-receive');
       priorities.push(work.priority);
+      // Mirrors the controller's `stale` event wired in `messages/index.ts`.
+      if (behind) sync.windowBehind('direct');
       const applied = () => {
         record('account-applied');
         return false;
@@ -115,6 +124,7 @@ async function assembled(
       }
       if (selected === 'direct') {
         record('selected-read');
+        behind = false;
         sync.prepareHistory('direct');
       }
       return Promise.resolve();
@@ -199,6 +209,7 @@ async function assembled(
     'warm-up prepared both histories',
   );
   log.length = 0;
+  behind = timing.behind ?? false;
   return { ...f, priorities };
 }
 
@@ -316,4 +327,18 @@ await test('live receipt asks for interactive authority priority; speculative pr
   f.emit('private-messages');
   await f.advance(500);
   assert.deepEqual(f.priorities, [undefined, 'interactive']);
+});
+
+await test('a tab whose receipt another tab applied reads its open window once and goes idle', async (t) => {
+  // Field capture 22/10 (two Opera tabs): the idle tab re-ran its receiver
+  // turn every ~0.5 s, held the shared lock and never re-read the open chat.
+  const f = await assembled(t, 'direct', { behind: true });
+  f.emit('private-messages');
+  await f.advance(10000);
+  assert.equal(f.count('selected-read'), 1, 'the open window is read once');
+  assert.ok(
+    f.count('account-receive') <= 2,
+    `${f.count('account-receive')} receiver turns, expected at most 2`,
+  );
+  assert.deepEqual(f.failures, []);
 });

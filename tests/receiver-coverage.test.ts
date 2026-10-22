@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   advancedElsewhere,
   receiverOwnsAdvance,
+  StaleWindowReport,
   windowBehind,
 } from '../src/client/messages/receiver-coverage.ts';
 import type { MessageSyncSnapshot } from '../src/shared/message-sync/index.ts';
@@ -101,4 +102,15 @@ await test('only a durable checkpoint past the cut this tab knows was advanced e
   assert.equal(advancedElsewhere(at(5), at(5)), false, 'own commit');
   assert.equal(advancedElsewhere(null, at(5)), false, 'first observation');
   assert.equal(advancedElsewhere(at(5), null), false, 'no checkpoint yet');
+});
+
+await test('a stale window is reported once per open chat and cut', () => {
+  const report = new StaleWindowReport();
+  assert.equal(report.raise('a', at(5)), true);
+  assert.equal(report.raise('a', at(5)), false, 'same cut, next idle turn');
+  assert.equal(report.raise('a', at(4)), false, 'older cut');
+  assert.equal(report.raise('a', at(6)), true, 'later cut');
+  assert.equal(report.raise('b', at(6)), true, 'another chat opened');
+  report.clear();
+  assert.equal(report.raise('b', at(6)), true, 'after close');
 });

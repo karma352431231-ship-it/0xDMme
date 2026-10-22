@@ -170,6 +170,13 @@ export class MessageSynchronization {
     this.prepareHistory(scope);
     this.queueUpdate(update, work, scope ? 'content' : 'all', scope);
   }
+  /** The open window fell behind a cut the account receiver already passed,
+   * usually applied by another tab of this device. Only that window is read
+   * again; asking the receiver for another page would find nothing and, while
+   * the window stays behind, report it again without end. */
+  windowBehind(scope: HistoryKind): void {
+    this.queueUpdate('probe', {}, 'content', scope);
+  }
   /** Delivery/read metadata changes do not imply a new encrypted receipt page. */
   requestProjection(
     work: VaultWorkOptions = {},

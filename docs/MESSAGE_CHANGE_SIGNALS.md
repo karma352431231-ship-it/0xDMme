@@ -77,7 +77,11 @@ tabs receive. Each receiver turn reports the checkpoint it loaded; when another
 tab advanced it past the cut this tab knows, this tab's open latest window,
 already stored locally by the other tab, is read again and the list refreshes
 its previews. A receipt that was idle because another tab applied it no longer
-leaves the open chat stale. A live receipt failure offers the retry
+leaves the open chat stale. That window is read on its own, once per open chat
+and checkpoint revision; it never asks the receiver for another page, which
+would be idle again and, while the window stayed behind, repeat without end
+(two-tab field capture of 22 October 2026: a turn every ~0.5 s holding the
+shared lock and starving the other tab). A live receipt failure offers the retry
 action, as the selected read it replaced did. The list and account inbox
 continue working when no conversation is selected.
 
