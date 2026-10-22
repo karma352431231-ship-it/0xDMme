@@ -121,10 +121,13 @@ const externalMedia = new ExternalMediaConsent({
 window.addEventListener('storage', (event) =>
   externalMedia.storageChanged(event.key),
 );
+// Both start their session work from SessionBoot below, after the private
+// directory's first load, instead of from their own session change.
 const publicProfiles = startPublicProfile(
   devices,
   externalMedia,
   (host, detail, signal) => communities.previewModeration(host, detail, signal),
+  { coordinated: true },
 );
 const conversationBadgeHost = document.getElementById('app-shell');
 const conversationBadge = conversationBadgeHost
@@ -134,6 +137,7 @@ const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
   publicProfile: () => publicProfiles.exists(),
   unreadChanged: (count) => conversationBadge('public', count),
+  coordinatedStartup: true,
 });
 // Ranking beside the feed and the Chat | Communities switch (16/10/2026).
 // The wallet approval document has no app shell and gets neither.

@@ -93,6 +93,9 @@ export function startCommunities(
     profiles: FeedProfileFollows;
     publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
+    /** When the app coordinates session warmups, a mounted feed waits for its
+     * ready() call instead of loading ahead of the private directory. */
+    coordinatedStartup?: boolean;
   },
 ) {
   const { profiles } = options;
@@ -951,7 +954,7 @@ export function startCommunities(
       sidebar?.replaceChildren();
       if (mounted) {
         navigation();
-        ready();
+        if (!value || !options.coordinatedStartup) ready();
       }
     },
   };
