@@ -25,7 +25,6 @@ import {
   stageAttachment,
   restageAttachments,
   uploadAttachments,
-  forgetAttachment,
 } from '../attachments/index.ts';
 import type {
   AttachmentApi,
@@ -282,17 +281,6 @@ async function uploadGroupDraft(
     content,
     api: groupAttachmentApi(c.group, c.api),
   });
-}
-export async function discardGroupDraft(
-  authority: VaultAuthority,
-  group: string,
-  id: string,
-): Promise<void> {
-  await new GroupCache(authority, group).remove(`outbox:${id}`);
-  await forgetAttachment(
-    groupCacheScope(authority.session.accountId, group),
-    id,
-  );
 }
 function outbox(input: unknown): Outbox {
   const d = object(input),

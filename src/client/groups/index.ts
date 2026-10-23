@@ -433,7 +433,6 @@ export function startGroups(
       });
       notice = controller.warning || t('Group opened.');
       render();
-      await pending();
     },
   });
   const readHistory = (id: string, older: boolean, localOnly: boolean) =>
@@ -1024,31 +1023,6 @@ export function startGroups(
       toggle.disabled = options.isBusy() || controller.mode === 'unavailable';
     const cancel = sidebar('[data-group-cancel-create]');
     if (cancel) cancel.hidden = !controller.creationPending;
-  }
-  async function pending(): Promise<void> {
-    const list = node('[data-group-pending]');
-    if (!list) return;
-    list.replaceChildren();
-    for (const draft of await controller.pending()) {
-      const row = document.createElement('li');
-      row.textContent = t('Draft {0} pending ', [draft.id.slice(0, 8)]);
-      row.append(
-        button(t('Resume'), async () => {
-          await controller.sendPending();
-          await reopen();
-        }),
-      );
-      row.append(
-        button(t('Discard local draft'), async () => {
-          await controller.discard(draft.id);
-          await pending();
-          notice = t(
-            'Local draft discarded. This does not delete a message already accepted.',
-          );
-        }),
-      );
-      list.append(row);
-    }
   }
   async function reopen(older = false): Promise<void> {
     const id = controller.selected?.state.groupId;

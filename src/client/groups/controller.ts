@@ -61,12 +61,7 @@ import {
   changeGroupEvent,
   proposeGroupConsent,
 } from './transitions.ts';
-import {
-  composeGroup,
-  sendGroupPending,
-  discardGroupDraft,
-  staleGroupSend,
-} from './outbox.ts';
+import { composeGroup, sendGroupPending, staleGroupSend } from './outbox.ts';
 import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -1148,13 +1143,6 @@ export class GroupController {
         };
       });
     });
-  }
-  async discard(id: string): Promise<void> {
-    const selected = this.selected;
-    if (!selected) return;
-    await this.withAuthority((c) =>
-      discardGroupDraft(c.authority, selected.state.groupId, id),
-    );
   }
   async media(
     view: GroupView,

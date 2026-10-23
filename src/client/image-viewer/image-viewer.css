@@ -1,4 +1,5 @@
-/* Only the enlarged image over the page: no panel, no dark surround. */
+/* The enlarged image over a black surround that hides the page (owner
+ * request 23/10/2026); tapping the surround closes it. */
 .public-image-viewer {
   width: 100vw;
   max-width: none;
@@ -8,14 +9,14 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--media-control-ink);
 }
 .public-image-viewer[open] {
   display: block;
   overflow: hidden;
 }
 .public-image-viewer::backdrop {
-  background: transparent;
+  background: var(--image-viewer-bg);
 }
 .public-image-frame {
   display: grid;
@@ -37,7 +38,6 @@
   object-fit: contain;
   border: 0;
   border-radius: 8px;
-  box-shadow: 0 8px 40px var(--shadow);
   cursor: zoom-in;
 }
 .public-image-viewer.zoomed .public-image-frame {
@@ -60,7 +60,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--media-control-ink);
   cursor: pointer;
 }
 .public-image-close svg {

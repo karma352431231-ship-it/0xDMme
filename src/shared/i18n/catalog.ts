@@ -2456,7 +2456,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Unblock user': ['Unblock user', '解除用户屏蔽'],
   Discard: ['Discard', '丢弃'],
   'Discard post?': ['Discard post?', '丢弃帖子？'],
-  'Discard local draft': ['Discard local draft', '丢弃本地草稿'],
   'Discard reply?': ['Discard reply?', '丢弃回复？'],
   Discover: ['Discover', '探索'],
   Description: ['Description', '简介'],
@@ -5397,10 +5396,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Invalid group draft.': ['Invalid group draft.', '群组草稿无效。'],
   'Status draft ended.': ['Status draft ended.', '状态草稿已结束。'],
   'Invalid draft.': ['Invalid draft.', '草稿无效。'],
-  'Local draft discarded. This does not delete a message already accepted.': [
-    'Local draft discarded. This does not delete a message already accepted.',
-    '本地草稿已丢弃。这不会删除已被接受的消息。',
-  ],
   'Draft preserved. Reconnect to confirm it in the vault.': [
     'Draft preserved. Reconnect to confirm it in the vault.',
     '草稿已保留。请重新联网以在保险库中确认。',
@@ -6739,14 +6734,13 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<header><div><span class="group-eyebrow">私密群组</span><h2 id="group-dialog-title"></h2></div><button data-close class="group-close" type="button" aria-label="关闭">{0}</button></header>{1}<p data-feedback class="group-feedback" role="status"></p>',
   ],
   'html.e652af8025ee': [
-    '<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Back to conversations">{0}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="Change group photo">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="Group settings" title="Group settings">{1}</button>{2}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Earlier messages</button><div data-group-history class="chat-history" tabindex="0" aria-label="Group messages"></div><ul data-group-pending class="chat-pending" aria-label="Pending group sends"></ul></div>{3}',
-    '<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="返回对话">{0}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="更换群组图片">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="群组设置" title="群组设置">{1}</button>{2}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>更早的消息</button><div data-group-history class="chat-history" tabindex="0" aria-label="群组消息"></div><ul data-group-pending class="chat-pending" aria-label="群组待发送内容"></ul></div>{3}',
+    '<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Back to conversations">{0}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="Change group photo">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="Group settings" title="Group settings">{1}</button>{2}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Earlier messages</button><div data-group-history class="chat-history" tabindex="0" aria-label="Group messages"></div></div>{3}',
+    '<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="返回对话">{0}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="更换群组图片">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="群组设置" title="群组设置">{1}</button>{2}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>更早的消息</button><div data-group-history class="chat-history" tabindex="0" aria-label="群组消息"></div></div>{3}',
   ],
   'html.8694eeb2078e': [
     '<button data-group-new type="button">New group</button><p data-group-mode></p><button data-group-cancel-create type="button" hidden>Discard local creation request</button><details><summary>Group invitations and transfers</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>More invitations</button></details>',
     '<button data-group-new type="button">新群组</button><p data-group-mode></p><button data-group-cancel-create type="button" hidden>丢弃本地创建请求</button><details><summary>群组邀请与转让</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>更多邀请</button></details>',
   ],
-  'Draft {0} pending ': ['Draft {0} pending ', '草稿 {0} 待处理 '],
   ' · ⚠ media cleanup in {0}': [
     ' · ⚠ media cleanup in {0}',
     ' · ⚠ 媒体将在 {0} 后清理',
