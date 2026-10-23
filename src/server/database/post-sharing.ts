@@ -56,6 +56,18 @@ export async function sharedPostIds(
   );
   return new Set(rows.rows.map((row) => row.post_id));
 }
+/** Profiles currently sharing each post, for one bounded page of posts. */
+export async function postShareCounts(
+  client: Pick<pg.PoolClient, 'query'>,
+  ids: string[],
+): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const rows = await client.query<{ post_id: string; shares: string }>(
+    'SELECT post_id,count(*)::text AS shares FROM hash_talk.community_post_shares WHERE shared AND post_id=ANY($1::uuid[]) GROUP BY post_id',
+    [ids],
+  );
+  return new Map(rows.rows.map((row) => [row.post_id, Number(row.shares)]));
+}
 
 function shouldShare(
   old: PostShareState,

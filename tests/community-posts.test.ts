@@ -60,7 +60,10 @@ await test('posts validate text, up to five distinct ordered tags and input budg
 await test('post pages have stable cursors and reject private fields or markers retaining text', () => {
   const value = post();
   assert.deepEqual(communityPost(value), value);
+  assert.equal(communityPost({ ...value, shares: 3 }).shares, 3);
   for (const patch of [
+    { shares: -1 },
+    { shares: 1.5 },
     { wallet: 'privada' },
     { author: { ...value.author, accountId: id() } },
     { status: 'removed' },
