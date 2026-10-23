@@ -1,4 +1,3 @@
-import { GroupDescriptionUi } from './description-ui.ts';
 import { GroupHistoryWork } from './history-work.ts';
 import type { MessageWork } from '../synchronization-work/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
@@ -8,56 +7,28 @@ import {
   translatedError,
   currentLanguage,
 } from '../../shared/i18n/index.ts';
-import { GroupMessageActions } from './message-actions.ts';
-import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
-import { GroupPeople } from './people.ts';
-import type { GroupProfile } from './people.ts';
-import {
-  groupSettingsTemplate,
-  bindGroupSettings,
-  groupMemberActions,
-  updateGroupSettingsIdentity,
-} from './settings-ui.ts';
-import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
-import { paintAvatar } from '../appearance/index.ts';
+import { GroupChatView } from './chat-view.ts';
+import { GroupManagementPanel } from './management-panel.ts';
+import { GroupVaultPanel } from './vault-panel.ts';
 import {
   chatIcon,
   ChatHistoryLoading,
   chatCollapse,
   chatComposer,
-  bindChatComposer,
-  updateChatComposer,
-  historyPosition,
-  resetHistoryPosition,
-  bindRecordGesture,
-  showRecording,
 } from '../chat-ui/index.ts';
-import {
-  groupTextQuota,
-  groupMediaQuota,
-} from '../../shared/group-quota/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
-import { groupManager } from '../../shared/groups/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
-import { VoiceRecording } from '../voice-recording/index.ts';
-import { AttachmentUi } from '../attachment-ui/index.ts';
-import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
-import { showExternalVideos } from '../external-video/index.ts';
-import { showGifText, gifUrls } from '../gif-search/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { ExternalTextHistory } from '../external-media/index.ts';
-import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
 import { GroupReceipt } from './receipt.ts';
 import type { GroupChange } from './receipt.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
-import { chatFileLimit } from '../../shared/attachments/index.ts';
-import { withMenuIcon } from '../menu-icons/index.ts';
+import type { GroupProfile } from './people.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -84,93 +55,58 @@ export function startGroups(
   options: GroupOptions,
 ) {
   const controller = new GroupController(
-      access,
-      sync,
-      () =>
-        document.visibilityState === 'visible' &&
-        !!host?.getClientRects().length,
-    ),
-    emoji = new EmojiPicker(),
-    attachments = new AttachmentUi(
-      options.playback,
-      voiceStatus,
-      chatFileLimit,
-    );
+    access,
+    sync,
+    () =>
+      document.visibilityState === 'visible' && !!host?.getClientRects().length,
+  );
   let session: AccountSession | null = null,
     host: HTMLElement | null = null,
     aside: HTMLElement | null = null,
     notice = t('Open a group to chat.');
   let states = new Map<string, PeerState>();
-  let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
-  let externalAbort = new AbortController();
-  const externalRows = new ExternalTextHistory();
   const loading = new ChatHistoryLoading();
-  const voice = new VoiceRecording({
-    changed: () => voiceStatus(),
-    completed: (selection) => {
-      const selected = controller.selected;
-      if (!session || !selected) {
-        selection.bytes.fill(0);
-        return;
-      }
-      attachments.selectVoice(selection, session.accountId);
-      voiceStatus();
-    },
-  });
-  const photoView = new GroupPhotoView();
-  const photoUi = new GroupPhotoUi({
-    selected: () => controller.selected,
+  const report = (text: string) => {
+    notice = text;
+  };
+  const chat = new GroupChatView({
+    controller,
     account: () => session?.accountId,
-    load: () => controller.photo(),
-    run: options.run,
-    save: async (input) => {
-      await controller.updatePhoto(input);
-      await refresh();
-    },
+    playback: options.playback,
+    externalMedia: options.externalMedia,
+    isBusy: options.isBusy,
+    name,
+    run,
+    reopen,
+    select: options.select,
+    report,
+    status,
   });
-  const people = new GroupPeople(options.profile);
-  let displayedGroup: string | null = null;
-  const actions = new GroupActionsUi({
+  const management = new GroupManagementPanel({
     access,
     controller,
+    account: () => session?.accountId,
+    name,
     peers: options.peers,
     profile: options.profile,
     refresh,
-    open: (id) => open(id),
+    open,
     isBusy: options.isBusy,
-    run: options.run,
+    run,
+    dialogRun: options.run,
+    report,
+    render,
+  });
+  const vault = new GroupVaultPanel({
+    controller,
+    account: () => session?.accountId,
+    isBusy: options.isBusy,
+    run,
+    reopen,
+    report,
   });
   function node<T extends HTMLElement>(selector: string): T | null {
     return host?.querySelector<T>(selector) ?? null;
-  }
-  function sidebar<T extends HTMLElement>(selector: string): T | null {
-    return aside?.querySelector<T>(selector) ?? null;
-  }
-  function composerStatus(): void {
-    updateChatComposer(node('[data-group-compose]'), {
-      blocked: options.isBusy() || !controller.selected,
-      recording: voice.active,
-      attachment: attachments.selected !== null,
-    });
-  }
-  function voiceStatus(): void {
-    composerStatus();
-    showRecording(node('[data-group-compose]'), voice.state);
-    voiceControls();
-  }
-  function voiceControls(): void {
-    const stop = node<HTMLButtonElement>('[data-voice-stop]');
-    if (stop) stop.hidden = !voice.active;
-    const cancel = node('[data-voice-cancel]');
-    if (cancel) cancel.hidden = !voice.active;
-    const start = node<HTMLButtonElement>('[data-voice-record]');
-    if (start)
-      start.disabled =
-        options.isBusy() || voice.active || attachments.selected !== null;
-    const file = node<HTMLInputElement>('[data-attachment-file]');
-    if (file)
-      file.disabled =
-        options.isBusy() || voice.active || !!attachments.selected?.voice;
   }
   function status(): void {
     const settingsNotice = node('[data-group-settings-notice]');
@@ -195,10 +131,8 @@ export function startGroups(
         (notice === t('Syncing…') && !initialLoading)
           ? ''
           : notice;
-    const compose = node<HTMLFormElement>('[data-group-compose]');
-    if (compose) compose.hidden = !!controller.selected?.localOnly;
-    voiceStatus();
-    renderCreation();
+    chat.status();
+    management.renderCreation();
   }
   async function run(work: () => Promise<void>): Promise<void> {
     await options.run(async () => {
@@ -260,8 +194,8 @@ export function startGroups(
       ...controller.entries.map((g) => g.state.groupId),
     ]);
     await refreshStates();
-    renderIncoming();
-    renderCreation();
+    management.renderIncoming();
+    management.renderCreation();
     options.changed();
     await resumeIncompleteHistory(selected);
     await refreshSelected(selected);
@@ -305,7 +239,7 @@ export function startGroups(
     }
     if (group.localOnly) await readHistory(selected, false, true);
     await resumePending();
-    await refreshVault();
+    await vault.refresh();
     render();
   }
   async function resumePending(): Promise<void> {
@@ -316,7 +250,7 @@ export function startGroups(
     schedule: options.history,
     settled: async () => {
       const selected = controller.selected;
-      await refreshVault();
+      await vault.refresh();
       if (!selected || controller.selected !== selected) return;
       loading.update({
         conversation: `${selected.state.groupId}:${!!selected.localOnly}`,
@@ -324,7 +258,7 @@ export function startGroups(
       });
       notice = controller.warning || t('Group opened.');
       render();
-      await pending();
+      await chat.pending();
     },
   });
   const readHistory = (id: string, older: boolean, localOnly: boolean) =>
@@ -342,26 +276,16 @@ export function startGroups(
     readSelected: (id) => readHistory(id, false, false),
     receipts: async () => {
       await controller.refreshReceipts();
-      renderHistory();
+      chat.renderHistory();
     },
     states: refreshStates,
     directory: () => refresh(),
     changed: () => options.changed(),
   });
   async function open(group: GroupSummary | string): Promise<void> {
-    messageActions.close();
     const id = typeof group === 'string' ? group : group.state.groupId,
       localOnly = typeof group === 'string' ? false : !!group.localOnly;
-    if (voice.active || attachments.selected?.voice)
-      throw new Error(
-        'Send or remove the voice preview before changing conversations.',
-      );
-    if (controller.selected?.state.groupId !== id)
-      resetHistoryPosition(node('[data-group-history]'));
-    options.select();
-    attachments.clearSelection();
-    emoji.close();
-    if (host) host.hidden = false;
+    chat.open(id);
     try {
       await readHistory(id, false, localOnly);
     } finally {
@@ -370,483 +294,19 @@ export function startGroups(
     if (controller.historyPending) notice = t('Syncing…');
     render();
   }
-  const descriptionUi = new GroupDescriptionUi({
-    selected: () => controller.selected,
-    account: () => session?.accountId,
-    load: () => controller.description(),
-    save: (input) => controller.updateDescription(input),
-    run,
-  });
-  const messageActions = new GroupMessageActions({
-    run,
-    edit: async (view, text) => {
-      await controller.edit(view, text);
-      await reopen();
-    },
-    remove: async (view) => {
-      const pending = controller.removeMessage(view);
-      renderHistory();
-      try {
-        await pending;
-        await reopen();
-      } finally {
-        renderHistory();
-      }
-    },
-  });
-  function renderHistory(): void {
-    const history = node('[data-group-history]');
-    if (!history) return;
-    history.hidden = controller.historyPending;
-    if (controller.historyPending) {
-      messageActions.pause();
-      return;
-    }
-    messageActions.resume(controller.views);
-    const restoreScroll = historyPosition(history);
-    externalRows.render(
-      history,
-      controller.views.map((view) => ({
-        id: view.id,
-        key: JSON.stringify([
-          view.text,
-          view.hash,
-          view.sender,
-          name(view.sender),
-          view.localOnly,
-          view.kind,
-          view.unavailableMedia,
-          view.edited,
-        ]),
-        render: (signal) => renderView(view, signal),
-      })),
-      externalAbort.signal,
-    );
-    for (const view of controller.views) {
-      const row = history.querySelector<HTMLElement>(
-        `[data-group-message="${view.id}"]`,
-      );
-      if (row) renderDelivery(row, view);
-    }
-    restoreScroll();
-    const older = node('[data-group-older]');
-    if (older) older.hidden = controller.before === null;
-  }
-  function renderView(view: GroupView, mediaSignal: AbortSignal): HTMLElement {
-    const article = document.createElement('article');
-    article.className = view.own ? 'chat-message own' : 'chat-message';
-    article.dataset['groupMessage'] = view.id;
-    const sender = document.createElement('strong');
-    sender.textContent = name(view.sender);
-    article.append(sender);
-    if (view.kind === 'attachment') {
-      attachments.render({
-        article,
-        view: { id: view.id, text: view.text, peer: view.sender },
-        signal: mediaSignal,
-        load: (_media, thumbnail) => controller.media(view, thumbnail),
-        run,
-      });
-      if (view.unavailableMedia.length) {
-        const unavailable = document.createElement('p');
-        unavailable.textContent = t(
-          'Media unavailable in the remote vault. A downloaded copy may remain on this device.',
-        );
-        article.append(unavailable);
-      }
-    } else {
-      const text = document.createElement('p');
-      emojiText(text, view.text);
-      renderExternal(article, text, view.text, mediaSignal);
-      article.append(text);
-    }
-    renderDelivery(article, view);
-    if (view.localOnly) {
-      const local = document.createElement('small');
-      local.textContent = t(
-        'Local copy · content unavailable in the remote vault',
-      );
-      article.append(local);
-    }
-    article.append(messageActions.render(view, mediaSignal));
-    return article;
-  }
-  function renderDelivery(article: HTMLElement, view: GroupView): void {
-    article.querySelector('.message-meta')?.remove();
-    const checks = messageChecks({
-      own: view.own,
-      ...(view.delivery ? { delivery: view.delivery } : {}),
-      read: view.read ?? false,
-    });
-    if (checks || view.edited) {
-      const state = document.createElement('small');
-      state.className = 'message-meta';
-      if (view.edited) state.append(t('Edited · '));
-      if (checks)
-        state.append(
-          checksIcon({
-            ...checks,
-            label: view.read
-              ? t('Seen by recipients who share read receipts')
-              : checks.label,
-          }),
-        );
-      article.append(state);
-    }
-  }
-  function renderExternal(
-    article: HTMLElement,
-    text: HTMLElement,
-    value: string,
-    mediaSignal: AbortSignal,
-  ): void {
-    if (!options.externalMedia) return;
-    const settings = {
-      privacy: options.externalMedia,
-      signal: mediaSignal,
-    };
-    const gif = gifUrls(value).length;
-    if (gif) {
-      text.replaceChildren();
-      showGifText(text, value, { ...settings, renderText: emojiText });
-    }
-    showExternalVideos(article, value, settings);
-  }
   function render(): void {
     const group = controller.selected;
-    updateSettingsGroup(group);
+    management.updateSettingsGroup(group);
     if (!group) {
       if (host) host.hidden = true;
       return;
     }
-    const heading = node('[data-group-title]');
-    if (heading) heading.textContent = group.title;
-    const avatar = node('[data-group-avatar]');
-    if (avatar)
-      paintAvatar(avatar, { label: group.title, seed: group.state.groupId });
-    const count = node('[data-group-count]');
-    if (count)
-      count.textContent = group.localOnly
-        ? t('Independent local copy · this copy grants no remote access')
-        : t('{0} participants', [group.state.members.length]);
-    renderGroupPhoto(group);
-    renderLocalControls(group);
-    renderHistory();
-    renderMembers();
-    renderVault();
-    renderInvites();
+    management.renderIdentity(group);
+    chat.renderHistory();
+    management.renderMembers();
+    vault.render();
+    management.renderInvites();
     status();
-  }
-  function updateSettingsGroup(group: GroupSummary | null): void {
-    if (displayedGroup !== (group?.state.groupId ?? null)) {
-      node<HTMLDialogElement>('[data-group-settings]')?.close();
-      people.clear();
-      photoView.reset();
-      photoUi.reset();
-      descriptionUi.reset();
-      displayedGroup = group?.state.groupId ?? null;
-    }
-    if (!group) return;
-    updateGroupSettingsIdentity(host, group);
-    if (node<HTMLDialogElement>('[data-group-settings]')?.open)
-      descriptionUi.show(group);
-  }
-  function renderGroupPhoto(group: GroupSummary): void {
-    const targets = [
-      ...(host?.querySelectorAll<HTMLElement>('[data-group-photo]') ?? []),
-    ];
-    const allowed =
-      !group.localOnly &&
-      !!session &&
-      groupManager(group.state, session.accountId);
-    for (const node of targets) {
-      if (node instanceof HTMLButtonElement) node.disabled = !allowed;
-      node.setAttribute(
-        'aria-label',
-        allowed ? t('Change group photo') : t('Group photo'),
-      );
-      node.title = allowed ? t('Change group photo') : t('Group photo');
-    }
-    photoView.show(
-      JSON.stringify([
-        group.state.groupId,
-        group.head,
-        group.profileSequence ?? 0,
-      ]),
-      targets,
-      () => controller.photo(),
-    );
-  }
-  function renderLocalControls(group: GroupSummary): void {
-    for (const selector of [
-      '[data-group-leave]',
-      '[data-group-owner-note]',
-      '[data-group-delete]',
-      '[data-group-clear]',
-    ]) {
-      const control = node(selector);
-      if (control) control.hidden = !!group.localOnly;
-    }
-  }
-  function button(label: string, work: () => Promise<void>): HTMLButtonElement {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.addEventListener('click', () => void run(work));
-    return b;
-  }
-  function renderMembers(): void {
-    const list = node('[data-group-members]'),
-      group = controller.selected;
-    if (!list || !group || !session) return;
-    people.clear();
-    list.replaceChildren();
-    for (const member of group.state.members) {
-      const row = document.createElement('li');
-      row.className = 'group-member-row';
-      const role =
-        member.role === 'owner'
-          ? t('Owner')
-          : member.role === 'admin'
-            ? t('Administrator')
-            : t('Member');
-      row.append(
-        people.identity(member.accountId, name(member.accountId), role),
-      );
-      const controls = document.createElement('div');
-      renderMemberActions(controls, group, member);
-      if (controls.children.length)
-        groupMemberActions(row, name(member.accountId)).append(
-          ...controls.children,
-        );
-      list.append(row);
-    }
-    renderOwnership(group, session);
-  }
-  function renderOwnership(group: GroupSummary, session: AccountSession): void {
-    const leave = node('[data-group-leave]');
-    if (leave)
-      leave.hidden =
-        !!group.localOnly || group.state.owner === session.accountId;
-    const transfer = node('[data-group-owner-note]');
-    if (transfer)
-      transfer.hidden =
-        !!group.localOnly || group.state.owner !== session.accountId;
-    const deletion = node('[data-group-delete]');
-    if (deletion)
-      deletion.hidden =
-        !!group.localOnly || group.state.owner !== session.accountId;
-  }
-  function renderMemberActions(
-    row: HTMLElement,
-    group: GroupSummary,
-    member: GroupSummary['state']['members'][number],
-  ): void {
-    if (
-      !session ||
-      group.localOnly ||
-      member.role === 'owner' ||
-      member.accountId === session.accountId
-    )
-      return;
-    if (groupManager(group.state, session.accountId))
-      row.append(
-        withMenuIcon(
-          button(t('Remove'), async () => {
-            if (
-              !window.confirm(
-                t('Remove {0} from the group?', [name(member.accountId)]),
-              )
-            )
-              return;
-            await controller.change({
-              kind: 'remove',
-              target: member.accountId,
-            });
-            await refresh();
-          }),
-          'remove',
-        ),
-      );
-    if (group.state.owner !== session.accountId) return;
-    row.append(
-      withMenuIcon(
-        button(
-          member.role === 'admin' ? t('Make member') : t('Make administrator'),
-          async () => {
-            await controller.change({
-              kind: 'role',
-              target: member.accountId,
-              role: member.role === 'admin' ? 'member' : 'admin',
-            });
-            await refresh();
-          },
-        ),
-        member.role === 'admin' ? 'member' : 'admin',
-      ),
-    );
-    row.append(
-      withMenuIcon(
-        button(t('Offer ownership'), async () => {
-          if (
-            !window.confirm(
-              t(
-                'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.',
-                [name(member.accountId)],
-              ),
-            )
-          )
-            return;
-          await controller.propose(member.accountId, 'transfer');
-          notice = t(
-            'Transfer offered. Ownership changes after the selected member accepts.',
-          );
-        }),
-        'shield',
-      ),
-    );
-  }
-  function renderInvites(): void {
-    showGroupManagement(
-      node('[data-group-manage]'),
-      controller.selected,
-      session?.accountId,
-    );
-  }
-  async function refreshVault(): Promise<void> {
-    vault =
-      controller.selected?.localOnly ||
-      !node<HTMLDetailsElement>('[data-group-vault]')?.open
-        ? null
-        : await controller.vault();
-  }
-  function renderVault(): void {
-    const value = node('[data-group-usage]');
-    if (value)
-      value.textContent = vault
-        ? t('Text and administration: {0} / {1} MB · media: {2} / {3} MB', [
-            (vault.textBytes / 1_000_000).toFixed(2),
-            groupTextQuota / 1_000_000,
-            (vault.mediaBytes / 1_000_000).toFixed(2),
-            groupMediaQuota / 1_000_000,
-          ])
-        : '';
-    const warning = node('[data-group-cleanup-warning]');
-    if (warning)
-      warning.textContent = vault?.notice
-        ? t(
-            'Old media cleanup scheduled for {0}. About {1} MB selected. Text stays.',
-            [
-              new Date(vault.notice.dueAt).toLocaleString(currentLanguage()),
-              (vault.notice.bytes / 1_000_000).toFixed(2),
-            ],
-          )
-        : '';
-    const clear = node('[data-group-clear]');
-    if (clear) clear.hidden = !canClear();
-    renderCleanupItems();
-  }
-  function canClear(): boolean {
-    const group = controller.selected;
-    return (
-      !!group && !group.localOnly && group.state.owner === session?.accountId
-    );
-  }
-  function renderCleanupItems(): void {
-    const more = node('[data-group-cleanup-more]');
-    if (more) more.hidden = vault?.next === null || !vault;
-    const selected = node('[data-group-cleanup-items]');
-    if (selected) {
-      selected.replaceChildren();
-      for (const item of vault?.items ?? []) {
-        const li = document.createElement('li');
-        li.textContent = t('Message {0} · {1} MB', [
-          item.message.slice(0, 8),
-          (item.bytes / 1_000_000).toFixed(2),
-        ]);
-        selected.append(li);
-      }
-    }
-  }
-  function renderIncoming(): void {
-    const list = sidebar('[data-group-incoming]');
-    if (!list) return;
-    list.replaceChildren();
-    for (const consent of controller.incoming) {
-      const row = document.createElement('div'),
-        label = document.createElement('p');
-      label.textContent =
-        consent.kind === 'invite'
-          ? t('{0} invited you to a group.', [name(consent.actor)])
-          : t(
-              '{0} offered you ownership of a group. Accept to take over administration.',
-              [name(consent.actor)],
-            );
-      row.append(label);
-      row.append(
-        button(
-          consent.kind === 'invite' ? t('Join group') : t('Accept ownership'),
-          async () => {
-            await controller.respond(consent, true);
-            await refresh();
-            const group = controller.entries.find(
-              (g) => g.state.groupId === consent.groupId,
-            );
-            if (group) await open(group);
-          },
-        ),
-      );
-      row.append(
-        button(t('Decline'), async () => {
-          await controller.respond(consent, false);
-          await controller.refreshIncoming();
-          renderIncoming();
-        }),
-      );
-      list.append(row);
-    }
-    const more = sidebar('[data-group-more-incoming]');
-    if (more) more.hidden = controller.incomingNext === null;
-  }
-  function renderCreation(): void {
-    const mode = sidebar('[data-group-mode]');
-    if (mode)
-      mode.textContent =
-        controller.mode === 'configured'
-          ? t(
-              'Free creation, with no total limit. Up to one creation per minute and ten per hour.',
-            )
-          : t('Checking group availability…');
-    const toggle = sidebar<HTMLButtonElement>('[data-group-new]');
-    if (toggle)
-      toggle.disabled = options.isBusy() || controller.mode === 'unavailable';
-    const cancel = sidebar('[data-group-cancel-create]');
-    if (cancel) cancel.hidden = !controller.creationPending;
-  }
-  async function pending(): Promise<void> {
-    const list = node('[data-group-pending]');
-    if (!list) return;
-    list.replaceChildren();
-    for (const draft of await controller.pending()) {
-      const row = document.createElement('li');
-      row.textContent = t('Draft {0} pending ', [draft.id.slice(0, 8)]);
-      row.append(
-        button(t('Resume'), async () => {
-          await controller.sendPending();
-          await reopen();
-        }),
-      );
-      row.append(
-        button(t('Discard local draft'), async () => {
-          await controller.discard(draft.id);
-          await pending();
-          notice = t(
-            'Local draft discarded. This does not delete a message already accepted.',
-          );
-        }),
-      );
-      list.append(row);
-    }
   }
   async function reopen(older = false): Promise<void> {
     const id = controller.selected?.state.groupId;
@@ -854,196 +314,23 @@ export function startGroups(
     await readHistory(id, older, !!controller.selected?.localOnly);
     render();
   }
-  function bind(selector: string, handler: () => void): void {
-    node(selector)?.addEventListener('click', handler);
-  }
-  function bindChat(): void {
-    node<HTMLDetailsElement>('[data-group-vault]')?.addEventListener(
-      'toggle',
-      () => {
-        if (
-          node<HTMLDetailsElement>('[data-group-vault]')?.open &&
-          !options.isBusy()
-        )
-          void run(async () => {
-            await refreshVault();
-            renderVault();
-          });
-      },
-    );
-    bind(
-      '[data-group-cleanup-more]',
-      () =>
-        void run(async () => {
-          if (vault?.next === null || !vault) return;
-          vault = await controller.vault(vault.next);
-          renderVault();
-        }),
-    );
-    node<HTMLFormElement>('[data-group-compose]')?.addEventListener(
-      'submit',
-      (event) => {
-        event.preventDefault();
-        void run(async () => {
-          const input = node<HTMLTextAreaElement>('[data-group-text]');
-          await controller.compose(input?.value ?? '', attachments.selected);
-          attachments.clearSelection();
-          voice.cancel();
-          if (input) {
-            input.value = '';
-            input.dispatchEvent(new Event('input'));
-          }
-          await controller.sendPending();
-          await reopen();
-          notice = t('Message sent.');
-        });
-      },
-    );
-    bind('[data-group-older]', () => void run(() => reopen(true)));
-    bind('[data-group-emoji]', () => {
-      const anchor = node('[data-group-emoji]'),
-        input = node<HTMLTextAreaElement>('[data-group-text]');
-      if (!anchor || !input) return;
-      void emojiIntoComposer(emoji, anchor, input).catch(() => {
-        notice = t('Could not open emoji.');
-        status();
-      });
-    });
-    bindRecordGesture(node('[data-voice-record]'), {
-      start: () => {
-        if (!options.isBusy() && !voice.active && !attachments.selected)
-          void voice.start();
-      },
-      // Releasing before the microphone opens keeps recording hands-free.
-      release: () => {
-        if (voice.state.phase === 'recording') void voice.stop();
-      },
-    });
-    bind('[data-voice-stop]', () => void voice.stop());
-    bind('[data-voice-cancel]', () => voice.cancel());
-    bind('[data-attachment-clear]', () => {
-      if (!voice.active) voice.cancel();
-    });
-    bind(
-      '[data-group-leave]',
-      () =>
-        void run(async () => {
-          if (
-            !window.confirm(
-              t('Leave the group? You will lose access to the remote vault.'),
-            )
-          )
-            return;
-          await controller.change({
-            kind: 'leave',
-            target: session?.accountId ?? null,
-          });
-          await refresh();
-          render();
-        }),
-    );
-    bind(
-      '[data-group-delete]',
-      () =>
-        void run(async () => {
-          if (
-            !window.confirm(
-              t(
-                'Delete the group and start removing the remote vault for everyone? Copies already kept by participants remain under their control.',
-              ),
-            )
-          )
-            return;
-          await controller.change({ kind: 'delete', target: null });
-          await refresh();
-          render();
-        }),
-    );
-    bind(
-      '[data-group-clear]',
-      () =>
-        void run(async () => {
-          if (
-            !window.confirm(
-              t(
-                "Clear this group's remote vault content? Messages and media will be removed; local copies and saved files may remain.",
-              ),
-            )
-          )
-            return;
-          await controller.clearVault();
-          notice = t('Vault cleanup started.');
-          await reopen();
-        }),
-    );
-    node('[data-group-manage]')?.addEventListener('click', () =>
-      actions.showManage(),
-    );
-  }
-  function bindAside(): void {
-    sidebar('[data-group-new]')?.addEventListener('click', () =>
-      actions.showCreate(),
-    );
-    sidebar('[data-group-cancel-create]')?.addEventListener(
-      'click',
-      () =>
-        void run(async () => {
-          await controller.cancelCreation();
-          notice = t(
-            'Local request discarded. If the server already created the group, it remains in the list.',
-          );
-          await refresh();
-        }),
-    );
-    sidebar('[data-group-more-incoming]')?.addEventListener(
-      'click',
-      () =>
-        void run(async () => {
-          await controller.refreshIncoming(true);
-          renderIncoming();
-        }),
-    );
-  }
   function deselect(): void {
-    messageActions.close();
-    node<HTMLDialogElement>('[data-group-settings]')?.close();
-    people.clear();
-    if (voice.active || attachments.selected?.voice)
+    chat.closeActions();
+    management.closeSettings();
+    if (chat.recording)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
       );
     controller.deselect();
-    descriptionUi.reset();
-    attachments.clearSelection();
-    attachments.clearMedia();
-    emoji.close();
-    if (host) host.hidden = true;
+    management.deselected();
+    chat.deselect();
   }
   function leave(): void {
-    node<HTMLDialogElement>('[data-group-settings]')?.close();
-    people.clear();
-    photoView.reset();
-    photoUi.reset();
-    descriptionUi.reset();
-    actions.reset();
-    externalRows.clear();
-    externalAbort.abort();
-    externalAbort = new AbortController();
-    if (voice.active)
-      void voice.stop(
-        t(
-          'Navigation interrupted recording. Check the excerpt when you return.',
-        ),
-      );
-    attachments.clearMedia();
-    attachments.pausePreview();
-    emoji.close();
+    management.leave();
+    chat.leave();
   }
   function clearSessionPanels(): void {
-    node<HTMLDialogElement>('[data-group-settings]')?.close();
-    people.clear();
-    photoView.reset();
-    photoUi.reset();
+    management.clearSession();
     for (const container of [host, aside]) {
       container?.querySelectorAll('form').forEach((form) => form.reset());
       container
@@ -1052,25 +339,13 @@ export function startGroups(
         )
         .forEach((list) => list.replaceChildren());
     }
-    actions.reset();
+    management.clearAdmission();
     notice = t('Open a group to chat.');
   }
-  window.addEventListener('beforeunload', (event) => {
-    if (!voice.active && !attachments.selected?.voice) return;
-    event.preventDefault();
-    event.returnValue = '';
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && voice.active)
-      void voice.stop(
-        t(
-          'The browser interrupted recording. Check the preserved excerpt when you return.',
-        ),
-      );
-  });
+  chat.bindBrowserLifetime();
   return {
-    create: () => actions.showCreate(),
-    join: (url = '') => actions.showJoin(url),
+    create: () => management.create(),
+    join: (url = '') => management.join(url),
     get entries(): readonly GroupSummary[] {
       return controller.entries;
     },
@@ -1081,7 +356,7 @@ export function startGroups(
       return controller.selected;
     },
     get recording(): boolean {
-      return voice.active || !!attachments.selected?.voice;
+      return chat.recording;
     },
     listLabel,
     photo: (group: GroupSummary) => controller.photo(group),
@@ -1102,7 +377,7 @@ export function startGroups(
       await controller.respond(consent, accept);
       if (accept) await refresh();
       await controller.refreshIncoming();
-      renderIncoming();
+      management.renderIncoming();
     },
     unread: (id: string) => states.get(id)?.unread ?? 0,
     search: (query: string, after: string | null) =>
@@ -1129,78 +404,46 @@ export function startGroups(
       }
       session = value;
       loading.reset();
-      messageActions.close();
-      actions.setSession(value);
-      externalRows.clear();
-      externalAbort.abort();
-      externalAbort = new AbortController();
+      chat.closeActions();
+      management.setSession(value);
+      chat.invalidateHistory();
       controller.setSession(value);
-      voice.cancel();
-      attachments.clearSelection();
-      attachments.clearMedia();
-      emoji.reset();
+      chat.clearSession();
       clearSessionPanels();
       states.clear();
-      vault = null;
+      vault.reset();
       render();
     },
     removed(): void {
       controller.removed();
-      messageActions.pause();
-      renderHistory();
+      chat.pauseActions();
+      chat.renderHistory();
     },
     suspend(revoked = false): void {
-      messageActions.close();
-      node<HTMLDialogElement>('[data-group-settings]')?.close();
-      people.clear();
-      photoView.reset();
-      photoUi.reset();
-      descriptionUi.reset();
-      actions.reset();
+      chat.closeActions();
+      management.leave();
       if (revoked) controller.revokeAuthority();
       else controller.hide();
-      attachments.clearMedia();
-      renderHistory();
-      if (revoked) {
-        voice.cancel();
-        attachments.clearSelection();
-      }
+      chat.suspend(revoked);
     },
     leave,
-    canActivate: () => !voice.active && !attachments.selected,
+    canActivate: () => chat.canActivate(),
     mount(container: HTMLElement, sidebarContainer: HTMLElement): void {
       host = container;
       aside = sidebarContainer;
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
-      sidebarContainer.innerHTML = t('html.8694eeb2078e');
       container.innerHTML = t('html.e652af8025ee', [
         chatIcon('back'),
         chatIcon('more'),
         chatCollapse(),
         chatComposer('group'),
       ]);
-      container.insertAdjacentHTML('beforeend', groupSettingsTemplate);
-      container
-        .querySelectorAll('[data-group-photo]')
-        .forEach((node) =>
-          node.addEventListener('click', () => photoUi.open()),
-        );
-      descriptionUi.mount(container);
-      bindGroupSettings(container, {
-        opened: () => {
-          renderMembers();
-          if (controller.selected) descriptionUi.show(controller.selected);
-        },
-        closed: () => people.clear(),
-      });
-      attachments.mount(container, run);
-      const form = node('[data-group-compose]');
-      if (form) bindChatComposer(form, composerStatus);
-      bindChat();
-      bindAside();
-      renderCreation();
-      renderIncoming();
+      management.mount(container, sidebarContainer);
+      vault.mount(container);
+      chat.mount(container);
+      management.renderCreation();
+      management.renderIncoming();
     },
   };
 }

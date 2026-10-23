@@ -16,7 +16,7 @@ import type { GroupController } from './controller.ts';
 
 interface GroupActionsOptions {
   access: VaultAccess;
-  controller: GroupController;
+  controller: Pick<GroupController, 'selected' | 'create' | 'admission'>;
   peers: () => readonly Peer[];
   profile: GroupProfile;
   refresh: () => Promise<void>;

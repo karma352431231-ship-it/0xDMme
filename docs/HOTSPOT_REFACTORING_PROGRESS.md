@@ -1,7 +1,7 @@
 # Hotspot refactoring from the current main branch
 
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
-H02, then H01 presentation. This branch is for review; merging into main and
+H02, H01 presentation, then H07 group presentation. This branch is for review; merging into main and
 VPS publication are outside this task.
 
 The October 22 audit inspected an older checkout. The current main branch
@@ -115,6 +115,64 @@ has been no merge into main, remote push or VPS operation.
   no archive roots or resource budgets were broadened. Final whitespace and
   changed-document formatting checks passed.
 
-The three requested implementation stages are committed on this branch. Visual
+The first three implementation stages are committed on this branch. Visual
 acceptance remains pending because browser access is disabled. Database
 integration and remote CI are unrun; no production-readiness claim is made.
+
+## H07: group conversation, administration and vault presentation
+
+`groups/management-panel.ts` owns the settings identity, membership controls,
+incoming invitations/ownership offers and creation controls. It composes the
+existing photo, description, participant-profile and admission-dialog owners,
+including their resets on selection, navigation and account-session changes.
+Dialog operations keep their original runner and local feedback; chat/settings
+commands keep their original notice/error wrapper. Ownership still requires
+the existing confirmation and recipient consent.
+
+`groups/vault-panel.ts` owns the displayed quota/cleanup page, cursor and panel
+bindings. It preserves the open-panel read condition, local-only restriction,
+quota values, cleanup warning and owner-only clear control/confirmation. The
+existing controller continues to authorize and execute all remote operations.
+
+`groups/chat-view.ts` owns history rows and external-media cancellation,
+attachments, voice recording/previews, emoji, message actions and pending-send
+presentation. The original send steps, recording/navigation guards, media
+retention on unchanged receipt updates, and different navigation/suspension/
+revocation cleanup remain in place. Browser listeners retain the existing group
+UI lifetime; no additional cancellation or retry policy was introduced.
+
+The public `startGroups` contract stays intact. Its coordinator retains the one
+account session, controller, verified-history scheduling and directory/counter
+composition. New presentation owners receive selected domain operations and
+read-only identity getters, never the original mutable closure or trust state.
+The admission dialog's controller dependency is narrowed to its three existing
+operations. Existing dependency-cruiser rules cover the new internal modules;
+no rule exceptions, dependencies, engine/server changes, styles, migrations or
+source-archive roots were added.
+
+Structural review: presentation state/resources moved into their respective
+owners, rather than into forwarding helpers; controller authority and existing
+render/cleanup boundaries remain in the coordinator. Existing engine concerns
+in `groups/controller.ts` are outside this presentation task. If that engine is
+addressed later, characterize session invalidation and verification first,
+then separate verified reading from sending while retaining one authority;
+use the existing group crypto/preparation/retry tests and database integration.
+
+Validation: 109 relevant tests passed across targeted runs, including nine
+assembled group-screen characterizations. Those same nine cases also passed
+against the pre-refactor entry point. Coverage includes role changes and
+local-only controls, ownership consent, vault reads/paging/confirmation, voice
+navigation and interruption, draft preservation on compose failure, pending
+draft actions, receipt-only media reuse and late photo/session cleanup.
+Existing crypto/governance, quotas/retention, preparation, message coordinator,
+attachment, voice and portable-source tests also passed. These use synthetic
+data and IO/media/layout adapters, not real browser media or backend services.
+ESLint, strict types, dependency boundaries, repository formatting, localization
+coverage and the web build passed. The generated portable-source archive has
+1,142 entries and contains byte-identical copies of all three new group modules;
+source/release budgets were not changed. Final diff/whitespace review passed.
+
+The local browser remains disabled in Work settings, confirmed again during
+this stage. The assembled browser smoke for recording/navigation/invitation/
+vault interactions remains pending. PostgreSQL integration and remote CI were
+not run. This stage does not include merging, pushing or VPS operations.
