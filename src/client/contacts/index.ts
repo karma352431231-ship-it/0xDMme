@@ -57,6 +57,7 @@ export function startContacts(
     },
   });
   let mounted: HTMLElement | null = null,
+    addRequested = false,
     busy = false,
     generation = 0,
     offset = 0;
@@ -185,15 +186,23 @@ export function startContacts(
       )
       ?.focus();
   }
+  function startAdding(): void {
+    resetEditor();
+    status = t(
+      'Saving stores the nickname in contacts; a conversation request requires acceptance.',
+    );
+    render();
+    openEditor('wallet');
+  }
+  /** A sidebar request waits for the Contacts view; it never replaces an open editor. */
+  function openRequestedEditor(): void {
+    const dialog = node<HTMLDialogElement>('[data-contact-editor]');
+    if (!addRequested || !dialog) return;
+    addRequested = false;
+    if (!dialog.open) startAdding();
+  }
   function bindEditor(): void {
-    node('[data-contact-add]')?.addEventListener('click', () => {
-      resetEditor();
-      status = t(
-        'Saving stores the nickname in contacts; a conversation request requires acceptance.',
-      );
-      render();
-      openEditor('wallet');
-    });
+    node('[data-contact-add]')?.addEventListener('click', startAdding);
     const dialog = node<HTMLDialogElement>('[data-contact-editor]');
     node('[data-contact-editor-close]')?.addEventListener('click', () =>
       dialog?.close(),
@@ -718,6 +727,11 @@ export function startContacts(
       void contactSettings.open(contact);
     },
     closeContact: () => contactSettings.clear(),
+    /** Sidebar shortcut: open the add editor now, or when Contacts mounts. */
+    addContact(): void {
+      addRequested = true;
+      if (mounted?.isConnected) openRequestedEditor();
+    },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();
@@ -742,6 +756,7 @@ export function startContacts(
       // current search remain owned by this session's contact controller.
       if (mounted === container) {
         render();
+        openRequestedEditor();
         return;
       }
       const formValues = [
@@ -761,6 +776,7 @@ export function startContacts(
       bindOwnInvite();
       readIncomingInvite();
       showReceivedInvite();
+      openRequestedEditor();
       mountCamera();
       container
         .querySelectorAll<HTMLButtonElement>('[data-contact-action]')
@@ -810,6 +826,7 @@ export function startContacts(
   };
 }
 
+export { bindContactShortcuts } from './shortcuts.ts';
 export { Contacts, checkPinnedIdentity } from './controller.ts';
 export { AddressBook, walletEntity, walletKey } from './agenda.ts';
 export type { BookVersion } from './agenda.ts';

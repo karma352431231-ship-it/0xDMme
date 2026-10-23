@@ -973,6 +973,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   Add: ['Add', '添加'],
   'Add to favorites': ['Add to favorites', '添加到收藏'],
   'Add contact': ['Add contact', '添加联系人'],
+  'My contacts': ['My contacts', '我的联系人'],
   'Add participants': ['Add participants', '添加成员'],
   'Add a contact or join a group to get started.': [
     'Add a contact or join a group to get started.',

@@ -138,7 +138,11 @@
         >
           <div class="directory-heading">
             <h2>
-              <span class="label-wide">Contacts</span
+              <a
+                class="label-wide directory-title-link"
+                href="#contacts"
+                data-contact-shortcut="list"
+                >Contacts</a
               ><span class="label-narrow">Conversations</span>
             </h2>
             <div class="directory-actions">
@@ -151,7 +155,7 @@
                   +
                 </summary>
                 <div class="directory-create-actions">
-                  <a href="#contacts">
+                  <a href="#contacts" data-contact-shortcut="add">
                     <svg
                       class="menu-item-icon"
                       viewBox="0 0 24 24"
@@ -217,6 +221,31 @@
                     </svg>
                     Join by link
                   </button>
+                  <a href="#contacts" data-contact-shortcut="list">
+                    <svg
+                      class="menu-item-icon"
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6 3.5h12a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H6"
+                      />
+                      <path d="M6 3.5v17" />
+                      <path d="M4 7.5h4" />
+                      <path d="M4 12h4" />
+                      <path d="M4 16.5h4" />
+                      <path d="M13.5 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4" />
+                      <path d="M10.5 16.5a3 3 0 0 1 6 0" />
+                    </svg>
+                    My contacts
+                  </a>
                 </div>
               </details>
             </div>

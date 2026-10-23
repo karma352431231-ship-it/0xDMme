@@ -28,7 +28,7 @@ import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
-import { startContacts } from '../contacts/index.ts';
+import { bindContactShortcuts, startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
 import { startCommunities, startRankingSide } from '../communities/index.ts';
@@ -188,6 +188,7 @@ const contacts = startContacts(devices, vault.sync, {
   saved: (contact) => messages.contactSaved(contact),
   open: (peer) => messages.openContact(peer),
 });
+bindContactShortcuts(document, () => contacts.addContact());
 const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
