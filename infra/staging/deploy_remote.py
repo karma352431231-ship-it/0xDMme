@@ -277,6 +277,11 @@ PEER_WINDOW_MODULES = frozenset({'message-index.ts', 'messages.ts'})
 GROUP_MEMBER_WALLETS_BEFORE = '090d92f0326c1dcba8996d3afa63686515d0fc9c'
 GROUP_MEMBER_WALLETS_REVIEWED = '699e0f2c8e9e576b3f2a63841379288a2605f0da'
 GROUP_MEMBER_WALLETS_MODULES = frozenset({'contacts.ts', 'groups.ts'})
+# Owner asked on 23/10/2026 for a group check that turns green only when every
+# member read. Exact receipt query only; all migrations and runtime stay fixed.
+GROUP_READ_ALL_BEFORE = '87f0209de967ec7b678fc27ceb91c9a461899662'
+GROUP_READ_ALL_REVIEWED = 'aa61ed9ae58b06c872e55b3d65adae31bc78f4fd'
+GROUP_READ_ALL_MODULES = frozenset({'group-daily.ts'})
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -493,6 +498,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
         (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,
          GROUP_MEMBER_WALLETS_REVIEWED),
         (set(PEER_WINDOW_MODULES), PEER_WINDOW_BEFORE, PEER_WINDOW_REVIEWED),
