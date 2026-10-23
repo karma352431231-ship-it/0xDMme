@@ -1029,7 +1029,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Please wait…': ['Please wait…', '请稍候…'],
   'No replies yet.': ['No replies yet.', '暂无回复。'],
   'Not verified yet.': ['Not verified yet.', '尚未验证。'],
-  'Fit to screen': ['Fit to screen', '适应屏幕'],
   'Alerts were muted, but archiving was not saved. Try again.': [
     'Alerts were muted, but archiving was not saved. Try again.',
     '通知已静音，但归档未保存。请重试。',
@@ -1055,7 +1054,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Change profile photo': ['Change profile photo', '更换个人资料图片'],
   'Change group photo': ['Change group photo', '更换群组图片'],
   'Invalid audio sample.': ['Invalid audio sample.', '音频采样无效。'],
-  'Zoom in': ['Zoom in', '放大'],
   'Zoom in on image': ['Zoom in on image', '放大图片'],
   'Zoom in on image {0}': ['Zoom in on image {0}', '放大图片 {0}'],
   'Analyzing and saving this case in the temporary round…': [
