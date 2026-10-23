@@ -11,7 +11,7 @@ import {
 import { GroupMessageActions } from './message-actions.ts';
 import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
 import { GroupPeople } from './people.ts';
-import type { GroupProfile } from './people.ts';
+import type { GroupProfile, MemberLabel } from './people.ts';
 import {
   groupSettingsTemplate,
   bindGroupSettings,
@@ -79,6 +79,8 @@ interface GroupOptions {
   isBusy: () => boolean;
   alert: () => void;
   peers: () => readonly Peer[];
+  /** The viewer's saved nickname for an account, or ''. */
+  alias: (account: string) => string;
   profile: GroupProfile;
   organizationPeers?: () => readonly string[];
 }
@@ -133,6 +135,9 @@ export function startGroups(
     },
   });
   const people = new GroupPeople(options.profile);
+  // Message authors keep their own cache: the settings panel clears `people`
+  // on every redraw, which must not drop photos shown in the history.
+  const senders = new GroupPeople(options.profile);
   let displayedGroup: string | null = null;
   const actions = new GroupActionsUi({
     access,
@@ -266,11 +271,22 @@ export function startGroups(
       }
     });
   }
+  /** Saved nickname, then the member's own profile name, then a short id. */
+  function label(account: string): MemberLabel {
+    if (account === session?.accountId) return { text: t('You'), chosen: true };
+    const alias = options.alias(account);
+    if (alias) return { text: alias, chosen: true };
+    return {
+      text:
+        senders.knownName(account) ||
+        people.knownName(account) ||
+        options.peers().find((p) => p.accountId === account)?.name ||
+        t('Member {0}', [account.slice(0, 8)]),
+      chosen: false,
+    };
+  }
   function name(account: string): string {
-    return account === session?.accountId
-      ? t('You')
-      : options.peers().find((p) => p.accountId === account)?.name ||
-          t('Member {0}', [account.slice(0, 8)]);
+    return label(account).text;
   }
   function listLabel(group: GroupSummary): string {
     const id = group.state.groupId,
@@ -460,19 +476,21 @@ export function startGroups(
     externalRows.render(
       history,
       [
-        ...controller.views.map((view) => ({
+        ...controller.views.map((view, index, views) => ({
           id: view.id,
           key: JSON.stringify([
             view.text,
             view.hash,
             view.sender,
             name(view.sender),
+            startsRun(views, index),
             view.localOnly,
             view.kind,
             view.unavailableMedia,
             view.edited,
           ]),
-          render: (signal: AbortSignal) => renderView(view, signal),
+          render: (signal: AbortSignal) =>
+            renderView(view, signal, startsRun(views, index)),
         })),
         ...pendingRows(),
       ],
@@ -531,13 +549,28 @@ export function startGroups(
     article.append(sender, body, state);
     return article;
   }
-  function renderView(view: GroupView, mediaSignal: AbortSignal): HTMLElement {
+  /** A member's consecutive messages show their photo and name once. */
+  function startsRun(views: readonly GroupView[], index: number): boolean {
+    return index === 0 || views[index - 1]?.sender !== views[index]?.sender;
+  }
+  function renderView(
+    view: GroupView,
+    mediaSignal: AbortSignal,
+    first: boolean,
+  ): HTMLElement {
     const article = document.createElement('article');
-    article.className = view.own ? 'chat-message own' : 'chat-message';
+    article.className = view.own
+      ? 'chat-message own'
+      : 'chat-message group-incoming';
     article.dataset['groupMessage'] = view.id;
-    const sender = document.createElement('strong');
-    sender.textContent = name(view.sender);
-    article.append(sender);
+    if (view.own) {
+      const sender = document.createElement('strong');
+      sender.textContent = name(view.sender);
+      article.append(sender);
+    } else if (first) {
+      article.classList.add('group-run-start');
+      article.append(...senders.sender(view.sender, label(view.sender)));
+    }
     if (view.kind === 'attachment') {
       attachments.render({
         article,
@@ -640,6 +673,7 @@ export function startGroups(
     if (displayedGroup !== (group?.state.groupId ?? null)) {
       node<HTMLDialogElement>('[data-group-settings]')?.close();
       people.clear();
+      senders.clear();
       photoView.reset();
       photoUi.reset();
       descriptionUi.reset();
@@ -710,7 +744,7 @@ export function startGroups(
             ? t('Administrator')
             : t('Member');
       row.append(
-        people.identity(member.accountId, name(member.accountId), role),
+        people.identity(member.accountId, label(member.accountId), role),
       );
       const controls = document.createElement('div');
       renderMemberActions(controls, group, member);
@@ -1133,6 +1167,7 @@ export function startGroups(
     messageActions.close();
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
+    senders.clear();
     if (voice.active || attachments.selected?.voice)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
@@ -1147,6 +1182,7 @@ export function startGroups(
   function leave(): void {
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
+    senders.clear();
     photoView.reset();
     photoUi.reset();
     descriptionUi.reset();
@@ -1167,6 +1203,7 @@ export function startGroups(
   function clearSessionPanels(): void {
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
+    senders.clear();
     photoView.reset();
     photoUi.reset();
     for (const container of [host, aside]) {
@@ -1280,6 +1317,7 @@ export function startGroups(
       messageActions.close();
       node<HTMLDialogElement>('[data-group-settings]')?.close();
       people.clear();
+      senders.clear();
       photoView.reset();
       photoUi.reset();
       descriptionUi.reset();

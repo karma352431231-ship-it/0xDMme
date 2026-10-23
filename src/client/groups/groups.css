@@ -464,3 +464,24 @@ dialog.group-dialog button.group-photo-trigger {
   resize: vertical;
   min-height: 5rem;
 }
+
+/* Incoming group messages: the author's photo sits beside the first bubble
+ * of a run and their name tops it, as in WhatsApp (23/10/2026). */
+.chat-message.group-incoming {
+  margin-left: 40px;
+}
+.chat-message.group-run-start {
+  margin-top: 6px;
+}
+.chat-message .group-sender-avatar {
+  position: absolute;
+  top: 0;
+  left: -40px;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  font-size: 12px;
+}
+.chat-message > .group-sender-name {
+  color: var(--accent);
+}

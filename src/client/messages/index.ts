@@ -274,6 +274,11 @@ export function startMessages(
     history: (work, settled) => synchronization.history(work, settled),
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
+    alias: (account) =>
+      agenda.entries.find(
+        (entry) =>
+          entry.contact.accountId === account && !entry.contact.removed,
+      )?.contact.alias ?? '',
     profile: (id) =>
       id === session?.accountId
         ? Promise.resolve(sharedProfile())

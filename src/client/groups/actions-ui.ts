@@ -227,7 +227,7 @@ export class GroupActionsUi {
     button.append(
       this.people.identity(
         peer.accountId,
-        peer.name || peer.address,
+        { text: peer.name || peer.address, chosen: true },
         t('Contact'),
       ),
     );
