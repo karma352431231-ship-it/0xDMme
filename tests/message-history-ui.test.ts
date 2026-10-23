@@ -145,9 +145,14 @@ await test('Enter text appears as a normal own bubble before persistence, then c
   assert.match(f.history.textContent, /AAAAA/u);
   const bubble = f.history.children[1]!;
   assert.match(bubble.textContent, /AAAAA <script>literal<\/script>/u);
-  assert.doesNotMatch(bubble.textContent, /Sending|Saving|Updating history/u);
   assert.equal(bubble.querySelector('script'), null);
-  assert.equal(bubble.querySelector('svg'), null);
+  // One check from the start; the stage is only the icon's accessible label.
+  const check = bubble.querySelector('svg')!;
+  assert.match(check.getAttribute('class') ?? '', /message-checks/u);
+  assert.doesNotMatch(
+    bubble.textContent.replace(check.textContent, ''),
+    /Sending|Saving|Updating history/u,
+  );
   f.outgoing.update(draft, 'saved');
   f.outgoing.acknowledge(draft);
   f.ui.render([incoming]);

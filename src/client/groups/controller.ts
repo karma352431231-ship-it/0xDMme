@@ -978,9 +978,23 @@ export class GroupController {
   }
   /** Saves a text to that group's encrypted outbox, whichever group is open
    * when the save runs; sending still verifies the group first. */
-  async composeText(groupId: string, text: string): Promise<void> {
-    await this.withAuthority((c) =>
-      composeGroup({ authority: c.authority, groupId, text, selection: null }),
+  /** Stages a text in that group's encrypted outbox with this device's
+   * verified local authority: no network read is needed to keep a draft, and
+   * sending revalidates the group and its members online. The draft keeps its
+   * queue ID and admission order. */
+  async composeText(
+    groupId: string,
+    draft: { id: string; text: string; order: number },
+  ): Promise<void> {
+    await this.withLocalAuthority((authority) =>
+      composeGroup({
+        authority,
+        groupId,
+        text: draft.text,
+        selection: null,
+        id: draft.id,
+        order: draft.order,
+      }),
     );
   }
   async compose(
@@ -1053,6 +1067,16 @@ export class GroupController {
     if (!selected) return;
     this.retry.reset(selected.state.groupId);
     await this.sendSelectedPending(selected);
+  }
+  /** Sends one group's drafts whether or not it is still the open group. */
+  async sendGroupDrafts(groupId: string): Promise<void> {
+    const group =
+      this.selected?.state.groupId === groupId
+        ? this.selected
+        : this.entries.find((entry) => entry.state.groupId === groupId);
+    if (!group || group.localOnly) return;
+    this.retry.reset(groupId);
+    await this.sendSelectedPending(group);
   }
   async pendingWork(): Promise<boolean> {
     const selected = this.selected;
