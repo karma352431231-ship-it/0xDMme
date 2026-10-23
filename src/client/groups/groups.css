@@ -485,3 +485,10 @@ dialog.group-dialog button.group-photo-trigger {
 .chat-message > .group-sender-name {
   color: var(--accent);
 }
+/* A non-contact author can be tapped to add them, as in the member list. */
+.chat-message > .group-sender-action {
+  cursor: pointer;
+}
+.chat-message > .group-sender-action:hover {
+  text-decoration: underline;
+}

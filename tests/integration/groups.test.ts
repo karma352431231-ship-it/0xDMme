@@ -1651,6 +1651,53 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
   assert.equal((directory['directories'] as unknown[]).length, 2);
   assert.equal((directory['recovery'] as unknown[]).length, 2);
   await t.test(
+    'co-member wallets: members only, wallet discovery only, never across a block',
+    async () => {
+      const wallets = async (u: User, accounts: string[]) =>
+        object(
+          await message(messages, u, 'group-member-wallets', {
+            groupId: joined.groupId,
+            accounts,
+          }),
+        )['items'];
+      await assert.rejects(
+        message(messages, outsider, 'group-member-wallets', {
+          groupId: joined.groupId,
+          accounts: [owner.accountId],
+        }),
+      );
+      // The owner accepts invitations only; the member blocked side stays private.
+      assert.deepEqual(await wallets(member, [owner.accountId]), []);
+      assert.deepEqual(
+        await wallets(owner, [member.accountId, outsider.accountId]),
+        [],
+        'a block hides the wallet and a non-member is never returned',
+      );
+      await changeContact(owner, 'block', {
+        wallet: { ecosystem: 'evm', address: member.wallet.address },
+        blocked: false,
+      });
+      try {
+        assert.deepEqual(
+          await wallets(owner, [member.accountId, outsider.accountId]),
+          [
+            {
+              accountId: member.accountId,
+              ecosystem: 'evm',
+              address: member.wallet.address.toLowerCase(),
+            },
+          ],
+        );
+        assert.deepEqual(await wallets(member, [owner.accountId]), []);
+      } finally {
+        await changeContact(owner, 'block', {
+          wallet: { ecosystem: 'evm', address: member.wallet.address },
+          blocked: true,
+        });
+      }
+    },
+  );
+  await t.test(
     'free creation exceeds the old cap and transfer requires neither balance nor slots',
     async () => {
       for (let i = 0; i < 3; i++) {

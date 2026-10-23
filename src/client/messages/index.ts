@@ -66,7 +66,11 @@ import {
   chatFileLimit,
 } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
-import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
+import type {
+  Peer,
+  AddressBookEntry,
+  WalletContact,
+} from '../../shared/contacts/index.ts';
 import type {
   VaultAccess,
   VaultWorkOptions,
@@ -90,6 +94,8 @@ export function startMessages(
     playback: VoicePlayback;
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
+    /** Add-contact editor prefilled with a group member's wallet. */
+    addContact: (wallet: WalletContact, alias: string) => void;
     directoryChanged: (available: boolean) => void;
     unreadChanged?: (count: number) => void;
     directorySettled?: (session: AccountSession | null) => void;
@@ -279,6 +285,7 @@ export function startMessages(
         (entry) =>
           entry.contact.accountId === account && !entry.contact.removed,
       )?.contact.alias ?? '',
+    addContact: options.addContact,
     profile: (id) =>
       id === session?.accountId
         ? Promise.resolve(sharedProfile())

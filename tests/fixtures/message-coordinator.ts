@@ -625,6 +625,7 @@ export function coordinatorFixture(
       } as unknown as Parameters<typeof startMessages>[2]['playback'],
       openConversation: () => calls.push('open-panel'),
       openContact: noop,
+      addContact: noop,
       directoryChanged: noop,
       sharedProfile: () =>
         state.withProfile

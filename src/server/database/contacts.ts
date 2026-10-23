@@ -258,6 +258,52 @@ export class ContactStore {
       })
     );
   }
+  /** Co-member wallet disclosure (owner decision 23/10/2026): only accounts
+   * whose discovery accepts requests by wallet, with an authorized device,
+   * never across a block in either direction. The caller verifies the shared
+   * group inside the same transaction. */
+  async walletRequestable(
+    client: Pick<pg.PoolClient, 'query'>,
+    actorId: string,
+    targets: readonly string[],
+  ): Promise<Peer[]> {
+    const open = await client.query<Peer>(
+      `SELECT a.id AS "accountId",a.ecosystem,a.address,a.display_name AS name FROM hash_talk.accounts a
+      JOIN hash_talk.contact_controls c ON c.account_id=a.id AND c.mode='wallet'
+      WHERE a.id=ANY($1::uuid[]) AND a.id<>$2
+      AND EXISTS(SELECT 1 FROM hash_talk.device_directories d WHERE d.account_id=a.id)`,
+      [targets, actorId],
+    );
+    if (!open.rowCount) return [];
+    const actor = await client.query<WalletContact>(
+      'SELECT ecosystem,address FROM hash_talk.accounts WHERE id=$1',
+      [actorId],
+    );
+    if (!actor.rows[0]) return [];
+    const hashes = await Promise.all(open.rows.map((peer) => walletHash(peer)));
+    const blocks = await client.query<{
+      account_id: string;
+      wallet_hash: string;
+    }>(
+      `SELECT account_id,wallet_hash FROM hash_talk.contact_blocks
+      WHERE (account_id=$1 AND wallet_hash=ANY($2::text[])) OR (account_id=ANY($3::uuid[]) AND wallet_hash=$4)`,
+      [
+        actorId,
+        hashes,
+        open.rows.map((peer) => peer.accountId),
+        await walletHash(actor.rows[0]),
+      ],
+    );
+    const blocked = new Set(
+      blocks.rows.map((row) =>
+        row.account_id === actorId ? row.wallet_hash : row.account_id,
+      ),
+    );
+    return open.rows.filter(
+      (peer, index) =>
+        !blocked.has(peer.accountId) && !blocked.has(hashes[index]!),
+    );
+  }
   async state(authority: ContactAuthority): Promise<Controls> {
     return this.withMessageRead(authority, (c) =>
       this.controls(c, authority.session.accountId),

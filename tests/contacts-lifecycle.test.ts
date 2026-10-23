@@ -326,11 +326,17 @@ await test('sidebar add opens the editor over any view and reads saved contacts 
     addEventListener: () => undefined,
     querySelector: () => null,
   };
+  const address = { value: '', readOnly: false },
+    alias = { value: '' };
+  const fields = new Map<string, unknown>([
+    ['[data-contact-editor]', dialog],
+    ['[data-book-address]', address],
+    ['[data-book-alias]', alias],
+  ]);
   const host = {
     isConnected: true,
     innerHTML: '',
-    querySelector: (selector: string) =>
-      selector === '[data-contact-editor]' ? dialog : null,
+    querySelector: (selector: string) => fields.get(selector) ?? null,
     querySelectorAll: () => [],
   } as unknown as HTMLElement;
   const contacts = startContacts(access, sync);
@@ -344,4 +350,10 @@ await test('sidebar add opens the editor over any view and reads saved contacts 
   // An editor already in use (e.g. a received invitation) is not replaced.
   contacts.addContact();
   assert.equal(shown, 1);
+  // A group member's wallet opens the same editor, prefilled.
+  dialog.open = false;
+  contacts.addContact({ address: '0x' + 'b'.repeat(40), alias: 'Ana' });
+  assert.equal(shown, 2);
+  assert.equal(address.value, '0x' + 'b'.repeat(40));
+  assert.equal(alias.value, 'Ana');
 });

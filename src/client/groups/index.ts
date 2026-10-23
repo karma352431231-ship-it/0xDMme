@@ -11,6 +11,8 @@ import {
 import { GroupMessageActions } from './message-actions.ts';
 import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
 import { GroupPeople } from './people.ts';
+import { GroupMemberWallets } from './member-wallets.ts';
+import { memberContactTrigger, offerMemberContact } from './member-contact.ts';
 import type { GroupProfile, MemberLabel } from './people.ts';
 import {
   groupSettingsTemplate,
@@ -37,7 +39,7 @@ import {
   groupMediaQuota,
 } from '../../shared/group-quota/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
-import type { Peer } from '../../shared/contacts/index.ts';
+import type { Peer, WalletContact } from '../../shared/contacts/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
@@ -81,6 +83,8 @@ interface GroupOptions {
   peers: () => readonly Peer[];
   /** The viewer's saved nickname for an account, or ''. */
   alias: (account: string) => string;
+  /** Opens the add-contact editor prefilled with a co-member's wallet. */
+  addContact: (wallet: WalletContact, alias: string) => void;
   profile: GroupProfile;
   organizationPeers?: () => readonly string[];
 }
@@ -138,6 +142,9 @@ export function startGroups(
   // Message authors keep their own cache: the settings panel clears `people`
   // on every redraw, which must not drop photos shown in the history.
   const senders = new GroupPeople(options.profile);
+  const wallets = new GroupMemberWallets((groupId, accounts) =>
+    controller.memberWallets(groupId, accounts),
+  );
   let displayedGroup: string | null = null;
   const actions = new GroupActionsUi({
     access,
@@ -276,6 +283,7 @@ export function startGroups(
     if (account === session?.accountId) return { text: t('You'), chosen: true };
     const alias = options.alias(account);
     if (alias) return { text: alias, chosen: true };
+    const wallet = wallets.get(account);
     return {
       text:
         senders.knownName(account) ||
@@ -283,7 +291,43 @@ export function startGroups(
         options.peers().find((p) => p.accountId === account)?.name ||
         t('Member {0}', [account.slice(0, 8)]),
       chosen: false,
+      ...(wallet ? { wallet: wallet.address } : {}),
     };
+  }
+  /** Members the viewer has neither approved nor saved under a nickname. */
+  function contactCandidate(account: string): boolean {
+    return (
+      account !== session?.accountId &&
+      !options.alias(account) &&
+      !options.peers().some((peer) => peer.accountId === account)
+    );
+  }
+  /** Reads which unknown members accept requests by wallet, then redraws. */
+  function loadWallets(group: GroupSummary): void {
+    if (group.localOnly) return;
+    const id = group.state.groupId;
+    const accounts = group.state.members
+      .map((member) => member.accountId)
+      .filter(contactCandidate);
+    if (!accounts.length) return;
+    void wallets.load(id, accounts).then((changed) => {
+      if (!changed || controller.selected?.state.groupId !== id) return;
+      renderHistory();
+      renderMembers();
+    });
+  }
+  function offerContact(account: string): Promise<void> {
+    const group = controller.selected;
+    if (!group || group.localOnly) return Promise.resolve();
+    return offerMemberContact({
+      wallets,
+      member: {
+        groupId: group.state.groupId,
+        account,
+        alias: senders.knownName(account) || people.knownName(account),
+      },
+      add: options.addContact,
+    });
   }
   function name(account: string): string {
     return label(account).text;
@@ -483,6 +527,7 @@ export function startGroups(
             view.hash,
             view.sender,
             name(view.sender),
+            label(view.sender).wallet ?? '',
             startsRun(views, index),
             view.localOnly,
             view.kind,
@@ -553,6 +598,28 @@ export function startGroups(
   function startsRun(views: readonly GroupView[], index: number): boolean {
     return index === 0 || views[index - 1]?.sender !== views[index]?.sender;
   }
+  /** Own messages say "You"; others show photo and name once per run. */
+  function appendAuthor(
+    article: HTMLElement,
+    view: GroupView,
+    first: boolean,
+  ): void {
+    if (view.own) {
+      const sender = document.createElement('strong');
+      sender.textContent = name(view.sender);
+      article.append(sender);
+      return;
+    }
+    if (!first) return;
+    article.classList.add('group-run-start');
+    const [avatar, author] = senders.sender(view.sender, label(view.sender));
+    if (!avatar || !author) return;
+    if (contactCandidate(view.sender))
+      memberContactTrigger(author, name(view.sender), () => {
+        void run(() => offerContact(view.sender));
+      });
+    article.append(avatar, author);
+  }
   function renderView(
     view: GroupView,
     mediaSignal: AbortSignal,
@@ -563,14 +630,7 @@ export function startGroups(
       ? 'chat-message own'
       : 'chat-message group-incoming';
     article.dataset['groupMessage'] = view.id;
-    if (view.own) {
-      const sender = document.createElement('strong');
-      sender.textContent = name(view.sender);
-      article.append(sender);
-    } else if (first) {
-      article.classList.add('group-run-start');
-      article.append(...senders.sender(view.sender, label(view.sender)));
-    }
+    appendAuthor(article, view, first);
     if (view.kind === 'attachment') {
       attachments.render({
         article,
@@ -665,6 +725,7 @@ export function startGroups(
     renderLocalControls(group);
     renderHistory();
     renderMembers();
+    loadWallets(group);
     renderVault();
     renderInvites();
     status();
@@ -674,6 +735,7 @@ export function startGroups(
       node<HTMLDialogElement>('[data-group-settings]')?.close();
       people.clear();
       senders.clear();
+      wallets.clear();
       photoView.reset();
       photoUi.reset();
       descriptionUi.reset();
@@ -748,6 +810,13 @@ export function startGroups(
       );
       const controls = document.createElement('div');
       renderMemberActions(controls, group, member);
+      if (!group.localOnly && contactCandidate(member.accountId))
+        controls.append(
+          withMenuIcon(
+            button(t('Add to contacts'), () => offerContact(member.accountId)),
+            'member',
+          ),
+        );
       if (controls.children.length)
         groupMemberActions(row, name(member.accountId)).append(
           ...controls.children,
@@ -1168,6 +1237,7 @@ export function startGroups(
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
     senders.clear();
+    wallets.clear();
     if (voice.active || attachments.selected?.voice)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
@@ -1183,6 +1253,7 @@ export function startGroups(
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
     senders.clear();
+    wallets.clear();
     photoView.reset();
     photoUi.reset();
     descriptionUi.reset();
@@ -1204,6 +1275,7 @@ export function startGroups(
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
     senders.clear();
+    wallets.clear();
     photoView.reset();
     photoUi.reset();
     for (const container of [host, aside]) {
@@ -1318,6 +1390,7 @@ export function startGroups(
       node<HTMLDialogElement>('[data-group-settings]')?.close();
       people.clear();
       senders.clear();
+      wallets.clear();
       photoView.reset();
       photoUi.reset();
       descriptionUi.reset();

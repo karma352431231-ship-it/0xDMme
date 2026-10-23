@@ -194,6 +194,12 @@ export function startContacts(
       )
       ?.focus();
   }
+  function fillEditor(prefill: { address: string; alias: string }): void {
+    const address = node<HTMLInputElement>('[data-book-address]'),
+      alias = node<HTMLInputElement>('[data-book-alias]');
+    if (address) address.value = prefill.address;
+    if (alias) alias.value = prefill.alias;
+  }
   function startAdding(): void {
     resetEditor();
     status = t(
@@ -758,12 +764,14 @@ export function startContacts(
       void contactSettings.open(contact);
     },
     closeContact: () => contactSettings.clear(),
-    /** Sidebar shortcut: the add editor opens over the current view. */
-    addContact(): void {
+    /** Sidebar shortcut, or a group member's wallet: the add editor opens
+     * over the current view, using the same save/request flow. */
+    addContact(prefill?: { address: string; alias: string }): void {
       const dialog = node<HTMLDialogElement>('[data-contact-editor]');
       // Never replace an editor already in use (e.g. a received invitation).
       if (!dialog || dialog.open) return;
       startAdding();
+      if (prefill) fillEditor(prefill);
       // Outside Contacts the saved directory may be unread; existing entries
       // must be found so an edit keeps their identity.
       if (!mounted?.isConnected) void run(loadLocal);

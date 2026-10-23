@@ -13,6 +13,7 @@ import {
   verifyGroupTransition,
 } from '../../shared/groups/index.ts';
 import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
+import type { Peer } from '../../shared/contacts/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { DeviceStore } from './devices.ts';
 import type { MessageRecoveryStore } from './message-recovery.ts';
@@ -35,6 +36,13 @@ function unavailable(): never {
   throw new AccountError(403, 'Group unavailable for this account.');
 }
 
+/** Wallets a group member may see of other current members (owner decision
+ * 23/10/2026). Non-members and departed members learn nothing. */
+export interface MemberWallet {
+  accountId: string;
+  ecosystem: Peer['ecosystem'];
+  address: string;
+}
 export class GroupStore {
   readonly admission: GroupAdmission;
   private readonly contacts: ContactStore;
@@ -571,6 +579,34 @@ export class GroupStore {
         })
         .map((p) => `${p.groupId}:${p.epoch}`),
     );
+  }
+  async memberWallets(
+    authority: ContactAuthority,
+    input: { groupId: string; accounts: string[] },
+  ): Promise<{ items: MemberWallet[] }> {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      const actor = authority.session.accountId;
+      const members = await client.query<{ account_id: string }>(
+        `SELECT m.account_id FROM hash_talk.group_members m
+        JOIN hash_talk.groups g ON g.id=m.group_id AND NOT g.deleted
+        WHERE m.group_id=$1 AND (m.account_id=$2 OR m.account_id=ANY($3::uuid[]))`,
+        [input.groupId, actor, input.accounts],
+      );
+      const current = new Set(members.rows.map((row) => row.account_id));
+      if (!current.has(actor)) unavailable();
+      const peers = await this.contacts.walletRequestable(
+        client,
+        actor,
+        input.accounts.filter((account) => current.has(account)),
+      );
+      return {
+        items: peers.map((peer) => ({
+          accountId: peer.accountId,
+          ecosystem: peer.ecosystem,
+          address: peer.address,
+        })),
+      };
+    });
   }
   async directory(
     authority: ContactAuthority,

@@ -37,6 +37,8 @@ import {
 import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { messageApi } from '../message-api/index.ts';
+import { memberWalletPage } from './member-wallets.ts';
+import type { MemberWallet } from './member-wallets.ts';
 import {
   PeerIdentity,
   readDirectories,
@@ -1314,6 +1316,18 @@ export class GroupController {
             : integer(cleanup['next'], Number.MAX_SAFE_INTEGER),
       };
     });
+  }
+  /** Co-members of this group who accept requests by wallet; the server
+   * checks membership, discovery and blocks. */
+  async memberWallets(
+    groupId: string,
+    accounts: string[],
+  ): Promise<MemberWallet[]> {
+    return this.withAuthority(async (c) =>
+      memberWalletPage(
+        await c.api('group-member-wallets', { groupId, accounts }),
+      ),
+    );
   }
   async clearVault(): Promise<void> {
     const selected = this.selected;

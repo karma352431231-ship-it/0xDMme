@@ -973,6 +973,17 @@ export const catalog: Record<string, readonly [string, string]> = {
   Add: ['Add', '添加'],
   'Add to favorites': ['Add to favorites', '添加到收藏'],
   'Add contact': ['Add contact', '添加联系人'],
+  'Add to contacts': ['Add to contacts', '添加到联系人'],
+  'Add {0} to contacts': ['Add {0} to contacts', '将 {0} 添加到联系人'],
+  'Could not check this member. Try again.': [
+    'Could not check this member. Try again.',
+    '无法查询该成员，请重试。',
+  ],
+  'This member accepts conversation requests by invitation only. Ask them for an invitation link.':
+    [
+      'This member accepts conversation requests by invitation only. Ask them for an invitation link.',
+      '该成员只接受通过邀请发起的聊天请求。请向对方索取邀请链接。',
+    ],
   'My contacts': ['My contacts', '我的联系人'],
   'Add participants': ['Add participants', '添加成员'],
   'Add a contact or join a group to get started.': [

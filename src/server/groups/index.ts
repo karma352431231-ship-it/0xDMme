@@ -1,4 +1,5 @@
 import { groupDirectoryRequest } from './directory.ts';
+import { groupMemberWalletsRequest } from './member-wallets.ts';
 import {
   groupInvitationActions,
   groupInvitationOperations,
@@ -36,6 +37,7 @@ export const groupOperations = [
   'group-cancel',
   'group-commit',
   'group-directory',
+  'group-member-wallets',
   ...groupDeliveryOperations,
   ...groupDailyOperations,
 ] as const;
@@ -95,6 +97,8 @@ export class GroupService {
       },
       'group-commit': (a, d) => this.commit(a, d),
       'group-directory': (a, d) => store.directory(a, groupDirectoryRequest(d)),
+      'group-member-wallets': (a, d) =>
+        store.memberWallets(a, groupMemberWalletsRequest(d)),
       ...groupDeliveryActions(messages),
       ...groupDailyActions(daily),
     };

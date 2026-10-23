@@ -204,6 +204,8 @@ const messages = startMessages(devices, vault.sync, {
   openContact: (contact: AddressBookEntry) => {
     contacts.showContact(contact, element('app-shell'));
   },
+  addContact: (wallet, alias) =>
+    contacts.addContact({ address: wallet.address, alias }),
   directoryChanged: (available) => {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';

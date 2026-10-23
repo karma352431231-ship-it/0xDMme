@@ -1,5 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
-import { paintAvatar, displayName } from '../appearance/index.ts';
+import { paintAvatar, displayName, shortAddress } from '../appearance/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 
 export type GroupProfile = (account: string) => Promise<ProfileCard | null>;
@@ -8,6 +8,8 @@ export type GroupProfile = (account: string) => Promise<ProfileCard | null>;
 export interface MemberLabel {
   text: string;
   chosen: boolean;
+  /** Shown beside the name only for members who accept requests by wallet. */
+  wallet?: string;
 }
 interface LoadedCard {
   name: string;
@@ -71,7 +73,10 @@ export class GroupPeople {
     label: MemberLabel,
   ): void {
     const show = (text: string) => {
-      target.name.textContent = displayName(text);
+      target.name.textContent = label.wallet
+        ? t('{0} · {1}', [displayName(text), shortAddress(label.wallet)])
+        : displayName(text);
+      if (label.wallet) target.name.title = label.wallet;
       paintAvatar(target.avatar, { label: text, seed: account });
     };
     show(label.text);
