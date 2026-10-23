@@ -41,6 +41,10 @@ export class GroupMessageIndex {
   confirmed(snapshot: Snapshot): void {
     this.progress.delete(snapshot.groupId);
   }
+  /** True while an unfinished change set of the group is kept. */
+  retains(groupId: string): boolean {
+    return this.progress.has(groupId);
+  }
   /** An unfinished finite cut survives later appends: continue it instead of
    * restarting at the newer revision. A removal fence, authority change or a
    * v1 server selects the fresh snapshot. */
@@ -157,12 +161,20 @@ function assertDelta(
     throw new Error('Group change set mismatch.');
 }
 export async function currentGroupSnapshot(c: ReadContext): Promise<Snapshot> {
-  const snapshot = readSnapshot(
+  return groupSnapshot(
+    c,
     await c.api('group-message-snapshot', {
       groupId: c.group.state.groupId,
       head: c.group.head,
     }),
   );
+}
+/** A snapshot the server returned for this group, head and directory. */
+export function groupSnapshot(
+  c: Pick<ReadContext, 'group' | 'authority'>,
+  raw: unknown,
+): Snapshot {
+  const snapshot = readSnapshot(raw);
   if (
     snapshot.groupId !== c.group.state.groupId ||
     snapshot.head !== c.group.head ||

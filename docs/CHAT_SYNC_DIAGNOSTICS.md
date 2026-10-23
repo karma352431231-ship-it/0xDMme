@@ -193,3 +193,182 @@ unchanged. Activation requires the exact pushed integration commit to pass the
 full CI workflow, a local build, preservation checks and retained code rollback.
 The existing controller/screen hotspots still require the separate verification
 and rendering extractions described in [message receiving](MESSAGE_RECEIVING.md#ownership-and-review-order).
+
+## Startup priority and batched authority turns — 22 October 2026
+
+After the bounded opening shipped, captures still showed the contact list
+about 7 seconds after the first authority turn with one tab and 13–18 seconds
+with two. Until then the account ran 23–35 exclusive turns one after another;
+every turn read the device directory again, which was half of all requests.
+
+Communities and the public profile started their session work from their own
+session change, outside `SessionBoot`, so public DMs, the feed and profile
+state queued first. The live stream's two signed handshake turns then waited
+as maintenance behind them, and the directory refresh waits for that
+handshake. Both modules now accept a coordinated startup option and, with it,
+wait for the `ready()` call `SessionBoot` makes after the private directory's
+first load. A visible page signs the live handshake with interactive priority.
+
+`AuthorityWork.hold` lets operations already waiting for the same account and
+priority follow a running operation inside its native turn: at most three
+followers within one second, and any failure ends the batch. Maintenance never
+takes a follower while interactive work waits, and interactive batches keep
+the four-to-one maintenance share. A follower reuses the directory its leader
+read; nothing survives the turn. Every request still carries the signed
+directory, and the server checks the current session, the directory and this
+device's membership on each one. Callers settle inside the turn, so the native
+lock may be released slightly after a caller resumes.
+
+Real-browser timing still needs a new one- and two-tab capture.
+
+## Separate signing lane — 22 October 2026
+
+Keeping optional owners behind the private directory made the feed wait for
+the whole message warmup, because community and public profile requests still
+queued for the exclusive account turn even though they only sign. That turn
+protects the vault, key ring and SDK store, none of which these requests use.
+
+`devices/signing-lane.ts` now runs work that needs only the session, directory
+and signature outside that turn, at most four operations at once. Each
+operation first reads the server's device directory after the event count the
+last exclusive read verified, and proceeds only when the server reports no new
+event, the same revision and the same head. Otherwise, or before any verified
+state exists, it runs in an exclusive turn, which verifies and stores the new
+directory; the lane never writes the local checkpoint. Directory freshness per
+request is therefore unchanged, and the server still checks the session, the
+signed directory and this device on every request. Community and public
+profile requests use the lane; public DMs, the vault and message work stay in
+the exclusive turn.
+
+The feed then still waited for `SessionBoot`, which released communities and
+the public profile only after the whole message warmup. With the signing lane
+that wait has no purpose: a mounted feed and the public profile start on
+session change again. Work reaching the lane before the first exclusive turn
+verified the device directory waits up to eight seconds for that verification
+instead of queueing for the exclusive turn. Public DMs, which still share that
+turn, keep starting from `SessionBoot` after the private directory's warmup.
+
+## Group text queue — 22 October 2026
+
+Sending in a private group ran the whole chain as one foreground operation:
+save the draft, reload identities, verify the group, send through the SDK,
+save identities and reread the window. The composer stayed disabled until all
+of it finished, so a second message had to wait for the first. Plain group
+texts now use the same `TextSendQueue` as private chats, moved to its own
+`client/text-send` module: the composer clears at once, each text is saved in
+order to its own group's encrypted outbox (`composeText`), and one background
+transmission sends whatever is pending. Attachments and voice keep the
+foreground path. Group texts do not yet get the optimistic bubble private
+texts show; they appear once the batch is sent.
+
+## Group send latency — 23 October 2026
+
+A three-message capture showed each group text taking about 1.5–2 s from
+submit to an accepted publish (the publish itself about 145 ms) and about
+3–3.6 s to the next history confirmation. The queue stayed in its sending phase
+until a full selected-history readback finished, so the next transmission
+waited for it, and live hints and post-send readbacks each ran their own read.
+
+- A transmission now ends once the server accepted and the outbox entry was
+  cleared; the readback is only requested. `groups/reconciliation.ts` is the
+  single owner of a group's readback: live content hints and post-send
+  requests share it, a request during a read costs one more read, and reads
+  never overlap.
+- Drafts keep their queue ID as the message ID and a persisted admission
+  order; sending reads every outbox page and sends in that order, routed to
+  each draft's own group. Participant directories are read once per batch.
+- Text drafts are staged with the device's verified local authority; sending
+  still revalidates the group, its members and their devices online.
+- `groups/outgoing.ts` shows an own text from the moment it is typed until the
+  verified history contains the same ID. By the owner's decision, pending and
+  accepted texts show one check and a received text two, with no state
+  phrase; this applies to private pending bubbles too.
+
+Recipient-side latency was not measured; a paired sender/recipient capture is
+still needed.
+
+### Device trust prepared once per group send batch
+
+Each group message queried every member's Matrix devices before encrypting.
+`message-crypto/group-batch.ts` now lets the messages of one send batch share
+that query when the group period, members, participant directories, recovery
+keys and sender authority are identical: at most sixteen messages and ten
+seconds, and nothing is reused across batches, so a device added or a Matrix
+registration published since is found by the next batch. The server still
+checks members, directories, recovery and key destinations on every publish.
+When it rejects a packet as stale (409), the stored packet and the batch's
+trust are cleared and the controller retries once with identities, group
+verification, directories and devices prepared again. Before this change a
+rejected packet stayed in the outbox and would have been resent unchanged.
+Reuse across batches still needs a version that also covers Matrix
+registrations, since a device can publish Matrix keys without changing its
+signed directory.
+
+## Accepted group settlement and delivery trace — 23 October 2026
+
+A 7-message capture showed the batches working (later messages publishing
+about 175 ms apart) but every accepted batch still asking for a selected-group
+readback and counters, while the server's content hint to the sender's own
+account asked for the same read moments later. The second request arrived
+during the first read and cost one more.
+
+- The send no longer requests a readback or counters. An accepted text keeps
+  its row (`groups/outgoing.ts`) and the next verified read of the group's
+  latest window settles it by message ID. That read comes from the live hint,
+  a reconnect, the periodic tick or opening the group; incoming messages never
+  depended on the send's read. A text accepted before such a read started and
+  missing from it was deleted or left the window, so it is no longer shown.
+- Acceptance does not advance any group cursor; the verified history stays the
+  only source of placement, receipts and deletion.
+- The transition is crash-recoverable without a second local record: the
+  draft keeps its packet until the server accepted it, so a lost answer or a
+  reload asks `group-message-accepted` and settles the draft instead of
+  publishing twice. The server's copy is the durable record from then on.
+- Held accepted texts are bounded: an open group with 32 asks for a readback;
+  past 128 in all, the oldest of groups not open are dropped (their verified
+  history shows them when opened). Nothing is persisted.
+- The local capture records `group-send` steps (`admitted`, `staged`,
+  `sending`, `accepted`, `settled`, `retired`) under a per-capture message
+  number, and on the recipient `group-receive` hints and the number of other
+  members' rows first shown in the open group. `group/send` (with its wait for
+  the shared foreground lane), `group/identities`, `group/verify` and
+  `sdk/group-encrypt` are timed. No ID, content or account leaves the tab, and
+  tabs or devices are not correlated.
+
+The content hint to the sender's own account still causes one read per batch:
+an empty hint cannot prove what it covers, so skipping it needs a versioned
+read cut or a reviewed notification change (next phase).
+
+## One-request warm group reads — 23 October 2026
+
+Every content hint for the open group ran a warm read of separate requests:
+`group-message-snapshot`, `group-message-changes` and `group-message-objects`
+before the final `group-message-confirm`, each its own round trip, plus
+`recovery-current` whenever packets were decoded and once per send.
+
+- `group-message-delta` returns, from one membership check and group lock,
+  the current finite cut, the first change page since the reader's confirmed
+  revision and, when that page completes the change set, the packets it needs.
+  Each part is byte-for-byte what the separate request would answer for that
+  cut. The reader (`groups/message-delta.ts`) feeds them through the existing
+  index and window validation as answers to exactly those requests, once;
+  any other request, a later page or the rest of a byte-limited packet batch
+  goes to the server. The final confirmation is unchanged, so a removal or
+  revocation after the response still rejects the cut before anything shows.
+  A warm read of one new message is now two requests instead of four.
+- Only warm reads use it (a confirmed window for the same account, device,
+  directory and head, and no unfinished change set). An older server answers
+  "Message operation unavailable." once and the session returns to separate
+  requests. No transaction holds network or SDK work.
+- `ensureMessageRecovery` keeps the capsule it prepared per account, device
+  and directory hash. The server stores one capsule per account and epoch and
+  never replaces it, and the epoch is part of the signed directory, so the
+  same directory names the same capsule; any directory change asks again.
+
+Not changed, because no reliable invalidation source exists yet: the SDK
+machine is still opened and prepared per read and per send; group governance
+is still verified per read; Matrix device trust is still reused only within a
+send batch. A device can publish Matrix keys without changing its signed
+directory, so cross-batch trust reuse needs a version that covers Matrix
+registrations. The content hint to the sender's own account still causes one
+(now cheaper) read per batch.

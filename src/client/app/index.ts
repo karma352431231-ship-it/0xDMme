@@ -28,7 +28,7 @@ import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
-import { startContacts } from '../contacts/index.ts';
+import { bindContactShortcuts, startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
 import { startCommunities, startRankingSide } from '../communities/index.ts';
@@ -134,6 +134,8 @@ const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
   publicProfile: () => publicProfiles.exists(),
   unreadChanged: (count) => conversationBadge('public', count),
+  // Public DMs start from SessionBoot below; the feed uses the signing lane.
+  coordinatedStartup: true,
 });
 // Ranking beside the feed and the Chat | Communities switch (16/10/2026).
 // The wallet approval document has no app shell and gets neither.
@@ -186,6 +188,10 @@ const contacts = startContacts(devices, vault.sync, {
   saved: (contact) => messages.contactSaved(contact),
   open: (peer) => messages.openContact(peer),
 });
+// The wallet approval document has no contacts editor.
+const contactEditorHost = document.getElementById('contact-editor-host');
+if (contactEditorHost) contacts.mountEditor(contactEditorHost);
+bindContactShortcuts(document, () => contacts.addContact());
 const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
@@ -198,6 +204,8 @@ const messages = startMessages(devices, vault.sync, {
   openContact: (contact: AddressBookEntry) => {
     contacts.showContact(contact, element('app-shell'));
   },
+  addContact: (wallet, alias) =>
+    contacts.addContact({ address: wallet.address, alias }),
   directoryChanged: (available) => {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
@@ -274,7 +282,7 @@ const accountSettings = startAccountSettings({
 // Optional session warmups follow the foreground private directory's first load.
 const sessionBoot = new SessionBoot((session) => {
   publicProfiles.ready();
-  communities.ready();
+  communities.sessionReady();
   contacts.ready();
   activity.ready();
   statuses.ready();

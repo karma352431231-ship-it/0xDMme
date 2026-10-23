@@ -8,7 +8,7 @@ import { withMenuIcon } from '../menu-icons/index.ts';
 import type { GroupController, GroupSummary } from './controller.ts';
 import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
 import { GroupDescriptionUi } from './description-ui.ts';
-import { GroupPeople } from './people.ts';
+import type { GroupMemberPresentation } from './member-presentation.ts';
 import type { GroupProfile } from './people.ts';
 import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import {
@@ -41,7 +41,15 @@ interface ManagementOptions {
     | 'cancelCreation'
   >;
   account: () => string | undefined;
-  name: (account: string) => string;
+  members: Pick<
+    GroupMemberPresentation,
+    | 'name'
+    | 'identity'
+    | 'clearPanel'
+    | 'clearConversation'
+    | 'contactCandidate'
+    | 'offerContact'
+  >;
   peers: () => readonly Peer[];
   profile: GroupProfile;
   refresh: () => Promise<void>;
@@ -60,14 +68,12 @@ export class GroupManagementPanel {
   private host: HTMLElement | null = null;
   private aside: HTMLElement | null = null;
   private displayedGroup: string | null = null;
-  private readonly people: GroupPeople;
   private readonly photoView = new GroupPhotoView();
   private readonly photoUi: GroupPhotoUi;
   private readonly descriptionUi: GroupDescriptionUi;
   private readonly actions: GroupActionsUi;
   constructor(options: ManagementOptions) {
     this.options = options;
-    this.people = new GroupPeople(options.profile);
     this.photoUi = new GroupPhotoUi({
       selected: () => options.controller.selected,
       account: () => options.account(),
@@ -107,13 +113,14 @@ export class GroupManagementPanel {
   }
   closeSettings(): void {
     this.node<HTMLDialogElement>('[data-group-settings]')?.close();
-    this.people.clear();
+    this.options.members.clearPanel();
   }
   deselected(): void {
     this.descriptionUi.reset();
   }
   leave(): void {
     this.closeSettings();
+    this.options.members.clearConversation();
     this.photoView.reset();
     this.photoUi.reset();
     this.descriptionUi.reset();
@@ -121,6 +128,7 @@ export class GroupManagementPanel {
   }
   clearSession(): void {
     this.closeSettings();
+    this.options.members.clearConversation();
     this.photoView.reset();
     this.photoUi.reset();
   }
@@ -144,7 +152,7 @@ export class GroupManagementPanel {
         if (this.options.controller.selected)
           this.descriptionUi.show(this.options.controller.selected);
       },
-      closed: () => this.people.clear(),
+      closed: () => this.options.members.clearPanel(),
     });
     this.bind();
   }
@@ -204,7 +212,8 @@ export class GroupManagementPanel {
   updateSettingsGroup(group: GroupSummary | null): void {
     if (this.displayedGroup !== (group?.state.groupId ?? null)) {
       this.node<HTMLDialogElement>('[data-group-settings]')?.close();
-      this.people.clear();
+      this.options.members.clearPanel();
+      this.options.members.clearConversation();
       this.photoView.reset();
       this.photoUi.reset();
       this.descriptionUi.reset();
@@ -277,7 +286,7 @@ export class GroupManagementPanel {
     const list = this.node('[data-group-members]'),
       group = this.options.controller.selected;
     if (!list || !group || !account) return;
-    this.people.clear();
+    this.options.members.clearPanel();
     list.replaceChildren();
     for (const member of group.state.members) {
       const row = document.createElement('li');
@@ -288,19 +297,26 @@ export class GroupManagementPanel {
           : member.role === 'admin'
             ? t('Administrator')
             : t('Member');
-      row.append(
-        this.people.identity(
-          member.accountId,
-          this.options.name(member.accountId),
-          role,
-        ),
-      );
+      row.append(this.options.members.identity(member.accountId, role));
       const controls = document.createElement('div');
       this.renderMemberActions(controls, group, member);
-      if (controls.children.length)
-        groupMemberActions(row, this.options.name(member.accountId)).append(
-          ...controls.children,
+      if (
+        !group.localOnly &&
+        this.options.members.contactCandidate(member.accountId)
+      )
+        controls.append(
+          withMenuIcon(
+            this.button(t('Add to contacts'), () =>
+              this.options.members.offerContact(member.accountId),
+            ),
+            'member',
+          ),
         );
+      if (controls.children.length)
+        groupMemberActions(
+          row,
+          this.options.members.name(member.accountId),
+        ).append(...controls.children);
       list.append(row);
     }
     this.renderOwnership(group, account);
@@ -336,7 +352,7 @@ export class GroupManagementPanel {
             if (
               !window.confirm(
                 t('Remove {0} from the group?', [
-                  this.options.name(member.accountId),
+                  this.options.members.name(member.accountId),
                 ]),
               )
             )
@@ -374,7 +390,7 @@ export class GroupManagementPanel {
             !window.confirm(
               t(
                 'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.',
-                [this.options.name(member.accountId)],
+                [this.options.members.name(member.accountId)],
               ),
             )
           )
@@ -406,10 +422,12 @@ export class GroupManagementPanel {
         label = document.createElement('p');
       label.textContent =
         consent.kind === 'invite'
-          ? t('{0} invited you to a group.', [this.options.name(consent.actor)])
+          ? t('{0} invited you to a group.', [
+              this.options.members.name(consent.actor),
+            ])
           : t(
               '{0} offered you ownership of a group. Accept to take over administration.',
-              [this.options.name(consent.actor)],
+              [this.options.members.name(consent.actor)],
             );
       row.append(label);
       row.append(

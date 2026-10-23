@@ -212,11 +212,12 @@ def executor_code(config):
         names.remove('deploy_worker_boot')
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
-                'group_fences']):
+                'group_fences', 'share_counts']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
-    if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences']):
+    if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
+                                                 'share_counts']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -224,6 +225,8 @@ def executor_code(config):
         names.append('deploy_community_games')
     if config.get('group_fences') is True:
         names.append('deploy_group_fences')
+    if config.get('share_counts') is True:
+        names.append('deploy_post_share_counts')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -316,7 +319,10 @@ def main():
     parser.add_argument('--message-sync', action='store_true', help='Apply the separately approved 095→096 incremental message synchronization transition.')
     parser.add_argument('--community-games', action='store_true', help='Apply the approved 096→097 Games topic constraint.')
     parser.add_argument('--group-fences', action='store_true', help='Apply the approved 097→098 finite group cut fence.')
+    parser.add_argument('--share-counts', action='store_true', help='Apply the approved 098→099 public share count index.')
     args = parser.parse_args()
+    if args.share_counts and (args.prepare or args.group_fences or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
+        parser.error('Share counts require their separate --check or --activate release.')
     if args.group_fences and (args.prepare or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
         parser.error('Group message fences require their separate --check or --activate release.')
     if args.community_games and (args.prepare or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
@@ -343,6 +349,8 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.share_counts:
+        config['share_counts'] = True
     if args.group_fences:
         config['group_fences'] = True
     if args.community_games:

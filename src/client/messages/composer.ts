@@ -203,6 +203,8 @@ export class MessageComposer {
     input.value = '';
     this.clearContext();
     input.dispatchEvent(new Event('input'));
+    // Keep typing: the chat and its keyboard stay as they were.
+    input.focus();
     return true;
   }
   async save(peer: string | null): Promise<boolean> {

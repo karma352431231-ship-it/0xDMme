@@ -15,7 +15,7 @@ import {
   publishVerifiedConversationPreview,
   publishVerifiedPreviewReceipts,
 } from './verified-previews.ts';
-import { TextSendQueue } from './text-send.ts';
+import { TextSendQueue } from '../text-send/index.ts';
 import { ReceiptPreviews } from './receipt-previews.ts';
 import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -54,7 +54,11 @@ import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
-import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
+import type {
+  Peer,
+  AddressBookEntry,
+  WalletContact,
+} from '../../shared/contacts/index.ts';
 import type {
   VaultAccess,
   VaultWorkOptions,
@@ -79,6 +83,8 @@ export function startMessages(
     playback: VoicePlayback;
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
+    /** Add-contact editor prefilled with a group member's wallet. */
+    addContact: (wallet: WalletContact, alias: string) => void;
     directoryChanged: (available: boolean) => void;
     unreadChanged?: (count: number) => void;
     directorySettled?: (session: AccountSession | null) => void;
@@ -219,6 +225,12 @@ export function startMessages(
     history: (work, settled) => synchronization.history(work, settled),
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
+    alias: (account) =>
+      agenda.entries.find(
+        (entry) =>
+          entry.contact.accountId === account && !entry.contact.removed,
+      )?.contact.alias ?? '',
+    addContact: options.addContact,
     profile: (id) =>
       id === session?.accountId
         ? Promise.resolve(sharedProfile())

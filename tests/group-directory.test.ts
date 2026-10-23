@@ -221,6 +221,8 @@ await test('opening a group publishes the resulting selection to the directory o
       isBusy: () => false,
       alert: () => {},
       peers: () => [],
+      alias: () => '',
+      addContact: () => undefined,
       profile: () => Promise.resolve(null),
     } as unknown as Parameters<typeof startGroups>[2];
     const ui = startGroups(access, new VaultSync(access), options);
@@ -423,6 +425,8 @@ for (const language of ['en', 'zh-CN'] as const)
       isBusy: () => false,
       alert: () => {},
       peers: () => [],
+      alias: () => '',
+      addContact: () => undefined,
       profile: () => Promise.resolve(null),
     } as unknown as Parameters<typeof startGroups>[2];
     const ui = startGroups(access, new VaultSync(access), options);

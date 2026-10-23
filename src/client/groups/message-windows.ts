@@ -6,6 +6,7 @@ import {
   wire,
 } from './message-index.ts';
 import type { Snapshot, IndexItem } from './message-index.ts';
+import { GroupDelta } from './message-delta.ts';
 export { IncompleteGroupIndex } from './message-index.ts';
 import { projectGroupMessages } from './message-projection.ts';
 import { object, uuid } from '../../shared/account/index.ts';
@@ -32,6 +33,8 @@ export class GroupMessageWindows {
   >();
   private readonly windows = new Map<string, Window>();
   private readonly index = new GroupMessageIndex();
+  /** False after the server answered that it has no delta operation. */
+  private deltas = true;
   clear(): void {
     this.states.clear();
     this.windows.clear();
@@ -68,17 +71,27 @@ export class GroupMessageWindows {
     before: number | null,
   ): Promise<Window> {
     c.guard?.();
-    const snapshot = this.index.target(await currentGroupSnapshot(c)),
-      scope = canonical([
+    // A snapshot always carries this directory and head, so the scope is known
+    // before asking for it.
+    const scope = canonical([
         c.authority.session.accountId,
         c.authority.session.deviceId,
-        snapshot.directory,
-        snapshot.head,
+        c.authority.directory,
+        c.group.head,
       ]),
+      delta = await this.delta(c, scope),
+      fresh = delta?.snapshot ?? (await currentGroupSnapshot(c)),
+      snapshot = this.index.target(fresh),
       key = canonical([snapshot.groupId, before]);
+    const read =
+      delta && snapshot === fresh ? { ...c, api: delta.serve(c.api) } : c;
     const previous = this.previousState(snapshot, scope),
-      changed = await this.index.read(c, snapshot, previous?.snapshot ?? null);
-    const result = await this.loadWindow(c, {
+      changed = await this.index.read(
+        read,
+        snapshot,
+        previous?.snapshot ?? null,
+      );
+    const result = await this.loadWindow(read, {
       snapshot,
       scope,
       key,
@@ -92,6 +105,20 @@ export class GroupMessageWindows {
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
     this.index.confirmed(snapshot);
     return result;
+  }
+  /** Warm reads of a group with no unfinished change set ask for the delta. */
+  private async delta(c: ReadContext, scope: string) {
+    const previous = this.states.get(c.group.state.groupId);
+    if (
+      !this.deltas ||
+      previous?.scope !== scope ||
+      this.index.retains(c.group.state.groupId)
+    )
+      return null;
+    const delta = await GroupDelta.read(c, previous.snapshot.revision);
+    if (!delta) this.deltas = false;
+    c.guard?.();
+    return delta;
   }
   private previousState(snapshot: Snapshot, scope: string) {
     const previous = this.states.get(snapshot.groupId);

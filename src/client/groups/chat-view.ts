@@ -1,4 +1,4 @@
-import { t } from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { GroupController } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import { GroupMessageActions } from './message-actions.ts';
@@ -11,6 +11,14 @@ import { ExternalTextHistory } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { showGifText, gifUrls } from '../gif-search/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
+import { groupTextQueue } from './text-queue.ts';
+import { GroupOutgoing } from './outgoing.ts';
+import type { PendingGroupText } from './outgoing.ts';
+import { GroupDeliveryTrace } from './delivery-trace.ts';
+import type { GroupSendProgress } from './outbox.ts';
+import type { GroupMemberPresentation } from './member-presentation.ts';
+import { memberContactTrigger } from './member-contact.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
 import {
   updateChatComposer,
@@ -32,14 +40,20 @@ interface ChatOptions {
     | 'removeMessage'
     | 'compose'
     | 'sendPending'
-    | 'pending'
-    | 'discard'
+    | 'composeText'
+    | 'sendGroupDrafts'
   >;
   account: () => string | undefined;
   playback: VoicePlayback;
   externalMedia?: ExternalMediaConsent | undefined;
   isBusy: () => boolean;
-  name: (account: string) => string;
+  members: Pick<
+    GroupMemberPresentation,
+    'name' | 'label' | 'sender' | 'contactCandidate' | 'offerContact'
+  >;
+  visibleGroup: () => string | null;
+  reconcile: (group: string) => Promise<void>;
+  operationRun: (work: () => Promise<void>) => Promise<void>;
   run: (work: () => Promise<void>) => Promise<void>;
   reopen: (older?: boolean) => Promise<void>;
   select: () => void;
@@ -50,6 +64,9 @@ interface ChatOptions {
  * Persistence, verified reads and group authority stay in the controller. */
 export class GroupChatView {
   private readonly options: ChatOptions;
+  private readonly outgoing = new GroupOutgoing();
+  private readonly delivery = new GroupDeliveryTrace();
+  private readonly texts: ReturnType<typeof groupTextQueue>;
   private host: HTMLElement | null = null;
   private readonly emoji = new EmojiPicker();
   private readonly attachments: AttachmentUi;
@@ -94,7 +111,58 @@ export class GroupChatView {
         }
       },
     });
+    const sendProgress: GroupSendProgress = {
+      sending: (id) => this.delivery.step('sending', id),
+      accepted: (id) => {
+        this.delivery.step('accepted', id);
+        const open = this.options.visibleGroup();
+        this.outgoing.accepted(id, performance.now(), open);
+        if (open && this.outgoing.crowded(open))
+          this.options
+            .reconcile(open)
+            .catch((error: unknown) => this.reportGroupError(error));
+      },
+    };
+    this.texts = groupTextQueue({
+      save: (groupId, draft) =>
+        this.options.controller.composeText(groupId, draft),
+      send: async (groupId) => {
+        let sent = false;
+        const queued = performance.now();
+        await this.options.operationRun(() =>
+          measureWork(
+            this.options.controller,
+            'group/send',
+            async () => {
+              await this.options.controller.sendGroupDrafts(
+                groupId,
+                sendProgress,
+              );
+              sent = true;
+            },
+            queued,
+          ),
+        );
+        return sent;
+      },
+      available: () => !!this.options.controller.selected && navigator.onLine,
+      changed: () => {
+        this.composerStatus();
+        this.options.status();
+      },
+      failed: (error) => this.reportGroupError(error),
+      draftChanged: (draft, phase) => {
+        this.outgoing.update(draft, phase);
+        if (phase !== 'save-failed')
+          this.delivery.step(
+            phase === 'admitted' ? 'admitted' : 'staged',
+            draft.id,
+          );
+        this.renderHistory();
+      },
+    });
   }
+
   status(): void {
     const compose = this.node<HTMLFormElement>('[data-group-compose]');
     if (compose) compose.hidden = !!this.options.controller.selected?.localOnly;
@@ -190,6 +258,7 @@ export class GroupChatView {
   private composerStatus(): void {
     updateChatComposer(this.node('[data-group-compose]'), {
       blocked: this.options.isBusy() || !this.options.controller.selected,
+      textSendBlocked: this.canQueueText() ? this.texts.full : undefined,
       recording: this.voice.active,
       attachment: this.attachments.selected !== null,
     });
@@ -229,21 +298,31 @@ export class GroupChatView {
     const restoreScroll = historyPosition(history);
     this.externalRows.render(
       history,
-      this.options.controller.views.map((view) => ({
-        id: view.id,
-        key: JSON.stringify([
-          view.text,
-          view.hash,
-          view.sender,
-          this.options.name(view.sender),
-          view.localOnly,
-          view.kind,
-          view.unavailableMedia,
-          view.edited,
-        ]),
-        render: (signal) => this.renderView(view, signal),
-      })),
+      [
+        ...this.options.controller.views.map((view, index, views) => ({
+          id: view.id,
+          key: JSON.stringify([
+            view.text,
+            view.hash,
+            view.sender,
+            this.options.members.name(view.sender),
+            this.options.members.label(view.sender).wallet ?? '',
+            this.startsRun(views, index),
+            view.localOnly,
+            view.kind,
+            view.unavailableMedia,
+            view.edited,
+          ]),
+          render: (signal: AbortSignal) =>
+            this.renderView(view, signal, this.startsRun(views, index)),
+        })),
+        ...this.pendingRows(),
+      ],
       this.externalAbort.signal,
+    );
+    this.delivery.rendered(
+      this.options.controller.selected?.state.groupId ?? null,
+      this.options.controller.views,
     );
     for (const view of this.options.controller.views) {
       const row = history.querySelector<HTMLElement>(
@@ -255,13 +334,17 @@ export class GroupChatView {
     const older = this.node('[data-group-older]');
     if (older) older.hidden = this.options.controller.before === null;
   }
-  private renderView(view: GroupView, mediaSignal: AbortSignal): HTMLElement {
+  private renderView(
+    view: GroupView,
+    mediaSignal: AbortSignal,
+    first: boolean,
+  ): HTMLElement {
     const article = document.createElement('article');
-    article.className = view.own ? 'chat-message own' : 'chat-message';
+    article.className = view.own
+      ? 'chat-message own'
+      : 'chat-message group-incoming';
     article.dataset['groupMessage'] = view.id;
-    const sender = document.createElement('strong');
-    sender.textContent = this.options.name(view.sender);
-    article.append(sender);
+    this.appendAuthor(article, view, first);
     if (view.kind === 'attachment') {
       this.attachments.render({
         article,
@@ -336,48 +419,17 @@ export class GroupChatView {
     }
     showExternalVideos(article, value, settings);
   }
-  async pending(): Promise<void> {
-    const list = this.node('[data-group-pending]');
-    if (!list) return;
-    list.replaceChildren();
-    for (const draft of await this.options.controller.pending()) {
-      const row = document.createElement('li');
-      row.textContent = t('Draft {0} pending ', [draft.id.slice(0, 8)]);
-      row.append(
-        this.button(t('Resume'), async () => {
-          await this.options.controller.sendPending();
-          await this.options.reopen();
-        }),
-      );
-      row.append(
-        this.button(t('Discard local draft'), async () => {
-          await this.options.controller.discard(draft.id);
-          await this.pending();
-          this.options.report(
-            t(
-              'Local draft discarded. This does not delete a message already accepted.',
-            ),
-          );
-        }),
-      );
-      list.append(row);
-    }
-  }
+
   private bind(selector: string, handler: () => void): void {
     this.node(selector)?.addEventListener('click', handler);
   }
-  private button(label: string, work: () => Promise<void>): HTMLButtonElement {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.addEventListener('click', () => void this.options.run(work));
-    return b;
-  }
+
   private bindChat(): void {
     this.node<HTMLFormElement>('[data-group-compose]')?.addEventListener(
       'submit',
       (event) => {
         event.preventDefault();
+        if (this.queueText()) return;
         void this.options.run(async () => {
           const input = this.node<HTMLTextAreaElement>('[data-group-text]');
           await this.options.controller.compose(
@@ -428,5 +480,146 @@ export class GroupChatView {
     this.bind('[data-attachment-clear]', () => {
       if (!this.voice.active) this.voice.cancel();
     });
+  }
+  private canQueueText(): boolean {
+    return (
+      !!this.options.controller.selected &&
+      !this.options.controller.selected.localOnly &&
+      !this.voice.active &&
+      this.attachments.selected === null
+    );
+  }
+  private pendingRows() {
+    const group = this.options.controller.selected;
+    if (!group) return [];
+    return this.outgoing
+      .rows(
+        group.state.groupId,
+        new Set(this.options.controller.views.map((v) => v.id)),
+      )
+      .map((text) => ({
+        id: `pending:${text.id}`,
+        key: JSON.stringify(['pending', text.text, text.failed]),
+        render: () => this.renderPendingText(text),
+      }));
+  }
+  private renderPendingText(text: PendingGroupText): HTMLElement {
+    const article = document.createElement('article');
+    article.className = 'chat-message own';
+    article.dataset['groupPending'] = text.id;
+    const sender = document.createElement('strong');
+    sender.textContent = t('You');
+    const body = document.createElement('p');
+    emojiText(body, text.text);
+    const state = document.createElement('small');
+    state.className = 'message-meta';
+    if (text.failed) {
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'message-send-failed';
+      retry.textContent = '✕';
+      retry.title = t('chat.save-failed');
+      retry.setAttribute(
+        'aria-label',
+        t('{0}. {1}', [t('chat.save-failed'), t('chat.retry-save')]),
+      );
+      retry.addEventListener('click', () => this.texts.retry());
+      state.append(retry);
+    } else
+      state.append(
+        checksIcon(
+          messageChecks({ own: true, delivery: 'accepted', read: false })!,
+        ),
+      );
+    article.append(sender, body, state);
+    return article;
+  }
+  private startsRun(views: readonly GroupView[], index: number): boolean {
+    return index === 0 || views[index - 1]?.sender !== views[index]?.sender;
+  }
+  private appendAuthor(
+    article: HTMLElement,
+    view: GroupView,
+    first: boolean,
+  ): void {
+    if (view.own) {
+      const sender = document.createElement('strong');
+      sender.textContent = this.options.members.name(view.sender);
+      article.append(sender);
+      return;
+    }
+    if (!first) return;
+    article.classList.add('group-run-start');
+    const [avatar, author] = this.options.members.sender(view.sender);
+    if (!avatar || !author) return;
+    if (this.options.members.contactCandidate(view.sender))
+      memberContactTrigger(
+        author,
+        this.options.members.name(view.sender),
+        () => {
+          void this.options.run(() =>
+            this.options.members.offerContact(view.sender),
+          );
+        },
+      );
+    article.append(avatar, author);
+  }
+  settleOutgoing(id: string, started: number): void {
+    const selected = this.options.controller.selected;
+    if (
+      selected?.state.groupId !== id ||
+      selected.localOnly ||
+      this.options.controller.historyPending
+    )
+      return;
+    const { settled, retired } = this.outgoing.verified(
+      id,
+      new Set(this.options.controller.views.map((view) => view.id)),
+      started,
+    );
+    for (const message of settled) this.delivery.step('settled', message);
+    for (const message of retired) this.delivery.step('retired', message);
+    if (retired.length) this.renderHistory();
+  }
+  private reportGroupError(error: unknown): void {
+    this.options.report(
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Could not complete the group operation.'),
+    );
+    this.options.status();
+  }
+  private queueText(): boolean {
+    const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
+      group = this.options.controller.selected;
+    if (!input || !group || !this.canQueueText() || !input.value.trim())
+      return false;
+    try {
+      this.texts.enqueue({
+        id: crypto.randomUUID(),
+        peer: group.state.groupId,
+        text: input.value,
+      });
+    } catch (error: unknown) {
+      this.options.report(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Could not complete the group operation.'),
+      );
+      this.options.status();
+      return true;
+    }
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    // Keep typing: the chat and its keyboard stay as they were.
+    input.focus();
+    return true;
+  }
+  resetTexts(): void {
+    this.texts.reset();
+    this.outgoing.clear();
+  }
+  hint(): void {
+    this.delivery.hint();
   }
 }

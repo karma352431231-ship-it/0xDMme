@@ -176,3 +176,26 @@ The local browser remains disabled in Work settings, confirmed again during
 this stage. The assembled browser smoke for recording/navigation/invitation/
 vault interactions remains pending. PostgreSQL integration and remote CI were
 not run. This stage does not include merging, pushing or VPS operations.
+
+## Integration with the current main branch
+
+The owner subsequently requested integration and activation. The fetched main
+at `f1e41e4` contains newer group send/recovery, author identity and co-member
+contact features, public share counts and focused-composer behavior. The merge
+preserves that current behavior, including its removal of the legacy pending
+draft card, rather than restoring the earlier audit's behavior.
+
+The existing text queue, outgoing rows and delivery trace now live with the
+group chat view; verified readback scheduling remains in the coordinator.
+`member-presentation.ts` owns the shared member labels/wallet lookup and the
+separate settings/author photo-cache lifetimes. Management and history use its
+narrow operations. The private composer retains current main's focus after
+text admission. No engine, database, migration, runtime or infrastructure change
+is added relative to the fetched main. Integration validation and deployment
+evidence are recorded privately in `.local/`.
+
+The integration's focused run passed 111 tests; the additional co-member contact
+case passed separately. All eleven assembled group UI cases also passed against
+the fetched main and the integrated presentation owners. This includes queued
+text acceptance without an extra readback, retry with the same ID and
+invitation-only contact privacy.

@@ -16,6 +16,7 @@ import type {
   GroupKeys,
 } from '../../shared/group-messages/index.ts';
 import { recoveryKey } from '../../shared/messages/index.ts';
+import { GroupSendBatch } from '../message-crypto/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { readDirectories } from '../peer-identity/index.ts';
@@ -24,12 +25,12 @@ import {
   stageAttachment,
   restageAttachments,
   uploadAttachments,
-  forgetAttachment,
 } from '../attachments/index.ts';
 import type {
   AttachmentApi,
   AttachmentSelection,
 } from '../attachments/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { GroupCache, groupCacheScope } from './cache.ts';
 import type { GroupState } from './governance.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -41,6 +42,15 @@ interface Outbox {
   keys: GroupKeys | null;
   uploadEpoch: number | null;
   relation?: MessageRelation;
+  /** Admission order; drafts saved before it existed sort first. */
+  order?: number;
+}
+/** Steps of each draft a send reaches, for the outgoing rows and the local
+ * trace. `accepted` follows the server's confirmation of that exact packet,
+ * whether this attempt published it or an earlier one whose answer was lost. */
+export interface GroupSendProgress {
+  sending: (id: string) => void;
+  accepted: (id: string) => void;
 }
 interface SendContext {
   authority: VaultAuthority;
@@ -48,6 +58,7 @@ interface SendContext {
   identities: PeerIdentity;
   api: AttachmentApi;
   machine: MessageCrypto;
+  progress?: GroupSendProgress | undefined;
 }
 export async function composeGroup(input: {
   authority: VaultAuthority;
@@ -57,6 +68,7 @@ export async function composeGroup(input: {
   kind?: GroupPacket['kind'];
   id?: string;
   relation?: MessageRelation;
+  order?: number;
 }): Promise<string> {
   const id = input.id ?? crypto.randomUUID(),
     cache = new GroupCache(input.authority, input.groupId);
@@ -86,21 +98,73 @@ export async function composeGroup(input: {
     keys: null,
     uploadEpoch: null,
     ...(input.relation ? { relation: groupEditRelation(input.relation) } : {}),
+    ...(input.order === undefined ? {} : { order: input.order }),
   } satisfies Outbox);
   return id;
 }
+/** Sends the group's drafts in admission order. The participant directories
+ * are read once for the batch, when the first draft needs encryption. */
 export async function sendGroupPending(c: SendContext): Promise<void> {
-  const cache = new GroupCache(c.authority, c.group.state.groupId),
-    page = await cache.page('outbox:', null);
-  for (const row of page.items)
-    await sendGroupOne(c, { cache, name: row.name, value: outbox(row.value) });
+  const cache = new GroupCache(c.authority, c.group.state.groupId);
+  const drafts = (await outboxDrafts(cache)).sort(
+    (a, b) => (a.value.order ?? 0) - (b.value.order ?? 0),
+  );
+  let directories: ReturnType<typeof readDirectories> | null = null;
+  const participants = () =>
+    (directories ??= readDirectories({
+      accounts: c.group.state.members.map((m) => m.accountId),
+      identities: c.identities,
+      load: (requests) =>
+        c.api('group-directory', {
+          groupId: c.group.state.groupId,
+          head: c.group.head,
+          accounts: requests,
+        }),
+    }));
+  const batch = new GroupSendBatch();
+  for (const draft of drafts)
+    await sendGroupOne(c, { cache, ...draft, participants, batch });
+}
+/** The server rejected a packet prepared for an older membership, participant
+ * directory or recovery key; its draft was cleared for a fresh encryption. */
+export function staleGroupSend(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 409
+  );
+}
+/** Every draft, so the admission order holds across storage pages. */
+async function outboxDrafts(
+  cache: GroupCache,
+): Promise<{ name: string; value: Outbox }[]> {
+  const drafts: { name: string; value: Outbox }[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < 8; page++) {
+    const result = await cache.page('outbox:', after);
+    for (const row of result.items)
+      drafts.push({ name: row.name, value: outbox(row.value) });
+    if (result.next === null) return drafts;
+    after = result.next;
+  }
+  return drafts;
 }
 async function sendGroupOne(
   c: SendContext,
-  entry: { cache: GroupCache; name: string; value: Outbox },
+  entry: {
+    cache: GroupCache;
+    name: string;
+    value: Outbox;
+    participants: () => ReturnType<typeof readDirectories>;
+    batch: GroupSendBatch;
+  },
 ): Promise<void> {
   const { cache, name, value } = entry,
     scope = { groupId: c.group.state.groupId, head: c.group.head };
+  c.progress?.sending(value.id);
+  // A packet kept from an attempt whose answer was lost is never published
+  // twice: the server's copy is the durable record from here on.
   if (
     value.packet &&
     (await c.api('group-message-accepted', {
@@ -110,41 +174,40 @@ async function sendGroupOne(
     })) === true
   ) {
     await cache.remove(name);
+    c.progress?.accepted(value.id);
     return;
   }
   await uploadGroupDraft(c, { cache, name, value });
   if (!currentPacket(value, c)) {
     const accounts = c.group.state.members.map((m) => m.accountId);
-    const directories = await readDirectories({
-      accounts,
-      identities: c.identities,
-      load: (requests) =>
-        c.api('group-directory', { ...scope, accounts: requests }),
-    });
+    const directories = await entry.participants();
     const saved = await cache.get(
       `session:${c.authority.session.deviceId}:${c.group.state.epoch}`,
     );
-    const encrypted = await c.machine.encryptGroup({
-      authority: c.authority,
-      state: c.group.state,
-      histories: accounts.map((account) => {
-        const d = directories.get(account);
-        if (!d) throw new Error('Participant has no directory.');
-        return d.events;
+    const encrypted = await measureWork(c.machine, 'sdk/group-encrypt', () =>
+      c.machine.encryptGroup({
+        authority: c.authority,
+        state: c.group.state,
+        histories: accounts.map((account) => {
+          const d = directories.get(account);
+          if (!d) throw new Error('Participant has no directory.');
+          return d.events;
+        }),
+        recovery: accounts.map((account) =>
+          recoveryKey(directories.get(account)?.recovery),
+        ),
+        transport: (op, payload) =>
+          op === 'matrix-upload'
+            ? c.api(op, payload)
+            : c.api('group-' + op, { ...scope, payload }),
+        id: value.id,
+        text: value.text,
+        kind: value.kind,
+        ...(value.relation ? { relation: value.relation } : {}),
+        ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
+        batch: entry.batch,
       }),
-      recovery: accounts.map((account) =>
-        recoveryKey(directories.get(account)?.recovery),
-      ),
-      transport: (op, payload) =>
-        op === 'matrix-upload'
-          ? c.api(op, payload)
-          : c.api('group-' + op, { ...scope, payload }),
-      id: value.id,
-      text: value.text,
-      kind: value.kind,
-      ...(value.relation ? { relation: value.relation } : {}),
-      ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
-    });
+    );
     value.packet = encrypted.packet;
     value.keys = encrypted.keys;
     await cache.put(
@@ -153,18 +216,43 @@ async function sendGroupOne(
     );
     await cache.put(name, value);
   }
-  const result = object(
-    await c.api('group-message-publish', {
-      packet: value.packet,
-      keys: value.keys,
-    }),
-  );
+  const result = object(await publish(c, entry));
   if (
     result['status'] !== 'accepted' ||
     result['hash'] !== (await digest(canonical(value.packet)))
   )
     throw new Error('Group send not confirmed.');
+  // The draft keeps its packet until here, so a crash before the removal
+  // leaves a draft the next attempt settles through `group-message-accepted`.
   await cache.remove(name);
+  c.progress?.accepted(value.id);
+}
+/** A stale rejection clears the stored packet and the batch's device trust,
+ * so the next attempt prepares and encrypts again instead of resending it. */
+async function publish(
+  c: SendContext,
+  entry: {
+    cache: GroupCache;
+    name: string;
+    value: Outbox;
+    batch: GroupSendBatch;
+  },
+): Promise<unknown> {
+  const { cache, name, value } = entry;
+  try {
+    return await c.api('group-message-publish', {
+      packet: value.packet,
+      keys: value.keys,
+    });
+  } catch (error: unknown) {
+    if (staleGroupSend(error)) {
+      entry.batch.reset();
+      value.packet = null;
+      value.keys = null;
+      await cache.put(name, value);
+    }
+    throw error;
+  }
 }
 function currentPacket(value: Outbox, c: SendContext): boolean {
   const packet = value.packet;
@@ -212,17 +300,6 @@ async function uploadGroupDraft(
     api: groupAttachmentApi(c.group, c.api),
   });
 }
-export async function discardGroupDraft(
-  authority: VaultAuthority,
-  group: string,
-  id: string,
-): Promise<void> {
-  await new GroupCache(authority, group).remove(`outbox:${id}`);
-  await forgetAttachment(
-    groupCacheScope(authority.session.accountId, group),
-    id,
-  );
-}
 function outbox(input: unknown): Outbox {
   const d = object(input),
     kind = d['kind'];
@@ -249,5 +326,12 @@ function outbox(input: unknown): Outbox {
     ...(d['relation'] === undefined
       ? {}
       : { relation: groupEditRelation(d['relation']) }),
+    ...draftOrder(d['order']),
   };
+}
+function draftOrder(value: unknown): { order?: number } {
+  if (value === undefined) return {};
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('Invalid group draft order.');
+  return { order: value };
 }

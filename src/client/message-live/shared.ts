@@ -2,6 +2,7 @@ import { AccountError } from '../../shared/account/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { LiveConnection } from './connection.ts';
+import { liveHandshakeWork } from './request.ts';
 import { liveCurrent, terminalLiveEvent } from './protocol.ts';
 import type { LiveEvent, LivePhase, LiveSnapshot } from './protocol.ts';
 import { liveScope } from './session.ts';
@@ -131,8 +132,10 @@ export class SharedLiveConnection {
     });
   }
   private async join(generation: number): Promise<void> {
-    const session = await this.options.access.withVault(false, (a) =>
-      Promise.resolve({ ...a.session }),
+    const session = await this.options.access.withVault(
+      false,
+      (a) => Promise.resolve({ ...a.session }),
+      liveHandshakeWork(),
     );
     const scope = await liveScope(session);
     if (generation !== this.generation) return;

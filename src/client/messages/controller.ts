@@ -119,7 +119,7 @@ import {
   removeOutbox,
 } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
-import type { TextDraft } from './text-send.ts';
+import type { TextDraft } from '../text-send/index.ts';
 import { encodeProfileCard, profileCard } from '../message-profile/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 import {

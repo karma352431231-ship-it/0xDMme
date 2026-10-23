@@ -271,6 +271,23 @@ CATEGORIZED_MESSAGES_REVIEWED = 'f5df9d6203a41569fba05645ef2b26d4d116f41f'
 PEER_WINDOW_BEFORE = '60eada368f929361a68e4a0599cd4198228aad9a'
 PEER_WINDOW_REVIEWED = '898865f55a3bc68552aabd784f0d264cfe6bf228'
 PEER_WINDOW_MODULES = frozenset({'message-index.ts', 'messages.ts'})
+# Owner chose option 2 for group member identity and requested activation on
+# 23/10/2026: co-member wallets only for wallet discovery, never across a block.
+# Exact read-only addition in two modules; all SQL migrations and runtime fixed.
+GROUP_MEMBER_WALLETS_BEFORE = '090d92f0326c1dcba8996d3afa63686515d0fc9c'
+GROUP_MEMBER_WALLETS_REVIEWED = '699e0f2c8e9e576b3f2a63841379288a2605f0da'
+GROUP_MEMBER_WALLETS_MODULES = frozenset({'contacts.ts', 'groups.ts'})
+# Owner asked on 23/10/2026 for a group check that turns green only when every
+# member read. Exact receipt query only; all migrations and runtime stay fixed.
+GROUP_READ_ALL_BEFORE = '87f0209de967ec7b678fc27ceb91c9a461899662'
+GROUP_READ_ALL_REVIEWED = 'aa61ed9ae58b06c872e55b3d65adae31bc78f4fd'
+GROUP_READ_ALL_MODULES = frozenset({'group-daily.ts'})
+# Owner asked on 23/10/2026 for fewer requests per group message: one delta
+# request composes the existing cut, change page and packet queries. Exact
+# query reuse only; all migrations and runtime stay fixed.
+GROUP_DELTA_BEFORE = '465e2df87a63f4fb3bb49e29a21b48f271b9b6a0'
+GROUP_DELTA_REVIEWED = '28cf2122fb0ba9bb8147a01f57a1b46b46f983aa'
+GROUP_DELTA_MODULES = frozenset({'group-message-updates.ts', 'group-messages.ts'})
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -487,6 +504,10 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
+        (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
+        (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,
+         GROUP_MEMBER_WALLETS_REVIEWED),
         (set(PEER_WINDOW_MODULES), PEER_WINDOW_BEFORE, PEER_WINDOW_REVIEWED),
         (set(CATEGORIZED_MESSAGES_MODULES), CATEGORIZED_MESSAGES_BEFORE, CATEGORIZED_MESSAGES_REVIEWED),
         ({'daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts'},
@@ -612,6 +633,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 99:
+        import deploy_post_share_counts
+        return deploy_post_share_counts.review(candidate, live)
     if count == 98:
         import deploy_group_fences
         return deploy_group_fences.review(candidate, live)
@@ -1319,6 +1343,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 99:
+            import deploy_post_share_counts
+            return deploy_post_share_counts.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 98:
             import deploy_group_fences
             return deploy_group_fences.activate(config, work, candidate, before)

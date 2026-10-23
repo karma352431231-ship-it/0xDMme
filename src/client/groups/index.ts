@@ -1,3 +1,5 @@
+import { GroupMemberPresentation } from './member-presentation.ts';
+import { GroupReconciliation } from './reconciliation.ts';
 import { GroupHistoryWork } from './history-work.ts';
 import type { MessageWork } from '../synchronization-work/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
@@ -17,7 +19,7 @@ import {
   chatComposer,
 } from '../chat-ui/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
-import type { Peer } from '../../shared/contacts/index.ts';
+import type { Peer, WalletContact } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -46,6 +48,8 @@ interface GroupOptions {
   isBusy: () => boolean;
   alert: () => void;
   peers: () => readonly Peer[];
+  alias: (account: string) => string;
+  addContact: (wallet: WalletContact, alias: string) => void;
   profile: GroupProfile;
   organizationPeers?: () => readonly string[];
 }
@@ -69,13 +73,28 @@ export function startGroups(
   const report = (text: string) => {
     notice = text;
   };
+  const members = new GroupMemberPresentation({
+    controller,
+    account: () => session?.accountId,
+    alias: options.alias,
+    peers: options.peers,
+    profile: options.profile,
+    addContact: options.addContact,
+    redraw: () => {
+      chat.renderHistory();
+      management.renderMembers();
+    },
+  });
   const chat = new GroupChatView({
     controller,
     account: () => session?.accountId,
     playback: options.playback,
     externalMedia: options.externalMedia,
     isBusy: options.isBusy,
-    name,
+    members,
+    visibleGroup,
+    reconcile: (id) => reconciliation.request(id),
+    operationRun: options.run,
     run,
     reopen,
     select: options.select,
@@ -86,7 +105,7 @@ export function startGroups(
     access,
     controller,
     account: () => session?.accountId,
-    name,
+    members,
     peers: options.peers,
     profile: options.profile,
     refresh,
@@ -152,10 +171,7 @@ export function startGroups(
     });
   }
   function name(account: string): string {
-    return account === session?.accountId
-      ? t('You')
-      : options.peers().find((p) => p.accountId === account)?.name ||
-          t('Member {0}', [account.slice(0, 8)]);
+    return members.name(account);
   }
   function listLabel(group: GroupSummary): string {
     const id = group.state.groupId,
@@ -258,22 +274,32 @@ export function startGroups(
       });
       notice = controller.warning || t('Group opened.');
       render();
-      await chat.pending();
     },
   });
-  const readHistory = (id: string, older: boolean, localOnly: boolean) =>
-    historyWork.open({ id, older, localOnly });
+  const readHistory = async (
+    id: string,
+    older: boolean,
+    localOnly: boolean,
+  ): Promise<void> => {
+    const started = performance.now();
+    await historyWork.open({ id, older, localOnly });
+    if (!older && !localOnly) chat.settleOutgoing(id, started);
+  };
+  function visibleGroup(): string | null {
+    const selected = controller.selected;
+    return selected &&
+      !selected.localOnly &&
+      document.visibilityState === 'visible' &&
+      host?.getClientRects().length
+      ? selected.state.groupId
+      : null;
+  }
+  const reconciliation = new GroupReconciliation((id) =>
+    readHistory(id, false, false),
+  );
   const receipt = new GroupReceipt({
-    visibleGroup: () => {
-      const selected = controller.selected;
-      return selected &&
-        !selected.localOnly &&
-        document.visibilityState === 'visible' &&
-        host?.getClientRects().length
-        ? selected.state.groupId
-        : null;
-    },
-    readSelected: (id) => readHistory(id, false, false),
+    visibleGroup,
+    readSelected: (id) => reconciliation.request(id),
     receipts: async () => {
       await controller.refreshReceipts();
       chat.renderHistory();
@@ -304,6 +330,7 @@ export function startGroups(
     management.renderIdentity(group);
     chat.renderHistory();
     management.renderMembers();
+    members.load(group);
     vault.render();
     management.renderInvites();
     status();
@@ -317,6 +344,7 @@ export function startGroups(
   function deselect(): void {
     chat.closeActions();
     management.closeSettings();
+    members.clearConversation();
     if (chat.recording)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
@@ -384,7 +412,10 @@ export function startGroups(
       controller.search(query, after),
     refresh,
     /** A categorized change; only a general wakeup refreshes the directory. */
-    changed: (change: GroupChange) => receipt.changed(change),
+    changed: (change: GroupChange) => {
+      if (change === 'content') chat.hint();
+      return receipt.changed(change);
+    },
     counters: () => receipt.counters(),
     synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
     pauseSynchronization: () => controller.pauseSynchronization(),
@@ -403,6 +434,7 @@ export function startGroups(
         return;
       }
       session = value;
+      chat.resetTexts();
       loading.reset();
       chat.closeActions();
       management.setSession(value);

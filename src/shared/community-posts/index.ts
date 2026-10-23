@@ -50,6 +50,8 @@ export interface CommunityPost {
   score: number;
   replies: number;
   views?: number;
+  /** Profiles currently sharing this post on their public profile. */
+  shares?: number;
   media?: PublicPostMedia[];
 }
 export interface PostRemoval {
@@ -181,9 +183,14 @@ function postBadgeFields(
   return { authorBadges };
 }
 function postViewFields(data: Record<string, unknown>) {
-  return Object.hasOwn(data, 'views')
-    ? { views: postCount(data['views']) }
-    : {};
+  return {
+    ...(Object.hasOwn(data, 'views')
+      ? { views: postCount(data['views']) }
+      : {}),
+    ...(Object.hasOwn(data, 'shares')
+      ? { shares: postCount(data['shares']) }
+      : {}),
+  };
 }
 function postViewerFields(
   data: Record<string, unknown>,
@@ -224,6 +231,7 @@ export function communityPost(value: unknown): CommunityPost {
     'replies',
     ...(Object.hasOwn(data, 'authorBadges') ? ['authorBadges'] : []),
     ...(Object.hasOwn(data, 'views') ? ['views'] : []),
+    ...(Object.hasOwn(data, 'shares') ? ['shares'] : []),
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
     ...(Object.hasOwn(data, 'viewer') ? ['viewer'] : []),
   ]);

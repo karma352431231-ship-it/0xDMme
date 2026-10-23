@@ -137,6 +137,8 @@
   /* Controls drawn over video frames, the same in every theme. */
   --media-control-bg: rgb(0 0 0 / 55%);
   --media-control-ink: #ffffff;
+  /* Enlarged image surround (23/10/2026), black like X in every theme. */
+  --image-viewer-bg: rgb(0 0 0 / 92%);
   accent-color: var(--accent);
   /* Type scale shared by every theme; inputs stay at 16px so iOS does not zoom on focus. */
   --fs-caption: 12px;

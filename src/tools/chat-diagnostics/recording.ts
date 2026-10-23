@@ -48,6 +48,8 @@ export class Recording {
         wakeups: 'local-controls-cross-tab-device-and-service-worker-hints',
         reuse:
           'availability-in-reuse-coverage; internal-decisions-since-installation-only; no-earlier-eviction-history',
+        groupDelivery:
+          'own-text-steps-by-per-capture-message-slot; recipient-hint-and-first-shown-rows; no-cross-tab-or-device-correlation',
       },
       events: this.events.map((event) => ({ ...event })),
     };

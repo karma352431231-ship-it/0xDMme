@@ -5,7 +5,7 @@ import { dailyViews } from '../daily-text/index.ts';
 import { messageTime } from '../message-presentation/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { MessageView } from './controller.ts';
-import type { TextDraft } from './text-send.ts';
+import type { TextDraft } from '../text-send/index.ts';
 
 export interface OutgoingText extends TextDraft {
   saved: boolean;
@@ -228,15 +228,24 @@ function outgoingMeta(draft: OutgoingText, retry: () => void): HTMLElement {
     );
     button.addEventListener('click', retry);
     meta.append(button);
-  } else if (draft.accepted) {
+  } else {
+    // Owner decision (23/10/2026): one check until a recipient device has
+    // it, never a state phrase; the stage stays in the accessible label.
+    const checks = messageChecks({
+      own: true,
+      delivery: 'accepted',
+      read: false,
+    })!;
     meta.append(
       checksIcon(
-        messageChecks({ own: true, delivery: 'accepted', read: false })!,
+        draft.accepted
+          ? checks
+          : {
+              ...checks,
+              label: t(draft.saved ? 'message.sending' : 'chat.saving-local'),
+            },
       ),
     );
-  } else {
-    meta.title = t(draft.saved ? 'message.sending' : 'chat.saving-local');
-    meta.setAttribute('aria-label', meta.title);
   }
   return meta;
 }

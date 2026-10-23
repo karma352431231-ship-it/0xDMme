@@ -1,45 +1,30 @@
+/* The enlarged image over a black surround that hides the page (owner
+ * request 23/10/2026); tapping the surround closes it. */
 .public-image-viewer {
-  width: calc(100vw - 32px);
+  width: 100vw;
   max-width: none;
-  height: calc(100dvh - 32px);
+  height: 100dvh;
   max-height: none;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-  color: var(--text);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--media-control-ink);
 }
 .public-image-viewer[open] {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
+  display: block;
   overflow: hidden;
 }
 .public-image-viewer::backdrop {
-  background: var(--shadow);
-}
-.public-image-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-  min-height: 44px;
-}
-.public-image-toolbar button {
-  margin: 0;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  font: inherit;
+  background: var(--image-viewer-bg);
 }
 .public-image-frame {
   display: grid;
   place-items: center;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
   overflow: auto;
 }
 .public-image-frame img {
@@ -52,6 +37,7 @@
   max-height: 100%;
   object-fit: contain;
   border: 0;
+  border-radius: 8px;
   cursor: zoom-in;
 }
 .public-image-viewer.zoomed .public-image-frame {
@@ -61,4 +47,28 @@
   max-width: none;
   max-height: none;
   cursor: zoom-out;
+}
+.public-image-close {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--media-control-ink);
+  cursor: pointer;
+}
+.public-image-close svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 3px var(--shadow));
 }

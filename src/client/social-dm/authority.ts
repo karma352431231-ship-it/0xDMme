@@ -9,6 +9,7 @@ import {
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import {
   socialDeviceName,
+  socialDeviceNames,
   socialDirectory,
 } from '../../shared/social-dm/index.ts';
 import {
@@ -119,7 +120,7 @@ export async function pinSocialHistory(
 }
 async function localSocialIdentity(profile: string, alias: string) {
   const identity = await localIdentity(profile, alias, socialDeviceName);
-  if (identity.public.name === socialDeviceName) return identity;
+  if (socialDeviceNames.includes(identity.public.name)) return identity;
   // Failed localized registrations may have saved keys. Correct only local
   // metadata before signing; keep those keys and all signed history intact.
   return nameIdentity(profile, identity, socialDeviceName);

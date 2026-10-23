@@ -115,8 +115,10 @@ export class GroupDailyStore {
       const joined = state.members.find(
         (m) => m.accountId === a.session.accountId,
       )?.joined;
+      // Green means every member who got the message has read it with
+      // receipts on; a message nobody else received is never "read".
       const result = await client.query(
-        `SELECT p.id,(cardinality(p.pending_accounts)=0) AS received,(cardinality(p.pending_accounts)=0 AND NOT EXISTS(SELECT 1 FROM unnest(p.received_accounts) root(account) LEFT JOIN hash_talk.group_reads r ON r.account_id=root.account AND r.message_id=p.id LEFT JOIN hash_talk.daily_controls d ON d.account_id=root.account WHERE root.account<>p.sender AND (r.message_id IS NULL OR NOT coalesce(d.read_receipts,false) OR d.receipt_epoch IS DISTINCT FROM r.share_epoch))) AS read FROM hash_talk.group_packets p WHERE p.group_id=$1 AND p.id=ANY($2::uuid[]) AND p.sender=$3 AND p.epoch>=$4 AND p.epoch<=$5 AND p.body IS NOT NULL`,
+        `SELECT p.id,(cardinality(p.pending_accounts)=0) AS received,(cardinality(p.pending_accounts)=0 AND cardinality(p.received_accounts)>1 AND NOT EXISTS(SELECT 1 FROM unnest(p.received_accounts) root(account) LEFT JOIN hash_talk.group_reads r ON r.account_id=root.account AND r.message_id=p.id LEFT JOIN hash_talk.daily_controls d ON d.account_id=root.account WHERE root.account<>p.sender AND (r.message_id IS NULL OR NOT coalesce(d.read_receipts,false) OR d.receipt_epoch IS DISTINCT FROM r.share_epoch))) AS read FROM hash_talk.group_packets p WHERE p.group_id=$1 AND p.id=ANY($2::uuid[]) AND p.sender=$3 AND p.epoch>=$4 AND p.epoch<=$5 AND p.body IS NOT NULL`,
         [input.groupId, input.ids, a.session.accountId, joined, state.epoch],
       );
       return result.rows as unknown[];

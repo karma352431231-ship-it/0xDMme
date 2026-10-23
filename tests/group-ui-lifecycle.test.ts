@@ -237,25 +237,70 @@ await test('browser interruption stops recording, while ordinary suspension reta
   f.ui.setSession(null);
 });
 
-await test('pending group drafts keep the existing resume and local-discard actions', async () => {
+await test('queued group texts preserve immediate typing and do not read history after acceptance', async () => {
   const f = groupUiFixture();
-  const draft = { id: crypto.randomUUID(), text: 'Pending text' };
-  f.state.drafts = [draft];
   await f.ui.open(f.group);
-  const list = f.nodes['groupPending']!;
-  assert.match(list.textContent, new RegExp(draft.id.slice(0, 8)));
-  list.querySelectorAll('button')[0]!.click();
+  const input = f.nodes['groupText']!,
+    form = f.nodes['groupCompose']!;
+  const reads = f.state.historyReads;
+  f.state.holdTextSend = true;
+  for (const text of ['First queued text', 'Second queued text']) {
+    input.value = text;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    assert.equal(input.value, '');
+  }
   await turn();
-  assert.ok(f.calls.includes('send'));
-  assert.equal(f.state.drafts[0]!.id, draft.id);
-  list.querySelectorAll('button')[1]!.click();
-  await turn();
-  assert.ok(f.calls.includes(`discard:${draft.id}`));
-  assert.equal(list.children.length, 0);
-  assert.match(
-    f.nodes['groupNotice']!.textContent,
-    /does not delete a message already accepted/,
+  assert.deepEqual(
+    f.state.savedTexts.map((draft) => draft.text),
+    ['First queued text', 'Second queued text'],
   );
+  assert.equal(new Set(f.state.savedTexts.map((draft) => draft.id)).size, 2);
+  assert.equal(f.state.historyReads, reads);
+  assert.match(f.nodes['groupHistory']!.textContent, /First queued text/);
+  input.value = 'Continue typing';
+  f.state.textSend.resolve();
+  await turn();
+  assert.equal(f.state.historyReads, reads);
+  assert.equal(input.value, 'Continue typing');
+  assert.deepEqual(f.errors, []);
+  f.ui.setSession(null);
+});
+
+await test('a queued group save failure reports through the existing notice and retries with the same ID', async () => {
+  const f = groupUiFixture();
+  await f.ui.open(f.group);
+  f.state.textSaveFailure = true;
+  f.nodes['groupText']!.value = 'Retry the same draft';
+  f.nodes['groupCompose']!.dispatchEvent(
+    new Event('submit', { cancelable: true }),
+  );
+  await turn();
+  assert.notEqual(f.nodes['groupNotice']!.textContent, '');
+  const retry = f.nodes['groupHistory']!.querySelector('.message-send-failed')!;
+  assert.ok(retry);
+  f.state.textSaveFailure = false;
+  retry.click();
+  await turn();
+  assert.equal(f.state.textAttempts.length, 2);
+  assert.equal(new Set(f.state.textAttempts).size, 1);
+  assert.equal(f.state.savedTexts.length, 1);
+  f.ui.setSession(null);
+});
+
+await test('co-member contact actions keep invitation-only wallets private', async () => {
+  const f = groupUiFixture(),
+    alerts: string[] = [];
+  Object.assign(f.window, { alert: (text: string) => alerts.push(text) });
+  f.state.aliases.delete(f.other);
+  await f.ui.open(f.group);
+  await turn();
+  const add = f.nodes['groupMembers']!.querySelectorAll('button').find(
+    (button) => button.textContent === 'Add to contacts',
+  )!;
+  assert.ok(add);
+  add.click();
+  await turn();
+  assert.match(alerts[0]!, /invitation only/);
   assert.deepEqual(f.errors, []);
   f.ui.setSession(null);
 });

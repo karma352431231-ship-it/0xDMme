@@ -18,7 +18,7 @@ const adapters: Record<string, string[]> = {
   '../attachment-ui/index.ts': ['AttachmentUi'],
   '../voice-recording/index.ts': ['VoiceRecording'],
   '../emoji/index.ts': ['EmojiPicker', 'emojiIntoComposer', 'emojiText'],
-  '../appearance/index.ts': ['paintAvatar', 'displayName'],
+  '../appearance/index.ts': ['paintAvatar', 'displayName', 'shortAddress'],
   '../contacts/index.ts': ['Contacts'],
   '../external-video/index.ts': ['showExternalVideos'],
   '../gif-search/index.ts': ['showGifText', 'gifUrls'],
@@ -213,10 +213,17 @@ export function groupUiFixture() {
     media: AbortSignal[] = [],
     photo = deferred<GroupPhoto | null>();
   const state = {
+    aliases: new Map<string, string>([[other, 'Synthetic member']]),
     confirm: true,
     deferPhoto: false,
     photoLoads: 0,
     composeFailure: false,
+    textSaveFailure: false,
+    textAttempts: [] as string[],
+    savedTexts: [] as { id: string; text: string; order: number }[],
+    holdTextSend: false,
+    textSend: deferred<void>(),
+    historyReads: 0,
     drafts: [] as { id: string; text: string }[],
     vault: {
       textBytes: 2_000_000,
@@ -249,6 +256,7 @@ export function groupUiFixture() {
     },
     async refresh() {},
     open(id: string, _older: boolean, localOnly: boolean) {
+      state.historyReads++;
       this.selected = {
         ...group,
         state: { ...group.state, groupId: id },
@@ -307,6 +315,26 @@ export function groupUiFixture() {
       return state.composeFailure
         ? Promise.reject(new Error('Synthetic compose failure'))
         : Promise.resolve();
+    },
+    composeText(
+      _groupId: string,
+      draft: { id: string; text: string; order: number },
+    ) {
+      state.textAttempts.push(draft.id);
+      if (state.textSaveFailure)
+        return Promise.reject(new Error('Synthetic text save failure'));
+      state.savedTexts.push(draft);
+      return Promise.resolve();
+    },
+    async sendGroupDrafts(
+      _groupId: string,
+      progress: { accepted: (id: string) => void },
+    ) {
+      if (state.holdTextSend) await state.textSend.promise;
+      for (const draft of state.savedTexts) progress.accepted(draft.id);
+    },
+    memberWallets() {
+      return Promise.resolve([]);
     },
     sendPending() {
       calls.push('send');
@@ -389,6 +417,7 @@ export function groupUiFixture() {
     },
     paintAvatar() {},
     displayName: (name: string) => name,
+    shortAddress: (address: string) => address,
     showExternalVideos() {},
     showGifText() {},
     gifUrls: () => [],
@@ -426,6 +455,7 @@ export function groupUiFixture() {
     btoa,
     setTimeout,
     clearTimeout,
+    performance,
     HTMLElement: GroupNode,
     HTMLButtonElement: GroupNode,
     Element: GroupNode,
@@ -459,6 +489,8 @@ export function groupUiFixture() {
       isBusy: () => false,
       alert() {},
       peers: () => [],
+      alias: (account) => state.aliases.get(account) ?? '',
+      addContact() {},
       profile: () => Promise.resolve(null),
     },
   );

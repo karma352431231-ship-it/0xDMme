@@ -15,6 +15,8 @@ export const chatSyncEvents = [
   'projection',
   'verification-failed',
   'work',
+  'group-send',
+  'group-receive',
 ] as const;
 export const chatSyncReasons = [
   'capture-started',
@@ -50,6 +52,12 @@ export const chatSyncReasons = [
   'voice-preview',
   'projection-mismatch',
   'no-selection',
+  'admitted',
+  'staged',
+  'sending',
+  'accepted',
+  'retired',
+  'presented',
 ] as const;
 export type ChatSyncReason = (typeof chatSyncReasons)[number];
 const failures = [
@@ -68,6 +76,8 @@ export interface ChatSyncDecision extends WorkDiagnosticFields {
   epoch?: number;
   windowEpoch?: number;
   windowRows?: number;
+  /** A per-capture slot for one group message; never its ID. */
+  message?: number;
   connected?: boolean;
   pending?: boolean;
   present?: boolean;
@@ -135,6 +145,7 @@ function copyNumbers(
     'epoch',
     'windowEpoch',
     'windowRows',
+    'message',
   ]) {
     const number = input[key];
     if (

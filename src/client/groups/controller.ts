@@ -37,6 +37,8 @@ import {
 import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { messageApi } from '../message-api/index.ts';
+import { memberWalletPage } from './member-wallets.ts';
+import type { MemberWallet } from './member-wallets.ts';
 import {
   PeerIdentity,
   readDirectories,
@@ -59,7 +61,9 @@ import {
   changeGroupEvent,
   proposeGroupConsent,
 } from './transitions.ts';
-import { composeGroup, sendGroupPending, discardGroupDraft } from './outbox.ts';
+import { composeGroup, sendGroupPending, staleGroupSend } from './outbox.ts';
+import type { GroupSendProgress } from './outbox.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -976,6 +980,27 @@ export class GroupController {
     });
     await this.identities.save();
   }
+  /** Saves a text to that group's encrypted outbox, whichever group is open
+   * when the save runs; sending still verifies the group first. */
+  /** Stages a text in that group's encrypted outbox with this device's
+   * verified local authority: no network read is needed to keep a draft, and
+   * sending revalidates the group and its members online. The draft keeps its
+   * queue ID and admission order. */
+  async composeText(
+    groupId: string,
+    draft: { id: string; text: string; order: number },
+  ): Promise<void> {
+    await this.withLocalAuthority((authority) =>
+      composeGroup({
+        authority,
+        groupId,
+        text: draft.text,
+        selection: null,
+        id: draft.id,
+        order: draft.order,
+      }),
+    );
+  }
   async compose(
     text: string,
     selection: AttachmentSelection | null,
@@ -1047,6 +1072,19 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     await this.sendSelectedPending(selected);
   }
+  /** Sends one group's drafts whether or not it is still the open group. */
+  async sendGroupDrafts(
+    groupId: string,
+    progress?: GroupSendProgress,
+  ): Promise<void> {
+    const group =
+      this.selected?.state.groupId === groupId
+        ? this.selected
+        : this.entries.find((entry) => entry.state.groupId === groupId);
+    if (!group || group.localOnly) return;
+    this.retry.reset(groupId);
+    await this.sendSelectedPending(group, progress);
+  }
   async pendingWork(): Promise<boolean> {
     const selected = this.selected;
     return (
@@ -1069,12 +1107,36 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     return true;
   }
-  private async sendSelectedPending(selected: GroupSummary): Promise<void> {
-    await this.identities.load();
+  /** A stale rejection is retried once with everything prepared again:
+   * identities, group verification, participant directories and devices. */
+  private async sendSelectedPending(
+    selected: GroupSummary,
+    progress?: GroupSendProgress,
+  ): Promise<void> {
+    try {
+      await this.sendPreparedPending(selected, progress);
+    } catch (error: unknown) {
+      if (!staleGroupSend(error)) throw error;
+      await this.sendPreparedPending(selected, progress);
+    }
+  }
+  private async sendPreparedPending(
+    selected: GroupSummary,
+    progress?: GroupSendProgress,
+  ): Promise<void> {
+    await measureWork(this, 'group/identities', () => this.identities.load());
     await this.withAuthority(async (c) => {
-      const group = await c.governance.verify(selected.state.groupId);
+      const group = await measureWork(this, 'group/verify', () =>
+        c.governance.verify(selected.state.groupId),
+      );
       await this.machine(c, (machine) =>
-        sendGroupPending({ ...c, group, machine, identities: this.identities }),
+        sendGroupPending({
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+          progress,
+        }),
       );
     });
     await this.identities.save();
@@ -1100,13 +1162,6 @@ export class GroupController {
         };
       });
     });
-  }
-  async discard(id: string): Promise<void> {
-    const selected = this.selected;
-    if (!selected) return;
-    await this.withAuthority((c) =>
-      discardGroupDraft(c.authority, selected.state.groupId, id),
-    );
   }
   async media(
     view: GroupView,
@@ -1268,6 +1323,18 @@ export class GroupController {
             : integer(cleanup['next'], Number.MAX_SAFE_INTEGER),
       };
     });
+  }
+  /** Co-members of this group who accept requests by wallet; the server
+   * checks membership, discovery and blocks. */
+  async memberWallets(
+    groupId: string,
+    accounts: string[],
+  ): Promise<MemberWallet[]> {
+    return this.withAuthority(async (c) =>
+      memberWalletPage(
+        await c.api('group-member-wallets', { groupId, accounts }),
+      ),
+    );
   }
   async clearVault(): Promise<void> {
     const selected = this.selected;

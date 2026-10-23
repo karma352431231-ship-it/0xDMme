@@ -11,7 +11,17 @@ export interface VaultAuthority {
   sign: (proof: string) => Promise<string>;
   openSecret?: (envelope: SealedSecret, context: unknown[]) => Promise<unknown>;
 }
+/** Only what a signed request needs; no vault keys or secret opening. */
+export type SigningAuthority = Pick<
+  VaultAuthority,
+  'session' | 'directory' | 'sign'
+>;
 export interface VaultAccess {
+  /** Work that only signs requests, outside the exclusive account turn when
+   * the implementation supports it. */
+  withSigner?: <T>(
+    work: (authority: SigningAuthority) => Promise<T>,
+  ) => Promise<T>;
   withVault: <T>(
     offline: boolean,
     work: (authority: VaultAuthority) => Promise<T>,
@@ -28,4 +38,14 @@ export interface VaultWorkOptions {
 export interface VaultLocator {
   accountId: string;
   deviceId: string;
+}
+
+/** Signs outside the exclusive turn where supported, else inside one. */
+export function withSigner<T>(
+  access: VaultAccess,
+  work: (authority: SigningAuthority) => Promise<T>,
+): Promise<T> {
+  return access.withSigner
+    ? access.withSigner(work)
+    : access.withVault(false, work);
 }

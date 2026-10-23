@@ -6,7 +6,10 @@ import {
   t,
 } from '../src/shared/i18n/index.ts';
 import type { AppLanguage } from '../src/shared/i18n/index.ts';
-import { socialDirectory } from '../src/shared/social-dm/index.ts';
+import {
+  socialDeviceName,
+  socialDirectory,
+} from '../src/shared/social-dm/index.ts';
 import { verify, verifyHistory } from '../src/shared/devices/index.ts';
 import type { DirectoryEvent } from '../src/shared/devices/index.ts';
 import { newSecret } from '../src/client/device-keys/index.ts';
@@ -90,7 +93,11 @@ await test('DM authority registers in both languages and preserves local identit
             secret = newSecret(),
             events: DirectoryEvent[] = [];
           const before = cached
-            ? await localIdentity(profile, alias, t('DM device'))
+            ? await localIdentity(
+                profile,
+                alias,
+                `${t('DM device')} · ${language}`,
+              )
             : null;
           const authority = await socialAuthority({
             privateAuthority,
@@ -101,11 +108,11 @@ await test('DM authority registers in both languages and preserves local identit
           });
           assert.equal(events.length, 1);
           const identity = await storedIdentity(profile, alias);
-          assert.equal(identity.public.name, 'DM device');
+          assert.equal(identity.public.name, socialDeviceName);
           if (before)
             assert.deepEqual(identity.public, {
               ...before.public,
-              name: 'DM device',
+              name: socialDeviceName,
             });
           await verify(
             identity.public.signing,
@@ -155,7 +162,11 @@ await test('DM authority registers in both languages and preserves local identit
         });
         setActiveLanguage(collision ? 'zh-CN' : 'en');
         const alias = collision ? firstAlias : crypto.randomUUID(),
-          before = await localIdentity(profile, alias, t('DM device'));
+          before = await localIdentity(
+            profile,
+            alias,
+            `${t('DM device')} · zh`,
+          );
         const recovered = await socialAuthority({
           privateAuthority,
           directory: {
@@ -176,15 +187,49 @@ await test('DM authority registers in both languages and preserves local identit
           profile,
           recovered.session.deviceId,
         );
-        assert.equal(identity.public.name, 'DM device');
+        assert.equal(identity.public.name, socialDeviceName);
         if (collision) assert.notEqual(identity.public.id, firstAlias);
         else
           assert.deepEqual(identity.public, {
             ...before.public,
-            name: 'DM device',
+            name: socialDeviceName,
           });
         await assertHistoryReadable(original, recovered);
       },
     );
   }
+});
+
+await test('DM directories keep validating both signed device names, never another one', async (context) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+  Object.defineProperty(globalThis, 'indexedDB', {
+    configurable: true,
+    value: deviceDatabase(),
+  });
+  context.after(() => {
+    if (original) Object.defineProperty(globalThis, 'indexedDB', original);
+    else Reflect.deleteProperty(globalThis, 'indexedDB');
+  });
+  const profile = crypto.randomUUID(),
+    events: DirectoryEvent[] = [];
+  await socialAuthority({
+    privateAuthority,
+    directory: { profile, events: [], device: null, active: [] },
+    secret: newSecret(),
+    alias: crypto.randomUUID(),
+    api: registrationApi(profile, events),
+  });
+  const named = (name: string) =>
+    JSON.parse(
+      JSON.stringify({
+        ...events[0],
+        devices: events[0]!.devices.map((device) => ({ ...device, name })),
+      }),
+    ) as unknown;
+  // Registered before 19/10/2026, and between 19 and 22/10/2026.
+  for (const name of ['Aparelho de DMs', 'DM device'])
+    assert.doesNotThrow(() => socialDirectory(named(name)));
+  assert.throws(() => socialDirectory(named('Phone')), {
+    message: 'DM directory contains data from another context.',
+  });
 });

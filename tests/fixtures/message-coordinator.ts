@@ -50,7 +50,7 @@ const real = new Set([
   './startup.ts',
   './continuity.ts',
   './warmup.ts',
-  './text-send.ts',
+  '../text-send/index.ts',
   './outgoing-text.ts',
   './profile-broadcast.ts',
   './activity.ts',
@@ -641,6 +641,7 @@ export function coordinatorFixture(
       } as unknown as Parameters<typeof startMessages>[2]['playback'],
       openConversation: () => calls.push('open-panel'),
       openContact: noop,
+      addContact: noop,
       directoryChanged: noop,
       sharedProfile: () =>
         state.withProfile

@@ -14,14 +14,17 @@ let caches = new WeakMap<object, number>(),
   nextCache = 0,
   nextConversation = 0;
 const conversations = new Map<string, number>();
+let messages = new Map<string, number>(),
+  nextMessage = 0;
 const installed = new WeakSet<Window>();
 
 function stop(): void {
   deadline = 0;
   clearTimeout(timer);
   conversations.clear();
+  messages = new Map();
   caches = new WeakMap();
-  nextCache = nextConversation = 0;
+  nextCache = nextConversation = nextMessage = 0;
 }
 function publish(host: Window, trace: ChatSyncTrace): void {
   host.dispatchEvent(new CustomEvent(chatSyncEvent, { detail: trace }));
@@ -77,6 +80,39 @@ export function traceChatSync(
     .slice(0, 6)
     .map((match) => `${match[1]}:${match[2]}:${match[3]}`);
   publish(window, { ...decision, callers, version: 1, source, conversation });
+}
+
+/** True only while a local capture runs, so callers can skip trace work. */
+export function chatSyncActive(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    deadline !== 0 &&
+    performance.now() < deadline
+  );
+}
+/** One step of an own group message, or a received row shown. The message ID
+ * maps to a small number valid for this capture only and is never published. */
+export function traceGroupMessage(
+  owner: object,
+  decision: {
+    event: 'group-send' | 'group-receive';
+    reason: ChatSyncDecision['reason'];
+    rows?: number;
+  },
+  id?: string,
+): void {
+  if (!chatSyncActive()) return;
+  let message: number | undefined;
+  if (id !== undefined) {
+    message = messages.get(id) ?? ++nextMessage;
+    messages.delete(id);
+    messages.set(id, message);
+    if (messages.size > 256) messages.delete(messages.keys().next().value!);
+  }
+  traceChatSync(owner, null, {
+    ...decision,
+    ...(message === undefined ? {} : { message }),
+  });
 }
 
 function failureReason(

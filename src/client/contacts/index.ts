@@ -22,7 +22,7 @@ import { PrivateContactInvitations } from './invitations.ts';
 import { ContactDirectory } from './directory.ts';
 import { directoryItems, renderDirectory } from './directory-view.ts';
 import { requestContact } from './request-contact.ts';
-import { template, settingsTemplate } from './template.ts';
+import { editorTemplate, template, settingsTemplate } from './template.ts';
 import {
   bindContactTabs,
   contactRow,
@@ -56,7 +56,10 @@ export function startContacts(
       await options.saved?.(contact);
     },
   });
+  // The page view is remounted per visit; the add/request editor has a
+  // persistent host so it can open over any view.
   let mounted: HTMLElement | null = null,
+    editor: HTMLElement | null = null,
     busy = false,
     generation = 0,
     offset = 0;
@@ -72,7 +75,11 @@ export function startContacts(
   });
   let camera: QrCamera | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
-    return mounted?.querySelector<T>(selector) ?? null;
+    return (
+      mounted?.querySelector<T>(selector) ??
+      editor?.querySelector<T>(selector) ??
+      null
+    );
   }
   function text(selector: string, value: string): void {
     const n = node(selector);
@@ -124,9 +131,10 @@ export function startContacts(
     renderBook();
     renderLists();
     renderPagination();
-    mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
-      b.disabled = busy;
-    });
+    for (const root of [mounted, editor])
+      root?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+        b.disabled = busy;
+      });
     const close = node<HTMLButtonElement>('[data-contact-editor-close]');
     if (close) close.disabled = false;
     const inviteClose = node<HTMLButtonElement>('[data-contact-invites-close]');
@@ -176,8 +184,9 @@ export function startContacts(
   }
   function openEditor(tab: 'wallet' | 'invite'): void {
     const dialog = node<HTMLDialogElement>('[data-contact-editor]');
-    if (!dialog || !mounted) return;
-    selectContactTab(mounted, 'editor', tab);
+    const root = editor ?? mounted;
+    if (!dialog || !root) return;
+    selectContactTab(root, 'editor', tab);
     if (!dialog.open) dialog.showModal();
     dialog
       .querySelector<HTMLInputElement>(
@@ -185,15 +194,21 @@ export function startContacts(
       )
       ?.focus();
   }
+  function fillEditor(prefill: { address: string; alias: string }): void {
+    const address = node<HTMLInputElement>('[data-book-address]'),
+      alias = node<HTMLInputElement>('[data-book-alias]');
+    if (address) address.value = prefill.address;
+    if (alias) alias.value = prefill.alias;
+  }
+  function startAdding(): void {
+    resetEditor();
+    status = t(
+      'Saving stores the nickname in contacts; a conversation request requires acceptance.',
+    );
+    render();
+    openEditor('wallet');
+  }
   function bindEditor(): void {
-    node('[data-contact-add]')?.addEventListener('click', () => {
-      resetEditor();
-      status = t(
-        'Saving stores the nickname in contacts; a conversation request requires acceptance.',
-      );
-      render();
-      openEditor('wallet');
-    });
     const dialog = node<HTMLDialogElement>('[data-contact-editor]');
     node('[data-contact-editor-close]')?.addEventListener('click', () =>
       dialog?.close(),
@@ -598,6 +613,13 @@ export function startContacts(
       await Promise.resolve();
     },
   };
+  /** Typed wallets, links and searches never outlive the session. */
+  function clearInputs(): void {
+    for (const root of [mounted, editor])
+      root?.querySelectorAll<HTMLInputElement>('input').forEach((n) => {
+        n.value = '';
+      });
+  }
   function clear(): void {
     generation++;
     discovery.clear();
@@ -610,9 +632,7 @@ export function startContacts(
     invitations.clear();
     found = null;
     invitePeer = null;
-    mounted?.querySelectorAll<HTMLInputElement>('input').forEach((n) => {
-      n.value = '';
-    });
+    clearInputs();
     node('[data-contact-invite-peer]')?.replaceChildren();
     node('[data-contact-discovery-actions]')?.replaceChildren();
     for (const selector of ['[data-contact-invite-qr]']) {
@@ -674,6 +694,32 @@ export function startContacts(
       if (input && saved.value) input.value = saved.value;
     }
   }
+  async function loadLocal(): Promise<void> {
+    await sync.openLocal();
+    await directory.load();
+  }
+  /** Action buttons and forms of one root: the page view or the editor host. */
+  function bindControls(root: HTMLElement): void {
+    root
+      .querySelectorAll<HTMLButtonElement>('[data-contact-action]')
+      .forEach((b) =>
+        b.addEventListener('click', () => {
+          const action = actions[b.dataset['contactAction'] ?? ''];
+          if (action) void run(action);
+        }),
+      );
+    for (const [selector, action] of [
+      ['[data-book-form]', save],
+      ['[data-contact-settings]', configure],
+      ['[data-contact-invite-form]', sendInvite],
+    ] as const)
+      root
+        .querySelector<HTMLFormElement>(selector)
+        ?.addEventListener('submit', (event) => {
+          event.preventDefault();
+          void run(action);
+        });
+  }
   window.addEventListener('pagehide', () => {
     clear();
     received = null;
@@ -718,6 +764,29 @@ export function startContacts(
       void contactSettings.open(contact);
     },
     closeContact: () => contactSettings.clear(),
+    /** Sidebar shortcut, or a group member's wallet: the add editor opens
+     * over the current view, using the same save/request flow. */
+    addContact(prefill?: { address: string; alias: string }): void {
+      const dialog = node<HTMLDialogElement>('[data-contact-editor]');
+      // Never replace an editor already in use (e.g. a received invitation).
+      if (!dialog || dialog.open) return;
+      startAdding();
+      if (prefill) fillEditor(prefill);
+      // Outside Contacts the saved directory may be unread; existing entries
+      // must be found so an edit keeps their identity.
+      if (!mounted?.isConnected) void run(loadLocal);
+    },
+    /** Called once with a host that stays in the document for the session. */
+    mountEditor(host: HTMLElement): void {
+      if (editor) return;
+      editor = host;
+      host.innerHTML = editorTemplate;
+      bindContactTabs(host);
+      bindEditor();
+      bindControls(host);
+      mountCamera();
+      render();
+    },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();
@@ -744,32 +813,23 @@ export function startContacts(
         render();
         return;
       }
-      const formValues = [
-        '[data-book-address]',
-        '[data-book-alias]',
-        '[data-book-search]',
-        '[data-contact-received]',
-      ].map((selector) => ({ selector, value: value(selector) }));
-      camera?.stop();
+      const formValues = ['[data-book-search]'].map((selector) => ({
+        selector,
+        value: value(selector),
+      }));
       mounted = container;
       container.innerHTML = mode === 'settings' ? settingsTemplate : template;
       discovery.mount(container);
       contactSettings.mount(container);
       restoreForm(formValues);
       bindContactTabs(container);
-      bindEditor();
+      container
+        .querySelector('[data-contact-add]')
+        ?.addEventListener('click', startAdding);
       bindOwnInvite();
       readIncomingInvite();
       showReceivedInvite();
-      mountCamera();
-      container
-        .querySelectorAll<HTMLButtonElement>('[data-contact-action]')
-        .forEach((b) =>
-          b.addEventListener('click', () => {
-            const action = actions[b.dataset['contactAction'] ?? ''];
-            if (action) void run(action);
-          }),
-        );
+      bindControls(container);
       container
         .querySelectorAll<HTMLButtonElement>('[data-contact-page]')
         .forEach((b) =>
@@ -783,15 +843,6 @@ export function startContacts(
             });
           }),
         );
-      for (const [selector, action] of [
-        ['[data-book-form]', save],
-        ['[data-contact-settings]', configure],
-        ['[data-contact-invite-form]', sendInvite],
-      ] as const)
-        node<HTMLFormElement>(selector)?.addEventListener('submit', (event) => {
-          event.preventDefault();
-          void run(action);
-        });
       node('[data-book-search]')?.addEventListener('input', () => {
         offset = 0;
         renderBook();
@@ -801,15 +852,13 @@ export function startContacts(
       render();
       void run(async () => {
         if (navigator.onLine && contacts.session) await refresh();
-        else {
-          await sync.openLocal();
-          await directory.load();
-        }
+        else await loadLocal();
       });
     },
   };
 }
 
+export { bindContactShortcuts } from './shortcuts.ts';
 export { Contacts, checkPinnedIdentity } from './controller.ts';
 export { AddressBook, walletEntity, walletKey } from './agenda.ts';
 export type { BookVersion } from './agenda.ts';

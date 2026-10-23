@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { startContacts, Contacts } from '../src/client/contacts/index.ts';
 import { AddressBook } from '../src/client/contacts/agenda.ts';
+import { ContactDirectory } from '../src/client/contacts/directory.ts';
 import { ContactSettings } from '../src/client/contacts/contact-settings.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type { VaultAccess } from '../src/client/vault-authority/index.ts';
@@ -300,4 +301,59 @@ await test('foreground approved-contact loading retains queue priority and refus
     (error: unknown) => error === failure,
   );
   assert.equal(contacts.pages.size, 0);
+});
+
+await test('sidebar add opens the editor over any view and reads saved contacts first', async (t) => {
+  browserEnvironment(t);
+  const access: VaultAccess = {
+    withVault: () =>
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
+    withLocalVault: () =>
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
+  };
+  const sync = new VaultSync(access);
+  const opened = t.mock.method(sync, 'openLocal', () => Promise.resolve());
+  const loaded = t.mock.method(ContactDirectory.prototype, 'load', () =>
+    Promise.resolve(),
+  );
+  let shown = 0;
+  const dialog = {
+    open: false,
+    showModal() {
+      shown++;
+      this.open = true;
+    },
+    addEventListener: () => undefined,
+    querySelector: () => null,
+  };
+  const address = { value: '', readOnly: false },
+    alias = { value: '' };
+  const fields = new Map<string, unknown>([
+    ['[data-contact-editor]', dialog],
+    ['[data-book-address]', address],
+    ['[data-book-alias]', alias],
+  ]);
+  const host = {
+    isConnected: true,
+    innerHTML: '',
+    querySelector: (selector: string) => fields.get(selector) ?? null,
+    querySelectorAll: () => [],
+  } as unknown as HTMLElement;
+  const contacts = startContacts(access, sync);
+  contacts.mountEditor(host);
+  // No Contacts page is mounted: the editor still opens in place.
+  contacts.addContact();
+  assert.equal(shown, 1);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(opened.mock.callCount(), 1);
+  assert.equal(loaded.mock.callCount(), 1);
+  // An editor already in use (e.g. a received invitation) is not replaced.
+  contacts.addContact();
+  assert.equal(shown, 1);
+  // A group member's wallet opens the same editor, prefilled.
+  dialog.open = false;
+  contacts.addContact({ address: '0x' + 'b'.repeat(40), alias: 'Ana' });
+  assert.equal(shown, 2);
+  assert.equal(address.value, '0x' + 'b'.repeat(40));
+  assert.equal(alias.value, 'Ana');
 });

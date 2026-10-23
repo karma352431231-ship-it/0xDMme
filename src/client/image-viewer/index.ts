@@ -1,5 +1,19 @@
 import { t } from '../../shared/i18n/index.ts';
-/** Reuses the caller's image URL and lifetime; viewing never fetches image bytes. */
+
+const svgNs = 'http://www.w3.org/2000/svg';
+function closeIcon(): SVGSVGElement {
+  const icon = document.createElementNS(svgNs, 'svg'),
+    path = document.createElementNS(svgNs, 'path');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('aria-hidden', 'true');
+  path.setAttribute('d', 'M6 6l12 12M18 6L6 18');
+  icon.append(path);
+  return icon;
+}
+
+/** Only the enlarged image over the page: tapping it toggles zoom, tapping
+ * anywhere else or the X closes it and returns to where the user was.
+ * Reuses the caller's image URL and lifetime; viewing never fetches bytes. */
 export function openImageViewer(input: {
   url: string;
   alt: string;
@@ -7,31 +21,26 @@ export function openImageViewer(input: {
   signal: AbortSignal;
 }): () => void {
   const dialog = document.createElement('dialog'),
-    toolbar = document.createElement('div'),
     frame = document.createElement('div'),
     image = document.createElement('img'),
-    zoom = document.createElement('button'),
     close = document.createElement('button');
   dialog.className = 'public-image-viewer';
   dialog.setAttribute('aria-label', t('Enlarged image'));
-  toolbar.className = 'public-image-toolbar';
   frame.className = 'public-image-frame';
   image.src = input.url;
   image.alt = input.alt;
-  zoom.type = close.type = 'button';
-  zoom.textContent = t('Zoom in');
-  zoom.setAttribute('aria-pressed', 'false');
-  close.textContent = t('Close');
+  close.type = 'button';
+  close.className = 'public-image-close';
+  close.setAttribute('aria-label', t('Close'));
+  close.append(closeIcon());
   let expanded = false;
-  const toggle = (): void => {
+  const toggle = (event: Event): void => {
+    event.stopPropagation();
     expanded = !expanded;
     dialog.classList.toggle('zoomed', expanded);
     image.style.width = expanded
       ? `${Math.max(image.naturalWidth, frame.clientWidth * 2)}px`
       : '';
-    image.style.height = '';
-    zoom.textContent = expanded ? t('Fit to screen') : t('Zoom in');
-    zoom.setAttribute('aria-pressed', String(expanded));
   };
   const stop = (): void => {
     input.signal.removeEventListener('abort', stop);
@@ -39,18 +48,17 @@ export function openImageViewer(input: {
     if (!input.signal.aborted && input.trigger.isConnected)
       input.trigger.focus({ preventScroll: true });
   };
-  zoom.addEventListener('click', toggle);
   image.addEventListener('click', toggle);
   close.addEventListener('click', stop);
   dialog.addEventListener('close', stop);
   dialog.addEventListener('cancel', stop);
+  // Any tap outside the image itself closes, including around a zoomed one.
   dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) stop();
+    if (event.target !== image) stop();
   });
   input.signal.addEventListener('abort', stop, { once: true });
-  toolbar.append(zoom, close);
   frame.append(image);
-  dialog.append(toolbar, frame);
+  dialog.append(frame, close);
   document.body.append(dialog);
   try {
     input.signal.throwIfAborted();

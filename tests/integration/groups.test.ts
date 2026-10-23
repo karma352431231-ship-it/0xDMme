@@ -1063,6 +1063,35 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         (delta['items'] as { id: string }[]).map((row) => row.id),
         [edited.packet.id],
       );
+      // One delta request answers exactly what the three separate requests
+      // answer for the same cut.
+      const combined = object(
+        await message(messages, member, 'group-message-delta', {
+          ...scope,
+          from: before['revision'],
+        }),
+      );
+      assert.deepEqual(combined['snapshot'], after);
+      assert.deepEqual(combined['changes'], delta);
+      const cut = {
+        ...scope,
+        revision: after['revision'],
+        anchor: after['anchor'],
+        invalidation: after['invalidation'],
+      };
+      assert.deepEqual(combined['objects'], {
+        ids: [edited.packet.id],
+        page: await message(messages, member, 'group-message-objects', {
+          ...cut,
+          ids: [edited.packet.id],
+        }),
+      });
+      await assert.rejects(
+        message(messages, outsider, 'group-message-delta', {
+          ...scope,
+          from: before['revision'],
+        }),
+      );
       await message(messages, owner, 'group-message-publish', {
         packet: edited.packet,
         keys: null,
@@ -1136,6 +1165,18 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
       assert.deepEqual(
         new Set(rows.map((row) => row.id)),
         new Set([original.packet.id, edited.packet.id]),
+      );
+      const afterDeletion = object(
+        await message(messages, member, 'group-message-delta', {
+          ...scope,
+          from: after['revision'],
+        }),
+      );
+      assert.deepEqual(afterDeletion['changes'], changes);
+      assert.equal(
+        afterDeletion['objects'],
+        null,
+        'Deleted messages need only their index rows',
       );
       for (const row of rows)
         await verifyGroupDeletion(
@@ -1650,6 +1691,53 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
   );
   assert.equal((directory['directories'] as unknown[]).length, 2);
   assert.equal((directory['recovery'] as unknown[]).length, 2);
+  await t.test(
+    'co-member wallets: members only, wallet discovery only, never across a block',
+    async () => {
+      const wallets = async (u: User, accounts: string[]) =>
+        object(
+          await message(messages, u, 'group-member-wallets', {
+            groupId: joined.groupId,
+            accounts,
+          }),
+        )['items'];
+      await assert.rejects(
+        message(messages, outsider, 'group-member-wallets', {
+          groupId: joined.groupId,
+          accounts: [owner.accountId],
+        }),
+      );
+      // The owner accepts invitations only; the member blocked side stays private.
+      assert.deepEqual(await wallets(member, [owner.accountId]), []);
+      assert.deepEqual(
+        await wallets(owner, [member.accountId, outsider.accountId]),
+        [],
+        'a block hides the wallet and a non-member is never returned',
+      );
+      await changeContact(owner, 'block', {
+        wallet: { ecosystem: 'evm', address: member.wallet.address },
+        blocked: false,
+      });
+      try {
+        assert.deepEqual(
+          await wallets(owner, [member.accountId, outsider.accountId]),
+          [
+            {
+              accountId: member.accountId,
+              ecosystem: 'evm',
+              address: member.wallet.address.toLowerCase(),
+            },
+          ],
+        );
+        assert.deepEqual(await wallets(member, [owner.accountId]), []);
+      } finally {
+        await changeContact(owner, 'block', {
+          wallet: { ecosystem: 'evm', address: member.wallet.address },
+          blocked: true,
+        });
+      }
+    },
+  );
   await t.test(
     'free creation exceeds the old cap and transfer requires neither balance nor slots',
     async () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { OutgoingTexts } from '../src/client/messages/outgoing-text.ts';
 import { deferred } from './fixtures/deferred.ts';
-import type { TextDraft } from '../src/client/messages/text-send.ts';
+import type { TextDraft } from '../src/client/text-send/index.ts';
 
 await test('restored own texts keep their durable FIFO order rather than random ID order', () => {
   const outgoing = new OutgoingTexts();

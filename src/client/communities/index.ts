@@ -93,6 +93,10 @@ export function startCommunities(
     profiles: FeedProfileFollows;
     publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
+    /** When the app coordinates session warmups, a mounted feed still loads
+     * on session change (its requests use the signing lane), while public DMs,
+     * which share the exclusive account turn, wait for sessionReady(). */
+    coordinatedStartup?: boolean;
   },
 ) {
   const { profiles } = options;
@@ -804,6 +808,9 @@ export function startCommunities(
   }
   function ready(): void {
     dms.ready();
+    loadFeed();
+  }
+  function loadFeed(): void {
     if (mounted)
       void run(
         async () => {
@@ -877,6 +884,12 @@ export function startCommunities(
       lastList = null;
     },
     ready,
+    /** The app's coordinated session start: public DM work, plus the feed
+     * when it did not already start on session change. */
+    sessionReady(): void {
+      if (options.coordinatedStartup) dms.ready();
+      else ready();
+    },
     /** Public @ conversations in the workspace chat column, independent of the mounted feed. */
     openDm(container: HTMLElement, id: string | null, local: boolean): void {
       dms.mount(container, id, local);
@@ -951,7 +964,8 @@ export function startCommunities(
       sidebar?.replaceChildren();
       if (mounted) {
         navigation();
-        ready();
+        if (!value || !options.coordinatedStartup) ready();
+        else loadFeed();
       }
     },
   };

@@ -21,7 +21,7 @@ const featureExports: Record<string, string[]> = {
   messages: ['startMessages'],
   status: ['startStatus'],
   representatives: ['startRepresentatives'],
-  contacts: ['startContacts'],
+  contacts: ['bindContactShortcuts', 'startContacts'],
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],
   communities: ['startCommunities', 'startRankingSide'],
@@ -138,6 +138,7 @@ async function page(
     dmEvent: () => {},
     forgetReturn: () => {},
     mount: () => {},
+    mountEditor: () => {},
     mountMeter: () => {},
     ready: () => {},
     authorized: () => authorized,
@@ -156,7 +157,11 @@ async function page(
     'startVault',
     'startCalls',
   ])
-    fixture[name] = () => ({ ...feature, ready: () => readied.push(name) });
+    fixture[name] = () => ({
+      ...feature,
+      ready: () => readied.push(name),
+      sessionReady: () => readied.push(name),
+    });
   Object.assign(fixture, {
     mountEnrollmentLogin: (node: Node) => enrollments.push(node),
     startAccount: (options: { changed: typeof changed }) => {
@@ -184,6 +189,7 @@ async function page(
     },
     VoicePlayback: class {},
     keepPageOnStrayDrop: () => {},
+    bindContactShortcuts: () => {},
     ExternalMediaConsent: class {
       setSession(): void {}
       storageChanged(): void {}
