@@ -33,7 +33,11 @@ function fixture(t: TestContext) {
   const body = new ViewerNode('body');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: { body, createElement: (tag: string) => new ViewerNode(tag) },
+    value: {
+      body,
+      createElement: (tag: string) => new ViewerNode(tag),
+      createElementNS: (_ns: string, tag: string) => new ViewerNode(tag),
+    },
   });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
@@ -82,22 +86,20 @@ await test('private photo enlargement reuses its URL, survives repaint, and clos
   f.photo.clear();
 });
 
-await test('zoom toggles fit/full size; Escape, navigation and session reset close private images', (t) => {
+await test('tapping the image toggles fit/full size; Escape, navigation and session reset close private images', (t) => {
   const f = fixture(t),
     ready = f.photo.bind(f.input);
   ready('blob:synthetic');
   f.trigger.click();
   const dialog = f.body.querySelector('dialog')!;
-  const zoom = dialog.querySelector('button')!;
-  zoom.click();
-  assert.equal(zoom.getAttribute('aria-pressed'), 'true');
-  assert.equal(
-    (dialog.querySelector('img') as ViewerNode).style.width,
-    '640px',
-  );
-  zoom.click();
-  assert.equal(zoom.getAttribute('aria-pressed'), 'false');
-  assert.equal((dialog.querySelector('img') as ViewerNode).style.width, '');
+  const image = dialog.querySelector('img') as ViewerNode;
+  image.click();
+  assert.match(dialog.className, /zoomed/u);
+  assert.equal(image.style.width, '640px');
+  assert.ok(f.body.querySelector('dialog'), 'Zooming does not close');
+  image.click();
+  assert.doesNotMatch(dialog.className, /zoomed/u);
+  assert.equal(image.style.width, '');
   dialog.dispatchEvent(new Event('cancel'));
   assert.equal(f.body.querySelector('dialog'), null);
   f.trigger.click();
