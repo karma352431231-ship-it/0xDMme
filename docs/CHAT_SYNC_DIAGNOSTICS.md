@@ -303,3 +303,38 @@ rejected packet stayed in the outbox and would have been resent unchanged.
 Reuse across batches still needs a version that also covers Matrix
 registrations, since a device can publish Matrix keys without changing its
 signed directory.
+
+## Accepted group settlement and delivery trace — 23 October 2026
+
+A 7-message capture showed the batches working (later messages publishing
+about 175 ms apart) but every accepted batch still asking for a selected-group
+readback and counters, while the server's content hint to the sender's own
+account asked for the same read moments later. The second request arrived
+during the first read and cost one more.
+
+- The send no longer requests a readback or counters. An accepted text keeps
+  its row (`groups/outgoing.ts`) and the next verified read of the group's
+  latest window settles it by message ID. That read comes from the live hint,
+  a reconnect, the periodic tick or opening the group; incoming messages never
+  depended on the send's read. A text accepted before such a read started and
+  missing from it was deleted or left the window, so it is no longer shown.
+- Acceptance does not advance any group cursor; the verified history stays the
+  only source of placement, receipts and deletion.
+- The transition is crash-recoverable without a second local record: the
+  draft keeps its packet until the server accepted it, so a lost answer or a
+  reload asks `group-message-accepted` and settles the draft instead of
+  publishing twice. The server's copy is the durable record from then on.
+- Held accepted texts are bounded: an open group with 32 asks for a readback;
+  past 128 in all, the oldest of groups not open are dropped (their verified
+  history shows them when opened). Nothing is persisted.
+- The local capture records `group-send` steps (`admitted`, `staged`,
+  `sending`, `accepted`, `settled`, `retired`) under a per-capture message
+  number, and on the recipient `group-receive` hints and the number of other
+  members' rows first shown in the open group. `group/send` (with its wait for
+  the shared foreground lane), `group/identities`, `group/verify` and
+  `sdk/group-encrypt` are timed. No ID, content or account leaves the tab, and
+  tabs or devices are not correlated.
+
+The content hint to the sender's own account still causes one read per batch:
+an empty hint cannot prove what it covers, so skipping it needs a versioned
+read cut or a reviewed notification change (next phase).
