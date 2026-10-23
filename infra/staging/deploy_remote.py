@@ -271,6 +271,12 @@ CATEGORIZED_MESSAGES_REVIEWED = 'f5df9d6203a41569fba05645ef2b26d4d116f41f'
 PEER_WINDOW_BEFORE = '60eada368f929361a68e4a0599cd4198228aad9a'
 PEER_WINDOW_REVIEWED = '898865f55a3bc68552aabd784f0d264cfe6bf228'
 PEER_WINDOW_MODULES = frozenset({'message-index.ts', 'messages.ts'})
+# Owner chose option 2 for group member identity and requested activation on
+# 23/10/2026: co-member wallets only for wallet discovery, never across a block.
+# Exact read-only addition in two modules; all SQL migrations and runtime fixed.
+GROUP_MEMBER_WALLETS_BEFORE = '090d92f0326c1dcba8996d3afa63686515d0fc9c'
+GROUP_MEMBER_WALLETS_REVIEWED = '699e0f2c8e9e576b3f2a63841379288a2605f0da'
+GROUP_MEMBER_WALLETS_MODULES = frozenset({'contacts.ts', 'groups.ts'})
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -487,6 +493,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,
+         GROUP_MEMBER_WALLETS_REVIEWED),
         (set(PEER_WINDOW_MODULES), PEER_WINDOW_BEFORE, PEER_WINDOW_REVIEWED),
         (set(CATEGORIZED_MESSAGES_MODULES), CATEGORIZED_MESSAGES_BEFORE, CATEGORIZED_MESSAGES_REVIEWED),
         ({'daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts'},
