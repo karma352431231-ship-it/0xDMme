@@ -21,7 +21,13 @@ import {
 // Real screen coordinator, scheduling, startup and wakeups. IO, media and DOM
 // projection are adapters; crypto and durable reuse have controller regressions.
 const entry = 'src/client/messages/index.ts';
-const source = await readFile(entry, 'utf8');
+const source = (
+  await Promise.all(
+    [entry, 'src/client/messages/composer.ts'].map((path) =>
+      readFile(path, 'utf8'),
+    ),
+  )
+).join('\n');
 const exports = new Map<string, string[]>();
 for (const match of source.matchAll(
   /(?:import|export) \{([\s\S]*?)\} from '([^']+)';/gu,
@@ -31,10 +37,13 @@ for (const match of source.matchAll(
     match[1]!
       .split(',')
       .map((name) => name.trim())
-      .filter(Boolean),
+      .filter(Boolean)
+      .concat(exports.get(match[2]!) ?? [])
+      .filter((name, index, values) => values.indexOf(name) === index),
   );
 }
 const real = new Set([
+  './composer.ts',
   './synchronization.ts',
   './live-updates.ts',
   './preview-admission.ts',
@@ -65,7 +74,8 @@ const bundle = await build({
           if (path === '../message-runtime/index.ts')
             return { path, namespace: 'fixture' };
           if (
-            !importer.endsWith('/src/client/messages/index.ts') ||
+            (!importer.endsWith('/src/client/messages/index.ts') &&
+              !importer.endsWith('/src/client/messages/composer.ts')) ||
             real.has(path)
           )
             return;
@@ -112,6 +122,7 @@ export function coordinatorFixture(
   const contactLoad = deferred<void>();
   const history = deferred<void>();
   const saving = deferred<void>();
+  const editing = deferred<void>();
   const sending = deferred<void>();
   const profile = deferred<void>();
   const drafts: { id: string; peer: string; text: string }[] = [];
@@ -126,6 +137,7 @@ export function coordinatorFixture(
     historyFailure: null as Error | null,
     historyRows: [] as MessageView[],
     holdSave: false,
+    holdEdit: false,
     holdSend: false,
     withProfile: false,
     holdProfile: false,
@@ -377,6 +389,10 @@ export function coordinatorFixture(
       compose: (peer: string) => {
         calls.push('compose:' + peer);
         return Promise.resolve();
+      },
+      composeAction: async (view: MessageView) => {
+        calls.push('edit:' + view.peer);
+        if (state.holdEdit) await editing.promise;
       },
       pending: () => Promise.resolve([]),
       queueText: async (draft: { id: string; peer: string; text: string }) => {
@@ -657,6 +673,7 @@ export function coordinatorFixture(
     contactLoad,
     history,
     saving,
+    editing,
     sending,
     profile,
     drafts,

@@ -12,7 +12,7 @@ interface MessageActionOptions<T extends DailyRow> {
   action: (label: string, work: () => Promise<void>) => HTMLButtonElement;
   choose: (mode: 'reply' | 'edit', view: T) => void;
   react: (view: T, reaction: string) => Promise<void>;
-  picker: EmojiPicker;
+  picker: Pick<EmojiPicker, 'choose'>;
   forward: (view: DailyView<T>) => void;
   remove?: () => Promise<void>;
 }

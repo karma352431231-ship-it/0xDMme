@@ -22,12 +22,8 @@ import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
 import {
   directChat,
-  bindChatComposer,
   bindChatOptions,
-  updateChatComposer,
   resetHistoryPosition,
-  bindRecordGesture,
-  showRecording,
 } from '../chat-ui/index.ts';
 import { shortAddress } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
@@ -42,29 +38,21 @@ import { organizationActions } from './directory-actions.ts';
 import { startGroups } from '../groups/index.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
-import { VoiceRecording } from '../voice-recording/index.ts';
-import { AttachmentUi } from '../attachment-ui/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 import { LiveMessages } from '../message-live/index.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { PeerState } from '../daily/index.ts';
-import { dailyViews } from '../daily-text/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
-import { GifSearch, gifMessageUrl, mountGifPane } from '../gif-search/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import {
   NotificationSound,
   soundPreferenceKey,
   savePushSoundPreference,
 } from '../notification-sound/index.ts';
-import { encodeDailyText, decodeDailyText } from '../../shared/daily/index.ts';
+import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
-import {
-  attachmentContent,
-  chatFileLimit,
-} from '../../shared/attachments/index.ts';
+import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
 import type {
@@ -81,6 +69,7 @@ import { PeerPhotos } from './peer-photos.ts';
 import { ProfileBroadcast } from './profile-broadcast.ts';
 import { ConversationPreviewLoader } from '../conversation-preview/index.ts';
 import { uploadStatus } from '../upload-progress/index.ts';
+import { MessageComposer } from './composer.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -103,28 +92,14 @@ export function startMessages(
 ) {
   const { playback, sharedProfile, preferences } = options;
   const contacts = new Contacts(access),
-    attachments = new AttachmentUi(playback, voiceStatus, chatFileLimit),
     daily = new Daily(access, sync);
   const sound = new NotificationSound();
   const agenda = new ContactDirectory(sync),
     menu = new ConversationMenu();
-  const emojiPicker = new EmojiPicker();
   // Accounts with an active status, from the status list the app already loads.
   let statusAuthors: ReadonlySet<string> = new Set();
   let externalAbort = new AbortController();
-  const gifs = new GifSearch(
-    () =>
-      options.externalMedia?.authorize('gifs', externalAbort.signal) ??
-      Promise.resolve(false),
-    () =>
-      AbortSignal.any([
-        externalAbort.signal,
-        ...(options.externalMedia ? [options.externalMedia.signal] : []),
-      ]),
-  );
   let states = new Map<string, PeerState>();
-  let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
-  let focusRequested = false;
   let navigatingToConversation = false;
   let directory: HTMLElement | null = null;
   const searchPanel = new ConversationSearch(searchPage);
@@ -139,65 +114,8 @@ export function startMessages(
   // Sent fraction of the attachment being uploaded, shown as a ring (16/10/2026).
   const uploadIndicator = uploadStatus();
   let uploading: number | null = null;
-  let recordingPeer: string | null = null;
-  const voice = new VoiceRecording({
-    changed: () => voiceStatus(),
-    completed: (selection) => {
-      if (!session || !recordingPeer || selected?.accountId !== recordingPeer) {
-        selection.bytes.fill(0);
-        return;
-      }
-      attachments.selectVoice(selection, recordingPeer);
-      voiceStatus();
-    },
-  });
-  function voiceStatus(): void {
-    showRecording(node('[data-message-form]'), voice.state);
-    composerStatus();
-    voiceButtons();
-    voiceFiles();
-  }
   function composerStatus(): void {
-    updateChatComposer(node('[data-message-form]'), {
-      blocked: synchronization.busy || rows === null || !selected,
-      textSendBlocked: canQueueText() ? textQueue.full : undefined,
-      recording: voice.active,
-      attachment: attachments.selected !== null,
-    });
-    focusComposer();
-  }
-  function focusComposer(): void {
-    const input = node<HTMLTextAreaElement>('[data-message-text]');
-    if (!focusRequested || !input || input.disabled) return;
-    focusRequested = false;
-    input.focus();
-  }
-  function voiceButtons(): void {
-    const start = node<HTMLButtonElement>('[data-voice-record]');
-    if (start)
-      start.disabled =
-        synchronization.busy ||
-        rows === null ||
-        voice.active ||
-        attachments.selected !== null ||
-        !selected ||
-        !!options.calls?.active();
-    const stop = node<HTMLButtonElement>('[data-voice-stop]');
-    if (stop) {
-      stop.hidden = !voice.active;
-      stop.disabled = voice.state.phase === 'stopping';
-    }
-    const cancel = node<HTMLButtonElement>('[data-voice-cancel]');
-    if (cancel) cancel.hidden = !voice.active;
-  }
-  function voiceFiles(): void {
-    const file = node<HTMLInputElement>('[data-attachment-file]');
-    if (file)
-      file.disabled =
-        synchronization.busy ||
-        rows === null ||
-        voice.active ||
-        !!attachments.selected?.voice;
+    composer.update();
   }
   const outgoing = new OutgoingTexts();
   const previewAdmission = new SelectedPreviewAdmission();
@@ -244,6 +162,33 @@ export function startMessages(
       receipt: (receipt) => receiptPreviews.commit(receipt),
     },
   );
+  const composer = new MessageComposer({
+    playback,
+    controller,
+    ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
+    signal: () => externalAbort.signal,
+    availability: () => ({
+      peer: selected?.accountId ?? null,
+      localOnly: !!selected?.localOnly,
+      authenticated: session !== null,
+      busy: synchronization.busy,
+      historyReady: rows !== null,
+      callActive: !!options.calls?.active(),
+      textSendBlocked: canQueueText() ? textQueue.full : undefined,
+    }),
+    run,
+    textChanged: () => {
+      if (canQueueText() && composer.text) textQueue.deferBackground();
+    },
+    report: (notice) => {
+      message = notice;
+      status();
+    },
+    sendGif,
+    ...(options.calls
+      ? { call: (peer: string) => options.calls!.start(peer) }
+      : {}),
+  });
   const previews = new ConversationPreviewLoader({
     load: (peers) => controller.directoryPreviews(peers),
     changed: renderContacts,
@@ -358,15 +303,15 @@ export function startMessages(
     alert: () => sound.alert('direct'),
   });
   function selectGroup(): void {
-    if (voice.active || attachments.selected?.voice)
+    if (composer.recording || composer.voicePreview)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
       );
     synchronization.cancelOpening();
     selected = null;
     enterConversation();
-    clearContext();
-    attachments.clearSelection();
+    composer.clearContext();
+    composer.clearAttachment();
     controller.select(null);
     renderHistory();
     const direct = node('[data-direct-conversation]');
@@ -585,7 +530,7 @@ export function startMessages(
     }),
     visible: () => conversationVisible('[data-direct-conversation]'),
     signal: () => externalAbort.signal,
-    attachments,
+    attachments: composer.media,
     flush: transmit,
     forwarding: {
       contacts: () =>
@@ -614,7 +559,7 @@ export function startMessages(
       : {}),
     actions: {
       action,
-      picker: emojiPicker,
+      picker: composer.picker,
       choose,
       forward,
       react: async (view, reaction) => {
@@ -644,8 +589,8 @@ export function startMessages(
     }
     stopPreload();
     if (event === 'revoked' || event === 'ended') {
-      voice.cancel();
-      attachments.clearSelection();
+      composer.cancelRecording();
+      composer.clearAttachment();
       playback.close();
     }
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
@@ -663,18 +608,9 @@ export function startMessages(
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
-    if (voice.active && recordingPeer) {
-      try {
-        if (!(await controller.playbackAllowed(recordingPeer)))
-          await voice.stop(
-            t(
-              'This conversation was blocked. The excerpt is preserved only as a local preview.',
-            ),
-          );
-      } catch {
-        /* Revocation/session termination has its own immediate lifecycle event. */
-      }
-    }
+    await composer.checkRecordingAuthority((peer) =>
+      controller.playbackAllowed(peer),
+    );
   }
   function node<T extends HTMLElement>(selector: string): T | null {
     return (
@@ -759,7 +695,7 @@ export function startMessages(
         .forEach((control) => {
           control.disabled = synchronization.busy;
         });
-    voiceStatus();
+    composer.update();
     groups.status();
   }
   function renderSoundSettings(): void {
@@ -839,43 +775,14 @@ export function startMessages(
   function renderHistory(update: HistoryUpdate = 'history'): void {
     historyUi.render(rows, update);
   }
-  function compositionText(view: MessageView): string {
-    return (
-      dailyViews(rows ?? []).find((v) => v.id === view.id)?.content.text ??
-      decodeDailyText(view.text).text
-    );
-  }
   function choose(mode: 'reply' | 'edit', view: MessageView): void {
-    composing = { mode, view };
-    const original = compositionText(view);
-    const label = node('[data-compose-context]');
-    if (label)
-      label.textContent = t('{0}: {1}', [
-        mode === 'edit' ? t('Editing') : t('Replying'),
-        original.slice(0, 120),
-      ]);
-    const bar = node('[data-compose-bar]');
-    if (bar) bar.hidden = false;
-    const text = node<HTMLTextAreaElement>('[data-message-text]');
-    if (mode === 'edit' && text) text.value = original;
-    text?.dispatchEvent(new Event('input'));
-    focusRequested = true;
-    focusComposer();
-  }
-  function clearContext(): void {
-    composing = null;
-    focusRequested = false;
-    const label = node('[data-compose-context]');
-    if (label) label.textContent = '';
-    const bar = node('[data-compose-bar]');
-    if (bar) bar.hidden = true;
-    composerStatus();
+    composer.choose(mode, view, rows ?? []);
   }
   function clearSessionPanels(): void {
     mounted?.querySelectorAll('form').forEach((form) => form.reset());
     node('[data-representative-chat]')?.replaceChildren();
     node('[data-message-pending]')?.replaceChildren();
-    if (mounted) delete mounted.dataset['voicePeer'];
+    composer.setPeer(null);
   }
   async function sendPending(work: VaultWorkOptions = {}): Promise<void> {
     outgoing.beginTransfer();
@@ -993,28 +900,20 @@ export function startMessages(
       !selected.localOnly &&
       rows !== null &&
       !continuity.suspended &&
-      !voice.active &&
-      !attachments.selected &&
-      composing?.mode !== 'edit'
+      composer.acceptsQueuedText
     );
   }
   function queueText(): boolean {
-    const field = node<HTMLTextAreaElement>('[data-message-text]');
-    if (!canQueueText() || !selected || !field?.value.trim()) return false;
+    if (!canQueueText() || !selected) return false;
+    const peer = selected.accountId;
     try {
-      textQueue.enqueue({
-        id: crypto.randomUUID(),
-        peer: selected.accountId,
-        text: encodeDailyText({
-          text: field.value,
-          reply: composing?.view.id ?? null,
-          forwarded: false,
+      return composer.queueText((text, reply) =>
+        textQueue.enqueue({
+          id: crypto.randomUUID(),
+          peer,
+          text: encodeDailyText({ text, reply, forwarded: false }),
         }),
-      });
-      field.value = '';
-      clearContext();
-      field.dispatchEvent(new Event('input'));
-      return true;
+      );
     } catch (error: unknown) {
       reportTextSaveError(error);
       return true;
@@ -1058,7 +957,7 @@ export function startMessages(
         perform: () =>
           perform(async () => {
             const expected = generation;
-            if (voice.active || attachments.selected?.voice)
+            if (composer.recording || composer.voicePreview)
               throw new Error(
                 'Send or remove the voice preview before blocking the contact.',
               );
@@ -1072,7 +971,7 @@ export function startMessages(
             ) {
               selected = null;
               controller.select(null);
-              clearContext();
+              composer.clearContext();
             }
             await refresh();
           }),
@@ -1106,12 +1005,12 @@ export function startMessages(
     return true;
   }
   function reusePeer(peer: ConversationPeer): boolean {
-    if (voice.active || attachments.selected?.voice)
+    if (composer.recording || composer.voicePreview)
       traceChatSync(controller, peer.accountId, {
         event: 'navigation',
         reason: 'voice-preview',
       });
-    return !voice.active && !attachments.selected?.voice && visits.open(peer);
+    return !composer.recording && !composer.voicePreview && visits.open(peer);
   }
   function requestPeer(peer: ConversationPeer): Promise<void> {
     if (reopenSelectedPeer(peer)) return Promise.resolve();
@@ -1135,7 +1034,7 @@ export function startMessages(
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
-      (voice.active || attachments.selected?.voice) &&
+      (composer.recording || composer.voicePreview) &&
       selected?.accountId !== peer.accountId
     )
       throw new Error(
@@ -1162,13 +1061,13 @@ export function startMessages(
     synchronization.cancelOpening();
     showDirectConversation();
     enterConversation();
-    clearContext();
+    composer.clearContext();
     if (selected?.accountId !== peer.accountId)
       resetHistoryPosition(node('[data-message-history]'));
     selected = peer;
     renderContacts();
     mountRepresentativeChat(peer);
-    if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
+    composer.setPeer(peer.accountId);
     controller.select(peer.accountId);
     renderHistory();
     // Pending bubbles belong to the open conversation only; a failed local
@@ -1324,20 +1223,7 @@ export function startMessages(
       throw new Error(
         'Ask your contact for permission to send new messages. Your saved history remains available.',
       );
-    if (voice.active)
-      throw new Error('Stop recording and check the preview before sending.');
-    const text = node<HTMLTextAreaElement>('[data-message-text]');
-    if (!selected || !text || (!text.value.trim() && !attachments.selected))
-      throw new Error(
-        'Select a contact and write a message or choose an attachment.',
-      );
-    await saveComposition(selected.accountId, text.value);
-    text.value = '';
-    text.dispatchEvent(new Event('input'));
-    clearContext();
-    attachments.clearSelection();
-    voice.cancel();
-    recordingPeer = null;
+    if (!(await composer.save(selected?.accountId ?? null))) return;
     await renderPending();
     if (navigator.onLine) {
       await sendPending();
@@ -1348,62 +1234,18 @@ export function startMessages(
     if (startupWarmup.pending) await historyUi.markRead(daily);
     else await dailyTick();
   }
-  /** GIF tab of the composer's emoji panel; a chosen GIF is sent at once. */
-  function gifPane(host: HTMLElement, close: () => void): void {
-    mountGifPane(host, gifs, (url) => {
-      close();
-      void run(() => sendGif(url));
-    });
-  }
   /** The message carries only the KLIPY link, inside the usual E2EE text. */
   async function sendGif(url: string): Promise<void> {
-    if (!selected || selected.localOnly)
-      throw new Error('Choose an authorized contact to send the GIF.');
-    if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
-    await controller.compose(
-      selected.accountId,
-      encodeDailyText({ text: url, reply: null, forwarded: false }),
+    await composer.saveGif(
+      selected?.accountId ?? null,
+      !!selected?.localOnly,
+      url,
     );
     await renderPending();
     if (navigator.onLine) {
       await sendPending();
       await synchronizeVisible();
     }
-  }
-  async function saveComposition(peer: string, text: string): Promise<void> {
-    if (composing?.mode === 'edit') {
-      if (attachments.selected)
-        throw new Error(
-          'Editing changes text only; remove the selected attachment.',
-        );
-      await controller.composeAction(
-        composing.view,
-        'edit',
-        encodeDailyText({
-          text: text,
-          reply: decodeDailyText(composing.view.text).reply,
-          forwarded: decodeDailyText(composing.view.text).forwarded,
-        }),
-      );
-    } else if (attachments.selected)
-      await controller.composeAttachment(
-        peer,
-        attachments.selected,
-        encodeDailyText({
-          text: text,
-          reply: composing?.view.id ?? null,
-          forwarded: false,
-        }),
-      );
-    else
-      await controller.compose(
-        peer,
-        encodeDailyText({
-          text: text,
-          reply: composing?.view.id ?? null,
-          forwarded: false,
-        }),
-      );
   }
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
@@ -1461,14 +1303,7 @@ export function startMessages(
     externalAbort = new AbortController();
     suspend(reason);
     groups.leave();
-    if (voice.active)
-      void voice.stop(
-        t(
-          'Navigation interrupted recording; the excerpt is preserved for review when returning to the conversation.',
-        ),
-      );
-    attachments.clearMedia();
-    attachments.pausePreview();
+    composer.pause();
     synchronization.resume();
   }
   function suspend(
@@ -1480,7 +1315,7 @@ export function startMessages(
     renderContacts();
     stopPreload();
     menu.close();
-    emojiPicker.close();
+    composer.closePicker();
     if (reason === 'invalidate') controller.close();
     else controller.pause(reason === 'directory' ? 'conversation' : 'account');
     groups.suspend();
@@ -1498,7 +1333,7 @@ export function startMessages(
     status();
   }
   function beforeUnload(event: BeforeUnloadEvent): void {
-    if (!voice.active && !attachments.selected?.voice && !textQueue.unsaved)
+    if (!composer.recording && !composer.voicePreview && !textQueue.unsaved)
       return;
     event.preventDefault();
     event.returnValue = '';
@@ -1519,8 +1354,8 @@ export function startMessages(
   function visibilityChanged(): void {
     const visible = document.visibilityState === 'visible',
       current = generation;
-    if (!visible && voice.active)
-      void voice.stop(
+    if (!visible && composer.recording)
+      void composer.stopRecording(
         t(
           'The browser interrupted recording. Check the preserved excerpt when you return.',
         ),
@@ -1611,8 +1446,8 @@ export function startMessages(
     continuity.freeze();
     synchronization.reset();
     startupWarmup.pause();
-    if (voice.active)
-      void voice.stop(
+    if (composer.recording)
+      void composer.stopRecording(
         t(
           'The browser interrupted recording. Check the preserved excerpt when you return.',
         ),
@@ -1621,10 +1456,9 @@ export function startMessages(
       textQueue.reset();
       outgoing.reset();
       startupWarmup.reset();
-      voice.cancel();
+      composer.dispose();
       groups.suspend(true);
       playback.close();
-      attachments.clearSelection();
       synchronization.close();
       soundEvents.abort();
       void sound.dispose().catch(() => {
@@ -1659,65 +1493,6 @@ export function startMessages(
   });
   function bind(selector: string, handler: () => void): void {
     node(selector)?.addEventListener('click', handler);
-  }
-  function bindDailyControls(): void {
-    directoryUi.bind();
-    bind('[data-message-emoji]', () => {
-      const input = node<HTMLTextAreaElement>('[data-message-text]'),
-        anchor = node('[data-message-emoji]');
-      if (!input || !anchor) return;
-      void emojiIntoComposer(emojiPicker, anchor, input, {
-        pane: gifPane,
-      }).catch(() => {
-        message = t('Could not open the emoji panel.');
-        status();
-      });
-    });
-    bind('[data-compose-cancel]', () => {
-      if (composing?.mode === 'edit') {
-        const text = node<HTMLTextAreaElement>('[data-message-text]');
-        if (text) {
-          text.value = '';
-          text.dispatchEvent(new Event('input'));
-        }
-      }
-      clearContext();
-    });
-    bind('[data-attachment-clear]', () => {
-      if (!voice.active) voice.cancel();
-    });
-  }
-  function bindVoiceControls(): void {
-    bind('[data-call-start]', () => {
-      if (!selected || selected.localOnly || !options.calls) return;
-      void options.calls.start(selected.accountId);
-    });
-    bindRecordGesture(node('[data-voice-record]'), {
-      start: () => {
-        if (
-          synchronization.busy ||
-          voice.active ||
-          attachments.selected ||
-          !selected ||
-          !session ||
-          options.calls?.active()
-        )
-          return;
-        recordingPeer = selected.accountId;
-        void voice.start();
-      },
-      // Releasing before the microphone opens keeps recording hands-free.
-      release: () => {
-        if (voice.state.phase === 'recording') void voice.stop();
-      },
-    });
-    bind('[data-voice-stop]', () => {
-      void voice.stop();
-    });
-    bind('[data-voice-cancel]', () => {
-      voice.cancel();
-      recordingPeer = null;
-    });
   }
   async function moreConversations(): Promise<void> {
     await refreshContacts(true);
@@ -1790,7 +1565,7 @@ export function startMessages(
       renderContacts();
     },
     prepareCall(): void {
-      if (voice.active)
+      if (composer.recording)
         throw new Error(
           'Stop or cancel voice recording before starting or answering a call. The preview remains available.',
         );
@@ -1823,11 +1598,10 @@ export function startMessages(
       menu.reset();
       directoryUi.reset();
       searchPanel.close();
-      voice.cancel();
+      composer.cancelRecording();
       playback.close();
-      recordingPeer = null;
       live.stop();
-      emojiPicker.reset();
+      composer.resetPicker();
       synchronization.reset();
       startupWarmup.reset();
       session = value;
@@ -1838,8 +1612,8 @@ export function startMessages(
       groups.setSession(value);
       selected = null;
       states.clear();
-      clearContext();
-      attachments.clearSelection();
+      composer.clearContext();
+      composer.clearAttachment();
       clearSessionPanels();
 
       message = value
@@ -1870,8 +1644,8 @@ export function startMessages(
     canActivate: () =>
       !synchronization.busy &&
       !textQueue.unsaved &&
-      !voice.active &&
-      !attachments.selected?.voice &&
+      !composer.recording &&
+      !composer.voicePreview &&
       groups.canActivate(),
     // In-app navigation closes/rechecks history, while keeping the directory
     // previews that are already retained when the conversation is hidden.
@@ -1910,22 +1684,10 @@ export function startMessages(
       mounted = container;
       directory = directoryHost;
       container.innerHTML = directChat();
-      if (selected) container.dataset['voicePeer'] = selected.accountId;
-      attachments.mount(container, run);
-      const form = node('[data-message-form]');
-      if (form)
-        bindChatComposer(form, () => {
-          if (
-            canQueueText() &&
-            node<HTMLTextAreaElement>('[data-message-text]')?.value
-          )
-            textQueue.deferBackground();
-          composerStatus();
-        });
+      composer.mount(container);
       bindChatOptions(container);
       mountGroups(container);
-      bindVoiceControls();
-      bindDailyControls();
+      directoryUi.bind();
       bindMessageControls();
       renderContacts();
       renderHistory();
@@ -1937,9 +1699,9 @@ export function startMessages(
     },
   };
 }
+
 export type { MessageItem } from './history.ts';
 export { Messages } from './controller.ts';
-
 export type { MessageView } from './controller.ts';
 
 /** Legacy media/control sends keep their existing discardable progress row. */

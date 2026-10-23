@@ -68,8 +68,8 @@
 @import '../contacts/contact-settings.css';
 @import '../wallet/wallet-picker.css';
 @import '../devices/device-cards.css';
-@import '../vault-ui/vault-card.css';
 @import './card-forms.css';
+@import '../vault-ui/vault-card.css';
 @import '../chat-ui/chat-layout.css';
 @import '../status/status-card.css';
 @import '../wallet-recovery/recovery.css';

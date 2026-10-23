@@ -13,9 +13,12 @@ const holdDelay = 250,
  */
 export function bindRecordGesture(
   button: HTMLButtonElement | null,
-  actions: { start: () => void; release: () => void },
+  actions: { start: () => void; release: () => void; signal?: AbortSignal },
 ): void {
   if (!button) return;
+  const listenerOptions = actions.signal
+    ? { signal: actions.signal }
+    : undefined;
   const form = button.closest<HTMLElement>('form');
   let hold = 0,
     hint = 0,
@@ -44,30 +47,53 @@ export function bindRecordGesture(
       showToast(t('Hold to record or tap twice.'));
     }, doubleTap);
   };
-  button.addEventListener('pointerdown', (event) => {
-    touch = event.pointerType !== 'mouse';
-    if (!touch || button.disabled) return;
-    // The mic disappears behind the recording bar; the window still hears the release.
-    window.addEventListener('pointerup', finish);
-    window.addEventListener('pointercancel', finish);
-    hold = window.setTimeout(() => {
-      held = true;
-      clearTimeout(hint);
-      if (form) form.dataset['voiceHold'] = 'true';
-      actions.start();
-    }, holdDelay);
-  });
-  button.addEventListener('contextmenu', (event) => {
-    event.preventDefault();
-  });
-  button.addEventListener('click', (event) => {
-    if (touch) {
-      touch = false;
+  button.addEventListener(
+    'pointerdown',
+    (event) => {
+      touch = event.pointerType !== 'mouse';
+      if (!touch || button.disabled) return;
+      // The mic disappears behind the recording bar; the window still hears the release.
+      window.addEventListener('pointerup', finish, listenerOptions);
+      window.addEventListener('pointercancel', finish, listenerOptions);
+      hold = window.setTimeout(() => {
+        held = true;
+        clearTimeout(hint);
+        if (form) form.dataset['voiceHold'] = 'true';
+        actions.start();
+      }, holdDelay);
+    },
+    listenerOptions,
+  );
+  button.addEventListener(
+    'contextmenu',
+    (event) => {
       event.preventDefault();
-      return;
-    }
-    actions.start();
-  });
+    },
+    listenerOptions,
+  );
+  button.addEventListener(
+    'click',
+    (event) => {
+      if (touch) {
+        touch = false;
+        event.preventDefault();
+        return;
+      }
+      actions.start();
+    },
+    listenerOptions,
+  );
+  actions.signal?.addEventListener(
+    'abort',
+    () => {
+      clearTimeout(hold);
+      clearTimeout(hint);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      if (form) delete form.dataset['voiceHold'];
+    },
+    { once: true },
+  );
 }
 
 /** Recording bar clock and the composer notice for the current phase. */

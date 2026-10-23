@@ -264,6 +264,32 @@ await test('mobile directory and app tabs retain previews; authority loss and pe
   assert.equal(f.previews().size, 0);
 });
 
+await test('an edit completing after session replacement does not clear the new account draft', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('old-recipient'));
+  f.choose('edit', {
+    id: 'original',
+    peer: 'old-recipient',
+    own: true,
+    kind: 'text',
+    text: encodeDailyText({ text: 'Original', reply: null, forwarded: false }),
+    state: 'received',
+    hash: 'synthetic-hash',
+  });
+  f.input.value = 'Edit in progress';
+  f.state.holdEdit = true;
+  f.submit();
+  await turn();
+  assert.ok(f.calls.includes('edit:old-recipient'));
+  f.messages.setSession(null);
+  f.input.value = 'New account draft';
+  f.editing.resolve();
+  await turn();
+  assert.equal(f.input.value, 'New account draft');
+});
+
 for (const mode of ['edit', 'reply'] as const)
   await test(`canceling a private ${mode} clears only an edit draft and preserves the original`, async (t) => {
     const f = coordinatorFixture(t);
