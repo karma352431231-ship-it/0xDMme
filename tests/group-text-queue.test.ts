@@ -9,6 +9,7 @@ const settle = async (turns = 3) => {
   for (let n = 0; n < turns; n++)
     await new Promise<void>((resolve) => setImmediate(resolve));
 };
+/** `sent` lists the groups whose send ran and succeeded. */
 function queue(send: (groupId: string) => Promise<boolean>) {
   const saved: { groupId: string; id: string; order: number }[] = [],
     sent: string[] = [];
@@ -17,8 +18,11 @@ function queue(send: (groupId: string) => Promise<boolean>) {
       saved.push({ groupId, id: draft.id, order: draft.order });
       return Promise.resolve();
     },
-    send,
-    sent: (groupId) => sent.push(groupId),
+    send: async (groupId) => {
+      const ok = await send(groupId);
+      if (ok) sent.push(groupId);
+      return ok;
+    },
     available: () => true,
     changed: () => {},
     failed: () => {},
@@ -53,7 +57,7 @@ await test('a burst keeps queue IDs and admission order, and each group is sent 
   assert.deepEqual([...new Set(sent)].sort(), ['group-a', 'group-b']);
 });
 
-await test('the next transmission does not wait for the previous readback', async () => {
+await test('the next transmission starts once the previous one is accepted, with no readback between', async () => {
   const gates: ReturnType<typeof deferred<void>>[] = [];
   const { subject, sent } = queue(async () => {
     const gate = deferred<void>();
@@ -68,7 +72,7 @@ await test('the next transmission does not wait for the previous readback', asyn
   assert.equal(gates.length, 1);
   gates[0]!.resolve();
   await settle();
-  // Accepted: the readback is only requested, and the next send starts.
+  // Accepted: nothing else runs before the next send starts.
   assert.deepEqual(sent, ['g']);
   assert.equal(gates.length, 2);
   gates[1]!.resolve();
@@ -117,7 +121,7 @@ await test('readback requests during a read cost exactly one more read and never
   await next;
 });
 
-await test('pending texts show only in their group until the verified history has them', () => {
+await test('pending texts show only in their group and only while the shown history lacks them', () => {
   const outgoing = new GroupOutgoing(),
     a = crypto.randomUUID(),
     b = crypto.randomUUID();
@@ -133,5 +137,55 @@ await test('pending texts show only in their group until the verified history ha
   assert.deepEqual(
     outgoing.rows('g2', new Set()).map((row) => row.id),
     [b],
+  );
+});
+
+await test('an accepted text stays shown without a readback until a verified read that started after acceptance settles it', () => {
+  const outgoing = new GroupOutgoing(),
+    kept = crypto.randomUUID(),
+    removed = crypto.randomUUID(),
+    unsent = crypto.randomUUID(),
+    late = crypto.randomUUID();
+  for (const [n, id] of [kept, removed, unsent, late].entries())
+    outgoing.update({ id, peer: 'g', text: `t${n}`, createdAt: n }, 'admitted');
+  outgoing.accepted(kept, 10, 'g');
+  outgoing.accepted(removed, 10, 'g');
+  outgoing.accepted(late, 30, 'g');
+  assert.equal(outgoing.rows('g', new Set()).length, 4, 'No read needed');
+  // A read that started at 20 has `kept`, lacks `removed` (deleted), cannot
+  // know `late` (accepted after it started) and leaves the unsent text.
+  assert.deepEqual(outgoing.verified('g', new Set([kept]), 20), {
+    settled: [kept],
+    retired: [removed],
+  });
+  assert.deepEqual(
+    outgoing.rows('g', new Set()).map((row) => row.id),
+    [unsent, late],
+  );
+  assert.deepEqual(outgoing.verified('other', new Set(), 99), {
+    settled: [],
+    retired: [],
+  });
+});
+
+await test('accepted texts are bounded: a crowded open group asks for a readback, closed groups are dropped first', () => {
+  const outgoing = new GroupOutgoing();
+  const accept = (peer: string, open: string | null) => {
+    const id = crypto.randomUUID();
+    outgoing.update({ id, peer, text: 'x', createdAt: 1 }, 'admitted');
+    outgoing.accepted(id, 1, open);
+    return id;
+  };
+  for (let n = 0; n < 31; n++) accept('open', 'open');
+  assert.equal(outgoing.crowded('open'), false);
+  accept('open', 'open');
+  assert.equal(outgoing.crowded('open'), true);
+  const closed = Array.from({ length: 100 }, () => accept('closed', 'open'));
+  assert.equal(outgoing.rows('open', new Set()).length, 32, 'Open group kept');
+  assert.equal(outgoing.rows('closed', new Set()).length, 96);
+  assert.equal(
+    outgoing.rows('closed', new Set()).some((row) => row.id === closed[0]),
+    false,
+    'The oldest closed-group texts went first',
   );
 });

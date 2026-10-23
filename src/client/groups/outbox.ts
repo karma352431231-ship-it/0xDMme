@@ -30,6 +30,7 @@ import type {
   AttachmentApi,
   AttachmentSelection,
 } from '../attachments/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { GroupCache, groupCacheScope } from './cache.ts';
 import type { GroupState } from './governance.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -44,12 +45,20 @@ interface Outbox {
   /** Admission order; drafts saved before it existed sort first. */
   order?: number;
 }
+/** Steps of each draft a send reaches, for the outgoing rows and the local
+ * trace. `accepted` follows the server's confirmation of that exact packet,
+ * whether this attempt published it or an earlier one whose answer was lost. */
+export interface GroupSendProgress {
+  sending: (id: string) => void;
+  accepted: (id: string) => void;
+}
 interface SendContext {
   authority: VaultAuthority;
   group: GroupState;
   identities: PeerIdentity;
   api: AttachmentApi;
   machine: MessageCrypto;
+  progress?: GroupSendProgress | undefined;
 }
 export async function composeGroup(input: {
   authority: VaultAuthority;
@@ -153,6 +162,9 @@ async function sendGroupOne(
 ): Promise<void> {
   const { cache, name, value } = entry,
     scope = { groupId: c.group.state.groupId, head: c.group.head };
+  c.progress?.sending(value.id);
+  // A packet kept from an attempt whose answer was lost is never published
+  // twice: the server's copy is the durable record from here on.
   if (
     value.packet &&
     (await c.api('group-message-accepted', {
@@ -162,6 +174,7 @@ async function sendGroupOne(
     })) === true
   ) {
     await cache.remove(name);
+    c.progress?.accepted(value.id);
     return;
   }
   await uploadGroupDraft(c, { cache, name, value });
@@ -171,28 +184,30 @@ async function sendGroupOne(
     const saved = await cache.get(
       `session:${c.authority.session.deviceId}:${c.group.state.epoch}`,
     );
-    const encrypted = await c.machine.encryptGroup({
-      authority: c.authority,
-      state: c.group.state,
-      histories: accounts.map((account) => {
-        const d = directories.get(account);
-        if (!d) throw new Error('Participant has no directory.');
-        return d.events;
+    const encrypted = await measureWork(c.machine, 'sdk/group-encrypt', () =>
+      c.machine.encryptGroup({
+        authority: c.authority,
+        state: c.group.state,
+        histories: accounts.map((account) => {
+          const d = directories.get(account);
+          if (!d) throw new Error('Participant has no directory.');
+          return d.events;
+        }),
+        recovery: accounts.map((account) =>
+          recoveryKey(directories.get(account)?.recovery),
+        ),
+        transport: (op, payload) =>
+          op === 'matrix-upload'
+            ? c.api(op, payload)
+            : c.api('group-' + op, { ...scope, payload }),
+        id: value.id,
+        text: value.text,
+        kind: value.kind,
+        ...(value.relation ? { relation: value.relation } : {}),
+        ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
+        batch: entry.batch,
       }),
-      recovery: accounts.map((account) =>
-        recoveryKey(directories.get(account)?.recovery),
-      ),
-      transport: (op, payload) =>
-        op === 'matrix-upload'
-          ? c.api(op, payload)
-          : c.api('group-' + op, { ...scope, payload }),
-      id: value.id,
-      text: value.text,
-      kind: value.kind,
-      ...(value.relation ? { relation: value.relation } : {}),
-      ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
-      batch: entry.batch,
-    });
+    );
     value.packet = encrypted.packet;
     value.keys = encrypted.keys;
     await cache.put(
@@ -207,7 +222,10 @@ async function sendGroupOne(
     result['hash'] !== (await digest(canonical(value.packet)))
   )
     throw new Error('Group send not confirmed.');
+  // The draft keeps its packet until here, so a crash before the removal
+  // leaves a draft the next attempt settles through `group-message-accepted`.
   await cache.remove(name);
+  c.progress?.accepted(value.id);
 }
 /** A stale rejection clears the stored packet and the batch's device trust,
  * so the next attempt prepares and encrypts again instead of resending it. */

@@ -15,6 +15,7 @@ import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 import { ConfirmedConversations } from '../src/client/messages/confirmed-conversations.ts';
 import { ConnectedConversationVisits } from '../src/client/messages/visits.ts';
+import { GroupDeliveryTrace } from '../src/client/groups/delivery-trace.ts';
 
 function fixture(t: TestContext, installed = true) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -316,4 +317,56 @@ await test('authorization status takes precedence over an expected body-cancella
     .events.filter((event) => event.kind === 'reuse-work')
     .map((event) => event['outcome']);
   assert.deepEqual(outcomes, ['authorization', 'authorization', 'conflict']);
+});
+
+await test('group delivery steps share one per-capture slot per message and never export its ID or content', (t) => {
+  const f = fixture(t),
+    trace = new GroupDeliveryTrace();
+  const one = crypto.randomUUID(),
+    two = crypto.randomUUID();
+  for (const step of ['admitted', 'staged', 'sending'] as const)
+    trace.step(step, one);
+  trace.step('admitted', two);
+  trace.step('accepted', one);
+  trace.rendered('group-a', [{ id: 'old', own: false }]);
+  trace.hint();
+  trace.rendered('group-a', [
+    { id: 'old', own: false },
+    { id: 'new', own: false },
+    { id: one, own: true },
+  ]);
+  trace.rendered('group-b', [{ id: 'other', own: false }]);
+  const events = f.recording.report().events;
+  const sends = events.filter((event) => event.kind === 'reuse-group-send');
+  assert.deepEqual(
+    sends.map((event) => [event['reason'], event['message']]),
+    [
+      ['admitted', 1],
+      ['staged', 1],
+      ['sending', 1],
+      ['admitted', 2],
+      ['accepted', 1],
+    ],
+  );
+  assert.deepEqual(
+    events
+      .filter((event) => event.kind === 'reuse-group-receive')
+      .map((event) => [event['reason'], event['rows'] ?? 0]),
+    [
+      ['live-hint', 0],
+      ['presented', 1],
+    ],
+    'The first drawing of each group is only a baseline',
+  );
+  const serialized = JSON.stringify(events);
+  for (const secret of [one, two, 'group-a', 'new'])
+    assert.equal(serialized.includes(secret), false);
+  f.stop();
+  trace.step('settled', one);
+  assert.equal(
+    f.recording
+      .report()
+      .events.filter((event) => event.kind === 'reuse-group-send').length,
+    5,
+  );
 });

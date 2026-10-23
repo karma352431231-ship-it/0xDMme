@@ -4,9 +4,10 @@ import type { TextDraft } from '../text-send/index.ts';
 /** Group texts leave the composer at once, as private ones do: each is saved
  * in admission order to its own group's encrypted outbox under its queue ID,
  * and one transmission sends every group with unsent drafts. A transmission
- * ends when the server accepted and the outbox was cleared; the readback is
- * only requested, so the next batch never waits for it. Attachments and
- * voice keep their foreground path. */
+ * ends when the server accepted and the outbox was cleared. It requests no
+ * readback: the accepted rows stay shown until a verified read the group
+ * needs anyway settles them. Attachments and voice keep their foreground
+ * path. */
 export function groupTextQueue(options: {
   save: (
     groupId: string,
@@ -14,8 +15,6 @@ export function groupTextQueue(options: {
   ) => Promise<void>;
   /** Sends one group's drafts; false when the send did not run. */
   send: (groupId: string) => Promise<boolean>;
-  /** A group's drafts were accepted; request its readback without waiting. */
-  sent: (groupId: string) => void;
   available: () => boolean;
   changed: () => void;
   failed: (error: unknown) => void;
@@ -59,7 +58,6 @@ export function groupTextQueue(options: {
       for (const [index, groupId] of groups.entries()) {
         if (!(await attempt(groupId, groups.slice(index))))
           return { ok: false, more: true };
-        options.sent(groupId);
       }
       return { ok: true, more: unsent.size > 0 };
     },

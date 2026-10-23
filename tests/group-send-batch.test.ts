@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 import { initAsync } from '@matrix-org/matrix-sdk-crypto-wasm';
 import {
   GroupSendBatch,
@@ -11,6 +12,7 @@ import type {
 } from '../src/client/message-crypto/index.ts';
 import { createRecoveryKey } from '../src/client/message-recovery/index.ts';
 import { groupEventHash } from '../src/shared/groups/index.ts';
+import { canonical, digest } from '../src/shared/devices/index.ts';
 import type { GroupEvent } from '../src/shared/groups/index.ts';
 import { GroupCache } from '../src/client/groups/cache.ts';
 import {
@@ -166,12 +168,11 @@ await test('a batch reuses trust for at most sixteen messages and ten seconds, a
   assert.equal(batch.covers('k'), false);
 });
 
-await test('a publication rejected after a revocation clears the stored packet for a fresh encryption', async (t) => {
-  const { transport } = counting(),
-    machine = await sender(transport);
-  t.after(() => machine.close());
-  const state = period(2),
-    encrypted = await machine.encryptGroup(message(transport));
+/** The group's encrypted local store holding one encrypted draft. */
+function storedDraft(
+  t: TestContext,
+  encrypted: Awaited<ReturnType<MessageCrypto['encryptGroup']>>,
+) {
   const stored = new Map<string, unknown>([
     [
       `outbox:${encrypted.packet.id}`,
@@ -200,10 +201,20 @@ await test('a publication rejected after a revocation clears the stored packet f
     stored.delete(name);
     return Promise.resolve();
   });
-  const access = {
-    withVault: () => Promise.reject(new Error('Not used.')),
-    withLocalVault: () => Promise.reject(new Error('Not used.')),
-  };
+  return stored;
+}
+const access = {
+  withVault: () => Promise.reject(new Error('Not used.')),
+  withLocalVault: () => Promise.reject(new Error('Not used.')),
+};
+
+await test('a publication rejected after a revocation clears the stored packet for a fresh encryption', async (t) => {
+  const { transport } = counting(),
+    machine = await sender(transport);
+  t.after(() => machine.close());
+  const state = period(2),
+    encrypted = await machine.encryptGroup(message(transport));
+  const stored = storedDraft(t, encrypted);
   const rejection = Object.assign(
     new Error(
       'Participant directory or recovery changed. Refresh before resending.',
@@ -229,4 +240,52 @@ await test('a publication rejected after a revocation clears the stored packet f
   };
   assert.equal(draft.packet, null);
   assert.equal(draft.keys, null);
+});
+
+await test('a lost acceptance answer settles on the next send, after a reload, without publishing twice or reading history', async (t) => {
+  const { transport } = counting(),
+    machine = await sender(transport);
+  t.after(() => machine.close());
+  const state = period(2),
+    encrypted = await machine.encryptGroup(message(transport)),
+    name = `outbox:${encrypted.packet.id}`;
+  const stored = storedDraft(t, encrypted);
+  const server = new Set<string>(),
+    published: string[] = [],
+    progress = { sending: [] as string[], accepted: [] as string[] };
+  // Any other operation, a history read among them, fails the send.
+  const api = async (operation: string, payload: unknown) => {
+    const body = payload as { hash?: string; packet?: object };
+    if (operation === 'group-message-accepted')
+      return server.has(body.hash ?? '');
+    if (operation !== 'group-message-publish')
+      throw new Error(`Unexpected ${operation}.`);
+    const hash = await digest(canonical(body.packet));
+    published.push(hash);
+    server.add(hash);
+    throw new TypeError('The answer was lost.');
+  };
+  const send = async () =>
+    sendGroupPending({
+      authority: owner.authority,
+      group: { state, head: await groupEventHash(state) },
+      identities: new PeerIdentity(new VaultSync(access)),
+      machine,
+      api,
+      progress: {
+        sending: (id) => progress.sending.push(id),
+        accepted: (id) => progress.accepted.push(id),
+      },
+    });
+  await assert.rejects(send(), TypeError);
+  assert.ok(stored.has(name), 'The packet stays until acceptance is known');
+  assert.deepEqual(progress.accepted, []);
+  await send();
+  assert.equal(published.length, 1, 'Published once');
+  assert.deepEqual(progress.sending, [
+    encrypted.packet.id,
+    encrypted.packet.id,
+  ]);
+  assert.deepEqual(progress.accepted, [encrypted.packet.id]);
+  assert.equal(stored.has(name), false);
 });

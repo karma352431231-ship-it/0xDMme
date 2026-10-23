@@ -64,6 +64,9 @@ import { groupTextQueue } from './text-queue.ts';
 import { GroupOutgoing } from './outgoing.ts';
 import type { PendingGroupText } from './outgoing.ts';
 import { GroupReconciliation } from './reconciliation.ts';
+import { GroupDeliveryTrace } from './delivery-trace.ts';
+import type { GroupSendProgress } from './outbox.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -162,7 +165,20 @@ export function startGroups(
   function sidebar<T extends HTMLElement>(selector: string): T | null {
     return aside?.querySelector<T>(selector) ?? null;
   }
-  const outgoing = new GroupOutgoing();
+  const outgoing = new GroupOutgoing(),
+    delivery = new GroupDeliveryTrace();
+  /** An accepted text stays shown with no readback of its own; only a group
+   * crowded with accepted texts asks for one before the next hint. */
+  const sendProgress: GroupSendProgress = {
+    sending: (id) => delivery.step('sending', id),
+    accepted: (id) => {
+      delivery.step('accepted', id);
+      const open = visibleGroup();
+      outgoing.accepted(id, performance.now(), open);
+      if (open && outgoing.crowded(open))
+        reconciliation.request(open).catch(reportGroupError);
+    },
+  };
   function reportGroupError(error: unknown): void {
     notice =
       error instanceof Error
@@ -174,17 +190,19 @@ export function startGroups(
     save: (groupId, draft) => controller.composeText(groupId, draft),
     send: async (groupId) => {
       let sent = false;
-      await options.run(async () => {
-        await controller.sendGroupDrafts(groupId);
-        sent = true;
-      });
+      const queued = performance.now();
+      await options.run(() =>
+        measureWork(
+          controller,
+          'group/send',
+          async () => {
+            await controller.sendGroupDrafts(groupId, sendProgress);
+            sent = true;
+          },
+          queued,
+        ),
+      );
       return sent;
-    },
-    // The readback joins the same owner as live hints; nothing waits for it.
-    sent: (groupId) => {
-      if (visibleGroup() === groupId)
-        reconciliation.request(groupId).catch(reportGroupError);
-      receipt.counters().catch(reportGroupError);
     },
     available: () => !!controller.selected && navigator.onLine,
     changed: () => {
@@ -194,6 +212,8 @@ export function startGroups(
     failed: reportGroupError,
     draftChanged: (draft, phase) => {
       outgoing.update(draft, phase);
+      if (phase !== 'save-failed')
+        delivery.step(phase === 'admitted' ? 'admitted' : 'staged', draft.id);
       renderHistory();
     },
   });
@@ -435,8 +455,34 @@ export function startGroups(
       render();
     },
   });
-  const readHistory = (id: string, older: boolean, localOnly: boolean) =>
-    historyWork.open({ id, older, localOnly });
+  const readHistory = async (
+    id: string,
+    older: boolean,
+    localOnly: boolean,
+  ): Promise<void> => {
+    const started = performance.now();
+    await historyWork.open({ id, older, localOnly });
+    if (!older && !localOnly) settleOutgoing(id, started);
+  };
+  /** A completed verified read of the latest window settles the group's own
+   * texts by ID. Accepted texts it lacks are no longer shown. */
+  function settleOutgoing(id: string, started: number): void {
+    const selected = controller.selected;
+    if (
+      selected?.state.groupId !== id ||
+      selected.localOnly ||
+      controller.historyPending
+    )
+      return;
+    const { settled, retired } = outgoing.verified(
+      id,
+      new Set(controller.views.map((view) => view.id)),
+      started,
+    );
+    for (const message of settled) delivery.step('settled', message);
+    for (const message of retired) delivery.step('retired', message);
+    if (retired.length) renderHistory();
+  }
   function visibleGroup(): string | null {
     const selected = controller.selected;
     return selected &&
@@ -539,6 +585,10 @@ export function startGroups(
         ...pendingRows(),
       ],
       externalAbort.signal,
+    );
+    delivery.rendered(
+      controller.selected?.state.groupId ?? null,
+      controller.views,
     );
     for (const view of controller.views) {
       const row = history.querySelector<HTMLElement>(
@@ -1317,7 +1367,10 @@ export function startGroups(
       controller.search(query, after),
     refresh,
     /** A categorized change; only a general wakeup refreshes the directory. */
-    changed: (change: GroupChange) => receipt.changed(change),
+    changed: (change: GroupChange) => {
+      if (change === 'content') delivery.hint();
+      return receipt.changed(change);
+    },
     counters: () => receipt.counters(),
     synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
     pauseSynchronization: () => controller.pauseSynchronization(),
