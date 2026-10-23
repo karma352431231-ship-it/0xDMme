@@ -1,5 +1,5 @@
 import { countShareClick } from './share-click.ts';
-import { t } from '../../shared/i18n/index.ts';
+import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postShareState } from '../../shared/post-sharing/index.ts';
 import type { Communities } from './controller.ts';
@@ -19,7 +19,15 @@ export function postSharing(
   if (post.status !== 'visible') return;
   const button = access ? el('button') : el('a');
   button.className = 'post-action post-share';
-  button.append(communityIcon('share'));
+  // Public count of profiles sharing the post; older payloads omit it.
+  const count = el('span', '', 'post-share-count');
+  let shares = post.shares ?? null;
+  const paintCount = () => {
+    count.hidden = shares === null;
+    count.textContent = shares?.toLocaleString(currentLanguage()) ?? '';
+  };
+  paintCount();
+  button.append(communityIcon('share'), count);
   container.append(button);
   button.addEventListener('click', () => {
     if (button.getAttribute('aria-pressed') === 'true') return;
@@ -59,6 +67,9 @@ export function postSharing(
         }),
       );
       if (!access.valid()) return;
+      if (shares !== null && result.shared !== old.shared)
+        shares = Math.max(0, shares + (result.shared ? 1 : -1));
+      paintCount();
       paint(result.shared);
       window.dispatchEvent(
         new CustomEvent('0xdmme-post-share', {

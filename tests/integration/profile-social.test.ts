@@ -833,6 +833,7 @@ await test('social profile: metrics, public communities, follows, feeds and mode
       );
       const entry = overview.items.find((item) => item.post.id === id)!;
       assert.equal(entry.share?.author.id, sharerProfile.id);
+      assert.equal(entry.post.shares, 1, 'a duplicate share counts once');
       assert.equal(entry.post.author?.id, identity.id);
       assert.equal(
         entry.viewerVote,

@@ -222,6 +222,7 @@ const migrations = [
   '096-message-sync-fences.sql',
   '097-community-games-topic.sql',
   '098-group-message-fences.sql',
+  '099-post-share-counts.sql',
 ];
 
 export interface MaintenanceSnapshot {

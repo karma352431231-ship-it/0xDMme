@@ -8,7 +8,7 @@ import {
 import type pg from 'pg';
 import { discussionRows } from './community-discussion.ts';
 import type { DiscussionOrder } from '../../shared/community-discussion/index.ts';
-import { sharedPostIds } from './post-sharing.ts';
+import { postShareCounts, sharedPostIds } from './post-sharing.ts';
 import { withPostInteractions } from './community-interaction-view.ts';
 import { queueWatchedPost } from './public-notice-wake.ts';
 import {
@@ -144,6 +144,7 @@ interface PostLookup {
   extras: Map<string, string[]>;
   media: Map<string, PublicPostMedia[]>;
   badges: Map<string, CommunityBadge[]>;
+  shares: Map<string, number>;
 }
 function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
   return (
@@ -324,7 +325,13 @@ export class CommunityPostStore {
       client,
       rows.map((row) => row.id),
     );
-    return { authors, tags, extras, media, badges, blocked };
+    const shares = await postShareCounts(
+      client,
+      rows
+        .filter((row) => !row.deleted && !row.active_removal)
+        .map((row) => row.id),
+    );
+    return { authors, tags, extras, media, badges, blocked, shares };
   }
   private view(row: PostRow, lookup: PostLookup): CommunityPost {
     const status = row.deleted
@@ -348,6 +355,7 @@ export class CommunityPostStore {
       score: row.score,
       replies: row.replies,
       views: visible ? Number(row.views) : 0,
+      shares: visible ? (lookup.shares.get(row.id) ?? 0) : 0,
     };
   }
   async read(community: string, id: string): Promise<CommunityPost> {
