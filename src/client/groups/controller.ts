@@ -59,7 +59,12 @@ import {
   changeGroupEvent,
   proposeGroupConsent,
 } from './transitions.ts';
-import { composeGroup, sendGroupPending, discardGroupDraft } from './outbox.ts';
+import {
+  composeGroup,
+  sendGroupPending,
+  discardGroupDraft,
+  staleGroupSend,
+} from './outbox.ts';
 import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -978,9 +983,23 @@ export class GroupController {
   }
   /** Saves a text to that group's encrypted outbox, whichever group is open
    * when the save runs; sending still verifies the group first. */
-  async composeText(groupId: string, text: string): Promise<void> {
-    await this.withAuthority((c) =>
-      composeGroup({ authority: c.authority, groupId, text, selection: null }),
+  /** Stages a text in that group's encrypted outbox with this device's
+   * verified local authority: no network read is needed to keep a draft, and
+   * sending revalidates the group and its members online. The draft keeps its
+   * queue ID and admission order. */
+  async composeText(
+    groupId: string,
+    draft: { id: string; text: string; order: number },
+  ): Promise<void> {
+    await this.withLocalAuthority((authority) =>
+      composeGroup({
+        authority,
+        groupId,
+        text: draft.text,
+        selection: null,
+        id: draft.id,
+        order: draft.order,
+      }),
     );
   }
   async compose(
@@ -1054,6 +1073,16 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     await this.sendSelectedPending(selected);
   }
+  /** Sends one group's drafts whether or not it is still the open group. */
+  async sendGroupDrafts(groupId: string): Promise<void> {
+    const group =
+      this.selected?.state.groupId === groupId
+        ? this.selected
+        : this.entries.find((entry) => entry.state.groupId === groupId);
+    if (!group || group.localOnly) return;
+    this.retry.reset(groupId);
+    await this.sendSelectedPending(group);
+  }
   async pendingWork(): Promise<boolean> {
     const selected = this.selected;
     return (
@@ -1076,7 +1105,17 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     return true;
   }
+  /** A stale rejection is retried once with everything prepared again:
+   * identities, group verification, participant directories and devices. */
   private async sendSelectedPending(selected: GroupSummary): Promise<void> {
+    try {
+      await this.sendPreparedPending(selected);
+    } catch (error: unknown) {
+      if (!staleGroupSend(error)) throw error;
+      await this.sendPreparedPending(selected);
+    }
+  }
+  private async sendPreparedPending(selected: GroupSummary): Promise<void> {
     await this.identities.load();
     await this.withAuthority(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);

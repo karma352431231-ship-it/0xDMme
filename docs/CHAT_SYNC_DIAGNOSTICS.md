@@ -260,3 +260,46 @@ order to its own group's encrypted outbox (`composeText`), and one background
 transmission sends whatever is pending. Attachments and voice keep the
 foreground path. Group texts do not yet get the optimistic bubble private
 texts show; they appear once the batch is sent.
+
+## Group send latency — 23 October 2026
+
+A three-message capture showed each group text taking about 1.5–2 s from
+submit to an accepted publish (the publish itself about 145 ms) and about
+3–3.6 s to the next history confirmation. The queue stayed in its sending phase
+until a full selected-history readback finished, so the next transmission
+waited for it, and live hints and post-send readbacks each ran their own read.
+
+- A transmission now ends once the server accepted and the outbox entry was
+  cleared; the readback is only requested. `groups/reconciliation.ts` is the
+  single owner of a group's readback: live content hints and post-send
+  requests share it, a request during a read costs one more read, and reads
+  never overlap.
+- Drafts keep their queue ID as the message ID and a persisted admission
+  order; sending reads every outbox page and sends in that order, routed to
+  each draft's own group. Participant directories are read once per batch.
+- Text drafts are staged with the device's verified local authority; sending
+  still revalidates the group, its members and their devices online.
+- `groups/outgoing.ts` shows an own text from the moment it is typed until the
+  verified history contains the same ID. By the owner's decision, pending and
+  accepted texts show one check and a received text two, with no state
+  phrase; this applies to private pending bubbles too.
+
+Recipient-side latency was not measured; a paired sender/recipient capture is
+still needed.
+
+### Device trust prepared once per group send batch
+
+Each group message queried every member's Matrix devices before encrypting.
+`message-crypto/group-batch.ts` now lets the messages of one send batch share
+that query when the group period, members, participant directories, recovery
+keys and sender authority are identical: at most sixteen messages and ten
+seconds, and nothing is reused across batches, so a device added or a Matrix
+registration published since is found by the next batch. The server still
+checks members, directories, recovery and key destinations on every publish.
+When it rejects a packet as stale (409), the stored packet and the batch's
+trust are cleared and the controller retries once with identities, group
+verification, directories and devices prepared again. Before this change a
+rejected packet stayed in the outbox and would have been resent unchanged.
+Reuse across batches still needs a version that also covers Matrix
+registrations, since a device can publish Matrix keys without changing its
+signed directory.

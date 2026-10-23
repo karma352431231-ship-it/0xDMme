@@ -59,6 +59,9 @@ import type { GroupView } from './reader.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import { groupTextQueue } from './text-queue.ts';
+import { GroupOutgoing } from './outgoing.ts';
+import type { PendingGroupText } from './outgoing.ts';
+import { GroupReconciliation } from './reconciliation.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -147,29 +150,39 @@ export function startGroups(
   function sidebar<T extends HTMLElement>(selector: string): T | null {
     return aside?.querySelector<T>(selector) ?? null;
   }
+  const outgoing = new GroupOutgoing();
+  function reportGroupError(error: unknown): void {
+    notice =
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Could not complete the group operation.');
+    status();
+  }
   const texts = groupTextQueue({
-    save: (groupId, text) => controller.composeText(groupId, text),
-    send: async () => {
+    save: (groupId, draft) => controller.composeText(groupId, draft),
+    send: async (groupId) => {
       let sent = false;
       await options.run(async () => {
-        await controller.sendPending();
+        await controller.sendGroupDrafts(groupId);
         sent = true;
-        await reopen();
       });
       return sent;
     },
-    more: async () => (await controller.pending()).length > 0,
+    // The readback joins the same owner as live hints; nothing waits for it.
+    sent: (groupId) => {
+      if (visibleGroup() === groupId)
+        reconciliation.request(groupId).catch(reportGroupError);
+      receipt.counters().catch(reportGroupError);
+    },
     available: () => !!controller.selected && navigator.onLine,
     changed: () => {
       composerStatus();
       status();
     },
-    failed: (error) => {
-      notice =
-        error instanceof Error
-          ? translatedError(error.message)
-          : t('Could not complete the group operation.');
-      status();
+    failed: reportGroupError,
+    draftChanged: (draft, phase) => {
+      outgoing.update(draft, phase);
+      renderHistory();
     },
   });
   /** Plain text uses the background queue; attachments and voice do not. */
@@ -365,17 +378,21 @@ export function startGroups(
   });
   const readHistory = (id: string, older: boolean, localOnly: boolean) =>
     historyWork.open({ id, older, localOnly });
+  function visibleGroup(): string | null {
+    const selected = controller.selected;
+    return selected &&
+      !selected.localOnly &&
+      document.visibilityState === 'visible' &&
+      host?.getClientRects().length
+      ? selected.state.groupId
+      : null;
+  }
+  const reconciliation = new GroupReconciliation((id) =>
+    readHistory(id, false, false),
+  );
   const receipt = new GroupReceipt({
-    visibleGroup: () => {
-      const selected = controller.selected;
-      return selected &&
-        !selected.localOnly &&
-        document.visibilityState === 'visible' &&
-        host?.getClientRects().length
-        ? selected.state.groupId
-        : null;
-    },
-    readSelected: (id) => readHistory(id, false, false),
+    visibleGroup,
+    readSelected: (id) => reconciliation.request(id),
     receipts: async () => {
       await controller.refreshReceipts();
       renderHistory();
@@ -442,20 +459,23 @@ export function startGroups(
     const restoreScroll = historyPosition(history);
     externalRows.render(
       history,
-      controller.views.map((view) => ({
-        id: view.id,
-        key: JSON.stringify([
-          view.text,
-          view.hash,
-          view.sender,
-          name(view.sender),
-          view.localOnly,
-          view.kind,
-          view.unavailableMedia,
-          view.edited,
-        ]),
-        render: (signal) => renderView(view, signal),
-      })),
+      [
+        ...controller.views.map((view) => ({
+          id: view.id,
+          key: JSON.stringify([
+            view.text,
+            view.hash,
+            view.sender,
+            name(view.sender),
+            view.localOnly,
+            view.kind,
+            view.unavailableMedia,
+            view.edited,
+          ]),
+          render: (signal: AbortSignal) => renderView(view, signal),
+        })),
+        ...pendingRows(),
+      ],
       externalAbort.signal,
     );
     for (const view of controller.views) {
@@ -467,6 +487,49 @@ export function startGroups(
     restoreScroll();
     const older = node('[data-group-older]');
     if (older) older.hidden = controller.before === null;
+  }
+  /** Own texts not in the verified history yet, after it, with one check. */
+  function pendingRows() {
+    const group = controller.selected;
+    if (!group) return [];
+    return outgoing
+      .rows(group.state.groupId, new Set(controller.views.map((v) => v.id)))
+      .map((text) => ({
+        id: `pending:${text.id}`,
+        key: JSON.stringify(['pending', text.text, text.failed]),
+        render: () => renderPendingText(text),
+      }));
+  }
+  function renderPendingText(text: PendingGroupText): HTMLElement {
+    const article = document.createElement('article');
+    article.className = 'chat-message own';
+    article.dataset['groupPending'] = text.id;
+    const sender = document.createElement('strong');
+    sender.textContent = t('You');
+    const body = document.createElement('p');
+    emojiText(body, text.text);
+    const state = document.createElement('small');
+    state.className = 'message-meta';
+    if (text.failed) {
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'message-send-failed';
+      retry.textContent = '✕';
+      retry.title = t('chat.save-failed');
+      retry.setAttribute(
+        'aria-label',
+        t('{0}. {1}', [t('chat.save-failed'), t('chat.retry-save')]),
+      );
+      retry.addEventListener('click', () => texts.retry());
+      state.append(retry);
+    } else
+      state.append(
+        checksIcon(
+          messageChecks({ own: true, delivery: 'accepted', read: false })!,
+        ),
+      );
+    article.append(sender, body, state);
+    return article;
   }
   function renderView(view: GroupView, mediaSignal: AbortSignal): HTMLElement {
     const article = document.createElement('article');
@@ -1191,6 +1254,7 @@ export function startGroups(
       }
       session = value;
       texts.reset();
+      outgoing.clear();
       loading.reset();
       messageActions.close();
       actions.setSession(value);

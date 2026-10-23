@@ -1,5 +1,7 @@
 import type { PrivateAudiences } from './audiences.ts';
 export { PrivateAudiences } from './audiences.ts';
+export { GroupSendBatch } from './group-batch.ts';
+import type { GroupSendBatch } from './group-batch.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { optionalRelation } from '../../shared/daily/index.ts';
@@ -77,6 +79,8 @@ import {
   currentRecoveryKey,
 } from '../message-recovery/index.ts';
 export interface GroupEncryptionInput {
+  /** Shares device trust with earlier messages of the same send batch. */
+  batch?: GroupSendBatch;
   authority: VaultAuthority;
   state: GroupEvent;
   histories: DirectoryEvent[][];
@@ -530,7 +534,6 @@ export class MessageCrypto {
     await this.prepare(input.authority);
     const histories = await this.groupHistories(input);
     const transport = groupTransport(input.transport);
-    await this.trustGroupDevices(histories, transport);
     const room = groupRoom(input.state.groupId, input.state.epoch);
     const destinations = await Promise.all(
       histories.map(async (history) => {
@@ -543,6 +546,7 @@ export class MessageCrypto {
         };
       }),
     );
+    await this.trustForBatch(input, { histories, transport, destinations });
     const membership = canonical([
       destinations,
       input.recovery.map((key) => key.id),
@@ -749,6 +753,29 @@ export class MessageCrypto {
     } finally {
       claim.free();
     }
+  }
+  /** Queries members' Matrix devices unless this batch already did so for
+   * exactly the same period, members, directories, recovery and sender. */
+  private async trustForBatch(
+    input: GroupEncryptionInput,
+    trust: {
+      histories: DirectoryEvent[][];
+      transport: MessageTransport;
+      destinations: GroupDestination[];
+    },
+  ): Promise<void> {
+    const key = canonical([
+      input.state.groupId,
+      input.state.epoch,
+      await groupEventHash(input.state),
+      trust.destinations,
+      input.recovery.map((recovery) => recovery.id),
+      input.authority.session.deviceId,
+      input.authority.directory,
+    ]);
+    const reused = input.batch?.covers(key) ?? false;
+    if (!reused) await this.trustGroupDevices(trust.histories, trust.transport);
+    input.batch?.used(key, !reused);
   }
   private async trustGroupDevices(
     histories: DirectoryEvent[][],
