@@ -958,6 +958,8 @@ export function startGroups(
       }
       input.value = '';
       input.dispatchEvent(new Event('input'));
+      // Keep typing: the chat and its keyboard stay as they were.
+      input.focus();
       return true;
     }
     bind('[data-group-emoji]', () => {

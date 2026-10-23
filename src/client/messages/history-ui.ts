@@ -259,7 +259,12 @@ export class MessageHistoryUi {
   private messageState(view: DailyView<MessageView>): HTMLElement {
     const detail = document.createElement('small');
     detail.className = 'message-meta';
-    const checks = messageChecks({ ...view, read: this.readIds.has(view.id) });
+    const delivery = ownDelivery(view);
+    const checks = messageChecks({
+      own: view.own,
+      ...(delivery ? { delivery } : {}),
+      read: this.readIds.has(view.id),
+    });
     if (checks)
       detail.append(
         checksIcon({
@@ -438,4 +443,13 @@ export class MessageHistoryUi {
     this.renderStates();
     this.options.receiptsVerified?.({ peer, outgoing, read: receipts });
   }
+}
+
+/** An own message the server accepted shows one check, never the state text,
+ * until a recipient device's receipt is known. */
+function ownDelivery(view: MessageView): MessageView['delivery'] {
+  return (
+    view.delivery ??
+    (view.own && view.state === messageStates.accepted ? 'accepted' : undefined)
+  );
 }
