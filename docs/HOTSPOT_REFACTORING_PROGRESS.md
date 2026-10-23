@@ -30,11 +30,27 @@ Work settings, so the prepared synthetic before/after browser comparison could
 not run. Visual equivalence across themes, breakpoints, focus and open/closed
 states remains unverified; automated checks do not replace that evidence.
 
-## Remaining authorized work
+## H02: public posts and discovery ownership
 
-H02: separate post-card resources, isolated tag management and bounded post
-list ownership; give discovery feed and ranking their own page state/lifetime.
-Reuse the existing thread, snapshot, reply and feed-card modules.
+`posts.ts` switches the post-list and tag-editor lifetimes. `post-list.ts`
+owns the bounded displayed page and composes the existing thread. `post-card.ts`
+owns card nodes, media/observer cleanup and restricted-option invalidation;
+it receives an immutable route context and narrow post operations. `tag-management.ts`
+owns tag pagination, busy state and the stable create ID across retries.
+
+`discovery-feed.ts` and `discovery-ranking.ts` each own their displayed query,
+cursor, snapshot and media lifetime. The discovery entry point retains controls,
+routing, bookmarks, parked-page orchestration and account-ranking composition.
+Existing card, thread, snapshot and refresh-presentation contracts are reused.
+The operation interfaces used by post sharing and preference controls now require
+only their existing request capability.
+
+Validation: 38 focused post/thread/discovery tests passed, including three new
+lifecycle characterizations. ESLint, strict types, dependency boundaries,
+repository formatting and web build passed. No server or database logic changed.
+The browser limitation recorded above still applies.
+
+## Remaining authorized work
 
 H01 presentation: retain existing directory/history/synchronization owners;
 extract the composer's independent draft, attachment and recording lifecycle.

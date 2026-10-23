@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
+import type { startCommunityPosts } from '../../src/client/communities/posts.ts';
 import type { startCommunityDiscovery } from '../../src/client/communities/discovery.ts';
 import type { Communities } from '../../src/client/communities/controller.ts';
 import type { AppLanguage } from '../../src/shared/i18n/index.ts';
@@ -15,7 +16,8 @@ import { CommunityNode, communityDocument } from './community-dom.ts';
 
 const bundle = await build({
   stdin: {
-    contents: `export { startCommunityDiscovery } from './src/client/communities/discovery.ts';
+    contents: `export { startCommunityPosts } from './src/client/communities/posts.ts';
+      export { startCommunityDiscovery } from './src/client/communities/discovery.ts';
       export { setActiveLanguage, t } from './src/shared/i18n/index.ts';`,
     resolveDir: process.cwd(),
   },
@@ -297,6 +299,8 @@ export function discoveryFixture(options: FixtureOptions = {}) {
           state.accountReply ? await state.accountReply() : state.accounts,
         );
       }
+      if (url.pathname.endsWith('/tags'))
+        return Response.json({ items: [], next: null });
       return Response.json(
         await read(
           url.searchParams.get('after'),
@@ -319,6 +323,7 @@ export function discoveryFixture(options: FixtureOptions = {}) {
   runInNewContext(source, context);
   const exported = context['discoveryUi'] as {
     startCommunityDiscovery: typeof startCommunityDiscovery;
+    startCommunityPosts: typeof startCommunityPosts;
     setActiveLanguage: (language: AppLanguage) => void;
     t: (source: string) => string;
   };
@@ -356,6 +361,12 @@ export function discoveryFixture(options: FixtureOptions = {}) {
       ),
     mount,
     t: exported.t,
+    posts: () =>
+      exported.startCommunityPosts(
+        controller as unknown as Communities,
+        {} as Parameters<typeof startCommunityPosts>[1],
+        () => undefined,
+      ),
     scroll(top: number) {
       host.scrollTop = top;
       document.dispatchEvent(new Event('scroll'));

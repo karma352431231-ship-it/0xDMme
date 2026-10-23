@@ -10,7 +10,7 @@ export function postSharing(
   container: HTMLElement,
   post: CommunityPost,
   access: {
-    controller: Communities;
+    controller: Pick<Communities, 'request'>;
     run: (work: () => Promise<void>) => Promise<void>;
     valid: () => boolean;
     shared?: boolean | undefined;

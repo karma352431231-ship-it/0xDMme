@@ -18,7 +18,7 @@ import { postReportForm } from './post-forms.ts';
 
 interface Actions {
   saved?: boolean | undefined;
-  controller: Communities;
+  controller: Pick<Communities, 'request'>;
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
   changed: (state?: PostState) => Promise<void>;

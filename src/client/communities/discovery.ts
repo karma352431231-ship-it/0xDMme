@@ -1,38 +1,36 @@
-import type { PublicActionAccess } from '../public-action-guidance/index.ts';
-import { watchRankingUpdates } from './ranking-live.ts';
-import { postSearchQuery } from '../../shared/post-search/index.ts';
-import { feedSearchScope, appendFeedSearchSummary } from './feed-search.ts';
-import { rankingScopes, mountDiscoveryRanking } from './account-ranking.ts';
-import { renderFeedCard } from './feed-card.ts';
-import { renderCommunityRanking } from './ranking-view.ts';
-import { rankingTopicFilter } from './classification.ts';
 import type { CommunityTopic } from '../../shared/community-classification/index.ts';
-import { t, translatedError } from '../../shared/i18n/index.ts';
-import { mountPublicSearchToolbar } from '../public-search/index.ts';
-import { hasOpenFeedReply } from './feed-reply.ts';
-import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
-import {
-  feedFilter,
-  discoveryPeriod,
-  feedPage,
-  exploreFilter,
-} from '../../shared/community-discovery/index.ts';
 import type {
   DiscoveryPeriod,
-  FeedOrder,
-  FeedScope,
   ExploreFilter,
+  FeedOrder,
 } from '../../shared/community-discovery/index.ts';
-import type { Communities } from './controller.ts';
-import type { FeedProfileFollows } from './feed-follow.ts';
-import { communityRead } from './controller.ts';
 import {
-  communityButton as button,
-  communityElement as el,
-  communityLink as link,
-} from './elements.ts';
+  discoveryPeriod,
+  exploreFilter,
+  feedFilter,
+} from '../../shared/community-discovery/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
+import { postSearchQuery } from '../../shared/post-search/index.ts';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { DiscoverySnapshot } from './discovery-page.ts';
+import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
+import type { PublicActionAccess } from '../public-action-guidance/index.ts';
+import { mountPublicSearchToolbar } from '../public-search/index.ts';
+import { mountDiscoveryRanking, rankingScopes } from './account-ranking.ts';
+import { rankingTopicFilter } from './classification.ts';
+import type { Communities } from './controller.ts';
+import {
+  discoveryMenu,
+  discoveryPeriods,
+  feedOrders,
+} from './discovery-controls.ts';
+import { DiscoveryFeedPage } from './discovery-feed.ts';
+import { DiscoveryRankingPage } from './discovery-ranking.ts';
+import { communityElement as el, communityLink as link } from './elements.ts';
+import type { FeedProfileFollows } from './feed-follow.ts';
+import { FeedRefresh } from './feed-refresh.ts';
+import { hasOpenFeedReply } from './feed-reply.ts';
+import type { FeedBookmark } from './feed-return.ts';
 import {
   FeedPark,
   feedPosition,
@@ -40,15 +38,9 @@ import {
   rememberedFeedChoice,
   restoreFeedPosition,
 } from './feed-return.ts';
-import { FeedRefresh } from './feed-refresh.ts';
-import type { PublicProfile } from '../../shared/public-profile/index.ts';
-import type { FeedBookmark } from './feed-return.ts';
+import { appendFeedSearchSummary, feedSearchScope } from './feed-search.ts';
 import { communityIcon } from './presentation.ts';
-import {
-  discoveryMenu,
-  feedOrders,
-  discoveryPeriods,
-} from './discovery-controls.ts';
+import { watchRankingUpdates } from './ranking-live.ts';
 
 export function startCommunityDiscovery(
   controller: Communities,
@@ -69,16 +61,9 @@ export function startCommunityDiscovery(
     search = '',
     order: FeedOrder = 'mixed',
     period: DiscoveryPeriod = 'all',
-    exploreOrder: ExploreFilter['order'] = 'trending',
-    after: string | null = null,
-    rankOffset = 0;
+    exploreOrder: ExploreFilter['order'] = 'trending';
   let selectedTopics: CommunityTopic[] = [];
-  const seen = new Set<string>();
-  const snapshot = new DiscoverySnapshot();
-  let displayedAfter: string | null = null;
-  let displayedRank = 0;
-  // Newest post time on the first feed page shown; the refresh pill looks for later posts.
-  let newest = 0;
+  let page: DiscoveryFeedPage | DiscoveryRankingPage | null = null;
   let feedRefresh: FeedRefresh | null = null;
   let rankingScope: ReturnType<typeof rankingScopes> | null = null;
   // The pill has its own lifetime: a kept page gets a new one on its return.
@@ -87,11 +72,6 @@ export function startCommunityDiscovery(
   let foreign = new Set<Node>();
   const park = new FeedPark();
   let tabBookmark: FeedBookmark | null = null;
-  const mediaCleanup = new Set<() => void>();
-  function clearMedia(): void {
-    for (const cleanup of mediaCleanup) cleanup();
-    mediaCleanup.clear();
-  }
   function disabled(): void {
     mounted
       ?.querySelectorAll<
@@ -107,7 +87,7 @@ export function startCommunityDiscovery(
     busy = Promise.resolve()
       .then(work)
       .catch((error: unknown) => {
-        snapshot.clear();
+        page?.invalidate();
         if (old === generation && feedback)
           feedback.textContent =
             error instanceof Error
@@ -219,151 +199,18 @@ export function startCommunityDiscovery(
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
     appendOwnProfileShortcut(toolbar);
   }
-  function query(cursor = after): string {
-    const data = new URLSearchParams({
-      order: view === 'explore' ? exploreOrder : order,
-      period,
-    });
-    if (view === 'explore' && selectedTopics.length)
-      data.set('topics', selectedTopics.join(','));
-    if (cursor) data.set('after', cursor);
-    if (search && view !== 'explore') data.set('q', search);
-    return data.toString();
-  }
-  function scope(): FeedScope {
-    return view === 'following'
-      ? 'following'
-      : view === 'saved'
-        ? 'saved'
-        : view === 'hidden'
-          ? 'hidden'
-          : 'all';
-  }
-  async function read(cursor = after): Promise<unknown> {
-    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]);
-    if (view === 'explore')
-      return communityRead(`/api/communities/explore?${query(cursor)}`, signal);
-    if (signedIn)
-      return controller.request('discovery-feed', {
-        filter: {
-          scope: scope(),
-          order,
-          period,
-          community: null,
-          tag: null,
-          ...(search ? { search } : {}),
-        },
-        after: cursor,
-      });
-    return communityRead(`/api/communities/feed?${query(cursor)}`, signal);
-  }
-  /** Authors of first-page posts newer than the newest one already shown. */
   async function peekNewAuthors(signal: AbortSignal): Promise<PublicProfile[]> {
-    if (!newest) return [];
-    const page = feedPage(await read(null));
-    if (signal.aborted) return [];
-    const authors = new Map<string, PublicProfile>();
-    for (const { post } of page.items)
-      if (post.author && Date.parse(post.createdAt) > newest)
-        authors.set(post.author.id, post.author);
-    return [...authors.values()];
+    return page?.kind === 'feed' ? page.peek(signal) : [];
   }
-  function rememberNewest(page: ReturnType<typeof feedPage>): void {
-    newest = Math.max(
-      0,
-      ...page.items.map(({ post }) => Date.parse(post.createdAt) || 0),
-    );
-  }
-  /** True when the page on screen was redrawn. */
-  async function load(): Promise<boolean> {
-    const old = generation,
-      requestedAfter = after,
-      requestedRank = rankOffset,
-      requestedQuery = query(),
-      result = await read();
-    if (old !== generation || !list || !paging) return false;
-    const { page, changed } = snapshot.read(view, requestedQuery, result);
-    after = page.value.next;
-    displayedAfter = requestedAfter;
-    displayedRank = requestedRank;
-    if (feedback) feedback.textContent = '';
-    if (!changed) {
-      if (page.kind === 'explore') rankOffset += page.value.items.length;
-      return false;
-    }
-    clearMedia();
-    list.replaceChildren();
-    paging.replaceChildren();
-    seen.clear();
-    renderPage(page, old, requestedAfter === null);
-    if (!list.children.length)
-      list.append(
-        el(
-          'p',
-          t('No content on this page matches these filters.'),
-          'community-empty',
-        ),
-      );
-    if (after)
-      button(paging, t('Next page'), () =>
-        run(async () => {
-          await load();
-        }),
-      );
-    return true;
-  }
-  function renderPage(
-    page: ReturnType<DiscoverySnapshot['read']>['page'],
-    old: number,
-    first: boolean,
-  ): void {
-    if (page.kind === 'explore') {
-      if (list)
-        rankOffset = renderCommunityRanking(list, page.value, {
-          order: exploreOrder,
-          offset: rankOffset,
-          signal: abort.signal,
-          addCleanup: (cleanup) => {
-            mediaCleanup.add(cleanup);
-          },
-        });
-      return;
-    }
-    renderFeed(page.value, old);
-    if (first) rememberNewest(page.value);
-  }
-  function renderFeed(page: ReturnType<typeof feedPage>, old: number): void {
-    for (const entry of page.items) {
-      const post = entry.post;
-      if (seen.has(post.id)) continue;
-      // Keep only a bounded recent window; pagination does not accumulate DOM/content.
-      seen.add(post.id);
-      if (seen.size > 240) seen.delete(seen.values().next().value!);
-      const row = renderFeedCard(entry, {
-        search,
-        controller,
-        profiles,
-        participation,
-        privacy,
-        signal: abort.signal,
-        signedIn,
-        chooseOnMobile: view === 'feed' || view === 'following',
-        run,
-        valid: () => old === generation,
-        changed: reload,
-        followChanged: () => followChanged(),
-        addCleanup: (cleanup) => {
-          mediaCleanup.add(cleanup);
-        },
-      });
-      list?.append(row);
-    }
+  function load(): Promise<boolean> {
+    if (!page) return Promise.resolve(false);
+    return page.kind === 'feed'
+      ? page.load({ order, period, search })
+      : page.load({ order: exploreOrder, period, topics: selectedTopics });
   }
   async function reload(): Promise<void> {
     if (mounted) feedScrollerReset();
-    after = null;
-    rankOffset = 0;
-    seen.clear();
+    page?.reset();
     await load();
   }
   function feedScrollerReset(): void {
@@ -384,8 +231,7 @@ export function startCommunityDiscovery(
     if (rankingScope?.active()) return rankingScope.refresh();
     if (!mounted || hasOpenFeedReply(mounted)) return;
     await run(async () => {
-      after = displayedAfter;
-      rankOffset = displayedRank;
+      page?.showDisplayed();
       await load();
     });
   }
@@ -440,8 +286,7 @@ export function startCommunityDiscovery(
         );
     });
     void run(async () => {
-      after = displayedAfter;
-      rankOffset = displayedRank;
+      page?.showDisplayed();
       if ((await load()) && mounted)
         restoreFeedPosition(
           mounted,
@@ -451,7 +296,8 @@ export function startCommunityDiscovery(
     });
   }
   function teardown(): void {
-    clearMedia();
+    page?.dispose();
+    page = null;
     generation++;
     abort.abort();
     refreshAbort.abort();
@@ -459,11 +305,6 @@ export function startCommunityDiscovery(
     list = null;
     paging = null;
     feedback = null;
-    seen.clear();
-    snapshot.clear();
-    displayedAfter = null;
-    displayedRank = 0;
-    newest = 0;
     feedRefresh = null;
   }
   function startPage(bookmark?: FeedBookmark | null): void {
@@ -472,7 +313,7 @@ export function startCommunityDiscovery(
       return;
     }
     void run(async () => {
-      after = bookmark.after;
+      page?.startAt(bookmark.after);
       await load();
       if (mounted) restoreFeedPosition(mounted, bookmark, abort.signal);
     });
@@ -500,7 +341,7 @@ export function startCommunityDiscovery(
       view,
       order,
       period,
-      after: displayedAfter,
+      after: page?.displayedAfter ?? null,
       ...(search ? { search } : {}),
       ...feedPosition(mounted),
     };
@@ -602,6 +443,27 @@ export function startCommunityDiscovery(
       );
       paging = el('div', '', 'post-toolbar');
       mounted.append(feedback, list, paging);
+      const presentation = {
+        list,
+        paging,
+        feedback,
+        signal: abort.signal,
+        run,
+      };
+      page =
+        view === 'explore'
+          ? new DiscoveryRankingPage(presentation)
+          : new DiscoveryFeedPage({
+              ...presentation,
+              view,
+              signedIn,
+              controller,
+              profiles,
+              participation,
+              privacy,
+              reload,
+              followChanged: () => followChanged(),
+            });
       startRefreshPill();
       startPage(options.bookmark);
     },
