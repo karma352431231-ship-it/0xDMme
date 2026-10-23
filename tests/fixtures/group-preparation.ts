@@ -186,6 +186,18 @@ export function groupPreparationFixture() {
         },
         'group-message-relations': () => ({ ids: [] }),
         'group-message-confirm': () => ({}),
+        // The revision never moves here, so a warm read has no changes.
+        'group-message-delta': () => ({
+          snapshot: handlers['group-message-snapshot']!(),
+          changes: {
+            reset: false,
+            from: payload['from'],
+            revision: 1,
+            items: [],
+            next: null,
+          },
+          objects: null,
+        }),
       };
       if (!handlers[operation])
         throw new Error('Unexpected fixture operation: ' + operation);

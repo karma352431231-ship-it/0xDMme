@@ -25,6 +25,15 @@ export interface GroupMessageScope {
 export function cutAnchor(scope: GroupMessageScope): number | null {
   return scope.cut?.anchor ?? null;
 }
+export type GroupChangePage =
+  | { reset: true }
+  | {
+      reset: false;
+      from: number;
+      revision: number;
+      items: (Omit<IndexRow, 'sequence'> & { sequence: number })[];
+      next: number | null;
+    };
 interface IndexRow {
   id: string;
   sequence: string;
@@ -59,7 +68,7 @@ export class GroupMessageUpdates {
       async (client) => ({
         ...scope,
         directory: a.directory,
-        ...(await this.head(client, scope.groupId)),
+        ...(await this.cut(client, scope.groupId)),
       }),
     );
   }
@@ -106,48 +115,60 @@ export class GroupMessageUpdates {
       input,
       async (client, state) => {
         await this.expect(client, input);
-        if (
-          input.from > input.revision ||
-          input.revision - input.from > 256 ||
-          input.after < input.from ||
-          input.after > input.revision
-        )
-          return { reset: true };
-        const changes = await client.query<{
-          revision: string;
-          message_id: string;
-        }>(
-          'SELECT c.revision::text,c.message_id FROM hash_talk.group_message_changes c WHERE c.group_id=$1 AND c.revision>$2 AND c.revision<=$3 ORDER BY c.revision LIMIT 16',
-          [input.groupId, input.after, input.revision],
-        );
-        let cursor = input.after;
-        for (const row of changes.rows)
-          if (Number(row.revision) !== ++cursor) return { reset: true };
-        if (cursor < input.revision && changes.rows.length < 16)
-          return { reset: true };
-        const ids = [...new Set(changes.rows.map((row) => row.message_id))];
-        const rows = await client.query<IndexRow>(
-          'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND id=ANY($4::uuid[]) AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY sequence::bigint LIMIT 16',
-          [
-            input.groupId,
-            this.joined(state, a),
-            state.epoch,
-            ids,
-            cutAnchor(input),
-          ],
-        );
-        return {
-          reset: false,
-          from: input.from,
-          revision: input.revision,
-          items: rows.rows.map((row) => ({
-            ...row,
-            sequence: Number(row.sequence),
-          })),
-          next: cursor < input.revision ? cursor : null,
-        };
+        return this.changesWithin(client, { a, state, input });
       },
     );
+  }
+  /** One change page of a scope already checked in this transaction. */
+  async changesWithin(
+    client: pg.PoolClient,
+    c: {
+      a: ContactAuthority;
+      state: GroupEvent;
+      input: GroupMessageScope & { from: number; after: number };
+    },
+  ): Promise<GroupChangePage> {
+    const { a, state, input } = c;
+    if (
+      input.from > input.revision ||
+      input.revision - input.from > 256 ||
+      input.after < input.from ||
+      input.after > input.revision
+    )
+      return { reset: true };
+    const changes = await client.query<{
+      revision: string;
+      message_id: string;
+    }>(
+      'SELECT c.revision::text,c.message_id FROM hash_talk.group_message_changes c WHERE c.group_id=$1 AND c.revision>$2 AND c.revision<=$3 ORDER BY c.revision LIMIT 16',
+      [input.groupId, input.after, input.revision],
+    );
+    let cursor = input.after;
+    for (const row of changes.rows)
+      if (Number(row.revision) !== ++cursor) return { reset: true };
+    if (cursor < input.revision && changes.rows.length < 16)
+      return { reset: true };
+    const ids = [...new Set(changes.rows.map((row) => row.message_id))];
+    const rows = await client.query<IndexRow>(
+      'SELECT id,sequence::text,epoch,hash,sender,relation,deletion,(body IS NULL) AS deleted FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND id=ANY($4::uuid[]) AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY sequence::bigint LIMIT 16',
+      [
+        input.groupId,
+        this.joined(state, a),
+        state.epoch,
+        ids,
+        cutAnchor(input),
+      ],
+    );
+    return {
+      reset: false,
+      from: input.from,
+      revision: input.revision,
+      items: rows.rows.map((row) => ({
+        ...row,
+        sequence: Number(row.sequence),
+      })),
+      next: cursor < input.revision ? cursor : null,
+    };
   }
   async remove(
     a: ContactAuthority,
@@ -250,7 +271,7 @@ export class GroupMessageUpdates {
   }
   /** Called under the group row lock, which also serializes packet inserts,
    * so the highest sequence bounds every packet visible at this revision. */
-  private async head(client: pg.PoolClient, group: string) {
+  async cut(client: pg.PoolClient, group: string) {
     const rows = await client.query<{
       revision: string;
       invalidation: string;

@@ -1063,6 +1063,35 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         (delta['items'] as { id: string }[]).map((row) => row.id),
         [edited.packet.id],
       );
+      // One delta request answers exactly what the three separate requests
+      // answer for the same cut.
+      const combined = object(
+        await message(messages, member, 'group-message-delta', {
+          ...scope,
+          from: before['revision'],
+        }),
+      );
+      assert.deepEqual(combined['snapshot'], after);
+      assert.deepEqual(combined['changes'], delta);
+      const cut = {
+        ...scope,
+        revision: after['revision'],
+        anchor: after['anchor'],
+        invalidation: after['invalidation'],
+      };
+      assert.deepEqual(combined['objects'], {
+        ids: [edited.packet.id],
+        page: await message(messages, member, 'group-message-objects', {
+          ...cut,
+          ids: [edited.packet.id],
+        }),
+      });
+      await assert.rejects(
+        message(messages, outsider, 'group-message-delta', {
+          ...scope,
+          from: before['revision'],
+        }),
+      );
       await message(messages, owner, 'group-message-publish', {
         packet: edited.packet,
         keys: null,
@@ -1136,6 +1165,18 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
       assert.deepEqual(
         new Set(rows.map((row) => row.id)),
         new Set([original.packet.id, edited.packet.id]),
+      );
+      const afterDeletion = object(
+        await message(messages, member, 'group-message-delta', {
+          ...scope,
+          from: after['revision'],
+        }),
+      );
+      assert.deepEqual(afterDeletion['changes'], changes);
+      assert.equal(
+        afterDeletion['objects'],
+        null,
+        'Deleted messages need only their index rows',
       );
       for (const row of rows)
         await verifyGroupDeletion(

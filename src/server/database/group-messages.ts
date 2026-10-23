@@ -364,16 +364,80 @@ export class GroupMessageStore {
       input,
       async (client, state) => {
         await this.updates.expect(client, input);
-        const joined = state.members.find(
-          (member) => member.accountId === authority.session.accountId,
-        )?.joined;
-        const rows = await client.query<PacketRow>(
-          'WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.id=ANY($4::uuid[]) AND ($5::bigint IS NULL OR p.sequence<=$5) ORDER BY p.sequence LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence) AS window_bytes,row_number() OVER(ORDER BY sequence) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint',
-          [input.groupId, joined, state.epoch, input.ids, cutAnchor(input)],
-        );
-        return this.pageContext(client, input.groupId, rows.rows);
+        return this.objectsWithin(client, { authority, state, input });
       },
     );
+  }
+  /** One delta request: the current finite cut, the first change page since
+   * the reader's confirmed revision and, when that page completes the change
+   * set, the packets it needs, all read under one membership check and group
+   * lock. It returns exactly what `group-message-snapshot`, `-changes` and
+   * `-objects` would for that cut; the reader still verifies every part and
+   * confirms the cut before showing anything. */
+  async delta(
+    authority: ContactAuthority,
+    input: { groupId: string; head: string; from: number },
+  ) {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        const current = await this.updates.cut(client, input.groupId),
+          snapshot = {
+            groupId: input.groupId,
+            head: input.head,
+            directory: authority.directory,
+            ...current,
+          },
+          scope = {
+            groupId: input.groupId,
+            head: input.head,
+            revision: current.revision,
+            cut: { anchor: current.anchor, invalidation: current.invalidation },
+          };
+        const changes = await this.updates.changesWithin(client, {
+          a: authority,
+          state,
+          input: { ...scope, from: input.from, after: input.from },
+        });
+        if (changes.reset || changes.next !== null)
+          return { snapshot, changes, objects: null };
+        const ids = changes.items
+          .filter((item) => !messageDeletion(item))
+          .map((item) => item.id);
+        if (!ids.length) return { snapshot, changes, objects: null };
+        return {
+          snapshot,
+          changes,
+          objects: {
+            ids,
+            page: await this.objectsWithin(client, {
+              authority,
+              state,
+              input: { ...scope, ids },
+            }),
+          },
+        };
+      },
+    );
+  }
+  private async objectsWithin(
+    client: pg.PoolClient,
+    c: {
+      authority: ContactAuthority;
+      state: GroupEvent;
+      input: GroupMessageScope & { ids: string[] };
+    },
+  ) {
+    const { authority, state, input } = c;
+    const joined = state.members.find(
+      (member) => member.accountId === authority.session.accountId,
+    )?.joined;
+    const rows = await client.query<PacketRow>(
+      'WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.id=ANY($4::uuid[]) AND ($5::bigint IS NULL OR p.sequence<=$5) ORDER BY p.sequence LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence) AS window_bytes,row_number() OVER(ORDER BY sequence) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint',
+      [input.groupId, joined, state.epoch, input.ids, cutAnchor(input)],
+    );
+    return this.pageContext(client, input.groupId, rows.rows);
   }
   async relations(
     authority: ContactAuthority,
@@ -489,4 +553,14 @@ export class GroupMessageStore {
       textBytes: await groupTextUsage(client, input.groupId),
     }));
   }
+}
+
+/** The reader skips packets its author deleted; it needs only their index row. */
+function messageDeletion(item: { deleted: boolean; deletion: unknown }) {
+  return (
+    item.deleted &&
+    typeof item.deletion === 'object' &&
+    item.deletion !== null &&
+    (item.deletion as { type?: unknown }).type === 'message'
+  );
 }

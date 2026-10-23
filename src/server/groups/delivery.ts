@@ -17,6 +17,7 @@ type DeliveryAction = (
 ) => Promise<unknown>;
 export const groupDeliveryOperations = [
   'group-message-snapshot',
+  'group-message-delta',
   'group-message-confirm',
   'group-message-index',
   'group-message-changes',
@@ -91,6 +92,11 @@ export function groupDeliveryActions(
         hash: fingerprint(d['hash']),
       }),
     'group-message-snapshot': (a, d) => store.updates.snapshot(a, scope(d, [])),
+    'group-message-delta': (a, d) =>
+      store.delta(a, {
+        ...scope(d, ['from']),
+        from: integer(d['from'], Number.MAX_SAFE_INTEGER),
+      }),
     'group-message-confirm': (a, d) =>
       store.updates.confirm(a, messageScope(d, [])),
     'group-message-index': (a, d) =>
