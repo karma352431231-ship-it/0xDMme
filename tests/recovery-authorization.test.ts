@@ -165,13 +165,8 @@ await test('outbound recovery follows the current epoch while historical decrypt
     const secret = await openRecoveryKey(previous, current);
     secret.free();
   });
-  await t.test('current recovery remains usable', async () => {
-    const fresh = await createRecoveryKey(current);
-    assert.equal(
-      (await ensureMessageRecovery(current, () => Promise.resolve(fresh))).id,
-      fresh.id,
-    );
-  });
+  // A directory's capsule is prepared once per session, so the rejection
+  // runs first; the failure is not remembered.
   await t.test(
     'own recovery preparation rejects a previous epoch',
     async () => {
@@ -180,6 +175,13 @@ await test('outbound recovery follows the current epoch while historical decrypt
       );
     },
   );
+  await t.test('current recovery remains usable', async () => {
+    const fresh = await createRecoveryKey(current);
+    assert.equal(
+      (await ensureMessageRecovery(current, () => Promise.resolve(fresh))).id,
+      fresh.id,
+    );
+  });
   await t.test(
     'direct recipient rejects a previous epoch with a still-active signer',
     async () => {

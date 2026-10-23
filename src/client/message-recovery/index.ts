@@ -18,6 +18,7 @@ import type {
   RoomKeyArchive,
 } from '../../shared/messages/index.ts';
 import { bytesHash } from '../../shared/vault/index.ts';
+import { canonical } from '../../shared/devices/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { openBlock, sealBlock } from '../vault-crypto/index.ts';
 
@@ -133,8 +134,34 @@ export function openRoomKey(
   );
 }
 
+/** Capsules this session already prepared. The server keeps one capsule per
+ * account and epoch and never replaces it (a concurrent initializer adopts the
+ * accepted one), and the epoch is part of the signed device directory, so the
+ * same account, device and directory hash always name the same capsule. Any
+ * directory change (a device added or removed, a new epoch) asks again. */
+const prepared = new Map<string, RecoveryKey>();
 /** Prepare the existing account recovery capsule before any shared publication. */
 export async function ensureMessageRecovery(
+  authority: VaultAuthority,
+  api: (
+    operation: string,
+    payload: Record<string, unknown>,
+  ) => Promise<unknown>,
+): Promise<RecoveryKey> {
+  const scope = canonical([
+      authority.session.accountId,
+      authority.session.deviceId,
+      authority.directory,
+    ]),
+    known = prepared.get(scope);
+  if (known) return known;
+  const key = await prepareMessageRecovery(authority, api);
+  prepared.delete(scope);
+  prepared.set(scope, key);
+  while (prepared.size > 8) prepared.delete(prepared.keys().next().value!);
+  return key;
+}
+async function prepareMessageRecovery(
   authority: VaultAuthority,
   api: (
     operation: string,

@@ -15,7 +15,9 @@ import {
   openRecoveryKey,
   archiveRoomKey,
   openRoomKey,
+  ensureMessageRecovery,
 } from '../src/client/message-recovery/index.ts';
+import { groupParticipant } from './fixtures/group-participant.ts';
 import {
   aesKey,
   createIdentity,
@@ -203,4 +205,41 @@ await test('unreceived message opens on a new device after recovering only the v
   } finally {
     readerKey.free();
   }
+});
+
+await test('a prepared recovery capsule is reused for the same account, device and directory only', async () => {
+  const first = await groupParticipant(),
+    second = await groupParticipant();
+  const keys = new Map(
+    await Promise.all(
+      [first, second].map(
+        async (p) =>
+          [p.accountId, await createRecoveryKey(p.authority)] as const,
+      ),
+    ),
+  );
+  let calls = 0,
+    fail = true;
+  const api = (owner: string) => (operation: string) => {
+    assert.equal(operation, 'recovery-current');
+    calls++;
+    if (fail) return Promise.reject(new Error('Offline'));
+    return Promise.resolve(keys.get(owner));
+  };
+  await assert.rejects(
+    ensureMessageRecovery(first.authority, api(first.accountId)),
+  );
+  fail = false;
+  const prepared = await ensureMessageRecovery(
+    first.authority,
+    api(first.accountId),
+  );
+  assert.equal(calls, 2, 'A failure is not remembered');
+  assert.equal(
+    await ensureMessageRecovery(first.authority, api(first.accountId)),
+    prepared,
+  );
+  assert.equal(calls, 2, 'Same directory: no request');
+  await ensureMessageRecovery(second.authority, api(second.accountId));
+  assert.equal(calls, 3, 'Another account or directory asks again');
 });

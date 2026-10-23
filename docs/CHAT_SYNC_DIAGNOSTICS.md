@@ -338,3 +338,37 @@ during the first read and cost one more.
 The content hint to the sender's own account still causes one read per batch:
 an empty hint cannot prove what it covers, so skipping it needs a versioned
 read cut or a reviewed notification change (next phase).
+
+## One-request warm group reads — 23 October 2026
+
+Every content hint for the open group ran a warm read of separate requests:
+`group-message-snapshot`, `group-message-changes` and `group-message-objects`
+before the final `group-message-confirm`, each its own round trip, plus
+`recovery-current` whenever packets were decoded and once per send.
+
+- `group-message-delta` returns, from one membership check and group lock,
+  the current finite cut, the first change page since the reader's confirmed
+  revision and, when that page completes the change set, the packets it needs.
+  Each part is byte-for-byte what the separate request would answer for that
+  cut. The reader (`groups/message-delta.ts`) feeds them through the existing
+  index and window validation as answers to exactly those requests, once;
+  any other request, a later page or the rest of a byte-limited packet batch
+  goes to the server. The final confirmation is unchanged, so a removal or
+  revocation after the response still rejects the cut before anything shows.
+  A warm read of one new message is now two requests instead of four.
+- Only warm reads use it (a confirmed window for the same account, device,
+  directory and head, and no unfinished change set). An older server answers
+  "Message operation unavailable." once and the session returns to separate
+  requests. No transaction holds network or SDK work.
+- `ensureMessageRecovery` keeps the capsule it prepared per account, device
+  and directory hash. The server stores one capsule per account and epoch and
+  never replaces it, and the epoch is part of the signed directory, so the
+  same directory names the same capsule; any directory change asks again.
+
+Not changed, because no reliable invalidation source exists yet: the SDK
+machine is still opened and prepared per read and per send; group governance
+is still verified per read; Matrix device trust is still reused only within a
+send batch. A device can publish Matrix keys without changing its signed
+directory, so cross-batch trust reuse needs a version that covers Matrix
+registrations. The content hint to the sender's own account still causes one
+(now cheaper) read per batch.

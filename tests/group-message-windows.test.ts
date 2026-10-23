@@ -45,6 +45,8 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     decoded: [] as string[],
     fail: false,
     failure: null as string | null,
+    /** null: no delta operation (older server); false: delta without packets. */
+    delta: true as boolean | null,
   };
   const metadata = (view: GroupView) => ({
     ...view,
@@ -94,6 +96,29 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
         (d['ids'] as string[]).includes(view.id),
       ),
     }),
+    // The server builds these from one cut; the fixture from the same data.
+    'group-message-delta': (d) => {
+      if (data.delta === null)
+        throw new AccountError(404, 'Message operation unavailable.');
+      const snapshot = handlers['group-message-snapshot']!(d) as {
+        revision: number;
+      };
+      const ids = data.changed.map((view) => view.id);
+      return {
+        snapshot,
+        changes: {
+          reset: false,
+          from: d['from'],
+          revision: snapshot.revision,
+          items: data.changed.map(metadata),
+          next: null,
+        },
+        objects:
+          ids.length && data.delta
+            ? { ids, page: { items: data.changed } }
+            : null,
+      };
+    },
     'group-message-confirm': () => {
       if (data.fail) throw new Error('Confirmation rejected');
       return {};
@@ -161,6 +186,11 @@ await test('group edit reads only the changed object and preserves the other mes
   assert.equal(result.views[0]!.text, 'Edited');
   assert.equal(result.views[1], intact);
   assert.deepEqual(data.decoded.slice(reads), [edit.id]);
+  assert.deepEqual(
+    data.calls.slice(start).map((call) => call.op),
+    ['group-message-delta', 'group-message-confirm'],
+    'One request carries the snapshot, the change and its packet',
+  );
   assert.ok(
     !data.calls
       .slice(start)
@@ -174,7 +204,7 @@ await test('group edit reads only the changed object and preserves the other mes
   await windows.read(c, null);
   assert.deepEqual(
     data.calls.slice(next).map((call) => call.op),
-    ['group-message-snapshot', 'group-message-confirm'],
+    ['group-message-delta', 'group-message-confirm'],
   );
 });
 await test('confirmation failure removes the candidate and requires checking before reopening', async () => {
@@ -254,7 +284,7 @@ await test('snapshot failure discards the candidate; previous page gains no late
   const old = await windows.read(c, 10);
   assert.equal(old.views.length, 9);
   assert.ok(old.views.every((view) => view.sequence < 10));
-  data.failure = 'group-message-snapshot';
+  data.failure = 'group-message-delta';
   await assert.rejects(windows.read(c, 10), /rejected|declined/);
   data.failure = null;
   const before = data.calls.length;
@@ -292,7 +322,7 @@ await test("edit in one group preserves another group's candidate without reread
   assert.equal(result.views[0], previous.views[0]);
   assert.deepEqual(
     b.data.calls.slice(before).map((call) => call.op),
-    ['group-message-snapshot', 'group-message-confirm'],
+    ['group-message-delta', 'group-message-confirm'],
   );
 });
 
@@ -439,4 +469,42 @@ await test('an unfinished finite cut survives later appends; a removal fence res
   const restarted = await appendCase(true);
   assert.deepEqual(restarted.revisions, new Set([1, 2]));
   assert.equal(restarted.confirmed, 2, 'the fresh cut after a removal');
+});
+
+await test('a delta without packets and a server without deltas both fall back to the separate requests', async () => {
+  const { c, data, add } = await fixture(),
+    windows = new GroupMessageWindows();
+  add('First');
+  await windows.read(c, null);
+  const read = async (delta: boolean | null) => {
+    data.delta = delta;
+    data.changed = [add('Later')];
+    data.revision++;
+    const start = data.calls.length,
+      result = await windows.read(c, null);
+    assert.equal(result.views.at(-1)?.id, data.changed[0]!.id);
+    return data.calls.slice(start).map((call) => call.op);
+  };
+  assert.deepEqual(await read(false), [
+    'group-message-delta',
+    'group-message-objects',
+    'group-message-confirm',
+  ]);
+  assert.deepEqual(await read(null), [
+    'group-message-delta',
+    'group-message-snapshot',
+    'group-message-changes',
+    'group-message-objects',
+    'group-message-confirm',
+  ]);
+  assert.deepEqual(
+    await read(true),
+    [
+      'group-message-snapshot',
+      'group-message-changes',
+      'group-message-objects',
+      'group-message-confirm',
+    ],
+    'An older server is asked once per session',
+  );
 });
