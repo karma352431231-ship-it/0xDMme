@@ -282,6 +282,12 @@ GROUP_MEMBER_WALLETS_MODULES = frozenset({'contacts.ts', 'groups.ts'})
 GROUP_READ_ALL_BEFORE = '87f0209de967ec7b678fc27ceb91c9a461899662'
 GROUP_READ_ALL_REVIEWED = 'aa61ed9ae58b06c872e55b3d65adae31bc78f4fd'
 GROUP_READ_ALL_MODULES = frozenset({'group-daily.ts'})
+# Owner asked on 23/10/2026 for fewer requests per group message: one delta
+# request composes the existing cut, change page and packet queries. Exact
+# query reuse only; all migrations and runtime stay fixed.
+GROUP_DELTA_BEFORE = '465e2df87a63f4fb3bb49e29a21b48f271b9b6a0'
+GROUP_DELTA_REVIEWED = '28cf2122fb0ba9bb8147a01f57a1b46b46f983aa'
+GROUP_DELTA_MODULES = frozenset({'group-message-updates.ts', 'group-messages.ts'})
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -498,6 +504,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
         (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
         (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,
          GROUP_MEMBER_WALLETS_REVIEWED),
