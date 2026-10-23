@@ -286,3 +286,20 @@ waited for it, and live hints and post-send readbacks each ran their own read.
 
 Recipient-side latency was not measured; a paired sender/recipient capture is
 still needed.
+
+### Device trust prepared once per group send batch
+
+Each group message queried every member's Matrix devices before encrypting.
+`message-crypto/group-batch.ts` now lets the messages of one send batch share
+that query when the group period, members, participant directories, recovery
+keys and sender authority are identical: at most sixteen messages and ten
+seconds, and nothing is reused across batches, so a device added or a Matrix
+registration published since is found by the next batch. The server still
+checks members, directories, recovery and key destinations on every publish.
+When it rejects a packet as stale (409), the stored packet and the batch's
+trust are cleared and the controller retries once with identities, group
+verification, directories and devices prepared again. Before this change a
+rejected packet stayed in the outbox and would have been resent unchanged.
+Reuse across batches still needs a version that also covers Matrix
+registrations, since a device can publish Matrix keys without changing its
+signed directory.

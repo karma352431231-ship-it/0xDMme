@@ -59,7 +59,12 @@ import {
   changeGroupEvent,
   proposeGroupConsent,
 } from './transitions.ts';
-import { composeGroup, sendGroupPending, discardGroupDraft } from './outbox.ts';
+import {
+  composeGroup,
+  sendGroupPending,
+  discardGroupDraft,
+  staleGroupSend,
+} from './outbox.ts';
 import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
@@ -1100,7 +1105,17 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     return true;
   }
+  /** A stale rejection is retried once with everything prepared again:
+   * identities, group verification, participant directories and devices. */
   private async sendSelectedPending(selected: GroupSummary): Promise<void> {
+    try {
+      await this.sendPreparedPending(selected);
+    } catch (error: unknown) {
+      if (!staleGroupSend(error)) throw error;
+      await this.sendPreparedPending(selected);
+    }
+  }
+  private async sendPreparedPending(selected: GroupSummary): Promise<void> {
     await this.identities.load();
     await this.withAuthority(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);

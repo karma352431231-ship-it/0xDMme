@@ -16,6 +16,7 @@ import type {
   GroupKeys,
 } from '../../shared/group-messages/index.ts';
 import { recoveryKey } from '../../shared/messages/index.ts';
+import { GroupSendBatch } from '../message-crypto/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { readDirectories } from '../peer-identity/index.ts';
@@ -112,8 +113,19 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
           accounts: requests,
         }),
     }));
+  const batch = new GroupSendBatch();
   for (const draft of drafts)
-    await sendGroupOne(c, { cache, ...draft, participants });
+    await sendGroupOne(c, { cache, ...draft, participants, batch });
+}
+/** The server rejected a packet prepared for an older membership, participant
+ * directory or recovery key; its draft was cleared for a fresh encryption. */
+export function staleGroupSend(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 409
+  );
 }
 /** Every draft, so the admission order holds across storage pages. */
 async function outboxDrafts(
@@ -137,6 +149,7 @@ async function sendGroupOne(
     name: string;
     value: Outbox;
     participants: () => ReturnType<typeof readDirectories>;
+    batch: GroupSendBatch;
   },
 ): Promise<void> {
   const { cache, name, value } = entry,
@@ -179,6 +192,7 @@ async function sendGroupOne(
       kind: value.kind,
       ...(value.relation ? { relation: value.relation } : {}),
       ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
+      batch: entry.batch,
     });
     value.packet = encrypted.packet;
     value.keys = encrypted.keys;
@@ -188,18 +202,40 @@ async function sendGroupOne(
     );
     await cache.put(name, value);
   }
-  const result = object(
-    await c.api('group-message-publish', {
-      packet: value.packet,
-      keys: value.keys,
-    }),
-  );
+  const result = object(await publish(c, entry));
   if (
     result['status'] !== 'accepted' ||
     result['hash'] !== (await digest(canonical(value.packet)))
   )
     throw new Error('Group send not confirmed.');
   await cache.remove(name);
+}
+/** A stale rejection clears the stored packet and the batch's device trust,
+ * so the next attempt prepares and encrypts again instead of resending it. */
+async function publish(
+  c: SendContext,
+  entry: {
+    cache: GroupCache;
+    name: string;
+    value: Outbox;
+    batch: GroupSendBatch;
+  },
+): Promise<unknown> {
+  const { cache, name, value } = entry;
+  try {
+    return await c.api('group-message-publish', {
+      packet: value.packet,
+      keys: value.keys,
+    });
+  } catch (error: unknown) {
+    if (staleGroupSend(error)) {
+      entry.batch.reset();
+      value.packet = null;
+      value.keys = null;
+      await cache.put(name, value);
+    }
+    throw error;
+  }
 }
 function currentPacket(value: Outbox, c: SendContext): boolean {
   const packet = value.packet;
