@@ -97,3 +97,15 @@
 [data-search-results] {
   overflow-wrap: anywhere;
 }
+
+@media (max-width: 700px) {
+  .conversation-search {
+    padding: 18px;
+  }
+  .search-input-row {
+    flex-wrap: wrap;
+  }
+  .search-input-row input {
+    flex-basis: 100%;
+  }
+}

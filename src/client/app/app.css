@@ -68,7 +68,11 @@
 @import '../contacts/contact-settings.css';
 @import '../wallet/wallet-picker.css';
 @import '../devices/device-cards.css';
+@import '../vault-ui/vault-card.css';
 @import './card-forms.css';
+@import '../chat-ui/chat-layout.css';
+@import '../status/status-card.css';
+@import '../wallet-recovery/recovery.css';
 @import '../contacts/conversation-list.css';
 @import '../conversation-preview/preview.css';
 @import '../message-search/search-dialog.css';
@@ -79,7 +83,6 @@
 @import '../gif-search/gif-tab.css';
 @import '../voice-playback/voice-dock.css';
 @import '../representatives/representatives.css';
-@import './narrow-tweaks.css';
 @import '../account-settings/profile-identity.css';
 @import '../calls/call-dock.css';
 @import '../communities/public-media-frame.css';

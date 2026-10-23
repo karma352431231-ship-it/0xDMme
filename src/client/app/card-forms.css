@@ -1,20 +1,7 @@
 /*
  * Shared form controls of the vault, backup, notifications, chat, status and
- * call cards, and the chat/status layout.
+ * call cards. Component layouts live with their owning feature.
  */
-.vault-card progress {
-  width: 100%;
-  height: 1rem;
-  accent-color: var(--accent);
-}
-.vault-list {
-  padding-left: 1.2rem;
-  overflow-wrap: anywhere;
-}
-.vault-list li {
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--line);
-}
 .vault-card form,
 .chat-panel form,
 .status-card form {
@@ -44,9 +31,6 @@
   border-radius: 6px;
   background: var(--surface);
   font: inherit;
-}
-.vault-card textarea {
-  resize: vertical;
 }
 .vault-card button,
 .backup-card button,
@@ -83,55 +67,4 @@
 .call-settings button:disabled {
   cursor: default;
   opacity: 0.6;
-}
-[data-contacts-container] {
-  grid-template-columns: minmax(0, 1fr);
-}
-.recovery-message {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.chat-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
-}
-.chat-layout > aside,
-.chat-layout > section,
-.status-card {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.chat-panel [hidden],
-.status-card [hidden] {
-  display: none;
-}
-.chat-panel details,
-.status-card details {
-  margin-block: 1rem;
-}
-.chat-panel summary,
-.status-card summary {
-  cursor: pointer;
-  padding-block: 0.5rem;
-}
-.status-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding-block: 0.5rem;
-  border-bottom: 1px solid var(--line);
-}
-.status-card img {
-  display: block;
-  max-width: 100%;
-  max-height: 28rem;
-  object-fit: contain;
-}
-.status-card [data-status-audience] label {
-  display: flex;
-  align-items: center;
-  margin-block: 0.75rem;
 }

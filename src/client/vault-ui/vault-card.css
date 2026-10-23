@@ -1,0 +1,17 @@
+/* Storage usage and vault list presentation. */
+.vault-card progress {
+  width: 100%;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+.vault-list {
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.vault-list li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.vault-card textarea {
+  resize: vertical;
+}

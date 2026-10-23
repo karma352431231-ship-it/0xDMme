@@ -1,0 +1,21 @@
+/* Chat card layout and disclosure presentation. */
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.chat-layout > aside,
+.chat-layout > section {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-panel [hidden] {
+  display: none;
+}
+.chat-panel details {
+  margin-block: 1rem;
+}
+.chat-panel summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}

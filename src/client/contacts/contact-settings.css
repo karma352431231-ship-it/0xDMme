@@ -68,3 +68,7 @@
 .contact-settings [data-contact-versions]:empty {
   display: none;
 }
+
+[data-contacts-container] {
+  grid-template-columns: minmax(0, 1fr);
+}
