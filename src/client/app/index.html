@@ -155,7 +155,7 @@
                   +
                 </summary>
                 <div class="directory-create-actions">
-                  <a href="#contacts" data-contact-shortcut="add">
+                  <button type="button" data-contact-shortcut="add">
                     <svg
                       class="menu-item-icon"
                       viewBox="0 0 24 24"
@@ -176,7 +176,7 @@
                       <path d="M16 9.5h6" />
                     </svg>
                     Add contact
-                  </a>
+                  </button>
                   <button data-private-group-action="create" type="button">
                     <svg
                       class="menu-item-icon"
@@ -542,6 +542,10 @@
         >
       </nav>
     </div>
+    <div
+      id="contact-editor-host"
+      class="contacts-card contact-editor-host"
+    ></div>
     <div id="update" class="update" hidden role="status">
       <span>A new version is ready.</span
       ><button id="apply-update" type="button">Update now</button

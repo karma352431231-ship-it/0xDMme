@@ -138,6 +138,7 @@ async function page(
     dmEvent: () => {},
     forgetReturn: () => {},
     mount: () => {},
+    mountEditor: () => {},
     mountMeter: () => {},
     ready: () => {},
     authorized: () => authorized,

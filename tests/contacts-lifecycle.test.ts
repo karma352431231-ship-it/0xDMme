@@ -303,7 +303,7 @@ await test('foreground approved-contact loading retains queue priority and refus
   assert.equal(contacts.pages.size, 0);
 });
 
-await test('sidebar add shortcut opens the wallet editor once the Contacts view mounts', async (t) => {
+await test('sidebar add opens the editor over any view and reads saved contacts first', async (t) => {
   browserEnvironment(t);
   const access: VaultAccess = {
     withVault: () =>
@@ -312,8 +312,10 @@ await test('sidebar add shortcut opens the wallet editor once the Contacts view 
       Promise.reject(new Error('Authority not used by this UI fixture.')),
   };
   const sync = new VaultSync(access);
-  t.mock.method(sync, 'openLocal', () => Promise.resolve());
-  t.mock.method(ContactDirectory.prototype, 'load', () => Promise.resolve());
+  const opened = t.mock.method(sync, 'openLocal', () => Promise.resolve());
+  const loaded = t.mock.method(ContactDirectory.prototype, 'load', () =>
+    Promise.resolve(),
+  );
   let shown = 0;
   const dialog = {
     open: false,
@@ -324,31 +326,22 @@ await test('sidebar add shortcut opens the wallet editor once the Contacts view 
     addEventListener: () => undefined,
     querySelector: () => null,
   };
-  const view = (connected: boolean, editor: boolean): HTMLElement =>
-    ({
-      isConnected: connected,
-      innerHTML: '',
-      querySelector: (selector: string) =>
-        editor && selector === '[data-contact-editor]' ? dialog : null,
-      querySelectorAll: () => [],
-    }) as unknown as HTMLElement;
+  const host = {
+    isConnected: true,
+    innerHTML: '',
+    querySelector: (selector: string) =>
+      selector === '[data-contact-editor]' ? dialog : null,
+    querySelectorAll: () => [],
+  } as unknown as HTMLElement;
   const contacts = startContacts(access, sync);
-  // Settings embeds contacts without the editor; the request must wait.
-  contacts.mount(view(true, false), 'settings');
+  contacts.mountEditor(host);
+  // No Contacts page is mounted: the editor still opens in place.
   contacts.addContact();
-  assert.equal(shown, 0);
-  const page = view(true, true);
-  contacts.mount(page);
   assert.equal(shown, 1);
-  // Consumed once: a later visit to Contacts does not reopen the editor.
-  dialog.open = false;
-  contacts.mount(view(true, true));
-  assert.equal(shown, 1);
-  // Already on Contacts, the shortcut opens the editor immediately.
-  contacts.addContact();
-  assert.equal(shown, 2);
-  // An editor already open (e.g. a received invitation) is not replaced.
-  contacts.addContact();
-  assert.equal(shown, 2);
   await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(opened.mock.callCount(), 1);
+  assert.equal(loaded.mock.callCount(), 1);
+  // An editor already in use (e.g. a received invitation) is not replaced.
+  contacts.addContact();
+  assert.equal(shown, 1);
 });

@@ -188,6 +188,9 @@ const contacts = startContacts(devices, vault.sync, {
   saved: (contact) => messages.contactSaved(contact),
   open: (peer) => messages.openContact(peer),
 });
+// The wallet approval document has no contacts editor.
+const contactEditorHost = document.getElementById('contact-editor-host');
+if (contactEditorHost) contacts.mountEditor(contactEditorHost);
 bindContactShortcuts(document, () => contacts.addContact());
 const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
