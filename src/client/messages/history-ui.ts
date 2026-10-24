@@ -101,7 +101,7 @@ export class MessageHistoryUi {
   } | null = null;
   private readonly receipts = {
     incoming: new WindowReceipts<never>(),
-    outgoing: new WindowReceipts<boolean>(),
+    outgoing: new WindowReceipts<boolean>((read) => read),
   };
   constructor(options: HistoryPresentation) {
     this.options = options;

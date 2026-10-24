@@ -163,13 +163,17 @@ export class HistoryFloors {
 
 /**
  * Read marks and receipts for a deep window, a page of ids per request (the
- * server's batch limit): the latest page on every read, each older id once,
- * since a receipt never goes back to unread. Older states are kept to show
- * them again after the window is read anew; the session clears them.
+ * server's batch limit): the latest page on every read, older ids until the
+ * caller confirms a final state. Recording an incoming read is final after
+ * success; an outgoing check is final only once read. The session clears them.
  */
 export class WindowReceipts<S> {
   private readonly asked = new Set<string>();
   private readonly states = new Map<string, S>();
+  private readonly settled: ((state: S) => boolean) | null;
+  constructor(settled: ((state: S) => boolean) | null = null) {
+    this.settled = settled;
+  }
   /** Ids to send now, oldest batch last; empty when there is nothing to ask. */
   batches(ids: readonly string[]): string[][] {
     const latest = ids.slice(-historyPage),
@@ -183,10 +187,12 @@ export class WindowReceipts<S> {
     ids: readonly string[],
     states: ReadonlyMap<string, S> = new Map(),
   ): void {
-    if (this.asked.size > historyRootLimit * 8) this.clear();
+    if (Math.max(this.asked.size, this.states.size) > historyRootLimit * 8)
+      this.clear();
     for (const id of ids) {
-      this.asked.add(id);
       const state = states.get(id);
+      if (!this.settled || (state !== undefined && this.settled(state)))
+        this.asked.add(id);
       if (state !== undefined) this.states.set(id, state);
     }
   }

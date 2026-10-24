@@ -126,7 +126,9 @@ export class GroupController {
   private readonly localFloors = new HistoryFloors();
   private readonly receipts = {
     reads: new WindowReceipts<never>(),
-    checks: new WindowReceipts<Pick<GroupView, 'delivery' | 'read'>>(),
+    checks: new WindowReceipts<Pick<GroupView, 'delivery' | 'read'>>(
+      (state) => state.read === true,
+    ),
   };
   constructor(access: VaultAccess, sync: VaultSync, visible: () => boolean) {
     this.access = access;

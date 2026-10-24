@@ -151,6 +151,31 @@ await test('receipts ask the latest page every time and each older page once', (
   assert.deepEqual(new WindowReceipts().batches([]), []);
 });
 
+await test('older outgoing receipts keep refreshing until their read state is final', () => {
+  const receipts = new WindowReceipts<boolean>((read) => read),
+    ids = Array.from({ length: 40 }, (_, index) => `id${index}`);
+  for (const batch of receipts.batches(ids))
+    receipts.answered(
+      batch,
+      new Map(
+        batch.filter((id) => id !== 'id2').map((id) => [id, id !== 'id1']),
+      ),
+    );
+  assert.deepEqual(receipts.batches(ids), [ids.slice(-16), ['id1', 'id2']]);
+  receipts.answered(
+    ['id1', 'id2'],
+    new Map([
+      ['id1', true],
+      ['id2', false],
+    ]),
+  );
+  assert.deepEqual(receipts.batches(ids), [ids.slice(-16), ['id2']]);
+  receipts.answered(['id2'], new Map([['id2', true]]));
+  assert.deepEqual(receipts.batches(ids), [ids.slice(-16)]);
+  assert.equal(receipts.state('id1'), true);
+  assert.equal(receipts.state('id2'), true);
+});
+
 await test('day headings start at local midnight and name today and yesterday', () => {
   const now = new Date(2026, 10, 25, 9, 30).getTime(),
     at = (day: number, hour: number, minute = 0) =>

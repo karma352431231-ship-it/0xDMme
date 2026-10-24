@@ -26,7 +26,11 @@ export function clearDmChecks(history: HTMLElement): void {
 function checksFor(history: HTMLElement, peer: string) {
   let held = windowChecks.get(history);
   if (held?.peer !== peer) {
-    held = { peer, read: new WindowReceipts(), own: new WindowReceipts() };
+    held = {
+      peer,
+      read: new WindowReceipts(),
+      own: new WindowReceipts((state) => state.read),
+    };
     windowChecks.set(history, held);
   }
   return held;
