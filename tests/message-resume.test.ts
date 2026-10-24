@@ -1079,3 +1079,38 @@ await test('failure to persist a confirmed account checkpoint cannot publish its
   assert.equal(f.data.receipts.length, 0);
   assert.ok(!f.data.records.has(`sync-progress:v2:${f.session.deviceId}`));
 });
+
+await test('scrolling up adds one verified page under the shown window, which stays visible and keeps that depth on later updates', async () => {
+  const { controller, data, add } = resumeFixture();
+  const synchronize = async () => {
+    let next = await controller.synchronize();
+    while (next) next = await next.resume();
+  };
+  const texts = () =>
+    (data.frames.at(-1) ?? [])
+      .filter((row) => row.kind !== 'profile' && !row.relation)
+      .map((row) => row.text);
+  for (let index = 0; index < 20; index++) await add(`Message ${index}`);
+  await synchronize();
+  assert.equal(texts().length, 16);
+  assert.equal(texts()[0], 'Message 4');
+  assert.equal(controller.olderAvailable(texts().length), true);
+  const shown = data.frames.length;
+  controller.requestOlder();
+  await synchronize();
+  assert.ok(data.frames.slice(shown).every((frame) => frame !== null));
+  assert.deepEqual(
+    texts(),
+    Array.from({ length: 20 }, (_, index) => `Message ${index}`),
+  );
+  data.snapshot.revision++;
+  await add('Message 20');
+  controller.hint();
+  if (await controller.probe()) await synchronize();
+  assert.equal(texts().length, 21);
+  assert.equal(texts()[0], 'Message 0');
+  controller.requestOlder();
+  await synchronize();
+  assert.equal(texts().length, 21);
+  assert.equal(controller.olderAvailable(texts().length), false);
+});

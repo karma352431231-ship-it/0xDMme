@@ -271,6 +271,7 @@ await test('continuous public DM updates keep an already loaded thread quiet and
 
 function message(
   id = 'message',
+  sequence = 1,
 ): Awaited<ReturnType<SocialDms['cached']>>['items'][number] {
   return {
     type: 'dm-message',
@@ -278,7 +279,7 @@ function message(
     hash: 'synthetic',
     self: 'self',
     peer: { id: 'A', handle: 'synthetic', avatar: null },
-    sequence: 1,
+    sequence,
     own: true,
     kind: 'text',
     media: null,
@@ -317,7 +318,14 @@ await test('DM refresh retains unchanged rows and disposes changed or departed c
   await turn();
   assert.equal(original.stopped, true);
   assert.equal(f.data.bubbles.length, 2);
-  assert.equal(f.views.at(-1)!.history.textContent, 'Edited text');
+  assert.equal(
+    f.views
+      .at(-1)!
+      .history.children.filter((row) => row.dataset['message'])
+      .map((row) => row.textContent)
+      .join(''),
+    'Edited text',
+  );
   f.ui.leave();
   assert.ok(
     f.data.bubbles.every((bubble) => bubble.stopped && bubble.signal.aborted),
@@ -482,22 +490,34 @@ await test('a blocked DM remains unavailable for composition after a live rechec
   assert.equal(f.data.sends.length, 0);
 });
 
-await test('older DM pages advance only explicitly and live refresh rereads the displayed page', async (t) => {
+await test('scrolling up reads one older page from this device, keeps what is shown and live refresh keeps that depth', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = dmCoordinatorFixture(t);
-  f.data.next = 20;
+  const shown = () =>
+    f.views.at(-1)!.history.children.filter((row) => row.dataset['message'])
+      .length;
+  f.data.items = Array.from({ length: 16 }, (_, i) =>
+    message(`latest-${i}`, i + 5),
+  );
+  f.data.olderItems = Array.from({ length: 4 }, (_, i) =>
+    message(`older-${i}`, i + 1),
+  );
   f.ui.mount(f.host, 'A');
   await turn();
-  f.views.at(-1)!.older.click();
-  await turn();
-  f.data.next = 8;
+  assert.equal(shown(), 16);
+  assert.equal(f.data.older?.available(), true);
+  assert.equal(await f.data.older.load(), true);
+  assert.equal(shown(), 20);
+  assert.deepEqual(f.data.cachedBefores, [5]);
   f.emit('changed');
   t.mock.timers.tick(150);
   await turn();
-  assert.deepEqual(f.data.readAfters, [null, 20, 20]);
-  f.views.at(-1)!.older.click();
-  await turn();
-  assert.deepEqual(f.data.readAfters, [null, 20, 20, 8]);
+  // The refresh reads the latest page again and reaches the same floor.
+  assert.equal(shown(), 20);
+  assert.deepEqual(f.data.cachedBefores, [5, 5]);
+  assert.equal(await f.data.older.load(), false);
+  assert.equal(f.data.older.available(), false);
+  assert.deepEqual(f.data.readAfters, [null, null, null, null]);
 });
 
 await test('leaving a DM preserves its independently mounted directory until that directory becomes obsolete', async (t) => {

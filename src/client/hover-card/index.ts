@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 /**
  * Small preview cards shown while a mouse rests on a profile or community
  * link. Each feature registers what it previews; touch screens keep the plain
@@ -105,18 +106,16 @@ function install(): void {
 
 /** Below the link when it fits, otherwise above; always inside the viewport. */
 function place(card: HTMLElement, link: HTMLElement): void {
-  const anchor = link.getBoundingClientRect(),
+  const anchor = layoutBox(link.getBoundingClientRect(), card),
+    view = layoutViewport(card),
     width = card.offsetWidth,
     height = card.offsetHeight,
     gap = 8;
-  const below = anchor.bottom + gap + height <= window.innerHeight;
+  const below = anchor.bottom + gap + height <= view.height;
   const top = below
     ? anchor.bottom + gap
     : Math.max(gap, anchor.top - gap - height);
-  const left = Math.min(
-    Math.max(gap, anchor.left),
-    window.innerWidth - width - gap,
-  );
+  const left = Math.min(Math.max(gap, anchor.left), view.width - width - gap);
   card.style.top = `${Math.round(top)}px`;
   card.style.left = `${Math.round(Math.max(gap, left))}px`;
 }

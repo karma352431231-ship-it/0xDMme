@@ -1,0 +1,23 @@
+/*
+ * Desktop display scale (24/10/2026): the owner found the app best between the
+ * browser's 100% and 90%, so mouse-driven layouts wider than the phone layout
+ * render at 95%. Phones and touch screens keep 100%; their inputs must stay at
+ * 16px so iOS does not zoom on focus.
+ *
+ * Under CSS zoom, 100dvh and 100vw shrink with the page, so full-viewport
+ * sizes use --viewport-height and --viewport-width instead. Scripts that place
+ * elements from getBoundingClientRect convert through index.ts.
+ */
+:root {
+  --display-scale: 1;
+  --viewport-height: 100dvh;
+  --viewport-width: 100vw;
+}
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+  :root {
+    --display-scale: 0.95;
+    --viewport-height: calc(100dvh / var(--display-scale));
+    --viewport-width: calc(100vw / var(--display-scale));
+    zoom: var(--display-scale);
+  }
+}

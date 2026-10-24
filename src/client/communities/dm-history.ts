@@ -3,6 +3,7 @@ import { socialAttachment } from '../../shared/social-media/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker } from '../emoji/index.ts';
 import { historyPosition } from '../chat-ui/index.ts';
+import { dayHeading, withDayHeadings } from '../message-presentation/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
@@ -31,7 +32,7 @@ export class DmHistory {
     string,
     { key: string; row: HTMLElement; stop: () => void }
   >();
-  private nextBefore: number | null = null;
+  private readonly headings = new Map<string, HTMLElement>();
   constructor(options: HistoryOptions) {
     this.options = options;
     this.mediaUi = new AttachmentUi(options.playback, () => {});
@@ -39,27 +40,28 @@ export class DmHistory {
   get signal(): AbortSignal {
     return this.abort.signal;
   }
-  get next(): number | null {
-    return this.nextBefore;
+  /** Messages currently drawn. */
+  get shown(): number {
+    return this.rows.size;
   }
   clear(): void {
     this.abort.abort();
     this.abort = new AbortController();
     for (const held of this.rows.values()) held.stop();
     this.rows.clear();
+    this.headings.clear();
     this.mediaUi.clearMedia();
   }
   reset(): void {
     this.emoji.reset();
     this.clear();
-    this.nextBefore = null;
   }
   /**
    * Rows are reused by id and content, so a refresh neither reloads media nor
    * restarts an embedded video; only new or changed messages are drawn.
    */
   render(
-    current: Pick<DmView, 'history' | 'older' | 'gate'>,
+    current: Pick<DmView, 'history' | 'gate'>,
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): void {
@@ -71,19 +73,33 @@ export class DmHistory {
         held.row.remove();
         this.rows.delete(id);
       }
+    const wanted = withDayHeadings<{ item?: DmItem; day?: string }>(
+      page.items.map((item) => ({ item })),
+      (entry) => entry.item?.sentAt,
+      (day) => ({ day: day.label }),
+    ).map((entry) =>
+      entry.item
+        ? this.messageRow(entry.item, page, input)
+        : this.heading(entry.day ?? ''),
+    );
+    const shown = new Set<Element>(wanted);
     for (const child of [...current.history.children])
-      if (!(child instanceof HTMLElement) || !child.dataset['message'])
-        child.remove();
+      if (!shown.has(child)) child.remove();
     let cursorNode = current.history.firstChild;
-    for (const item of page.items) {
-      const row = this.messageRow(item, page, input);
+    for (const row of wanted) {
       if (row === cursorNode) cursorNode = row.nextSibling;
       else current.history.insertBefore(row, cursorNode);
     }
     if (!page.items.length) current.gate.textContent = t('No messages yet.');
-    current.older.hidden = page.next === null;
-    this.nextBefore = page.next;
     restore();
+  }
+  /** One heading element per day label, reused across refreshes. */
+  private heading(label: string): HTMLElement {
+    const held = this.headings.get(label);
+    if (held) return held;
+    const heading = dayHeading(label);
+    this.headings.set(label, heading);
+    return heading;
   }
   private messageRow(
     item: DmItem,

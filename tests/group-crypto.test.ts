@@ -113,16 +113,17 @@ await test("real Megolm recovers only the member's addressed period and rejects 
   assert.ok(archive);
   const exported = openRoomKey(readerKey, archive);
   assert.equal(JSON.stringify(packet).includes('Texto sintético'), false);
-  assert.equal(
-    await reader.decryptGroup({
-      packet,
-      keys: bundle,
-      period: state,
-      senderEvent: owner.directory,
-      exported,
-    }),
-    'Texto sintético do período autorizado',
-  );
+  const opened = await reader.decryptGroup({
+    packet,
+    keys: bundle,
+    period: state,
+    senderEvent: owner.directory,
+    exported,
+  });
+  assert.equal(opened.text, 'Texto sintético do período autorizado');
+  // The sender's clock travels inside the encrypted content only.
+  assert.equal(typeof opened.sentAt, 'number');
+  assert.equal(JSON.stringify(packet).includes(String(opened.sentAt)), false);
   await t.test(
     'encrypted edit binds original, group and author; deletion proof rejects another message',
     async () => {
@@ -146,13 +147,15 @@ await test("real Megolm recovers only the member's addressed period and rejects 
         (a) => a.accountId === member.accountId,
       )!;
       assert.equal(
-        await reader.decryptGroup({
-          packet: edit.packet,
-          keys: edit.keys,
-          period: state,
-          senderEvent: owner.directory,
-          exported: openRoomKey(readerKey, capsule),
-        }),
+        (
+          await reader.decryptGroup({
+            packet: edit.packet,
+            keys: edit.keys,
+            period: state,
+            senderEvent: owner.directory,
+            exported: openRoomKey(readerKey, capsule),
+          })
+        ).text,
         'Nova versão',
       );
       const forged = {
@@ -257,9 +260,12 @@ await test("real Megolm recovers only the member's addressed period and rejects 
         senderEvent: owner.directory,
         exported: openRoomKey(readerKey, capsule),
       });
-      assert.deepEqual(groupProfilePhoto(JSON.parse(opened) as unknown), photo);
+      assert.deepEqual(
+        groupProfilePhoto(JSON.parse(opened.text) as unknown),
+        photo,
+      );
       assert.equal(
-        groupProfileDescription(JSON.parse(opened) as unknown),
+        groupProfileDescription(JSON.parse(opened.text) as unknown),
         'Members only description',
       );
     },

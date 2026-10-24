@@ -4,7 +4,10 @@ import { anchoredMessageMenu } from '../src/client/message-menu/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 await test('message menu stays inside chat without a modal and closes on action, outside click and revocation', () => {
   const document = communityDocument(),
-    window = new EventTarget();
+    window = Object.assign(new EventTarget(), {
+      innerWidth: 900,
+      innerHeight: 800,
+    });
   const chatBounds = { left: 300, right: 500, top: 200, bottom: 600 };
   const create = document.createElement;
   document.createElement = (tag) =>

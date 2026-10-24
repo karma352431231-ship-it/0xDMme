@@ -31,6 +31,7 @@ const adapters: Record<string, string[]> = {
     'updateChatComposer',
     'historyPosition',
     'resetHistoryPosition',
+    'watchOlderHistory',
     'bindRecordGesture',
     'showRecording',
   ],
@@ -237,7 +238,7 @@ export function groupUiFixture() {
     selected: null as GroupSummary | null,
     entries: [group],
     views: [] as GroupView[],
-    before: null,
+    olderAvailable: false,
     historyPending: false,
     warning: '',
     next: null,
@@ -293,12 +294,10 @@ export function groupUiFixture() {
       calls.push('clear-vault');
       return Promise.resolve();
     },
-    propose(target: string, kind: string) {
-      calls.push(`${kind}:${target}`);
-      return Promise.resolve();
-    },
-    change(input: { kind: string }) {
-      calls.push(input.kind);
+    change(input: { kind: string; target: string | null }) {
+      calls.push(
+        input.kind === 'transfer' ? `transfer:${input.target}` : input.kind,
+      );
       return Promise.resolve();
     },
     respond(consent: { kind: string }, accepted: boolean) {
@@ -362,6 +361,9 @@ export function groupUiFixture() {
     clearSelection() {
       this.selected?.bytes.fill(0);
       this.selected = null;
+    },
+    sent() {
+      this.clearSelection();
     },
     clearMedia() {
       calls.push('clear-media');
@@ -429,6 +431,7 @@ export function groupUiFixture() {
     showRecording() {},
     historyPosition: () => () => {},
     resetHistoryPosition() {},
+    watchOlderHistory: () => ({ check() {} }),
     bindRecordGesture() {},
     ChatHistoryLoading: class {
       update() {

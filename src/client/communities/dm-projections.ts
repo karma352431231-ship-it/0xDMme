@@ -30,10 +30,9 @@ export class DmProjections {
       page: DmProjection['page'] | undefined;
       offline: boolean;
     },
-    state: { current: boolean; live: boolean; before: number | null },
+    state: { current: boolean; live: boolean },
   ): void {
-    if (!state.current || !state.live || state.before !== null || data.offline)
-      return;
+    if (!state.current || !state.live || data.offline) return;
     if (!data.value || !data.profile || !data.page) return;
     this.store({
       value: data.value,

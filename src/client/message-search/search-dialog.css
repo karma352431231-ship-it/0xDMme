@@ -2,8 +2,8 @@
  * Conversation search dialog.
  */
 .conversation-search {
-  width: min(620px, calc(100vw - 24px));
-  max-height: calc(100dvh - 24px);
+  width: min(620px, calc(var(--viewport-width, 100vw) - 24px));
+  max-height: calc(var(--viewport-height, 100dvh) - 24px);
   overflow-y: auto;
   border: 1px solid var(--line-strong);
   border-radius: 20px;

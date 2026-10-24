@@ -10,6 +10,7 @@ import { object } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { messageItems } from './history.ts';
 import type { Api, MessageItem } from './history.ts';
+import { historyPage, historyRootLimit } from '../history-window/index.ts';
 
 /** A bounded scan needs another turn; its already verified pages remain valid
  * only for the same snapshot/account/window. No partial history is publishable. */
@@ -407,8 +408,8 @@ export class VerifiedWindow<T extends VerifiedView> {
   }
   remember(snapshot: unknown, items: MessageItem[], views: T[]): void {
     this.clear();
-    // 16 base messages, two profiles and at most 48 relations.
-    if (items.length > 66)
+    // Per page: 16 base messages, two profiles and at most 48 relations.
+    if (items.length > 66 * (historyRootLimit / historyPage))
       throw new Error('Verified window exceeds the limit.');
     this.scope = authorityScope(snapshot);
     const byId = new Map(views.map((view) => [view.id, view]));

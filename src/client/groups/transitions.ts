@@ -1,10 +1,4 @@
-import { eventHash } from '../../shared/devices/index.ts';
-import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import {
-  groupConsentProof,
-  groupEventProof,
-  groupEventHash,
-} from '../../shared/groups/index.ts';
+import { groupEventProof, groupEventHash } from '../../shared/groups/index.ts';
 import type {
   GroupConsent,
   GroupEvent,
@@ -39,28 +33,6 @@ export async function createGroupEvent(
     signature: '',
   });
 }
-export async function proposeGroupConsent(input: {
-  authority: VaultAuthority;
-  state: GroupEvent;
-  target: DirectoryEvent;
-  kind: GroupConsent['kind'];
-}): Promise<GroupConsent> {
-  const { authority, state, target, kind } = input;
-  const consent: GroupConsent = {
-    version: 1,
-    id: crypto.randomUUID(),
-    kind,
-    groupId: state.groupId,
-    head: await groupEventHash(state),
-    ...actor(authority),
-    target: target.accountId,
-    targetDirectory: await eventHash(target),
-    targetRevision: target.revision,
-    signature: '',
-  };
-  consent.signature = await authority.sign(groupConsentProof(consent));
-  return consent;
-}
 export async function changeGroupEvent(input: {
   authority: VaultAuthority;
   state: GroupEvent;
@@ -87,7 +59,8 @@ export async function changeGroupEvent(input: {
       m.accountId === target ? { ...m, role: input.role ?? 'member' } : m,
     );
   else if (kind === 'transfer') {
-    owner = authority.session.accountId;
+    // The successor: chosen by the owner, or the account accepting an older offer.
+    owner = admissionTarget(target, authority);
     members = transferRoles(members, state.owner, owner);
   }
   members.sort((a, b) => a.accountId.localeCompare(b.accountId));

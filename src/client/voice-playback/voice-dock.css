@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  width: min(20rem, calc(100vw - 2rem));
+  width: min(20rem, calc(var(--viewport-width, 100vw) - 2rem));
   padding: 8px 8px 8px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;

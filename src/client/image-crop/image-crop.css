@@ -2,8 +2,8 @@
 .image-crop-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(640px, 100vw);
-  height: min(680px, 100dvh);
+  width: min(640px, var(--viewport-width, 100vw));
+  height: min(680px, var(--viewport-height, 100dvh));
   max-width: none;
   max-height: none;
   margin: auto;
@@ -119,8 +119,8 @@
 }
 @media (max-width: 700px) {
   .image-crop-dialog {
-    width: 100vw;
-    height: 100dvh;
+    width: var(--viewport-width, 100vw);
+    height: var(--viewport-height, 100dvh);
     border: 0;
     border-radius: 0;
   }

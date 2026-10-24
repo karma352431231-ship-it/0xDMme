@@ -5,6 +5,7 @@ import type { MentionChoice } from './search.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { avatarInitials } from '../appearance/index.ts';
 import { mentionText } from '../../shared/public-mentions/index.ts';
+import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 
 type Field = HTMLInputElement | HTMLTextAreaElement;
 const editors = new WeakMap<Field, MentionInput>();
@@ -215,13 +216,14 @@ class MentionInput {
   }
   private position(): void {
     if (this.panel.hidden) return;
-    const rect = this.field.getBoundingClientRect(),
-      width = Math.min(360, innerWidth - 24),
-      height = Math.min(240, innerHeight - 24);
+    const rect = layoutBox(this.field.getBoundingClientRect(), this.panel),
+      view = layoutViewport(this.panel),
+      width = Math.min(360, view.width - 24),
+      height = Math.min(240, view.height - 24);
     this.panel.style.width = `${width}px`;
     this.panel.style.maxHeight = `${height}px`;
-    this.panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - width - 12))}px`;
-    this.panel.style.top = `${Math.max(12, Math.min(rect.bottom + 6, innerHeight - height - 12))}px`;
+    this.panel.style.left = `${Math.max(12, Math.min(rect.left, view.width - width - 12))}px`;
+    this.panel.style.top = `${Math.max(12, Math.min(rect.bottom + 6, view.height - height - 12))}px`;
   }
 }
 export function mountMentionInput(field: Field, signal: AbortSignal): void {

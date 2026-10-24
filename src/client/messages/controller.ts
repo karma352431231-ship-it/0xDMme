@@ -385,9 +385,17 @@ export class Messages {
   restoreSelected(): boolean {
     return this.reader.restoreSelected();
   }
-  select(peer: string | null, older = false): void {
+  select(peer: string | null): void {
     this.pinsGeneration = -1;
-    this.reader.select(peer, older);
+    this.reader.select(peer);
+  }
+  /** The next open or sync of the selected conversation reaches one page
+   * further back, without hiding what is shown meanwhile. */
+  requestOlder(): void {
+    this.reader.requestOlder();
+  }
+  olderAvailable(shown: number): boolean {
+    return this.reader.olderAvailable(shown);
   }
 
   private guard(generation: number): void {

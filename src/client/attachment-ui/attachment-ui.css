@@ -1,43 +1,112 @@
-/* Chosen attachment in the chat composer (16/10/2026): a compact file card. */
-.attachment-card {
+/*
+ * Files chosen in the chat composer (24/10/2026): tiles side by side with only
+ * the picture or a file mark, a remove X on hover (always shown on touch), and
+ * one ring under the clear-all button for the files' share of the send limit.
+ */
+.attachment-strip {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0;
 }
-#app-shell .attachment-card > img {
+.attachment-tile {
+  position: relative;
   flex: none;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+#app-shell .attachment-tile > :is(img, video) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
   max-height: none;
-  border-radius: 10px;
   object-fit: cover;
 }
-.attachment-card-file {
-  flex: none;
-  width: 48px;
-  height: 48px;
-  padding: 11px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  background: var(--surface-2);
+.attachment-tile-file {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  height: 100%;
+}
+.attachment-tile-file small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.attachment-tile-icon {
+  width: 24px;
+  height: 24px;
   fill: none;
   stroke: var(--accent);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.attachment-card-copy {
+/* Two classes outrank the chat panel's generic button style. */
+.attachment-tile > .attachment-tile-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
   display: grid;
-  min-width: 0;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--media-control-bg);
+  color: var(--media-control-ink);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
 }
-.attachment-card-copy strong {
-  overflow: hidden;
-  font-size: var(--fs-small);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.attachment-tile:hover > .attachment-tile-remove,
+.attachment-tile > .attachment-tile-remove:focus-visible {
+  opacity: 1;
 }
-.attachment-card-copy small {
-  color: var(--text-muted);
-  font-size: var(--fs-caption);
+@media (hover: none) {
+  .attachment-tile > .attachment-tile-remove {
+    opacity: 1;
+  }
+}
+.attachment-tile-x {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.attachment-ring {
+  justify-self: center;
+  width: 22px;
+  height: 22px;
+}
+.attachment-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.attachment-ring circle {
+  fill: none;
+  stroke-width: 4;
+}
+.attachment-ring-track {
+  stroke: var(--line);
+}
+.attachment-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: calc(var(--usage, 0) * 100) 100;
+}
+.attachment-ring[data-full='true'] .attachment-ring-fill {
+  stroke: var(--danger);
 }

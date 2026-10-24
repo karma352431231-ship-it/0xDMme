@@ -1,9 +1,9 @@
 /* The enlarged image over a black surround that hides the page (owner
  * request 23/10/2026); tapping the surround closes it. */
 .public-image-viewer {
-  width: 100vw;
+  width: var(--viewport-width, 100vw);
   max-width: none;
-  height: 100dvh;
+  height: var(--viewport-height, 100dvh);
   max-height: none;
   margin: 0;
   padding: 0;
