@@ -2,15 +2,16 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
+import deploy_reviewed_code as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups
 
 
 class SourceTextReviewTests(unittest.TestCase):
-    before = remote.SOURCE_TEXT_BEFORE
-    reviewed = remote.SOURCE_TEXT_REVIEWED
-    review_modules = remote.SOURCE_TEXT_MODULES
+    before = reviewed_code.SOURCE_TEXT_BEFORE
+    reviewed = reviewed_code.SOURCE_TEXT_REVIEWED
+    review_modules = reviewed_code.SOURCE_TEXT_MODULES
 
     def setUp(self):
         fixture = fixtures.CommunityFeedCodeTests()
@@ -65,6 +66,6 @@ class SourceTextReviewTests(unittest.TestCase):
 
 
 class RuntimeDiagnosticsReviewTests(SourceTextReviewTests):
-    before = remote.RUNTIME_DIAGNOSTICS_BEFORE
-    reviewed = remote.RUNTIME_DIAGNOSTICS_REVIEWED
-    review_modules = remote.RUNTIME_DIAGNOSTICS_MODULES
+    before = reviewed_code.RUNTIME_DIAGNOSTICS_BEFORE
+    reviewed = reviewed_code.RUNTIME_DIAGNOSTICS_REVIEWED
+    review_modules = reviewed_code.RUNTIME_DIAGNOSTICS_MODULES

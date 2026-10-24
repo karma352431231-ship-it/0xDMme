@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
+import deploy_reviewed_code as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups
@@ -21,8 +22,8 @@ class UploadLifecycleReviewTests(unittest.TestCase):
             if name != 'upload-recovery.ts':
                 (self.live / 'src/server/database' / name).write_text('existing lifecycle')
             (self.candidate / 'src/server/database' / name).write_text('reviewed lifecycle')
-        self.exports = {remote.UPLOAD_LIFECYCLE_BEFORE: fixture.export(self.live),
-                        remote.UPLOAD_LIFECYCLE_REVIEWED: fixture.export(self.candidate)}
+        self.exports = {reviewed_code.UPLOAD_LIFECYCLE_BEFORE: fixture.export(self.live),
+                        reviewed_code.UPLOAD_LIFECYCLE_REVIEWED: fixture.export(self.candidate)}
 
     def test_exact_complete_sources_use_code_compatibility_without_schema_review(self):
         with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),

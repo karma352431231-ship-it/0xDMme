@@ -1,15 +1,16 @@
 """The selected-conversation read release keeps exact schema/runtime guards."""
 from unittest.mock import patch
 import deploy_source_text_test as contracts
+import deploy_reviewed_code as reviewed_code
 
 remote = contracts.remote
 backups = contracts.backups
 
 
 class PeerWindowReviewTests(contracts.SourceTextReviewTests):
-    before = remote.PEER_WINDOW_BEFORE
-    reviewed = remote.PEER_WINDOW_REVIEWED
-    review_modules = remote.PEER_WINDOW_MODULES
+    before = reviewed_code.PEER_WINDOW_BEFORE
+    reviewed = reviewed_code.PEER_WINDOW_REVIEWED
+    review_modules = reviewed_code.PEER_WINDOW_MODULES
 
     def test_database_read_review_does_not_approve_runtime_changes(self):
         for name in ['package-lock.json', '.nvmrc']:

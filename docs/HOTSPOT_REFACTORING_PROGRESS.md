@@ -4,11 +4,11 @@ Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
 linking and wallet-return workflows, the H01 engine outbox/reader, H09 HTTP and
-H10 message operations and H11 transactional admission.
+H10 message operations, H11 transactional admission and H12 executor ownership.
 Integration of the first four stages is recorded below. The H03 stage remains
 local on this branch, followed by H04, H05, H06, the H01 engine extractions and
-H09/H10/H11; another merge, push and VPS publication are outside these stages'
-scope.
+H09/H10/H11/H12. The owner subsequently requested normal main integration and
+VPS activation of the combined result, after final checks and exact-commit CI.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -789,3 +789,45 @@ and hint publication first, then participant/consent consumers with explicit
 contact-policy operations in the same transaction. Preserve one coordinator and
 rerun the affected domain, revocation, allocation and relay contracts per group;
 do not duplicate contact rules in admission. H12 remains the next primary area.
+
+## H12: deployment artifact and review ownership
+
+Base: `84a6309`. `deploy_archive.py` owns manifest paths/digests, archive-member
+validation, extraction budgets and the existing hashing/branch primitives.
+`deploy_reviewed_code.py` owns exact reviewed code-only database/runtime
+transitions and their historical constants and rationale. `deploy_artifacts.py`
+owns atomic receipts, conservative code-workspace reclamation, retained migration
+backups and bounded failure receipts. Budget and data-root inputs are explicit;
+these owners do not activate services or decide deployment sequencing.
+
+`deploy_remote.py` retains activation, migration orchestration, preservation,
+readiness and rollback. Its existing APIs used by historical transition modules
+adapt the unchanged budgets/root to the owners, preserving their callers.
+`deploy.py` restores the new modules in dependency order and checks each source
+hash before transport. Legacy tests read review constants from the policy owner;
+their behavioral assertions remain intact. The explicit restoration list in the
+existing transport test includes the new modules.
+
+Structural review: 14 extracted function bodies match the previous executor
+after explicit ownership substitutions. Activation/exchange state transitions,
+reviewed hashes and historical migration support remain unchanged. An initial
+transport check caught duplicated review documentation and unnecessary reexports
+exceeding the existing source budget; rationales moved with their constants and
+tests now import the owner directly. No budget was raised and no explanation or
+historical review was removed. The executor still refuses unsafe/ambiguous
+artifacts and retains data backups and the latest rollback release.
+
+Validation: all 411 existing deployment tests passed before and after with
+Python 3.14 and the approved Node runtime. A new test restores actual transported
+modules in dependency order, exercises the restored archive validator and
+rejects a mismatched hash for each new owner. The 138-case pipeline rerun passed,
+including that case, for 412 distinct validated deployment cases. These tests
+use temporary local files and simulated service failures; they perform no SSH,
+remote installation, activation or cleanup. A first run with the host's older
+Python/default Node was discarded; only the approved-runtime results count.
+
+The refactor introduces no second deploy command, dependency, database migration,
+service change or infrastructure configuration. Main integration, the separate
+H11 code-transition review, full combined checks, passing exact-commit CI and
+the owner's requested VPS activation follow this local stage. Operational
+evidence remains exclusively in `.local/`.

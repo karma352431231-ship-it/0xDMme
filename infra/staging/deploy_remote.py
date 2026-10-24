@@ -7,7 +7,7 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import re
 import resource
 import shlex
@@ -16,6 +16,12 @@ import subprocess
 import sys
 import tarfile
 import time
+
+import deploy_archive as release_archive
+import deploy_artifacts as artifacts
+from deploy_archive import digest, valid_release_branch
+from deploy_artifacts import receipt, verified_code_failure
+from deploy_reviewed_code import database_code_reviewed, database_files, reviewed_lockfile_change
 
 import deploy_sources as public_sources
 import deploy_runtime as runtime
@@ -81,12 +87,6 @@ BACKGROUND_SOURCE_FILES = frozenset([
     'infra/staging/0xdmme-content-worker.service',
     'infra/staging/0xdmme-public-worker.service', 'infra/staging/0xdmme-background.conf',
 ])
-# Owner-reviewed dev-only NaCl transition, including rollback. Never a general
-# allowance for dev dependencies; every other changed lock remains blocked.
-PHANTOM_PROBE_LOCKFILES = frozenset([
-    '4db68588987a5b5a1a3afedd09a6096a2c5ab51c37ac9f334af2cc06b8125092',
-    'fac024d2596d80a4450f9ad46cc212e6b51e536f02062f630fd8c8c1adcc0be5',
-])
 # Explicit block 08 approval (03/10/2026), bound to the deployed predecessor
 # and reviewed application. This is not a general migration override.
 ATTACHMENT_BEFORE = '931b09b4171269663e2c8aab813cff24da1c7bf5'
@@ -141,172 +141,6 @@ CALLS_NEW_TABLES = ('call_controls', 'push_controls')
 # The experimental gallery and unaccepted detector are outside this deployment.
 COMMUNITIES_BEFORE = '44af35f99bcb493413af984aa3a7d15b32af194e'
 COMMUNITIES_REVIEWED = '04b1bbf5db5b4c30387cc23a792624a1b3b67a87'
-# Routine UI release: two reviewed read projections, with the entire database
-# tree pinned on both sides. No SQL or migration executor change is permitted.
-COMMUNITY_FEED_BEFORE = '194bbd2988a622265aaf06650549691743d23c7b'
-COMMUNITY_FEED_REVIEWED = '18523cadb16aaf70504317e6e01375b59618e00f'
-# Owner authorized the mobile login fix and its activation on 07/10/2026.
-# Only authentication.ts changes: provisional account ID, confirmed atomically.
-# Pin the whole database tree; SQL and its executor remain byte-identical.
-MOBILE_OPENING_BEFORE = 'f8ac068973468cc0bcae13ca3b1312171ca99252'
-MOBILE_OPENING_REVIEWED = '6f8f2abe8b8521d78dfa53bb76b9364cd0f881d1'
-# Ranking query fix under the owner's completion/deployment authorization.
-# Code only: every migration, dependency and unrelated database file stays exact.
-RANKING_METRICS_BEFORE = '0139e1d0f04681555e1dffea23f77cdf367c70d3'
-RANKING_METRICS_REVIEWED = '04a02dad65d480ad662f0a0f93e58da884518a5f'
-# Owner approved the chat fix and its activation. Only post-COMMIT control
-# markers change in these four modules; migrations/SQL/executor stay identical.
-MESSAGE_REMOVAL_BEFORE = '0c5b6290370bde4f5d0e0a52c2e72cf576756dc3'
-MESSAGE_REMOVAL_REVIEWED = '260719297084c8d8f74fb117dcacd42e7530be6a'
-# Owner request of 09/10/2026: only the connection pool size in index.ts changes
-# (web 4 -> 16, worker 1 -> 4) to match PostgreSQL max_connections 64. No SQL,
-# migration or other database module changes.
-POOL_SIZE_BEFORE = 'b1aa82c092e16650baebad8b2f522bcb837b48f5'
-POOL_SIZE_REVIEWED = '68831a56089d26c2de8c129a47eda9be6ac0b5a5'
-# Owner activation request of 10/10/2026: reply notices carry a preview read
-# through the existing public post projection (readMany). Only these two read
-# modules change; no SQL, migration or executor change.
-ACTIVITY_PREVIEW_BEFORE = '9a3170dd3815689d7d547d117824a92f66283d3b'
-ACTIVITY_PREVIEW_REVIEWED = '0bb7b9dddbd84fe8c033b2ae04dec93a2f97fade'
-# Owner approved activation of the frozen public pose detector on 10/10/2026.
-# Only media visibility, review and capacity accounting code changes. The
-# existing 052 schema, migrations and migration executor remain byte-identical.
-POSE_MODERATION_BEFORE = '2ac00f98698d384cff2a2f9d6937093e552d276b'
-POSE_MODERATION_REVIEWED = '5a54ddbe4a0dbdd91b1965b902dae970f12e646d'
-# Owner-approved 11/10/2026 code-only reservation upgrade; all migrations unchanged.
-MEDIA_OUTPUT_BEFORE = 'feff745968330663f956d26faac583d9b3194340'
-MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
-# Owner activation request of 13/10/2026: bounded reads of the current viewer's
-# saved-post preferences. Entire database projections are pinned; all 64 SQL
-# migrations, accounting, write operations and other modules stay identical.
-SAVED_BOOKMARK_BEFORE = 'c2beaf05d3c62826580b752e8b31d94930386a4e'
-SAVED_BOOKMARK_REVIEWED = '877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9'
-# Owner activation request of 15/10/2026: chat previews and public DM edits.
-# Pin both full database trees, including the reaction-to-action module rename.
-# All 69 migrations, their executor, dependencies and Node remain unchanged.
-CHAT_PARITY_BEFORE = '02b47e9050f78d7a770661ea0326945a1c992cd2'
-CHAT_PARITY_REVIEWED = '2fc2ed033851c69b8b54dbf962d2676b7b0f75a4'
-# Owner authorized integration and activation of direct public DMs on 15/10/2026.
-# Only these six database modules change; all 69 SQL files/executor stay exact.
-PUBLIC_DM_OPENING_BEFORE = '08dff889caa2fe04911b2bc8f720c71465013e5a'
-PUBLIC_DM_OPENING_REVIEWED = '3bfc25dd20fb202d1a4ea834e18bd66b316bc3b0'
-# Owner requested X-style alerts for followed profiles on 16/10/2026. Only the
-# preview read, its store and the store wiring change; all 71 SQL files stay exact.
-FOLLOWED_ALERTS_BEFORE = '762bd805aa6af374d98688eca5e7c1a571eb8b66'
-FOLLOWED_ALERTS_REVIEWED = '49f1c1984de1364b251d6b8225ae8b74de242010'
-# Owner approved the measured snapshot read repair for deployment on 17/10/2026.
-# Pin both complete database trees; all 91 migrations and write paths stay exact.
-SCOPED_SNAPSHOT_BEFORE = '2d4fabaa37d0d1fc7b40059595a500c0f8651d01'
-SCOPED_SNAPSHOT_REVIEWED = '90126582d128ed5e0a0e1a1138950c06b9a53488'
-# Owner requested completion of the database audit on 18/10/2026. Exact code-only
-# upload recovery/retry/collection correction; all 91 migrations stay byte-identical.
-UPLOAD_LIFECYCLE_BEFORE = 'f2049d24b61d95f86e80afe7db79fcfada60bc63'
-UPLOAD_LIFECYCLE_REVIEWED = '1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe'
-# Owner requested the FOMO user ranking and its activation on 19/10/2026. Exact
-# code-only change: previous-window account score, page bio/followers and 60-day
-# aggregated counters; all 92 migrations stay byte-identical.
-ACCOUNT_RANKING_GROWTH_BEFORE = '6d0645faede7709af13c7033a1ba2caa033853d0'
-ACCOUNT_RANKING_GROWTH_REVIEWED = 'f3de52a96c0a3a6a224d53e69842e0d368336355'
-# Owner requested this release on 19/10/2026. Exact code-only change: only the text of
-# error reasons and labels differs; the syntax of every module is otherwise identical
-# and all 92 migrations stay byte-identical.
-SOURCE_TEXT_BEFORE = '29873898f51161a9ff0776f71e94a15721da79e8'
-SOURCE_TEXT_REVIEWED = 'f994fd6eef061aaba564d5520ff8240f9c86c85f'
-SOURCE_TEXT_MODULES = frozenset({
-    'attachment-reservations.ts', 'attachments.ts', 'authentication.ts', 'backups.ts', 'calls.ts',
-    'communities.ts', 'community-address.ts', 'community-authority.ts', 'community-badges.ts',
-    'community-discovery.ts', 'community-discussion.ts', 'community-followers.ts',
-    'community-governance.ts', 'community-interactions.ts', 'community-media.ts',
-    'community-moderation.ts', 'community-names.ts', 'community-post-authority.ts',
-    'community-post-moderation.ts', 'community-post-tags.ts', 'community-posts.ts',
-    'community-preferences.ts', 'community-ranking.ts', 'community-upvotes.ts', 'contacts.ts',
-    'content-capacity.ts', 'daily.ts', 'devices.ts', 'group-admission.ts', 'group-daily.ts',
-    'group-matrix.ts', 'group-media.ts', 'group-message-updates.ts', 'group-messages.ts',
-    'group-quota.ts', 'group-retention.ts', 'groups.ts', 'matrix.ts', 'mention-admission.ts',
-    'message-index.ts', 'message-opening.ts', 'message-recovery.ts',
-    'message-removal-allocations.ts', 'messages.ts', 'personal-cleanup-allocations.ts',
-    'personal-cleanup-authority.ts', 'post-sharing.ts', 'profile-banners.ts',
-    'profile-descriptions.ts', 'profile-mutuals.ts', 'profile-notifications.ts',
-    'profile-ranking.ts', 'profile-social.ts', 'public-moderation-details.ts',
-    'public-moderation.ts', 'public-profile.ts', 'public-reports.ts', 'representatives.ts',
-    'social-cleanup-authority.ts', 'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
-    'social-history.ts', 'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts',
-    'status-media.ts', 'status.ts', 'upload-admission.ts', 'vault-quota.ts', 'vault.ts',
-})
-# Exact reviewed runtime diagnostics; schema and runtime contracts remain fixed.
-RUNTIME_DIAGNOSTICS_BEFORE = '4c54956dc6ab04e6c29c04f317b54d93f307b886'
-RUNTIME_DIAGNOSTICS_REVIEWED = 'edc3d95e6f3c8b94866bd8470ebe0b447599ad03'
-RUNTIME_DIAGNOSTICS_MODULES = frozenset({
-    'authentication.ts', 'changes.ts', 'community-badges.ts',
-    'community-post-visibility.ts', 'contacts.ts', 'content-capacity.ts', 'daily.ts',
-    'group-quota.ts', 'index.ts', 'personal-quota.ts', 'public-moderation.ts',
-    'public-profile.ts', 'social-dm.ts', 'status.ts', 'work-signals.ts',
-})
-# Measured signed feed/follower read correction; pin the full database trees.
-# All 91 migrations, write paths, timeouts and runtime remain exact.
-COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
-COMMUNITY_READER_REVIEWED = 'd441c08eb2298aed7e9db52eecd8b979fb9372a3'
-# Exact two-reader repair approved after explanation on 14/10/2026.
-# Pin both full database trees; all 66 migrations/executor stay exact.
-# Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
-# Owner-authorized notification repair: generic commit-only wakes; all 67 SQL files unchanged.
-AUTOMATIC_ACTIVITY_BEFORE = '803a569a4d2b2c9fec9895762759e11ad290d7ec'
-AUTOMATIC_ACTIVITY_REVIEWED = '0a2df41fb7e3e3f236ea108e2826f2d93939b3f8'
-REQUIRED_COMMUNITY_TOPICS_BEFORE = '8d94f34ca6637cec6518a53d095a50c7af19a9b0'
-REQUIRED_COMMUNITY_TOPICS_REVIEWED = 'b086ad511cd3338a5246f7f6752ca250be7892ff'
-OWNER_REVIEW_MEDIA_BEFORE = '28b851b29ff11883511f5992083969534f7f7733'
-OWNER_REVIEW_MEDIA_REVIEWED = 'e4f9bfa8f35b4636e4ab8dfda720608962868817'
-# Bounded public inbox metadata; all applied migrations remain byte-identical.
-CONVERSATION_FLOW_BEFORE = '8edc9aae0bfa6e4c0939d3834c50960bd1721dfa'
-CONVERSATION_FLOW_REVIEWED = '4f03719b2e82209f23e0760b65aaf24f67494b67'
-# Owner-requested preview/local detailed push repair; exact trees, no schema/runtime change.
-PREVIEW_NOTIFICATIONS_BEFORE = 'f049623ec2ff065e4c4d6c1c369ee75295aa876f'
-PREVIEW_NOTIFICATIONS_REVIEWED = '1a9d2de89b38a048c7c60953de86f5f13bd5f05a'
-# Owner authorized main integration and activation of f5df9d6 on 21/10/2026.
-# Pin both complete database trees; all SQL, dependencies and runtime stay exact.
-CATEGORIZED_MESSAGES_BEFORE = 'b20d1be827f665311aef26d72e98e1e1240821b0'
-CATEGORIZED_MESSAGES_REVIEWED = 'f5df9d6203a41569fba05645ef2b26d4d116f41f'
-# Owner requested main integration and activation of 898865f on 22/10/2026.
-# Exact selected-conversation read only; all SQL, writes and runtime stay fixed.
-PEER_WINDOW_BEFORE = '60eada368f929361a68e4a0599cd4198228aad9a'
-PEER_WINDOW_REVIEWED = '898865f55a3bc68552aabd784f0d264cfe6bf228'
-PEER_WINDOW_MODULES = frozenset({'message-index.ts', 'messages.ts'})
-# Owner chose option 2 for group member identity and requested activation on
-# 23/10/2026: co-member wallets only for wallet discovery, never across a block.
-# Exact read-only addition in two modules; all SQL migrations and runtime fixed.
-GROUP_MEMBER_WALLETS_BEFORE = '090d92f0326c1dcba8996d3afa63686515d0fc9c'
-GROUP_MEMBER_WALLETS_REVIEWED = '699e0f2c8e9e576b3f2a63841379288a2605f0da'
-GROUP_MEMBER_WALLETS_MODULES = frozenset({'contacts.ts', 'groups.ts'})
-# Owner asked on 23/10/2026 for a group check that turns green only when every
-# member read. Exact receipt query only; all migrations and runtime stay fixed.
-GROUP_READ_ALL_BEFORE = '87f0209de967ec7b678fc27ceb91c9a461899662'
-GROUP_READ_ALL_REVIEWED = 'aa61ed9ae58b06c872e55b3d65adae31bc78f4fd'
-GROUP_READ_ALL_MODULES = frozenset({'group-daily.ts'})
-# Owner asked on 23/10/2026 for fewer requests per group message: one delta
-# request composes the existing cut, change page and packet queries. Exact
-# query reuse only; all migrations and runtime stay fixed.
-GROUP_DELTA_BEFORE = '465e2df87a63f4fb3bb49e29a21b48f271b9b6a0'
-GROUP_DELTA_REVIEWED = '28cf2122fb0ba9bb8147a01f57a1b46b46f983aa'
-GROUP_DELTA_MODULES = frozenset({'group-message-updates.ts', 'group-messages.ts'})
-CATEGORIZED_MESSAGES_MODULES = frozenset({
-    'backups.ts',
-    'changes.ts',
-    'contacts.ts',
-    'daily.ts',
-    'group-daily.ts',
-    'group-message-updates.ts',
-    'group-messages.ts',
-    'group-retention.ts',
-    'groups.ts',
-    'matrix.ts',
-    'messages.ts',
-    'public-notice-wake.ts',
-    'social-dm.ts',
-    'social-read-receipts.ts',
-    'status.ts',
-    'transaction-changes.ts',
-    'work-signals.ts',
-})
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -322,69 +156,38 @@ def run(args, timeout=30, env=None):
     return subprocess.run(args, check=True, capture_output=True, timeout=timeout, env=env).stdout
 
 
-def digest(path):
-    checksum = hashlib.sha256()
-    with path.open('rb') as content:
-        for chunk in iter(lambda: content.read(1024 * 1024), b''):
-            checksum.update(chunk)
-    return checksum.hexdigest()
-
-
-def valid_release_branch(value):
-    return isinstance(value, str) and re.fullmatch(r'(?:main|codex/[A-Za-z0-9][A-Za-z0-9._/-]*)', value) is not None
+# Stable executor APIs are also used by reviewed historical transition modules.
+# Budgets and the private root remain explicit inputs to their owning modules.
+def archive_policy():
+    return release_archive.ReleaseArchive(MAX_MANIFEST_BYTES, MAX_ARCHIVE, MAX_RELEASE)
 
 
 def validate_manifest_budget(config):
-    # These operational fields are not part of the persisted release manifest.
-    # The complete transport, including these fields, retains its 24 MiB bound.
-    manifest = {name: value for name, value in config.items()
-                if name not in ('baseline', 'archive', 'request_limit', 'media_worker', 'capacity', 'worker_boot')}
-    if len((json.dumps(manifest, indent=2) + '\n').encode()) > MAX_MANIFEST_BYTES:
-        raise RuntimeError('Release manifest byte budget exceeded.')
+    return archive_policy().validate_manifest_budget(config)
 
 
 def validate(config):
-    if not re.fullmatch(r'[a-f0-9]{40}', config['commit']):
-        raise RuntimeError('Invalid commit.')
-    if not valid_release_branch(config['branch']):
-        raise RuntimeError('Invalid branch.')
-    files = config['files']
-    if not isinstance(files, dict) or not files:
-        raise RuntimeError('Invalid release manifest files.')
-    validate_manifest_budget(config)
-    for name, value in files.items():
-        parts = PurePosixPath(name).parts
-        if (not parts or name.startswith('/') or '..' in parts or
-                str(PurePosixPath(name)) != name or
-                parts[0] not in ['src', 'infra', 'dist', 'package.json', 'package-lock.json', '.nvmrc'] or
-                not re.fullmatch(r'[a-f0-9]{64}', value)):
-            raise RuntimeError('Invalid release manifest path/digest.')
-    if not 0 < config['archive_bytes'] <= MAX_ARCHIVE:
-        raise RuntimeError('Archive budget exceeded.')
-    if not re.fullmatch(r'[a-f0-9]{64}', config['archive_sha256']):
-        raise RuntimeError('Invalid archive digest.')
-    if not re.fullmatch(r'/app-[a-f0-9]{16}\.js', config['script']):
-        raise RuntimeError('Invalid public script.')
-    if 'dist/web' + config['script'] not in files:
-        raise RuntimeError('Public script absent from manifest.')
-    public_sources.validate(config)
+    return archive_policy().validate(config)
 
 
 def extract(archive, destination, allowed):
-    names = set()
-    for member in archive:
-        # Include headers, extended headers and payload padding, so many empty
-        # files cannot bypass the expanded-byte budget. Validate before writing.
-        padded = ((member.size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
-        if member.offset_data + padded > MAX_RELEASE:
-            raise RuntimeError('Extraction budget exceeded.')
-        parts = PurePosixPath(member.name).parts
-        if (not parts or member.name.startswith('/') or '..' in parts or
-                parts[0] not in allowed or member.name in names or
-                not (member.isfile() or member.isdir())):
-            raise RuntimeError('Unsafe archive member.')
-        names.add(member.name)
-    archive.extractall(destination, filter='data')
+    return archive_policy().extract(archive, destination, allowed)
+
+
+def prune_completed(current, dry_run=False):
+    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).prune_completed(current, dry_run)
+
+
+def retention_capacity(current):
+    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retention_capacity(current)
+
+
+def retain_migration_backup(work, old):
+    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retain_migration_backup(work, old)
+
+
+def retain_failure_receipt(state):
+    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retain_failure_receipt(state)
 
 
 def preservation(baseline):
@@ -480,84 +283,6 @@ def wait_ready(files=None):
             time.sleep(min(2, remaining))
     if files:
         healthy(files)
-
-
-def reviewed_lockfile_change(before, after):
-    if frozenset([digest(before), digest(after)]) != PHANTOM_PROBE_LOCKFILES:
-        return False
-    # Recheck the runtime closure even for the exact reviewed hash pair.
-    def runtime_entries(path):
-        packages = json.loads(path.read_text())['packages']
-        return {name: value for name, value in packages.items()
-                if name and value.get('dev') is not True}
-    return runtime_entries(before) == runtime_entries(after)
-
-
-def database_files(root):
-    directory = root / 'src/server/database'
-    return {str(p.relative_to(directory)): digest(p) for p in directory.rglob('*') if p.is_file()}
-
-
-def database_code_reviewed(candidate, live):
-    """Exact reviewed code-only transitions; retain every migration guard."""
-    import deploy_blocks45 as backups
-    before, after = database_files(live), database_files(candidate)
-    changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
-    reviews = [
-        (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
-        (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
-        (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,
-         GROUP_MEMBER_WALLETS_REVIEWED),
-        (set(PEER_WINDOW_MODULES), PEER_WINDOW_BEFORE, PEER_WINDOW_REVIEWED),
-        (set(CATEGORIZED_MESSAGES_MODULES), CATEGORIZED_MESSAGES_BEFORE, CATEGORIZED_MESSAGES_REVIEWED),
-        ({'daily.ts', 'public-notification-preview.ts', 'push-private-activity.ts'},
-         PREVIEW_NOTIFICATIONS_BEFORE, PREVIEW_NOTIFICATIONS_REVIEWED),
-        ({'social-read-receipts.ts', 'social-unread.ts'}, CONVERSATION_FLOW_BEFORE, CONVERSATION_FLOW_REVIEWED),
-        ({'communities.ts'}, COMMUNITY_READER_BEFORE, COMMUNITY_READER_REVIEWED),
-        ({'community-interactions.ts', 'community-posts.ts', 'profile-notifications.ts', 'public-notice-wake.ts'},
-         AUTOMATIC_ACTIVITY_BEFORE, AUTOMATIC_ACTIVITY_REVIEWED),
-        ({'community-classification.ts'}, REQUIRED_COMMUNITY_TOPICS_BEFORE, REQUIRED_COMMUNITY_TOPICS_REVIEWED),
-        ({'public-profile.ts', 'public-moderation.ts'}, OWNER_REVIEW_MEDIA_BEFORE, OWNER_REVIEW_MEDIA_REVIEWED),
-        ({'community-media.ts'}, MEDIA_OUTPUT_BEFORE, MEDIA_OUTPUT_REVIEWED),
-        ({'communities.ts', 'community-discovery.ts'}, COMMUNITY_FEED_BEFORE, COMMUNITY_FEED_REVIEWED),
-        ({'authentication.ts'}, MOBILE_OPENING_BEFORE, MOBILE_OPENING_REVIEWED),
-        ({'community-ranking-metrics.ts'}, RANKING_METRICS_BEFORE, RANKING_METRICS_REVIEWED),
-        ({'backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts'},
-         MESSAGE_REMOVAL_BEFORE, MESSAGE_REMOVAL_REVIEWED),
-        ({'index.ts'}, POOL_SIZE_BEFORE, POOL_SIZE_REVIEWED),
-        ({'community-interactions.ts', 'community-posts.ts'},
-         ACTIVITY_PREVIEW_BEFORE, ACTIVITY_PREVIEW_REVIEWED),
-        ({'community-media.ts', 'public-moderation.ts', 'vault-quota.ts'},
-         POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
-        ({'community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts'},
-         SAVED_BOOKMARK_BEFORE, SAVED_BOOKMARK_REVIEWED),
-        ({'message-index.ts', 'messages.ts', 'social-actions.ts', 'social-crypto.ts',
-          'social-history.ts', 'social-reactions.ts', 'social-read-receipts.ts'},
-         CHAT_PARITY_BEFORE, CHAT_PARITY_REVIEWED),
-        ({'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
-          'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts'},
-         PUBLIC_DM_OPENING_BEFORE, PUBLIC_DM_OPENING_REVIEWED),
-        ({'daily.ts', 'index.ts', 'public-notification-preview.ts'},
-         FOLLOWED_ALERTS_BEFORE, FOLLOWED_ALERTS_REVIEWED),
-        ({'groups.ts', 'social-dm.ts', 'social-history.ts'},
-         SCOPED_SNAPSHOT_BEFORE, SCOPED_SNAPSHOT_REVIEWED),
-        ({'attachments.ts', 'group-media.ts', 'social-media.ts', 'status-media.ts', 'upload-recovery.ts'},
-         UPLOAD_LIFECYCLE_BEFORE, UPLOAD_LIFECYCLE_REVIEWED),
-        ({'community-ranking.ts', 'post-ranking-signals.ts', 'post-share-clicks.ts',
-          'profile-follower-counts.ts', 'profile-ranking.ts'},
-         ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
-        (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
-        (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
-    ]
-    selected = next((review for review in reviews if changed == review[0]), None)
-    if selected is None:
-        return False
-    prefix = 'src/server/database/'
-    def projection(revision):
-        return {name[len(prefix):]: hashlib.sha256(value).hexdigest()
-                for name, value in backups.git_export(revision).items()
-                if name.startswith(prefix)}
-    return before == projection(selected[1]) and after == projection(selected[2])
 
 
 def compatibility(candidate, live):
@@ -1115,15 +840,6 @@ def exchange(candidate, previous, verify):
         raise ActivationFailed(True) from None
 
 
-def receipt(work, data):
-    temporary = work / 'result.tmp'
-    with temporary.open('x') as handle:
-        json.dump(data, handle)
-        handle.flush()
-        os.fsync(handle.fileno())
-    temporary.replace(work / 'result.json')
-
-
 def activate_attachments(config, work, candidate, before_state):
     """Reviewed 015→016 transition; reuse existing private backup/restore tools."""
     return activate_database(config, work, candidate, {'before_state':before_state,
@@ -1475,165 +1191,6 @@ def activate(config, work):
     receipt(work, result)
     prune_completed(work)
     return result
-
-
-def retain_migration_backup(work, old):
-    """Keep historical data backups; discard only reviewed completed code."""
-    import deploy_blocks45 as backups
-    required = {'build.tar.gz', 'previous', 'result.json', 'database.dump', 'objects-backup'}
-    if old.get('capacity_schema_versions') == 90:
-        required.add('capacity-proxy-before.conf')
-        proxy_backup = work / 'capacity-proxy-before.conf'
-        if (proxy_backup.is_symlink() or not proxy_backup.is_file()
-                or not 0 < proxy_backup.stat().st_size <= 16384
-                or digest(proxy_backup) != old.get('capacity_proxy_before_sha256')):
-            raise RuntimeError('Historical capacity proxy backup differs from its receipt.')
-    entries = set(p.name for p in work.iterdir())
-    if not required.issubset(entries) or not entries.issubset(required | {'qr.tar.gz'}):
-        raise RuntimeError('Completed transition contents require manual review.')
-    if work.stat().st_uid != os.geteuid() or any(p.is_symlink() for p in work.iterdir()):
-        raise RuntimeError('Completed transition ownership/link requires review.')
-    dump = work / 'database.dump'
-    if not dump.is_file() or dump.stat().st_size <= 0:
-        raise RuntimeError('Historical database backup is missing or irregular.')
-    for name, limit in [('build.tar.gz',MAX_ARCHIVE),
-                        ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024)]:
-        path = work / name
-        if path.exists() and (not path.is_file() or path.stat().st_size > limit):
-            raise RuntimeError('Completed transition artifact budget/type differs.')
-    objects, previous = work / 'objects-backup', work / 'previous'
-    if not objects.is_dir() or not previous.is_dir():
-        raise RuntimeError('Completed transition directories differ.')
-    backups.file_tree(objects)
-    allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
-    if not set(p.name for p in previous.iterdir()).issubset(allowed):
-        raise RuntimeError('Old rollback contents require manual review.')
-    archive = DATA / 'migration-backups'
-    if archive.is_symlink() or (archive.exists() and not archive.is_dir()):
-        raise RuntimeError('Historical backup directory requires review.')
-    archive.mkdir(mode=0o700, exist_ok=True)
-    if archive.stat().st_uid != os.geteuid() or archive.stat().st_mode & 0o077:
-        raise RuntimeError('Historical backup permissions differ.')
-    destination = archive / old['commit']
-    if destination.exists() or destination.is_symlink():
-        raise RuntimeError('Historical backup already exists; review interrupted cleanup.')
-    # Move the complete bundle first. Even interrupted code cleanup retains
-    # dump, objects and receipt together; bounded disk checks still apply.
-    work.rename(destination)
-    shutil.rmtree(destination / 'previous')
-    (destination / 'build.tar.gz').unlink()
-    for directory in [destination, archive, DATA]:
-        fd = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-
-
-def verified_code_failure(work, state):
-    """Only unpublished code with a verified live rollback can be reclaimed."""
-    if (state.get('status') != 'failed' or state.get('code_only') is not True
-            or state.get('rollback_verified') is not True or state.get('workers_ready') is not True
-            or state.get('commit') != work.name[len('deployment-'):]):
-        return False
-    names = set(p.name for p in work.iterdir())
-    if (work.stat().st_uid != os.geteuid() or not {'build.tar.gz', 'result.json'}.issubset(names)
-            or not names.issubset({'build.tar.gz', 'result.json', 'candidate'})
-            or any(p.is_symlink() for p in work.iterdir())):
-        raise RuntimeError('Failed code artifact requires manual review.')
-    return True
-
-
-def retain_failure_receipt(state):
-    """Keep 16 small failure records; local builds and pushed Git remain recoverable."""
-    if not re.fullmatch(r'[a-f0-9]{40}', state.get('commit', '')):
-        raise RuntimeError('Failure receipt commit differs.')
-    directory = DATA / 'release-failures'
-    if directory.is_symlink():
-        raise RuntimeError('Failure receipt path requires review.')
-    directory.mkdir(exist_ok=True, mode=0o700)
-    records = []
-    for path in directory.iterdir():
-        if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.geteuid()
-                or not re.fullmatch(r'[a-f0-9]{40}\.json', path.name) or path.stat().st_size > 16384):
-            raise RuntimeError('Failure receipt inventory requires review.')
-        records.append(path)
-        if len(records) > 16:
-            raise RuntimeError('Failure receipt budget exceeded.')
-    destination = directory / (state['commit'] + '.json')
-    encoded = json.dumps(state).encode()
-    if len(encoded) > 16384:
-        raise RuntimeError('Failure receipt budget requires review.')
-    if destination.exists():
-        if destination.read_bytes() != encoded:
-            raise RuntimeError('Failure receipt collision requires review.')
-        return
-    for path in sorted(records, key=lambda p:p.stat().st_mtime_ns)[:max(0, len(records) - 15)]:
-        path.unlink()
-    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(descriptor, 'wb') as handle:
-        handle.write(encoded)
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
-def prune_completed(current, dry_run=False):
-    # Only workspaces made by this command; the current workspace keeps the previous release.
-    transitions = []
-    for work in DATA.glob('deployment-*'):
-        marker = work / 'result.json'
-        if (work.is_dir() and not work.is_symlink() and
-                re.fullmatch(r'deployment-[a-f0-9]{40}', work.name) and
-                marker.is_file() and not marker.is_symlink()):
-            old = json.loads(marker.read_text())
-            if (old.get('status') == 'published' and old.get('private_backup_retained') is True and
-                    old.get('commit') == work.name[len('deployment-'):]):
-                transitions.append((marker.stat().st_mtime_ns, work))
-    # Preserve the newest transition's full rollback until another publication
-    # has succeeded. Historical data backups never enter the code-workspace cap.
-    newest = max(transitions, key=lambda entry:entry[0])[1] if transitions else None
-    removed = 0
-    for work in DATA.glob('deployment-*'):
-        if work == current or work.is_symlink() or not work.is_dir():
-            continue
-        if not re.fullmatch(r'deployment-[a-f0-9]{40}', work.name):
-            continue
-        marker = work / 'result.json'
-        if not marker.is_file() or marker.is_symlink():
-            continue
-        old = json.loads(marker.read_text())
-        if verified_code_failure(work, old):
-            if not dry_run:
-                retain_failure_receipt(old)
-                shutil.rmtree(work)
-            removed += 1
-            continue
-        if old.get('status') != 'published' or old.get('commit') != work.name[len('deployment-'):]:
-            continue
-        if old.get('private_backup_retained') is True:
-            if work != newest:
-                if not dry_run:
-                    retain_migration_backup(work, old)
-                removed += 1
-            continue
-        if work.stat().st_uid != os.geteuid() or set(p.name for p in work.iterdir()) != {'build.tar.gz', 'previous', 'result.json'}:
-            raise RuntimeError('Old deployment workspace requires manual review; new release remains active.')
-        previous = work / 'previous'
-        if previous.is_symlink() or not previous.is_dir():
-            raise RuntimeError('Old rollback path requires manual review; new release remains active.')
-        allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
-        if not set(p.name for p in previous.iterdir()).issubset(allowed):
-            raise RuntimeError('Old rollback contents require manual review; new release remains active.')
-        if not dry_run:
-            shutil.rmtree(work)
-        removed += 1
-    return removed
-
-
-def retention_capacity(current):
-    reclaimable = prune_completed(current, dry_run=True)
-    if len(list(DATA.glob('deployment-*'))) - reclaimable >= 3:
-        raise RuntimeError('Deployment retention budget reached; review own old artifacts before upload.')
 
 
 def main():
