@@ -361,6 +361,9 @@ export function groupUiFixture() {
       this.selected?.bytes.fill(0);
       this.selected = null;
     },
+    sent() {
+      this.clearSelection();
+    },
     clearMedia() {
       calls.push('clear-media');
     },

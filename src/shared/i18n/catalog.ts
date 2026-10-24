@@ -843,10 +843,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '{0} MB · original, may keep GPS/EXIF',
     '{0} MB · 原始文件，可能保留 GPS/EXIF',
   ],
-  'attachment.card-metadata': [
-    'The original is sent as is and may keep photo metadata such as GPS/EXIF.',
-    '原始文件按原样发送，可能保留 GPS/EXIF 等照片元数据。',
-  ],
   'message.sending': ['Sending…', '正在发送…'],
   'crop.title': ['Edit media', '编辑图片'],
   'crop.stage': [
@@ -5580,6 +5576,15 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   Remove: ['Remove', '移除'],
   'Remove {0}': ['Remove {0}', '移除 {0}'],
+  '{0} MB of {1} MB': ['{0} MB of {1} MB', '{0} MB / {1} MB'],
+  'Up to {0} files per send.': [
+    'Up to {0} files per send.',
+    '每次最多发送 {0} 个文件。',
+  ],
+  'Files sent together can take up to {0} MB.': [
+    'Files sent together can take up to {0} MB.',
+    '一起发送的文件总计最多 {0} MB。',
+  ],
   'Remove {0} from the group?': [
     'Remove {0} from the group?',
     '将 {0} 移出群组？',

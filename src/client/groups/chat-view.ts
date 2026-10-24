@@ -431,18 +431,26 @@ export class GroupChatView {
         event.preventDefault();
         if (this.queueText()) return;
         void this.options.run(async () => {
-          const input = this.node<HTMLTextAreaElement>('[data-group-text]');
-          await this.options.controller.compose(
-            input?.value ?? '',
-            this.attachments.selected,
+          const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
+            group = this.options.controller.selected?.state.groupId;
+          // Each chosen file is its own message, sent before the next is
+          // staged so the order holds; only the first carries the text.
+          do {
+            await this.options.controller.compose(
+              input?.value ?? '',
+              this.attachments.selected,
+            );
+            this.attachments.sent();
+            this.voice.cancel();
+            if (input) {
+              input.value = '';
+              input.dispatchEvent(new Event('input'));
+            }
+            await this.options.controller.sendPending();
+          } while (
+            this.attachments.selected &&
+            this.options.controller.selected?.state.groupId === group
           );
-          this.attachments.clearSelection();
-          this.voice.cancel();
-          if (input) {
-            input.value = '';
-            input.dispatchEvent(new Event('input'));
-          }
-          await this.options.controller.sendPending();
           await this.options.reopen();
           this.options.report(t('Message sent.'));
         });

@@ -532,10 +532,12 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* Preview, then the clear button with the files' size ring under it. */
 .compose-preview {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   max-height: 200px;
   overflow-y: auto;
   border: 1px solid var(--line);
@@ -544,8 +546,11 @@
   background: var(--surface);
 }
 .compose-preview [data-attachment-preview] {
-  flex: 1;
+  grid-row: 1 / span 2;
   min-width: 0;
+}
+.compose-preview [data-attachment-clear] {
+  grid-column: 2;
 }
 .chat-panel .compose-preview p {
   margin: 0;

@@ -1235,14 +1235,17 @@ export function startMessages(
       throw new Error(
         'Ask your contact for permission to send new messages. Your saved history remains available.',
       );
-    if (!(await composer.save(selected?.accountId ?? null))) return;
-    await renderPending();
-    if (navigator.onLine) {
-      await sendPending();
+    // Files chosen together leave one by one, each sent before the next is
+    // staged, so they arrive in the order they were chosen.
+    do {
+      if (!(await composer.save(selected?.accountId ?? null))) return;
+      await renderPending();
+      if (navigator.onLine) await sendPending();
+    } while (composer.hasAttachment);
+    if (navigator.onLine)
       await synchronizeVisible({ priority: 'interactive' }, () =>
         controller.savePins(),
       );
-    }
     if (startupWarmup.pending) await historyUi.markRead(daily);
     else await dailyTick();
   }
