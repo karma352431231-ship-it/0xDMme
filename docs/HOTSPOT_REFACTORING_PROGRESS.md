@@ -3,10 +3,11 @@
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
-linking and wallet-return workflows, the H01 engine outbox/reader and H09 HTTP.
+linking and wallet-return workflows, the H01 engine outbox/reader, H09 HTTP and
+H10 message operations.
 Integration of the first four stages is recorded below. The H03 stage remains
 local on this branch, followed by H04, H05, H06, the H01 engine extractions and
-H09; another merge, push and VPS publication are outside these stages' scope.
+H09/H10; another merge, push and VPS publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -647,3 +648,70 @@ feature dispatch, keeping shared Origin/CSRF and authorization order explicit.
 Affected checks include account/messages plus vault/community/profile HTTP
 integration and body-deadline regressions. That further cleanup is separate from
 the four workflow owners addressed here. The next primary plan area is H10.
+
+## H10: signed authority, message operations and personal collection
+
+Base: `ccaf49d`. `messages/authority.ts` owns current-device signature validation,
+operation-name binding, live-directory validation and the existing signed deletion
+revision check. It is stateless and rereads the existing device store for each
+request. Domain ACLs, session/device revalidation and protected mutations remain
+in their existing coordinated database operations. `MessageService` preserves
+its public authentication, live-check, upload-preflight and operation contracts.
+
+`direct-operations.ts` owns private-message publication, accepted/profile checks,
+window/index reads, delivery, acknowledgment and deletion adaptation.
+`backup-operations.ts` owns recovery registration/reads, bounded export/ACK and
+personal-removal adaptation, retaining all snapshot checks. `matrix-operations.ts`
+owns direct/group Matrix input validation, transport operations and current-device
+key binding. These modules receive only their required store/service capabilities.
+The shared operation contract and snapshot/sequence parsers introduce no mutable
+state. The entry point composes operation owners with the existing social, group,
+status, representative, notification and attachment services; their ACLs and
+construction/teardown are unchanged. Its retained database field is narrowed to
+the capabilities its composition and preflight methods actually use.
+
+`personal-backup-collection/index.ts` supplies one implementation for immediate
+personal cleanup and scheduled content maintenance. The existing store still
+returns a bounded page of eight objects. Each object is discarded before its
+collection acknowledgment; either failure propagates and preserves retry
+obligations. Personal removal still waits for this collection, attachment cleanup
+and social cleanup before returning. The backup owner invokes one complete
+composed cleanup operation; it does not control other services' internal state.
+Worker topics, wakeups, deadlines, batch bounds and scheduling are unchanged.
+
+Structural review: domain validation moved with its operations, while the facade
+retains composition and one signed dispatch boundary. AST comparisons verified
+37 moved registry entries, all three authority method bodies, publication,
+recovery registration, Matrix upload and collection after explicit capability
+substitutions. The dispatcher retains exactly the same 161 operation names.
+Existing import rules cover the new modules without cycles, exceptions, new
+dependencies or broader source roots. No crypto formats, persistence identities,
+quotas, retention, migrations, locks, infrastructure or deployment code changed.
+
+Validation: 146 relevant tests passed. The same 103 PostgreSQL/HTTP integration
+cases passed before and after using separate empty dedicated local databases;
+they cover private messages, sync/receipts, groups, status, social DMs, calls,
+representatives and after-commit maintenance signals. The same 13 added focused
+cases also passed before and after: representative dispatch with a valid signed
+authority; rejection of a different operation, changed payload, device, head or
+missing directory before domain work; signed deletion revisions; prototype and
+unknown operation rejection; fresh live-directory checks; collection after actual
+discard; object/persistence failures; and immediate cleanup blocking completion.
+Additional maintenance, HTTP/preflight/call-budget and recovery-authorization
+tests passed. Focused cases use real device signatures with isolated persistence
+and domain side effects; integration uses real PostgreSQL and cryptographic flows
+with synthetic accounts and content.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting
+and the web build passed. Initial lint identified one obsolete snapshot import
+in the Matrix owner; it was removed before final validation. The owned disposable
+PostgreSQL cluster was stopped after the comparison. Remote CI, physical-device
+acceptance and VPS activation were not run. No merge, push or VPS operation is
+included.
+
+The facade's remaining upload-preflight adapters and service construction are
+preexisting composition responsibilities. If preflight grows, characterize its
+authorization-before-body contract first, then move each feature's adapter
+together with its specific input policy; do not replace it with signed-body
+authentication before the body is available. Relevant checks are H09 HTTP and
+message/SSE integration. Broader transactional admission work remains H11.
