@@ -276,8 +276,13 @@ await test('session change during profile preparation prevents checking or sendi
 
 await test('sending after selecting a retained window requires current identities before key distribution or publication', async () => {
   const { controller, data, peer } = resumeFixture();
-  controller.pending = () =>
-    Promise.resolve([{ id: crypto.randomUUID(), peer }]);
+  data.records.set('outbox:pending', {
+    id: 'pending',
+    peer,
+    kind: 'text',
+    draft: [],
+    packet: null,
+  });
   const failure = new Error('Identidades indisponíveis');
   controller.loadPins = (options = {}) => {
     assert.equal(options.priority, 'interactive');
@@ -792,8 +797,13 @@ await test('revocation at final authority rejects the complete projection before
 for (const interactive of [false, true])
   await test(`pending publication keeps its requested authority priority and stops before unverified peer IO: interactive=${interactive}`, async (t) => {
     const f = resumeFixture();
-    f.controller.pending = () =>
-      Promise.resolve([{ id: crypto.randomUUID(), peer: f.peer }]);
+    f.data.records.set('outbox:pending', {
+      id: 'pending',
+      peer: f.peer,
+      kind: 'text',
+      draft: [],
+      packet: null,
+    });
     f.controller.loadPins = () => Promise.resolve();
     const failure = new Error('Current authority unavailable');
     const read: VaultAccess['withVault'] = (_offline, _work, options) => {
@@ -931,4 +941,141 @@ await test('opening a conversation on a finite cut reads its bounded window inst
     1,
   );
   assert.equal(data.requests.filter((op) => op === 'snapshot').length, 1);
+});
+
+await test('ordinary arrivals during final confirmation publish the verified finite cut once', async () => {
+  const f = resumeFixture(true);
+  await f.add('Verified finite cut');
+  f.data.confirmation = () => {
+    f.controller.appended();
+    return Promise.resolve(Response.json({}));
+  };
+  await f.controller.synchronize();
+  assert.equal(f.data.requests.filter((op) => op === 'confirm').length, 1);
+  const published = f.data.frames.filter((rows) => rows !== null);
+  assert.equal(published.length, 1);
+  assert.equal(published[0]?.[0]?.text, 'Verified finite cut');
+});
+
+await test('session replacement while opening an imported archive never exposes its history', async () => {
+  const f = resumeFixture();
+  f.data.history.push({
+    type: 'message',
+    id: crypto.randomUUID(),
+    hash: 'c'.repeat(64),
+    peer: f.peer,
+    own: false,
+    sequence: 1,
+    kind: 'text',
+    text: 'Imported history',
+  });
+  f.data.beforeHistory = () =>
+    f.controller.setSession({ ...f.session, csrf: 'e'.repeat(64) });
+  await assert.rejects(f.controller.openArchive(f.peer), /[Ss]ession/u);
+  assert.ok(f.data.frames.every((rows) => rows === null));
+});
+
+await test('offline opening merges the local cache and imported archive without remote confirmation', async () => {
+  const f = resumeFixture();
+  f.data.offline = true;
+  const id = crypto.randomUUID();
+  f.data.records.set(`cache:${id}`, {
+    id,
+    peer: f.peer,
+    own: false,
+    sequence: 2,
+    hash: 'c'.repeat(64),
+    text: 'Local cached content',
+    bytes: new Uint8Array(),
+    kind: 'text',
+  });
+  f.data.history.push({
+    type: 'message',
+    id: crypto.randomUUID(),
+    hash: 'd'.repeat(64),
+    peer: f.peer,
+    own: false,
+    sequence: 1,
+    kind: 'text',
+    text: 'Imported history',
+  });
+  await f.controller.openOffline(f.peer);
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['Imported history', 'Local cached content'],
+  );
+  assert.equal(f.data.frames.at(-1)?.[0]?.archived, true);
+  assert.equal(f.data.requests.length, 0);
+});
+
+await test('session replacement during offline decryption keeps all local history hidden', async () => {
+  const f = resumeFixture();
+  f.data.offline = true;
+  const id = crypto.randomUUID();
+  f.data.records.set(`cache:${id}`, {
+    id,
+    peer: f.peer,
+    own: false,
+    sequence: 1,
+    hash: 'c'.repeat(64),
+    text: 'Must stay hidden',
+    bytes: new Uint8Array(),
+    kind: 'text',
+  });
+  f.data.beforeLocalOpen = () =>
+    f.controller.setSession({ ...f.session, csrf: 'f'.repeat(64) });
+  await assert.rejects(f.controller.openOffline(f.peer), /[Ss]ession/u);
+  assert.ok(f.data.frames.every((rows) => rows === null));
+});
+
+await test('account receipt updates the selected window only after final confirmation and a durable checkpoint', async () => {
+  const f = resumeFixture(true);
+  f.controller.setLiveConnected(true);
+  await f.add('Already verified');
+  await f.controller.synchronize();
+  await f.add('Received in background');
+  const gate = deferred<Response>(),
+    entered = deferred<void>();
+  f.data.confirmation = () => {
+    entered.resolve();
+    return gate.promise;
+  };
+  const receiving = f.controller.synchronizeAll(new AbortController().signal);
+  await entered.promise;
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['Already verified'],
+  );
+  assert.equal(f.data.receipts.length, 0);
+  assert.ok(!f.data.records.has(`sync-progress:v2:${f.session.deviceId}`));
+  gate.resolve(Response.json({}));
+  await receiving;
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['Already verified', 'Received in background'],
+  );
+  assert.ok(f.data.records.has(`sync-progress:v2:${f.session.deviceId}`));
+  assert.equal(f.data.receipts.length, 1);
+  assert.equal(f.data.receipts[0]?.covered.has(f.peer), true);
+});
+
+await test('failure to persist a confirmed account checkpoint cannot publish its new selected-window content', async () => {
+  const f = resumeFixture(true);
+  await f.add('Already verified');
+  await f.controller.synchronize();
+  await f.add('Not durably committed');
+  f.data.beforeLocalWrite = (name) => {
+    if (name.startsWith('sync-progress:'))
+      throw new Error('Synthetic storage failure');
+  };
+  await assert.rejects(
+    f.controller.synchronizeAll(new AbortController().signal),
+    /Synthetic storage failure/u,
+  );
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['Already verified'],
+  );
+  assert.equal(f.data.receipts.length, 0);
+  assert.ok(!f.data.records.has(`sync-progress:v2:${f.session.deviceId}`));
 });

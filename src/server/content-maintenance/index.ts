@@ -1,3 +1,4 @@
+import { collectPersonalBackups } from '../personal-backup-collection/index.ts';
 import type { Database } from '../database/index.ts';
 import { WorkConsumers } from '../work-scheduler/index.ts';
 import { AttachmentService } from '../attachments/index.ts';
@@ -36,12 +37,7 @@ export class ContentMaintenance {
         },
         {
           topic: 'backups',
-          work: async () => {
-            for (const item of await db.backups.garbage()) {
-              await objects.discardPersonal(item.object_hash);
-              await db.backups.collected(item.account_id, item.id);
-            }
-          },
+          work: () => collectPersonalBackups(db.backups, objects),
           next: () => db.backups.nextCollection(),
         },
         {

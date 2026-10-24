@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
+import deploy_reviewed_code as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups
@@ -20,8 +21,8 @@ class ConversationFlowReviewTests(unittest.TestCase):
         (self.live / 'src/server/database/social-read-receipts.ts').write_text('existing receipt reader')
         for name in self.modules:
             (self.candidate / 'src/server/database' / name).write_text('reviewed inbox reader')
-        self.exports = {remote.CONVERSATION_FLOW_BEFORE: fixture.export(self.live),
-                        remote.CONVERSATION_FLOW_REVIEWED: fixture.export(self.candidate)}
+        self.exports = {reviewed_code.CONVERSATION_FLOW_BEFORE: fixture.export(self.live),
+                        reviewed_code.CONVERSATION_FLOW_REVIEWED: fixture.export(self.candidate)}
 
     def test_exact_complete_sources_use_code_exchange_without_schema_review(self):
         with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),

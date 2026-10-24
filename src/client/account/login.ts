@@ -16,11 +16,21 @@ import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { signWalletStatement } from '../wallet-statements/index.ts';
 import type { ApprovalFlow, IncomingRequest } from './approval-flow.ts';
 import { api, deviceId } from './core.ts';
-import type { AccountCore } from './core.ts';
+import type { AccountSnapshot } from './core.ts';
 import type { createWalletReturn } from './wallet-return.ts';
 
-type Wallets = ReturnType<typeof discoverWallets>;
+type Wallets = Pick<ReturnType<typeof discoverWallets>, 'get' | 'list'>;
 type LoginProof = { id: string; signature: string; currentEpoch: number };
+
+interface LoginAccount {
+  read: () => Pick<
+    AccountSnapshot,
+    'session' | 'busy' | 'epoch' | 'disposed' | 'forcePicker'
+  >;
+  invalidate: () => number;
+  notice: (message: string) => void;
+  withBusy: <T>(work: () => Promise<T>) => Promise<T>;
+}
 
 /**
  * Wallet login: the signed challenge, the request signed for another browser,
@@ -30,7 +40,7 @@ type LoginProof = { id: string; signature: string; currentEpoch: number };
 export class WalletLogin {
   private removeProviderListeners: (() => void) | undefined;
   private providerChanged = false;
-  private readonly core: AccountCore;
+  private readonly account: LoginAccount;
   private readonly wallets: Wallets;
   private readonly approval: ApprovalFlow;
   private readonly walletReturn: ReturnType<typeof createWalletReturn>;
@@ -42,17 +52,20 @@ export class WalletLogin {
     logout: () => void;
   };
   constructor(input: {
-    core: AccountCore;
+    account: LoginAccount;
     wallets: Wallets;
     approval: ApprovalFlow;
     walletReturn: ReturnType<typeof createWalletReturn>;
     host: WalletLogin['host'];
   }) {
-    this.core = input.core;
+    this.account = input.account;
     this.wallets = input.wallets;
     this.approval = input.approval;
     this.walletReturn = input.walletReturn;
     this.host = input.host;
+  }
+  private get state(): ReturnType<LoginAccount['read']> {
+    return this.account.read();
   }
   async login(name: string): Promise<void> {
     this.rememberLoginWallet(name);
@@ -69,12 +82,12 @@ export class WalletLogin {
     }
     this.checkIncoming(instance);
     if (request && this.approval.opening) {
-      await this.finishIncomingOpening(instance, request, this.core.epoch);
+      await this.finishIncomingOpening(instance, request, this.state.epoch);
       return;
     }
     if (!this.approval.incoming && this.walletReturn.state())
       await this.walletReturn.cancel();
-    this.core.status = t('Confirm the connection in {0}.', [instance.name]);
+    this.account.notice(t('Confirm the connection in {0}.', [instance.name]));
     this.host.render();
     const proof = await this.createLoginProof(instance);
     if (request) {
@@ -95,15 +108,14 @@ export class WalletLogin {
     return changed;
   }
   async signStatement(message: string): Promise<string> {
-    const active = this.core.session;
-    if (!active || this.core.busy)
+    const active = this.state.session;
+    if (!active || this.state.busy)
       throw new Error('Sign in and wait for the current operation.');
     const current = () => {
-      if (this.core.session?.csrf !== active.csrf)
+      if (this.state.session?.csrf !== active.csrf)
         throw new Error('Session changed during signing.');
     };
-    this.core.busy = true;
-    try {
+    return this.account.withBusy(async () => {
       const preferred = localStorage.getItem('0xdmme:login-wallet') ?? '';
       const wallet =
         this.wallets.get(
@@ -123,16 +135,14 @@ export class WalletLogin {
         message,
         current,
       });
-    } finally {
-      this.core.busy = false;
-    }
+    });
   }
   private observeProvider(instance: WalletConnection): void {
     this.removeProviderListeners?.();
     const changed = () => {
-      this.core.epoch++;
-      if (this.core.session) {
-        if (this.core.busy) this.providerChanged = true;
+      this.account.invalidate();
+      if (this.state.session) {
+        if (this.state.busy) this.providerChanged = true;
         else this.host.logout();
       }
     };
@@ -165,13 +175,13 @@ export class WalletLogin {
       );
   }
   private checkEpoch(current: number): void {
-    if (current !== this.core.epoch || this.core.disposed)
+    if (current !== this.state.epoch || this.state.disposed)
       throw new Error('Request ended or wallet changed.');
   }
   private async createLoginProof(
     instance: WalletConnection,
   ): Promise<LoginProof> {
-    const currentEpoch = ++this.core.epoch;
+    const currentEpoch = this.account.invalidate();
     this.progress('conexao-solicitada');
     const identity = await instance.identity(true);
     this.checkEpoch(currentEpoch);
@@ -193,7 +203,7 @@ export class WalletLogin {
     );
     this.checkEpoch(currentEpoch);
     this.approval.step('desafio-recebido');
-    this.core.status = loginSignatureNotice(!!incoming);
+    this.account.notice(loginSignatureNotice(!!incoming));
     this.host.render();
     this.progress('assinatura-solicitada');
     const signature = await instance.sign(
@@ -229,9 +239,9 @@ export class WalletLogin {
     ecosystem: AccountSession['ecosystem'];
     address: string;
   }): void {
-    const session = this.core.session;
+    const session = this.state.session;
     if (
-      this.core.forcePicker &&
+      this.state.forcePicker &&
       session &&
       (session.ecosystem !== identity.ecosystem ||
         canonicalAddress(identity.ecosystem, identity.address) !==
@@ -273,12 +283,12 @@ export class WalletLogin {
         input: { id: proof.id, signature: proof.signature },
       }),
     );
-    if (proof.currentEpoch !== this.core.epoch || this.core.disposed) {
+    if (proof.currentEpoch !== this.state.epoch || this.state.disposed) {
       await api('logout', { input: {}, csrf: authenticated.csrf });
       return;
     }
     this.host.setSession(authenticated);
-    this.core.status = t('Opening your account…');
+    this.account.notice(t('Opening your account…'));
     await this.host.openAccount(authenticated);
   }
   private async finishIncomingOpening(
@@ -288,8 +298,8 @@ export class WalletLogin {
   ): Promise<void> {
     const opening = this.approval.opening;
     if (opening) {
-      this.core.status = t(
-        "Continue in this wallet to open your account's keys.",
+      this.account.notice(
+        t("Continue in this wallet to open your account's keys."),
       );
       this.host.render();
       const encrypted = await signLoginOpening({
@@ -302,9 +312,11 @@ export class WalletLogin {
     }
     this.checkEpoch(currentEpoch);
     this.approval.confirmed(request.ticket);
-    this.core.status = t(
-      'Signature confirmed. Close {0} and return to the browser where you started signing in to confirm the address.',
-      [instance.name],
+    this.account.notice(
+      t(
+        'Signature confirmed. Close {0} and return to the browser where you started signing in to confirm the address.',
+        [instance.name],
+      ),
     );
     this.approval.step('retorno-manual');
     this.host.render();

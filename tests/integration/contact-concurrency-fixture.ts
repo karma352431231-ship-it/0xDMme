@@ -78,6 +78,12 @@ export async function verifyContactConcurrency(t: TestContext, c: Context) {
       await verifyRevocation(c);
     },
   );
+  await t.test(
+    'write admission waiting behind revocation never enters protected work',
+    async () => {
+      await verifyRevocation(c, 'write');
+    },
+  );
 }
 
 async function verifyHeldRead(c: Context): Promise<void> {
@@ -127,9 +133,13 @@ async function verifyHeldRead(c: Context): Promise<void> {
   }
 }
 
-async function verifyRevocation(c: Context): Promise<void> {
+async function verifyRevocation(
+  c: Context,
+  access: 'read' | 'write' = 'read',
+): Promise<void> {
   await c.inspector.query('BEGIN');
   let reading: Promise<unknown> | undefined;
+  let entered = false;
   try {
     const holder = await c.inspector.query<{ pid: number }>(
       'SELECT pg_backend_pid() AS pid',
@@ -142,11 +152,18 @@ async function verifyRevocation(c: Context): Promise<void> {
       'UPDATE hash_talk.device_directories SET head=$2 WHERE account_id=$1',
       [c.authority.session.accountId, 'f'.repeat(64)],
     );
-    reading = c.database.contacts.state(c.authority);
+    reading =
+      access === 'read'
+        ? c.database.contacts.state(c.authority)
+        : c.database.contacts.withMessageAuthority(c.authority, () => {
+            entered = true;
+            return Promise.resolve();
+          });
     void reading.catch(() => undefined);
     await waitForBlocked(c.inspector, holder.rows[0]!.pid);
     await c.inspector.query('COMMIT');
     await assert.rejects(reading, { status: 409 });
+    assert.equal(entered, false);
   } finally {
     await c.inspector.query('ROLLBACK');
     await c.inspector.query(

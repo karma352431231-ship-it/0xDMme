@@ -1,31 +1,25 @@
 import { dmFailure } from './dm-failures.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { DmProjections } from './dm-projections.ts';
-import { DmContinuations } from './dm-continuation.ts';
-import { EmojiPicker } from '../emoji/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
 import { clearDmChecks } from './dm-checks.ts';
 import { readVisibleDm } from './dm-read.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
-import { AttachmentUi } from '../attachment-ui/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
-import { LiveMessages, scopedLiveEvent } from '../message-live/index.ts';
-import { socialAttachment } from '../../shared/social-media/index.ts';
+import { scopedLiveEvent } from '../message-live/index.ts';
 import { SocialDms } from '../social-dm/index.ts';
 import type {
   VaultAccess,
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
-import { historyPosition, resetHistoryPosition } from '../chat-ui/index.ts';
+import { resetHistoryPosition } from '../chat-ui/index.ts';
 import { communityElement } from './elements.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
-  dmBubble,
   dmConversationView,
   dmListView,
   dmComposerGate,
@@ -36,20 +30,20 @@ import type { DmView } from './dm-chat.ts';
 import { openDmConversation, dmConversationWork } from './dm-opening.ts';
 import { startDmComposer } from './dm-composer.ts';
 import { DmWork } from './dm-work.ts';
-import { bindDmLifecycle } from './dm-lifecycle.ts';
 import {
   DmDirectory,
   dmDirectoryRow as directoryRow,
   paintDmDirectoryPreviews,
 } from './dm-directory.ts';
-import { LiveUpdates } from '../message-live/index.ts';
 import { createDmInbox } from './dm-inbox.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
 
-type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
-type DmItem = DmPage['items'][number];
+import { DmHistory } from './dm-history.ts';
+import { DmRefresh } from './dm-refresh.ts';
+import { DmSending } from './dm-sending.ts';
+import type { DmPage, DmItem } from './dm-history.ts';
 
 export function startSocialDmUi(
   access: VaultAccess,
@@ -63,31 +57,30 @@ export function startSocialDmUi(
     list: () => controller.list(null),
     previews: (peers) => controller.directoryPreviews(peers),
   });
-  const emojiPicker = new EmojiPicker();
-  const playback = new VoicePlayback(),
-    mediaUi = new AttachmentUi(playback, () => {});
+  const playback = new VoicePlayback();
+  const history = new DmHistory({
+    playback,
+    privacy,
+    controller,
+    run,
+    react,
+    edit: (item) => composer.edit(item),
+  });
+  const sending = new DmSending(controller);
   const composer = startDmComposer({
     playback,
     privacy,
     run,
-    changed: () => refreshes.resume(),
+    changed: () => refreshes.resumeRefresh(),
     submit: async ({ text, media, pending }) => {
       const selected = peer;
       if (!selected) return;
-      if (composer.editing) {
-        await controller.edit(selected, composer.editing, text);
-      } else if (media) {
-        await controller.stageMedia(
-          selected,
-          media.selection,
-          media.media,
-          text.trim(),
-        );
-        await controller.sendMedia(selected);
-      } else {
-        if (pending) await controller.sendMedia(selected);
-        if (text.trim()) await sendText(selected, text);
-      }
+      await sending.send(selected, {
+        text,
+        media,
+        pending,
+        editing: composer.editing,
+      });
       if (selected !== peer) return;
       before = null;
       await conversation();
@@ -96,107 +89,27 @@ export function startSocialDmUi(
       if (peer) await controller.cancelMedia(peer);
     },
   });
-  let streamCurrent = false;
-  const live = new LiveMessages({
-    access,
-    event: (signal) => {
-      const event = scopedLiveEvent(signal, [
-        'handle-messages',
-        'handle-receipts',
-      ]);
-      if (!event) return;
-      if (event === 'call') return;
-      if (!container && !publicDirectory.available) return;
-      if (
-        [
-          'removed',
-          'authorization',
-          'invalidated',
-          'revoked',
-          'ended',
-        ].includes(event)
-      ) {
-        publicDirectory.invalidate();
-        closeGate();
-      }
-      refreshes.request();
-    },
-    changed: () => {
-      const current = live.current;
-      if (streamCurrent && !current) {
-        publicDirectory.invalidate();
-        closeGate();
-        refreshes.request();
-      }
-      streamCurrent = current;
-      refreshes.resume();
-    },
-  });
   const projections = new DmProjections();
   const workQueue = new DmWork();
-  const continuations = new DmContinuations({
-    available: () =>
-      !!session &&
-      (!!container || publicDirectory.available) &&
-      !busy &&
-      !composer.active &&
-      !live.connecting &&
-      navigator.onLine &&
-      document.visibilityState === 'visible',
-    run: () => {
+  const refreshes = new DmRefresh({
+    access,
+    state: () => ({
+      signedIn: !!session,
+      mounted: !!container,
+      directory: publicDirectory.available,
+      busy,
+      composing: composer.active,
+    }),
+    reload: () => {
       void run(reload);
     },
-  });
-  const refreshes = new LiveUpdates({
-    available: () =>
-      (!!container || publicDirectory.available) &&
-      document.visibilityState === 'visible' &&
-      !busy &&
-      !composer.active &&
-      !live.connecting,
-    run: () => {
-      void run(reload);
+    invalidate: () => {
+      publicDirectory.invalidate();
+      closeGate();
     },
+    forget: () => projections.clear(),
+    clearDirectory: () => publicDirectory.clear(),
   });
-  let fallback: ReturnType<typeof setInterval> | null = null;
-  let stopLifecycle: (() => void) | null = null;
-  function startLifecycle(): void {
-    stopLifecycle ??= bindDmLifecycle({
-      current: () => live.current,
-      pause: () => {
-        publicDirectory.invalidate();
-        closeGate();
-      },
-      refresh: () => refreshes.request(),
-      reconnect: () => live.retry(),
-      visible: () => refreshes.resume(),
-    });
-  }
-  function startFallback(): void {
-    if (fallback !== null) return;
-    fallback = setInterval(() => {
-      if (closeIdleDirectory()) return;
-      if (
-        (!container && !publicDirectory.available) ||
-        busy ||
-        composer.active ||
-        live.connected ||
-        document.visibilityState !== 'visible'
-      )
-        return;
-      refreshes.request();
-    }, 30000);
-  }
-  function closeIdleDirectory(): boolean {
-    if (container || publicDirectory.available) return false;
-    publicDirectory.clear();
-    stopLifecycle?.();
-    stopLifecycle = null;
-    live.stop();
-    if (fallback) clearInterval(fallback);
-    fallback = null;
-    return true;
-  }
   let container: HTMLElement | null = null,
     session: AccountSession | null = null,
     view: DmView | null = null,
@@ -206,23 +119,9 @@ export function startSocialDmUi(
     busy = false,
     peer: string | null = null,
     cursor: string | null = null,
-    before: number | null = null,
-    nextBefore: number | null = null;
-  let messageId: string = crypto.randomUUID();
+    before: number | null = null;
   let ownProfile: string | null = null;
   let localOnly = false;
-  let externalAbort = new AbortController();
-  const rows = new Map<
-    string,
-    { key: string; row: HTMLElement; stop: () => void }
-  >();
-  function clearRows(): void {
-    externalAbort.abort();
-    externalAbort = new AbortController();
-    for (const held of rows.values()) held.stop();
-    rows.clear();
-    mediaUi.clearMedia();
-  }
   function status(message: string): void {
     if (view) view.gate.textContent = message;
     else if (container)
@@ -239,13 +138,13 @@ export function startSocialDmUi(
       composer.update(composerState());
       try {
         await measureWork(controller, 'dm-foreground', work, queuedAt);
-        continuations.clear();
+        refreshes.clearContinuation();
       } catch (error: unknown) {
         const failure = dmFailure(error, {
           sameSession: sameSession(account, session),
           current: old === generation && expected === verification,
         });
-        if (failure === 'continue') continuations.request();
+        if (failure === 'continue') refreshes.requestContinuation();
         else if (failure !== 'ignore') {
           closeGate();
           status(
@@ -258,17 +157,16 @@ export function startSocialDmUi(
         busy = false;
         if (old === generation) composer.update(composerState());
         refreshes.resume();
-        continuations.resume();
       }
     });
   }
   function closeGate(): void {
     projections.clear();
-    continuations.clear();
+    refreshes.clearContinuation();
     verification++;
     controller.cancel();
     writable = false;
-    clearRows();
+    history.clear();
     if (view) {
       view.history.replaceChildren();
       view.history.hidden = true;
@@ -298,10 +196,6 @@ export function startSocialDmUi(
       await list();
     }
     if (publicDirectory.available) await publicDirectory.refresh();
-  }
-  async function sendText(selected: string, text: string): Promise<void> {
-    await controller.send(selected, text, messageId);
-    messageId = crypto.randomUUID();
   }
   async function list(): Promise<void> {
     if (!container) return;
@@ -414,14 +308,14 @@ export function startSocialDmUi(
     if (view && viewKey === key && container?.contains(view.panel)) return view;
     if (!container) throw new Error('DM ended.');
     composer.leave();
-    clearRows();
+    history.clear();
     view = dmConversationView(container);
     viewKey = key;
     resetHistoryPosition(view.history);
     composer.bind(view);
     view.older.addEventListener('click', () => {
       void run(async () => {
-        before = nextBefore;
+        before = history.next;
         await conversation();
       });
     });
@@ -482,7 +376,7 @@ export function startSocialDmUi(
       { ...data, page },
       {
         current: currentVerification(old, expected),
-        live: live.current,
+        live: refreshes.current,
         before,
       },
     );
@@ -501,7 +395,7 @@ export function startSocialDmUi(
     paintDmPeer(current, {
       profile: data.profile,
       state: dmStateLabel(data.value, data.offline),
-      signal: externalAbort.signal,
+      signal: history.signal,
     });
   }
   async function messages(
@@ -526,10 +420,10 @@ export function startSocialDmUi(
     if (old !== generation || expected !== verification) return;
     pendingMedia = mediaPending;
     if (draft) {
-      messageId = draft.id;
+      sending.restore(draft.id);
       composer.restoreDraft(draft.text);
     }
-    renderHistory(current, page, { selected, localMedia: !canWrite });
+    history.render(current, page, { selected, localMedia: !canWrite });
     current.history.hidden = false;
     composer.update(composerState());
     const usable = () =>
@@ -607,127 +501,17 @@ export function startSocialDmUi(
     });
     current.options.append(button);
   }
-  /**
-   * Rows are reused by id and content, so a refresh neither reloads media nor
-   * restarts an embedded video; only new or changed messages are drawn.
-   */
-  function renderHistory(
-    current: DmView,
-    page: DmPage,
-    input: { selected: string; localMedia: boolean },
-  ): void {
-    const restore = historyPosition(current.history);
-    const keep = new Set(page.items.map((item) => item.id));
-    for (const [id, held] of rows)
-      if (!keep.has(id)) {
-        held.stop();
-        held.row.remove();
-        rows.delete(id);
-      }
-    for (const child of [...current.history.children])
-      if (!(child instanceof HTMLElement) || !child.dataset['message'])
-        child.remove();
-    let cursorNode = current.history.firstChild;
-    for (const item of page.items) {
-      const row = messageRow(item, page, input);
-      if (row === cursorNode) cursorNode = row.nextSibling;
-      else current.history.insertBefore(row, cursorNode);
-    }
-    if (!page.items.length) current.gate.textContent = t('No messages yet.');
-    current.older.hidden = page.next === null;
-    nextBefore = page.next;
-    restore();
-  }
-  function messageRow(
-    item: DmItem,
-    page: DmPage,
-    input: { selected: string; localMedia: boolean },
-  ): HTMLElement {
-    const key = JSON.stringify([
-        item.kind,
-        item.text,
-        item.reactions,
-        item.ownReaction,
-        item.sentAt,
-        item.displayText,
-        item.edited,
-        input.localMedia,
-      ]),
-      held = rows.get(item.id);
-    if (held?.key === key) return held.row;
-    held?.stop();
-    held?.row.remove();
-    const handle = item.peer.handle,
-      bubble = dmBubble(
-        { ...item, text: item.displayText },
-        {
-          own: item.sender === page.self,
-          handle,
-          privacy,
-          signal: externalAbort.signal,
-        },
-      );
-    if (item.kind === 'attachment' && item.media)
-      mediaUi.render({
-        article: bubble.row,
-        view: { ...item, peer: input.selected, archived: input.localMedia },
-        saveNotice: t(
-          'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
-        ),
-        content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
-        load: (_view, thumbnail) =>
-          controller.media(item, thumbnail, false, input.localMedia),
-        run,
-      });
-    const stopMenu = dmMessageMenu(bubble.row, {
-      text:
-        item.kind === 'text'
-          ? item.text
-          : socialAttachment(JSON.parse(item.text) as unknown, item.media!)
-              .caption,
-      signal: externalAbort.signal,
-      picker: emojiPicker,
-      run,
-      ...(!input.localMedia
-        ? {
-            react: (emoji: string) => react(item, emoji),
-            edit: () => composer.edit(item),
-            editable: editable(item),
-          }
-        : {}),
-    });
-    dmReactionChips(bubble.row, {
-      reactions: item.reactions,
-      ownReaction: item.ownReaction,
-      run,
-      ...(!input.localMedia ? { react: () => react(item, '') } : {}),
-    });
-    rows.set(item.id, {
-      key,
-      row: bubble.row,
-      stop: () => {
-        stopMenu();
-        bubble.stop();
-      },
-    });
-    return bubble.row;
-  }
   async function react(item: DmItem, emoji: string): Promise<void> {
     const target = peer;
     if (!target || !writable) return;
     await controller.react(target, item, emoji);
     await conversation();
   }
-  function editable(item: DmItem): boolean {
-    return item.own && item.kind === 'text';
-  }
   function clearView(): void {
     workQueue.reset();
-    continuations.clear();
     refreshes.clear();
     if (view) clearDmChecks(view.history);
-    emojiPicker.reset();
-    clearRows();
+    history.reset();
     composer.leave();
     playback.close();
     generation++;
@@ -736,19 +520,11 @@ export function startSocialDmUi(
     viewKey = '';
     writable = false;
     pendingMedia = false;
-    messageId = crypto.randomUUID();
+    sending.reset();
   }
   function leave(): void {
     clearView();
-    if (!publicDirectory.available) {
-      projections.clear();
-      stopLifecycle?.();
-      stopLifecycle = null;
-      streamCurrent = false;
-      live.stop();
-      if (fallback) clearInterval(fallback);
-      fallback = null;
-    }
+    refreshes.leave();
   }
   return {
     ready: () => unread.start(),
@@ -768,10 +544,9 @@ export function startSocialDmUi(
       container = node;
       peer = id;
       localOnly = local;
-      if (!localOnly) startLifecycle();
+      if (!localOnly) refreshes.watch();
       cursor = null;
       before = null;
-      nextBefore = null;
       if (!session) {
         node.replaceChildren(
           communityElement(
@@ -783,13 +558,16 @@ export function startSocialDmUi(
         return;
       }
       const restored = id
-        ? projections.get(id, live.current && navigator.onLine && !localOnly)
+        ? projections.get(
+            id,
+            refreshes.current && navigator.onLine && !localOnly,
+          )
         : null;
       if (restored && id) {
         const current = frame(id);
         paintHeader(current, restored);
         options(current, id, restored.profile, restored.value);
-        renderHistory(current, restored.page, {
+        history.render(current, restored.page, {
           selected: id,
           localMedia: false,
         });
@@ -807,8 +585,7 @@ export function startSocialDmUi(
             : ownProfile;
         if (old !== generation) return;
         ownProfile = profile;
-        if (navigator.onLine && !localOnly) live.start();
-        if (navigator.onLine && !localOnly) startFallback();
+        if (navigator.onLine && !localOnly) refreshes.connect();
         await reload();
       });
     },
@@ -837,9 +614,7 @@ export function startSocialDmUi(
         );
         return;
       }
-      live.start();
-      startLifecycle();
-      startFallback();
+      refreshes.watchDirectory();
       await run(() => publicDirectory.mount(node, valid));
     },
   };

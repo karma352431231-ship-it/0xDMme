@@ -18,7 +18,7 @@ import type {
   ProfilePreferences,
 } from '../account-profile/index.ts';
 import { api, node } from './core.ts';
-import type { AccountCore } from './core.ts';
+import type { AccountSnapshot } from './core.ts';
 import { writePrivateProfile } from './private-profile-write.ts';
 import { savePrivatePhoto } from './private-photo-save.ts';
 import { PrivateProfileAvatar } from './private-profile-avatar.ts';
@@ -37,6 +37,16 @@ export interface ProfileOptions {
   ) => Promise<void>;
 }
 
+interface ProfileAccount {
+  read: () => Pick<
+    AccountSnapshot,
+    'session' | 'status' | 'busy' | 'epoch' | 'disposed' | 'mounted'
+  >;
+  notice: (message: string) => void;
+  profileNotice: (message: string) => void;
+  withBusy: <T>(work: () => Promise<T>) => Promise<T>;
+}
+
 /**
  * The encrypted private profile of the session: its key, preferences, photo
  * and the drafts of the name and preference forms. Opened only with a key
@@ -52,7 +62,7 @@ export class AccountPrivateProfile {
   private readonly photoDraft = new PrivatePhotoDraft();
   private readonly preferencesDraft = new PrivatePreferencesDraft();
   private readonly privacyControls: PrivacyControls;
-  private readonly core: AccountCore;
+  private readonly account: ProfileAccount;
   private readonly options: ProfileOptions;
   private readonly host: {
     setSession: (session: AccountSession | null) => void;
@@ -61,11 +71,11 @@ export class AccountPrivateProfile {
     operation: (work: () => Promise<void>) => Promise<void>;
   };
   constructor(
-    core: AccountCore,
+    account: ProfileAccount,
     options: ProfileOptions,
     host: AccountPrivateProfile['host'],
   ) {
-    this.core = core;
+    this.account = account;
     this.options = options;
     this.host = host;
     this.privacyControls = new PrivacyControls({
@@ -73,8 +83,8 @@ export class AccountPrivateProfile {
         this.profile
           ? this.preferencesDraft.value(this.profile.preferences)
           : null,
-      busy: () => this.core.busy,
-      status: () => this.core.status,
+      busy: () => this.state.busy,
+      status: () => this.state.status,
       change: (name, value) => {
         if (!this.profile) return;
         this.preferencesDraft.set(this.profile.preferences, name, value);
@@ -83,13 +93,16 @@ export class AccountPrivateProfile {
       confirm: (event) => this.confirmChanges(event),
     });
   }
+  private get state(): ReturnType<ProfileAccount['read']> {
+    return this.account.read();
+  }
   get loaded(): boolean {
     return this.profile !== null;
   }
   /** No unsaved name or preference draft. */
   get clean(): boolean {
     const nameChanged =
-      this.dirtyName && this.draftName !== this.core.session?.name;
+      this.dirtyName && this.draftName !== this.state.session?.name;
     const preferencesChanged =
       this.profile &&
       JSON.stringify(this.preferencesDraft.value(this.profile.preferences)) !==
@@ -117,11 +130,11 @@ export class AccountPrivateProfile {
       ? await this.options.privateKey(current, walletOpening)
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
-      this.core.status = t(
-        'Session connected. Open your account in Profile → Devices.',
+      this.account.notice(
+        t('Session connected. Open your account in Profile → Devices.'),
       );
-      this.core.profileStatus = t(
-        'Profile locked. Authorize this device through linking or recovery.',
+      this.account.profileNotice(
+        t('Profile locked. Authorize this device through linking or recovery.'),
       );
       return;
     }
@@ -136,8 +149,8 @@ export class AccountPrivateProfile {
             accountId: current.accountId,
           });
     if (
-      this.core.session?.accountId !== current.accountId ||
-      this.core.disposed
+      this.state.session?.accountId !== current.accountId ||
+      this.state.disposed
     ) {
       opened.photo?.bytes.fill(0);
       return;
@@ -145,12 +158,12 @@ export class AccountPrivateProfile {
     this.key = localKey;
     this.profile = opened;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
-    this.core.status = t('Account ready.');
-    this.core.profileStatus = t('Profile available.');
+    this.account.notice(t('Account ready.'));
+    this.account.profileNotice(t('Profile available.'));
   }
   /** Reloads the session and profile unless a form has an unsaved draft. */
   async refresh(): Promise<void> {
-    if (!this.core.session || this.core.busy || !this.clean) return;
+    if (!this.state.session || this.state.busy || !this.clean) return;
     const current = accountSession(await api('session'));
     this.host.setSession(current);
     await this.load(current);
@@ -217,7 +230,7 @@ export class AccountPrivateProfile {
         ...document.querySelectorAll<HTMLElement>('[data-private-avatar]'),
       ].filter((host): host is HTMLElement => host !== null),
       photo: this.photoDraft.value(this.profile?.photo ?? null),
-      session: this.core.session,
+      session: this.state.session,
     });
   }
   async selectPhoto(): Promise<void> {
@@ -227,7 +240,7 @@ export class AccountPrivateProfile {
     const file = chosen ? await this.framed(chosen, input) : null;
     if (chosen && !file) return;
     if (!file || !this.profile || file.size > 3_000_000) {
-      this.core.status = t('Select a photo no larger than 3 MB.');
+      this.account.notice(t('Select a photo no larger than 3 MB.'));
       this.host.render();
       return;
     }
@@ -252,10 +265,10 @@ export class AccountPrivateProfile {
     }
   }
   private async changePhoto(stage: () => Promise<void>): Promise<void> {
-    const session = this.core.session,
+    const session = this.state.session,
       profile = this.profile,
       key = this.key,
-      epoch = this.core.epoch;
+      epoch = this.state.epoch;
     if (!session || !profile || !key) return;
     await this.host.operation(async () => {
       const revision = await savePrivatePhoto({
@@ -265,11 +278,11 @@ export class AccountPrivateProfile {
         draft: this.photoDraft,
         stage,
         current: () =>
-          this.core.session?.csrf === session.csrf &&
+          this.state.session?.csrf === session.csrf &&
           this.profile === profile &&
           this.key === key &&
-          this.core.epoch === epoch &&
-          !this.core.disposed,
+          this.state.epoch === epoch &&
+          !this.state.disposed,
         ...(this.options.saveProfile ? { save: this.options.saveProfile } : {}),
       });
       if (revision === null) return;
@@ -277,21 +290,21 @@ export class AccountPrivateProfile {
         JSON.stringify(this.preferencesDraft.value(profile.preferences)) !==
         JSON.stringify(profile.preferences);
       this.host.setSession({ ...session, profileRevision: revision });
-      this.core.status = t('Profile saved.');
+      this.account.notice(t('Profile saved.'));
       this.renderPhoto();
       this.host.renderSidebar();
     });
   }
   /** Initial settings: the same encrypted profile save as the form, with errors raised to the caller. */
   async savePrivacy(changes: Partial<ProfilePreferences>): Promise<void> {
-    const current = this.core.session,
+    const current = this.state.session,
       currentKey = this.key,
       profile = this.profile;
     if (
       !current ||
       !currentKey ||
       !profile ||
-      this.core.busy ||
+      this.state.busy ||
       this.dirtyProfile
     )
       throw new Error(
@@ -300,12 +313,12 @@ export class AccountPrivateProfile {
     const preferences = { ...profile.preferences, ...changes };
     if (JSON.stringify(preferences) === JSON.stringify(profile.preferences))
       return;
-    this.core.busy = true;
     try {
-      await this.persist(current, currentKey, { ...profile, preferences });
-      if (this.profile === profile) profile.preferences = preferences;
+      await this.account.withBusy(async () => {
+        await this.persist(current, currentKey, { ...profile, preferences });
+        if (this.profile === profile) profile.preferences = preferences;
+      });
     } finally {
-      this.core.busy = false;
       this.host.render();
     }
   }
@@ -329,7 +342,7 @@ export class AccountPrivateProfile {
     revision: number;
     photo: PrivateProfile['photo'];
   } | null {
-    const session = this.core.session;
+    const session = this.state.session;
     return session && this.profile
       ? {
           name: session.name,
@@ -339,10 +352,10 @@ export class AccountPrivateProfile {
       : null;
   }
   private find<T extends HTMLElement>(selector: string): T | null {
-    return node<T>(this.core, selector);
+    return node<T>(this.state, selector);
   }
   private updateRevision(stored: unknown, current: AccountSession): void {
-    const session = this.core.session;
+    const session = this.state.session;
     if (stored === null || session?.accountId !== current.accountId) return;
     const revision = profileEnvelope(stored).revision;
     if (session.profileRevision !== revision)
@@ -350,7 +363,7 @@ export class AccountPrivateProfile {
   }
   private async confirmChanges(event: Event): Promise<void> {
     event.preventDefault();
-    const original = this.core.session,
+    const original = this.state.session,
       currentKey = this.key,
       profile = this.profile;
     if (!original) return;
@@ -362,7 +375,7 @@ export class AccountPrivateProfile {
         throw new Error('Open your account to confirm the profile.');
       await this.confirmName(original, name);
       await this.confirmContent(original, currentKey, profile);
-      this.core.status = t('Changes confirmed.');
+      this.account.notice(t('Changes confirmed.'));
     });
   }
   private async confirmName(
@@ -373,7 +386,7 @@ export class AccountPrivateProfile {
     const renamed = accountSession(
       await api('name', { input: { name }, csrf: original.csrf }),
     );
-    if (this.core.session?.csrf !== original.csrf) return;
+    if (this.state.session?.csrf !== original.csrf) return;
     this.host.setSession(renamed);
     this.dirtyName = false;
     this.draftName = null;
@@ -383,7 +396,7 @@ export class AccountPrivateProfile {
     currentKey: CryptoKey | null,
     profile: PrivateProfile | null,
   ): Promise<void> {
-    const current = this.core.session;
+    const current = this.state.session;
     if (
       !this.dirtyProfile ||
       !currentKey ||
@@ -408,18 +421,18 @@ export class AccountPrivateProfile {
       },
       key: currentKey,
       current: () =>
-        this.core.session?.csrf === current.csrf &&
+        this.state.session?.csrf === current.csrf &&
         this.profile === visible &&
-        !this.core.disposed,
+        !this.state.disposed,
       ...(this.options.saveProfile ? { save: this.options.saveProfile } : {}),
     });
-    if (this.core.session?.csrf !== current.csrf || this.profile !== visible)
+    if (this.state.session?.csrf !== current.csrf || this.profile !== visible)
       return;
     this.photoDraft.commit(profile);
     this.preferencesDraft.commit(profile);
     this.host.setSession({ ...current, profileRevision: revision });
     await this.options.privacyChanged?.(profile.preferences);
-    this.core.status = t('Profile saved.');
+    this.account.notice(t('Profile saved.'));
     this.dirtyProfile = false;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     this.host.renderSidebar();

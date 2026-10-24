@@ -21,6 +21,7 @@ import deploy
 import deploy_remote as remote
 import deploy_blocks45 as backups
 import deploy_runtime as runtime
+import deploy_reviewed_code as reviewed_code
 
 
 def manifest():
@@ -31,6 +32,31 @@ def manifest():
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_refactored_executor_owners_restore_before_the_coordinator_and_reject_tampering(self):
+        source_root = Path(__file__).resolve().parents[1]
+        files = {str(path.relative_to(source_root)): remote.digest(path)
+                 for path in (source_root / 'infra/staging').glob('*.py')}
+        code = deploy.executor_code({'files': files})
+        restore = code.rsplit('print(json.dumps(sys.modules["deploy_remote"].execute()))', 1)[0]
+        probe = '''
+assert sys.modules['deploy_remote'].release_archive is sys.modules['deploy_archive']
+assert sys.modules['deploy_remote'].artifacts is sys.modules['deploy_artifacts']
+assert sys.modules['deploy_remote'].database_files is sys.modules['deploy_reviewed_code'].database_files
+sys.modules['deploy_remote'].validate({'commit':'a'*40,'branch':'main',
+ 'files':{'dist/web/app-'+'b'*16+'.js':'c'*64}, 'script':'/app-'+'b'*16+'.js',
+ 'archive_bytes':1,'archive_sha256':'d'*64})
+print('restored')
+'''
+        result = subprocess.run([sys.executable, '-c', restore + probe],
+                                capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), b'restored')
+        self.assertLess(len(code.encode()), 64 * 1024)
+        for module in ['deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts']:
+            with self.subTest(module=module):
+                altered = dict(files, **{'infra/staging/' + module + '.py': '0' * 64})
+                with self.assertRaisesRegex(RuntimeError, 'changed after'):
+                    deploy.executor_code({'files': altered})
+
     def test_source_comparison_uses_manifest_budget_and_keeps_backup_tree_budget(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -51,7 +77,7 @@ class DeploymentTests(unittest.TestCase):
                 backups.matches_export(root,expected,source_only=True)
 
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
-        names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
+        names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
                  'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
@@ -298,7 +324,7 @@ class DeploymentTests(unittest.TestCase):
     def test_reviewed_probe_lock_transition_and_reverse_reuse_runtime(self):
         before, after = self.reviewed_probe_locks()
         self.assertEqual({remote.hashlib.sha256(blob).hexdigest() for blob in [before, after]},
-                         set(remote.PHANTOM_PROBE_LOCKFILES))
+                         set(reviewed_code.PHANTOM_PROBE_LOCKFILES))
         for old_bytes, new_bytes in [(before, after), (after, before)]:
             with tempfile.TemporaryDirectory() as directory:
                 old, new = Path(directory) / 'old', Path(directory) / 'new'
@@ -1051,8 +1077,8 @@ class CommunityFeedCodeTests(unittest.TestCase):
         (self.candidate / 'src/server/database/communities.ts').write_text('reviewed public photo references')
         (self.candidate / 'src/server/database/community-discovery.ts').write_text('reviewed bounded photo batch')
         self.exports = {
-            remote.COMMUNITY_FEED_BEFORE: self.export(self.live),
-            remote.COMMUNITY_FEED_REVIEWED: self.export(self.candidate),
+            reviewed_code.COMMUNITY_FEED_BEFORE: self.export(self.live),
+            reviewed_code.COMMUNITY_FEED_REVIEWED: self.export(self.candidate),
         }
 
     def export(self, path):
@@ -1103,8 +1129,8 @@ class RankingMetricsCodeTests(CommunityFeedCodeTests):
         (self.live / 'src/server/database/community-ranking-metrics.ts').write_text('existing ranking query')
         (self.candidate / 'src/server/database/community-ranking-metrics.ts').write_text('reviewed transaction-scoped JIT setting')
         self.exports = {
-            remote.RANKING_METRICS_BEFORE: self.export(self.live),
-            remote.RANKING_METRICS_REVIEWED: self.export(self.candidate),
+            reviewed_code.RANKING_METRICS_BEFORE: self.export(self.live),
+            reviewed_code.RANKING_METRICS_REVIEWED: self.export(self.candidate),
         }
 
     def test_unreviewed_metric_query_is_rejected(self):
@@ -1123,8 +1149,8 @@ class MobileOpeningCodeTests(CommunityFeedCodeTests):
         (self.live / 'src/server/database/authentication.ts').write_text('existing atomic account login')
         (self.candidate / 'src/server/database/authentication.ts').write_text('reviewed provisional ID with atomic confirmation')
         self.exports = {
-            remote.MOBILE_OPENING_BEFORE: self.export(self.live),
-            remote.MOBILE_OPENING_REVIEWED: self.export(self.candidate),
+            reviewed_code.MOBILE_OPENING_BEFORE: self.export(self.live),
+            reviewed_code.MOBILE_OPENING_REVIEWED: self.export(self.candidate),
         }
 
     def test_authentication_code_must_match_exact_review(self):
@@ -1144,8 +1170,8 @@ class MessageRemovalCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing signed operation')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed post-commit removal control')
         self.exports = {
-            remote.MESSAGE_REMOVAL_BEFORE: self.export(self.live),
-            remote.MESSAGE_REMOVAL_REVIEWED: self.export(self.candidate),
+            reviewed_code.MESSAGE_REMOVAL_BEFORE: self.export(self.live),
+            reviewed_code.MESSAGE_REMOVAL_REVIEWED: self.export(self.candidate),
         }
 
     def test_removal_code_rejects_unreviewed_changes_in_each_allowed_module(self):
@@ -1172,8 +1198,8 @@ class PoseModerationCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing public review')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed post-publication video review')
         self.exports = {
-            remote.POSE_MODERATION_BEFORE: self.export(self.live),
-            remote.POSE_MODERATION_REVIEWED: self.export(self.candidate),
+            reviewed_code.POSE_MODERATION_BEFORE: self.export(self.live),
+            reviewed_code.POSE_MODERATION_REVIEWED: self.export(self.candidate),
         }
 
     def test_each_review_module_requires_exact_reviewed_bytes(self):
@@ -1199,8 +1225,8 @@ class DatabasePoolCodeTests(CommunityFeedCodeTests):
         (self.live / 'src/server/database/index.ts').write_text('pool web 4, worker 1')
         (self.candidate / 'src/server/database/index.ts').write_text('pool web 16, worker 4')
         self.exports = {
-            remote.POOL_SIZE_BEFORE: self.export(self.live),
-            remote.POOL_SIZE_REVIEWED: self.export(self.candidate),
+            reviewed_code.POOL_SIZE_BEFORE: self.export(self.live),
+            reviewed_code.POOL_SIZE_REVIEWED: self.export(self.candidate),
         }
 
 
@@ -1216,8 +1242,8 @@ class ActivityPreviewCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text(before)
             (self.candidate / 'src/server/database' / relative).write_text(after)
         self.exports = {
-            remote.ACTIVITY_PREVIEW_BEFORE: self.export(self.live),
-            remote.ACTIVITY_PREVIEW_REVIEWED: self.export(self.candidate),
+            reviewed_code.ACTIVITY_PREVIEW_BEFORE: self.export(self.live),
+            reviewed_code.ACTIVITY_PREVIEW_REVIEWED: self.export(self.candidate),
         }
 
 
@@ -1231,8 +1257,8 @@ class SavedBookmarkCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing bounded reader')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed private saved preference projection')
         self.exports = {
-            remote.SAVED_BOOKMARK_BEFORE: self.export(self.live),
-            remote.SAVED_BOOKMARK_REVIEWED: self.export(self.candidate),
+            reviewed_code.SAVED_BOOKMARK_BEFORE: self.export(self.live),
+            reviewed_code.SAVED_BOOKMARK_REVIEWED: self.export(self.candidate),
         }
 
     def test_bookmark_projection_requires_exact_bytes_in_all_three_modules(self):
@@ -1262,8 +1288,8 @@ class ChatParityCodeTests(CommunityFeedCodeTests):
         (self.live / 'src/server/database/social-reactions.ts').write_text('existing reaction admission')
         (self.candidate / 'src/server/database/social-actions.ts').write_text('reviewed own-text edit admission')
         self.exports = {
-            remote.CHAT_PARITY_BEFORE: self.export(self.live),
-            remote.CHAT_PARITY_REVIEWED: self.export(self.candidate),
+            reviewed_code.CHAT_PARITY_BEFORE: self.export(self.live),
+            reviewed_code.CHAT_PARITY_REVIEWED: self.export(self.candidate),
         }
 
     def test_chat_modules_and_renamed_action_require_exact_reviewed_bytes(self):
@@ -1298,8 +1324,8 @@ class PublicDmOpeningCodeTests(CommunityFeedCodeTests):
             (self.candidate / 'src/server/database' / relative).write_text('reviewed direct public DM operation')
         (self.candidate / 'src/server/database/social-conversations.ts').write_text('reviewed atomic opening')
         self.exports = {
-            remote.PUBLIC_DM_OPENING_BEFORE: self.export(self.live),
-            remote.PUBLIC_DM_OPENING_REVIEWED: self.export(self.candidate),
+            reviewed_code.PUBLIC_DM_OPENING_BEFORE: self.export(self.live),
+            reviewed_code.PUBLIC_DM_OPENING_REVIEWED: self.export(self.candidate),
         }
 
     def test_direct_dm_operations_require_exact_reviewed_bytes(self):
@@ -1332,8 +1358,8 @@ class FollowedAlertsCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing preview')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed followed alert')
         self.exports = {
-            remote.FOLLOWED_ALERTS_BEFORE: self.export(self.live),
-            remote.FOLLOWED_ALERTS_REVIEWED: self.export(self.candidate),
+            reviewed_code.FOLLOWED_ALERTS_BEFORE: self.export(self.live),
+            reviewed_code.FOLLOWED_ALERTS_REVIEWED: self.export(self.candidate),
         }
 
     def test_reviewed_followed_alert_modules_pass(self):
@@ -1364,8 +1390,8 @@ class ScopedSnapshotCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing exclusive read')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed shared read')
         self.exports = {
-            remote.SCOPED_SNAPSHOT_BEFORE: self.export(self.live),
-            remote.SCOPED_SNAPSHOT_REVIEWED: self.export(self.candidate),
+            reviewed_code.SCOPED_SNAPSHOT_BEFORE: self.export(self.live),
+            reviewed_code.SCOPED_SNAPSHOT_REVIEWED: self.export(self.candidate),
         }
 
     def test_each_snapshot_module_requires_exact_reviewed_bytes(self):
@@ -1391,8 +1417,8 @@ class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
             (self.live / 'src/server/database' / relative).write_text('existing signed owner reads')
             (self.candidate / 'src/server/database' / relative).write_text('reviewed retained owner subject')
         self.exports = {
-            remote.OWNER_REVIEW_MEDIA_BEFORE: self.export(self.live),
-            remote.OWNER_REVIEW_MEDIA_REVIEWED: self.export(self.candidate),
+            reviewed_code.OWNER_REVIEW_MEDIA_BEFORE: self.export(self.live),
+            reviewed_code.OWNER_REVIEW_MEDIA_REVIEWED: self.export(self.candidate),
         }
 
 
@@ -1406,8 +1432,8 @@ class RequiredCommunityTopicsCodeTests(CommunityFeedCodeTests):
         (self.live / relative).write_text('existing optional admission')
         (self.candidate / relative).write_text('reviewed required admission')
         self.exports = {
-            remote.REQUIRED_COMMUNITY_TOPICS_BEFORE: self.export(self.live),
-            remote.REQUIRED_COMMUNITY_TOPICS_REVIEWED: self.export(self.candidate),
+            reviewed_code.REQUIRED_COMMUNITY_TOPICS_BEFORE: self.export(self.live),
+            reviewed_code.REQUIRED_COMMUNITY_TOPICS_REVIEWED: self.export(self.candidate),
         }
 
     def test_required_admission_rejects_unreviewed_bytes(self):
@@ -1428,8 +1454,8 @@ class AutomaticActivityCodeTests(CommunityFeedCodeTests):
             (self.candidate / 'src/server/database' / relative).write_text('reviewed generic transaction wakeups')
         (self.candidate / 'src/server/database/public-notice-wake.ts').write_text('reviewed bounded recipient frames')
         self.exports = {
-            remote.AUTOMATIC_ACTIVITY_BEFORE: self.export(self.live),
-            remote.AUTOMATIC_ACTIVITY_REVIEWED: self.export(self.candidate),
+            reviewed_code.AUTOMATIC_ACTIVITY_BEFORE: self.export(self.live),
+            reviewed_code.AUTOMATIC_ACTIVITY_REVIEWED: self.export(self.candidate),
         }
 
     def test_new_wake_module_must_match_the_exact_review(self):
@@ -1750,8 +1776,8 @@ class MediaOutputCodeTests(CommunityFeedCodeTests):
         (self.live / 'src/server/database/community-media.ts').write_text('old result reservation')
         (self.candidate / 'src/server/database/community-media.ts').write_text('reviewed atomic reservation upgrade')
         self.exports = {
-            remote.MEDIA_OUTPUT_BEFORE:self.export(self.live),
-            remote.MEDIA_OUTPUT_REVIEWED:self.export(self.candidate),
+            reviewed_code.MEDIA_OUTPUT_BEFORE:self.export(self.live),
+            reviewed_code.MEDIA_OUTPUT_REVIEWED:self.export(self.candidate),
         }
 
     def test_unreviewed_reservation_code_is_rejected(self):
