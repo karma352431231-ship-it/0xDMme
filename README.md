@@ -59,6 +59,8 @@ After preparing the dedicated database and configuring `.env` from `.env.example
 
 `npm run check` runs type-aware lint, strict TypeScript, module boundaries, npm license checks, formatting, localization checks, the builds and the tests. `npm run test:integration` checks a real database and the service lifecycle, with the test URL in `.local/web-test.env` or in the environment; the violations used by the tests are temporary. `npm run format` applies the single adopted formatter.
 
+Repeatable private-chat/group browser tests, including synthetic wallet onboarding, run with `npm run test:chat-e2e`. See [browser test setup, performance sampling and evidence](docs/CHAT_BROWSER_TESTS.md) for the local database and browser prerequisites.
+
 CI in `.github/workflows/check.yml` repeats the checks and runs the integration tests against a temporary PostgreSQL 16 on Ubuntu, without deployment or real credentials.
 
 For the cryptography lab, run `npm run probe:crypto` and open `http://127.0.0.1:45101/`; vault and ZK probes are also available. The lab is temporary and uses only fictitious data. `probe:zk:prepare` downloads pinned public artifacts before private use, with no CDN during the probe; `npm run probe:measure` keeps measurements in ignored local records. For an iPhone on the same private network, the optional `npm run probe:mobile` profile uses HTTPS and temporary access; it needs configuration and certificates in `.local/` and explicit trust of the test certificate on the device. The default profile stays on loopback.

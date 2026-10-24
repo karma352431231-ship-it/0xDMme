@@ -71,6 +71,14 @@ const architectureCases: ReadonlyArray<{
   diagnostic: RegExp;
 }> = [
   {
+    name: 'production cannot import synthetic browser adapters',
+    files: {
+      'src/server/main.ts': "export { value } from '../../tests/adapter.ts';\n",
+      'tests/adapter.ts': 'export const value = 1;\n',
+    },
+    diagnostic: /product-cannot-import-test-adapters/,
+  },
+  {
     name: 'cliente não importa servidor',
     files: {
       'src/client/main.ts':
