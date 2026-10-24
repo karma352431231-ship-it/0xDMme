@@ -1,9 +1,11 @@
 # Hotspot refactoring from the current main branch
 
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
-H02, H01 presentation, H07 group presentation, then H03 community presentation.
+H02, H01 presentation, H07 group presentation, H03 community presentation, then
+H04 public-identity DM presentation.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch; another merge, push and VPS publication are outside its scope.
+local on this branch, followed by H04; another merge, push and VPS publication
+are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -255,3 +257,72 @@ are private local evidence, outside Git. This limited fixture does not establish
 equivalence across all themes, devices, real wallet/backend operations or media
 uploads. PostgreSQL integration and remote CI were not run for H03. No new merge,
 push or VPS operation is included.
+
+## H04: public-identity DM history, sending and refresh ownership
+
+Base: `b585fe5`, including H03's page-versus-workspace DM contract. The current
+baseline already has `dm-composer.ts` and `dm-composition.ts`, which retain typed
+drafts, editing context, prepared media, recording and preview disposal. Those
+owners are reused without changing their behavior or creating a second composer.
+
+`dm-history.ts` now owns the displayed page's rows, next-page cursor, content
+reuse, media renderer, message menus, reaction controls and external-resource
+lifetime. It receives only the history region and narrow media/edit/reaction
+operations. Unchanged content retains its nodes and media; changed or removed
+content releases its resources. Peer-header photos retain the same cancellation
+boundary through this lifetime's signal.
+
+`dm-sending.ts` owns the stable text admission ID and the existing submission
+sequence for edits, new media, staged media and text. A failed send does not
+rotate the ID; accepted text does. Restoring a durable pending draft restores
+its existing ID. Encryption, durable staging, account authority and persistence
+remain in `SocialDms`, with no new storage or protocol format.
+
+`dm-refresh.ts` owns the live subscription, hint coalescing, continuation tasks,
+fallback interval and browser lifecycle listeners. It reads only immutable
+availability facts and invokes the existing reload/invalidation operations.
+Refresh still waits while recording or holding a prepared selection, and
+security/lifecycle invalidation still closes content immediately. A separately
+mounted directory keeps its subscription after the conversation leaves; an
+obsolete directory is cleaned up at the existing fallback boundary. The shell
+keeps one selected peer, session/generation/verification authority, operation
+queue, relation gates, verified reads and read acknowledgements.
+
+Structural review: row/media, send-ID and subscription state moved with their
+cleanup and operations, rather than receiving the original writable closure.
+Existing directory, composer, projection, inbox, continuation and lifecycle
+owners are reused. Existing dependency rules cover the new internal imports;
+there are no new rules, exceptions, dependencies or source-archive roots. Server,
+database, cryptography, storage, retry policy, styles and deployment code are
+unchanged. The shell still composes list/identity/offline opening and verified
+conversation admission. If directory presentation changes later, first move its
+main-list and local-copy page cursor into a dedicated list owner, keeping the
+independent `DmDirectory` and testing preview failure, local mode and navigation.
+This remaining preexisting area does not require changing unrelated workflows
+in this stage.
+
+Validation: 108 focused tests passed across DM UI/coordinator, composition,
+opening, read markers, work queue, authority, history synchronization, directory,
+inbox, projections, continuations, attachment/voice resources, H03 integration
+and portable-source packaging. All 28 assembled DM coordinator cases also passed
+against the pre-refactor entry point with the same final fixture. Ten added
+cases cover unchanged-row reuse/disposal, local read-only history, stable retry
+IDs, refresh during recording, selected-byte/preview cleanup, fallback shutdown,
+staged-media retry, blocked composition, explicit pagination and an independently
+mounted directory. These use synthetic IO, media and DOM adapters, including the
+real composer for draft/selection cases; they do not exercise real devices or
+backend services.
+
+ESLint, strict types, dependency boundaries, formatting, localization coverage
+and the web build passed. The boundary check initially inherited the host's
+unsupported Node 25 after the first command in a shell chain; rerunning the
+remaining checks with Node 24 for the complete chain passed. Final changed-file
+lint and strict types also passed. No dependency/runtime configuration changed
+to accommodate the host default. The portable-source archive has 1,162 entries
+and contains byte-identical
+copies of the three new modules and the updated entry point, within unchanged
+budgets.
+
+The local browser is disabled in Work settings during H04, so a real browser
+comparison remains pending. PostgreSQL integration and remote CI were not run.
+No merge, push or VPS operation is included.

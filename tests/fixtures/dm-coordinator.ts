@@ -13,6 +13,9 @@ import type {
   VaultWorkOptions,
 } from '../../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
+import { dmComposerGate } from '../../src/client/communities/dm-chat.ts';
+import type { startDmComposer } from '../../src/client/communities/dm-composer.ts';
+import type { AttachmentSelection } from '../../src/client/attachments/index.ts';
 
 const entry = 'src/client/communities/dms.ts';
 // Real coordinator, queue, lifecycle and wakeup coalescing; IO and DOM are adapters.
@@ -35,9 +38,23 @@ const adapted: Record<string, string[]> = {
   '../chat-ui/index.ts': ['historyPosition', 'resetHistoryPosition'],
   './elements.ts': ['communityElement'],
 };
+const composerAdapters: Record<string, string[]> = {
+  '../chat-ui/index.ts': [
+    'bindChatComposer',
+    'bindRecordGesture',
+    'showRecording',
+    'updateChatComposer',
+  ],
+  '../emoji/index.ts': ['EmojiPicker', 'emojiIntoComposer'],
+  '../voice-recording/index.ts': ['VoiceRecording'],
+  '../gif-search/index.ts': ['GifSearch', 'mountGifPane'],
+  '../file-drop/index.ts': ['dropFilesInto'],
+  '../social-media/index.ts': ['prepareSocialImage'],
+  '../toast/index.ts': ['showToast'],
+};
 const bundle = await build({
   stdin: {
-    contents: `export { startSocialDmUi } from './${entry}'; export { WorkInterruption } from './src/client/synchronization-work/index.ts';`,
+    contents: `export { startSocialDmUi } from './${entry}'; export { startDmComposer } from './src/client/communities/dm-composer.ts'; export { WorkInterruption } from './src/client/synchronization-work/index.ts';`,
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -51,8 +68,17 @@ const bundle = await build({
       name: 'dm-screen-adapters',
       setup(builder) {
         builder.onResolve({ filter: /.*/ }, ({ path, importer }) => {
-          if (importer.endsWith('/' + entry) && adapted[path])
+          if (
+            (importer.endsWith('/' + entry) ||
+              importer.endsWith('/client/communities/dm-history.ts')) &&
+            adapted[path]
+          )
             return { path, namespace: 'fixture' };
+          if (
+            importer.endsWith('/client/communities/dm-composer.ts') &&
+            composerAdapters[path]
+          )
+            return { path, namespace: 'composer-fixture' };
         });
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({
           contents: adapted[path]!.map(
@@ -60,6 +86,15 @@ const bundle = await build({
           ).join('\n'),
           loader: 'js',
         }));
+        builder.onLoad(
+          { filter: /.*/, namespace: 'composer-fixture' },
+          ({ path }) => ({
+            contents: composerAdapters[path]!.map(
+              (name) => `export const ${name} = fixture.${name};`,
+            ).join('\n'),
+            loader: 'js',
+          }),
+        );
         // Keep real LiveUpdates but adapt the stream's transport.
         builder.onLoad(
           { filter: /src\/client\/message-live\/index\.ts$/ },
@@ -93,8 +128,31 @@ class DmNode extends CommunityNode {
   get firstChild() {
     return this.children[0] ?? null;
   }
+  get nextSibling(): CommunityNode | null {
+    return (
+      this.parent?.children[this.parent.children.indexOf(this) + 1] ?? null
+    );
+  }
+  insertBefore(node: DmNode, before: DmNode | null): void {
+    if (node === before) return;
+    node.remove();
+    node.parent = this;
+    const index = before ? this.children.indexOf(before) : this.children.length;
+    this.children.splice(index, 0, node);
+  }
+  override querySelectorAll(selector: string): DmNode[] {
+    const attribute = /^\[data-([a-z-]+)\]$/u.exec(selector)?.[1];
+    if (!attribute) return super.querySelectorAll(selector) as DmNode[];
+    const key = attribute.replace(/-([a-z])/gu, (_match, letter: string) =>
+      letter.toUpperCase(),
+    );
+    return (this.children as DmNode[]).flatMap((node) => [
+      ...(key in node.dataset ? [node] : []),
+      ...node.querySelectorAll(selector),
+    ]);
+  }
 }
-export function dmCoordinatorFixture(t: TestContext) {
+export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
   const calls: string[] = [],
     held = deferred<unknown>();
   const priorities: {
@@ -111,7 +169,25 @@ export function dmCoordinatorFixture(t: TestContext) {
   let liveChanged: () => void = () => {};
   let liveCurrent = true,
     connecting = false,
+    connected = true,
     holdList = false;
+  type Page = Awaited<ReturnType<SocialDms['cached']>>;
+  const data = {
+    items: [] as Page['items'],
+    next: null as number | null,
+    readAfters: [] as (number | null)[],
+    pending: null as { id: string; text: string } | null,
+    mediaPending: false,
+    sendFailure: null as Error | null,
+    blocked: false,
+    sends: [] as { peer: string; text: string; id: string }[],
+    bubbles: [] as { row: DmNode; signal: AbortSignal; stopped: boolean }[],
+    menus: [] as { react?: unknown; edit?: unknown; stopped: boolean }[],
+    revokedUrls: [] as string[],
+    selected: null as AttachmentSelection | null,
+    streamStops: 0,
+    playbackClosed: 0,
+  };
   const listing = deferred<Response>();
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
@@ -155,21 +231,29 @@ export function dmCoordinatorFixture(t: TestContext) {
     gate: DmNode;
     older: DmNode;
     title: DmNode;
+    form: DmNode;
+    text: DmNode;
   }[] = [];
   const noop = () => {},
     asyncNoop = () => Promise.resolve();
   const page = () => ({
-    items: [],
-    next: null,
+    items: data.items,
+    next: data.next,
     reactionReads: [],
     self: 'self',
   });
   const document = Object.assign(new EventTarget(), {
     visibilityState: 'visible',
+    createElement: (tag: string) => new DmNode(tag),
     // Menu glyphs are real SVG nodes; the fixture only needs their structure.
     createElementNS: (_namespace: string, tag: string) => new DmNode(tag),
   });
   const window = new EventTarget();
+  let record: {
+    active: boolean;
+    start: () => Promise<void>;
+    cancel: () => void;
+  };
   const fixture = {
     SocialDms: function () {
       // Keep the actual session/cancellation guards and signed list transport.
@@ -193,25 +277,50 @@ export function dmCoordinatorFixture(t: TestContext) {
             : Promise.resolve({
                 peer: { id: peer, handle: peer, avatar: null },
                 state: 'approved',
-                canSend: true,
+                canSend: !data.blocked,
+                blocked: data.blocked,
               });
         },
         read: (
           peer: string,
-          _before: number | null,
+          before: number | null,
           options: VaultWorkOptions = {},
         ) => {
           priorities.push({ operation: 'read', priority: options.priority });
           calls.push('read:' + peer);
+          data.readAfters.push(before);
           return readFailure
             ? Promise.reject(readFailure)
             : Promise.resolve(page());
         },
-        cached: () => Promise.resolve(page()),
-        pending: () => Promise.resolve(null),
+        cached: (peer: string) => {
+          calls.push('cached:' + peer);
+          return Promise.resolve(page());
+        },
+        pending: () => Promise.resolve(data.pending),
+        send: (peer: string, text: string, id: string) => {
+          data.sends.push({ peer, text, id });
+          data.pending = { id, text };
+          if (data.sendFailure) return Promise.reject(data.sendFailure);
+          data.pending = null;
+          return Promise.resolve();
+        },
+        stageMedia: () => {
+          calls.push('stage-media');
+          data.mediaPending = true;
+          return Promise.resolve();
+        },
+        sendMedia: () => {
+          calls.push('send-media');
+          if (data.sendFailure) return Promise.reject(data.sendFailure);
+          data.mediaPending = false;
+          return Promise.resolve();
+        },
         mediaDraft: (peer: string) => {
           calls.push('media:' + peer);
-          return peer === mediaPeer ? media.promise : Promise.resolve(false);
+          return peer === mediaPeer
+            ? media.promise
+            : Promise.resolve(data.mediaPending);
         },
         directoryPreviews: () => Promise.resolve(new Map()),
         messageStates: () => Promise.resolve([]),
@@ -220,7 +329,12 @@ export function dmCoordinatorFixture(t: TestContext) {
       });
     },
     VoicePlayback: function () {
-      return { close: noop };
+      return {
+        close: () => {
+          data.playbackClosed++;
+        },
+        release: noop,
+      };
     },
     AttachmentUi: function () {
       return { clearMedia: noop };
@@ -228,16 +342,45 @@ export function dmCoordinatorFixture(t: TestContext) {
     EmojiPicker: function () {
       return { reset: noop };
     },
-    startDmComposer: () => ({
-      active: false,
-      editing: null,
-      bind: noop,
-      update: (state: { pending: boolean }) =>
-        composerStates.push({ ...state }),
-      restoreDraft: noop,
-      leave: noop,
-      cancelEdit: noop,
-    }),
+    bindChatComposer: noop,
+    bindRecordGesture: noop,
+    showRecording: noop,
+    updateChatComposer: noop,
+    emojiIntoComposer: asyncNoop,
+    GifSearch: function () {},
+    mountGifPane: noop,
+    dropFilesInto: noop,
+    prepareSocialImage: () =>
+      Promise.resolve({ selection: data.selected, media: 'photo' }),
+    showToast: noop,
+    VoiceRecording: function (options: { changed: (state: unknown) => void }) {
+      record = {
+        active: false,
+        start: () => {
+          record.active = true;
+          options.changed({ phase: 'recording' });
+          return Promise.resolve();
+        },
+        cancel: () => {
+          record.active = false;
+          options.changed({ phase: 'idle' });
+        },
+      };
+      return record;
+    },
+    startDmComposer: (options: Parameters<typeof startDmComposer>[0]) =>
+      realComposer
+        ? context.startDmComposer(options)
+        : {
+            active: false,
+            editing: null,
+            bind: noop,
+            update: (state: { pending: boolean }) =>
+              composerStates.push({ ...state }),
+            restoreDraft: noop,
+            leave: noop,
+            cancelEdit: noop,
+          },
     LiveMessages: function (options: {
       event: typeof emit;
       changed: () => void;
@@ -251,9 +394,13 @@ export function dmCoordinatorFixture(t: TestContext) {
         get connecting() {
           return connecting;
         },
-        connected: true,
+        get connected() {
+          return connected;
+        },
         start: noop,
-        stop: noop,
+        stop: () => {
+          data.streamStops++;
+        },
         retry: noop,
       };
     },
@@ -276,6 +423,17 @@ export function dmCoordinatorFixture(t: TestContext) {
         form: new DmNode('form'),
         text: new DmNode('textarea'),
       };
+      for (const key of [
+        'attachmentFile',
+        'attachmentPreview',
+        'attachmentClear',
+      ]) {
+        const control = new DmNode(key === 'attachmentFile' ? 'input' : 'div');
+        control.dataset[key] = '';
+        current.form.append(control);
+      }
+      current.form.append(current.text);
+      current.panel.append(current.history, current.form);
       host.replaceChildren(current.panel);
       views.push(current);
       return current;
@@ -286,19 +444,43 @@ export function dmCoordinatorFixture(t: TestContext) {
     ) => {
       view.title.textContent = input.profile.handle;
     },
-    dmComposerGate: () => null,
+    dmComposerGate,
     dmStateLabel: () => '',
     clearDmChecks: noop,
     refreshDmChecks: asyncNoop,
     historyPosition: () => noop,
     resetHistoryPosition: noop,
-    dmBubble: noop,
+    dmBubble: (
+      item: { id: string; text: string },
+      input: { signal: AbortSignal },
+    ) => {
+      const row = new DmNode('article');
+      row.dataset['message'] = item.id;
+      row.textContent = item.text;
+      const bubble = { row, signal: input.signal, stopped: false };
+      data.bubbles.push(bubble);
+      return {
+        row,
+        stop: () => {
+          bubble.stopped = true;
+        },
+      };
+    },
     dmListView: (host: DmNode) => {
       const list = new DmNode();
       host.replaceChildren(list);
       return list;
     },
-    dmMessageMenu: noop,
+    dmMessageMenu: (
+      _row: DmNode,
+      input: { react?: unknown; edit?: unknown },
+    ) => {
+      const menu = { ...input, stopped: false };
+      data.menus.push(menu);
+      return () => {
+        menu.stopped = true;
+      };
+    },
     dmReactionChips: noop,
   };
   const context = runInNewContext(bundle.outputFiles[0]!.text + '\ndmUi;', {
@@ -312,6 +494,13 @@ export function dmCoordinatorFixture(t: TestContext) {
     AbortSignal,
     DOMException,
     Error,
+    Blob,
+    Event,
+    URL: {
+      createObjectURL: () => 'blob:synthetic',
+      revokeObjectURL: (url: string) => data.revokedUrls.push(url),
+    },
+    matchMedia: () => ({ matches: false }),
     setTimeout,
     clearTimeout,
     setInterval,
@@ -322,6 +511,7 @@ export function dmCoordinatorFixture(t: TestContext) {
     HTMLElement: DmNode,
   }) as {
     startSocialDmUi: typeof startSocialDmUi;
+    startDmComposer: typeof startDmComposer;
     WorkInterruption: typeof import('../../src/client/synchronization-work/index.ts').WorkInterruption;
   };
   const ui = context.startSocialDmUi(
@@ -334,6 +524,18 @@ export function dmCoordinatorFixture(t: TestContext) {
   t.after(() => ui.leave());
   return {
     ui,
+    data,
+    startRecording: () => record.start(),
+    cancelRecording: () => record.cancel(),
+    chooseImage: (selection: AttachmentSelection) => {
+      data.selected = selection;
+      const input = views.at(-1)!.form.querySelector('[data-attachment-file]')!;
+      Object.assign(input, { files: [{}] });
+      input.dispatchEvent(new Event('change'));
+    },
+    disconnect: () => {
+      connected = false;
+    },
     host: host as unknown as HTMLElement,
     calls,
     priorities,
