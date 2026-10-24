@@ -855,3 +855,12 @@ CI, the existing reviewed private preservation baseline and the existing
 worker readiness, public artifact hashes, preservation and rollback are checked
 by the executor. Access, inventory, artifacts and operational results stay in
 `.local/`; no deployment result is claimed by this source review alone.
+
+The combined deployment check caught the H11 review metadata pushing two legacy
+executor modes above the unchanged source budget. Artifact operations now take
+their private data root and archive budget explicitly, without allocating a
+state-free wrapper instance. Retention rules, receipts and their explanatory
+comments are unchanged. All 416 deployment tests passed after this correction,
+including the historical modes; their transport stays below the existing source
+and SSH-command limits. This correction is committed separately before another
+exact-main CI run. The prior main candidate was never activated.
