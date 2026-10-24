@@ -762,16 +762,15 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
   );
   assert.ok(archive);
   try {
-    assert.equal(
-      await reader.decryptGroup({
-        packet: encrypted.packet,
-        keys: encrypted.keys,
-        period: joined,
-        senderEvent: owner.directory,
-        exported: openRoomKey(secret, archive),
-      }),
-      'Conteúdo fictício dentro do grupo bloqueado',
-    );
+    const opened = await reader.decryptGroup({
+      packet: encrypted.packet,
+      keys: encrypted.keys,
+      period: joined,
+      senderEvent: owner.directory,
+      exported: openRoomKey(secret, archive),
+    });
+    assert.equal(opened.text, 'Conteúdo fictício dentro do grupo bloqueado');
+    assert.ok(Number.isSafeInteger(opened.sentAt));
   } finally {
     secret.free();
   }
