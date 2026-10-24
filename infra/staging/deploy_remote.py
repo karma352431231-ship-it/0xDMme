@@ -175,19 +175,19 @@ def extract(archive, destination, allowed):
 
 
 def prune_completed(current, dry_run=False):
-    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).prune_completed(current, dry_run)
+    return artifacts.prune_completed(current, dry_run, data=DATA, archive_bytes=MAX_ARCHIVE)
 
 
 def retention_capacity(current):
-    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retention_capacity(current)
+    return artifacts.retention_capacity(current, data=DATA, archive_bytes=MAX_ARCHIVE)
 
 
 def retain_migration_backup(work, old):
-    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retain_migration_backup(work, old)
+    return artifacts.retain_migration_backup(work, old, data=DATA, archive_bytes=MAX_ARCHIVE)
 
 
 def retain_failure_receipt(state):
-    return artifacts.DeploymentArtifacts(DATA, MAX_ARCHIVE).retain_failure_receipt(state)
+    return artifacts.retain_failure_receipt(state, data=DATA)
 
 
 def preservation(baseline):
