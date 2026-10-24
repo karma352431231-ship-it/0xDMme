@@ -837,6 +837,9 @@ export class MessageCrypto {
         groupId: input.state.groupId,
         epoch: input.state.epoch,
         ...(input.relation ? { relation: input.relation } : {}),
+        // Sender's clock, as in private messages (24/10/2026); earlier group
+        // messages have none, and earlier readers ignore it.
+        presentation: { version: 1, sentAt: Date.now() },
       },
     });
     if (new TextEncoder().encode(content).length > 3_000_000)
@@ -849,7 +852,7 @@ export class MessageCrypto {
     period: GroupEvent;
     senderEvent: DirectoryEvent;
     exported?: string;
-  }): Promise<string> {
+  }): Promise<{ text: string } & MessagePresentation> {
     this.assertOpen();
     const packet = await verifyGroupPacket(input.packet, input.senderEvent);
     const bundle = await verifyGroupKeys(input.keys, input.senderEvent);
@@ -889,7 +892,10 @@ export class MessageCrypto {
       settings.free();
     }
   }
-  private openGroupContent(packet: GroupPacket, event: string): string {
+  private openGroupContent(
+    packet: GroupPacket,
+    event: string,
+  ): { text: string } & MessagePresentation {
     const payload = object(object(JSON.parse(event) as unknown)['content']),
       identity = object(payload['org.0xdmme.group']);
     this.assertGroupContentRelation(identity, packet);
@@ -911,7 +917,10 @@ export class MessageCrypto {
       ) !== canonical(packet.attachments)
     )
       throw new Error('Group attachment does not match.');
-    return payload['body'];
+    return {
+      text: payload['body'],
+      ...messagePresentation(identity['presentation']),
+    };
   }
   private assertGroupContentRelation(
     identity: Record<string, unknown>,

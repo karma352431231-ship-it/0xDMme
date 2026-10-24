@@ -32,6 +32,8 @@ import { readDirectories } from '../peer-identity/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
 import { GroupCache, groupTitle, groupMessageRecordName } from './cache.ts';
 import type { GroupState } from './governance.ts';
+import { optionalSentAt } from '../../shared/message-presentation/index.ts';
+import type { MessagePresentation } from '../../shared/message-presentation/index.ts';
 export interface GroupView {
   id: string;
   groupId: string;
@@ -49,6 +51,8 @@ export interface GroupView {
   relation?: MessageRelation;
   edited?: boolean;
   editedSequence?: number;
+  /** The sender's clock; groups messages sent before 24/10/2026 have none. */
+  sentAt?: number;
 }
 interface GroupRow {
   id: string;
@@ -214,7 +218,7 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
   // packet hash and membership are still checked on every authorized read.
   const stored = c.cached.get(item.id);
   if (stored) return { ...stored, unavailableMedia: item.unavailableMedia };
-  const text = await decryptGroupText(c, packet);
+  const { text, ...presentation } = await decryptGroupText(c, packet);
   if (packet.kind === 'attachment')
     attachmentContent(JSON.parse(text) as unknown);
   if (packet.kind === 'profile') await preserveProfile(c, packet, text);
@@ -228,6 +232,7 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
     own: packet.sender === c.authority.session.accountId,
     kind: packet.kind,
     text,
+    ...presentation,
     ...(packet.relation ? { relation: packet.relation } : {}),
     unavailableMedia: item.unavailableMedia,
   };
@@ -271,7 +276,7 @@ async function checkGroupIndex(
 async function decryptGroupText(
   c: GroupRowContext,
   packet: GroupPacket,
-): Promise<string> {
+): Promise<{ text: string } & MessagePresentation> {
   const period = await c.cache.event(packet.head),
     bundle = c.keys.get(packet.keyHash),
     origin = c.histories.get(packet.sender)?.events[
@@ -350,6 +355,7 @@ export function groupView(input: unknown): GroupView {
     ...(d['relation'] === undefined
       ? {}
       : { relation: groupEditRelation(d['relation']) }),
+    ...optionalSentAt(d['sentAt']),
     unavailableMedia: d['unavailableMedia'].map(uuid),
   };
 }
