@@ -1,8 +1,10 @@
 import { MessageForwardSelection } from './forward-selection.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import {
+  dayHeading,
   messageTime,
   messageReactions,
+  withDayHeadings,
 } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
@@ -11,7 +13,10 @@ import {
   ChatHistoryLoading,
   historyPosition,
   updateMessageStates,
+  watchOlderHistory,
 } from '../chat-ui/index.ts';
+import type { OlderHistory } from '../chat-ui/index.ts';
+import { WindowReceipts } from '../history-window/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
@@ -62,6 +67,9 @@ interface HistoryPresentation {
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
   forwarding?: ForwardDirectory;
   flush?: () => Promise<void>;
+  /** Reads further back when the reader scrolls to the top; true when the
+   * window grew. */
+  older?: { available: () => boolean; load: () => Promise<boolean> };
   /** Covers the header initials with the contact's private card photo. */
   peerPhoto?: (
     host: HTMLElement,
@@ -86,6 +94,15 @@ export class MessageHistoryUi {
   private readonly avatarPhoto = new ChatAvatarPhoto();
   private readonly loading = new ChatHistoryLoading();
   private pending: HistoryUpdate | null = null;
+  private older: {
+    history: HTMLElement;
+    stop: AbortController;
+    watch: OlderHistory;
+  } | null = null;
+  private readonly receipts = {
+    incoming: new WindowReceipts<never>(),
+    outgoing: new WindowReceipts<boolean>(),
+  };
   constructor(options: HistoryPresentation) {
     this.options = options;
     this.forwarding =
@@ -102,6 +119,8 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.receipts.incoming.clear();
+    this.receipts.outgoing.clear();
     this.loading.reset();
     this.avatarPhoto.clear();
     this.headerPhoto?.abort();
@@ -140,7 +159,28 @@ export class MessageHistoryUi {
     this.renderGate(history);
     this.renderPeer();
     restoreScroll();
+    this.watchOlder(history)?.check();
     this.options.composerChanged();
+  }
+  /** One scroll binding per history element, replaced when it is remounted. */
+  private watchOlder(history: HTMLElement): OlderHistory | null {
+    const older = this.options.older;
+    if (!older) return null;
+    if (this.older?.history === history) return this.older.watch;
+    this.older?.stop.abort();
+    const stop = new AbortController();
+    this.older = {
+      history,
+      stop,
+      watch: watchOlderHistory({
+        history,
+        button: this.options.node<HTMLButtonElement>('[data-message-older]'),
+        available: () => this.views !== null && older.available(),
+        load: older.load,
+        signal: stop.signal,
+      }),
+    };
+    return this.older.watch;
   }
   private renderGate(history: HTMLElement): void {
     history.hidden = this.views === null;
@@ -160,8 +200,6 @@ export class MessageHistoryUi {
           )
         : '';
     }
-    const older = this.options.node('[data-message-older]');
-    if (older) older.hidden = dailyViews(this.views ?? []).length === 0;
   }
   private renderContent(history: HTMLElement, update: HistoryUpdate): void {
     if (update === 'pending') return;
@@ -172,14 +210,25 @@ export class MessageHistoryUi {
           views,
           this.options.context().selected?.localOnly,
         );
+      const rows = views.map((view) => ({
+        id: view.id,
+        key: keys.get(view.id)!,
+        sentAt: view.sentAt,
+        render: (signal: AbortSignal) => this.renderMessage(view, signal),
+      }));
       this.externalRows.render(
         history,
         [
-          ...views.map((view) => ({
-            id: view.id,
-            key: keys.get(view.id)!,
-            render: (signal: AbortSignal) => this.renderMessage(view, signal),
-          })),
+          ...withDayHeadings(
+            rows,
+            (row) => row.sentAt,
+            (day) => ({
+              id: `day:${day.key}`,
+              key: `day:${day.label}`,
+              sentAt: undefined,
+              render: () => dayHeading(day.label),
+            }),
+          ),
           ...this.outgoingRows(),
         ],
         this.options.signal(),
@@ -432,16 +481,24 @@ export class MessageHistoryUi {
           row.own && !row.archived && !row.relation && row.kind !== 'profile',
       )
       .map((row) => row.id);
-    const receipts = await daily.readConversation({
-      peer,
-      incoming,
-      outgoing,
-      current: () => this.stillVisible(peer, views),
-    });
-    if (receipts === null || !this.stillVisible(peer, views)) return;
-    this.readIds = receipts;
+    const current = () => this.stillVisible(peer, views),
+      reads = this.receipts.incoming.batches(incoming),
+      asks = this.receipts.outgoing.batches(outgoing);
+    for (let page = 0; page < Math.max(reads.length, asks.length); page++) {
+      const batch = { incoming: reads[page] ?? [], outgoing: asks[page] ?? [] };
+      const read = await daily.readConversation({ peer, ...batch, current });
+      if (read === null || !current()) return;
+      this.receipts.incoming.answered(batch.incoming);
+      this.receipts.outgoing.answered(
+        batch.outgoing,
+        new Map(batch.outgoing.map((id) => [id, read.has(id)])),
+      );
+    }
+    this.readIds = new Set(
+      outgoing.filter((id) => this.receipts.outgoing.state(id)),
+    );
     this.renderStates();
-    this.options.receiptsVerified?.({ peer, outgoing, read: receipts });
+    this.options.receiptsVerified?.({ peer, outgoing, read: this.readIds });
   }
 }
 

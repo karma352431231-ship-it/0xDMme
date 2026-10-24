@@ -1,9 +1,13 @@
 import type { GroupView } from './reader.ts';
+import { windowRoots } from '../history-window/index.ts';
+import type { HistoryFloor } from '../history-window/index.ts';
 /** Only authenticated actions can replace a root's visible text. The immutable
- * original hash/author stay available for later edits and deletion proofs. */
+ * original hash/author stay available for later edits and deletion proofs. The
+ * window keeps the group's floor (history-window). */
 export function projectGroupMessages(
   previous: GroupView[],
   changes: GroupView[],
+  floor: HistoryFloor = null,
 ): GroupView[] {
   const views = new Map(previous.map((view) => [view.id, view]));
   for (const view of changes.filter(
@@ -13,9 +17,11 @@ export function projectGroupMessages(
   }
   for (const edit of changes.filter((row) => row.relation))
     applyEdit(views, edit);
-  const result = [...views.values()]
-    .sort((a, b) => a.sequence - b.sequence)
-    .slice(-16);
+  const result = windowRoots(
+    [...views.values()].sort((a, b) => a.sequence - b.sequence),
+    floor,
+    (view) => view.sequence,
+  );
   let bytes = result.reduce(
     (total, view) => total + view.text.length * 2 + 1024,
     0,

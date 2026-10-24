@@ -71,6 +71,12 @@ import {
 import { GroupAdmissions } from './admission.ts';
 import { GroupAuthority } from './authority.ts';
 import type { GroupContext } from './authority.ts';
+import {
+  HistoryFloors,
+  WindowReceipts,
+  historyPage,
+  reachFloor,
+} from '../history-window/index.ts';
 
 export interface GroupSummary extends GroupState {
   title: string;
@@ -115,7 +121,13 @@ export class GroupController {
   private historyLoaded = false;
   selected: GroupSummary | null = null;
   views: GroupView[] = [];
-  before: number | null = null;
+  /** How far back independent local copies reach; verified windows keep
+   * their own floors in GroupMessageWindows. */
+  private readonly localFloors = new HistoryFloors();
+  private readonly receipts = {
+    reads: new WindowReceipts<never>(),
+    checks: new WindowReceipts<Pick<GroupView, 'delivery' | 'read'>>(),
+  };
   constructor(access: VaultAccess, sync: VaultSync, visible: () => boolean) {
     this.access = access;
     this.visible = visible;
@@ -132,6 +144,9 @@ export class GroupController {
     if (identity(session) !== identity(this.session)) {
       this.authority.invalidate();
       this.messageWindows.clear();
+      this.localFloors.clear();
+      this.receipts.reads.clear();
+      this.receipts.checks.clear();
       this.close();
       this.entries = [];
       this.incoming = [];
@@ -154,7 +169,6 @@ export class GroupController {
     this.historyPending = false;
     this.selected = null;
     this.views = [];
-    this.before = null;
   }
   close(): void {
     this.deselect();
@@ -311,7 +325,7 @@ export class GroupController {
             if (this.selected?.state.groupId === raw.groupId) {
               this.selected = summary;
               if (this.visible())
-                await this.openVerified(c, group, null, machine).catch(
+                await this.openVerified(c, group, false, machine).catch(
                   (error: unknown) => {
                     if (!expectedInterruption(error)) throw error;
                   },
@@ -562,7 +576,7 @@ export class GroupController {
       this.warning = '';
       if (c.authority.offline)
         throw new Error('Connect to check current group membership.');
-      return this.openVerified(c, group, older ? this.before : null);
+      return this.openVerified(c, group, older);
     }, guard);
     guard();
     await this.identities.save(guard);
@@ -570,10 +584,11 @@ export class GroupController {
     if (!complete)
       return new MessageContinuation(() => this.openSelected(input));
   }
+  /** The latest window; `older` reaches one page further back. */
   private async openVerified(
     c: GroupContext,
     group: GroupState,
-    before: number | null,
+    older: boolean,
     machine?: import('../message-crypto/index.ts').MessageCrypto,
   ): Promise<boolean> {
     const generation = this.generation,
@@ -593,10 +608,10 @@ export class GroupController {
           identities: this.identities,
           read: (raw) => lease.read(raw),
         },
-        before,
+        null,
+        older,
       );
       guard();
-      this.before = page.before;
       this.views = page.views;
       this.historyPending = false;
     } catch (error: unknown) {
@@ -628,17 +643,23 @@ export class GroupController {
     const group = this.entries.find((g) => g.state.groupId === groupId);
     if (!group) throw new Error('Local group copy missing.');
     await this.withAuthority(async (c) => {
-      const page = await localGroupViews(
-        c.authority,
-        groupId,
-        older ? this.before : null,
-      );
+      const page = (before: number | null) =>
+        localGroupViews(c.authority, groupId, before).then((p) => p.views);
+      const reached = await reachFloor({
+        rows: await page(null),
+        floor: this.localFloors.floor(groupId),
+        older,
+        page,
+        merge: (newer, older) =>
+          [
+            ...new Map([...older, ...newer].map((v) => [v.id, v])).values(),
+          ].sort((a, b) => a.sequence - b.sequence),
+      });
       guard();
+      this.localFloors.update(groupId, reached);
       this.selected = { ...group, localOnly: true };
-      this.views = page.views;
+      this.views = reached.rows;
       this.historyPending = false;
-      guard();
-      this.before = page.before;
       this.warning = t(
         'Independent local copy. Sending and administration require verified current membership.',
       );
@@ -646,6 +667,16 @@ export class GroupController {
   }
   historyChanged(): void {
     this.historyLoaded = false;
+  }
+  /** False once the open group has nothing further back. */
+  get olderAvailable(): boolean {
+    const group = this.selected?.state.groupId;
+    if (!group) return false;
+    return this.selected?.localOnly
+      ? !this.localFloors.complete(group) &&
+          (this.localFloors.floor(group) !== null ||
+            this.views.length >= historyPage)
+      : this.messageWindows.olderAvailable(group, this.views);
   }
   private async readViews(
     api: AttachmentApi,
@@ -656,31 +687,34 @@ export class GroupController {
       .filter((v) => !v.own && !v.unavailableMedia.length && !v.localOnly)
       .map((v) => v.id);
     if (ids.length && this.visible() && document.visibilityState === 'visible')
-      await this.recordReads(api, group, ids);
-    const own = this.views
-      .filter((v) => v.own && !v.localOnly)
-      .map((v) => v.id);
-    if (!own.length) return;
-    const raw = await api('group-daily-receipts', { ...scope, ids: own });
-    this.applyReceipts(raw);
+      for (const batch of this.receipts.reads.batches(ids)) {
+        if (!(await this.recordReads(api, group, batch))) break;
+        this.receipts.reads.answered(batch);
+      }
+    await this.askReceipts((own) =>
+      api('group-daily-receipts', { ...scope, ids: own }),
+    );
   }
+  /** False when the personal vault is full and the read was not recorded. */
   private async recordReads(
     api: AttachmentApi,
     group: GroupState,
     ids: string[],
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await api('group-daily-read', {
         groupId: group.state.groupId,
         head: group.head,
         ids,
       });
+      return true;
     } catch (error: unknown) {
       if (!(error instanceof AccountError) || error.status !== 413) throw error;
       await this.confirm(api, group);
       this.warning = t(
         'Messages opened. Personal vault full: the read could not be recorded.',
       );
+      return false;
     }
   }
   /** Delivery/read metadata for the open group's own messages, without
@@ -688,37 +722,64 @@ export class GroupController {
   async refreshReceipts(): Promise<void> {
     const selected = this.selected;
     if (!selected || selected.localOnly) return;
-    const own = this.views
-      .filter((v) => v.own && !v.localOnly)
-      .map((v) => v.id);
-    if (!own.length) return;
+    if (!this.views.some((v) => v.own && !v.localOnly)) return;
     const generation = this.generation,
       guard = this.selection.capture(() => this.guard(generation));
-    const raw = await this.withAuthority(
+    await this.withAuthority(
       (c) =>
-        c.api('group-daily-receipts', {
-          groupId: selected.state.groupId,
-          head: selected.head,
-          ids: own,
+        this.askReceipts(async (ids) => {
+          const raw = await c.api('group-daily-receipts', {
+            groupId: selected.state.groupId,
+            head: selected.head,
+            ids,
+          });
+          guard();
+          // A reopened group answers again on its own read.
+          return this.selected?.state.groupId === selected.state.groupId
+            ? raw
+            : [];
         }),
       guard,
     );
-    guard();
-    if (this.selected === selected) this.applyReceipts(raw);
   }
-  private applyReceipts(raw: unknown): void {
+  /** The latest page of own messages on every check, older pages once. */
+  private async askReceipts(
+    request: (ids: string[]) => Promise<unknown>,
+  ): Promise<void> {
+    const own = this.views
+      .filter((v) => v.own && !v.localOnly)
+      .map((v) => v.id);
+    for (const batch of this.receipts.checks.batches(own))
+      this.receipts.checks.answered(
+        batch,
+        this.applyReceipts(await request(batch)),
+      );
+    for (const view of this.views) {
+      const known = view.delivery
+        ? undefined
+        : this.receipts.checks.state(view.id);
+      if (known) Object.assign(view, known);
+    }
+  }
+  private applyReceipts(
+    raw: unknown,
+  ): Map<string, Pick<GroupView, 'delivery' | 'read'>> {
     if (!Array.isArray(raw) || raw.length > 16)
       throw new Error('Invalid group delivery checks.');
+    const states = new Map<string, Pick<GroupView, 'delivery' | 'read'>>();
     for (const input of raw) {
       const d = object(input);
       if (typeof d['received'] !== 'boolean' || typeof d['read'] !== 'boolean')
         throw new Error('Invalid receipt.');
+      const state = {
+        delivery: d['received'] ? ('received' as const) : ('accepted' as const),
+        read: d['read'],
+      };
+      states.set(uuid(d['id']), state);
       const view = this.views.find((v) => v.id === uuid(d['id']));
-      if (view) {
-        view.delivery = d['received'] ? 'received' : 'accepted';
-        view.read = d['read'];
-      }
+      if (view) Object.assign(view, state);
     }
+    return states;
   }
   async photo(
     group: GroupSummary | null = this.selected,

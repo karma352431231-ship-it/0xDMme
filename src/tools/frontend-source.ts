@@ -39,6 +39,7 @@ const authored = [
   'src/client/transient-menu',
   'src/client/scrollbars',
   'src/client/display-scale',
+  'src/client/history-window',
   'src/shared/community-followers',
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',

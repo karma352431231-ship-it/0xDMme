@@ -61,6 +61,14 @@ import {
 import { OfflineIndex } from './offline-index.ts';
 import { readPeerWindow } from './peer-window.ts';
 import { messageItems } from './history.ts';
+import {
+  HistoryFloors,
+  historyPage,
+  historyRootLimit,
+  oldestRoot,
+  reachFloor,
+} from '../history-window/index.ts';
+import type { HistoryFloor } from '../history-window/index.ts';
 import type { Api, MessageItem } from './history.ts';
 import type {
   MessageView,
@@ -68,6 +76,14 @@ import type {
   MessageReaderEvents,
 } from './message-view.ts';
 
+/** What every page read of one synchronization shares. */
+interface PageRead {
+  a: VaultAuthority;
+  generation: number;
+  api: Api;
+  snapshot: unknown;
+  selected: string | null;
+}
 export interface MessageWindowRead {
   a: VaultAuthority;
   generation: number;
@@ -112,12 +128,16 @@ export class ConversationReader {
   private readonly visibility: MessageVisibility<MessageView>;
   private readonly selection = new SelectionWork();
   private selected: string | null = null;
-  private before: number | null = null;
-  private oldest: number | null = null;
+  /** How far back each conversation reaches; see history-window. */
+  private readonly floors = new HistoryFloors();
+  private olderRequested = false;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
   private readonly conversations = new ConfirmedConversations<MessageView>();
   private probedSnapshot: unknown = null;
   private readonly index = new MessageIndex();
+  /** Legacy snapshots scan the whole index per window; older pages keep their
+   * own scans so a continuation resumes them instead of starting over. */
+  private readonly olderIndexes = new Map<number, MessageIndex>();
   private readonly readTarget = new MessageReadTarget();
   private receiverCut: MessageSyncSnapshot | null = null;
   private readonly staleWindow = new StaleWindowReport();
@@ -148,7 +168,7 @@ export class ConversationReader {
     this.visibility = new MessageVisibility((rows, update) =>
       input.publish(rows, update, {
         peer: this.selected,
-        latest: this.before === null,
+        latest: true,
       }),
     );
   }
@@ -158,6 +178,8 @@ export class ConversationReader {
   close(): void {
     this.selection.invalidate('session');
     this.readTarget.reset();
+    this.floors.clear();
+    this.olderRequested = false;
     this.conversations.clear('controller-close');
     this.probedSnapshot = null;
     this.confirmed = null;
@@ -165,7 +187,7 @@ export class ConversationReader {
     this.staleWindow.clear();
     this.verified.clear();
     this.visibility.close();
-    this.index.reset();
+    this.resetIndex();
     this.offlineIndex.reset();
   }
   /** Navigation hides projection; account suspension also ends immediate reuse. */
@@ -190,7 +212,7 @@ export class ConversationReader {
     this.readTarget.reset();
     this.conversations.clear('hidden');
     this.probedSnapshot = null;
-    this.index.reset();
+    this.resetIndex();
     this.confirmed = null;
     this.verified.clear();
     this.visibility.close();
@@ -293,23 +315,42 @@ export class ConversationReader {
     });
     return true;
   }
-  select(peer: string | null, older = false): void {
-    if (older || this.before !== null) this.readTarget.reset();
+  select(peer: string | null): void {
     this.selection.invalidate();
     this.probedSnapshot = null;
-    const candidate = peer && !older ? this.conversations.read(peer) : null;
+    this.olderRequested = false;
+    const candidate = peer ? this.conversations.read(peer) : null;
     traceChatSync(this.conversations, peer, {
       event: 'candidate-read',
       reason: candidate ? 'candidate-present' : 'missing',
-      older,
     });
     this.confirmed = candidate;
     this.verified.clear();
     this.visibility.close();
     this.offlineIndex.reset();
     this.selected = peer;
-    this.before = older ? this.oldest : null;
-    if (candidate) this.oldest = candidate.oldest;
+  }
+  /** The next read of the selected conversation also reaches one page
+   * further back, keeping what is shown until it completes. */
+  requestOlder(): void {
+    if (this.selected) this.olderRequested = true;
+  }
+  /** False once the selected conversation has nothing further back; `shown`
+   * counts the messages on screen, whichever mode published them. */
+  olderAvailable(shown: number): boolean {
+    return (
+      !!this.selected &&
+      !this.floors.complete(this.selected) &&
+      (this.floors.floor(this.selected) !== null || shown >= historyPage)
+    );
+  }
+  private floor(): HistoryFloor {
+    return this.selected ? this.floors.floor(this.selected) : null;
+  }
+  private takeOlder(): boolean {
+    const older = this.olderRequested;
+    this.olderRequested = false;
+    return older;
   }
   private concealChangedFence(token: number, snapshot: unknown): void {
     if (
@@ -328,10 +369,10 @@ export class ConversationReader {
       this.conversations.confirm(
         JSON.parse(this.confirmed.snapshot) as unknown,
       );
-    if (!this.selected || this.before !== null || !this.confirmed) return;
+    if (!this.selected || !this.confirmed) return;
     this.conversations.remember(this.selected, {
       ...this.confirmed,
-      oldest: this.oldest,
+      oldest: oldestRoot(this.confirmed.views),
     });
   }
   private confirmConversationChanges(snapshot: unknown): void {
@@ -347,6 +388,8 @@ export class ConversationReader {
     const token = this.visibility.refresh(),
       generation = this.authority.current(),
       selected = this.selected,
+      older = this.takeOlder(),
+      floor = this.floor(),
       guard = this.selection.capture(() => this.authority.guard(generation));
     try {
       const staged = await this.access.withVault(
@@ -363,12 +406,13 @@ export class ConversationReader {
                 })),
             );
           this.concealChangedFence(token, snapshot);
+          const read = { a, generation, api, snapshot, selected };
           const incremental = await readIncrementalWindow({
             candidate: this.confirmed,
             snapshot,
             account: a.session.accountId,
             peer: selected,
-            before: this.before,
+            floor,
             api,
             remove: (item) =>
               this.packets.remove({ a, generation, selected, api }, item),
@@ -378,37 +422,16 @@ export class ConversationReader {
               this.refreshDelivery(snapshot, generation, views, a),
           });
           if (incremental)
-            return { ...incremental, snapshot, account: a.session.accountId };
-          const items = await this.synchronizeIndex({
-            a,
-            generation,
-            api,
-            snapshot,
-            selected,
-          });
-          const related = messageItems(
-            await api('relations', {
-              ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
-              snapshot,
-            }),
-            48,
-          ).items;
-          const window = [...items, ...related];
-          const ordered = await this.readWindow({
-            a,
-            generation,
-            api,
-            snapshot,
-            items: window,
-          });
-          const delivered = await this.refreshDelivery(
-            snapshot,
-            generation,
-            ordered,
-            a,
+            return this.reachRemoteFloor(
+              read,
+              { ...incremental, snapshot, account: a.session.accountId },
+              { floor, older },
+            );
+          return this.reachRemoteFloor(
+            read,
+            await this.readRemotePage(read, null),
+            { floor, older },
           );
-          const projected = await this.includeHistory(a, delivered, generation);
-          return { views: projected, liveViews: ordered, snapshot, window };
         },
         options,
       );
@@ -416,12 +439,10 @@ export class ConversationReader {
       await this.authority.savePins(options);
       guard();
       const views = staged.views;
-      this.oldest =
-        views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
-        this.before;
       this.visibility.stage(token, views);
       await this.confirmVisible(token, staged.snapshot, generation, options);
       guard();
+      if (selected) this.floors.update(selected, staged.reach);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       if ('changes' in staged) {
         this.index.rememberChanges({
@@ -451,13 +472,15 @@ export class ConversationReader {
       if (error instanceof IncompleteMessageIndex) {
         guard();
         this.visibility.discard(token);
+        // The continuation still owes the page the reader asked for.
+        if (older) this.olderRequested = true;
         return new MessageContinuation(async () => {
           guard();
           return this.synchronize(options);
         });
       }
       if (!interruptedMessageRead(error)) {
-        this.index.reset();
+        this.resetIndex();
         this.readTarget.reset();
       }
       this.conversations.clear('sync-failed');
@@ -472,6 +495,74 @@ export class ConversationReader {
       this.visibility.fail(token);
       throw error;
     }
+  }
+  /** One verified remote page before `before` (the latest page when null),
+   * joined with the archived local history of the same span. */
+  private async readRemotePage(c: PageRead, before: number | null) {
+    const { a, generation, api, snapshot } = c;
+    const items = await this.synchronizeIndex({ ...c, before });
+    const related = messageItems(
+      await api('relations', {
+        ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
+        snapshot,
+      }),
+      48,
+    ).items;
+    const window = [...items, ...related];
+    const ordered = await this.readWindow({
+      a,
+      generation,
+      api,
+      snapshot,
+      items: window,
+    });
+    const delivered = await this.refreshDelivery(
+      snapshot,
+      generation,
+      ordered,
+      a,
+    );
+    const projected = await this.includeHistory(
+      a,
+      delivered,
+      generation,
+      before,
+    );
+    return { views: projected, liveViews: ordered, snapshot, window };
+  }
+  /** Brings a latest window back to its floor at the same snapshot, and one
+   * page further when the reader scrolled to the top. */
+  private async reachRemoteFloor<
+    W extends {
+      views: MessageView[];
+      window?: MessageItem[];
+      liveViews?: MessageView[];
+    },
+  >(c: PageRead, latest: W, input: { floor: HistoryFloor; older: boolean }) {
+    const window: MessageItem[] = [],
+      live: MessageView[] = [];
+    const reached = await reachFloor({
+      rows: latest.views,
+      ...input,
+      page: async (before) => {
+        const page = await this.readRemotePage(c, before);
+        window.push(...page.window);
+        live.push(...page.liveViews);
+        return page.views;
+      },
+      merge: (newer, older) => mergeHistory(newer, older),
+    });
+    return {
+      ...latest,
+      views: reached.rows,
+      ...(latest.window && latest.liveViews
+        ? {
+            window: [...latest.window, ...window],
+            liveViews: [...latest.liveViews, ...live],
+          }
+        : {}),
+      reach: { floor: reached.floor, complete: reached.complete },
+    };
   }
   /** Full, incremental and receiver reads share complete-window verification. */
   async readWindow(c: {
@@ -524,15 +615,22 @@ export class ConversationReader {
   }
   async openArchive(peer: string): Promise<void> {
     this.selected = peer;
-    const generation = this.authority.current(),
-      token = this.visibility.begin(),
+    const older = this.takeOlder(),
+      floor = this.floor(),
+      generation = this.authority.current(),
+      token = older ? this.visibility.refresh() : this.visibility.begin(),
       guard = this.selection.capture(() => this.authority.guard(generation));
     const open = async (a: VaultAuthority) => {
-      const views = await this.includeHistory(a, [], generation);
+      const reached = await reachFloor({
+        rows: await this.includeHistory(a, [], generation, null),
+        floor,
+        older,
+        page: (before) => this.includeHistory(a, [], generation, before),
+        merge: (newer, older) => mergeHistory(newer, older),
+      });
       guard();
-      this.oldest =
-        views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
-        this.before;
+      const views = reached.rows;
+      this.floors.update(peer, reached);
       this.confirmed = { snapshot: 'local', views };
       this.visibility.stage(token, views);
       this.visibility.complete(token);
@@ -550,16 +648,19 @@ export class ConversationReader {
       throw error;
     }
   }
+  /** One page of the window: the remote rows read for it plus archived local
+   * rows before `before`, keeping the newest page of roots. */
   private async includeHistory(
     a: VaultAuthority,
     remote: readonly MessageView[],
     generation: number,
+    before: number | null,
   ): Promise<MessageView[]> {
     const guard = this.selection.capture(() =>
       this.authority.guard(generation),
     );
     if (!this.selected) return [...remote];
-    const local = await conversationHistory(a, this.selected, this.before);
+    const local = await conversationHistory(a, this.selected, before);
     guard();
     const merged = mergeHistory(
       remote,
@@ -567,7 +668,7 @@ export class ConversationReader {
     );
     const base = merged
       .filter((r) => !r.relation && r.kind !== 'profile')
-      .slice(-16);
+      .slice(-historyPage);
     const ids = new Set(base.map((r) => r.id));
     const related = await relatedHistory(a, [...ids], () => guard());
     const combined = mergeHistory(
@@ -581,20 +682,16 @@ export class ConversationReader {
         (r.relation && ids.has(r.relation.id)),
     );
   }
-  private async synchronizeIndex(c: {
-    a: VaultAuthority;
-    generation: number;
-    api: (op: string, d: Record<string, unknown>) => Promise<unknown>;
-    snapshot: unknown;
-    selected: string | null;
-  }): Promise<MessageItem[]> {
+  private async synchronizeIndex(
+    c: PageRead & { before: number | null },
+  ): Promise<MessageItem[]> {
     const read = {
       ...c,
       account: c.a.session.accountId,
-      before: this.before,
       deleted: (item: MessageItem) => this.packets.remove(c, item),
     };
-    const indexed = await this.index.completed(read);
+    const index = this.indexFor(c.before);
+    const indexed = await index.completed(read);
     if (indexed) return indexed;
     // Finite cuts open one conversation without an account-wide scan; legacy
     // snapshots keep the complete index their deletion checks rely on.
@@ -604,7 +701,22 @@ export class ConversationReader {
         snapshot: c.snapshot,
         peer: c.selected,
       });
-    return this.index.read({ ...read, pagesPerTurn: 1 });
+    return index.read({ ...read, pagesPerTurn: 1 });
+  }
+  private indexFor(before: number | null): MessageIndex {
+    if (before === null) return this.index;
+    let index = this.olderIndexes.get(before);
+    if (!index) {
+      index = new MessageIndex();
+      this.olderIndexes.set(before, index);
+      while (this.olderIndexes.size > historyRootLimit / historyPage)
+        this.olderIndexes.delete(this.olderIndexes.keys().next().value!);
+    }
+    return index;
+  }
+  private resetIndex(): void {
+    this.index.reset();
+    this.olderIndexes.clear();
   }
   /** A cut committed by another tab still needs this window's own projection. */
   observeDurableCut(durable: MessageSyncSnapshot | null): void {
@@ -622,7 +734,6 @@ export class ConversationReader {
   private latestWindowBehind(cut: MessageSyncSnapshot): boolean {
     return (
       !!this.selected &&
-      this.before === null &&
       !!this.confirmed &&
       windowBehind(this.confirmed.snapshot, cut)
     );
@@ -660,6 +771,7 @@ export class ConversationReader {
             (item) => messagePeer(batch.snapshot.account, item) === peer,
           ),
           batch.views.filter((view) => view.peer === peer),
+          this.floors.floor(peer),
         ),
     });
     if (batch.complete) this.receiverCut = batch.snapshot;
@@ -670,13 +782,7 @@ export class ConversationReader {
       views: batch.views,
       covered,
     });
-    if (
-      !this.selected ||
-      this.before !== null ||
-      !batch.complete ||
-      blocked.has(this.selected)
-    )
-      return;
+    if (!this.selected || !batch.complete || blocked.has(this.selected)) return;
     this.publishSelectedReceipt(batch.snapshot, covered.has(this.selected));
   }
   /** Only a complete covering commit may replace the selected latest window. */
@@ -750,7 +856,7 @@ export class ConversationReader {
       if (expectedInterruption(error)) throw error;
 
       if (!interruptedMessageRead(error)) {
-        this.index.reset();
+        this.resetIndex();
         this.readTarget.reset();
       }
       this.conversations.clear('probe-failed');
@@ -784,7 +890,9 @@ export class ConversationReader {
   async openOffline(peer: string | null): Promise<void> {
     if (navigator.onLine)
       throw new Error('Connected: sync before opening history.');
-    const token = this.visibility.begin(),
+    const older = this.takeOlder(),
+      floor = peer ? this.floors.floor(peer) : null,
+      token = older ? this.visibility.refresh() : this.visibility.begin(),
       generation = this.authority.current(),
       guard = this.selection.capture(() => this.authority.guard(generation)),
       locator = await localLocator();
@@ -793,46 +901,26 @@ export class ConversationReader {
       await this.access.withLocalVault(locator, async (a) => {
         const removed = new RemovalIndex();
         await removed.load(a, () => guard());
-        const cached = await this.offlineIndex.read({
-            account: a.session.accountId,
-            peer,
-            before: this.before,
-            guard: () => guard(),
-          }),
-          views: MessageView[] = [];
-        for (const value of cached) {
-          guard();
-          views.push({
-            kind: value.kind ?? 'text',
-            ...(value.relation ? { relation: value.relation } : {}),
-            sequence: value.sequence,
-            author: value.own ? a.session.accountId : value.peer,
-            id: value.id,
-            peer: value.peer,
-            own: value.own,
-            ...optionalSentAt(
-              value.verification
-                ? object(
-                    JSON.parse(
-                      await openLocal(a, value.verification),
-                    ) as unknown,
-                  )['sentAt']
-                : undefined,
-            ),
-            text: await openLocal(a, value),
-            hash: value.hash,
-            state: messageStates.offline,
-          });
-        }
-        if (peer) views.push(...(await this.packets.offlineProfiles(a, peer)));
+        const latest = await this.offlineViews(a, peer, null, guard);
+        if (peer) latest.push(...(await this.packets.offlineProfiles(a, peer)));
         guard();
         this.selected = peer;
-        const merged = await this.includeHistory(a, views, generation);
-        this.oldest =
-          merged.filter((v) => !v.relation && v.kind !== 'profile')[0]
-            ?.sequence ?? this.before;
+        const reached = await reachFloor({
+          rows: await this.includeHistory(a, latest, generation, null),
+          floor,
+          older,
+          page: async (before) =>
+            this.includeHistory(
+              a,
+              await this.offlineViews(a, peer, before, guard),
+              generation,
+              before,
+            ),
+          merge: (newer, older) => mergeHistory(newer, older),
+        });
         guard();
-        this.visibility.stage(token, merged);
+        if (peer) this.floors.update(peer, reached);
+        this.visibility.stage(token, reached.rows);
         this.visibility.complete(token);
         this.offlineIndex.reset();
       });
@@ -840,5 +928,43 @@ export class ConversationReader {
       this.visibility.fail(token);
       throw error;
     }
+  }
+  /** One page of this device's cached copy before `before`. */
+  private async offlineViews(
+    a: VaultAuthority,
+    peer: string | null,
+    before: number | null,
+    guard: () => void,
+  ): Promise<MessageView[]> {
+    const cached = await this.offlineIndex.read({
+        account: a.session.accountId,
+        peer,
+        before,
+        guard: () => guard(),
+      }),
+      views: MessageView[] = [];
+    for (const value of cached) {
+      guard();
+      views.push({
+        kind: value.kind ?? 'text',
+        ...(value.relation ? { relation: value.relation } : {}),
+        sequence: value.sequence,
+        author: value.own ? a.session.accountId : value.peer,
+        id: value.id,
+        peer: value.peer,
+        own: value.own,
+        ...optionalSentAt(
+          value.verification
+            ? object(
+                JSON.parse(await openLocal(a, value.verification)) as unknown,
+              )['sentAt']
+            : undefined,
+        ),
+        text: await openLocal(a, value),
+        hash: value.hash,
+        state: messageStates.offline,
+      });
+    }
+    return views;
   }
 }

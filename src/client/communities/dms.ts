@@ -41,6 +41,7 @@ import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
 
 import { DmHistory } from './dm-history.ts';
+import { DmHistoryDepth } from './dm-window.ts';
 import { DmRefresh } from './dm-refresh.ts';
 import { DmSending } from './dm-sending.ts';
 import type { DmPage, DmItem } from './dm-history.ts';
@@ -82,7 +83,6 @@ export function startSocialDmUi(
         editing: composer.editing,
       });
       if (selected !== peer) return;
-      before = null;
       await conversation();
     },
     discardPending: async () => {
@@ -118,8 +118,8 @@ export function startSocialDmUi(
     verification = 0,
     busy = false,
     peer: string | null = null,
-    cursor: string | null = null,
-    before: number | null = null;
+    cursor: string | null = null;
+  const depth = new DmHistoryDepth();
   let ownProfile: string | null = null;
   let localOnly = false;
   function status(message: string): void {
@@ -313,11 +313,12 @@ export function startSocialDmUi(
     viewKey = key;
     resetHistoryPosition(view.history);
     composer.bind(view);
-    view.older.addEventListener('click', () => {
-      void run(async () => {
-        before = history.next;
-        await conversation();
-      });
+    depth.bind({
+      history: view.history,
+      button: view.older,
+      conversation: () => peer,
+      shown: () => history.shown,
+      load: () => run(conversation),
     });
     return view;
   }
@@ -329,7 +330,7 @@ export function startSocialDmUi(
   ) {
     const offline = localOnly || !navigator.onLine;
     if (offline) {
-      const page = await controller.cached(selected, before, work);
+      const page = await controller.cached(selected, null, work);
       return {
         offline,
         value: null,
@@ -377,7 +378,6 @@ export function startSocialDmUi(
       {
         current: currentVerification(old, expected),
         live: refreshes.current,
-        before,
       },
     );
   }
@@ -406,11 +406,14 @@ export function startSocialDmUi(
   ): Promise<DmPage | undefined> {
     const expected = verification,
       canWrite = writable;
-    const page =
+    const page = await depth.window(
+      selected,
       input.cached ??
-      (canWrite
-        ? await controller.read(selected, before, input.work)
-        : await controller.cached(selected, before, input.work));
+        (canWrite
+          ? await controller.read(selected, null, input.work)
+          : await controller.cached(selected, null, input.work)),
+      (before) => controller.cached(selected, before, input.work),
+    );
     const draft = canWrite
       ? await controller.pending(selected, input.work)
       : null;
@@ -425,6 +428,7 @@ export function startSocialDmUi(
     }
     history.render(current, page, { selected, localMedia: !canWrite });
     current.history.hidden = false;
+    depth.check();
     composer.update(composerState());
     const usable = () =>
       old === generation &&
@@ -472,7 +476,6 @@ export function startSocialDmUi(
           blocked: !blocked,
           revision: value?.blockRevision ?? 0,
         });
-        before = null;
         await conversation();
       },
     );
@@ -480,7 +483,6 @@ export function startSocialDmUi(
       current,
       { label: t('Reload conversation'), icon: 'refresh' },
       async () => {
-        before = null;
         await conversation();
       },
     );
@@ -546,7 +548,6 @@ export function startSocialDmUi(
       localOnly = local;
       if (!localOnly) refreshes.watch();
       cursor = null;
-      before = null;
       if (!session) {
         node.replaceChildren(
           communityElement(
@@ -595,6 +596,7 @@ export function startSocialDmUi(
       const node = container;
       publicDirectory.clear();
       projections.clear();
+      depth.clear();
       leave();
       session = value;
       ownProfile = null;

@@ -51,7 +51,7 @@ function fixture(changes: MessageItem[], views: MessageView[]) {
       snapshot,
       account,
       peer,
-      before: null,
+      floor: null,
       api: () =>
         Promise.resolve({
           reset: false,

@@ -9,6 +9,10 @@ import type { MessageItem } from '../src/client/messages/history.ts';
 import { assertPacketIdentity } from '../src/client/messages/history.ts';
 import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 import { messageStateText } from '../src/client/message-state/index.ts';
+import {
+  historyPage,
+  historyRootLimit,
+} from '../src/client/history-window/index.ts';
 
 const snapshot = { revision: 1, directory: 'a'.repeat(64), contacts: 1 };
 const item: MessageItem = {
@@ -91,7 +95,11 @@ await test('cleanup and replacement discard the previous window; suspended or lo
     () =>
       cache.remember(
         snapshot,
-        Array.from({ length: 67 }, () => item),
+        // Every page of the deepest window, plus one item.
+        Array.from(
+          { length: 66 * (historyRootLimit / historyPage) + 1 },
+          () => item,
+        ),
         [view],
       ),
     /exceed/,

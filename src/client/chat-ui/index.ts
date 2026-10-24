@@ -3,6 +3,7 @@ import { sendOnEnter } from './enter.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
 import { pingChipMarkup, pingMarkup } from '../ping/index.ts';
 import { menuIconMarkup } from '../menu-icons/index.ts';
+import { layoutLength } from '../display-scale/index.ts';
 
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
@@ -24,6 +25,8 @@ export { bindRecordGesture, showRecording } from './voice.ts';
 export { sendOnEnter } from './enter.ts';
 export { ChatAvatarPhoto } from './avatar-photo.ts';
 export { ChatHistoryLoading } from './history-loading.ts';
+export { watchOlderHistory } from './older-history.ts';
+export type { OlderHistory } from './older-history.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -185,8 +188,15 @@ export function updateMessageStates(
     });
 }
 
-/** Keep the reading position on refresh; only follow messages when already at the bottom. */
-const positions = new WeakMap<HTMLElement, { top: number; follow: boolean }>();
+/** Keep the reading position on refresh; only follow messages when already at
+ * the bottom. The first visible row anchors the position, so older pages
+ * added above it (24/10/2026) do not move what the reader is looking at. */
+interface ReadingPosition {
+  top: number;
+  follow: boolean;
+  anchor?: { row: Element; offset: number };
+}
+const positions = new WeakMap<HTMLElement, ReadingPosition>();
 const newConversations = new WeakSet<HTMLElement>();
 
 export function resetHistoryPosition(history: HTMLElement | null): void {
@@ -197,17 +207,41 @@ export function historyPosition(history: HTMLElement): () => void {
   if (newConversations.delete(history)) {
     positions.set(history, { top: 0, follow: true });
   } else if (!history.hidden) {
-    const top = history.scrollTop;
+    const top = history.scrollTop,
+      follow =
+        history.childElementCount === 0 ||
+        history.scrollHeight - top - history.clientHeight < 80;
     positions.set(history, {
       top,
-      follow:
-        history.childElementCount === 0 ||
-        history.scrollHeight - top - history.clientHeight < 80,
+      follow,
+      ...(follow ? {} : readingAnchor(history)),
     });
   }
   const position = positions.get(history) ?? { top: 0, follow: true };
   return () => {
-    if (!history.hidden)
-      history.scrollTop = position.follow ? history.scrollHeight : position.top;
+    if (history.hidden) return;
+    if (position.follow) {
+      history.scrollTop = history.scrollHeight;
+      return;
+    }
+    history.scrollTop = position.top;
+    const anchor = position.anchor;
+    if (anchor?.row.isConnected && anchor.row.parentElement === history)
+      history.scrollTop += layoutLength(
+        rowOffset(history, anchor.row) - anchor.offset,
+        history,
+      );
   };
+}
+function readingAnchor(history: HTMLElement): Pick<ReadingPosition, 'anchor'> {
+  if (typeof history.getBoundingClientRect !== 'function') return {};
+  const top = history.getBoundingClientRect().top;
+  for (const row of history.children)
+    if (row.getBoundingClientRect().bottom > top)
+      return { anchor: { row, offset: rowOffset(history, row) } };
+  return {};
+}
+/** Viewport pixels from the top of the history to the top of the row. */
+function rowOffset(history: HTMLElement, row: Element): number {
+  return row.getBoundingClientRect().top - history.getBoundingClientRect().top;
 }

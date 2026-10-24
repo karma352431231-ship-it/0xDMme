@@ -4,6 +4,8 @@ import { readMessageDelta } from './delta.ts';
 import { messagePeer } from './index-sync.ts';
 import type { Api, MessageItem } from './history.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
+import { relationBudget, windowRoots } from '../history-window/index.ts';
+import type { HistoryFloor } from '../history-window/index.ts';
 
 interface DeltaView {
   id: string;
@@ -23,7 +25,8 @@ export async function readIncrementalWindow<T extends DeltaView>(input: {
   snapshot: unknown;
   account: string;
   peer: string | null;
-  before: number | null;
+  /** The window keeps every root from here on; null keeps the latest page. */
+  floor: HistoryFloor;
   api: Api;
   remove: (item: MessageItem) => Promise<void>;
   read: (items: MessageItem[]) => Promise<T[]>;
@@ -44,7 +47,7 @@ export async function readIncrementalWindow<T extends DeltaView>(input: {
     (item) => messagePeer(input.account, item) === input.peer,
   );
   const retained = retainedRows(input.candidate.views, changes);
-  const selected = selectWindow(retained, changes, input.account);
+  const selected = selectWindow(retained, changes, input);
   if (selected === null) return null;
   const ids = new Set(selected.map((view) => view.id));
   const changed = changes.filter((item) => !item.deleted && ids.has(item.id));
@@ -61,22 +64,26 @@ export async function readIncrementalWindow<T extends DeltaView>(input: {
 function selectWindow(
   views: DeltaView[],
   changes: MessageItem[],
-  account: string,
+  input: { account: string; floor: HistoryFloor },
 ) {
-  return boundWindow([
-    ...views,
-    ...changes
-      .filter((item) => !item.deleted)
-      .map((item) => ({
-        id: item.id,
-        hash: item.hash,
-        kind: item.kind,
-        peer: messagePeer(account, item),
-        own: item.sender === account,
-        sequence: item.sequence,
-        ...(item.relation ? { relation: item.relation } : {}),
-      })),
-  ]);
+  const { account } = input;
+  return boundWindow(
+    [
+      ...views,
+      ...changes
+        .filter((item) => !item.deleted)
+        .map((item) => ({
+          id: item.id,
+          hash: item.hash,
+          kind: item.kind,
+          peer: messagePeer(account, item),
+          own: item.sender === account,
+          sequence: item.sequence,
+          ...(item.relation ? { relation: item.relation } : {}),
+        })),
+    ],
+    input.floor,
+  );
 }
 
 function compareSequence(a: DeltaView, b: DeltaView): number {
@@ -104,13 +111,15 @@ function retainedRows<T extends DeltaView>(
   );
 }
 
-function boundWindow<T extends DeltaView>(views: T[]): T[] | null {
+function boundWindow<T extends DeltaView>(
+  views: T[],
+  floor: HistoryFloor,
+): T[] | null {
   const ordered = views.sort(compareSequence);
   const roots = new Set(
-    ordered
-      .filter(isRoot)
-      .slice(-16)
-      .map((view) => view.id),
+    windowRoots(ordered.filter(isRoot), floor, (view) => view.sequence).map(
+      (view) => view.id,
+    ),
   );
   const profiles = new Map<boolean, T>();
   for (const view of ordered)
@@ -121,17 +130,12 @@ function boundWindow<T extends DeltaView>(views: T[]): T[] | null {
       : roots.has(view.relation?.id ?? view.id),
   );
   // Preserve the existing relation-window contract; never silently drop actions.
-  return result.filter((view) => view.relation).length > 48 ? null : result;
+  return result.filter((view) => view.relation).length >
+    relationBudget(roots.size)
+    ? null
+    : result;
 }
 
-function eligible(input: {
-  peer: string | null;
-  before: number | null;
-  snapshot: unknown;
-}): boolean {
-  return (
-    input.peer !== null &&
-    input.before === null &&
-    supportsMessageDelta(input.snapshot)
-  );
+function eligible(input: { peer: string | null; snapshot: unknown }): boolean {
+  return input.peer !== null && supportsMessageDelta(input.snapshot);
 }

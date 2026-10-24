@@ -53,7 +53,7 @@ await test('a newly verified chat updates its contact preview before a slow inde
     'Immediately verified latest message',
   );
   const latest = previews.values.get(f.peer);
-  f.controller.select(f.peer, true);
+  f.controller.requestOlder();
   await f.controller.synchronize();
   assert.equal(
     previews.values.get(f.peer),

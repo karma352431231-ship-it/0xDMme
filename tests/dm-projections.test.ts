@@ -29,7 +29,7 @@ function projection(): DmProjection {
     offline: false,
   };
 }
-const eligible = { current: true, live: true, before: null };
+const eligible = { current: true, live: true };
 await test('public memory projections require live current recent authorization and invalidate retained blocked content', () => {
   const cache = new DmProjections(),
     data = projection();
@@ -42,7 +42,6 @@ await test('public memory projections require live current recent authorization 
   for (const state of [
     { ...eligible, current: false },
     { ...eligible, live: false },
-    { ...eligible, before: 16 },
   ]) {
     const next = projection();
     cache.remember(next, state);

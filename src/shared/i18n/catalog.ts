@@ -5576,6 +5576,13 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   Remove: ['Remove', '移除'],
   'Remove {0}': ['Remove {0}', '移除 {0}'],
+  Today: ['Today', '今天'],
+  Yesterday: ['Yesterday', '昨天'],
+  'Earlier messages': ['Earlier messages', '更早的消息'],
+  'Loading earlier messages…': [
+    'Loading earlier messages…',
+    '正在加载更早的消息…',
+  ],
   '{0} MB of {1} MB': ['{0} MB of {1} MB', '{0} MB / {1} MB'],
   'Up to {0} files per send.': [
     'Up to {0} files per send.',

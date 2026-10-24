@@ -35,7 +35,11 @@ const adapted: Record<string, string[]> = {
   ],
   './dm-checks.ts': ['clearDmChecks', 'refreshDmChecks'],
   './dm-message-menu.ts': ['dmMessageMenu', 'dmReactionChips'],
-  '../chat-ui/index.ts': ['historyPosition', 'resetHistoryPosition'],
+  '../chat-ui/index.ts': [
+    'historyPosition',
+    'resetHistoryPosition',
+    'watchOlderHistory',
+  ],
   './elements.ts': ['communityElement'],
 };
 const composerAdapters: Record<string, string[]> = {
@@ -70,7 +74,8 @@ const bundle = await build({
         builder.onResolve({ filter: /.*/ }, ({ path, importer }) => {
           if (
             (importer.endsWith('/' + entry) ||
-              importer.endsWith('/client/communities/dm-history.ts')) &&
+              importer.endsWith('/client/communities/dm-history.ts') ||
+              importer.endsWith('/client/communities/dm-window.ts')) &&
             adapted[path]
           )
             return { path, namespace: 'fixture' };
@@ -174,8 +179,16 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
   type Page = Awaited<ReturnType<SocialDms['cached']>>;
   const data = {
     items: [] as Page['items'],
+    /** Rows of this device's copy below the latest page, oldest first. */
+    olderItems: [] as Page['items'],
     next: null as number | null,
     readAfters: [] as (number | null)[],
+    cachedBefores: [] as (number | null)[],
+    /** The scroll trigger the open conversation registered. */
+    older: null as {
+      available: () => boolean;
+      load: () => Promise<boolean>;
+    } | null,
     pending: null as { id: string; text: string } | null,
     mediaPending: false,
     sendFailure: null as Error | null,
@@ -293,9 +306,19 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
             ? Promise.reject(readFailure)
             : Promise.resolve(page());
         },
-        cached: (peer: string) => {
+        cached: (peer: string, before: number | null) => {
           calls.push('cached:' + peer);
-          return Promise.resolve(page());
+          data.cachedBefores.push(before);
+          return Promise.resolve(
+            before === null
+              ? page()
+              : {
+                  ...page(),
+                  items: data.olderItems
+                    .filter((item) => item.sequence < before)
+                    .slice(-16),
+                },
+          );
         },
         pending: () => Promise.resolve(data.pending),
         send: (peer: string, text: string, id: string) => {
@@ -450,6 +473,10 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     refreshDmChecks: asyncNoop,
     historyPosition: () => noop,
     resetHistoryPosition: noop,
+    watchOlderHistory: (input: NonNullable<typeof data.older>) => {
+      data.older = input;
+      return { check: noop };
+    },
     dmBubble: (
       item: { id: string; text: string },
       input: { signal: AbortSignal },

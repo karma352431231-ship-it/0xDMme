@@ -31,6 +31,7 @@ const adapters: Record<string, string[]> = {
     'updateChatComposer',
     'historyPosition',
     'resetHistoryPosition',
+    'watchOlderHistory',
     'bindRecordGesture',
     'showRecording',
   ],
@@ -237,7 +238,7 @@ export function groupUiFixture() {
     selected: null as GroupSummary | null,
     entries: [group],
     views: [] as GroupView[],
-    before: null,
+    olderAvailable: false,
     historyPending: false,
     warning: '',
     next: null,
@@ -430,6 +431,7 @@ export function groupUiFixture() {
     showRecording() {},
     historyPosition: () => () => {},
     resetHistoryPosition() {},
+    watchOlderHistory: () => ({ check() {} }),
     bindRecordGesture() {},
     ChatHistoryLoading: class {
       update() {

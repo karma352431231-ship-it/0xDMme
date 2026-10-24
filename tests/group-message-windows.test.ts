@@ -508,3 +508,41 @@ await test('a delta without packets and a server without deltas both fall back t
     'An older server is asked once per session',
   );
 });
+await test('scrolling up adds one older verified page before confirmation and later reads keep that depth', async () => {
+  const { c, data, add } = await fixture(),
+    windows = new GroupMessageWindows();
+  for (let index = 1; index <= 20; index++) add(`Message ${index}`);
+  const latest = await windows.read(c, null);
+  assert.equal(latest.views.length, 16);
+  assert.equal(
+    windows.olderAvailable(c.group.state.groupId, latest.views),
+    true,
+  );
+  const start = data.calls.length;
+  const deeper = await windows.read(c, null, true);
+  assert.deepEqual(
+    deeper.views.map((view) => view.sequence),
+    Array.from({ length: 20 }, (_, index) => index + 1),
+  );
+  const ops = data.calls.slice(start).map((call) => call.op);
+  assert.ok(
+    ops.indexOf('group-message-recent') < ops.indexOf('group-message-confirm'),
+    'The older page is read inside the confirmed snapshot',
+  );
+  const added = add('Message 21');
+  data.changed = [added];
+  data.revision++;
+  const next = await windows.read(c, null);
+  assert.equal(next.views.length, 21);
+  assert.equal(next.views[0]?.sequence, 1);
+  await windows.read(c, null, true);
+  assert.equal(
+    windows.olderAvailable(c.group.state.groupId, next.views),
+    false,
+  );
+  windows.clear();
+  assert.equal(
+    windows.olderAvailable(c.group.state.groupId, latest.views),
+    true,
+  );
+});
