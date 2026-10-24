@@ -2,9 +2,10 @@
 
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
-H04 public-identity DM presentation, then H05 account ownership.
+H04 public-identity DM presentation, H05 account ownership, then H06 device
+linking and wallet-return workflows.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch, followed by H04 and H05; another merge, push and VPS
+local on this branch, followed by H04, H05 and H06; another merge, push and VPS
 publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
@@ -385,3 +386,74 @@ validation uses the unchanged archive roots and budgets.
 Browser access is disabled in Work settings during H05, so a real browser/wallet
 comparison remains pending. PostgreSQL integration and remote CI were not run.
 No merge, push or VPS operation is included.
+
+## H06: linking and temporary wallet-recovery workflows
+
+Base: `bb3f096`. `devices/linking.ts` owns the pending link, fingerprint, selected
+approval and local deadline. It coordinates enrollment-candidate validation,
+inspection/approval and the join HTTP exchange through complete operations of
+the existing controller. It clears drafts on confirmation, cancellation and
+session change. Transient cleanup preserves the prior deadline semantics.
+
+`devices/wallet-recovery-flow.ts` owns the pending wallet-return request, its
+expiry and in-memory legacy input. It composes the existing direct signing,
+encrypted return, public metadata restoration and cancellation operations.
+The controller's existing pending-request property delegates to this owner for
+compatibility; that metadata grants no directory or key-ring authority.
+Signatures and legacy input are still cleared at the existing completion/reset
+boundaries, and restoration never launches a wallet.
+
+`DeviceController` retains the single account generation, identity, verified
+directory/events, trusted root, key ring, authority lock and signing lane.
+Workflow modules receive scoped operations and a readonly transport receiver,
+not writable copies of directory/trust state. Enrollment identity generation
+and root pinning remain in the controller; joining still receives a pending
+session rather than vault authorization. Link preparation, signed authorization,
+receipt verification and checkpoint persistence execute inside the original
+authority turns. Recovery plans, mode/revision/head validation, key rotation,
+profile re-encryption, event verification and commit/reconciliation retain their
+original owner. `advanceCheckpoint` and all storage/crypto formats are unchanged.
+
+Structural review: temporary request state moved with its operations and cleanup,
+while authority mutations remain complete controller operations. The existing
+transport and cryptographic modules are reused. A token comparison confirmed
+that 24 retained authority, cryptography, key/profile and checkpoint methods,
+including synchronization, commit, revocation and legacy recovery, are unchanged.
+This supplements runtime tests; it is not a security audit. Existing import
+rules cover the new modules without cycles, new dependencies or exceptions.
+There are no server, database, device-storage implementation, migration,
+stylesheet, policy or deployment changes.
+
+The controller retains its existing verified-directory and key-rotation rules;
+this stage intentionally does not move them into independent trust authorities.
+If those internals need further work, characterize directory verification and
+checkpoint publication before extracting that cohesive boundary, retaining one
+owner and running the authority, migration, profile-rotation and persistence
+tests. That preexisting concentration is separate from the request workflows
+addressed here.
+
+Validation: 88 relevant tests passed across lifecycle, authority, signing lanes,
+cross-tab turns, enrollment/QR, profile-key rotation, recovery migration,
+authenticated recovery destinations, wallet signatures, encrypted mobile return,
+login opening and portable sources. All 11 lifecycle scenarios also passed
+against the pre-refactor controller with the same final fixture. Ten new cases
+exercise cancellation during enrollment/read work, signature cleanup after
+invalidation, an accepted initialization with a lost response and later
+checkpoint reconciliation, mobile metadata restoration/cancellation, late return
+creation, linking between separate device stores, direct initialization,
+encrypted return confirmation and enrollment recipient binding without vault
+access. Cryptography remains real; HTTP, wallet and IndexedDB transaction
+boundaries use synthetic adapters. The two-device fixture uses independent
+stores, since sharing a pinned checkpoint represents an already-known browser.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting,
+localization and the web build passed. Fixture checks identified a request-body
+type/complexity issue and TypeScript's retained null narrowing across an async
+refresh; both were corrected without suppressions or product changes. The
+portable-source archive
+has 1,164 entries and contains byte-identical copies of both new workflow modules
+and the controller, within the unchanged source roots and resource budgets.
+
+Browser access is disabled in Work settings during H06. Real wallet/device and
+IndexedDB acceptance, PostgreSQL integration and remote CI remain unrun for this
+stage. No merge, push or VPS operation is included.

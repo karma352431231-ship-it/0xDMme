@@ -12,7 +12,6 @@ import {
   keys,
   object,
   profileEnvelope,
-  accountSession,
 } from '../../shared/account/index.ts';
 import type {
   AccountSession,
@@ -74,35 +73,21 @@ import {
 } from '../wallet-recovery/index.ts';
 import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
-import {
-  directRecovery,
-  requestRecovery,
-  receiveRecovery,
-  RecoveryReturnError,
-  openRecoveryWallet,
-  recoveryApi,
-  rememberRecovery,
-  readRecovery,
-  forgetRecovery,
-} from '../recovery-return/index.ts';
+import { forgetRecovery } from '../recovery-return/index.ts';
 import type { RecoveryPlan, RecoveryFlow } from '../recovery-return/index.ts';
 import {
-  readEnrollment,
   enrollmentBody,
   enrollmentHash,
   enrollmentMac,
-  verifyEnrollmentMac,
 } from '../../shared/device-enrollment/index.ts';
 import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
+import { DeviceLinking, joinDeviceEnrollment } from './linking.ts';
+import { DeviceWalletRecovery } from './wallet-recovery-flow.ts';
+import type {
+  WalletRecoveryStart,
+  RecoveryCompletion,
+} from './wallet-recovery-flow.ts';
 
-interface WalletRecoveryStart {
-  mode: RecoveryPlan['mode'];
-  wallet: string;
-  name: string;
-  revoked: string[];
-  revision: number;
-  legacy?: string;
-}
 function readPage(value: unknown): {
   events: unknown[];
   revision: number;
@@ -179,6 +164,46 @@ async function api(
   return data;
 }
 export class DeviceController {
+  private readonly walletRecovery = new DeviceWalletRecovery({
+    session: () => this.session,
+    run: (operation) => this.run(operation),
+    plan: (session, input) => this.walletPlan(session, input),
+    loadIdentity: (session) => this.loadIdentity(session),
+    receiver: () => this.identity,
+    validateSelection: (plan) => {
+      if (plan.mode === 'recover' && this.current)
+        recoveryIdentities(this.current, plan.revoked);
+    },
+    verify: async (session, flow) => {
+      await this.synchronize(session);
+      this.validateWalletMode(flow.mode, flow.revision);
+      if ((this.current ? await eventHash(this.current) : null) !== flow.head)
+        throw new Error(
+          'Authorization changed during signing. Cancel and check again.',
+        );
+    },
+    lease: (session) => {
+      const token = this.generation;
+      return (message) => {
+        this.assertSession(session);
+        if (token !== this.generation) throw new Error(message);
+      };
+    },
+    complete: (input) => this.completeWalletRecovery(input),
+  });
+  private readonly linking = new DeviceLinking({
+    run: (operation) => this.run(operation),
+    start: (session, name) => this.prepareLink(session, name),
+    inspect: (session, serialized) => this.inspectLink(session, serialized),
+    authorize: (session, code) => this.authorizeLink(session, code),
+    confirm: (session, pending, receipt) =>
+      this.confirmLink(session, pending, receipt),
+    cancel: async (session, code) => {
+      await api(session, 'devices/cancel', { id: code.id });
+    },
+    enrollmentCandidate: (id) =>
+      this.run((session) => api(session, 'devices/enrollment-pending', { id })),
+  });
   private readonly authorityWork = new AuthorityWork((key, body, options) =>
     authorityTurn(key, body, options),
   );
@@ -239,9 +264,15 @@ export class DeviceController {
     });
   }
   async joinEnrollment(serialized: string): Promise<AccountSession> {
-    const invitation = readEnrollment(serialized);
-    if (Date.parse(invitation.expiresAt) <= Date.now())
-      throw new Error('Code expired.');
+    const session = await joinDeviceEnrollment(serialized, (invitation) =>
+      this.prepareEnrollment(invitation),
+    );
+    this.setSession(session);
+    return session;
+  }
+  private async prepareEnrollment(
+    invitation: EnrollmentCode,
+  ): Promise<{ deviceId: string; input: unknown }> {
     const deviceId = crypto.randomUUID();
     const identity = await localIdentity(
       invitation.accountId,
@@ -270,62 +301,34 @@ export class DeviceController {
       signature: await sign(identity.signing, linkProof(code)),
       proof: await enrollmentMac(invitation.secret, code),
     };
-    const response = await fetchApi(
-      'account/enrollment-join',
-      '/api/account/enrollment-join',
-      {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-        signal: AbortSignal.timeout(8000),
-      },
-    );
-    const data = await readApiJson(response, 'account/enrollment-join');
-    const session = accountSession(data);
-    if (
-      session.accountId !== invitation.accountId ||
-      session.deviceId !== deviceId ||
-      session.walletConfirmed
-    )
-      throw new Error('Session differs from the requested device linking.');
-    this.setSession(session);
-    return session;
+    return { deviceId, input };
   }
-  async approveEnrollment(invitation: EnrollmentCode): Promise<boolean> {
-    const candidate = await this.run((session) =>
-      api(session, 'devices/enrollment-pending', { id: invitation.id }),
-    );
-    if (candidate === null) return false;
-    const data = object(candidate),
-      code = linkCode(data['code']);
-    if (
-      code.accountId !== invitation.accountId ||
-      code.expiresAt !== invitation.expiresAt
-    )
-      throw new Error('Linking request does not match.');
-    await verifyEnrollmentMac(
-      invitation.secret,
-      code,
-      boundedText(data['proof'], 64),
-    );
-    await this.inspectCode(canonical(code));
-    await this.approveLink();
-    return true;
+  approveEnrollment(invitation: EnrollmentCode): Promise<boolean> {
+    return this.linking.approveEnrollment(invitation);
   }
   session: AccountSession | null = null;
   current: DirectoryEvent | null = null;
   identity: LocalIdentity | null = null;
   ring: Keyring | null = null;
-  walletPending: RecoveryFlow | null = null;
-  private legacyRecoverySecret = '';
-  pendingCode: LinkCode | null = null;
-  approvalCode: LinkCode | null = null;
-  pendingFingerprint = '';
+  get walletPending(): RecoveryFlow | null {
+    return this.walletRecovery.flow;
+  }
+  set walletPending(flow: RecoveryFlow | null) {
+    this.walletRecovery.replaceFlow(flow);
+  }
+  get pendingCode(): LinkCode | null {
+    return this.linking.pendingCode;
+  }
+  get approvalCode(): LinkCode | null {
+    return this.linking.approvalCode;
+  }
+  get pendingFingerprint(): string {
+    return this.linking.pendingFingerprint;
+  }
   receipt = '';
-  expiresAt = 0;
+  get expiresAt(): number {
+    return this.linking.expiresAt;
+  }
   trustedRoot: string | null = null;
   private events: DirectoryEvent[] = [];
   private generation = 0;
@@ -378,14 +381,10 @@ export class DeviceController {
     this.ring = null;
     this.events = [];
     this.trustedRoot = null;
-    this.walletPending = null;
-    this.legacyRecoverySecret = '';
-    this.pendingCode = null;
-    this.pendingFingerprint = '';
-    this.approvalCode = null;
+    this.walletRecovery.reset();
+    this.linking.resetSession();
     this.receipt = '';
     this.receiptTarget = null;
-    this.expiresAt = 0;
     this.directoryReadAt = null;
     this.verified = null;
   }
@@ -642,20 +641,11 @@ export class DeviceController {
         : null;
     });
   }
-  private async restoreWalletPending(session: AccountSession): Promise<void> {
-    if (this.identity && !this.walletPending)
-      this.walletPending = await readRecovery(
-        session,
-        this.identity.public.wrapping,
-      );
+  private restoreWalletPending(session: AccountSession): Promise<void> {
+    return this.walletRecovery.restore(session);
   }
-  async beginWalletRecovery(input: WalletRecoveryStart): Promise<boolean> {
-    return this.run((session) =>
-      this.startWalletRecovery(session, {
-        ...input,
-        name: input.name || t('My device'),
-      }),
-    );
+  beginWalletRecovery(input: WalletRecoveryStart): Promise<boolean> {
+    return this.walletRecovery.begin(input);
   }
   async completeLoginOpening(proof: {
     config: WalletRecovery;
@@ -738,55 +728,6 @@ export class DeviceController {
     recoveryIdentity(config, session, location.origin);
     return config;
   }
-  private async startWalletRecovery(
-    session: AccountSession,
-    input: WalletRecoveryStart,
-  ): Promise<boolean> {
-    const plan = await this.walletPlan(session, input);
-    if (!this.identity) throw new Error('Local identity missing.');
-    if (input.mode === 'recover' && this.current)
-      recoveryIdentities(this.current, plan.revoked);
-    const token = this.generation;
-    const deadline = Date.now() + 120_000;
-    const current = () => {
-      this.assertSession(session);
-      if (token !== this.generation || Date.now() > deadline)
-        throw new Error('Request interrupted or expired. Start again.');
-    };
-    const count = input.mode === 'recover' ? 1 : 2;
-    const signatures = await directRecovery({
-      config: plan.config,
-      wallet: input.wallet,
-      count,
-      current,
-    });
-    if (signatures) {
-      await this.completeWalletRecovery({
-        session,
-        plan,
-        signatures,
-        legacy: input.legacy ?? '',
-        current,
-      });
-      return true;
-    }
-    if (!/Android|iPhone|iPad|iPod/iu.test(navigator.userAgent))
-      throw new Error(
-        'Wallet unavailable in this browser. Open a compatible wallet to sign.',
-      );
-    const pending = await requestRecovery({
-      session,
-      identity: this.identity,
-      config: plan.config,
-      wallet: input.wallet,
-      count,
-    });
-    current();
-    this.walletPending = { ...plan, pending };
-    this.legacyRecoverySecret = input.legacy ?? '';
-    rememberRecovery(session, this.walletPending);
-    return false;
-  }
   private validateWalletMode(
     mode: RecoveryPlan['mode'],
     revision: number,
@@ -803,116 +744,20 @@ export class DeviceController {
       );
   }
   openWalletRecovery(): void {
-    if (!this.walletPending) throw new Error('Recovery request missing.');
-    openRecoveryWallet(this.walletPending.pending);
-  }
-  private forgetWalletRecovery(): void {
-    if (this.session) forgetRecovery(this.session);
-    this.walletPending = null;
-    this.legacyRecoverySecret = '';
+    this.walletRecovery.open();
   }
   expireWalletRecovery(): boolean {
-    if (!this.walletPending || this.walletPending.pending.deadline > Date.now())
-      return false;
-    this.forgetWalletRecovery();
-    return true;
+    return this.walletRecovery.expire();
   }
-  private async walletSignatures(
-    session: AccountSession,
-    flow: RecoveryFlow,
-    identity: LocalIdentity,
-  ): Promise<string[] | null> {
-    try {
-      return await receiveRecovery({
-        session,
-        identity,
-        pending: flow.pending,
-      });
-    } catch (error: unknown) {
-      // A missing/consumed server request cannot receive another result. Network
-      // failures retain the live request so a valid signature can still return.
-      if (
-        error instanceof RecoveryReturnError &&
-        error.status === 409 &&
-        this.walletPending === flow
-      )
-        this.forgetWalletRecovery();
-      throw error;
-    }
+  finishWalletRecovery(legacy = ''): Promise<boolean> {
+    return this.walletRecovery.finish(legacy);
   }
-  async finishWalletRecovery(legacy = ''): Promise<boolean> {
-    if (this.expireWalletRecovery())
-      throw new Error('The wallet request expired. Open your account again.');
-    return this.run(async (session) => {
-      await this.loadIdentity(session);
-      await this.restoreWalletPending(session);
-      const flow = this.walletPending;
-      if (!flow || !this.identity)
-        throw new Error('Request missing. Start again.');
-      await this.synchronize(session);
-      this.validateWalletMode(flow.mode, flow.revision);
-      if ((this.current ? await eventHash(this.current) : null) !== flow.head)
-        throw new Error(
-          'Authorization changed during signing. Cancel and check again.',
-        );
-      const oldSecret = legacy || this.legacyRecoverySecret;
-      if (flow.mode === 'migrate' && !oldSecret)
-        throw new Error(
-          'Enter the old code one last time to authorize migration.',
-        );
-      const signatures = await this.walletSignatures(
-        session,
-        flow,
-        this.identity,
-      );
-      if (!signatures) return false;
-      const token = this.generation;
-      const current = () => {
-        this.assertSession(session);
-        if (
-          token !== this.generation ||
-          this.walletPending !== flow ||
-          Date.now() >= flow.pending.deadline
-        )
-          throw new Error('Session changed during recovery.');
-      };
-      await this.completeWalletRecovery({
-        session,
-        plan: flow,
-        signatures,
-        legacy: oldSecret,
-        current,
-      });
-      forgetRecovery(session);
-      this.walletPending = null;
-      this.legacyRecoverySecret = '';
-      return true;
-    });
+  cancelWalletRecovery(): Promise<void> {
+    return this.walletRecovery.cancel();
   }
-  async cancelWalletRecovery(): Promise<void> {
-    return this.run(async (session) => {
-      const flow = this.walletPending;
-      forgetRecovery(session);
-      this.walletPending = null;
-      this.legacyRecoverySecret = '';
-      if (flow)
-        await recoveryApi(
-          'cancel',
-          {
-            ticket: flow.pending.transfer.ticket,
-            commitment: flow.pending.commitment,
-          },
-          session,
-        );
-    });
-  }
-  private async completeWalletRecovery(input: {
-    session: AccountSession;
-    plan: RecoveryPlan;
-    signatures: string[];
-    legacy: string;
-    current: () => void;
-  }): Promise<void> {
+  private async completeWalletRecovery(
+    input: RecoveryCompletion,
+  ): Promise<void> {
     const { session, plan, signatures, current } = input;
     try {
       current();
@@ -947,7 +792,7 @@ export class DeviceController {
       await this.commit(session, event, profile);
     } finally {
       signatures.fill('');
-      this.legacyRecoverySecret = '';
+      this.walletRecovery.clearLegacy();
     }
   }
   private async walletAuthority(
@@ -1072,121 +917,118 @@ export class DeviceController {
     this.receipt =
       event.kind === 'link' ? (await eventHash(event)).slice(0, 32) : '';
   }
-  async startLink(name: string): Promise<void> {
-    return this.run(async (session) => {
-      await this.synchronize(session);
-      if (this.authorized)
-        throw new Error('This device is already authorized.');
-      await this.loadIdentity(session, name || t('New device'));
-      if (!this.identity) throw new Error('Local identity missing.');
-      const code: LinkCode = {
-        version: 1,
-        accountId: session.accountId,
-        id: crypto.randomUUID(),
-        nonce: await digest(newSecret()),
-        expiresAt: new Date(
-          Date.parse(this.serverTime) + 300_000,
-        ).toISOString(),
-        device: this.identity.public,
-      };
-      const response = object(
-        await api(session, 'devices/start', {
-          code,
-          signature: await sign(this.identity.signing, linkProof(code)),
-        }),
+  startLink(name: string): Promise<void> {
+    return this.linking.start(name);
+  }
+  inspectCode(serialized: string): Promise<string> {
+    return this.linking.inspect(serialized);
+  }
+  approveLink(): Promise<void> {
+    return this.linking.approve();
+  }
+  finishLink(receipt: string): Promise<void> {
+    return this.linking.finish(receipt);
+  }
+  cancelLink(): Promise<void> {
+    return this.linking.cancel();
+  }
+  private async prepareLink(
+    session: AccountSession,
+    name: string,
+  ): Promise<{ code: LinkCode; remaining: number }> {
+    await this.synchronize(session);
+    if (this.authorized) throw new Error('This device is already authorized.');
+    await this.loadIdentity(session, name || t('New device'));
+    if (!this.identity) throw new Error('Local identity missing.');
+    const code: LinkCode = {
+      version: 1,
+      accountId: session.accountId,
+      id: crypto.randomUUID(),
+      nonce: await digest(newSecret()),
+      expiresAt: new Date(Date.parse(this.serverTime) + 300_000).toISOString(),
+      device: this.identity.public,
+    };
+    const response = object(
+      await api(session, 'devices/start', {
+        code,
+        signature: await sign(this.identity.signing, linkProof(code)),
+      }),
+    );
+    const remaining =
+      Date.parse(String(response['expiresAt'])) -
+      Date.parse(String(response['serverTime']));
+    if (!(remaining > 0 && remaining <= 300_000))
+      throw new Error('Invalid linking deadline.');
+    return { code, remaining };
+  }
+  private async inspectLink(
+    session: AccountSession,
+    serialized: string,
+  ): Promise<LinkCode> {
+    await this.synchronize(session);
+    if (!this.authorized)
+      throw new Error('Use an authorized device to approve.');
+    if (serialized.length > 4096) throw new Error('Code exceeds the limit.');
+    const code = linkCode(JSON.parse(serialized) as unknown);
+    await api(session, 'devices/inspect', code);
+    return code;
+  }
+  private async authorizeLink(
+    session: AccountSession,
+    code: LinkCode | null,
+  ): Promise<void> {
+    await this.synchronize(session);
+    if (!code || !this.current || !this.ring || !this.identity)
+      throw new Error('Check a valid code before authorizing.');
+    await api(session, 'devices/inspect', code);
+    const event = await prepareEvent({
+      accountId: session.accountId,
+      previous: this.current,
+      kind: 'link',
+      signer: session.deviceId,
+      signing: this.identity.signing,
+      root: this.current.root,
+      identities: [...this.current.devices.map(identityOf), code.device],
+      ring: this.ring,
+      linkId: code.id,
+      profile: null,
+    });
+    await this.commit(session, event, null);
+    this.receiptTarget = code.device.id;
+  }
+  private async confirmLink(
+    session: AccountSession,
+    pending: LinkCode | null,
+    receipt: string,
+  ): Promise<void> {
+    await this.synchronize(session);
+    const authorization = this.events.find(
+      (event, index) =>
+        event.kind === 'link' &&
+        event.devices.some((device) => device.id === session.deviceId) &&
+        !this.events[index - 1]?.devices.some(
+          (device) => device.id === session.deviceId,
+        ) &&
+        (!pending || event.linkId === pending.id),
+    );
+    if (
+      !authorization ||
+      !this.current ||
+      !this.identity ||
+      receipt.trim().toLowerCase() !==
+        (await eventHash(authorization)).slice(0, 32)
+    )
+      throw new Error(
+        'Confirmation code does not match. Check it on the authorizing device.',
       );
-      const remaining =
-        Date.parse(String(response['expiresAt'])) -
-        Date.parse(String(response['serverTime']));
-      if (!(remaining > 0 && remaining <= 300_000))
-        throw new Error('Invalid linking deadline.');
-      this.pendingCode = code;
-      this.pendingFingerprint = await digest(canonical(code.device));
-      this.expiresAt = Date.now() + remaining;
+    const ring = await deviceSecrets(this.identity, this.current);
+    const trustedRoot = await digest(canonical(this.current.root));
+    await saveCheckpoint(session.accountId, {
+      events: this.events,
+      trustedRoot,
     });
-  }
-  async inspectCode(serialized: string): Promise<string> {
-    return this.run(async (session) => {
-      await this.synchronize(session);
-      if (!this.authorized)
-        throw new Error('Use an authorized device to approve.');
-      if (serialized.length > 4096) throw new Error('Code exceeds the limit.');
-      const code = linkCode(JSON.parse(serialized) as unknown);
-      await api(session, 'devices/inspect', code);
-      this.approvalCode = code;
-      return t('{0} · fingerprint {1}', [
-        code.device.name,
-        await digest(canonical(code.device)),
-      ]);
-    });
-  }
-  async approveLink(): Promise<void> {
-    return this.run(async (session) => {
-      const code = this.approvalCode;
-      await this.synchronize(session);
-      if (!code || !this.current || !this.ring || !this.identity)
-        throw new Error('Check a valid code before authorizing.');
-      await api(session, 'devices/inspect', code);
-      const event = await prepareEvent({
-        accountId: session.accountId,
-        previous: this.current,
-        kind: 'link',
-        signer: session.deviceId,
-        signing: this.identity.signing,
-        root: this.current.root,
-        identities: [...this.current.devices.map(identityOf), code.device],
-        ring: this.ring,
-        linkId: code.id,
-        profile: null,
-      });
-      await this.commit(session, event, null);
-      this.receiptTarget = code.device.id;
-      this.approvalCode = null;
-    });
-  }
-  async finishLink(receipt: string): Promise<void> {
-    return this.run(async (session) => {
-      const pending = this.pendingCode;
-      await this.synchronize(session);
-      const authorization = this.events.find(
-        (event, index) =>
-          event.kind === 'link' &&
-          event.devices.some((device) => device.id === session.deviceId) &&
-          !this.events[index - 1]?.devices.some(
-            (device) => device.id === session.deviceId,
-          ) &&
-          (!pending || event.linkId === pending.id),
-      );
-      if (
-        !authorization ||
-        !this.current ||
-        !this.identity ||
-        receipt.trim().toLowerCase() !==
-          (await eventHash(authorization)).slice(0, 32)
-      )
-        throw new Error(
-          'Confirmation code does not match. Check it on the authorizing device.',
-        );
-      const ring = await deviceSecrets(this.identity, this.current);
-      const trustedRoot = await digest(canonical(this.current.root));
-      await saveCheckpoint(session.accountId, {
-        events: this.events,
-        trustedRoot,
-      });
-      this.trustedRoot = trustedRoot;
-      this.ring = ring;
-      this.pendingCode = null;
-      this.pendingFingerprint = '';
-    });
-  }
-  async cancelLink(): Promise<void> {
-    return this.run(async (session) => {
-      if (this.pendingCode)
-        await api(session, 'devices/cancel', { id: this.pendingCode.id });
-      this.pendingCode = null;
-      this.pendingFingerprint = '';
-      this.expiresAt = 0;
-    });
+    this.trustedRoot = trustedRoot;
+    this.ring = ring;
   }
   async revoke(id: string): Promise<void> {
     return this.run(async (session) => {
@@ -1284,11 +1126,8 @@ export class DeviceController {
   clearTransient(): void {
     this.generation++;
     this.identity = null;
-    this.walletPending = null;
-    this.legacyRecoverySecret = '';
-    this.pendingCode = null;
-    this.pendingFingerprint = '';
-    this.approvalCode = null;
+    this.walletRecovery.reset();
+    this.linking.reset();
     this.ring = null;
     this.receipt = '';
     this.receiptTarget = null;
