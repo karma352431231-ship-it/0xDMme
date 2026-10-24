@@ -7,7 +7,7 @@ import {
 import { communityButton, communityElement } from './elements.ts';
 import { communityDirectoryNavigation } from './navigation.ts';
 
-interface DirectoryView {
+export interface DirectoryView {
   host: HTMLElement;
   view: string;
   selected: string | null;
@@ -17,7 +17,7 @@ interface DirectoryView {
 
 interface DirectoryOptions {
   load: (cursor: string | null) => Promise<CommunityPage>;
-  rows: (host: HTMLElement, page: CommunityPage) => void;
+  rows: (host: HTMLElement, page: CommunityPage, view: DirectoryView) => void;
   release: (host: HTMLElement) => void;
   run: (work: () => Promise<void>) => Promise<void>;
 }
@@ -51,7 +51,7 @@ export class CommunityDirectory {
       ]);
       if (snapshot === this.snapshot) return;
       this.clear(view);
-      if (page) this.options.rows(view.host, page);
+      if (page) this.options.rows(view.host, page, view);
       else
         view.host.append(
           communityElement(

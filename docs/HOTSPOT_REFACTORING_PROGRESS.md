@@ -1,8 +1,9 @@
 # Hotspot refactoring from the current main branch
 
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
-H02, H01 presentation, then H07 group presentation. This branch is for review; merging into main and
-VPS publication are outside this task.
+H02, H01 presentation, H07 group presentation, then H03 community presentation.
+Integration of the first four stages is recorded below. The H03 stage remains
+local on this branch; another merge, push and VPS publication are outside its scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -199,3 +200,58 @@ case passed separately. All eleven assembled group UI cases also passed against
 the fetched main and the integrated presentation owners. This includes queued
 text acceptance without an extra readback, retry with the same ID and
 invitation-only contact privacy.
+
+## H03: community directory, notifications and editor lifetimes
+
+Base: the integrated main commit `69f80ca`. `community-directory.ts` owns main-list
+pagination and followed-sidebar rendering, composing the existing sidebar
+snapshot owner so unchanged reads retain their nodes and photos.
+`reply-notifications.ts` owns notification pagination and the publication/upvote
+read and acknowledgement operations consumed by Activity. Existing payloads,
+cursor resets and public entry-point contracts are preserved.
+
+`community-editor.ts` owns creation/editor mounts and preview disposal, composing
+the existing creation, presentation, badge, classification, tag and governance
+controls. It preserves dirty drafts, confirmed revisions, the creation guard and
+late-response invalidation. `community-detail.ts` owns the community hero,
+participation display and return header. Each directory/detail owner retains its
+own images through `community-photos.ts`, with selective release and existing
+abort cleanup. Followers require only the controller's existing request operation.
+
+The shell retains routing, generation/session authority, selected community,
+operation serialization, feed bookmarks and post/discovery/DM composition.
+`screen.ts` supplies only a mounted host, lifetime signal, validity check and
+shell presentation transition; extracted owners receive no writable application
+state bag. A workspace-owned DM remains open when the communities page leaves;
+a page-owned DM leaves with that page. Existing controller authorization and
+domain rules remain with their current owners.
+
+Structural review: pagination, editor state and photo cleanup moved into their
+responsible owners. The shell composes their operations without coordinating
+their internal steps. Existing dependency-cruiser rules cover the new internal
+imports; no cycles, rule exceptions or new dependencies were introduced. There
+are no server, database, migration, cryptography, storage, retention, style or
+deployment changes in this stage. The shell's remaining routing/session and
+feed-return composition is intentional; this does not claim to resolve separate
+controller/engine hotspots.
+
+Validation: 116 focused tests passed across the community screen and related
+post/discovery, participation, media, follower and frontend contracts. All 26
+assembled community-screen cases also passed against the pre-refactor entry
+point using the same final fixture. The eight added cases cover DM ownership,
+obsolete directory/notification results, creation after departure, list and
+notification pagination, Activity acknowledgement payloads, photo retention and
+editor confirmation without remounting. ESLint, strict types, dependency
+boundaries, repository formatting and the web build passed. The generated
+portable-source archive has 1,159 entries and contains byte-identical copies of
+the six new frontend modules; source roots and resource budgets were unchanged.
+
+Browser access became available during this stage. A local comparison of the
+before/after bundles with synthetic data showed the same community, management,
+creation, notification and personal-list screens at the default desktop
+viewport. Typed creation/edit drafts survived refresh, and confirmed presentation
+changes updated the header and directory while retaining the editor. Screenshots
+are private local evidence, outside Git. This limited fixture does not establish
+equivalence across all themes, devices, real wallet/backend operations or media
+uploads. PostgreSQL integration and remote CI were not run for H03. No new merge,
+push or VPS operation is included.
