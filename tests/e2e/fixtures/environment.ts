@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { cpus, platform, release } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
+import { retainArtifacts } from '../artifacts.ts';
 import { createTestDatabase } from './database.ts';
 import {
   command,
@@ -143,10 +144,12 @@ export async function startEnvironment(signal: AbortSignal) {
         {
           commit: execFileSync('git', ['rev-parse', 'HEAD'], {
             encoding: 'utf8',
+            timeout: 5000,
           }).trim(),
           dirty: Boolean(
             execFileSync('git', ['status', '--porcelain'], {
               encoding: 'utf8',
+              timeout: 5000,
             }).trim(),
           ),
           bundle,
@@ -180,11 +183,36 @@ export async function startEnvironment(signal: AbortSignal) {
       },
     };
   } catch (error) {
-    try {
-      await close();
-    } finally {
-      await writeFile(join(directory, 'fixture.log'), log);
-    }
-    throw error;
+    return failedPreparation(error, { root, directory, log, close });
   }
+}
+
+/** Finish every owned cleanup step even if another step fails. */
+async function failedPreparation(
+  cause: unknown,
+  evidence: {
+    root: string;
+    directory: string;
+    log: string;
+    close: () => Promise<void>;
+  },
+): Promise<never> {
+  const failures: unknown[] = [cause];
+  const steps = [
+    evidence.close,
+    () => writeFile(join(evidence.directory, 'fixture.log'), evidence.log),
+    () => retainArtifacts(evidence.root, evidence.directory),
+  ];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  throw new AggregateError(
+    failures,
+    `Browser fixture preparation failed. Private evidence: ${evidence.directory}`,
+    { cause },
+  );
 }

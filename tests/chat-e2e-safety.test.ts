@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { testDatabaseUrl } from './e2e/fixtures/database.ts';
-import { percentile } from './e2e/chat-metrics.ts';
+import { ChatMetrics, percentile } from './e2e/chat-metrics.ts';
 import { chatSummary } from './e2e/chat-report.ts';
 import { senderPhaseTimings } from './e2e/chat-phase-timings.ts';
-import { fixtureReady } from './e2e/fixtures/environment.ts';
+import type { Page } from '@playwright/test';
+import { mkdtemp, readdir, access, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fixtureReady, startEnvironment } from './e2e/fixtures/environment.ts';
 import { createServer } from 'node:http';
 
 await test('browser harness refuses non-test, remote and ambiguous database targets', () => {
@@ -66,16 +70,32 @@ await test('shared summaries keep browser versions separate and omit raw observa
       },
     ],
   }));
+  tests.push({
+    projectName: 'chromium',
+    results: [
+      {
+        status: 'failed',
+        duration: 10,
+        attachments: [
+          attachment('browser-version', { name: 'chromium', version: '100.0' }),
+        ],
+      },
+    ],
+  });
   const report = await chatSummary(
     JSON.stringify({
       suites: [{ title: 'delivery', specs: [{ title: 'burst', tests }] }],
-      stats: { expected: 2, unexpected: 0 },
+      stats: { expected: 2, unexpected: 1 },
     }),
   );
   assert.equal(report.pooled.length, 2);
   assert.deepEqual(
     report.pooled.map((value) => value.count),
     [1, 1],
+  );
+  assert.deepEqual(
+    report.pooled.map((value) => value.failures),
+    [1, 0],
   );
   assert.doesNotMatch(JSON.stringify(report), /synthetic-private-detail/);
 });
@@ -132,4 +152,34 @@ await test('stage timings keep opaque message slots within their page and captur
     report.cohorts.find((cohort) => cohort.page === 2)?.incompleteSlots,
     1,
   );
+});
+
+await test('all recorder paths enforce the shared observation budget', () => {
+  const metrics = new ChatMetrics();
+  // History review needs only an opaque page identity, no browser methods.
+  const page = {} as Page;
+  for (let index = 0; index < 40_000; index++) metrics.historyReview(page);
+  metrics.recordOutbox(page, { direct: 0, group: 0 });
+  assert.equal(metrics.observations.length, 40_000);
+  assert.equal(metrics.report().dropped, 1);
+  metrics.close();
+});
+await test('startup interruption cleans temporary data and retains bounded failure evidence', async () => {
+  const directory = await mkdtemp(join(tmpdir(), '0xdmme-fixture-abort-'));
+  const previous = process.cwd();
+  try {
+    process.chdir(directory);
+    await assert.rejects(
+      startEnvironment(AbortSignal.abort()),
+      /Browser fixture preparation failed/,
+    );
+    const evidence = join(directory, '.local/chat-e2e');
+    const runs = await readdir(evidence);
+    assert.equal(runs.length, 1);
+    await access(join(evidence, runs[0]!, 'fixture.log'));
+    await assert.rejects(access(join(evidence, runs[0]!, 'temporary')));
+  } finally {
+    process.chdir(previous);
+    await rm(directory, { recursive: true, force: true });
+  }
 });

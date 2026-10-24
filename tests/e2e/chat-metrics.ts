@@ -5,9 +5,9 @@ import { installObserver } from './chat-observer.ts';
 import budgets from './chat-budgets.ts';
 
 interface Observation {
-  at: number;
-  page: number;
-  event: Record<string, unknown>;
+  readonly at: number;
+  readonly page: number;
+  readonly event: Readonly<Record<string, unknown>>;
 }
 interface Operation {
   count: number;
@@ -29,8 +29,32 @@ export function percentile(
   return sorted[Math.ceil(sorted.length * fraction) - 1] ?? null;
 }
 export class ChatMetrics {
-  readonly operations = new Map<string, Operation>();
-  readonly observations: Observation[] = [];
+  private readonly counters = new Map<string, Operation>();
+  private readonly recorded: Observation[] = [];
+  get operations(): ReadonlyMap<
+    string,
+    Readonly<Omit<Operation, 'durationMs'>> & {
+      readonly durationMs: readonly number[];
+    }
+  > {
+    return this.counters;
+  }
+  get observations(): readonly Observation[] {
+    return this.recorded;
+  }
+  private room(): boolean {
+    if (this.recorded.length < 40_000) return true;
+    this.dropped++;
+    return false;
+  }
+  private observe(page: Page, event: Readonly<Record<string, unknown>>): void {
+    if (!this.room()) return;
+    this.recorded.push({
+      at: performance.now(),
+      page: this.pageNumber(page),
+      event,
+    });
+  }
   readonly errors: string[] = [];
   readonly clocks: {
     page: number;
@@ -57,11 +81,7 @@ export class ChatMetrics {
   }[] = [];
   readonly detailed = process.env['CHAT_E2E_DETAILED'] === '1';
   historyReview(page: Page): void {
-    this.observations.push({
-      at: performance.now(),
-      page: this.pageNumber(page),
-      event: { event: 'history-review' },
-    });
+    this.observe(page, { event: 'history-review' });
   }
   flow(sender: Page, recipient: Page, label: string): void {
     this.flows.push({
@@ -84,20 +104,13 @@ export class ChatMetrics {
   async attach(context: BrowserContext): Promise<void> {
     await context.exposeBinding('chatE2EEvent', ({ page }, value: unknown) => {
       if (typeof value !== 'object' || value === null) return;
-      if (this.observations.length >= 40_000) {
-        this.dropped++;
-        return;
-      }
+      if (!this.room()) return;
       const event = { ...value } as Record<string, unknown>;
       if (typeof event['id'] === 'string')
         event['message'] = this.messageNumber(event['id']);
       delete event['id'];
       if (event['event'] === 'dropped') this.dropped++;
-      this.observations.push({
-        at: performance.now(),
-        page: this.pageNumber(page),
-        event,
-      });
+      this.observe(page, event);
     });
     await context.addInitScript(installObserver, this.detailed);
     for (const page of context.pages()) {
@@ -161,11 +174,7 @@ export class ChatMetrics {
     this.changedAt = performance.now();
   }
   recordOutbox(page: Page, counts: { direct: number; group: number }): void {
-    this.observations.push({
-      at: performance.now(),
-      page: this.pageNumber(page),
-      event: { event: 'durable-outbox', ...counts },
-    });
+    this.observe(page, { event: 'durable-outbox', ...counts });
   }
   assertComplete(): void {
     this.assertValid();
@@ -199,7 +208,7 @@ export class ChatMetrics {
     return /^[a-z/-]+$/u.test(operation) ? operation : null;
   }
   private counter(operation: string): Operation {
-    let result = this.operations.get(operation);
+    let result = this.counters.get(operation);
     if (!result) {
       result = {
         count: 0,
@@ -212,7 +221,7 @@ export class ChatMetrics {
         responseBytes: 0,
         durationMs: [],
       };
-      this.operations.set(operation, result);
+      this.counters.set(operation, result);
     }
     return result;
   }
@@ -243,8 +252,10 @@ export class ChatMetrics {
     if (!operation) return;
     const counter = this.counter(operation),
       started = this.active.get(request);
-    if (started !== undefined && counter.durationMs.length < 5000)
-      counter.durationMs.push(performance.now() - started);
+    if (started !== undefined) {
+      if (counter.durationMs.length === 5000) this.dropped++;
+      else counter.durationMs.push(performance.now() - started);
+    }
     if (response.status() >= 400) counter.failed++;
     await this.publication(response, operation);
     if (!operation.endsWith('live')) {
@@ -269,13 +280,9 @@ export class ChatMetrics {
         const packet = textPacket(response.request());
         if (packet) {
           this.counter(operation).accepted++;
-          this.observations.push({
-            at: performance.now(),
-            page: this.pageNumber(response.request().frame().page()),
-            event: {
-              event: 'server-accepted',
-              message: this.messageNumber(packet.id),
-            },
+          this.observe(response.request().frame().page(), {
+            event: 'server-accepted',
+            message: this.messageNumber(packet.id),
           });
         }
       }
@@ -317,10 +324,10 @@ export class ChatMetrics {
     );
   }
   accepted(operation: string): number {
-    return this.operations.get(operation)?.accepted ?? 0;
+    return this.counters.get(operation)?.accepted ?? 0;
   }
   textAttempts(operation: string): number {
-    return this.operations.get(operation)?.textAttempts ?? 0;
+    return this.counters.get(operation)?.textAttempts ?? 0;
   }
   assertValid(): void {
     expect(this.dropped, 'Dropped observations invalidate metrics').toBe(0);

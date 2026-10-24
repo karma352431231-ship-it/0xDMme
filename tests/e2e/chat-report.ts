@@ -114,7 +114,6 @@ function pool(reports: readonly CaseReport[]) {
       automaticSamples: number[];
       reviewedSamples: number[];
       missing: number;
-      failures: number;
     }
   >();
   for (const report of reports) {
@@ -128,18 +127,17 @@ function pool(reports: readonly CaseReport[]) {
         automaticSamples: [],
         reviewedSamples: [],
         missing: 0,
-        failures: 0,
       };
       group.samples.push(...flow.samples);
       group.automaticSamples.push(...flow.automaticSamples);
       group.reviewedSamples.push(...flow.reviewedSamples);
       group.missing += flow.missing;
-      if (report.status !== 'passed') group.failures++;
       groups.set(key, group);
     }
   }
   return [...groups.values()].map((value) => ({
     ...value,
+    failures: caseFailures(reports, value),
     count: value.samples.length,
     presentationScope:
       'Overall timings include explicit history review; automatic timings describe only the automatically presented subset.',
@@ -156,6 +154,19 @@ function pool(reports: readonly CaseReport[]) {
     p50Ms: percentile(value.samples, 0.5),
     p95Ms: percentile(value.samples, 0.95),
   }));
+}
+function caseFailures(
+  reports: readonly CaseReport[],
+  group: { browser: unknown; workload: string },
+): number {
+  const title = group.workload.slice(0, group.workload.lastIndexOf(' / '));
+  const browser = JSON.stringify(group.browser);
+  return reports.filter(
+    (report) =>
+      report.title === title &&
+      JSON.stringify(report.browser) === browser &&
+      report.status !== 'passed',
+  ).length;
 }
 export async function chatSummary(raw: string) {
   const result = JSON.parse(raw) as { suites: Suite[]; stats: unknown };

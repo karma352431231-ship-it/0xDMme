@@ -49,6 +49,10 @@ test('S3: navigation stays responsive and preserves destinations during a burst'
       burst(b1, 'group', 'navigation'),
       navigation(),
     ]);
+    await info.attach('navigation-ms', {
+      body: JSON.stringify(times),
+      contentType: 'application/json',
+    });
     await expect
       .poll(() => metrics.accepted('messages/group-message-publish'))
       .toBe(20);
@@ -74,10 +78,6 @@ test('S3: navigation stays responsive and preserves destinations during a burst'
       0,
     );
     await drained([a1, a2, b1], metrics);
-    await info.attach('navigation-ms', {
-      body: JSON.stringify(times),
-      contentType: 'application/json',
-    });
   } finally {
     await a2.close();
   }
