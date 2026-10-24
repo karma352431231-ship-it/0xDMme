@@ -135,3 +135,61 @@ await test('session loss after pin preservation stops before obtaining transport
   assert.equal(f.state.machineOpens, 0);
   assert.equal(f.publications.length, 0);
 });
+
+await test('a lost publication response retries the accepted packet with the same ID without encrypting or publishing twice', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  const id = await f.queue();
+  f.state.losePublishResponse = true;
+  await assert.rejects(
+    f.controller.sendPending({ priority: 'interactive' }),
+    /Could not connect/,
+  );
+  const packet = f.records.get(`outbox:${id}`)!.packet;
+  assert.ok(packet);
+  assert.equal(f.publications.length, 1);
+  assert.equal(f.state.closedMachines, 1);
+  const before = f.requests.length;
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.equal(f.publications.length, 1);
+  assert.equal(f.records.size, 0);
+  assert.ok(f.requests.slice(before).includes('accepted'));
+  assert.ok(!f.requests.slice(before).includes('publish'));
+  assert.deepEqual(
+    f.state.events.map((value) => ({ ...value })),
+    [{ id, peer: f.peer.accountId }],
+  );
+  assert.equal(f.state.closedMachines, 2);
+});
+
+await test('a rejected publication retains encrypted drafts and closes its SDK machine before a successful retry', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  const id = await f.queue();
+  const original = f.records.get(`outbox:${id}`)!.draft;
+  f.state.failPublish = true;
+  await assert.rejects(
+    f.controller.sendPending({ priority: 'interactive' }),
+    /HTTP 503/,
+  );
+  assert.equal(f.state.closedMachines, 1);
+  assert.deepEqual(f.records.get(`outbox:${id}`)!.draft, original);
+  assert.equal(f.state.events.length, 0);
+  f.state.failPublish = false;
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.equal(f.publications[0]!.id, id);
+  assert.equal(f.state.closedMachines, 2);
+});
+
+await test('discarding a possibly accepted message confirms remote deletion before removing its durable draft', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  const id = await f.queue();
+  f.state.losePublishResponse = true;
+  await assert.rejects(f.controller.sendPending({ priority: 'interactive' }));
+  const before = f.requests.length;
+  f.state.expectedPriority = undefined;
+  await f.controller.discard(id);
+  assert.deepEqual(f.requests.slice(before), ['accepted', 'delete']);
+  assert.ok(!f.records.has(`outbox:${id}`));
+});

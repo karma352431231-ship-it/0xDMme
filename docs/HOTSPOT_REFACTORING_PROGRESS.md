@@ -3,10 +3,10 @@
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
-linking and wallet-return workflows.
+linking and wallet-return workflows and the H01 engine outbox.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch, followed by H04, H05 and H06; another merge, push and VPS
-publication are outside these stages' scope.
+local on this branch, followed by H04, H05, H06 and the H01 engine outbox;
+another merge, push and VPS publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -457,3 +457,61 @@ and the controller, within the unchanged source roots and resource budgets.
 Browser access is disabled in Work settings during H06. Real wallet/device and
 IndexedDB acceptance, PostgreSQL integration and remote CI remain unrun for this
 stage. No merge, push or VPS operation is included.
+
+## H01 engine: outgoing message ownership
+
+Base: `cd9f9a7`. This is the first engine slice, not completion of the H01
+engine. `messages/outbox.ts` owns encrypted outgoing records from admission
+through attachment transfer, publication, retry reconciliation and removal.
+It also owns pending-draft reopening and outgoing profile deduplication.
+`Messages` preserves its public operations and composes the owner; verified
+deletions invoke its narrow record-removal operation at the original point.
+The shared encrypted profile-chunk format lives in `profile-chunks.ts`, so
+verified profile caching does not depend on the outgoing workflow.
+
+The controller retains the single session generation and identity/history
+authority. The outbox receives scoped authority operations and vault access,
+without mutable controller state or a second trust owner. Recovery-key and
+SDK opening still use the existing authority; transmission closes the machine
+in the original `finally` block. Identity pins are still saved outside
+`withVault`, before key distribution/publication. Existing batch bounds,
+authority rechecks, two-attempt pin preparation, stable packet IDs and encrypted
+storage formats are unchanged. Discard still closes the reader and notifies
+controls through the controller before reconciling a possibly accepted send.
+
+Structural review: durable outgoing state and its operations moved together.
+Reader verification, staged views, final server confirmation, receipts, offline
+history and session invalidation retain their existing owner. Token comparisons
+confirmed unchanged bodies for 22 retained authority/read methods and 13 moved
+outgoing methods after explicit authority/type-name substitutions; the shared
+profile sealing body is also unchanged. Existing dependency rules cover the
+new modules without cycles, exceptions or dependencies. No server, database,
+migration, policy, stylesheet or deployment code changes are included.
+
+Validation: 123 relevant tests passed, covering sending, resumption, outbox
+ordering, indexing, verified windows, session/recovery, backups, local history,
+attachments, text queues, profile broadcasting and portable sources. The same
+55 sender/resumption cases also passed against the pre-refactor controller;
+the baseline snapshot matches `cd9f9a7`, and the final cases and fixtures differ
+only in import paths and that controller override. Three added cases protect
+retry after an accepted publication loses its response, rejected publication
+with encrypted-draft retention and SDK cleanup, and remote reconciliation when
+discarding a possibly accepted message. Existing lifecycle cases now seed
+pending records rather than replace the controller's pending method.
+Cryptography and the sender SDK are real; network and persistence boundaries
+use synthetic adapters, which do not establish browser durability.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting,
+localization and the web build passed. Initial static checks caught two imports
+still needed by the retained reader; both were restored before the final checks.
+The portable-source archive has 1,166 entries and contains byte-identical copies
+of all three affected message modules within the unchanged roots and budgets.
+Real browser/IndexedDB acceptance, PostgreSQL integration and remote CI were
+not run. No merge, push or VPS operation is included.
+
+Next engine slice: characterize and extract the verified conversation reader,
+reusing the existing sync/index/window owners. Preserve one session authority,
+staged-view cancellation and final server confirmation before publication; run
+the resumption, verified-window, index, session and recovery contracts. Remaining
+archive/offline responsibilities are preexisting and need a separate clear
+contract before extraction.

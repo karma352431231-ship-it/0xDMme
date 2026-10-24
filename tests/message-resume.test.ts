@@ -276,8 +276,13 @@ await test('session change during profile preparation prevents checking or sendi
 
 await test('sending after selecting a retained window requires current identities before key distribution or publication', async () => {
   const { controller, data, peer } = resumeFixture();
-  controller.pending = () =>
-    Promise.resolve([{ id: crypto.randomUUID(), peer }]);
+  data.records.set('outbox:pending', {
+    id: 'pending',
+    peer,
+    kind: 'text',
+    draft: [],
+    packet: null,
+  });
   const failure = new Error('Identidades indisponíveis');
   controller.loadPins = (options = {}) => {
     assert.equal(options.priority, 'interactive');
@@ -792,8 +797,13 @@ await test('revocation at final authority rejects the complete projection before
 for (const interactive of [false, true])
   await test(`pending publication keeps its requested authority priority and stops before unverified peer IO: interactive=${interactive}`, async (t) => {
     const f = resumeFixture();
-    f.controller.pending = () =>
-      Promise.resolve([{ id: crypto.randomUUID(), peer: f.peer }]);
+    f.data.records.set('outbox:pending', {
+      id: 'pending',
+      peer: f.peer,
+      kind: 'text',
+      draft: [],
+      packet: null,
+    });
     f.controller.loadPins = () => Promise.resolve();
     const failure = new Error('Current authority unavailable');
     const read: VaultAccess['withVault'] = (_offline, _work, options) => {

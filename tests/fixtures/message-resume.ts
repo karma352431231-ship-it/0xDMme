@@ -182,7 +182,14 @@ export function resumeFixture(incremental = false) {
       return Promise.resolve();
     },
     localDelete: unused,
-    localPage: unused,
+    localPage: (_scope: string, prefix: string) =>
+      Promise.resolve({
+        items: [...data.records]
+          .filter(([name]) => name.startsWith(prefix))
+          .slice(0, 64)
+          .map(([name, value]) => ({ name, value })),
+        next: null,
+      }),
     sealLocal: (_a: unknown, name: string, text: string) =>
       Promise.resolve({ id: name, text, bytes: new Uint8Array(text.length) }),
     enqueueOutbox: unused,
