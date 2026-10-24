@@ -3,10 +3,10 @@
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
-linking and wallet-return workflows, the H01 engine outbox and verified reader.
+linking and wallet-return workflows, the H01 engine outbox/reader and H09 HTTP.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch, followed by H04, H05, H06 and the H01 engine extractions;
-another merge, push and VPS publication are outside these stages' scope.
+local on this branch, followed by H04, H05, H06, the H01 engine extractions and
+H09; another merge, push and VPS publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -581,3 +581,69 @@ and encrypted cache/recovery first, move that operation before its backup/media
 callers, and preserve shared session guards and machine cleanup. Affected tests
 include recovery, verified windows, backups, local history, attachments and
 conversation search. That additional cleanup is separate from this reader stage.
+
+## H09: account HTTP workflow ownership
+
+Base: `4016137`. `recovery-http.ts` owns public/private recovery, wallet handoff,
+opening read/acknowledgment, document entry and temporary-return cleanup.
+`enrollment-http.ts` owns invitation lifetime, receiver-session issuance and
+device-route adaptation, including shutdown. `message-http.ts` owns authorization
+and attachment preflight before reading message bodies, message dispatch and
+live-stream opening with continuous session/directory reauthorization.
+`call-http.ts` owns authenticated command admission and the call service/budget
+lifetime; synchronization and end retain their budget exemption.
+
+Shared cookie transport preserves the historical identities, strict flags,
+lifetimes and duplicate-cookie rejection in `http-cookies.ts`. `http-body.ts`
+owns JSON/UTF-8 reading, the byte bound and its five-second deadline/timer cleanup;
+route policies supply the existing limits. Message and call budgets stay with
+their HTTP owners. `http-response.ts` preserves the existing JSON representation.
+The entry point composes these owners and retains Origin/CSRF routing, login,
+shared challenge protection and the existing remaining feature dispatch.
+Domain services remain authoritative; no SQL, cryptography or new permission
+decision moved into transport adapters.
+
+Capacity clarification: the old audit's four-request admission statement was
+already superseded by the owner's 16 October decision, implemented in `0160d68`.
+This stage preserves the current absence of a fixed unrelated-request ceiling
+and general per-minute API quota. It also preserves per-client login protection,
+trusted Unix-proxy identity handling and separate authenticated call-command
+budgets. No capacity policy is reinstated or changed by this refactor.
+
+Structural review: pending recovery/enrollment state and its complete cleanup
+belong to their HTTP owners, call timers/budgets to the call owner, and request
+buffers/deadlines to the body reader. Modules receive only the services and
+cookie operations they use, without writable handler internals. Ten moved route
+bodies, JSON reading/deadline logic and the complete message-budget table match
+the baseline after explicit interface substitutions. HTTP/HTTPS cookie output
+and invalid/ambiguous-cookie rejection were compared with the original functions.
+Routing and shutdown composition were reviewed separately. Existing dependency
+rules pass without cycles, exceptions, new dependencies or broader source roots.
+
+Validation: 90 tests passed, including 51 PostgreSQL/HTTP integration cases for
+account login/opening, encrypted wallet return, enrollment, private messages,
+SSE and calls. Those same 51 cases passed before and after against separate empty
+dedicated local databases. All 11 focused HTTP/budget cases also passed against
+the original handler and the final modules, using the same final cases/fixture.
+Ten added regressions cover Origin/authorization/preflight before upload reads,
+ambiguous cookies, exact route body limits, deadline destruction and subsequent
+requests, timer release on valid/invalid JSON, pending invitation cleanup on
+shutdown, and command exhaustion while sync/end and another session stay usable.
+Related capacity, proxy identity, temporary-admission, enrollment and recovery
+unit tests passed. Focused HTTP tests isolate domain/storage methods; integration
+tests exercise real PostgreSQL, HTTP and cryptographic flows with synthetic data.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting
+and the web build passed. Initial static checks identified obsolete imports and
+parameters plus missing fixture callback types; these were corrected before the
+final checks. The owned disposable PostgreSQL cluster was stopped after testing.
+No migrations, infrastructure, deployment tooling, frontend behavior or retention
+rules changed. Remote CI, physical browser/wallet acceptance and VPS activation
+were not run. No merge, push or VPS operation is included.
+
+Remaining vault, contact and social transport wrappers are preexisting. If they
+need another extraction, move vault preflight/body policy together first, then
+feature dispatch, keeping shared Origin/CSRF and authorization order explicit.
+Affected checks include account/messages plus vault/community/profile HTTP
+integration and body-deadline regressions. That further cleanup is separate from
+the four workflow owners addressed here. The next primary plan area is H10.

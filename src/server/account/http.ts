@@ -1,9 +1,14 @@
+import { AccountHttpCookies } from './http-cookies.ts';
+import { sendAccountJson } from './http-response.ts';
+import { readAccountBody } from './http-body.ts';
+import { AccountRecoveryHttp } from './recovery-http.ts';
+import { AccountEnrollmentHttp } from './enrollment-http.ts';
+import { AccountMessageHttp, messageBodyLimit } from './message-http.ts';
+import { AccountCallHttp, callBodyLimit } from './call-http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   AccountError,
   encryptedProfileLimit,
-  keys,
-  object,
 } from '../../shared/account/index.ts';
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
@@ -20,9 +25,7 @@ import type { CommunityService } from '../communities/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
-import { RecoveryReturn } from '../recovery-return/index.ts';
-import { EnrollmentLinks } from '../device-enrollment/index.ts';
-import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
+
 import {
   approvalDocumentUrl,
   approvalEntryUrl,
@@ -35,53 +38,6 @@ const challengeRoutes = new Set([
   '/api/account/recovery-start',
   '/api/account/enrollment-join',
 ]);
-function readCookie(request: IncomingMessage, name: string): string {
-  const matches = (request.headers.cookie ?? '')
-    .split(';')
-    .map((item) => item.trim())
-    .filter((item) => item.startsWith(`${name}=`));
-  if (matches.length !== 1) return '';
-  const value = matches[0]?.slice(name.length + 1) ?? '';
-  return /^[a-f0-9]{64}$/u.test(value) ? value : '';
-}
-
-function cookie(
-  name: string,
-  value: string,
-  seconds: number,
-  secure: boolean,
-): string {
-  return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
-}
-
-const messageBodyBudgets = new Map<string, number>([
-  ['dm-attachment-part', 360000],
-  ['dm-attachment-reserve', 12000],
-  ['dm-register', 75000],
-  ['dm-publish', 8200000],
-  ['dm-matrix-upload', 200000],
-  ['dm-matrix-claim', 60000],
-  ['dm-matrix-send', 8400000],
-  ['group-message-publish', 6_700_000],
-  ['group-matrix-send', 8_400_000],
-  ['group-matrix-claim', 60_000],
-  ['group-commit', 75_000],
-  ['group-propose', 8_000],
-  ['attachment-part', 360_000],
-  ['group-attachment-part', 365_000],
-  ['group-attachment-reserve', 12_000],
-  ['status-attachment-reserve', 12_000],
-  ['status-attachment-part', 365_000],
-  ['status-recipients', 200_000],
-  ['status-publish', 5_800_000],
-  ['attachment-reserve', 12_000],
-  ['publish', 8_200_000],
-  ['matrix-upload', 200_000],
-  ['matrix-send', 1_100_000],
-]);
-function messageBodyLimit(url: string): number {
-  return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
-}
 function bodyLimit(url: string | undefined): number {
   if (url === '/api/account/communities/presentation')
     return 2 * Math.ceil(publicAvatarLimit / 3) * 4 + 28000;
@@ -96,8 +52,7 @@ function bodyLimit(url: string | undefined): number {
   return accountBodyLimit(url);
 }
 function accountBodyLimit(url: string | undefined): number {
-  if (url?.startsWith('/api/account/calls/'))
-    return url.endsWith('/offer') ? 365_000 : 16_000;
+  if (url?.startsWith('/api/account/calls/')) return callBodyLimit(url);
   if (url?.startsWith('/api/account/messages/')) return messageBodyLimit(url);
   return url === '/api/account/vault/upload'
     ? Math.ceil(blockLimit / 3) * 4 + 10000
@@ -108,40 +63,8 @@ function accountBodyLimit(url: string | undefined): number {
       : 4096;
 }
 
-async function body(request: IncomingMessage): Promise<unknown> {
-  if (request.headers['content-type'] !== 'application/json')
-    throw new AccountError(415, 'Use JSON.');
-  const maximum = bodyLimit(request.url);
-  const parts: Buffer[] = [];
-  let size = 0;
-  const timer = setTimeout(() => request.destroy(), 5000);
-  timer.unref();
-  try {
-    for await (const value of request) {
-      if (!(value instanceof Buffer))
-        throw new AccountError(400, 'Invalid body.');
-      size += value.length;
-      if (size > maximum)
-        throw new AccountError(413, 'Request exceeds the limit.');
-      parts.push(value);
-    }
-    try {
-      return JSON.parse(
-        new TextDecoder('utf-8', { fatal: true }).decode(
-          Buffer.concat(parts, size),
-        ),
-      ) as unknown;
-    } catch {
-      throw new AccountError(400, 'Invalid JSON.');
-    }
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function send(response: ServerResponse, status: number, data: unknown): void {
-  response.setHeader('Content-Type', 'application/json; charset=utf-8');
-  response.writeHead(status).end(JSON.stringify(data));
+function body(request: IncomingMessage): Promise<unknown> {
+  return readAccountBody(request, bodyLimit(request.url));
 }
 
 export function createAccountHandler(options: {
@@ -163,52 +86,40 @@ export function createAccountHandler(options: {
   publicProfiles?: PublicProfileService;
   communities?: CommunityService;
 }) {
-  const secure = new URL(options.origin).protocol === 'https:';
-  const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
-  const challengeName = secure
-    ? '__Host-hash-talk-challenge'
-    : 'hash-talk-challenge';
+  const cookies = new AccountHttpCookies(options.origin);
   // Normal API reads/writes and upload parts have no per-minute transport quota.
   // Login challenges retain their independent protection.
   const limit = new AccountRateLimit({ requests: null });
-  // The edge protects unauthenticated traffic per client. Commands retain
-  // their authenticated budget; synchronization/end have no transport quota.
-  const callSessions = new AccountRateLimit();
-  const recovery = new RecoveryReturn(options.origin);
-  const enrollments = options.devices
-    ? new EnrollmentLinks(options.devices)
-    : null;
-  const handoffName = secure ? '__Host-hash-talk-return' : 'hash-talk-return';
+  const recovery = new AccountRecoveryHttp(
+    {
+      service: options.service,
+      origin: () => options.origin,
+      devices: options.devices,
+      recoveryDocument: options.recoveryDocument,
+    },
+    cookies,
+  );
+  const enrollments = new AccountEnrollmentHttp(
+    { service: options.service, devices: options.devices },
+    cookies,
+  );
+  const messages = new AccountMessageHttp(
+    {
+      service: options.service,
+      messages: options.messages,
+      live: options.live,
+    },
+    cookies,
+  );
+  const calls = new AccountCallHttp({
+    service: options.service,
+    calls: options.calls,
+  });
   const approval = createApprovalEntry(
     options.service,
     options.origin,
     options.approvalDocument,
   );
-
-  async function enrollmentJoin(
-    request: IncomingMessage,
-    response: ServerResponse,
-    input: unknown,
-  ): Promise<boolean> {
-    if (request.url !== '/api/account/enrollment-join' || !enrollments)
-      return false;
-    const login = await enrollments.join(
-      input,
-      (source, device) =>
-        options.service.beginLinked(
-          source,
-          device,
-          readCookie(request, sessionName),
-        ),
-      (token) => options.service.logout(token),
-    );
-    response.setHeader(
-      'Set-Cookie',
-      cookie(sessionName, login.sessionToken, sessionSeconds, secure),
-    );
-    send(response, 200, login.session);
-    return true;
-  }
   async function post(
     request: IncomingMessage,
     response: ServerResponse,
@@ -216,39 +127,35 @@ export function createAccountHandler(options: {
     if (request.headers.origin !== options.origin)
       throw new AccountError(403, 'Invalid origin.');
     if (await earlyVaultPost(request, response)) return;
-    if (await earlyMessagePost(request, response)) return;
+    if (await messages.post(request, response)) return;
     const input = await body(request);
-    if (await enrollmentJoin(request, response, input)) return;
-    if (publicRecoveryPost(request, response, input)) return;
-    if (request.url?.startsWith('/api/account/handoff-')) {
-      await handoffPost(request, response, input);
-      return;
-    }
+    if (await enrollments.join(request, response, input)) return;
+    if (await recovery.post(request, response, input)) return;
     if (request.url === '/api/account/challenge') {
       const challenge = await options.service.challenge(input);
       response.setHeader(
         'Set-Cookie',
-        cookie(challengeName, challenge.browserToken, challengeSeconds, secure),
+        cookies.write('challenge', challenge.browserToken, challengeSeconds),
       );
-      send(response, 200, {
+      sendAccountJson(response, 200, {
         id: challenge.id,
         message: challenge.message,
         expiresAt: challenge.expiresAt,
       });
       return;
     }
-    const sessionToken = readCookie(request, sessionName);
+    const sessionToken = cookies.read(request, 'session');
     if (request.url === '/api/account/login') {
       const login = await options.service.login(
         input,
-        readCookie(request, challengeName),
+        cookies.read(request, 'challenge'),
         sessionToken,
       );
       response.setHeader('Set-Cookie', [
-        cookie(sessionName, login.sessionToken, sessionSeconds, secure),
-        cookie(challengeName, '', 0, secure),
+        cookies.write('session', login.sessionToken, sessionSeconds),
+        cookies.write('challenge', '', 0),
       ]);
-      send(response, 200, login.session);
+      sendAccountJson(response, 200, login.session);
       return;
     }
     await options.service.authorize(
@@ -267,55 +174,11 @@ export function createAccountHandler(options: {
     await vaultPost(request, response);
     return true;
   }
-  async function earlyMessagePost(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): Promise<boolean> {
-    if (request.url?.startsWith('/api/account/messages/') && options.messages) {
-      const token = readCookie(request, sessionName);
-      await options.service.authorize(
-        token,
-        request.headers['x-hash-talk-csrf'],
-      );
-      if (request.url.endsWith('/dm-attachment-part'))
-        await options.messages.preflightSocialAttachment(
-          await options.service.session(token),
-          request.headers['x-0xdmme-attachment-id'],
-        );
-      if (request.url.endsWith('/attachment-part'))
-        await options.messages.preflightAttachment(
-          await options.service.session(token),
-          request.headers['x-0xdmme-attachment-id'],
-        );
-      await messagePost(request, response, token, await body(request));
-      return true;
-    }
-    return false;
-  }
-  function publicRecoveryPost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    input: unknown,
-  ): boolean {
-    if (
-      request.url !== '/api/account/recovery-request' &&
-      request.url !== '/api/account/recovery-submit'
-    )
-      return false;
-    send(
-      response,
-      200,
-      request.url.endsWith('request')
-        ? recovery.requestPublic(input)
-        : recovery.submit(input),
-    );
-    return true;
-  }
   async function vaultPost(
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
-    const token = readCookie(request, sessionName);
+    const token = cookies.read(request, 'session');
     await options.service.authorize(token, request.headers['x-hash-talk-csrf']);
     const session = await options.service.session(token);
     if (request.url === '/api/account/vault/upload')
@@ -324,7 +187,7 @@ export function createAccountHandler(options: {
         request.headers['x-0xdmme-vault-id'],
       );
     const input = await body(request);
-    send(
+    sendAccountJson(
       response,
       200,
       await options.vault?.operate(
@@ -333,112 +196,6 @@ export function createAccountHandler(options: {
         input,
       ),
     );
-  }
-
-  async function handoffPost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    input: unknown,
-  ): Promise<void> {
-    const browserToken = readCookie(request, handoffName);
-    if (request.url === '/api/account/handoff-start') {
-      const handoff = await options.service.startHandoff(input, browserToken);
-      response.setHeader(
-        'Set-Cookie',
-        cookie(handoffName, handoff.browserToken, challengeSeconds, secure),
-      );
-      send(response, 200, {
-        ticket: handoff.ticket,
-        expiresAt: handoff.expiresAt,
-        serverTime: new Date().toISOString(),
-      });
-      return;
-    }
-    if (request.url === '/api/account/handoff-challenge') {
-      const challenge = await options.service.handoffChallenge(input);
-      response.setHeader(
-        'Set-Cookie',
-        cookie(challengeName, challenge.browserToken, challengeSeconds, secure),
-      );
-      send(response, 200, {
-        id: challenge.id,
-        message: challenge.message,
-        expiresAt: challenge.expiresAt,
-      });
-      return;
-    }
-    if (request.url === '/api/account/handoff-sign') {
-      const signed = await options.service.signHandoff(
-        input,
-        readCookie(request, challengeName),
-      );
-      const opening = await options.service.prepareOpening(
-        signed,
-        (accountId) =>
-          options.devices
-            ? options.devices.openingRecovery(accountId)
-            : Promise.reject(
-                new AccountError(503, 'Account opening unavailable.'),
-              ),
-      );
-      response.setHeader('Set-Cookie', cookie(challengeName, '', 0, secure));
-      send(response, 200, {
-        status: 'signed',
-        origin: options.origin,
-        ...(opening ? { opening } : {}),
-      });
-      return;
-    }
-    if (request.url === '/api/account/handoff-opening-submit') {
-      await options.service.opening.submit(input);
-      send(response, 200, { status: 'encrypted' });
-      return;
-    }
-    if (request.url === '/api/account/handoff-cancel') {
-      keys(object(input), []);
-      await options.service.cancelHandoff(browserToken);
-      response.setHeader('Set-Cookie', cookie(handoffName, '', 0, secure));
-      send(response, 200, { status: 'cancelled' });
-      return;
-    }
-    if (request.url === '/api/account/handoff-confirm') {
-      const login = await options.service.finishHandoff(
-        input,
-        browserToken,
-        readCookie(request, sessionName),
-      );
-      response.setHeader('Set-Cookie', [
-        cookie(sessionName, login.sessionToken, sessionSeconds, secure),
-        cookie(handoffName, '', 0, secure),
-      ]);
-      send(response, 200, login.session);
-      return;
-    }
-    throw new AccountError(404, 'Operation not found.');
-  }
-
-  async function privateRecoveryPost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    sessionToken: string,
-    input: unknown,
-  ): Promise<void> {
-    const session = await options.service.session(sessionToken);
-    let result: unknown;
-    switch (request.url) {
-      case '/api/account/recovery-start':
-        result = await recovery.start(session, input);
-        break;
-      case '/api/account/recovery-take':
-        result = recovery.take(session, input);
-        break;
-      case '/api/account/recovery-cancel':
-        result = recovery.cancel(session, input);
-        break;
-      default:
-        throw new AccountError(404, 'Operation not found.');
-    }
-    send(response, 200, result);
   }
   async function contactPost(
     request: IncomingMessage,
@@ -449,7 +206,7 @@ export function createAccountHandler(options: {
     if (!request.url?.startsWith('/api/account/contacts/') || !options.contacts)
       return false;
     const session = await options.service.session(sessionToken);
-    send(
+    sendAccountJson(
       response,
       200,
       await options.contacts.operate(
@@ -460,125 +217,18 @@ export function createAccountHandler(options: {
     );
     return true;
   }
-  async function messagePost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    sessionToken: string,
-    input: unknown,
-  ): Promise<boolean> {
-    if (request.url?.startsWith('/api/account/messages/') && options.messages) {
-      if (request.url === '/api/account/messages/live' && options.live) {
-        await livePost(response, sessionToken, {
-          proof: input,
-          callWakeups: request.headers['x-0xdmme-call-wake'] === '1',
-        });
-        return true;
-      }
-      send(
-        response,
-        200,
-        await options.messages.operate(
-          request.url.slice('/api/account/messages/'.length),
-          await options.service.session(sessionToken),
-          input,
-        ),
-      );
-      return true;
-    }
-    return false;
-  }
-  async function livePost(
-    response: ServerResponse,
-    token: string,
-    input: { proof: unknown; callWakeups: boolean },
-  ): Promise<void> {
-    const session = await options.service.session(token);
-    const head = await options.messages?.operate('live', session, input.proof);
-    if (typeof head !== 'string')
-      throw new AccountError(503, 'Channel unavailable.');
-    const validate = async () => {
-      const [current, authorized] = await Promise.all([
-        options.service.session(token),
-        options.messages?.liveCurrent(session, head),
-      ]);
-      return (
-        current.accountId === session.accountId &&
-        current.deviceId === session.deviceId &&
-        current.csrf === session.csrf &&
-        authorized === true
-      );
-    };
-    if (!(await validate()))
-      throw new AccountError(403, 'Channel has no current authorization.');
-    if (!response.destroyed)
-      options.live?.open({
-        session,
-        response,
-        validate,
-        callWakeups: input.callWakeups,
-        categories:
-          object(object(input.proof)['payload'])['categories'] === true,
-      });
-  }
-  async function devicePost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    sessionToken: string,
-    input: unknown,
-  ): Promise<boolean> {
-    if (!request.url?.startsWith('/api/account/devices/') || !options.devices)
-      return false;
-    const session = await options.service.session(sessionToken);
-    if (
-      request.url === '/api/account/devices/enrollment-create' &&
-      enrollments
-    ) {
-      send(response, 200, await enrollments.create(session, input));
-      return true;
-    }
-    if (
-      request.url === '/api/account/devices/enrollment-pending' &&
-      enrollments
-    ) {
-      send(response, 200, await enrollments.pending(session, input));
-      return true;
-    }
-    send(
-      response,
-      200,
-      await options.devices.operate(
-        request.url.slice('/api/account/devices/'.length),
-        session,
-        input,
-      ),
-    );
-    return true;
-  }
   async function sessionPost(
     request: IncomingMessage,
     response: ServerResponse,
     sessionToken: string,
-    input: unknown,
   ): Promise<boolean> {
     if (request.url === '/api/account/logout') {
       await options.service.logout(sessionToken);
-      response.setHeader('Set-Cookie', cookie(sessionName, '', 0, secure));
-      send(response, 200, { status: 'signed-out' });
+      response.setHeader('Set-Cookie', cookies.write('session', '', 0));
+      sendAccountJson(response, 200, { status: 'signed-out' });
       return true;
     }
-    if (
-      request.url === '/api/account/opening-read' ||
-      request.url === '/api/account/opening-ack'
-    ) {
-      const session = await options.service.session(sessionToken);
-      if (request.url.endsWith('/opening-read'))
-        send(response, 200, options.service.opening.read(session, input));
-      else {
-        options.service.opening.acknowledge(session, input);
-        send(response, 200, { status: 'acknowledged' });
-      }
-      return true;
-    }
+
     return false;
   }
   async function authenticatedPost(
@@ -587,22 +237,26 @@ export function createAccountHandler(options: {
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
-    if (await sessionPost(request, response, sessionToken, input)) return;
-    if (await socialPost(request, response, sessionToken, input)) return;
-    if (await callPost(request, response, sessionToken, input)) return;
-    if (await contactPost(request, response, sessionToken, input)) return;
-    if (request.url?.startsWith('/api/account/recovery-')) {
-      await privateRecoveryPost(request, response, sessionToken, input);
+    if (await sessionPost(request, response, sessionToken)) return;
+    if (await recovery.openingPost(request, response, sessionToken, input))
       return;
-    }
-    if (await devicePost(request, response, sessionToken, input)) return;
+    if (await socialPost(request, response, sessionToken, input)) return;
+    if (await calls.post(request, response, sessionToken, input)) return;
+    if (await contactPost(request, response, sessionToken, input)) return;
+    if (await recovery.privatePost(request, response, sessionToken, input))
+      return;
+    if (await enrollments.post(request, response, sessionToken, input)) return;
     if (request.url === '/api/account/name') {
-      send(response, 200, await options.service.rename(sessionToken, input));
+      sendAccountJson(
+        response,
+        200,
+        await options.service.rename(sessionToken, input),
+      );
       return;
     }
     if (request.url === '/api/account/profile') {
       await options.service.saveProfile(sessionToken, input);
-      send(response, 200, { status: 'saved' });
+      sendAccountJson(response, 200, { status: 'saved' });
       return;
     }
     throw new AccountError(404, 'Operation not found.');
@@ -619,7 +273,7 @@ export function createAccountHandler(options: {
       !options.publicProfiles
     )
       return false;
-    send(
+    sendAccountJson(
       response,
       200,
       await options.publicProfiles.operate(
@@ -641,39 +295,13 @@ export function createAccountHandler(options: {
       !options.communities
     )
       return false;
-    send(
+    sendAccountJson(
       response,
       200,
       await options.communities.operate(
         request.url.slice('/api/account/communities/'.length),
         await options.service.session(token),
         input,
-      ),
-    );
-    return true;
-  }
-  async function callPost(
-    request: IncomingMessage,
-    response: ServerResponse,
-    token: string,
-    input: unknown,
-  ): Promise<boolean> {
-    if (!request.url?.startsWith('/api/account/calls/') || !options.calls)
-      return false;
-    const session = await options.service.session(token);
-    callSessions.admit(
-      session.csrf,
-      false,
-      request.url.endsWith('/sync') || request.url.endsWith('/end'),
-    );
-    send(
-      response,
-      200,
-      await options.calls.operate(
-        request.url.slice('/api/account/calls/'.length),
-        session,
-        input,
-        { invitation: request.headers['x-0xdmme-call-invite'] === '1' },
       ),
     );
     return true;
@@ -704,10 +332,12 @@ export function createAccountHandler(options: {
       await get(request, response);
     } catch (error: unknown) {
       if (error instanceof AccountError) {
-        send(response, error.status, { error: error.message });
+        sendAccountJson(response, error.status, { error: error.message });
         return;
       }
-      send(response, 503, { error: 'Account unavailable. Try again.' });
+      sendAccountJson(response, 503, {
+        error: 'Account unavailable. Try again.',
+      });
     }
   }
   /** Public, unauthenticated client settings. */
@@ -728,30 +358,28 @@ export function createAccountHandler(options: {
     if (request.method !== 'GET')
       throw new AccountError(405, 'Invalid method.');
     if (await approvalGet(request, response)) return;
-    if (recoveryGet(request, response)) return;
+    if (await recovery.get(request, response)) return;
     if (request.url === '/api/account/config') {
-      send(response, 200, publicConfiguration());
+      sendAccountJson(response, 200, publicConfiguration());
       return;
     }
-    if (request.url === '/api/account/handoff-status') {
-      const state = await options.service.handoffStatus(
-        readCookie(request, handoffName),
-      );
-      send(
-        response,
-        200,
-        state && { ...state, serverTime: new Date().toISOString() },
-      );
-      return;
-    }
-    const sessionToken = readCookie(request, sessionName);
+
+    const sessionToken = cookies.read(request, 'session');
     if (await notificationsGet(request, response, sessionToken)) return;
     if (request.url === '/api/account/session') {
-      send(response, 200, await options.service.session(sessionToken));
+      sendAccountJson(
+        response,
+        200,
+        await options.service.session(sessionToken),
+      );
       return;
     }
     if (request.url === '/api/account/profile') {
-      send(response, 200, await options.service.profile(sessionToken));
+      sendAccountJson(
+        response,
+        200,
+        await options.service.profile(sessionToken),
+      );
       return;
     }
     throw new AccountError(404, 'Operation not found.');
@@ -762,7 +390,7 @@ export function createAccountHandler(options: {
     token: string,
   ): Promise<boolean> {
     if (request.url === '/api/account/push-check' && options.notifications) {
-      send(
+      sendAccountJson(
         response,
         200,
         await options.notifications.inspectPush(
@@ -789,53 +417,19 @@ export function createAccountHandler(options: {
       return true;
     }
     if (request.url === '/api/account/approval-request') {
-      send(response, 200, await approval.restore(request));
+      sendAccountJson(response, 200, await approval.restore(request));
       return true;
     }
     return false;
   }
-  function recoveryGet(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): boolean {
-    const entry = recoveryEntry(request.url);
-    if (!entry) return false;
-    if (
-      request.headers['sec-fetch-mode'] !== 'navigate' ||
-      request.headers['sec-fetch-dest'] !== 'document'
-    )
-      throw new AccountError(403, 'Entry requires document navigation.');
-    let rejected = false;
-    try {
-      recovery.requestPublic(entry);
-    } catch (error: unknown) {
-      if (!(error instanceof AccountError) || error.status !== 409) throw error;
-      rejected = true;
-    }
-    let document = options.recoveryDocument;
-    if (!document || document.length > 65_536)
-      throw new AccountError(503, 'Recovery page unavailable.');
-    if (rejected)
-      document = Buffer.from(
-        new TextDecoder()
-          .decode(document)
-          .replace('<html ', '<html data-recovery-rejected '),
-      );
-    response.setHeader('Content-Type', 'text/html; charset=utf-8');
-    response.setHeader('Content-Length', document.length);
-    response.writeHead(200).end(document);
-    return true;
-  }
   return {
     handle,
     close: () => {
-      options.live?.close();
-      options.calls?.close();
+      messages.close();
+      calls.close();
       limit.close();
-      callSessions.close();
       recovery.close();
-      options.service.opening.close();
-      enrollments?.close();
+      enrollments.close();
     },
   };
 }
