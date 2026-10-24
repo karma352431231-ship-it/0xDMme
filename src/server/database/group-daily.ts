@@ -1,24 +1,24 @@
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
-import type { ContactAuthority, ContactStore } from './contacts.ts';
+import type { ContactAuthority, DatabaseAdmission } from './admission.ts';
 import type { GroupStore } from './groups.ts';
 import type { GroupScope } from './group-media.ts';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
 export class GroupDailyStore {
   private readonly pool: pg.Pool;
   private readonly groups: GroupStore;
-  private readonly contacts: ContactStore;
+  private readonly admission: Pick<DatabaseAdmission, 'write' | 'changed'>;
   private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
     groups: GroupStore,
-    contacts: ContactStore,
+    admission: Pick<DatabaseAdmission, 'write' | 'changed'>,
     capacity: ContentCapacity,
   ) {
     this.pool = pool;
     this.groups = groups;
-    this.contacts = contacts;
+    this.admission = admission;
     this.capacity = capacity;
   }
   private async budget(client: pg.PoolClient, account: string): Promise<void> {
@@ -30,7 +30,7 @@ export class GroupDailyStore {
     return rows[0];
   }
   async states(a: ContactAuthority, scopes: GroupScope[]): Promise<unknown[]> {
-    return this.contacts.withMessageAuthority(a, async (client) => {
+    return this.admission.write(a, async (client) => {
       const states = await this.groups.authorizedScopes(
         client,
         a.session.accountId,
@@ -68,7 +68,7 @@ export class GroupDailyStore {
         [a.session.accountId, input.groupId, input.mutedUntil],
       );
       await this.budget(client, a.session.accountId);
-      this.contacts.changed(client, [a.session.accountId], {
+      this.admission.changed(client, [a.session.accountId], {
         category: 'group-receipts',
       });
     });
@@ -96,11 +96,11 @@ export class GroupDailyStore {
       );
       await this.budget(client, a.session.accountId);
       if (changed.rowCount)
-        this.contacts.changed(client, [a.session.accountId], {
+        this.admission.changed(client, [a.session.accountId], {
           category: 'group-receipts',
         });
       if (changed.rows.some((r) => r.share_epoch !== null))
-        this.contacts.changed(
+        this.admission.changed(
           client,
           state.members.map((m) => m.accountId),
           { category: 'group-receipts' },

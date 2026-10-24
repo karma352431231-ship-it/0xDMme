@@ -11,7 +11,7 @@ import type {
   OrganizationRegistration,
   RepresentativeRevocation,
 } from '../../shared/representatives/index.ts';
-import type { ContactAuthority, ContactStore } from './contacts.ts';
+import type { ContactAuthority, DatabaseAdmission } from './admission.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
 export interface DomainRow {
   organizationId: string;
@@ -28,16 +28,16 @@ export interface CredentialReceipt {
   expiresAt: number;
 }
 export class RepresentativeStore {
-  private readonly contacts: ContactStore;
+  private readonly admission: Pick<DatabaseAdmission, 'write'>;
   private readonly pool: pg.Pool;
   private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
-    contacts: ContactStore,
+    admission: Pick<DatabaseAdmission, 'write'>,
     capacity: ContentCapacity,
   ) {
     this.pool = pool;
-    this.contacts = contacts;
+    this.admission = admission;
     this.capacity = capacity;
   }
   private async budget(c: pg.PoolClient, account: string): Promise<void> {
@@ -48,7 +48,7 @@ export class RepresentativeStore {
     a: ContactAuthority,
     r: OrganizationRegistration,
   ): Promise<void> {
-    await this.contacts.withMessageAuthority(a, async (c) => {
+    await this.admission.write(a, async (c) => {
       const inserted = await c.query(
         'INSERT INTO hash_talk.organizations(id,account_id,registration,descriptor_hash) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(id) DO NOTHING',
         [r.organizationId, a.session.accountId, r, r.descriptorHash],
@@ -76,10 +76,10 @@ export class RepresentativeStore {
     a: ContactAuthority,
     id: string,
   ): Promise<OrganizationRegistration> {
-    return this.contacts.withMessageAuthority(a, (c) => this.owned(c, a, id));
+    return this.admission.write(a, (c) => this.owned(c, a, id));
   }
   async issue(a: ContactAuthority, receipt: CredentialReceipt): Promise<void> {
-    await this.contacts.withMessageAuthority(a, async (c) => {
+    await this.admission.write(a, async (c) => {
       await this.owned(c, a, receipt.organizationId);
       const inserted = await c.query(
         'INSERT INTO hash_talk.representative_credentials(id,organization_id,account_id,hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO NOTHING',
@@ -115,7 +115,7 @@ export class RepresentativeStore {
     a: ContactAuthority,
     revocation: RepresentativeRevocation,
   ): Promise<void> {
-    await this.contacts.withMessageAuthority(a, async (c) => {
+    await this.admission.write(a, async (c) => {
       await this.owned(c, a, revocation.organizationId);
       const row = await c.query(
         'UPDATE hash_talk.representative_credentials SET revocation=$1::jsonb WHERE id=$2 AND organization_id=$3 AND hash=$4 AND revocation IS NULL RETURNING id',
@@ -139,7 +139,7 @@ export class RepresentativeStore {
     a: ContactAuthority,
     receipt: Pick<CredentialReceipt, 'id' | 'organizationId' | 'hash'>,
   ): Promise<unknown> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.admission.write(a, async (c) => {
       const row = await c.query<{
         registration: OrganizationRegistration;
         revocation: RepresentativeRevocation | null;
@@ -190,7 +190,7 @@ export class RepresentativeStore {
     claim: DomainClaim,
     record: string,
   ): Promise<void> {
-    await this.contacts.withMessageAuthority(a, async (c) => {
+    await this.admission.write(a, async (c) => {
       await this.owned(c, a, claim.organizationId);
       const previous = await this.domainInTransaction(c, claim.organizationId);
       await c.query(
@@ -201,13 +201,13 @@ export class RepresentativeStore {
     });
   }
   async domain(a: ContactAuthority, id: string): Promise<DomainRow | null> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.admission.write(a, async (c) => {
       await this.owned(c, a, id);
       return this.domainInTransaction(c, id);
     });
   }
   async unlinkDomain(a: ContactAuthority, id: string): Promise<void> {
-    await this.contacts.withMessageAuthority(a, async (c) => {
+    await this.admission.write(a, async (c) => {
       await this.owned(c, a, id);
       await c.query(
         'DELETE FROM hash_talk.organization_domains WHERE organization_id=$1',

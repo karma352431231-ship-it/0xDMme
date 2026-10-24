@@ -1,3 +1,4 @@
+import { DatabaseAdmission } from '../src/server/database/admission.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Socket } from 'node:net';
@@ -121,13 +122,13 @@ await test('coordinated commit publishes categorized hints; failure rolls back w
     notify: (event) => observed.push(event),
     failed: () => assert.fail('Signal failure'),
   });
-  const contacts = new ContactStore({
+  const admission = new DatabaseAdmission({
     pool,
     changes,
     relayChanges: true,
     allocations: undefined,
-    capacity: 1_000_000,
   });
+  const contacts = new ContactStore({ pool, admission, capacity: 1_000_000 });
   await assert.rejects(
     contacts.withMaintenance((c) => {
       contacts.changed(c, ['recipient'], { category: 'private-messages' });
@@ -143,7 +144,7 @@ await test('coordinated commit publishes categorized hints; failure rolls back w
     contacts.changed(c, ['sender', 'recipient'], {
       category: 'private-messages',
     });
-    contacts.changed(c, ['sender'], { category: 'private-receipts' });
+    admission.changed(c, ['sender'], { category: 'private-receipts' });
     return Promise.resolve();
   });
   assert.equal(observed.length, 2);

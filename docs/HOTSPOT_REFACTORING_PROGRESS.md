@@ -4,10 +4,11 @@ Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
 linking and wallet-return workflows, the H01 engine outbox/reader, H09 HTTP and
-H10 message operations.
+H10 message operations and H11 transactional admission.
 Integration of the first four stages is recorded below. The H03 stage remains
 local on this branch, followed by H04, H05, H06, the H01 engine extractions and
-H09/H10; another merge, push and VPS publication are outside these stages' scope.
+H09/H10/H11; another merge, push and VPS publication are outside these stages'
+scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -715,3 +716,76 @@ authorization-before-body contract first, then move each feature's adapter
 together with its specific input policy; do not replace it with signed-body
 authentication before the body is available. Relevant checks are H09 HTTP and
 message/SSE integration. Broader transactional admission work remains H11.
+
+## H11: one transaction and admission coordinator
+
+Base: `a92a885`. `database/admission.ts` owns the existing transaction operation,
+session/device validation, pending change registration and commit-only publication.
+`Database` constructs exactly one coordinator and supplies its existing pool,
+allocation writer and change publisher. Pool/allocation lifetime and shutdown
+remain with `Database`; no new pool, transaction authority or resource budget is
+introduced. The coordinator reuses the existing contact-admission locks,
+allocation transaction helper and transaction-change batch implementation.
+
+`ContactStore` retains invitation/discovery, consent, blocking and contact queries.
+Its public coordinated read/write/participant/maintenance and change-hint methods
+delegate to the same admission owner, preserving existing callers. Consent checks
+remain inside the admitted participant transaction before protected work.
+Representative storage, group daily state, group media maintenance and group
+retention now receive narrow admission capabilities directly; none requires
+contact policy. Other consumers retain the compatibility facade and therefore
+still share this coordinator. There is no read/write split across independently
+committed operations.
+
+The advisory lock identity, sorted participant-lock acquisition, authorization
+queries and read-only mode are unchanged. Authorization and mutation use the
+same client and transaction. Pair operations retain allocation verification;
+change registrations are attached/detached at the same boundaries. PostgreSQL
+relay notifications remain inside the transaction, delivered only on commit;
+in-process hints remain after successful commit. Rollback, connection release,
+ambiguous-commit handling and allocation cleanup retain their existing owners.
+No network or filesystem work was added inside admission.
+
+Structural review: five coordinator method bodies match the previous owner,
+37 contact-policy bodies match after explicit delegation substitutions, and
+49 moved-consumer method bodies match after capability-name substitutions.
+The consent callback and target are unchanged. Lock, change-batch, allocation
+and connection/rollback helpers have no diff. Existing dependency rules pass
+without cycles, new exceptions or dependencies. No schema, migration, quota,
+retention, crypto format, lock or deployment policy changed.
+
+Validation: 215 distinct scenarios passed across the final checks. The same
+153 primary PostgreSQL/HTTP scenarios ran before and after against separate empty
+dedicated local databases, covering contacts, revocation, messages/sync/receipts,
+groups, status, social DMs, calls, representatives, communities, profiles, controls
+and mentions. The first post-extraction run caught an accidentally renamed group
+maintenance call; restoring the original call and rerunning the affected group
+suite passed. Still-valid results from other suites were retained. The targeted
+rerun also covered maintenance relay and 43 additional content/message-allocation
+scenarios, including independent pairs, rollback and recovery. Nineteen unit
+scenarios passed for change publication, maintenance, scheduling, upload/group
+admission and storage capacity. The earlier ten-case unit baseline also passed.
+
+Two added integration regressions ran before extraction: write admission waiting
+behind a committed device revocation cannot enter protected work, and actual
+coordinator-generated worker notifications preserve categories/removal flags,
+split 130 accounts into batches of at most 64, publish only after commit and
+exclude rolled-back hints. The latter uses a real PostgreSQL listener, rather
+than issuing the tested notification directly. Existing concurrent read,
+ordered-pair, read-only, bilateral-block and lock-release cases remain active.
+The change-publication unit fixture also mixes facade and direct coordinator
+registrations inside the same transaction batch.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting
+and the web build passed. Static checks caught the group call and corrected the
+new fixture's callback narrowing before final validation. The owned disposable
+PostgreSQL cluster was stopped after testing. Remote CI and physical-device
+acceptance were not run. No merge, push or VPS operation is included; deployment
+still requires the separate reviewed code transition and passing integrated CI.
+
+Remaining callers that combine contact ACLs with admission use the facade
+deliberately. Further migration should proceed by capability: plain transactions
+and hint publication first, then participant/consent consumers with explicit
+contact-policy operations in the same transaction. Preserve one coordinator and
+rerun the affected domain, revocation, allocation and relay contracts per group;
+do not duplicate contact rules in admission. H12 remains the next primary area.

@@ -1,31 +1,26 @@
+import type {
+  DatabaseAdmission,
+  ContactAuthority,
+  ChangeDetails,
+} from './admission.ts';
+export type { ContactAuthority } from './admission.ts';
 import type pg from 'pg';
 import type { LiveChangeCategory } from '../../shared/live-changes/index.ts';
-import { ChangeBatch, TransactionChanges } from './transaction-changes.ts';
-import type { ChangeDetails } from './transaction-changes.ts';
-import type { ContentWriteAllocations } from './content-write-allocations.ts';
-import { withAllocationTransaction } from './allocation-transaction.ts';
+
 import { AccountError } from '../../shared/account/index.ts';
-import type { AccountSession } from '../../shared/account/index.ts';
-import {
-  canonical,
-  digest,
-  directoryEvent,
-} from '../../shared/devices/index.ts';
+
+import { canonical, digest } from '../../shared/devices/index.ts';
 import { contactPageSize } from '../../shared/contacts/index.ts';
-import { lockContactAdmission } from './contact-admission.ts';
+
 import { ContactInvitations } from './contact-invitations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
-import type { ContactAccess, ContactPeer } from './contact-admission.ts';
+
 import type {
   ContactList,
   DiscoveryMode,
   Peer,
   WalletContact,
 } from '../../shared/contacts/index.ts';
-export interface ContactAuthority {
-  session: AccountSession;
-  directory: string;
-}
 interface Controls {
   revision: number;
   mode: DiscoveryMode;
@@ -58,22 +53,15 @@ function existingRequest(relation: Relation | null, actor: string): boolean {
 }
 export class ContactStore {
   private readonly pool: pg.Pool;
-  private readonly changeHints: TransactionChanges;
-  private readonly allocations: ContentWriteAllocations | undefined;
+  private readonly admission: DatabaseAdmission;
   private readonly invitations: ContactInvitations;
   constructor(input: {
     pool: pg.Pool;
-    changes?: import('./changes.ts').DatabaseChanges;
-    relayChanges: boolean;
-    allocations: ContentWriteAllocations | undefined;
+    admission: DatabaseAdmission;
     capacity: ContentCapacity;
   }) {
     this.pool = input.pool;
-    this.changeHints = new TransactionChanges(
-      input.changes,
-      input.relayChanges,
-    );
-    this.allocations = input.allocations;
+    this.admission = input.admission;
     this.invitations = new ContactInvitations(input.capacity);
   }
   /** Coordinated schema operations register hints; only a successful COMMIT publishes them. */
@@ -82,11 +70,7 @@ export class ContactStore {
     accounts: readonly string[],
     details: boolean | ChangeDetails = false,
   ): void {
-    this.changeHints.changed(
-      client,
-      accounts,
-      typeof details === 'boolean' ? { authorization: details } : details,
-    );
+    this.admission.changed(client, accounts, details);
   }
   /** A removal is a closing signal, published only after this transaction commits. */
   removed(
@@ -94,76 +78,7 @@ export class ContactStore {
     accounts: readonly string[],
     category?: LiveChangeCategory,
   ): void {
-    this.changeHints.removed(client, accounts, category);
-  }
-  private async transaction<T>(
-    authority: ContactAuthority | null,
-    work: (
-      client: pg.PoolClient,
-      participants: readonly string[],
-    ) => Promise<T>,
-    access: ContactAccess = 'write',
-    peer?: ContactPeer,
-  ): Promise<T> {
-    const pending = new ChangeBatch();
-    const execute = async (client: pg.PoolClient) => {
-      this.changeHints.attach(client, pending);
-      try {
-        const participants = await this.admit(client, authority, {
-          access,
-          peer,
-        });
-        const result = await work(client, participants);
-        await this.changeHints.relay(client, pending);
-        return result;
-      } finally {
-        this.changeHints.detach(client);
-      }
-    };
-    const result =
-      access === 'pair' && this.allocations
-        ? await this.allocations.transaction(this.pool, execute)
-        : await withAllocationTransaction(this.pool, execute);
-    this.changeHints.committed(pending);
-    return result;
-  }
-  private async admit(
-    client: pg.PoolClient,
-    authority: ContactAuthority | null,
-    input: { access: ContactAccess; peer: ContactPeer | undefined },
-  ): Promise<readonly string[]> {
-    const participants = await lockContactAdmission(client, {
-      actor: authority?.session.accountId ?? null,
-      access: input.access,
-      ...(input.peer ? { peer: input.peer } : {}),
-    });
-    if (authority) await this.authorize(client, authority);
-    if (input.access === 'read')
-      await client.query('SET TRANSACTION READ ONLY');
-    return participants;
-  }
-  private async authorize(
-    client: pg.PoolClient,
-    authority: ContactAuthority,
-  ): Promise<void> {
-    const s = authority.session;
-    const session = await client.query(
-      'SELECT 1 FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now()',
-      [s.accountId, s.deviceId, s.csrf],
-    );
-    if (!session.rowCount)
-      throw new AccountError(401, 'Session ended or expired.');
-    const directory = await client.query<{ head: string; event: unknown }>(
-      'SELECT head,event FROM hash_talk.device_directories WHERE account_id=$1',
-      [s.accountId],
-    );
-    const row = directory.rows[0];
-    if (
-      !row ||
-      row.head !== authority.directory ||
-      !directoryEvent(row.event).devices.some((d) => d.id === s.deviceId)
-    )
-      throw new AccountError(409, 'Device authorization changed. Check again.');
+    this.admission.removed(client, accounts, category);
   }
   private async controls(
     client: pg.PoolClient,
@@ -314,20 +229,20 @@ export class ContactStore {
     authority: ContactAuthority,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(authority, work, 'read');
+    return this.admission.read(authority, work);
   }
   /** Coordinate message persistence with contact/device authority in this transaction. */
   async withMessageAuthority<T>(
     authority: ContactAuthority,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(authority, work);
+    return this.admission.write(authority, work);
   }
   /** Internal retention jobs share admission serialization and publish hints only after commit. */
   async withMaintenance<T>(
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(null, work);
+    return this.admission.maintenance(work);
   }
   /** Existing-message effects recheck routing under every participant lock; consent semantics belong to the caller. */
   async withMessageParticipants<T>(
@@ -338,25 +253,18 @@ export class ContactStore {
       participants: readonly string[],
     ) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(authority, work, 'pair', peer);
+    return this.admission.participants(authority, peer, work);
   }
   async withMessageConsent<T>(
     authority: ContactAuthority,
     targetId: string,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(
-      authority,
-      async (client) => {
-        if (
-          !(await this.allowed(client, authority.session.accountId, targetId))
-        )
-          unavailable();
-        return work(client);
-      },
-      'pair',
-      targetId,
-    );
+    return this.admission.participants(authority, targetId, async (client) => {
+      if (!(await this.allowed(client, authority.session.accountId, targetId)))
+        unavailable();
+      return work(client);
+    });
   }
   /** Called only inside a coordinated message transaction, before releasing payloads. */
   async messageDeliveryAllowed(
@@ -571,7 +479,7 @@ export class ContactStore {
     authority: ContactAuthority,
     hash: string,
   ): Promise<{ expiresAt: number }> {
-    return this.transaction(authority, async (client) => ({
+    return this.admission.write(authority, async (client) => ({
       expiresAt: await this.invitations.issue(
         client,
         authority.session.accountId,
@@ -583,7 +491,7 @@ export class ContactStore {
     authority: ContactAuthority,
     hash: string,
   ): Promise<void> {
-    return this.transaction(authority, (client) =>
+    return this.admission.write(authority, (client) =>
       this.invitations.revoke(client, authority.session.accountId, hash),
     );
   }
@@ -600,7 +508,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; mode: DiscoveryMode; inviteHash: string | null },
   ): Promise<Controls> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       if (input.inviteHash !== null)
         throw new AccountError(
           400,
@@ -625,7 +533,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; target: string; invite: string | null },
   ): Promise<void> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       const id = authority.session.accountId;
       await this.expect(client, id, input.revision);
       const actor = await this.account(client, id),
@@ -695,7 +603,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; target: string; accept: boolean },
   ): Promise<void> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       const id = authority.session.accountId;
       await this.expect(client, id, input.revision);
       const relation = await this.relation(client, id, input.target);
@@ -724,7 +632,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; wallet: WalletContact; blocked: boolean },
   ): Promise<void> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       const id = authority.session.accountId,
         hash = await walletHash(input.wallet);
       await this.expect(client, id, input.revision);
@@ -775,7 +683,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; walletHash: string },
   ): Promise<void> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       const id = authority.session.accountId;
       await this.expect(client, id, input.revision);
       const result = await client.query(
@@ -789,7 +697,7 @@ export class ContactStore {
     authority: ContactAuthority,
     input: { revision: number; target: string },
   ): Promise<void> {
-    return this.transaction(authority, async (client) => {
+    return this.admission.write(authority, async (client) => {
       const id = authority.session.accountId;
       await this.expect(client, id, input.revision);
       const result = await client.query(
