@@ -8,6 +8,7 @@ import {
 import type {
   DiscussionOrder,
   DiscussionPage,
+  DiscussionSelection,
 } from '../../shared/community-discussion/index.ts';
 import { PostSnapshot } from './post-snapshot.ts';
 import { editedPost } from './post-edit-update.ts';
@@ -37,6 +38,14 @@ interface Branch {
   queue: CommunityPost[];
   next: string | null;
   loaded: boolean;
+  element: HTMLElement;
+  preview: HTMLElement;
+  highlight: HTMLElement | null;
+  highlightId: string | null;
+}
+interface ThreadRow {
+  node: HTMLElement;
+  branch: Branch | null;
 }
 /** Owns ordering, bounded tree rendering and asynchronous lifecycle, separate from post operations. */
 export class PostThread {
@@ -102,6 +111,18 @@ export class PostThread {
     for (const branch of this.branches.values()) {
       branch.parent = editedPost(branch.parent, post);
       branch.queue = branch.queue.map((previous) => editedPost(previous, post));
+      if (
+        branch.parent.status !== 'visible' ||
+        (branch.highlightId === post.id && post.status !== 'visible')
+      ) {
+        if (branch.children.hidden) {
+          this.clearPreview(branch);
+          this.collapsedToggle(branch);
+        } else {
+          branch.highlight = null;
+          branch.highlightId = null;
+        }
+      }
     }
   }
   private forget(container: HTMLElement): void {
@@ -115,14 +136,15 @@ export class PostThread {
   }
   private async read(
     parent: string,
-    order: DiscussionOrder,
-    after: string | null,
+    selection: DiscussionSelection,
   ): Promise<DiscussionPage> {
+    const { order, after, preview } = selection;
     const query = new URLSearchParams({ order });
     if (after) query.set('after', after);
+    if (preview) query.set('preview', preview);
     return discussionPage(
       this.actions.request
-        ? await this.actions.request({ post: parent, order, after })
+        ? await this.actions.request({ post: parent, ...selection })
         : await communityRead(
             `/api/communities/${this.actions.community}/posts/${parent}/replies?${query.toString()}`,
             AbortSignal.any([this.actions.signal, AbortSignal.timeout(8000)]),
@@ -134,20 +156,13 @@ export class PostThread {
     after: string | null,
     order: DiscussionOrder = this.order,
   ): Promise<void> {
-    const page = await this.read(parent.id, order, after);
+    const page = await this.read(parent.id, { order, after, preview: 'top' });
     if (!this.valid()) return;
     this.order = order;
     this.after = after;
     if (!this.snapshot.changed(JSON.stringify([parent.id, order, after]), page))
       return;
-    this.branches.clear();
-    this.actions.cleanup(this.replies);
-    this.replies.replaceChildren();
-    for (const post of page.items) this.row(this.replies, post, 0);
-    if (!page.items.length)
-      this.replies.append(
-        el('p', t('No replies yet.'), 'community-thread-empty'),
-      );
+    this.replacePage(page);
     this.paging.replaceChildren();
     if (after)
       button(this.paging, t('Back to start'), () =>
@@ -158,16 +173,35 @@ export class PostThread {
         this.actions.run(() => this.page(parent, page.next)),
       );
   }
+  private replacePage(page: DiscussionPage): void {
+    this.branches.clear();
+    this.actions.cleanup(this.replies);
+    this.replies.replaceChildren();
+    const previews = new Map(
+      (page.previews ?? []).map((post) => [post.parent, post]),
+    );
+    for (const post of page.items) {
+      const branch = this.row(this.replies, post, 0).branch,
+        preview = previews.get(post.id);
+      if (branch && preview) this.showPreview(branch, preview);
+    }
+    if (!page.items.length)
+      this.replies.append(
+        el('p', t('No replies yet.'), 'community-thread-empty'),
+      );
+  }
   private row(
     container: HTMLElement,
     post: CommunityPost,
     depth: number,
-  ): Branch | null {
+  ): ThreadRow {
     const item = el('div', '', 'post-thread-item');
     container.append(item);
     this.actions.render(item, post);
-    if (!post.replies) return null;
-    return this.branch(item, post, depth + 1);
+    return {
+      node: item,
+      branch: post.replies ? this.branch(item, post, depth + 1) : null,
+    };
   }
   private continue(container: HTMLElement, post: CommunityPost): void {
     link(
@@ -182,10 +216,15 @@ export class PostThread {
     depth: number,
   ): Branch {
     const wrap = el('section', '', 'post-thread-branch'),
+      preview = el('div', '', 'post-thread-preview'),
       children = el('div', '', 'post-thread-children'),
       controls = el('div', '', 'post-thread-more');
     wrap.setAttribute('aria-label', t('Replies to this comment'));
     if (depth >= 4) wrap.classList.add('post-thread-deep');
+    preview.hidden = true;
+    preview.setAttribute('role', 'region');
+    preview.setAttribute('aria-label', t('Top voted reply'));
+    wrap.append(preview);
     const toggle = button(
       wrap,
       t('＋ View {0} {1}', [
@@ -210,24 +249,66 @@ export class PostThread {
       queue: [],
       next: null,
       loaded: false,
+      element: wrap,
+      preview,
+      highlight: null,
+      highlightId: null,
     };
     this.branches.set(parent.id, branch);
     return branch;
   }
+  private showPreview(branch: Branch, post: CommunityPost): void {
+    const row = this.row(branch.preview, post, branch.depth);
+    branch.highlight = row.node;
+    branch.highlightId = post.id;
+    branch.preview.hidden = false;
+    this.collapsedToggle(branch);
+  }
+  private collapsedToggle(branch: Branch): void {
+    const remaining = Math.max(
+      0,
+      branch.parent.replies - (branch.highlightId ? 1 : 0),
+    );
+    branch.toggle.hidden = remaining === 0;
+    branch.toggle.textContent = branch.highlightId
+      ? remaining === 1
+        ? t('＋ View 1 more reply')
+        : t('＋ View {0} more replies', [remaining])
+      : t('＋ View {0} {1}', [
+          remaining,
+          remaining === 1 ? t('reply') : t('replies'),
+        ]);
+    branch.toggle.setAttribute('aria-expanded', 'false');
+  }
+  private clearPreview(branch: Branch): void {
+    this.forget(branch.preview);
+    this.actions.cleanup(branch.preview);
+    branch.preview.replaceChildren();
+    branch.preview.hidden = true;
+    branch.highlight = null;
+    branch.highlightId = null;
+  }
+  private collapse(branch: Branch): void {
+    const highlight = branch.highlight;
+    if (highlight) {
+      for (const child of this.branches.values())
+        if (highlight.contains(child.element)) this.collapse(child);
+      branch.preview.append(highlight);
+      branch.preview.hidden = false;
+    }
+    this.forget(branch.children);
+    this.actions.cleanup(branch.children);
+    branch.children.replaceChildren();
+    branch.controls.replaceChildren();
+    branch.queue = [];
+    branch.next = null;
+    branch.loaded = false;
+    branch.children.hidden = true;
+    this.collapsedToggle(branch);
+  }
   private async toggle(branch: Branch): Promise<void> {
     if (!branch.children.hidden) {
-      this.forget(branch.children);
-      this.actions.cleanup(branch.children);
-      branch.children.replaceChildren();
-      branch.controls.replaceChildren();
-      branch.queue = [];
-      branch.next = null;
-      branch.loaded = false;
-      branch.children.hidden = true;
-      branch.toggle.textContent = t('＋ View {0} replies', [
-        branch.parent.replies,
-      ]);
-      branch.toggle.setAttribute('aria-expanded', 'false');
+      this.collapse(branch);
       return;
     }
     await this.expand(branch);
@@ -253,7 +334,9 @@ export class PostThread {
       const branch = pending.shift()!;
       await this.more(branch, pending);
       if (!this.valid()) return;
+      if (this.branches.get(branch.parent.id) !== branch) continue;
       branch.children.hidden = false;
+      branch.toggle.hidden = false;
       branch.toggle.textContent = t('− Collapse replies');
       branch.toggle.setAttribute('aria-expanded', 'true');
       if (branch.queue.length || branch.next) pending.push(branch);
@@ -282,7 +365,10 @@ export class PostThread {
   private async fill(branch: Branch): Promise<boolean> {
     if (branch.queue.length) return true;
     if (branch.loaded && !branch.next) return false;
-    const page = await this.read(branch.parent.id, 'votes', branch.next);
+    const page = await this.read(branch.parent.id, {
+      order: 'votes',
+      after: branch.next,
+    });
     if (!this.valid() || this.branches.get(branch.parent.id) !== branch)
       return false;
     branch.loaded = true;
@@ -299,8 +385,9 @@ export class PostThread {
       return;
     }
     if (!(await this.fill(branch))) return;
+    if (branch.children.hidden) this.clearPreview(branch);
     for (const post of branch.queue.splice(0, this.capacity())) {
-      const child = this.row(branch.children, post, branch.depth);
+      const child = this.appendPost(branch, post);
       if (child) pending.push(child);
     }
     if (!branch.children.children.length && !branch.next)
@@ -312,6 +399,15 @@ export class PostThread {
         ),
       );
     this.moreControl(branch);
+  }
+  /** The first visible child can return to the preview when the branch closes. */
+  private appendPost(branch: Branch, post: CommunityPost): Branch | null {
+    const row = this.row(branch.children, post, branch.depth);
+    if (branch.depth === 1 && !branch.highlight && post.status === 'visible') {
+      branch.highlight = row.node;
+      branch.highlightId = post.id;
+    }
+    return row.branch;
   }
   private moreControl(branch: Branch): void {
     branch.controls.replaceChildren();

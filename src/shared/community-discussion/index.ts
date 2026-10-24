@@ -16,9 +16,20 @@ export interface DiscussionCursor {
   time: string;
   id: string;
 }
+export interface DiscussionSelection {
+  order: DiscussionOrder;
+  after: string | null;
+  preview?: 'top' | undefined;
+}
 export interface DiscussionPage {
   items: CommunityPost[];
   next: string | null;
+  /** Opt-in only: one visible highest-voted child per item. */
+  previews?: CommunityPost[];
+}
+export function discussionPreview(value: unknown): 'top' | undefined {
+  if (value === undefined || value === 'top') return value;
+  throw new AccountError(400, 'Invalid discussion preview.');
 }
 export function discussionOrder(value: unknown): DiscussionOrder {
   if (
@@ -76,12 +87,34 @@ export function discussionCursor(
 }
 export function discussionPage(value: unknown): DiscussionPage {
   const data = object(value);
-  keys(data, ['items', 'next']);
+  const hasPreviews = Object.hasOwn(data, 'previews');
+  keys(data, hasPreviews ? ['items', 'next', 'previews'] : ['items', 'next']);
   discussionCursor(data['next']);
+  const items = communityArray(data['items']).map(communityPost);
   return {
-    items: communityArray(data['items']).map(communityPost),
+    items,
     next: data['next'] as string | null,
+    ...(hasPreviews ? { previews: previewPosts(data['previews'], items) } : {}),
   };
+}
+function previewPosts(value: unknown, items: CommunityPost[]): CommunityPost[] {
+  const parents = new Map(items.map((post) => [post.id, post])),
+    seen = new Set<string>(),
+    previews = communityArray(value).map(communityPost);
+  for (const post of previews) {
+    const parent = parents.get(post.parent ?? '');
+    if (
+      !parent ||
+      parent.status !== 'visible' ||
+      post.status !== 'visible' ||
+      post.community !== parent.community ||
+      post.root !== (parent.root ?? parent.id) ||
+      seen.has(parent.id)
+    )
+      throw new AccountError(400, 'Invalid discussion preview.');
+    seen.add(parent.id);
+  }
+  return previews;
 }
 export const discussionOrders = [
   ['discussed', 'community.sort-most-discussed'],

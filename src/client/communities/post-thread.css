@@ -33,7 +33,7 @@
 .post-thread-branch:has(> .post-thread-children[hidden])::before {
   display: none;
 }
-.post-thread-children > .post-thread-item::before {
+:is(.post-thread-children, .post-thread-preview) > .post-thread-item::before {
   content: '';
   position: absolute;
   top: 0;
@@ -44,7 +44,8 @@
   border-bottom: 1px solid var(--line-strong);
   border-bottom-left-radius: 12px;
 }
-.post-thread-children > .post-thread-item:not(:last-child)::after {
+:is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item:not(:last-child)::after {
   content: '';
   position: absolute;
   top: 0;
@@ -57,8 +58,12 @@
   padding-left: 0;
 }
 .post-thread-branch.post-thread-deep::before,
-.post-thread-deep > .post-thread-children > .post-thread-item::before,
-.post-thread-deep > .post-thread-children > .post-thread-item::after {
+.post-thread-deep
+  > :is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item::before,
+.post-thread-deep
+  > :is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item::after {
   left: -9px;
   width: 8px;
 }
@@ -127,7 +132,8 @@
   text-align: left;
   font-size: 13px;
 }
-.post-thread-children[hidden] {
+.post-thread-children[hidden],
+.post-thread-preview[hidden] {
   display: none;
 }
 .post-thread-item > a,
@@ -141,8 +147,8 @@
     padding-left: 12px;
     margin-left: 16px;
   }
-  .post-thread-children > .post-thread-item::before,
-  .post-thread-children > .post-thread-item::after {
+  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::before,
+  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::after {
     left: -13px;
     width: 12px;
   }

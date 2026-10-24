@@ -93,7 +93,7 @@ export function createCommunityHandler(read: {
   discussion?: (
     community: string,
     parent: string,
-    selection: { order: unknown; after: string | null },
+    selection: { order: unknown; after: string | null; preview?: unknown },
   ) => Promise<DiscussionPage>;
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
@@ -309,10 +309,11 @@ export function createCommunityHandler(read: {
   ): Promise<unknown> {
     if (!read.replies) throw new AccountError(404, 'Replies unavailable.');
     if (address.searchParams.has('order') && read.discussion) {
-      params(address, ['after', 'order']);
+      params(address, ['after', 'order', 'preview']);
       return discussionPage(
         await read.discussion(id, parent, {
           order: address.searchParams.get('order'),
+          preview: address.searchParams.get('preview') ?? undefined,
           after: address.searchParams.get('after'),
         }),
       );

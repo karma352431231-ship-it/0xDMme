@@ -4,10 +4,11 @@ import { reconcileMentionNotifications } from './mention-admission.ts';
 import {
   discussionOrder,
   discussionCursor,
+  discussionPreview,
 } from '../../shared/community-discussion/index.ts';
 import type pg from 'pg';
-import { discussionRows } from './community-discussion.ts';
-import type { DiscussionOrder } from '../../shared/community-discussion/index.ts';
+import { readDiscussionPage } from './community-discussion.ts';
+import type { DiscussionSelection } from '../../shared/community-discussion/index.ts';
 import { postShareCounts, sharedPostIds } from './post-sharing.ts';
 import { withPostInteractions } from './community-interaction-view.ts';
 import { queueWatchedPost } from './public-notice-wake.ts';
@@ -509,7 +510,7 @@ export class CommunityPostStore {
   async discussion(
     community: string,
     parent: string,
-    selection: { order: DiscussionOrder; after: string | null },
+    selection: DiscussionSelection,
   ) {
     await this.read(community, parent);
     return this.discussionPage(this.pool, { community, parent }, selection);
@@ -517,22 +518,11 @@ export class CommunityPostStore {
   private async discussionPage(
     client: Pick<pg.PoolClient, 'query'>,
     target: { community: string; parent: string; actor?: string },
-    selection: { order: DiscussionOrder; after: string | null },
+    selection: DiscussionSelection,
   ) {
-    const page = await discussionRows(client, target, selection);
-    const posts = new Map(
-      (await this.readMany(client, page.ids)).map((post) => [post.id, post]),
+    return readDiscussionPage(client, target, selection, (ids) =>
+      this.readMany(client, ids),
     );
-    const items = page.ids.flatMap((id) => {
-      const post = posts.get(id);
-      return post ? [post] : [];
-    });
-    return {
-      items: target.actor
-        ? await withPostInteractions(client, target.actor, items)
-        : items,
-      next: page.next,
-    };
   }
   private async states(
     context: CommunityContext,
@@ -773,7 +763,13 @@ export class CommunityPostStore {
         if (operation === 'post-replies') {
           await this.requireVisibleTo(context, uuid(data['post']));
           if (Object.hasOwn(data, 'order')) {
-            keys(data, ['id', 'post', 'after', 'order']);
+            keys(data, [
+              'id',
+              'post',
+              'after',
+              'order',
+              ...(Object.hasOwn(data, 'preview') ? ['preview'] : []),
+            ]);
             discussionCursor(data['after']);
             return this.discussionPage(
               context.client,
@@ -784,6 +780,7 @@ export class CommunityPostStore {
               },
               {
                 order: discussionOrder(data['order']),
+                preview: discussionPreview(data['preview']),
                 after: data['after'] as string | null,
               },
             );

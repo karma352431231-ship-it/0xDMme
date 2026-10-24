@@ -268,6 +268,12 @@ export const catalog: Record<string, readonly [string, string]> = {
 
   'post.edited': [' · Edited', ' · 已编辑'],
   'thread.load-remaining': ['Load remaining replies', '加载其余回复'],
+  'Invalid discussion preview.': [
+    'Invalid discussion preview.',
+    '回复预览无效。',
+  ],
+  'Top voted reply': ['Top voted reply', '获赞最高的回复'],
+  '＋ View 1 more reply': ['＋ View 1 more reply', '＋ 查看另外 1 条回复'],
   'activity.now': ['Now', '刚刚'],
   'contacts.request-sent-save-failed': [
     'Request sent, but the contact could not be saved. Refresh contacts before trying again.',
