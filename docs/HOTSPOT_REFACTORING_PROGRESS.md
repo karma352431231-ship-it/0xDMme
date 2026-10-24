@@ -3,9 +3,9 @@
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
 H04 public-identity DM presentation, H05 account ownership, then H06 device
-linking and wallet-return workflows and the H01 engine outbox.
+linking and wallet-return workflows, the H01 engine outbox and verified reader.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch, followed by H04, H05, H06 and the H01 engine outbox;
+local on this branch, followed by H04, H05, H06 and the H01 engine extractions;
 another merge, push and VPS publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
@@ -515,3 +515,69 @@ staged-view cancellation and final server confirmation before publication; run
 the resumption, verified-window, index, session and recovery contracts. Remaining
 archive/offline responsibilities are preexisting and need a separate clear
 contract before extraction.
+
+## H01 engine: verified conversation reader
+
+Base: `25abd96`. `conversation-reader.ts` owns selected-window state: selection
+cancellation, pagination, staged visibility, confirmed candidates, probes,
+verified/index/offline windows and receiver coverage. Online, imported-archive
+and offline opening use this owner because they publish through the same
+selection and visibility lifecycle. This does not introduce a separate archive
+authority or change their persistence/access rules. Existing index, incremental
+window, confirmed-conversation, visibility and offline-index modules are reused.
+
+`Messages` retains the single session generation, peer identities, vault
+authority, SDK opening, cryptographic packet validation, encrypted packet/profile
+persistence, backup operations and account receiver turn. The reader uses four
+scoped packet/cache operations and the existing session/pin authority, without
+writable controller state or a second invalidation authority. Missing packets
+retain their original SDK preparation/receive/cleanup operation. Profile reads
+return rows to the reader rather than mutate its internal collection. Shared
+view/event types live in `message-view.ts`; existing controller type exports and
+public operations remain compatible, without a reader-to-controller import.
+
+The reader stages complete windows, preserves identity pins outside the vault
+lock and performs the separate fresh final confirmation before publication.
+Legacy confirmation retries, finite-cut confirmation, interruption/continuation
+rules, pagination limits, candidate budgets and stale-work rejection are
+unchanged. Receiver progress and recovery alarms remain with the account turn;
+its confirmed durable commit calls the reader to update window coverage and
+publish. Media and search capture scoped snapshot capabilities from the reader,
+preserving candidate identity checks without exposing mutable window state.
+
+Structural review: selection, window state and their cleanup moved together.
+The controller no longer reads or writes those fields. AST comparisons verified
+46 unchanged retained method bodies and 21 moved reader bodies after explicit
+authority/integration substitutions, plus the unchanged missing-packet SDK
+lifetime. Lifecycle composition and media/search adapters were reviewed
+separately. Existing dependency rules cover the new modules without cycles,
+exceptions, new dependencies or broader source roots. There are no server,
+database, migration, policy, stylesheet or deployment changes.
+
+Validation: 218 relevant tests passed across reader resumption, final publication,
+verified/index/peer windows, visibility, retained candidates, continuations,
+receiver turns, sending, sessions/recovery, backups, local history, attachments,
+search, delivery scheduling, live sharing and portable sources. All 53 assembled
+resumption cases passed against both the pre-refactor controller and the final
+reader with the same final fixture and cases; the baseline matches `25abd96`.
+Six added cases cover arrivals during finite-cut confirmation, session changes
+during archive/offline opening, offline cache/archive merging, receiver publication
+only after confirmation and durable progress, and checkpoint-storage failure
+preventing new selected-window content from being published. Network, local
+vault access and persistence use synthetic adapters; real index, receiver,
+visibility and removal-loading logic execute inside that fixture.
+
+Changed-file ESLint, strict types, dependency boundaries, repository formatting,
+localization and the web build passed. The initial lint found one obsolete
+snapshot import, which was removed before final validation. The portable-source
+archive has 1,168 entries and contains byte-identical copies of the controller
+and both new modules within the unchanged roots and budgets. Real browser and
+IndexedDB acceptance, PostgreSQL integration and remote CI were not run.
+No merge, push or VPS operation is included.
+
+Remaining packet/cache, media/search and export responsibilities in `Messages`
+are preexisting. If they need another extraction, characterize packet verification
+and encrypted cache/recovery first, move that operation before its backup/media
+callers, and preserve shared session guards and machine cleanup. Affected tests
+include recovery, verified windows, backups, local history, attachments and
+conversation search. That additional cleanup is separate from this reader stage.
