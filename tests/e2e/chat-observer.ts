@@ -73,8 +73,16 @@ export function installObserver(detailed: boolean): void {
     true,
   );
   window.addEventListener('0xdmme-chat-sync-diagnostic-event', (event) => {
-    if (event instanceof CustomEvent)
-      publish({ event: 'diagnostic', detail: event.detail as unknown });
+    if (!(event instanceof CustomEvent)) return;
+    const detail: unknown = event.detail;
+    if (
+      typeof detail === 'object' &&
+      detail !== null &&
+      'event' in detail &&
+      detail.event === 'coverage-limited'
+    )
+      publish({ event: 'dropped' });
+    publish({ event: 'diagnostic', detail });
   });
   const start = () => {
     if (detailed)

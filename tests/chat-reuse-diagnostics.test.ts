@@ -9,8 +9,14 @@ import {
   installChatSyncDiagnostics,
   traceChatSync,
   traceChatSyncFailure,
+  VerifiedReadCapture,
+  traceVerifiedMessages,
 } from '../src/client/chat-sync-diagnostics/index.ts';
-import { chatSyncEvent } from '../src/shared/chat-sync-diagnostics/index.ts';
+import { OutgoingTexts } from '../src/client/messages/outgoing-text.ts';
+import {
+  chatSyncEvent,
+  chatSyncControl,
+} from '../src/shared/chat-sync-diagnostics/index.ts';
 import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 import { ConfirmedConversations } from '../src/client/messages/confirmed-conversations.ts';
@@ -369,4 +375,95 @@ await test('group delivery steps share one per-capture slot per message and neve
       .events.filter((event) => event.kind === 'reuse-group-send').length,
     5,
   );
+});
+
+await test('direct staging, acceptance and verified commits use content-free slots and require confirmation', (t) => {
+  const f = fixture(t),
+    outgoing = new OutgoingTexts();
+  const draft = {
+    id: crypto.randomUUID(),
+    peer: 'private-peer',
+    text: 'private plaintext',
+  };
+  outgoing.update(draft, 'admitted');
+  outgoing.update(draft, 'saved');
+  outgoing.acknowledge(draft);
+  outgoing.acknowledge(draft);
+  const failed = { ...draft, id: crypto.randomUUID() };
+  outgoing.update(failed, 'admitted');
+  outgoing.update(failed, 'save-failed');
+  const row = {
+    id: crypto.randomUUID(),
+    own: false,
+    kind: 'text',
+    text: 'private received content',
+  };
+  const read = new VerifiedReadCapture({}, 'direct');
+  read.collect([row]);
+  assert.equal(
+    f.recording
+      .report()
+      .events.some((event) => event.kind === 'reuse-direct-receive'),
+    false,
+  );
+  read.confirm();
+  traceVerifiedMessages({}, 'direct', [
+    row,
+    { ...row, id: 'private-profile', kind: 'profile' },
+    { ...row, id: 'private-own', own: true },
+  ]);
+  const events = f.recording.report().events;
+  assert.deepEqual(
+    events
+      .filter((event) => event.kind === 'reuse-direct-send')
+      .map((event) => event['reason']),
+    ['admitted', 'staged', 'accepted', 'admitted'],
+  );
+  assert.equal(
+    events.filter((event) => event.kind === 'reuse-direct-receive').length,
+    1,
+  );
+  for (const secret of [
+    draft.id,
+    draft.peer,
+    draft.text,
+    row.id,
+    row.text,
+    'private-profile',
+    'private-own',
+  ])
+    assert.equal(JSON.stringify(events).includes(secret), false);
+});
+await test('verified read diagnostics reject old captures and report bounded metadata coverage', (t) => {
+  const f = fixture(t),
+    stale = new VerifiedReadCapture({}, 'group');
+  stale.collect([{ id: 'old-message', own: false, kind: 'text' }]);
+  f.host.dispatchEvent(new CustomEvent(chatSyncControl, { detail: 'stop' }));
+  f.host.dispatchEvent(new CustomEvent(chatSyncControl, { detail: 'start' }));
+  stale.confirm();
+  assert.equal(
+    f.recording
+      .report()
+      .events.some((event) => event.kind === 'reuse-group-receive'),
+    false,
+  );
+  const read = new VerifiedReadCapture({}, 'group');
+  read.collect(
+    Array.from({ length: 257 }, (_, index) => ({
+      id: `message-${index}`,
+      own: false,
+      kind: 'text',
+    })),
+  );
+  read.confirm();
+  const events = f.recording.report().events;
+  assert.equal(
+    events.filter((event) => event.kind === 'reuse-group-receive').length,
+    256,
+  );
+  assert.equal(
+    events.filter((event) => event.kind === 'reuse-coverage-limited').length,
+    1,
+  );
+  assert.equal(JSON.stringify(events).includes('message-'), false);
 });

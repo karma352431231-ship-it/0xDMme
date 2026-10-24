@@ -1,9 +1,7 @@
 import { readChatSyncTrace } from '../../src/shared/chat-sync-diagnostics/index.ts';
 import type { ChatSyncTrace } from '../../src/shared/chat-sync-diagnostics/index.ts';
-interface Observation {
-  page: number;
-  event: Record<string, unknown>;
-}
+import { senderPhaseTimings } from './chat-phase-timings.ts';
+import type { DiagnosticObservation } from './chat-phase-timings.ts';
 interface Work {
   page: number;
   operation: string;
@@ -14,7 +12,7 @@ interface Work {
 }
 /** Report only the existing content-free protocol. Browser-local work spans
  * remain separate distributions; overlapping spans never become a fake total. */
-export function diagnosticSummary(events: readonly Observation[]) {
+export function diagnosticSummary(events: readonly DiagnosticObservation[]) {
   const work = new Map<string, Work>();
   const stages = new Map<
     string,
@@ -25,7 +23,14 @@ export function diagnosticSummary(events: readonly Observation[]) {
     const trace = readChatSyncTrace(observation.event['detail']);
     if (!trace) continue;
     if (trace.event === 'work') recordWork(work, observation.page, trace);
-    if (trace.event !== 'group-send' && trace.event !== 'group-receive')
+    if (
+      ![
+        'group-send',
+        'group-receive',
+        'direct-send',
+        'direct-receive',
+      ].includes(trace.event)
+    )
       continue;
     const key = `${observation.page}:${trace.event}:${trace.reason}`;
     const stage = stages.get(key) ?? {
@@ -37,7 +42,11 @@ export function diagnosticSummary(events: readonly Observation[]) {
     stage.count++;
     stages.set(key, stage);
   }
-  return { work: [...work.values()], stages: [...stages.values()] };
+  return {
+    work: [...work.values()],
+    stages: [...stages.values()],
+    senderPhases: senderPhaseTimings(events),
+  };
 }
 function recordWork(
   work: Map<string, Work>,

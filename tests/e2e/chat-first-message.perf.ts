@@ -1,4 +1,5 @@
-import { test } from './fixtures/metrics.ts';
+import { test, expect } from './fixtures/metrics.ts';
+import { diagnosticSummary } from './chat-diagnostics.ts';
 import { openDirect, openGroup, acceptedSend, delivered } from './chat-ui.ts';
 
 // A warm isolated exchange, separate from S1's functional reload workload.
@@ -25,5 +26,31 @@ for (const kind of ['direct', 'group'] as const) {
     await delivered(a1, kind, 'E2E-isolated-b');
     await metrics.drain();
     metrics.assertSamples(1);
+    if (metrics.detailed) {
+      const diagnostic = diagnosticSummary(metrics.observations);
+      const stages = diagnostic.stages;
+      expect(diagnostic.senderPhases.missingTimestamps).toBe(0);
+      for (const cohort of diagnostic.senderPhases.cohorts) {
+        expect(cohort.incompleteSlots).toBe(0);
+        expect(cohort.invalidOrder).toBe(0);
+      }
+      for (const reason of ['admitted', 'staged', 'accepted'])
+        expect(
+          stages
+            .filter(
+              (stage) =>
+                stage.event === `${kind}-send` && stage.reason === reason,
+            )
+            .reduce((sum, stage) => sum + stage.count, 0),
+        ).toBe(2);
+      expect(
+        stages
+          .filter(
+            (stage) =>
+              stage.event === `${kind}-receive` && stage.reason === 'committed',
+          )
+          .reduce((sum, stage) => sum + stage.count, 0),
+      ).toBe(2);
+    }
   });
 }

@@ -1,3 +1,4 @@
+import { traceDirectMessage } from '../chat-sync-diagnostics/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { emojiText } from '../emoji/index.ts';
@@ -29,11 +30,22 @@ export class OutgoingTexts {
         failure: null,
       });
       this.trim();
+      traceDirectMessage(
+        this,
+        { event: 'direct-send', reason: 'admitted' },
+        draft.id,
+      );
       return;
     }
     const value = this.held.get(draft.id);
     if (!value) return;
     value.saved = phase === 'saved';
+    if (value.saved)
+      traceDirectMessage(
+        this,
+        { event: 'direct-send', reason: 'staged' },
+        draft.id,
+      );
     value.failure =
       phase === 'save-failed' ? 'save' : this.transferFailed ? 'send' : null;
   }
@@ -77,6 +89,12 @@ export class OutgoingTexts {
   acknowledge(value: { id: string; peer: string }): void {
     const draft = this.held.get(value.id);
     if (!draft || draft.peer !== value.peer) return;
+    if (!draft.accepted)
+      traceDirectMessage(
+        this,
+        { event: 'direct-send', reason: 'accepted' },
+        value.id,
+      );
     draft.accepted = true;
     draft.failure = null;
   }

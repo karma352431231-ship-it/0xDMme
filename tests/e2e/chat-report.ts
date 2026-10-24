@@ -29,7 +29,7 @@ interface Flow {
   missing: number;
 }
 interface Metrics {
-  observations: { page: number; event: Record<string, unknown> }[];
+  observations: { page: number; at?: number; event: Record<string, unknown> }[];
   latency: Flow[];
   dropped: number;
   interruptedResponses: number;

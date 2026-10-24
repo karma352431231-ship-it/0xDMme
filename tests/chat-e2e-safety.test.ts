@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { testDatabaseUrl } from './e2e/fixtures/database.ts';
 import { percentile } from './e2e/chat-metrics.ts';
 import { chatSummary } from './e2e/chat-report.ts';
+import { senderPhaseTimings } from './e2e/chat-phase-timings.ts';
 import { fixtureReady } from './e2e/fixtures/environment.ts';
 import { createServer } from 'node:http';
 
@@ -103,4 +104,32 @@ await test('readiness rejects a healthy listener that does not prove this run ow
   proof = true;
   assert.equal(await fixtureReady(origin, 'b'.repeat(48)), false);
   assert.equal(await fixtureReady(origin, owner), true);
+});
+
+await test('stage timings keep opaque message slots within their page and capture', () => {
+  const event = (page: number, at: number, detail: object) => ({
+    page,
+    at,
+    event: {
+      event: 'diagnostic',
+      detail: { version: 1, source: 1, conversation: 0, ...detail },
+    },
+  });
+  const report = senderPhaseTimings([
+    event(1, 10, { event: 'direct-send', reason: 'admitted', message: 1 }),
+    event(2, 11, { event: 'direct-send', reason: 'accepted', message: 1 }),
+    event(1, 15, { event: 'direct-send', reason: 'staged', message: 1 }),
+    event(1, 30, { event: 'direct-send', reason: 'accepted', message: 1 }),
+    event(1, 40, { event: 'ready', reason: 'capture-started' }),
+    event(1, 50, { event: 'direct-send', reason: 'accepted', message: 1 }),
+  ]);
+  const first = report.cohorts.find((cohort) => cohort.page === 1)!;
+  assert.equal(first.slots, 2);
+  assert.equal(first.incompleteSlots, 1);
+  assert.deepEqual(first.admissionToStagedMs, [5]);
+  assert.deepEqual(first.stagedToAcceptedMs, [15]);
+  assert.equal(
+    report.cohorts.find((cohort) => cohort.page === 2)?.incompleteSlots,
+    1,
+  );
 });

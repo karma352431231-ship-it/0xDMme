@@ -40,6 +40,7 @@ import { ConfirmedConversations } from './confirmed-conversations.ts';
 import {
   traceChatSync,
   traceChatSyncFailure,
+  traceVerifiedMessages,
 } from '../chat-sync-diagnostics/index.ts';
 import { probeConfirmed } from './confirmed-probe.ts';
 import { readIncrementalWindow } from './incremental-window.ts';
@@ -1268,6 +1269,7 @@ export class Messages {
           staged.window,
           staged.liveViews,
         );
+      traceVerifiedMessages(this, 'direct', staged.views);
       this.confirmConversationChanges(staged.snapshot);
       this.rememberConversation();
       this.readTarget.reset();
@@ -2081,6 +2083,7 @@ export class Messages {
     batch: Parameters<SyncReceiverPorts<MessageView>['commit']>[0],
     hints: number,
   ): void {
+    traceVerifiedMessages(this, 'direct', batch.views);
     this.synchronizationIssues = batch.pending;
     this.recoveryAlarm.wait(batch.pending);
     const catalog = {
