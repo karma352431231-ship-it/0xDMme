@@ -39,11 +39,7 @@ import { attachmentContent } from '../../shared/attachments/index.ts';
 import { messageApi } from '../message-api/index.ts';
 import { memberWalletPage } from './member-wallets.ts';
 import type { MemberWallet } from './member-wallets.ts';
-import {
-  PeerIdentity,
-  readDirectories,
-  peerHistory,
-} from '../peer-identity/index.ts';
+import { PeerIdentity } from '../peer-identity/index.ts';
 import { openMessageMachine } from '../message-session/index.ts';
 import { ensureMessageRecovery } from '../message-recovery/index.ts';
 import { downloadAttachment } from '../attachments/index.ts';
@@ -56,11 +52,7 @@ import type { VaultSync } from '../vault-sync/index.ts';
 import { GroupGovernance } from './governance.ts';
 import type { GroupState } from './governance.ts';
 import { GroupCache, groupCacheScope, groupTitle } from './cache.ts';
-import {
-  createGroupEvent,
-  changeGroupEvent,
-  proposeGroupConsent,
-} from './transitions.ts';
+import { createGroupEvent, changeGroupEvent } from './transitions.ts';
 import { composeGroup, sendGroupPending, staleGroupSend } from './outbox.ts';
 import type { GroupSendProgress } from './outbox.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
@@ -871,8 +863,9 @@ export class GroupController {
     );
     this.creationPending = false;
   }
+  /** 'transfer' here is the owner's direct handover to `target`. */
   async change(input: {
-    kind: 'leave' | 'remove' | 'role' | 'delete';
+    kind: 'leave' | 'remove' | 'role' | 'transfer' | 'delete';
     target: string | null;
     role?: 'admin' | 'member';
   }): Promise<void> {
@@ -920,46 +913,6 @@ export class GroupController {
     });
     await this.identities.save();
     return result;
-  }
-  async propose(target: string, kind: GroupConsent['kind']): Promise<void> {
-    const selected = this.selected;
-    if (!selected) throw new Error('Open a group first.');
-    await this.identities.load();
-    await this.withAuthority(async (c) => {
-      const group = await c.governance.verify(selected.state.groupId);
-      let history: import('../../shared/devices/index.ts').DirectoryEvent[];
-      if (kind === 'invite') {
-        history = await peerHistory(
-          c.api,
-          target,
-          null,
-          this.identities.get(target),
-        );
-        await this.identities.remember(target, history);
-      } else {
-        const directories = await readDirectories({
-          accounts: [target],
-          identities: this.identities,
-          load: (accounts) =>
-            c.api('group-directory', {
-              groupId: group.state.groupId,
-              head: group.head,
-              accounts,
-            }),
-        });
-        history = directories.get(target)?.events ?? [];
-      }
-      const current = history.at(-1);
-      if (!current) throw new Error('Recipient identity missing.');
-      const consent = await proposeGroupConsent({
-        authority: c.authority,
-        state: group.state,
-        target: current,
-        kind,
-      });
-      await c.api('group-propose', { consent });
-    });
-    await this.identities.save();
   }
   async respond(consent: GroupConsent, accept: boolean): Promise<void> {
     await this.identities.load();

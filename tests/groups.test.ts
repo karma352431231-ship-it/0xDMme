@@ -224,7 +224,7 @@ await test('directory admits 200 participants and rejects the 201st without redu
   );
 });
 
-await test('admin cannot change ownership; transfer requires both signatures and the former owner becomes a member', async () => {
+await test('admin cannot change ownership; an accepted offer needs both signatures and the former owner becomes a member', async () => {
   const owner = await participant(),
     next = await participant();
   const genesis = await signed(
@@ -345,4 +345,87 @@ await test('admin cannot change ownership; transfer requires both signatures and
       actorDirectory: next.directory,
     }),
   );
+});
+
+await test('owner hands ownership to a member without acceptance, then leaves; nobody else can', async () => {
+  const owner = await participant(),
+    next = await participant(),
+    other = await participant();
+  const genesis = await signed(
+    {
+      version: 1,
+      groupId: crypto.randomUUID(),
+      revision: 1,
+      epoch: 1,
+      previous: null,
+      kind: 'create',
+      ...authority(owner),
+      target: null,
+      owner: owner.accountId,
+      members: [{ accountId: owner.accountId, role: 'owner', joined: 1 }],
+      consent: null,
+      signature: '',
+    },
+    owner,
+  );
+  const added = await change(genesis, owner, {
+    kind: 'add',
+    target: next.accountId,
+    members: members({
+      ...genesis,
+      members: [
+        ...genesis.members,
+        { accountId: next.accountId, role: 'member', joined: 2 },
+      ],
+    }),
+  });
+  await verifyGroupTransition({
+    previous: genesis,
+    event: added,
+    actorDirectory: owner.directory,
+  });
+  const handover = (actor: Participant, target: string) =>
+    change(added, actor, {
+      kind: 'transfer',
+      owner: target,
+      target,
+      members: added.members.map((m) => ({
+        ...m,
+        role: m.accountId === target ? 'owner' : 'member',
+      })),
+    });
+  const transfer = await handover(owner, next.accountId);
+  await verifyGroupTransition({
+    previous: added,
+    event: transfer,
+    actorDirectory: owner.directory,
+  });
+  assert.equal(transfer.owner, next.accountId);
+  await assert.rejects(
+    verifyGroupTransition({
+      previous: added,
+      event: await handover(next, next.accountId),
+      actorDirectory: next.directory,
+    }),
+  );
+  await assert.rejects(
+    verifyGroupTransition({
+      previous: added,
+      event: await handover(owner, other.accountId),
+      actorDirectory: owner.directory,
+    }),
+  );
+  const leave = await change(transfer, owner, {
+    kind: 'leave',
+    target: owner.accountId,
+    members: transfer.members.filter((m) => m.accountId !== owner.accountId),
+  });
+  const after = await verifyGroupTransition({
+    previous: transfer,
+    event: leave,
+    actorDirectory: owner.directory,
+  });
+  assert.deepEqual(after.members, [
+    { accountId: next.accountId, role: 'owner', joined: 2 },
+  ]);
 });

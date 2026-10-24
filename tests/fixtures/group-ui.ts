@@ -293,12 +293,10 @@ export function groupUiFixture() {
       calls.push('clear-vault');
       return Promise.resolve();
     },
-    propose(target: string, kind: string) {
-      calls.push(`${kind}:${target}`);
-      return Promise.resolve();
-    },
-    change(input: { kind: string }) {
-      calls.push(input.kind);
+    change(input: { kind: string; target: string | null }) {
+      calls.push(
+        input.kind === 'transfer' ? `transfer:${input.target}` : input.kind,
+      );
       return Promise.resolve();
     },
     respond(consent: { kind: string }, accepted: boolean) {

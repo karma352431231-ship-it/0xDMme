@@ -353,6 +353,28 @@ dialog.group-dialog .group-member-actions button:hover {
 .group-settings-footer {
   padding-top: 20px;
 }
+/* Owner's successor choice before leaving (24/10/2026). */
+dialog.group-handover {
+  width: min(420px, calc(var(--viewport-width, 100vw) - 24px));
+}
+.group-handover-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+dialog.group-dialog .group-handover-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+.group-handover-list small {
+  color: var(--text-muted);
+}
 dialog.group-dialog .group-invitation-section {
   padding-top: 20px;
   border-top: 1px solid var(--line);
