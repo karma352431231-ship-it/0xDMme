@@ -3,6 +3,17 @@ import hashlib
 import json
 from deploy_archive import digest
 
+# Owner requested normal main integration and activation on 24/10/2026 after
+# behavior-preserving hotspot refactors. Pin both complete database trees:
+# only the admission owner, four consumers, contacts and composition differ.
+# All SQL migrations, lock helpers and runtime dependencies remain exact.
+HOTSPOT_ADMISSION_BEFORE = '69f80ca74cb97fee16d5a6f35a47272c87755f89'
+HOTSPOT_ADMISSION_REVIEWED = '84a63090dc2bd9dc25f87eaa6f21800adfb0537a'
+HOTSPOT_ADMISSION_MODULES = frozenset({
+    'admission.ts', 'contacts.ts', 'group-daily.ts', 'group-media.ts',
+    'group-retention.ts', 'index.ts', 'representatives.ts',
+})
+
 # Owner-reviewed dev-only NaCl transition, including rollback. Never a general
 # allowance for dev dependencies; every other changed lock remains blocked.
 PHANTOM_PROBE_LOCKFILES = frozenset([
@@ -262,6 +273,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(HOTSPOT_ADMISSION_MODULES), HOTSPOT_ADMISSION_BEFORE, HOTSPOT_ADMISSION_REVIEWED),
         (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
         (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
         (set(GROUP_MEMBER_WALLETS_MODULES), GROUP_MEMBER_WALLETS_BEFORE,

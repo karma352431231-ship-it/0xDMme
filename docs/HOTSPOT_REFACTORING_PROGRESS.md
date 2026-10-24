@@ -831,3 +831,27 @@ service change or infrastructure configuration. Main integration, the separate
 H11 code-transition review, full combined checks, passing exact-commit CI and
 the owner's requested VPS activation follow this local stage. Operational
 evidence remains exclusively in `.local/`.
+
+## Combined release review requested on 24 October 2026
+
+The owner explicitly requested finishing H12, merging all staged refactors into
+main with individual commits preserved, and activating the combined result on
+the VPS. This authorizes the existing routine code deployment workflow, not
+dependency, migration or shared-infrastructure changes.
+
+The separate database code review pins the complete predecessor tree from
+`69f80ca74cb97fee16d5a6f35a47272c87755f89` and the complete reviewed H11 tree from
+`84a63090dc2bd9dc25f87eaa6f21800adfb0537a`. Only `admission.ts`, `contacts.ts`,
+`group-daily.ts`, `group-media.ts`, `group-retention.ts`, `index.ts` and
+`representatives.ts` differ. Actual Git exports verified this projection; every
+migration and the lockfile/Node version are byte-identical. The executor admits
+only these exact full trees, and continues rejecting extra modules, migration
+changes, different predecessors and runtime changes. Four review regression
+cases passed. This pin is separate from the H12 behavior-preserving extraction.
+
+Activation requires a clean integrated pushed main commit, passing exact-commit
+CI, the existing reviewed private preservation baseline and the existing
+`npm run deploy:staging` command. Build preparation stays local. Release and
+worker readiness, public artifact hashes, preservation and rollback are checked
+by the executor. Access, inventory, artifacts and operational results stay in
+`.local/`; no deployment result is claimed by this source review alone.
