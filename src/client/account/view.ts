@@ -4,7 +4,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import { shortAddress } from '../appearance/index.ts';
 import type { ApprovalFlow } from './approval-flow.ts';
 import { node } from './core.ts';
-import type { AccountCore } from './core.ts';
+import type { AccountSnapshot } from './core.ts';
 import type { AccountPrivateProfile } from './private-profile.ts';
 import type { WalletPicker } from './wallet-picker.ts';
 import type { createWalletReturn } from './wallet-return.ts';
@@ -12,27 +12,42 @@ import { syncPing } from '../ping/index.ts';
 
 /** Paints the account card and the sidebar from the account's current state. */
 export class AccountView {
-  private readonly core: AccountCore;
+  private readonly read: () => Pick<
+    AccountSnapshot,
+    | 'session'
+    | 'status'
+    | 'profileStatus'
+    | 'busy'
+    | 'disposed'
+    | 'mounted'
+    | 'mountMode'
+  >;
+  private readonly copied: (message: string) => void;
   private readonly picker: WalletPicker;
   private readonly approval: ApprovalFlow;
   private readonly profile: AccountPrivateProfile;
   private readonly walletReturn: ReturnType<typeof createWalletReturn>;
   constructor(input: {
-    core: AccountCore;
+    read: AccountView['read'];
+    copied: (message: string) => void;
     picker: WalletPicker;
     approval: ApprovalFlow;
     profile: AccountPrivateProfile;
     walletReturn: ReturnType<typeof createWalletReturn>;
   }) {
-    this.core = input.core;
+    this.read = input.read;
+    this.copied = input.copied;
     this.picker = input.picker;
     this.approval = input.approval;
     this.profile = input.profile;
     this.walletReturn = input.walletReturn;
   }
+  private get state(): ReturnType<AccountView['read']> {
+    return this.read();
+  }
   render(): void {
     this.renderSidebar();
-    const { core } = this;
+    const core = this.state;
     const mounted = core.mounted;
     if (core.disposed || !mounted) return;
     mounted.hidden =
@@ -62,7 +77,7 @@ export class AccountView {
     this.profile.renderForm(core.session);
   }
   renderSidebar(): void {
-    const { session } = this.core;
+    const { session } = this.state;
     const label = document.getElementById('account-label');
     if (label)
       label.textContent =
@@ -77,14 +92,14 @@ export class AccountView {
     if (copy) copy.hidden = !session;
     const feedback = document.getElementById('account-profile-feedback');
     if (feedback)
-      feedback.textContent = this.core.busy
+      feedback.textContent = this.state.busy
         ? t('Please wait…')
-        : this.core.status;
+        : this.state.status;
     this.profile.renderPhoto();
   }
   bindSidebar(): void {
     document.getElementById('account-avatar')?.addEventListener('click', () => {
-      if (!this.core.session || !this.profile.loaded) {
+      if (!this.state.session || !this.profile.loaded) {
         navigateApp('#settings');
         return;
       }
@@ -98,20 +113,16 @@ export class AccountView {
       ?.addEventListener('click', () => this.copyWallet());
   }
   copyWallet(): void {
-    const { session } = this.core;
+    const { session } = this.state;
     if (!session) return;
     void navigator.clipboard
       .writeText(session.address)
       .then(() => {
-        this.core.status = this.core.profileStatus = t(
-          'Wallet address copied.',
-        );
+        this.copied(t('Wallet address copied.'));
         this.render();
       })
       .catch(() => {
-        this.core.status = this.core.profileStatus = t(
-          'Could not copy the wallet address.',
-        );
+        this.copied(t('Could not copy the wallet address.'));
         this.render();
       });
   }
@@ -119,11 +130,15 @@ export class AccountView {
   private renderGreeting(): void {
     const card = this.find('.account-card');
     if (!card) return;
-    const mood = this.core.session ? null : this.core.busy ? 'typing' : 'hello';
+    const mood = this.state.session
+      ? null
+      : this.state.busy
+        ? 'typing'
+        : 'hello';
     syncPing(card, mood);
   }
   private find<T extends HTMLElement>(selector: string): T | null {
-    return node<T>(this.core, selector);
+    return node<T>(this.state, selector);
   }
   private renderReturn(): void {
     const pending = this.walletReturn.state();
@@ -150,8 +165,8 @@ export class AccountView {
     if (confirm) confirm.hidden = !pending?.address;
   }
   private renderPanels(): void {
-    const { session } = this.core;
-    this.core.mounted?.setAttribute(
+    const { session } = this.state;
+    this.state.mounted?.setAttribute(
       'data-connected',
       String(!!session && !this.approval.only && !this.walletReturn.state()),
     );
@@ -164,7 +179,7 @@ export class AccountView {
       finish.hidden = !session || this.profile.loaded || this.approval.only;
   }
   private clearForm(): void {
-    this.core.mounted
+    this.state.mounted
       ?.querySelectorAll<HTMLInputElement>('input')
       .forEach((input) => {
         input.value = '';

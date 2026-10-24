@@ -74,7 +74,30 @@ await test('private photo saves automatically without confirming preferences bei
   const writes: PrivateProfile[] = [];
   let pending = Promise.resolve();
   const profile = new AccountPrivateProfile(
-    core,
+    {
+      read: () => ({
+        session: core.session,
+        status: core.status,
+        busy: core.busy,
+        epoch: core.epoch,
+        disposed: core.disposed,
+        mounted: core.mounted,
+      }),
+      notice: (message) => {
+        core.status = message;
+      },
+      profileNotice: (message) => {
+        core.profileStatus = message;
+      },
+      withBusy: async (work) => {
+        core.busy = true;
+        try {
+          return await work();
+        } finally {
+          core.busy = false;
+        }
+      },
+    },
     {
       privateKey: () => Promise.resolve(key),
       saveProfile: async (_session, envelope) => {

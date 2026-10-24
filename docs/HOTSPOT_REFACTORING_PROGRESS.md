@@ -2,10 +2,10 @@
 
 Base: `e18f644`. Branch: `codex/hotspot-refactors`. Requested sequence: H08,
 H02, H01 presentation, H07 group presentation, H03 community presentation, then
-H04 public-identity DM presentation.
+H04 public-identity DM presentation, then H05 account ownership.
 Integration of the first four stages is recorded below. The H03 stage remains
-local on this branch, followed by H04; another merge, push and VPS publication
-are outside these stages' scope.
+local on this branch, followed by H04 and H05; another merge, push and VPS
+publication are outside these stages' scope.
 
 The October 22 audit inspected an older checkout. The current main branch
 already includes the app CSS split, post-thread rendering, message directory
@@ -324,5 +324,64 @@ copies of the three new modules and the updated entry point, within unchanged
 budgets.
 
 The local browser is disabled in Work settings during H04, so a real browser
+comparison remains pending. PostgreSQL integration and remote CI were not run.
+No merge, push or VPS operation is included.
+
+## H05: account authority and existing profile/wallet/approval owners
+
+Base: `28cd6a5`. The integrated baseline already separates private-profile drafts,
+photo URLs, wallet selection, approval requests, login and account rendering into
+their own modules. Repeating those extractions would not establish new owners.
+The remaining shared boundary was the writable `AccountCore` object passed to
+all five owners, allowing each to change account state directly.
+
+The coordinator now exclusively owns that mutable object. Each collaborator
+receives only the immutable facts it reads and explicit operations: login and
+approval invalidate pending work through the coordinator; private-profile saves
+and statement signing reserve the existing busy window there. Session replacement,
+expiry, restoration, provider-change logout and final disposal keep the same
+authoritative session/epoch and ordering. `AccountSnapshot` also exposes session
+fields as readonly. The DOM query capability only requires the mounted host.
+
+The existing private-profile owner retains its key, decrypted content, name and
+preference drafts, photo draft/avatar URL and authority-aware persistence. The
+existing writer/photo autosave boundaries are unchanged; autosaving a photo still
+does not confirm an unrelated preference draft. Wallet selection owns its open
+and selected state and its discovery-change listener, including idempotent
+removal. The coordinator retains the shared discovery registry's lifetime and
+closes it in the original disposal order. Login needs only registry get/list
+operations. Approval documents retain their deadline, cookie/fragment intake,
+pending-request and diagnostics owners without creating ordinary sessions.
+
+Structural review: account mutations now go through the one coordinator rather
+than a writable state bag shared across features. The coordinator composes narrow
+ports; it does not absorb form rendering, private keys, approval rules or wallet
+proof construction. Existing internal import rules and TypeScript readonly
+contracts cover this boundary; dependency-cruiser does not enforce individual
+exported members, so the mutation ownership was also reviewed directly. No cycles,
+dependency exceptions, additional dependencies, modules or source roots were
+introduced. There are no server, database, device-engine, crypto-format, storage,
+stylesheet, migration or deployment changes. H06 device enrollment/recovery
+orchestration remains a separate task.
+
+Validation: 92 focused tests passed across account lifecycle, private profiles,
+avatar cleanup, settings, wallet return, approval entry, login opening, device
+profile-key rotation, wallet statements, SIWE and portable sources. All 34 bundled
+account-screen cases also passed against the pre-refactor account implementation
+with the same final fixture. Four added cases cover dirty draft/remount behavior,
+private-photo URL retention/release, a save completing after session replacement
+and discovery refresh/disposal without wallet prompts. Existing cases protect
+approval-only documents, restoration without prompts, stale authenticated-response
+revocation and signing after account changes. Only the existing account harness
+was extended. The approval HTTP test initially could not bind loopback inside the
+restricted environment; running that one test with local-server permission passed.
+
+ESLint, strict types, dependency boundaries, repository formatting, localization
+coverage and the web build passed. The test fixture's newly used session value
+was explicitly typed after the initial type check identified widened string
+literals. Final changed-file lint and strict types passed. Source-distribution
+validation uses the unchanged archive roots and budgets.
+
+Browser access is disabled in Work settings during H05, so a real browser/wallet
 comparison remains pending. PostgreSQL integration and remote CI were not run.
 No merge, push or VPS operation is included.

@@ -10,13 +10,19 @@ import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
 import { takeApprovalDocument } from './approval-document.ts';
 import { api, node } from './core.ts';
-import type { AccountCore } from './core.ts';
+import type { AccountSnapshot } from './core.ts';
 import { createPendingApproval } from './pending-approval.ts';
 import { serverApproval } from './server-approval.ts';
 import { incomingWalletRequest } from './wallet-return.ts';
 
 export type IncomingRequest = ReturnType<typeof incomingWalletRequest>;
 const longestOperation = 300_000;
+
+interface ApprovalAccount {
+  read: () => Pick<AccountSnapshot, 'busy' | 'epoch' | 'disposed' | 'mounted'>;
+  invalidate: () => number;
+  notice: (message: string) => void;
+}
 
 /**
  * A login request started in another browser and signed here (wallet browser
@@ -38,7 +44,7 @@ export class ApprovalFlow {
   private documentRemaining: number | undefined;
   private expiryTimer: number | undefined;
   private deadline: number | undefined;
-  private readonly core: AccountCore;
+  private readonly account: ApprovalAccount;
   private readonly host: {
     render: () => void;
     walletAvailable: (id: string) => boolean;
@@ -46,8 +52,8 @@ export class ApprovalFlow {
     /** Drops the private profile, provider listeners and session. */
     reset: () => void;
   };
-  constructor(core: AccountCore, host: ApprovalFlow['host']) {
-    this.core = core;
+  constructor(account: ApprovalAccount, host: ApprovalFlow['host']) {
+    this.account = account;
     this.host = host;
     const documentApproval =
       approvalEntryUrl(location.pathname) ||
@@ -69,6 +75,9 @@ export class ApprovalFlow {
       );
       this.deadline = Date.now() + this.documentRemaining;
     }
+  }
+  private get state(): ReturnType<ApprovalAccount['read']> {
+    return this.account.read();
   }
   step(stage: ApprovalStage): void {
     if (this.only) this.diagnostics.step(stage);
@@ -131,26 +140,32 @@ export class ApprovalFlow {
     this.cookieEligible = false;
     window.clearTimeout(this.expiryTimer);
     this.deadline = undefined;
-    this.core.epoch++;
+    this.account.invalidate();
     this.signed = false;
     this.opening = null;
     this.host.reset();
     this.diagnostics.beginFragment();
     this.incoming = this.read();
-    this.core.status = this.incoming
-      ? t('Confirm the signature for the request started in your browser.')
-      : t('Invalid request. Return to your browser and create a new request.');
+    this.account.notice(
+      this.incoming
+        ? t('Confirm the signature for the request started in your browser.')
+        : t(
+            'Invalid request. Return to your browser and create a new request.',
+          ),
+    );
     this.host.render();
   }
   async restore(): Promise<void> {
     if (this.cookieEligible && !(await this.restoreCookie())) return;
-    this.core.status = this.incoming
-      ? t(
-          'Confirm the signature to complete sign-in in the browser that started the request. Reject requests received from others.',
-        )
-      : t(
-          'Request missing or lost. Return to the original browser and create a new request.',
-        );
+    this.account.notice(
+      this.incoming
+        ? t(
+            'Confirm the signature to complete sign-in in the browser that started the request. Reject requests received from others.',
+          )
+        : t(
+            'Request missing or lost. Return to the original browser and create a new request.',
+          ),
+    );
   }
   checkDeadline(): void {
     if (this.deadline !== undefined && Date.now() >= this.deadline)
@@ -161,7 +176,7 @@ export class ApprovalFlow {
     this.pending.close();
   }
   private find<T extends HTMLElement>(selector: string): T | null {
-    return node<T>(this.core, selector);
+    return node<T>(this.state, selector);
   }
   private read(): IncomingRequest {
     if (this.documentPending) {
@@ -209,32 +224,34 @@ export class ApprovalFlow {
   }
   private expire(): void {
     if (!this.incoming || this.signed) return;
-    this.core.epoch++;
+    this.account.invalidate();
     window.clearTimeout(this.expiryTimer);
     this.deadline = undefined;
     this.incoming = null;
     this.step('pedido-expirado');
-    this.core.status = t(
-      'Request expired. Return to the original browser and start a new request.',
+    this.account.notice(
+      t(
+        'Request expired. Return to the original browser and start a new request.',
+      ),
     );
     this.host.render();
   }
   private async restoreCookie(): Promise<boolean> {
-    const current = this.core.epoch;
+    const current = this.state.epoch;
     const legacy = this.incoming;
     this.incoming = null;
     this.step('pedido-cookie-solicitado');
-    this.core.status = t('Recovering the request started in your browser…');
+    this.account.notice(t('Recovering the request started in your browser…'));
     this.host.render();
     let state;
     try {
       state = serverApproval(await api('approval-request'));
     } catch (error: unknown) {
-      if (this.core.disposed || current !== this.core.epoch) return false;
+      if (this.state.disposed || current !== this.state.epoch) return false;
       this.pending.clear();
       throw error;
     }
-    if (this.core.disposed || current !== this.core.epoch) return false;
+    if (this.state.disposed || current !== this.state.epoch) return false;
     if (!state) {
       this.incoming = legacy;
       this.step(this.incoming ? 'pedido-restaurado' : 'pedido-ausente');
@@ -269,7 +286,7 @@ export class ApprovalFlow {
       this.incoming?.wallet ?? 'wallet',
     ]);
     approve.disabled =
-      this.core.busy || !this.host.walletAvailable(this.walletId());
+      this.state.busy || !this.host.walletAvailable(this.walletId());
   }
   private description(): string {
     return this.incoming

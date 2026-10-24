@@ -3,7 +3,7 @@ import type { discoverWallets } from '../wallet/index.ts';
 import { mobileWalletBrowser } from './wallet-return.ts';
 import { mountWalletMark } from './wallet-marks.ts';
 import { node } from './core.ts';
-import type { AccountCore } from './core.ts';
+import type { AccountSnapshot } from './core.ts';
 
 type Wallets = ReturnType<typeof discoverWallets>;
 const listedBrands = ['MetaMask', 'Phantom', 'Backpack'];
@@ -16,11 +16,17 @@ const listedNetworks = [
   'Backpack:solana',
 ];
 
+interface PickerAccount {
+  read: () => Pick<AccountSnapshot, 'mounted' | 'busy'>;
+  request: () => void;
+}
+
 /** The two-step wallet and ecosystem chooser of the account card. */
 export class WalletPicker {
-  open = false;
-  selected: string | null = null;
-  private readonly core: AccountCore;
+  private open = false;
+  private selected: string | null = null;
+  private readonly account: PickerAccount;
+  private offWallets: (() => void) | null = null;
   private readonly wallets: Wallets;
   private readonly host: {
     /** Whether the chooser applies to the current session and page. */
@@ -28,14 +34,34 @@ export class WalletPicker {
     choose: (id: string) => void;
     render: () => void;
   };
-  constructor(core: AccountCore, wallets: Wallets, host: WalletPicker['host']) {
-    this.core = core;
+  constructor(
+    account: PickerAccount,
+    wallets: Wallets,
+    host: WalletPicker['host'],
+  ) {
+    this.account = account;
     this.wallets = wallets;
     this.host = host;
   }
+  private get state(): ReturnType<PickerAccount['read']> {
+    return this.account.read();
+  }
+  observeDiscovery(): void {
+    this.offWallets ??= this.wallets.onChange(() => {
+      this.renderWallets();
+      this.host.render();
+    });
+  }
+  stopObserving(): void {
+    this.offWallets?.();
+    this.offWallets = null;
+  }
+  close(): void {
+    this.open = false;
+  }
   /** Opens the first step, also used to confirm a wallet or complete sign-in. */
   request(): void {
-    this.core.forcePicker = true;
+    this.account.request();
     this.open = true;
     this.selected = null;
   }
@@ -96,7 +122,7 @@ export class WalletPicker {
     if (title) title.textContent = this.selected ?? '';
   }
   private find<T extends HTMLElement>(selector: string): T | null {
-    return node<T>(this.core, selector);
+    return node<T>(this.state, selector);
   }
   private otherBrand(name: string): HTMLButtonElement {
     const brand = option(name);
@@ -107,7 +133,7 @@ export class WalletPicker {
   private bindWallet(button: HTMLButtonElement): void {
     button.addEventListener('click', () => {
       const id = button.dataset['wallet'];
-      if (!id || this.core.busy) return;
+      if (!id || this.state.busy) return;
       this.open = false;
       this.find<HTMLButtonElement>('[data-wallet-picker-toggle]')?.focus();
       this.host.choose(id);
@@ -116,7 +142,7 @@ export class WalletPicker {
   private bindBrand(button: HTMLButtonElement): void {
     mountWalletMark(button);
     button.addEventListener('click', () => {
-      if (this.core.busy) return;
+      if (this.state.busy) return;
       this.selected = button.dataset['walletBrand'] ?? null;
       this.renderWallets();
       this.host.render();
@@ -124,7 +150,7 @@ export class WalletPicker {
     });
   }
   private renderBrands(): void {
-    this.core.mounted
+    this.state.mounted
       ?.querySelectorAll<HTMLElement>('[data-brand-detection]')
       .forEach((indicator) => {
         const brand = indicator.dataset['brandDetection'];
@@ -135,14 +161,14 @@ export class WalletPicker {
         indicator.textContent = detectionLabel(detected);
         indicator.classList.toggle('is-detected', detected);
       });
-    this.core.mounted
+    this.state.mounted
       ?.querySelectorAll<HTMLButtonElement>('[data-network-brand]')
       .forEach((button) => {
         button.hidden = button.dataset['networkBrand'] !== this.selected;
       });
   }
   private renderDetection(): void {
-    this.core.mounted
+    this.state.mounted
       ?.querySelectorAll<HTMLElement>('[data-detection]')
       .forEach((indicator) => {
         const id = indicator.dataset['detection'];
@@ -158,7 +184,7 @@ export class WalletPicker {
     this.find<HTMLButtonElement>('[data-wallet-brand]')?.focus();
   }
   private toggle(): void {
-    if (this.core.busy) return;
+    if (this.state.busy) return;
     this.open = !this.open;
     this.selected = null;
     this.renderWallets();

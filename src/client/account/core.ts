@@ -3,11 +3,8 @@ import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
-/**
- * State shared by the parts of the account screen (picker, approval, login,
- * private profile and view). Each part keeps its own details; only these
- * fields cross between them.
- */
+/** Mutable account lifecycle state, owned only by startAccount. Feature owners
+ * receive narrow immutable snapshots and explicit operations, never this object. */
 export interface AccountCore {
   session: AccountSession | null;
   /** Message of the account card and of the sidebar. */
@@ -24,6 +21,10 @@ export interface AccountCore {
   mountMode: 'settings' | 'login';
 }
 
+export type AccountSnapshot = Readonly<Omit<AccountCore, 'session'>> & {
+  readonly session: Readonly<AccountSession> | null;
+};
+
 export function createCore(): AccountCore {
   return {
     session: null,
@@ -39,7 +40,7 @@ export function createCore(): AccountCore {
 }
 
 export function node<T extends HTMLElement>(
-  core: AccountCore,
+  core: Pick<AccountSnapshot, 'mounted'>,
   selector: string,
 ): T | null {
   return core.mounted?.querySelector<T>(selector) ?? null;
