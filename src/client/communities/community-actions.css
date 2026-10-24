@@ -137,7 +137,10 @@
       var(--fab-right-col) +
         max(
           0px,
-          (100vw - 64px - var(--fab-left-col) - var(--fab-right-col) - 944px) /
+          (
+              var(--viewport-width, 100vw) - 64px - var(--fab-left-col) -
+                var(--fab-right-col) - 944px
+            ) /
             2
         ) +
         24px
@@ -166,8 +169,8 @@
         max(
           0px,
           (
-              100vw - 64px - var(--community-nav-col) - var(--fab-right-col) -
-                64px - 900px
+              var(--viewport-width, 100vw) - 64px - var(--community-nav-col) -
+                var(--fab-right-col) - 64px - 900px
             ) /
             2
         )

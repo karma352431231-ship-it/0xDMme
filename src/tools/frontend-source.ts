@@ -38,6 +38,7 @@ const authored = [
   'src/shared/message-sync',
   'src/client/transient-menu',
   'src/client/scrollbars',
+  'src/client/display-scale',
   'src/shared/community-followers',
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',

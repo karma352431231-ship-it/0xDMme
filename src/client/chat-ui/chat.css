@@ -161,7 +161,7 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 20;
-  width: min(300px, calc(100vw - 32px));
+  width: min(300px, calc(var(--viewport-width, 100vw) - 32px));
   max-height: 60dvh;
   overflow: auto;
   padding: 6px;
@@ -685,9 +685,9 @@
   color: var(--text-muted);
 }
 .media-viewer {
-  width: 100vw;
+  width: var(--viewport-width, 100vw);
   max-width: none;
-  height: 100dvh;
+  height: var(--viewport-height, 100dvh);
   max-height: none;
   margin: 0;
   padding: 16px;
@@ -707,7 +707,7 @@
 }
 .media-viewer img {
   max-width: min(100%, 1400px);
-  max-height: calc(100dvh - 120px);
+  max-height: calc(var(--viewport-height, 100dvh) - 120px);
   object-fit: contain;
   border-radius: 10px;
   cursor: zoom-out;

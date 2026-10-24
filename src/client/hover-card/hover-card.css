@@ -4,7 +4,7 @@
   z-index: 60;
   display: grid;
   gap: 8px;
-  width: min(300px, calc(100vw - 16px));
+  width: min(300px, calc(var(--viewport-width, 100vw) - 16px));
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 16px;

@@ -16,7 +16,7 @@
   overflow: hidden;
 }
 .app[data-page='comunidades'] .social-dm-panel {
-  height: calc(100dvh - 120px);
+  height: calc(var(--viewport-height, 100dvh) - 120px);
   min-height: 420px;
 }
 .social-dm-panel .chat-history {
@@ -71,6 +71,6 @@
 }
 @media (max-width: 700px) {
   .app[data-page='comunidades'] .social-dm-panel {
-    height: calc(100dvh - 170px);
+    height: calc(var(--viewport-height, 100dvh) - 170px);
   }
 }

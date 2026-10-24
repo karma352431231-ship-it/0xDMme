@@ -10,6 +10,7 @@ import type {
   ExploreFilter,
   FeedOrder,
 } from '../../shared/community-discovery/index.ts';
+import { layoutLength } from '../display-scale/index.ts';
 
 export interface FeedBookmark {
   search?: string;
@@ -72,7 +73,7 @@ export function feedPosition(
     anchor: card
       ? {
           id: card.dataset['postId']!,
-          offset: card.getBoundingClientRect().top - top,
+          offset: layoutLength(card.getBoundingClientRect().top - top, scroll),
         }
       : null,
   };
@@ -117,9 +118,10 @@ function compensateAnchor(container: HTMLElement, saved: FeedBookmark): void {
   ].find((row) => row.dataset['postId'] === saved.anchor?.id);
   if (anchor && saved.anchor)
     scroll.scrollTop +=
-      anchor.getBoundingClientRect().top -
-      viewportTop(scroll) -
-      saved.anchor.offset;
+      layoutLength(
+        anchor.getBoundingClientRect().top - viewportTop(scroll),
+        scroll,
+      ) - saved.anchor.offset;
 }
 /** One return path in memory. Explicit feed/filter navigation and session changes clear it. */
 const keepWindow = 2000;

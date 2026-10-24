@@ -1,6 +1,6 @@
 .public-upvoters {
-  width: min(380px, calc(100vw - 24px));
-  max-height: calc(100dvh - 32px);
+  width: min(380px, calc(var(--viewport-width, 100vw) - 24px));
+  max-height: calc(var(--viewport-height, 100dvh) - 32px);
   box-sizing: border-box;
   overflow: auto;
   border: 1px solid var(--line-strong);

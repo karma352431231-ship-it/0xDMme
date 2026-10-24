@@ -18,7 +18,7 @@
   top: calc(100% + 8px);
   display: grid;
   gap: 4px;
-  width: min(224px, calc(100vw - 32px));
+  width: min(224px, calc(var(--viewport-width, 100vw) - 32px));
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -75,7 +75,8 @@
     right: 16px;
     bottom: calc(144px + env(safe-area-inset-bottom));
     max-height: calc(
-      100dvh - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+      var(--viewport-height, 100dvh) - 160px - env(safe-area-inset-top) -
+        env(safe-area-inset-bottom)
     );
     overflow-y: auto;
   }

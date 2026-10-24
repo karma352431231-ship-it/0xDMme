@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 interface MessageMenuOptions {
   signal: AbortSignal;
 }
@@ -101,8 +102,8 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
 }
 /** Keep the menu inside the chat's visible intersection with the viewport. */
 function placeMessageMenu(panel: HTMLElement, trigger: HTMLElement): void {
-  const anchor = trigger.getBoundingClientRect(),
-    bounds = visibleChatBounds(trigger);
+  const anchor = layoutBox(trigger.getBoundingClientRect(), panel),
+    bounds = visibleChatBounds(trigger, panel);
   panel.style.width = `${Math.min(272, bounds.right - bounds.left)}px`;
   panel.style.maxHeight = `${Math.max(80, bounds.bottom - bounds.top)}px`;
   const height = panel.offsetHeight,
@@ -115,17 +116,16 @@ function placeMessageMenu(panel: HTMLElement, trigger: HTMLElement): void {
   panel.style.left = `${Math.min(Math.max(bounds.left, anchor.right - width), bounds.right - width)}px`;
 }
 
-function visibleChatBounds(trigger: HTMLElement) {
-  const chat = trigger.closest('.chat-panel')?.getBoundingClientRect() ?? {
-    left: 8,
-    right: innerWidth - 8,
-    top: 8,
-    bottom: innerHeight - 8,
-  };
+function visibleChatBounds(trigger: HTMLElement, panel: HTMLElement) {
+  const view = layoutViewport(panel),
+    rect = trigger.closest('.chat-panel')?.getBoundingClientRect(),
+    chat = rect
+      ? layoutBox(rect, panel)
+      : { left: 8, right: view.width - 8, top: 8, bottom: view.height - 8 };
   return {
     left: Math.max(8, chat.left),
-    right: Math.min(innerWidth - 8, chat.right),
+    right: Math.min(view.width - 8, chat.right),
     top: Math.max(8, chat.top),
-    bottom: Math.min(innerHeight - 8, chat.bottom),
+    bottom: Math.min(view.height - 8, chat.bottom),
   };
 }
