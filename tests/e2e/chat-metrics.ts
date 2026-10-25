@@ -121,16 +121,17 @@ export class ChatMetrics {
     });
     await context.addInitScript(installObserver, this.detailed);
     for (const page of context.pages()) {
-      this.watchPage(page);
+      this.pageNumber(page);
       await page.evaluate(installObserver, this.detailed);
       await this.calibrate(page);
     }
-    const onPage = (page: Page) => this.watchPage(page);
-    context.on('page', onPage);
-    this.disposals.push(() => context.off('page', onPage));
     this.disposals.push(this.observeNetwork(context));
   }
   observeNetwork(context: BrowserContext): () => void {
+    const pageDisposals: (() => void)[] = [];
+    const watch = (page: Page) => pageDisposals.push(this.watchPage(page));
+    context.on('page', watch);
+    for (const page of context.pages()) watch(page);
     const onRequest = (request: Request) => this.request(request);
     const onResponse = (response: Response) =>
       this.track(
@@ -148,25 +149,43 @@ export class ChatMetrics {
     context.on('requestfinished', onFinished);
     context.on('requestfailed', onFinished);
     return () => {
+      context.off('page', watch);
+      for (const dispose of pageDisposals.splice(0)) dispose();
       context.off('request', onRequest);
       context.off('response', onResponse);
       context.off('requestfinished', onFinished);
       context.off('requestfailed', onFinished);
     };
   }
-  private watchPage(page: Page): void {
+  private watchPage(page: Page): () => void {
     this.pageNumber(page);
+    let navigation: Request | null = null;
     const departed = () => this.cancelDocument(page);
     const navigating = (request: Request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame())
-        departed();
+        navigation = request;
+    };
+    const failed = (request: Request) => {
+      if (request === navigation) navigation = null;
+    };
+    const committed = (frame: ReturnType<Page['mainFrame']>) => {
+      if (frame !== page.mainFrame() || !navigation) return;
+      // Old-document API events can arrive after the navigation request. Only
+      // the actual commit ends that document; a failed navigation does not.
+      navigation = null;
+      departed();
     };
     page.on('close', departed);
     page.on('request', navigating);
-    this.disposals.push(() => {
+    page.on('requestfailed', failed);
+    page.on('framenavigated', committed);
+    return () => {
+      navigation = null;
       page.off('close', departed);
       page.off('request', navigating);
-    });
+      page.off('requestfailed', failed);
+      page.off('framenavigated', committed);
+    };
   }
   private cancelDocument(page: Page): void {
     for (const request of this.active.keys()) {
@@ -324,7 +343,7 @@ export class ChatMetrics {
       timedOut: true,
     });
     throw new Error(
-      `Work did not drain: ${[...this.active.keys()].map((request) => this.operation(request)).join(', ')}, ${this.pending.size} observations.`,
+      `Work did not drain: ${[...this.active.keys()].map((request) => this.operation(request)).join(', ')}, ${this.pending.size} pending response observations.`,
     );
   }
   accepted(operation: string): number {
@@ -353,8 +372,19 @@ export class ChatMetrics {
       'Incomplete response timing invalidates performance samples',
     ).toBe(0);
   }
+  private get networkComplete(): boolean {
+    return (
+      this.active.size === 0 &&
+      this.pending.size === 0 &&
+      this.drains.every((drain) => !drain.timedOut)
+    );
+  }
   report() {
     return {
+      work: {
+        activeRequests: this.active.size,
+        pendingResponses: this.pending.size,
+      },
       clock:
         'single runner performance.now; browser binding/DOM observation overhead included; DOM visibility is not physical paint',
       clocks: this.clocks,
@@ -365,6 +395,7 @@ export class ChatMetrics {
       operations: Object.fromEntries(this.operations),
       detailed: this.detailed,
       complete:
+        this.networkComplete &&
         this.dropped === 0 &&
         this.errors.length === 0 &&
         this.interruptedResponses === 0 &&

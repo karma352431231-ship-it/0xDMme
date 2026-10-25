@@ -19,6 +19,7 @@ let environment: Awaited<ReturnType<typeof startEnvironment>> | undefined;
 let killTimer: ReturnType<typeof setTimeout> | undefined;
 const failures: unknown[] = [];
 const stop = () => {
+  if (controller.signal.aborted) return;
   controller.abort();
   if (!child) return;
   signalProcess(child, 'SIGINT');
@@ -28,6 +29,7 @@ const stop = () => {
 };
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);
+process.once('SIGHUP', stop);
 try {
   checkBrowsers(args);
   if (args.some((arg) => /^--(?:workers|fully-parallel)(?:=|$)/u.test(arg)))
@@ -67,6 +69,7 @@ try {
 } finally {
   process.removeListener('SIGINT', stop);
   process.removeListener('SIGTERM', stop);
+  process.removeListener('SIGHUP', stop);
   clearTimeout(killTimer);
   if (child) {
     try {

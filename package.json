@@ -44,7 +44,7 @@
     "test:chat-e2e": "node --env-file-if-exists=.local/chat-e2e.env tests/e2e/run.ts",
     "test:chat-e2e:headed": "npm run test:chat-e2e -- --headed",
     "test:chat-perf": "npm run test:chat-e2e -- --performance",
-    "check:chat-e2e": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run build && node --test tests/browser-failures.test.ts tests/chat-e2e-safety.test.ts tests/quality-gates.test.ts tests/web-foundation.test.ts tests/chat-reuse-diagnostics.test.ts tests/outgoing-text.test.ts tests/message-sync-receiver.test.ts tests/group-message-windows.test.ts tests/history-window.test.ts tests/message-synchronization.test.ts tests/message-resume.test.ts tests/device-lifecycle.test.ts tests/device-authority.test.ts tests/device-profile-rotation.test.ts && npm run test:chat-e2e"
+    "check:chat-e2e": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run build && node --test tests/chat-network-lifecycle.test.ts tests/browser-failures.test.ts tests/chat-e2e-safety.test.ts tests/quality-gates.test.ts tests/web-foundation.test.ts tests/chat-reuse-diagnostics.test.ts tests/outgoing-text.test.ts tests/message-sync-receiver.test.ts tests/group-message-windows.test.ts tests/history-window.test.ts tests/message-synchronization.test.ts tests/message-resume.test.ts tests/device-lifecycle.test.ts tests/device-authority.test.ts tests/device-profile-rotation.test.ts && npm run test:chat-e2e"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

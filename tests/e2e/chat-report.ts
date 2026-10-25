@@ -29,6 +29,7 @@ interface Flow {
   missing: number;
 }
 interface Metrics {
+  work?: { activeRequests: number; pendingResponses: number };
   observations: { page: number; at?: number; event: Record<string, unknown> }[];
   latency: Flow[];
   dropped: number;
@@ -183,6 +184,7 @@ export async function chatSummary(raw: string) {
       ...report,
       metrics: report.metrics
         ? {
+            work: report.metrics.work ?? null,
             dropped: report.metrics.dropped,
             interruptedResponses: report.metrics.interruptedResponses,
             errors: report.metrics.errors,
