@@ -1,7 +1,10 @@
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { defaultPostTag } from '../../shared/community-posts/index.ts';
-import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPost,
+  DefaultPostTag,
+} from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 
@@ -198,18 +201,23 @@ export function postPendingMedia(node: HTMLElement, post: CommunityPost): void {
   if (post.text || post.title || post.media?.length) return;
   node.append(el('p', t('Media awaiting approval.')));
 }
+const defaultTagNames: Record<DefaultPostTag, () => string> = {
+  Discussion: () => t('Discussion'),
+  Opinion: () => t('Opinion'),
+  Memes: () => t('Memes'),
+  Question: () => t('Question'),
+  News: () => t('News'),
+  Analysis: () => t('Analysis'),
+  Alpha: () => t('Alpha'),
+  Help: () => t('Help'),
+  Announcement: () => t('Announcement'),
+  Showcase: () => t('Showcase'),
+  Event: () => t('Event'),
+};
 /** Default tags read in the viewer's language; names managers chose stay as written. */
 export function postTagName(label: string): string {
-  switch (defaultPostTag(label)) {
-    case 'Discussion':
-      return t('Discussion');
-    case 'Opinion':
-      return t('Opinion');
-    case 'Memes':
-      return t('Memes');
-    default:
-      return label;
-  }
+  const tag = defaultPostTag(label);
+  return tag ? defaultTagNames[tag]() : label;
 }
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;

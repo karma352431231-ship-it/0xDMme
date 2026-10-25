@@ -10,6 +10,8 @@ await test('default tags follow the viewer language, including labels seeded in 
     ['Discussão', 'Discussion', '讨论'],
     [' opinião ', 'Opinion', '观点'],
     ['Memes', 'Memes', '梗图'],
+    ['question', 'Question', '提问'],
+    ['Event', 'Event', '活动'],
     ['Alpha calls', 'Alpha calls', 'Alpha calls'],
   ];
   for (const [label, english, chinese] of cases) {

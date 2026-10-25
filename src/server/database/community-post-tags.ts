@@ -23,7 +23,12 @@ export async function seedCommunityTags(
 ): Promise<void> {
   await client.query(
     'INSERT INTO hash_talk.community_tags(id,community_id,label) SELECT unnest($1::uuid[]),$2,unnest($3::text[])',
-    [defaultPostTags.map(() => randomUUID()), community, [...defaultPostTags]],
+    [
+      // Tags page by id, so sorted ids keep the defaults in their listed order.
+      defaultPostTags.map(() => randomUUID()).sort(),
+      community,
+      [...defaultPostTags],
+    ],
   );
 }
 export async function communityTagPage(

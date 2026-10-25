@@ -5,6 +5,7 @@ import { AccountError } from '../../src/shared/account/index.ts';
 import { communityState } from '../../src/shared/communities/index.ts';
 import {
   communityPost,
+  defaultPostTags,
   postState,
   privatePostPage,
   tagPage,
@@ -230,11 +231,10 @@ await test('posts: open publication, local tags, privacy, revision, deletion and
   await t.test(
     'tags belong to the community and support revision and deactivation without deleting old classification',
     async () => {
-      assert.deepEqual(tags.items.map((tag) => tag.label).sort(), [
-        'Discussion',
-        'Memes',
-        'Opinion',
-      ]);
+      assert.deepEqual(
+        tags.items.map((tag) => tag.label),
+        [...defaultPostTags],
+      );
       const newTag = crypto.randomUUID();
       await assert.rejects(
         author.operate('tag-create', { id, tag: newTag, label: 'Test' }),

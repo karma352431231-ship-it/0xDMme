@@ -138,13 +138,23 @@ export function postTagIds(value: unknown): string[] {
   return ids;
 }
 /** Tags every new community starts with; managers can rename or retire them. */
-export const defaultPostTags = ['Discussion', 'Opinion', 'Memes'] as const;
+export const defaultPostTags = [
+  'Discussion',
+  'Opinion',
+  'Memes',
+  'Question',
+  'News',
+  'Analysis',
+  'Alpha',
+  'Help',
+  'Announcement',
+  'Showcase',
+  'Event',
+] as const;
 export type DefaultPostTag = (typeof defaultPostTags)[number];
-// Communities created before 25/10/2026 were seeded with Portuguese labels.
 const seededPostTags = new Map<string, DefaultPostTag>([
-  ['discussion', 'Discussion'],
-  ['opinion', 'Opinion'],
-  ['memes', 'Memes'],
+  ...defaultPostTags.map((tag) => [tag.toLowerCase(), tag] as const),
+  // Communities created before 25/10/2026 were seeded with Portuguese labels.
   ['discuss\u00e3o', 'Discussion'],
   ['opini\u00e3o', 'Opinion'],
 ]);
