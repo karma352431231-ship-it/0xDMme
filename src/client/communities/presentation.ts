@@ -192,6 +192,11 @@ export function postComments(
   container.append(a);
 }
 /** Each tag of the post links to its community filtered by that tag. */
+/** Text, title and approved media all missing: the post only had media still under review. */
+export function postPendingMedia(node: HTMLElement, post: CommunityPost): void {
+  if (post.text || post.title || post.media?.length) return;
+  node.append(el('p', t('Media awaiting approval.')));
+}
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;
   const row = el('div', '', 'post-tags');

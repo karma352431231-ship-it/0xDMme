@@ -32,6 +32,33 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Post titles lead their card: display face, a clear size step over the body
+   and the full text tone, while the body uses the softer --post-text. The
+   opened post (post-focus.css) and replies keep their own title sizes. */
+:is(#app-shell, .community-scope)
+  .community-card.community-post:not(.community-reply, .community-post-focus)
+  > h2 {
+  margin: 2px 0 10px;
+  color: var(--text);
+  font: 700 20px/1.25 var(--font-display);
+  letter-spacing: -0.01em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The split feed panel and phones have a smaller body, so a smaller title. */
+#app-shell
+  .feed-panel
+  .community-card.community-post:not(.community-reply, .community-post-focus)
+  > h2 {
+  font-size: 18px;
+}
+@media (max-width: 700px) {
+  :is(#app-shell, .community-scope)
+    .community-card.community-post:not(.community-reply, .community-post-focus)
+    > h2 {
+    font-size: 18px;
+  }
+}
 :is(.app[data-page='comunidades'], .community-scope) .community-card p {
   font-size: var(--fs-body);
   line-height: 1.6;
