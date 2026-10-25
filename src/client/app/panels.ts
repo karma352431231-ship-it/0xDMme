@@ -25,7 +25,6 @@ export const panelControlAttributes = [
   'data-layout-mode',
   'data-chat-collapse',
   'data-chat-split',
-  'data-feed-collapse',
   'data-scope-choice',
 ] as const;
 export const panelControlSelector = panelControlAttributes
@@ -314,7 +313,6 @@ export function startPanels(input: {
     if (control.hasAttribute('data-chat-collapse')) next = 'nochat';
     else if (control.hasAttribute('data-chat-split'))
       next = toggledChat(layout);
-    else if (control.hasAttribute('data-feed-collapse')) next = 'solo';
     navigateApp(
       splitHref({
         layout: next,

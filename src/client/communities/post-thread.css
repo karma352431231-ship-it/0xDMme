@@ -14,32 +14,50 @@
   margin-top: 10px;
 }
 .post-thread-item {
+  --reply-avatar-size: 32px;
+  --reply-top-inset: 14px;
   position: relative;
   min-width: 0;
 }
 .post-thread-branch {
   position: relative;
-  margin-left: 16px;
-  padding-left: 20px;
+  --thread-indent: 20px;
+  --thread-rail-left: calc(-1 * var(--thread-indent) - 1px);
+  margin-left: calc(var(--reply-avatar-size) / 2);
+  padding-left: var(--thread-indent);
 }
-.post-thread-branch::before {
+/* The stem starts at the parent avatar and follows the actual toggle height. */
+.post-thread-item:has(
+    > .post-thread-branch
+      > :is(.post-thread-children, .post-thread-preview):not([hidden])
+      > .post-thread-item
+  )
+  > .community-reply::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--reply-top-inset) + var(--reply-avatar-size));
+  bottom: 0;
+  left: calc(var(--reply-avatar-size) / 2 - 1px);
+  border-left: 1px solid var(--line-strong);
+}
+.post-thread-branch:has(
+    > .post-thread-children:not([hidden]) > .post-thread-item
+  )
+  > .post-thread-toggle::before {
   content: '';
   position: absolute;
   top: 0;
-  left: -1px;
-  height: 44px;
+  bottom: 0;
+  left: var(--thread-rail-left);
   border-left: 1px solid var(--line-strong);
-}
-.post-thread-branch:has(> .post-thread-children[hidden])::before {
-  display: none;
 }
 :is(.post-thread-children, .post-thread-preview) > .post-thread-item::before {
   content: '';
   position: absolute;
   top: 0;
-  left: -21px;
-  width: 20px;
-  height: 30px;
+  left: var(--thread-rail-left);
+  width: var(--thread-indent);
+  height: calc(var(--reply-top-inset) + var(--reply-avatar-size) / 2);
   border-left: 1px solid var(--line-strong);
   border-bottom: 1px solid var(--line-strong);
   border-bottom-left-radius: 12px;
@@ -50,34 +68,37 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -21px;
+  left: var(--thread-rail-left);
   border-left: 1px solid var(--line-strong);
 }
 .post-thread-branch.post-thread-deep {
+  --thread-indent: 8px;
+  --thread-rail-left: -9px;
   margin-left: 0;
   padding-left: 0;
 }
-.post-thread-branch.post-thread-deep::before,
-.post-thread-deep
-  > :is(.post-thread-children, .post-thread-preview)
-  > .post-thread-item::before,
-.post-thread-deep
-  > :is(.post-thread-children, .post-thread-preview)
-  > .post-thread-item::after {
+.post-thread-item:has(
+    > .post-thread-deep
+      > :is(.post-thread-children, .post-thread-preview):not([hidden])
+      > .post-thread-item
+  )
+  > .community-reply::before {
+  top: calc(var(--reply-top-inset) + var(--reply-avatar-size) / 2);
   left: -9px;
   width: 8px;
+  border-top: 1px solid var(--line-strong);
+  border-top-left-radius: 8px;
 }
 /* An isolated avatar column keeps the comment and its controls under the
    author. Specificity prevents the surrounding feed cards from boxing replies. */
 #app-shell .post-thread-item > .community-card.community-reply {
-  --reply-avatar-size: 32px;
   position: relative;
   display: grid;
   grid-template-columns: var(--reply-avatar-size) minmax(0, 1fr);
   column-gap: 10px;
   align-items: start;
   margin: 0;
-  padding: 14px 0 6px;
+  padding: var(--reply-top-inset) 0 6px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -123,6 +144,7 @@
   border-radius: 0;
 }
 #app-shell .post-thread :is(.post-thread-toggle, .post-thread-more button) {
+  position: relative;
   min-height: 44px;
   padding: 6px 4px;
   margin: 0;
@@ -144,12 +166,6 @@
 }
 @media (max-width: 700px) {
   .post-thread-branch {
-    padding-left: 12px;
-    margin-left: 16px;
-  }
-  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::before,
-  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::after {
-    left: -13px;
-    width: 12px;
+    --thread-indent: 12px;
   }
 }
