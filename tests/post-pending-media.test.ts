@@ -34,9 +34,9 @@ await test('the media notice shows only when a post has no text, title or approv
     if (previous) Object.defineProperty(globalThis, 'document', previous);
     else Reflect.deleteProperty(globalThis, 'document');
   });
-  const media = [
-    { id: crypto.randomUUID() },
-  ] as unknown as CommunityPost['media'];
+  const media = [{ id: crypto.randomUUID() }] as unknown as NonNullable<
+    CommunityPost['media']
+  >;
   const cases: [Partial<CommunityPost>, boolean][] = [
     [{}, true],
     [{ title: 'Title only' }, false],
