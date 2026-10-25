@@ -3645,6 +3645,8 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Vault cleanup started.': ['Vault cleanup started.', '保险库清理已开始。'],
   'Link copied.': ['Link copied.', '链接已复制。'],
+  'Copy link': ['Copy link', '复制链接'],
+  'Could not copy the link.': ['Could not copy the link.', '无法复制链接。'],
   'Link copied. Share it manually with the recipient.': [
     'Link copied. Share it manually with the recipient.',
     '链接已复制。请手动分享给接收者。',
