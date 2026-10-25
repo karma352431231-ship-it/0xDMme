@@ -187,6 +187,7 @@ const backups = startBackups(devices, vault.sync, playback, {
 const contacts = startContacts(devices, vault.sync, {
   saved: (contact) => messages.contactSaved(contact),
   open: (peer) => messages.openContact(peer),
+  peerPhoto: (host, peer, signal) => messages.peerPhoto(host, peer, signal),
 });
 // The wallet approval document has no contacts editor.
 const contactEditorHost = document.getElementById('contact-editor-host');

@@ -55,6 +55,9 @@ interface DirectoryView {
   openChat?: (peer: ListedPeer) => Promise<void>;
   button: (label: string, work: () => Promise<void>) => HTMLButtonElement;
   openContact: (item: DirectoryItem) => Promise<void>;
+  /** Covers the initials with the contact's private photo, when this device has one. */
+  peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
+  signal: AbortSignal;
 }
 function directoryTitle(item: DirectoryItem): string {
   if (item.saved && item.saved.contact.alias) return item.saved.contact.alias;
@@ -63,10 +66,19 @@ function directoryTitle(item: DirectoryItem): string {
   const identity = item.peer ?? item.saved!.contact;
   return shortAddress(identity.address);
 }
+/** Accepted and saved contacts share the photo their verified profile card carries. */
+function directoryPhoto(
+  avatar: HTMLElement,
+  item: DirectoryItem,
+  view: DirectoryView,
+): void {
+  const account = item.peer?.accountId ?? item.saved?.contact.accountId;
+  if (account && view.peerPhoto) view.peerPhoto(avatar, account, view.signal);
+}
 function directoryRow(item: DirectoryItem, view: DirectoryView): HTMLLIElement {
   const title = directoryTitle(item);
   const identity = item.peer ?? item.saved!.contact;
-  const { row, actions } = contactRow({
+  const { row, actions, avatar } = contactRow({
     title,
     seed: identity.address,
     detail:
@@ -82,6 +94,7 @@ function directoryRow(item: DirectoryItem, view: DirectoryView): HTMLLIElement {
     actions.append(chat);
   }
   actions.append(view.button(t('Open contact'), () => view.openContact(item)));
+  directoryPhoto(avatar, item, view);
   row.dataset['contactState'] = item.kind;
   if (item.kind !== 'approved') {
     const state = document.createElement('span');

@@ -41,6 +41,7 @@ export function startContacts(
   options: {
     saved?: (contact: AddressBookEntry) => Promise<void>;
     open?: (peer: Peer) => Promise<void>;
+    peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
   } = {},
 ) {
   const contacts = new Contacts(access),
@@ -74,6 +75,8 @@ export function startContacts(
     revoke: (hash) => contacts.revokeInvitation(hash),
   });
   let camera: QrCamera | null = null;
+  // Photo loads belong to one directory render; the next render cancels them.
+  let directoryPhotos = new AbortController();
   function node<T extends HTMLElement>(selector: string): T | null {
     return (
       mounted?.querySelector<T>(selector) ??
@@ -269,10 +272,14 @@ export function startContacts(
       '[data-contact-page-state="approved"]',
       t('{0} loaded', [items.length]),
     );
+    directoryPhotos.abort();
+    directoryPhotos = new AbortController();
     renderDirectory({
       list,
       items: items.slice(offset, offset + 16),
       button,
+      signal: directoryPhotos.signal,
+      ...(options.peerPhoto ? { peerPhoto: options.peerPhoto } : {}),
       ...(options.open ? { openChat: options.open } : {}),
       openContact: (item) =>
         contactSettings.open(

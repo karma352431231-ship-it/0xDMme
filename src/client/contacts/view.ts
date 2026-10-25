@@ -36,6 +36,7 @@ export function contactRow(input: {
 }): {
   row: HTMLLIElement;
   actions: HTMLDivElement;
+  avatar: HTMLSpanElement;
 } {
   const row = document.createElement('li'),
     avatar = document.createElement('span'),
@@ -54,7 +55,7 @@ export function contactRow(input: {
   body.append(title, detail);
   actions.className = 'contact-row-actions';
   row.append(avatar, body, actions);
-  return { row, actions };
+  return { row, actions, avatar };
 }
 
 export function contactMenu(
