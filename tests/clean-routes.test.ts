@@ -77,7 +77,7 @@ await test('malformed paths and private fragments cannot become public post targ
     post = '00000000-0000-4000-8000-000000000002';
   assert.equal(
     publicPostHash(`/communities/id/${id}/posts/${post}`),
-    '/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg',
+    `/communities/id/${id}/posts/${post}`,
   );
   assert.equal(publicPostHash(`/communities/name/posts/${post}`), null);
   for (const href of [

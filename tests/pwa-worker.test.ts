@@ -591,7 +591,7 @@ await test('public push shows validated author and preview with monochrome symbo
     notification: { close() {}, data: notification.options.data as unknown },
   });
   assert.deepEqual(scope.opened, [
-    `${scope.origin}/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg`,
+    `${scope.origin}/communities/id/${publicPreview.community}/posts/${publicPreview.post}`,
   ]);
   await scope.dispatch('notificationclick', {
     notification: {

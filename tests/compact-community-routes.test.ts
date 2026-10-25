@@ -26,10 +26,11 @@ await test('community and post paths preserve their structure and restore comple
     assert.ok(appDocumentPath(href));
     assert.deepEqual([...appRoute(href)!.params], [...params]);
   }
-  assert.equal(publicPostHash(compact), compact);
+  const notificationTarget = `/communities/id/${community}/posts/${post}`;
+  assert.equal(publicPostHash(compact), notificationTarget);
   assert.equal(
     publicPostHash(`#communities?id=${community}&post=${post}`),
-    compact,
+    notificationTarget,
   );
 });
 
