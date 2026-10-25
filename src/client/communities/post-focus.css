@@ -132,18 +132,58 @@
   font-size: 16px;
   line-height: 1.55;
 }
+/* Reply actions mirror the post's row one pixel smaller, votes included
+   (owner, 25/10/2026). Each layout sets its post sizes elsewhere; these
+   follow them. */
+#app-shell .community-card.community-reply {
+  --reply-action-height: 39px;
+  --reply-vote-width: 34px;
+  --reply-action-font: 11.5px;
+  --reply-action-icon: 17px;
+}
+@media (min-width: 1280px) {
+  #app-shell[data-page='comunidades'] .community-card.community-reply {
+    --reply-action-height: 33px;
+    --reply-vote-width: 28px;
+    --reply-action-font: 13.5px;
+    --reply-action-icon: 15px;
+  }
+  #app-shell .feed-panel .community-card.community-reply {
+    --reply-action-height: 27px;
+    --reply-vote-width: 24px;
+    --reply-action-font: 12px;
+    --reply-action-icon: 14px;
+  }
+}
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] .community-card.community-reply {
+    --reply-action-height: 33px;
+    --reply-vote-width: 32px;
+    --reply-action-font: 12.5px;
+    --reply-action-icon: 15px;
+  }
+}
 #app-shell
   .community-card.community-reply
   .post-actions
   :is(.post-action, .post-votes, .post-more > summary, button) {
-  min-height: 30px;
-  padding: 3px 9px;
-  font-size: 13px;
+  min-height: var(--reply-action-height);
+  padding: 0 9px;
+  font-size: var(--reply-action-font);
 }
-#app-shell .community-card.community-reply .post-votes :is(button, a) {
-  min-width: 28px;
-  min-height: 30px;
-  padding: 3px;
+/* Same weight as the row rule above, so vote buttons drop its side padding. */
+#app-shell
+  .community-card.community-reply
+  .post-actions
+  .post-votes
+  :is(button, a) {
+  min-width: var(--reply-vote-width);
+  min-height: var(--reply-action-height);
+  padding: 0;
+}
+#app-shell .community-card.community-reply .post-actions svg {
+  width: var(--reply-action-icon);
+  height: var(--reply-action-icon);
 }
 /* Post options open from a quiet button in the action row. */
 #app-shell .post-actions > button:not(.post-action) {
@@ -177,8 +217,8 @@
   white-space: nowrap;
 }
 #app-shell .community-card.community-reply .post-actions .post-more > summary {
-  width: 30px;
-  padding: 3px;
+  width: var(--reply-action-height);
+  padding: 0;
   font-size: 0;
 }
 /* The way back is the community link above the post. */
