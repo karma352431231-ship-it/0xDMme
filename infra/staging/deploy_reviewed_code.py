@@ -14,6 +14,13 @@ HOTSPOT_ADMISSION_MODULES = frozenset({
     'group-retention.ts', 'index.ts', 'representatives.ts',
 })
 
+# Owner requested activation of the top nested reply preview. Only these two
+# bounded read projections change; pin both complete database trees and retain
+# every migration, runtime dependency and unrelated database module guard.
+TOP_REPLY_PREVIEW_BEFORE = '008ee6aaf2da4342c0d80c32c0c41c849699d34f'
+TOP_REPLY_PREVIEW_REVIEWED = '8bf7b251899f1da9ebbb21b08b731cd36dc44eae'
+TOP_REPLY_PREVIEW_MODULES = frozenset({'community-discussion.ts', 'community-posts.ts'})
+
 # Owner-reviewed dev-only NaCl transition, including rollback. Never a general
 # allowance for dev dependencies; every other changed lock remains blocked.
 PHANTOM_PROBE_LOCKFILES = frozenset([
@@ -273,6 +280,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(TOP_REPLY_PREVIEW_MODULES), TOP_REPLY_PREVIEW_BEFORE, TOP_REPLY_PREVIEW_REVIEWED),
         (set(HOTSPOT_ADMISSION_MODULES), HOTSPOT_ADMISSION_BEFORE, HOTSPOT_ADMISSION_REVIEWED),
         (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
         (set(GROUP_READ_ALL_MODULES), GROUP_READ_ALL_BEFORE, GROUP_READ_ALL_REVIEWED),
