@@ -207,6 +207,9 @@ export class MessageComposer {
     input.focus();
     return true;
   }
+  /** Stages the text, with the first chosen file when there is one. Each file
+   * is its own message: callers repeat while `hasAttachment` stays true, and
+   * only the first carries the text and reply. */
   async save(peer: string | null): Promise<boolean> {
     if (this.voice.active)
       throw new Error('Stop recording and check the preview before sending.');
@@ -225,7 +228,7 @@ export class MessageComposer {
     input.value = '';
     input.dispatchEvent(new Event('input'));
     this.clearContext();
-    this.attachments.clearSelection();
+    this.attachments.sent();
     this.cancelRecording();
     return true;
   }

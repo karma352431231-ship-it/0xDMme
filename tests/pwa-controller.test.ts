@@ -338,19 +338,25 @@ await test('Update now waits for transient synchronization and revalidates befor
 await test('opening public push changes only the tab route without reloading and rejects external destinations', () => {
   const scope = browser();
   scope.start();
-  const id = crypto.randomUUID(),
-    post = crypto.randomUUID();
+  const id = '00000000-0000-4000-8000-000000000001',
+    post = '00000000-0000-4000-8000-000000000002';
   const hash = `#comunidades?id=${id}&post=${post}`;
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', { data: { type: 'OPEN_PUBLIC_POST', hash } }),
   );
-  assert.equal(scope.location.pathname, `/communities/id/${id}/posts/${post}`);
+  assert.equal(
+    scope.location.pathname,
+    '/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg',
+  );
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', {
       data: { type: 'OPEN_PUBLIC_POST', hash: 'https://other.example' },
     }),
   );
-  assert.equal(scope.location.pathname, `/communities/id/${id}/posts/${post}`);
+  assert.equal(
+    scope.location.pathname,
+    '/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg',
+  );
   assert.equal(scope.reloads(), 0);
   scope.window.dispatchEvent(new Event('pagehide'));
 });

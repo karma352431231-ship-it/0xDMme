@@ -133,9 +133,9 @@
      feed leaves less empty space; at 1280–1700px they keep their base widths. */
   #app-shell {
     --contacts-col: clamp(272px, 16vw, 320px);
-    --chat-col: clamp(400px, 23vw, 460px);
+    --chat-col: clamp(340px, 19.55vw, 391px);
     --community-nav-col: clamp(260px, 15vw, 300px);
-    --ranking-col: clamp(380px, 22vw, 440px);
+    --ranking-col: clamp(323px, 18.7vw, 374px);
     grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr);
   }
   #app-shell[data-page='comunidades'] {
@@ -275,6 +275,12 @@
     width: 100%;
     max-width: 944px;
     margin-inline: auto;
+  }
+  #app-shell[data-page='conversas'][data-layout='nochat']
+    .feed-panel-heading
+    [data-chat-split]
+    svg {
+    transform: scaleX(-1);
   }
   #app-shell[data-page='conversas'][data-layout='nochat'] {
     grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr);

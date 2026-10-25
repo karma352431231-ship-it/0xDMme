@@ -76,7 +76,7 @@ await test('confirmed root/reply edits replace only their card and show a locali
       };
       value.authorBadges = [
         { id: null, kind: 'new', label: 'New member' },
-        { id: crypto.randomUUID(), kind: 'custom', label: 'Nome escolhido' },
+        { id: crypto.randomUUID(), kind: 'custom', label: 'Chosen name' },
       ];
       if (reply) {
         value.parent = crypto.randomUUID();
@@ -116,8 +116,8 @@ await test('confirmed root/reply edits replace only their card and show a locali
         badges[0]!.getAttribute('aria-label'),
         language === 'en' ? 'New member' : '新成员',
       );
-      assert.equal(badges[1]!.getAttribute('aria-label'), 'Nome escolhido');
-      assert.equal(badges[1]!.textContent, 'Nome escolhido');
+      assert.equal(badges[1]!.getAttribute('aria-label'), 'Chosen name');
+      assert.equal(badges[1]!.textContent, 'Chosen name');
       assert.equal(host.children[1], expanded);
       assert.equal(host.children[2], siblingDraft);
       assert.equal(siblingDraft.value, 'Unsent sibling reply');
@@ -146,4 +146,38 @@ await test('accepting an edit updates snapshots without losing viewer state or c
   root.clear();
   root.accept(publicResult);
   assert.equal(root.changed('root', accepted), true);
+});
+
+await test('confirmed preview edits retain their snapshot and removed previews leave it', () => {
+  const parent = post(),
+    child = { ...post(), parent: parent.id, root: parent.id },
+    accepted = edit(child);
+  const snapshot = new PostSnapshot();
+  snapshot.changed('discussion', {
+    items: [parent],
+    previews: [child],
+    next: null,
+  });
+  snapshot.accept(accepted);
+  assert.equal(
+    snapshot.changed('discussion', {
+      items: [parent],
+      previews: [accepted],
+      next: null,
+    }),
+    false,
+  );
+  snapshot.accept({
+    ...accepted,
+    status: 'removed',
+    revision: accepted.revision + 1,
+  });
+  assert.equal(
+    snapshot.changed('discussion', {
+      items: [parent],
+      previews: [],
+      next: null,
+    }),
+    false,
+  );
 });

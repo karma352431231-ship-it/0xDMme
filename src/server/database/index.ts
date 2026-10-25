@@ -1,3 +1,5 @@
+import { DatabaseAdmission } from './admission.ts';
+export type { DatabaseAdmission } from './admission.ts';
 export { physicalAllocationBytesSql } from './content-allocation-scopes.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContentWriteAllocations } from './content-write-allocations.ts';
@@ -271,6 +273,7 @@ export class Database {
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
+  readonly admission: DatabaseAdmission;
   readonly messageRecovery: MessageRecoveryStore;
   readonly messages: MessageStore;
   readonly matrix: MatrixStore;
@@ -330,11 +333,15 @@ export class Database {
     );
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity, writers.vault);
-    this.contacts = new ContactStore({
+    this.admission = new DatabaseAdmission({
       pool: this.pool,
       changes: this.changes,
       relayChanges: role === 'worker',
       allocations: this.contentAllocations,
+    });
+    this.contacts = new ContactStore({
+      pool: this.pool,
+      admission: this.admission,
       capacity: contentCapacity,
     });
     this.publicModeration = new PublicModerationStore(
@@ -433,7 +440,7 @@ export class Database {
     });
     this.representatives = new RepresentativeStore(
       this.pool,
-      this.contacts,
+      this.admission,
       contentCapacity,
     );
     this.daily = new DailyStore({
@@ -489,19 +496,19 @@ export class Database {
     this.groupDaily = new GroupDailyStore(
       this.pool,
       this.groups,
-      this.contacts,
+      this.admission,
       contentCapacity,
     );
     this.matrix = new MatrixStore(this.contacts, contentCapacity, this.groups);
     this.groupMedia = new GroupMediaStore(
       this.pool,
-      this.contacts,
+      this.admission,
       this.groups,
       contentCapacity,
     );
     this.groupRetention = new GroupRetentionStore(
       this.pool,
-      this.contacts,
+      this.admission,
       this.groups,
       contentCapacity,
     );

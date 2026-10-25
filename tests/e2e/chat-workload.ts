@@ -84,13 +84,7 @@ export async function verifyBurst(
     .poll(async () => {
       const rows = await visibleRows(page, kind);
       const all = orderedTokens([rows], tokens);
-      const earlier = page.locator(
-        kind === 'group' ? '[data-group-older]' : '[data-message-older]',
-      );
-      return (
-        tokens.every((token) => all.includes(token)) ||
-        (await earlier.isVisible())
-      );
+      return tokens.every((token) => all.includes(token)) || rows.length >= 16;
     })
     .toBe(true);
   const pages: VisibleRow[][] = [];
@@ -99,13 +93,10 @@ export async function verifyBurst(
     pages.unshift(rows);
     const found = orderedTokens(pages, tokens);
     if (tokens.every((token) => found.includes(token))) break;
-    const earlier = page.locator(
-      kind === 'group' ? '[data-group-older]' : '[data-message-older]',
-    );
-    if (!(await earlier.isVisible())) break;
     metrics?.historyReview(page);
     const previous = rows.map((row) => row.id).join(',');
-    await earlier.click();
+    await history(page, kind).hover();
+    await page.mouse.wheel(0, -10_000);
     await expect
       .poll(async () => {
         const current = await visibleRows(page, kind);

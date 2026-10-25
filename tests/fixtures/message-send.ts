@@ -70,7 +70,9 @@ const bundle = await build({
         builder.onResolve(
           { filter: /^\.\.\/(message-storage|message-session)\/index\.ts$/ },
           ({ path, importer }) =>
-            importer.endsWith('/messages/controller.ts')
+            importer.endsWith('/messages/controller.ts') ||
+            importer.endsWith('/messages/outbox.ts') ||
+            importer.endsWith('/messages/profile-chunks.ts')
               ? { path: path.split('/')[1]!, namespace: 'send-fixture' }
               : undefined,
         );
@@ -95,7 +97,9 @@ const source = bundle.outputFiles[0]!.text;
 interface Draft {
   id: string;
   peer: string;
-  kind: 'text';
+  kind: MessagePacket['kind'];
+  transferStarted?: boolean;
+  relation?: MessagePacket['relation'];
   packet: MessagePacket | null;
   draft: LocalCipher[];
 }
@@ -123,6 +127,11 @@ export async function sendFixture() {
     savedPin: undefined as (() => void) | undefined,
     machineOpens: 0,
     authorityReads: 0,
+    expectedPriority: 'interactive' as 'interactive' | undefined,
+    losePublishResponse: false,
+    failPublish: false,
+    closedMachines: 0,
+    events: [] as { id: string; peer: string }[],
   };
   const transport = messageTransport();
   const reader = await MessageCrypto.create({
@@ -135,7 +144,7 @@ export async function sendFixture() {
   await reader.prepare(peer.authority);
   const access: VaultAccess = {
     withVault: (_offline, work, options) => {
-      assert.equal(options?.priority, 'interactive');
+      assert.equal(options?.priority, state.expectedPriority);
       state.beforeAuthority?.(++state.authorityReads);
       return work(state.authority);
     },
@@ -196,11 +205,21 @@ export async function sendFixture() {
         transport: api,
       });
       machines.push(machine);
+      const close = machine.close.bind(machine);
+      machine.close = () => {
+        state.closedMachines++;
+        close();
+      };
       return machine;
     },
   };
   const publish = async (payload: Record<string, unknown>) => {
     state.beforePublish?.();
+    if (state.failPublish)
+      return Response.json(
+        { error: 'Synthetic publication failure' },
+        { status: 503 },
+      );
     const packet = messagePacket(payload['packet']);
     if (
       packet.recipientDirectory !== (await eventHash(state.peerEvents.at(-1)!))
@@ -211,7 +230,23 @@ export async function sendFixture() {
       );
     await verifyPacket(packet, state.authority.events.at(-1)!);
     publications.push(packet);
+    if (state.losePublishResponse) {
+      state.losePublishResponse = false;
+      throw new Error('Synthetic lost publication response');
+    }
     return Response.json({});
+  };
+  const matrixResponse = async (
+    operation: string,
+    payload: Record<string, unknown>,
+  ) => {
+    if (operation === 'matrix-send') state.beforeKeys?.();
+    return Response.json(
+      await transport.transport(
+        operation as Parameters<typeof transport.transport>[0],
+        payload,
+      ),
+    );
   };
   const respond = async (path: string, input: RequestInit) => {
     const operation = path.split('/').at(-1)!;
@@ -228,20 +263,14 @@ export async function sendFixture() {
       });
     if (operation === 'recovery-current') return Response.json(recovery);
     if (operation === 'recovery-peer') return Response.json(peerRecovery);
-    if (operation.startsWith('matrix-')) {
-      if (operation === 'matrix-send') state.beforeKeys?.();
-      return Response.json(
-        await transport.transport(
-          operation as Parameters<typeof transport.transport>[0],
-          payload,
-        ),
-      );
-    }
+    if (operation.startsWith('matrix-'))
+      return matrixResponse(operation, payload);
     if (operation === 'publish') return publish(payload);
     if (operation === 'accepted')
       return Response.json(
         publications.some((packet) => packet.id === payload['id']),
       );
+    if (operation === 'delete') return Response.json({});
     throw new Error(`Unexpected sender operation: ${operation}`);
   };
   const context = {
@@ -268,6 +297,7 @@ export async function sendFixture() {
     access,
     sync,
     () => {},
+    { published: (value) => state.events.push(value) },
   );
   controller.setSession(sender.authority.session as AccountSession);
   const queue = async (id = crypto.randomUUID()) => {

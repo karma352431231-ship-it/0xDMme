@@ -431,6 +431,8 @@ await test('server rejects origin violations, mutations, traversal and private d
     assert.equal((await get(path)).status, 404);
   for (const path of [
     '/split/feed',
+    '/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg',
+    '/split/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg',
     '/split/profile/karma',
     '/users/handle/karma',
     '/communities/new-community',

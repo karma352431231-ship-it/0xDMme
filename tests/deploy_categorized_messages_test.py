@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
+import deploy_reviewed_code as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups
@@ -16,13 +17,13 @@ class CategorizedMessagesReviewTests(unittest.TestCase):
         for name in ['communities.ts', 'community-discovery.ts']:
             (self.candidate / 'src/server/database' / name).write_bytes(
                 (self.live / 'src/server/database' / name).read_bytes())
-        for name in remote.CATEGORIZED_MESSAGES_MODULES:
+        for name in reviewed_code.CATEGORIZED_MESSAGES_MODULES:
             if name != 'transaction-changes.ts':
                 (self.live / 'src/server/database' / name).write_text('previous operation')
             (self.candidate / 'src/server/database' / name).write_text('reviewed operation')
         self.exports = {
-            remote.CATEGORIZED_MESSAGES_BEFORE: fixture.export(self.live),
-            remote.CATEGORIZED_MESSAGES_REVIEWED: fixture.export(self.candidate),
+            reviewed_code.CATEGORIZED_MESSAGES_BEFORE: fixture.export(self.live),
+            reviewed_code.CATEGORIZED_MESSAGES_REVIEWED: fixture.export(self.candidate),
         }
 
     def test_exact_trees_use_code_exchange_without_a_migration(self):
@@ -34,7 +35,7 @@ class CategorizedMessagesReviewTests(unittest.TestCase):
             self.assertTrue(remote.database_code_reviewed(self.candidate, self.live))
 
     def test_any_changed_operation_or_predecessor_invalidates_review(self):
-        paths = [(self.candidate, name) for name in remote.CATEGORIZED_MESSAGES_MODULES]
+        paths = [(self.candidate, name) for name in reviewed_code.CATEGORIZED_MESSAGES_MODULES]
         paths += [(self.live, 'contacts.ts')]
         for root, name in paths:
             with self.subTest(path=name, candidate=root == self.candidate):

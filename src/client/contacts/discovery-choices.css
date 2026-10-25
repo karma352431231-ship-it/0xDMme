@@ -79,7 +79,7 @@
   .discovery-tip {
     top: auto;
     bottom: calc(100% + 6px);
-    max-height: min(240px, calc(100dvh - 32px));
+    max-height: min(240px, calc(var(--viewport-height, 100dvh) - 32px));
     overflow-y: auto;
   }
 }

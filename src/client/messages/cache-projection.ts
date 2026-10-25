@@ -1,5 +1,7 @@
 import type { MessageItem } from './history.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
+import { relationBudget, windowRoots } from '../history-window/index.ts';
+import type { HistoryFloor } from '../history-window/index.ts';
 interface CachedView {
   id: string;
   hash: string;
@@ -11,11 +13,13 @@ interface CachedView {
 }
 
 /** Immutable packet identities plus authenticated removals update a retained
- * window; older actions never resurrect a removed root during replay. */
+ * window; older actions never resurrect a removed root during replay. The
+ * window keeps the conversation's floor (history-window). */
 export function projectCachedConversation<T extends CachedView>(
   previous: T[],
   items: MessageItem[],
   incoming: T[],
+  floor: HistoryFloor = null,
 ): T[] {
   const changes = new Map(items.map((item) => [item.id, item]));
   for (const view of previous) {
@@ -38,14 +42,22 @@ export function projectCachedConversation<T extends CachedView>(
     if (!removed.has(view.id) && !removed.has(view.relation?.id ?? ''))
       rows.set(view.id, view);
   }
-  const ordered = [...rows.values()].sort(
-    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+  return boundWindow(
+    [...rows.values()].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)),
+    floor,
   );
+}
+
+function boundWindow<T extends CachedView>(
+  ordered: T[],
+  floor: HistoryFloor,
+): T[] {
   const roots = new Set(
-    ordered
-      .filter((row) => row.kind !== 'profile' && !row.relation)
-      .slice(-16)
-      .map((row) => row.id),
+    windowRoots(
+      ordered.filter((row) => row.kind !== 'profile' && !row.relation),
+      floor,
+      (row) => row.sequence,
+    ).map((row) => row.id),
   );
   const profiles = new Map(
     ordered
@@ -57,7 +69,7 @@ export function projectCachedConversation<T extends CachedView>(
       ? profiles.get(row.own) === row.id
       : roots.has(row.relation?.id ?? row.id),
   );
-  if (bounded.filter((row) => row.relation).length > 48)
+  if (bounded.filter((row) => row.relation).length > relationBudget(roots.size))
     throw new Error('Message relation window exceeds its verified budget.');
   return bounded;
 }

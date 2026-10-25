@@ -268,6 +268,12 @@ export const catalog: Record<string, readonly [string, string]> = {
 
   'post.edited': [' · Edited', ' · 已编辑'],
   'thread.load-remaining': ['Load remaining replies', '加载其余回复'],
+  'Invalid discussion preview.': [
+    'Invalid discussion preview.',
+    '回复预览无效。',
+  ],
+  'Top voted reply': ['Top voted reply', '获赞最高的回复'],
+  '＋ View 1 more reply': ['＋ View 1 more reply', '＋ 查看另外 1 条回复'],
   'activity.now': ['Now', '刚刚'],
   'contacts.request-sent-save-failed': [
     'Request sent, but the contact could not be saved. Refresh contacts before trying again.',
@@ -842,10 +848,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'attachment.card-detail {0}': [
     '{0} MB · original, may keep GPS/EXIF',
     '{0} MB · 原始文件，可能保留 GPS/EXIF',
-  ],
-  'attachment.card-metadata': [
-    'The original is sent as is and may keep photo metadata such as GPS/EXIF.',
-    '原始文件按原样发送，可能保留 GPS/EXIF 等照片元数据。',
   ],
   'message.sending': ['Sending…', '正在发送…'],
   'crop.title': ['Edit media', '编辑图片'],
@@ -4638,12 +4640,18 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Hide through moderation': ['Hide through moderation', '通过审核隐藏'],
   'Hide post': ['Hide post', '隐藏帖子'],
   Hidden: ['Hidden', '已隐藏'],
-  'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.':
+  'Make {0} the owner now? They do not need to accept. You will become a regular member.':
     [
-      'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.',
-      '向 {0} 转让所有权？对方需要接受。接受后，你将成为普通成员。',
+      'Make {0} the owner now? They do not need to accept. You will become a regular member.',
+      '立即让 {0} 成为所有者？对方无需接受。你将成为普通成员。',
     ],
-  'Offer ownership': ['Offer ownership', '转让所有权'],
+  'Make owner': ['Make owner', '设为所有者'],
+  'Choose the new owner': ['Choose the new owner', '选择新的所有者'],
+  'They become the owner right away, without accepting. You leave the group and lose access to the remote vault.':
+    [
+      'They become the owner right away, without accepting. You leave the group and lose access to the remote vault.',
+      '对方将立即成为所有者，无需接受。你将退出群组并失去访问远程保险库的权限。',
+    ],
   'Offer transfer': ['Offer transfer', '提出转让'],
   Online: ['Online', '在线'],
   "Optional. Publish the TXT record in the domain's DNS panel. The link may be shared; it does not prove legal ownership or reputation.":
@@ -5574,6 +5582,22 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   Remove: ['Remove', '移除'],
   'Remove {0}': ['Remove {0}', '移除 {0}'],
+  Today: ['Today', '今天'],
+  Yesterday: ['Yesterday', '昨天'],
+  'Earlier messages': ['Earlier messages', '更早的消息'],
+  'Loading earlier messages…': [
+    'Loading earlier messages…',
+    '正在加载更早的消息…',
+  ],
+  '{0} MB of {1} MB': ['{0} MB of {1} MB', '{0} MB / {1} MB'],
+  'Up to {0} files per send.': [
+    'Up to {0} files per send.',
+    '每次最多发送 {0} 个文件。',
+  ],
+  'Files sent together can take up to {0} MB.': [
+    'Files sent together can take up to {0} MB.',
+    '一起发送的文件总计最多 {0} MB。',
+  ],
   'Remove {0} from the group?': [
     'Remove {0} from the group?',
     '将 {0} 移出群组？',
@@ -6320,10 +6344,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Community transfer awaiting you',
     '社区转让等待你接受',
   ],
-  'Transfer offered. Ownership changes after the selected member accepts.': [
-    'Transfer offered. Ownership changes after the selected member accepts.',
-    '已提出转让。所选成员接受后，所有权将更改。',
-  ],
   'Transfer to you': ['Transfer to you', '向你转让'],
   Transfers: ['Transfers', '转让'],
   'Community transfers': ['Community transfers', '社区转让'],
@@ -6752,8 +6772,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<header><div><span class="group-eyebrow">私密群组</span><h2>群组图片</h2></div><button data-close class="group-close" type="button" aria-label="关闭群组图片">{0}</button></header><div data-preview class="group-photo-preview" aria-hidden="true"></div><p class="group-hint">请选择群组图片。图片将裁剪为正方形。</p><input data-file type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="group-button-row"><button data-pick type="button">选择图片</button><button data-remove class="group-danger" type="button">移除图片</button></div><div class="group-form-footer"><button data-save class="group-primary" type="button" disabled>保存图片</button></div><p data-feedback class="group-feedback" role="status"></p>',
   ],
   'html.6f2aac1c9ed0': [
-    '<dialog data-group-settings class="group-dialog group-settings" aria-label="Group settings"><header><div><span class="group-eyebrow">PRIVATE GROUP</span><h2>Group settings</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="Close settings">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="Change group photo" title="Change group photo"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-description-section"><h3>Description</h3><p data-group-description></p><form data-group-description-form hidden><label>Edit description<textarea data-group-description-input maxlength="1000" rows="3"></textarea></label><button data-group-description-save class="group-primary" type="submit">Save description</button><button data-group-description-reload type="button">Reload description</button></form><p data-group-description-feedback class="group-feedback" role="status"></p></section><section class="group-members-section"><div class="group-section-heading"><h3>Participants</h3><button data-group-manage class="group-primary" type="button">Add</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>Group vault<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Next selected media</button><p><a href="#vault">Save an encrypted backup</a> to keep a copy of media before cleanup. Statuses are not included in the backup.</p><button data-group-clear class="group-danger" type="button">Clear remote vault</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">To leave, offer ownership to another member and wait for acceptance.</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">Leave group</button><button data-group-delete class="group-danger" type="button">Delete group</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
-    '<dialog data-group-settings class="group-dialog group-settings" aria-label="群组设置"><header><div><span class="group-eyebrow">私密群组</span><h2>群组设置</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="关闭设置">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="更换群组图片" title="更换群组图片"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-description-section"><h3>简介</h3><p data-group-description></p><form data-group-description-form hidden><label>编辑简介<textarea data-group-description-input maxlength="1000" rows="3"></textarea></label><button data-group-description-save class="group-primary" type="submit">保存简介</button><button data-group-description-reload type="button">重新加载简介</button></form><p data-group-description-feedback class="group-feedback" role="status"></p></section><section class="group-members-section"><div class="group-section-heading"><h3>成员</h3><button data-group-manage class="group-primary" type="button">添加</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>群组保险库<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>下一批已选媒体</button><p><a href="#vault">保存加密备份</a> 以在清理前保留媒体副本。状态不包含在备份中。</p><button data-group-clear class="group-danger" type="button">清理远程保险库</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">退出前，请向其他成员转让所有权并等待对方接受。</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">退出群组</button><button data-group-delete class="group-danger" type="button">删除群组</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
+    '<dialog data-group-settings class="group-dialog group-settings" aria-label="Group settings"><header><div><span class="group-eyebrow">PRIVATE GROUP</span><h2>Group settings</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="Close settings">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="Change group photo" title="Change group photo"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-description-section"><h3>Description</h3><p data-group-description></p><form data-group-description-form hidden><label>Edit description<textarea data-group-description-input maxlength="1000" rows="3"></textarea></label><button data-group-description-save class="group-primary" type="submit">Save description</button><button data-group-description-reload type="button">Reload description</button></form><p data-group-description-feedback class="group-feedback" role="status"></p></section><section class="group-members-section"><div class="group-section-heading"><h3>Participants</h3><button data-group-manage class="group-primary" type="button">Add</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>Group vault<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Next selected media</button><p><a href="#vault">Save an encrypted backup</a> to keep a copy of media before cleanup. Statuses are not included in the backup.</p><button data-group-clear class="group-danger" type="button">Clear remote vault</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">When you leave, you choose who becomes the owner. They do not need to accept.</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">Leave group</button><button data-group-delete class="group-danger" type="button">Delete group</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
+    '<dialog data-group-settings class="group-dialog group-settings" aria-label="群组设置"><header><div><span class="group-eyebrow">私密群组</span><h2>群组设置</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="关闭设置">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="更换群组图片" title="更换群组图片"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-description-section"><h3>简介</h3><p data-group-description></p><form data-group-description-form hidden><label>编辑简介<textarea data-group-description-input maxlength="1000" rows="3"></textarea></label><button data-group-description-save class="group-primary" type="submit">保存简介</button><button data-group-description-reload type="button">重新加载简介</button></form><p data-group-description-feedback class="group-feedback" role="status"></p></section><section class="group-members-section"><div class="group-section-heading"><h3>成员</h3><button data-group-manage class="group-primary" type="button">添加</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>群组保险库<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>下一批已选媒体</button><p><a href="#vault">保存加密备份</a> 以在清理前保留媒体副本。状态不包含在备份中。</p><button data-group-clear class="group-danger" type="button">清理远程保险库</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">退出时，由你选择新的所有者，对方无需接受。</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">退出群组</button><button data-group-delete class="group-danger" type="button">删除群组</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
   ],
   ' · conflicting organization': [
     ' · conflicting organization',
@@ -7016,7 +7036,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Reload this page and click Test this package.',
     '请刷新此页并点击“测试此数据包”。',
   ],
-  'Collapse communities': ['Collapse communities', '收起社区'],
+  'Show or hide side panel': ['Show or hide side panel', '显示或隐藏侧边栏'],
   'Private recovery · 0xDMme': [
     'Private recovery · 0xDMme',
     '私密恢复 · 0xDMme',

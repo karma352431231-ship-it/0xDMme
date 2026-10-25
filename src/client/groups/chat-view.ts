@@ -11,6 +11,12 @@ import { ExternalTextHistory } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { showGifText, gifUrls } from '../gif-search/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
+import {
+  dayHeading,
+  messageDay,
+  messageTime,
+  withDayHeadings,
+} from '../message-presentation/index.ts';
 import { groupTextQueue } from './text-queue.ts';
 import { GroupOutgoing } from './outgoing.ts';
 import type { PendingGroupText } from './outgoing.ts';
@@ -27,14 +33,16 @@ import {
   bindChatComposer,
   bindRecordGesture,
   showRecording,
+  watchOlderHistory,
 } from '../chat-ui/index.ts';
+import type { OlderHistory } from '../chat-ui/index.ts';
 interface ChatOptions {
   controller: Pick<
     GroupController,
     | 'selected'
     | 'historyPending'
     | 'views'
-    | 'before'
+    | 'olderAvailable'
     | 'media'
     | 'edit'
     | 'removeMessage'
@@ -74,6 +82,7 @@ export class GroupChatView {
   private readonly messageActions: GroupMessageActions;
   private readonly externalRows = new ExternalTextHistory();
   private externalAbort = new AbortController();
+  private older: { stop: AbortController; watch: OlderHistory } | null = null;
   constructor(options: ChatOptions) {
     this.options = options;
     this.attachments = new AttachmentUi(
@@ -251,6 +260,34 @@ export class GroupChatView {
     const form = this.node('[data-group-compose]');
     if (form) bindChatComposer(form, () => this.composerStatus());
     this.bindChat();
+    this.watchOlder();
+  }
+  /** Scrolling to the top of the history reads one page further back. */
+  private watchOlder(): void {
+    this.older?.stop.abort();
+    const history = this.node('[data-group-history]');
+    if (!history) return;
+    const stop = new AbortController(),
+      controller = this.options.controller;
+    this.older = {
+      stop,
+      watch: watchOlderHistory({
+        history,
+        button: this.node<HTMLButtonElement>('[data-group-older]'),
+        available: () =>
+          !controller.historyPending && controller.olderAvailable,
+        load: async () => {
+          const group = controller.selected?.state.groupId,
+            shown = controller.views.length;
+          await this.options.run(() => this.options.reopen(true));
+          return (
+            controller.selected?.state.groupId === group &&
+            controller.views.length > shown
+          );
+        },
+        signal: stop.signal,
+      }),
+    };
   }
   private node<T extends HTMLElement>(selector: string): T | null {
     return this.host?.querySelector<T>(selector) ?? null;
@@ -296,26 +333,38 @@ export class GroupChatView {
     }
     this.messageActions.resume(this.options.controller.views);
     const restoreScroll = historyPosition(history);
+    const rows = this.options.controller.views.map((view, index, views) => ({
+      id: view.id,
+      sentAt: view.sentAt,
+      key: JSON.stringify([
+        view.text,
+        view.hash,
+        view.sender,
+        this.options.members.name(view.sender),
+        this.options.members.label(view.sender).wallet ?? '',
+        this.startsRun(views, index),
+        view.localOnly,
+        view.kind,
+        view.unavailableMedia,
+        view.edited,
+        view.sentAt,
+      ]),
+      render: (signal: AbortSignal) =>
+        this.renderView(view, signal, this.startsRun(views, index)),
+    }));
     this.externalRows.render(
       history,
       [
-        ...this.options.controller.views.map((view, index, views) => ({
-          id: view.id,
-          key: JSON.stringify([
-            view.text,
-            view.hash,
-            view.sender,
-            this.options.members.name(view.sender),
-            this.options.members.label(view.sender).wallet ?? '',
-            this.startsRun(views, index),
-            view.localOnly,
-            view.kind,
-            view.unavailableMedia,
-            view.edited,
-          ]),
-          render: (signal: AbortSignal) =>
-            this.renderView(view, signal, this.startsRun(views, index)),
-        })),
+        ...withDayHeadings(
+          rows,
+          (row) => row.sentAt,
+          (day) => ({
+            id: `day:${day.key}`,
+            sentAt: undefined,
+            key: `day:${day.label}`,
+            render: () => dayHeading(day.label),
+          }),
+        ),
         ...this.pendingRows(),
       ],
       this.externalAbort.signal,
@@ -331,8 +380,7 @@ export class GroupChatView {
       if (row) this.renderDelivery(row, view);
     }
     restoreScroll();
-    const older = this.node('[data-group-older]');
-    if (older) older.hidden = this.options.controller.before === null;
+    this.older?.watch.check();
   }
   private renderView(
     view: GroupView,
@@ -380,26 +428,12 @@ export class GroupChatView {
   }
   private renderDelivery(article: HTMLElement, view: GroupView): void {
     article.querySelector('.message-meta')?.remove();
-    const checks = messageChecks({
-      own: view.own,
-      ...(view.delivery ? { delivery: view.delivery } : {}),
-      read: view.read ?? false,
-    });
-    if (checks || view.edited) {
-      const state = document.createElement('small');
-      state.className = 'message-meta';
-      if (view.edited) state.append(t('Edited · '));
-      if (checks)
-        state.append(
-          checksIcon({
-            ...checks,
-            label: view.read
-              ? t('Seen by recipients who share read receipts')
-              : checks.label,
-          }),
-        );
-      article.append(state);
-    }
+    const parts = metaParts(view);
+    if (!parts.length) return;
+    const state = document.createElement('small');
+    state.className = 'message-meta';
+    state.append(...parts);
+    article.append(state);
   }
   private renderExternal(
     article: HTMLElement,
@@ -431,26 +465,30 @@ export class GroupChatView {
         event.preventDefault();
         if (this.queueText()) return;
         void this.options.run(async () => {
-          const input = this.node<HTMLTextAreaElement>('[data-group-text]');
-          await this.options.controller.compose(
-            input?.value ?? '',
-            this.attachments.selected,
+          const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
+            group = this.options.controller.selected?.state.groupId;
+          // Each chosen file is its own message, sent before the next is
+          // staged so the order holds; only the first carries the text.
+          do {
+            await this.options.controller.compose(
+              input?.value ?? '',
+              this.attachments.selected,
+            );
+            this.attachments.sent();
+            this.voice.cancel();
+            if (input) {
+              input.value = '';
+              input.dispatchEvent(new Event('input'));
+            }
+            await this.options.controller.sendPending();
+          } while (
+            this.attachments.selected &&
+            this.options.controller.selected?.state.groupId === group
           );
-          this.attachments.clearSelection();
-          this.voice.cancel();
-          if (input) {
-            input.value = '';
-            input.dispatchEvent(new Event('input'));
-          }
-          await this.options.controller.sendPending();
           await this.options.reopen();
           this.options.report(t('Message sent.'));
         });
       },
-    );
-    this.bind(
-      '[data-group-older]',
-      () => void this.options.run(() => this.options.reopen(true)),
     );
     this.bind('[data-group-emoji]', () => {
       const anchor = this.node('[data-group-emoji]'),
@@ -534,8 +572,15 @@ export class GroupChatView {
     article.append(sender, body, state);
     return article;
   }
+  /** A new author, or a new day heading, shows the author again. */
   private startsRun(views: readonly GroupView[], index: number): boolean {
-    return index === 0 || views[index - 1]?.sender !== views[index]?.sender;
+    const previous = views[index - 1],
+      view = views[index];
+    return (
+      !previous ||
+      previous.sender !== view?.sender ||
+      dayOf(previous) !== dayOf(view)
+    );
   }
   private appendAuthor(
     article: HTMLElement,
@@ -622,4 +667,31 @@ export class GroupChatView {
   hint(): void {
     this.delivery.hint();
   }
+}
+
+function dayOf(view: GroupView | undefined): string | null {
+  return view?.sentAt === undefined ? null : messageDay(view.sentAt).key;
+}
+
+/** Time, edit mark and checks, in the order private messages show them. */
+function metaParts(view: GroupView): (Node | string)[] {
+  const checks = messageChecks({
+      own: view.own,
+      ...(view.delivery ? { delivery: view.delivery } : {}),
+      read: view.read ?? false,
+    }),
+    time = messageTime(view.sentAt),
+    parts: (Node | string)[] = [];
+  if (time) parts.push(time);
+  if (view.edited) parts.push(t('Edited · '));
+  if (checks)
+    parts.push(
+      checksIcon({
+        ...checks,
+        label: view.read
+          ? t('Seen by recipients who share read receipts')
+          : checks.label,
+      }),
+    );
+  return parts;
 }

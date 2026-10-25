@@ -73,8 +73,8 @@ await test('malformed paths and private fragments cannot become public post targ
     '//external.example/users',
   ])
     assert.equal(appRoute(href), null, href);
-  const id = crypto.randomUUID(),
-    post = crypto.randomUUID();
+  const id = '00000000-0000-4000-8000-000000000001',
+    post = '00000000-0000-4000-8000-000000000002';
   assert.equal(
     publicPostHash(`/communities/id/${id}/posts/${post}`),
     `/communities/id/${id}/posts/${post}`,

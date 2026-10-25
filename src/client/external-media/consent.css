@@ -7,8 +7,8 @@
   min-width: 0;
 }
 .external-media-consent {
-  width: min(32rem, calc(100vw - 2rem));
-  max-height: calc(100dvh - 2rem);
+  width: min(32rem, calc(var(--viewport-width, 100vw) - 2rem));
+  max-height: calc(var(--viewport-height, 100dvh) - 2rem);
   overflow: auto;
   margin: auto;
   padding: 1.5rem;

@@ -126,21 +126,21 @@
   margin: 0 0 4px;
   font-size: 14px;
 }
-#app-shell .community-reply .community-text {
-  margin: 0 0 6px;
-  font-size: 15px;
+#app-shell .community-card.community-reply p.community-text {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 16px;
   line-height: 1.55;
 }
 #app-shell
-  .community-reply
+  .community-card.community-reply
   .post-actions
   :is(.post-action, .post-votes, .post-more > summary, button) {
   min-height: 30px;
   padding: 3px 9px;
-  background: transparent;
-  font-size: 12.5px;
+  font-size: 13px;
 }
-#app-shell .community-reply .post-votes :is(button, a) {
+#app-shell .community-card.community-reply .post-votes :is(button, a) {
   min-width: 28px;
   min-height: 30px;
   padding: 3px;
@@ -176,7 +176,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-#app-shell .community-reply .post-actions .post-more > summary {
+#app-shell .community-card.community-reply .post-actions .post-more > summary {
   width: 30px;
   padding: 3px;
   font-size: 0;

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dmCoordinatorFixture } from './fixtures/dm-coordinator.ts';
+import type { SocialDms } from '../src/client/social-dm/index.ts';
+import type { AttachmentSelection } from '../src/client/attachments/index.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 await test('DM initializes once per session and the latest navigation waits for the previous one', async (t) => {
@@ -265,4 +267,279 @@ await test('continuous public DM updates keep an already loaded thread quiet and
     assert.doesNotMatch(current.gate.textContent, /[Ss]ync|Opening|Loading/u);
   }
   assert.ok(f.calls.filter((operation) => operation === 'read:A').length > 1);
+});
+
+function message(
+  id = 'message',
+  sequence = 1,
+): Awaited<ReturnType<SocialDms['cached']>>['items'][number] {
+  return {
+    type: 'dm-message',
+    id,
+    hash: 'synthetic',
+    self: 'self',
+    peer: { id: 'A', handle: 'synthetic', avatar: null },
+    sequence,
+    own: true,
+    kind: 'text',
+    media: null,
+    text: 'Original text',
+    displayText: 'Original text',
+    sender: 'self',
+    sentAt: 1,
+    edited: false,
+    reactions: [],
+    ownReaction: '',
+  };
+}
+
+await test('DM refresh retains unchanged rows and disposes changed or departed content', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.data.items = [message()];
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const original = f.data.bubbles[0]!;
+  f.emit('handle-receipts');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.data.bubbles.length, 1);
+  assert.equal(original.stopped, false);
+  f.data.items = [
+    {
+      ...message(),
+      text: 'Edited text',
+      displayText: 'Edited text',
+      edited: true,
+    },
+  ];
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(original.stopped, true);
+  assert.equal(f.data.bubbles.length, 2);
+  assert.equal(
+    f.views
+      .at(-1)!
+      .history.children.filter((row) => row.dataset['message'])
+      .map((row) => row.textContent)
+      .join(''),
+    'Edited text',
+  );
+  f.ui.leave();
+  assert.ok(
+    f.data.bubbles.every((bubble) => bubble.stopped && bubble.signal.aborted),
+  );
+  assert.ok(f.data.menus.every((menu) => menu.stopped));
+});
+
+await test('local DM history is read-only and never fetches the live conversation', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.data.items = [message()];
+  f.ui.mount(f.host, 'A', true);
+  await turn();
+  const current = f.views.at(-1)!;
+  assert.equal(current.form.hidden, true);
+  assert.ok(f.calls.includes('cached:A'));
+  assert.ok(
+    !f.calls.some(
+      (call) =>
+        call === 'initialize' ||
+        call.startsWith('state:') ||
+        call.startsWith('read:'),
+    ),
+  );
+  assert.equal(f.data.menus[0]!.react, undefined);
+  assert.equal(f.data.menus[0]!.edit, undefined);
+  current.text.value = 'Must not send';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(f.data.sends.length, 0);
+});
+
+await test('failed DM text sends preserve the draft and retry ID until acceptance', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  f.data.sendFailure = new Error('Transport unavailable');
+  current.text.value = 'Retry this text';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(current.text.value, 'Retry this text');
+  f.data.sendFailure = null;
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const next = f.views.at(-1)!;
+  assert.equal(next.text.value, 'Retry this text');
+  next.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(f.data.sends.length, 2);
+  assert.equal(f.data.sends[0]!.id, f.data.sends[1]!.id);
+  assert.equal(next.text.value, '');
+  next.text.value = 'A second message';
+  next.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.notEqual(f.data.sends[1]!.id, f.data.sends[2]!.id);
+});
+
+await test('DM live hints wait for recording and preserve the typed draft and frame', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  current.text.value = 'Keep this draft';
+  await f.startRecording();
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.equal(f.calls.length, before);
+  f.cancelRecording();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.views.at(-1), current);
+  assert.equal(current.text.value, 'Keep this draft');
+  assert.ok(f.calls.length > before);
+});
+
+await test('departing a DM wipes selected image bytes and releases its preview', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const selection: AttachmentSelection = {
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2, 3]),
+    thumbnail: new Uint8Array([4, 5]),
+  };
+  f.chooseImage(selection);
+  await turn();
+  assert.equal(f.ui.canActivate(), false);
+  f.ui.leave();
+  assert.deepEqual([...selection.bytes], [0, 0, 0]);
+  assert.deepEqual([...selection.thumbnail!], [0, 0]);
+  assert.ok(f.data.revokedUrls.includes('blob:synthetic'));
+});
+
+await test('DM fallback polling stops on departure and cannot restart from lifecycle events', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const f = dmCoordinatorFixture(t);
+  f.disconnect();
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const before = f.calls.length;
+  t.mock.timers.tick(30000);
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.length > before);
+  f.ui.leave();
+  const after = f.calls.length;
+  f.window.dispatchEvent(new Event('online'));
+  f.window.dispatchEvent(new Event('pageshow'));
+  t.mock.timers.tick(60000);
+  await turn();
+  assert.equal(f.calls.length, after);
+  assert.ok(f.data.streamStops > 0);
+});
+
+await test('a failed DM media send resumes the existing staged draft without staging it twice', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const selection: AttachmentSelection = {
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2]),
+    thumbnail: null,
+  };
+  f.chooseImage(selection);
+  await turn();
+  f.data.sendFailure = new Error('Synthetic media transport failure');
+  f.views.at(-1)!.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(f.data.mediaPending, true);
+  assert.deepEqual([...selection.bytes], [0, 0]);
+  f.data.sendFailure = null;
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.views.at(-1)!.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'stage-media').length, 1);
+  assert.equal(f.calls.filter((call) => call === 'send-media').length, 2);
+  assert.equal(f.data.mediaPending, false);
+});
+
+await test('a blocked DM remains unavailable for composition after a live recheck', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.data.blocked = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  const current = f.views.at(-1)!;
+  assert.equal(current.form.hidden, true);
+  current.text.value = 'Must not be sent';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(f.data.sends.length, 0);
+});
+
+await test('scrolling up reads one older page from this device, keeps what is shown and live refresh keeps that depth', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  const shown = () =>
+    f.views.at(-1)!.history.children.filter((row) => row.dataset['message'])
+      .length;
+  f.data.items = Array.from({ length: 16 }, (_, i) =>
+    message(`latest-${i}`, i + 5),
+  );
+  f.data.olderItems = Array.from({ length: 4 }, (_, i) =>
+    message(`older-${i}`, i + 1),
+  );
+  f.ui.mount(f.host, 'A');
+  await turn();
+  assert.equal(shown(), 16);
+  assert.equal(f.data.older?.available(), true);
+  assert.equal(await f.data.older.load(), true);
+  assert.equal(shown(), 20);
+  assert.deepEqual(f.data.cachedBefores, [5]);
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  // The refresh reads the latest page again and reaches the same floor.
+  assert.equal(shown(), 20);
+  assert.deepEqual(f.data.cachedBefores, [5, 5]);
+  assert.equal(await f.data.older.load(), false);
+  assert.equal(f.data.older.available(), false);
+  assert.deepEqual(f.data.readAfters, [null, null, null, null]);
+});
+
+await test('leaving a DM preserves its independently mounted directory until that directory becomes obsolete', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  let valid = true;
+  await f.ui.directory(
+    f.document.createElement('aside') as unknown as HTMLElement,
+    () => valid,
+  );
+  const stops = f.data.streamStops;
+  f.ui.leave();
+  assert.equal(f.data.streamStops, stops);
+  const before = f.calls.filter((call) => call === 'list').length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.filter((call) => call === 'list').length > before);
+  valid = false;
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.ok(f.data.streamStops > stops);
 });

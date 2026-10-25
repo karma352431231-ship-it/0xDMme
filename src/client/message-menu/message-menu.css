@@ -2,8 +2,8 @@
   position: fixed;
   inset: auto;
   margin: 0;
-  width: min(272px, calc(100vw - 16px));
-  max-height: calc(100dvh - 16px);
+  width: min(272px, calc(var(--viewport-width, 100vw) - 16px));
+  max-height: calc(var(--viewport-height, 100dvh) - 16px);
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 12px;

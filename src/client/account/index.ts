@@ -43,23 +43,53 @@ export function startAccount(
 ) {
   const core = createCore();
   // The approval request is read (and the URL cleaned) before wallets are discovered.
-  const approval = new ApprovalFlow(core, {
-    render,
-    walletAvailable: (id) => wallets.get(id) !== undefined,
-    openingDiagnostic: () => walletReturn.openingDiagnostic(),
-    reset: () => {
-      profile.clear();
-      login.stopObserving();
-      setSession(null);
+  const approval = new ApprovalFlow(
+    {
+      read: () => ({
+        busy: core.busy,
+        epoch: core.epoch,
+        disposed: core.disposed,
+        mounted: core.mounted,
+      }),
+      invalidate,
+      notice,
     },
-  });
+    {
+      render,
+      walletAvailable: (id) => wallets.get(id) !== undefined,
+      openingDiagnostic: () => walletReturn.openingDiagnostic(),
+      reset: () => {
+        profile.clear();
+        login.stopObserving();
+        setSession(null);
+      },
+    },
+  );
   const wallets = discoverWallets();
-  const profile = new AccountPrivateProfile(core, options, {
-    setSession,
-    render,
-    renderSidebar: () => view.renderSidebar(),
-    operation,
-  });
+  const profile = new AccountPrivateProfile(
+    {
+      read: () => ({
+        session: core.session,
+        status: core.status,
+        busy: core.busy,
+        epoch: core.epoch,
+        disposed: core.disposed,
+        mounted: core.mounted,
+      }),
+      notice,
+      profileNotice: (message) => {
+        core.profileStatus = message;
+      },
+      withBusy,
+    },
+    options,
+    {
+      setSession,
+      render,
+      renderSidebar: () => view.renderSidebar(),
+      operation,
+    },
+  );
   let expiryTimer: number | undefined;
   const walletReturn = createWalletReturn({
     expectedAccount: () => core.session,
@@ -79,7 +109,18 @@ export function startAccount(
     },
   });
   const login = new WalletLogin({
-    core,
+    account: {
+      read: () => ({
+        session: core.session,
+        busy: core.busy,
+        epoch: core.epoch,
+        disposed: core.disposed,
+        forcePicker: core.forcePicker,
+      }),
+      invalidate,
+      notice,
+      withBusy,
+    },
     wallets,
     approval,
     walletReturn,
@@ -90,23 +131,56 @@ export function startAccount(
       logout: () => void operation(logout),
     },
   });
-  const picker = new WalletPicker(core, wallets, {
-    visible: () =>
-      (core.session === null || core.forcePicker) && !approval.only,
-    choose: (id) => void operation(() => login.login(id)),
-    render,
-  });
+  const picker = new WalletPicker(
+    {
+      read: () => ({ mounted: core.mounted, busy: core.busy }),
+      request: () => {
+        core.forcePicker = true;
+      },
+    },
+    wallets,
+    {
+      visible: () =>
+        (core.session === null || core.forcePicker) && !approval.only,
+      choose: (id) => void operation(() => login.login(id)),
+      render,
+    },
+  );
   const view = new AccountView({
-    core,
+    read: () => ({
+      session: core.session,
+      status: core.status,
+      profileStatus: core.profileStatus,
+      busy: core.busy,
+      disposed: core.disposed,
+      mounted: core.mounted,
+      mountMode: core.mountMode,
+    }),
+    copied: (message) => {
+      core.status = core.profileStatus = message;
+    },
     picker,
     approval,
     profile,
     walletReturn,
   });
-  const offWallets = wallets.onChange(() => {
-    picker.renderWallets();
-    render();
-  });
+  picker.observeDiscovery();
+
+  function invalidate(): number {
+    return ++core.epoch;
+  }
+  function notice(message: string): void {
+    core.status = message;
+  }
+  /** Private saves and statement signing share the existing account busy window. */
+  async function withBusy<T>(work: () => Promise<T>): Promise<T> {
+    core.busy = true;
+    try {
+      return await work();
+    } finally {
+      core.busy = false;
+    }
+  }
 
   function render(): void {
     view.render();
@@ -115,7 +189,7 @@ export function startAccount(
     core.session = value;
     core.forcePicker = false;
     if (value) localStorage.setItem('hash-talk:login-device', value.deviceId);
-    picker.open = false;
+    picker.close();
     window.clearTimeout(expiryTimer);
     if (value) scheduleSessionExpiry(value);
     options.changed(value);
@@ -241,7 +315,7 @@ export function startAccount(
     approval.close();
     profile.clear();
     login.stopObserving();
-    offWallets();
+    picker.stopObserving();
     walletReturn.close();
     wallets.close();
     window.removeEventListener('pagehide', dispose);

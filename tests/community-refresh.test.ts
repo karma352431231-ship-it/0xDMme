@@ -12,6 +12,7 @@ import type {
 } from '../src/client/vault-authority/index.ts';
 import type { startCommunities } from '../src/client/communities/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
+import { publicAvatarPath } from '../src/shared/public-media/index.ts';
 
 const bundle = await build({
   entryPoints: ['src/client/communities/index.ts'],
@@ -29,9 +30,21 @@ const bundle = await build({
           path: 'dms',
           namespace: 'fixture',
         }));
-        builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
+        builder.onResolve(
+          { filter: /^\.\.\/public-media\/index\.ts$/ },
+          ({ importer }) => {
+            if (
+              importer.endsWith('/client/communities/index.ts') ||
+              importer.endsWith('/client/communities/community-photos.ts')
+            )
+              return { path: 'community-photo', namespace: 'fixture' };
+          },
+        );
+        builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({
           contents:
-            'export function startSocialDmUi() { return { setSession() {}, ready() {}, leave() {}, canActivate() { return true; } }; }',
+            path === 'community-photo'
+              ? 'export const showPublicAvatar = fixturePhoto;'
+              : 'export function startSocialDmUi() { return fixtureDms; }',
           loader: 'js',
         }));
       },
@@ -90,6 +103,8 @@ function fixture(
     creation?: boolean;
     directory?: boolean;
     management?: boolean;
+    view?: string;
+    photos?: boolean;
   } = {},
 ) {
   const state: CommunityState = {
@@ -100,7 +115,9 @@ function fixture(
       rules: '',
       revision: 1,
       archived: false,
-      avatar: null,
+      avatar: options.photos
+        ? publicAvatarPath('community-photo', id, crypto.randomUUID())
+        : null,
       owner: null,
       followers: 1,
     },
@@ -141,6 +158,17 @@ function fixture(
     requests: [] as string[],
     listAfters: [] as (string | null)[],
     afters: [] as (string | null)[],
+    payloads: [] as { path: string; payload: Record<string, unknown> }[],
+    notifications: { items: [] as unknown[], next: null as string | null },
+    dmMounts: [] as (string | null)[],
+    dmLeaves: 0,
+    dmDirectoryCurrent: null as (() => boolean) | null,
+    navigations: [] as string[],
+    photos: [] as {
+      host: HTMLElement;
+      signal: AbortSignal;
+      cleaned: boolean;
+    }[],
   };
   const authority: VaultAuthority = {
     session: account,
@@ -159,6 +187,10 @@ function fixture(
     ['list', data.directory],
     ['tags', { items: [], next: null }],
     ['followers-page', { items: [], total: 0, next: null }],
+    ['post-notifications', data.notifications],
+    ['post-upvote-notifications', { items: [], next: null }],
+    ['post-notifications-read', {}],
+    ['post-upvote-notifications-read', {}],
   ]);
   const respond = (path: string, input?: RequestInit) => {
     if (path.endsWith('/state'))
@@ -222,8 +254,41 @@ function fixture(
     Object.assign(createElement(tag), {
       showModal() {},
       close() {},
+      replaceWith(this: CommunityNode, replacement: CommunityNode) {
+        const parent = this.parent;
+        if (!parent) return;
+        replacement.remove();
+        parent.children.splice(parent.children.indexOf(this), 1, replacement);
+        replacement.parent = parent;
+        this.parent = null;
+      },
     });
   const context: Record<string, unknown> = {
+    fixturePhoto: (host: HTMLElement, input: { signal: AbortSignal }) => {
+      const photo = { host, signal: input.signal, cleaned: false };
+      data.photos.push(photo);
+      const cleanup = () => {
+        photo.cleaned = true;
+        input.signal.removeEventListener('abort', cleanup);
+      };
+      input.signal.addEventListener('abort', cleanup, { once: true });
+      return cleanup;
+    },
+    fixtureDms: {
+      setSession() {},
+      ready() {},
+      canActivate: () => true,
+      leave: () => {
+        data.dmLeaves++;
+      },
+      mount: (_host: HTMLElement, id: string | null) => {
+        data.dmMounts.push(id);
+      },
+      directory: (_host: HTMLElement, current: () => boolean) => {
+        data.dmDirectoryCurrent = current;
+        return Promise.resolve();
+      },
+    },
     document,
     window: new EventTarget(),
     HTMLElement: CommunityNode,
@@ -246,11 +311,22 @@ function fixture(
     clearTimeout,
     fetch: (path: string, input?: RequestInit) => {
       data.requests.push(path);
+      if (typeof input?.body === 'string') {
+        const body = JSON.parse(input.body) as {
+          payload: Record<string, unknown>;
+        };
+        data.payloads.push({ path, payload: body.payload });
+      }
       if (path.endsWith('/list')) data.listAfters.push(requestAfter(input));
       const override = data.overrides.get(path);
       return override ? override() : respond(path, input);
     },
     location: { hash: '' },
+    history: {
+      pushState: (_state: unknown, _title: string, href: string) => {
+        data.navigations.push(href);
+      },
+    },
   };
   runInNewContext(source, context);
   const exported = context['communityUi'] as {
@@ -278,13 +354,15 @@ function fixture(
     host as unknown as HTMLElement,
     sidebar as unknown as HTMLElement | null,
     new URLSearchParams(
-      options.creation
-        ? { view: 'create' }
-        : {
-            id,
-            ...(options.post ? { post: postId } : {}),
-            ...(options.management ? { view: 'manage' } : {}),
-          },
+      options.view
+        ? { view: options.view }
+        : options.creation
+          ? { view: 'create' }
+          : {
+              id,
+              ...(options.post ? { post: postId } : {}),
+              ...(options.management ? { view: 'manage' } : {}),
+            },
     ),
   );
   return { ui, host, sidebar, data };
@@ -763,4 +841,199 @@ await test('management rechecks keep image pickers and typed presentation fields
   await setImmediate();
   assert.equal(host.querySelector('.community-presentation-editor'), null);
   ui.leave();
+});
+
+await test('leaving the communities page keeps a workspace-owned DM open and closes only page-owned DMs', async () => {
+  const f = fixture();
+  await settled(f.ui);
+  f.ui.openDm(
+    new CommunityNode('section') as unknown as HTMLElement,
+    id,
+    false,
+  );
+  f.ui.leave();
+  assert.equal(f.data.dmLeaves, 0);
+  f.ui.closeDm();
+  assert.equal(f.data.dmLeaves, 1);
+  f.ui.closeDm();
+  assert.equal(f.data.dmLeaves, 1);
+  f.ui.mount(
+    f.host as unknown as HTMLElement,
+    null,
+    new URLSearchParams({ view: 'dms', dm: id }),
+  );
+  await settled(f.ui);
+  assert.deepEqual(f.data.dmMounts, [id, id]);
+  f.ui.leave();
+  assert.equal(f.data.dmLeaves, 2);
+});
+
+await test('DM directory requests become obsolete when the communities page leaves', async () => {
+  const f = fixture({ view: 'dms', directory: true });
+  await settled(f.ui);
+  const current = f.data.dmDirectoryCurrent;
+  assert.ok(current);
+  assert.equal(current(), true);
+  f.ui.leave();
+  assert.equal(current(), false);
+});
+
+await test('notification pagination and reload retain their read acknowledgement payloads', async () => {
+  const f = fixture({ view: 'replies' });
+  f.data.notifications.items = [
+    {
+      reply: postId,
+      post: postId,
+      community: id,
+      kind: 'post',
+      createdAt: '2026-10-24T10:00:00.000Z',
+      read: false,
+      preview: null,
+    },
+  ];
+  f.data.notifications.next = `2026-10-24T10:00:00.000Z/${postId}`;
+  await settled(f.ui);
+  assert.match(f.host.textContent, /New publication/);
+  const earlier = f.host
+    .querySelectorAll('button')
+    .find((node) => node.textContent === 'Earlier notifications');
+  assert.ok(earlier);
+  earlier.click();
+  await setImmediate();
+  await settled(f.ui);
+  const reload = f.host
+    .querySelectorAll('button')
+    .find((node) => node.textContent === 'Reload notifications');
+  assert.ok(reload);
+  reload.click();
+  await setImmediate();
+  await settled(f.ui);
+  const path = '/api/account/communities/post-notifications';
+  assert.deepEqual(
+    f.data.payloads
+      .filter((row) => row.path === path)
+      .map((row) => row.payload.after),
+    [null, f.data.notifications.next, null],
+  );
+  const inbox = await f.ui.publicationNotifications();
+  assert.equal(inbox[0]?.reply, postId);
+  assert.deepEqual(
+    f.data.payloads.filter((row) => row.path === path).at(-1)?.payload,
+    { after: null, authors: true },
+  );
+  await f.ui.markRepliesRead([postId]);
+  await f.ui.markUpvotesRead([postId]);
+  assert.deepEqual(f.data.payloads.at(-2)?.payload, { replies: [postId] });
+  assert.deepEqual(f.data.payloads.at(-1)?.payload, { ids: [postId] });
+  f.ui.leave();
+});
+
+await test('a late notification page cannot replace the next screen', async () => {
+  const f = fixture({ view: 'replies' });
+  await settled(f.ui);
+  const response = deferred<Response>(),
+    started = deferred<void>();
+  f.data.overrides.set('/api/account/communities/post-notifications', () => {
+    started.resolve(undefined);
+    return response.promise;
+  });
+  f.ui.ready();
+  await started.promise;
+  f.ui.leave();
+  f.host.replaceChildren();
+  response.resolve(Response.json(f.data.notifications));
+  await settled(f.ui);
+  assert.equal(f.host.children.length, 0);
+});
+
+await test('a creation confirmed after navigation does not navigate away from the new page', async () => {
+  const f = fixture({ creation: true });
+  await settled(f.ui);
+  const response = deferred<Response>(),
+    started = deferred<void>();
+  f.data.overrides.set('/api/account/communities/create', () => {
+    started.resolve(undefined);
+    return response.promise;
+  });
+  chooseCreationTopic(f.host);
+  f.host.querySelector('.community-create-submit')!.click();
+  await started.promise;
+  f.ui.leave();
+  response.resolve(Response.json(f.data.state));
+  await settled(f.ui);
+  assert.deepEqual(f.data.navigations, []);
+});
+
+await test('personal community lists advance explicitly and reset their page on remount', async () => {
+  const f = fixture({ view: 'communities' });
+  f.data.directory.items = [f.data.state.community];
+  f.data.directory.next = crypto.randomUUID();
+  await settled(f.ui);
+  assert.match(f.host.textContent, /My communities/);
+  const next = f.host
+    .querySelectorAll('button')
+    .find((node) => node.textContent === 'Next page');
+  assert.ok(next);
+  next.click();
+  await setImmediate();
+  await settled(f.ui);
+  f.ui.mount(
+    f.host as unknown as HTMLElement,
+    null,
+    new URLSearchParams({ view: 'invitations' }),
+  );
+  await settled(f.ui);
+  assert.match(f.host.textContent, /Community transfers/);
+  assert.deepEqual(f.data.listAfters, [null, f.data.directory.next, null]);
+  f.ui.leave();
+});
+
+await test('community and sidebar photos are retained on unchanged reads and released together on departure', async () => {
+  const f = fixture({ directory: true, photos: true });
+  f.data.directory.items = [f.data.state.community];
+  await settled(f.ui);
+  assert.equal(f.data.photos.length, 2);
+  assert.ok(f.data.photos.every((photo) => !photo.cleaned));
+  f.ui.ready();
+  await settled(f.ui);
+  assert.equal(f.data.photos.length, 2);
+  assert.ok(f.data.photos.every((photo) => !photo.cleaned));
+  f.ui.leave();
+  assert.ok(f.data.photos.every((photo) => photo.cleaned));
+  assert.ok(f.data.photos.every((photo) => photo.signal.aborted));
+});
+
+await test('saving community presentation accepts the revision without remounting its editor', async () => {
+  const f = fixture({ management: true });
+  await settled(f.ui);
+  const form = f.host.querySelector('.community-presentation-editor')!;
+  const name = form.querySelector('input')!;
+  name.value = 'Confirmed replacement name';
+  form.dispatchEvent(new Event('input'));
+  const path = '/api/account/communities/presentation';
+  f.data.overrides.set(path, () =>
+    Promise.resolve(
+      Response.json({
+        ...f.data.state,
+        community: { ...f.data.state.community, name: name.value, revision: 2 },
+      }),
+    ),
+  );
+  const confirm = form
+    .querySelectorAll('button')
+    .find((button) => button.textContent === 'Confirm changes')!;
+  confirm.click();
+  await setImmediate();
+  await settled(f.ui);
+  assert.equal(f.host.querySelector('.community-presentation-editor'), form);
+  assert.match(
+    f.host.querySelector('.community-post-back')!.textContent,
+    /Confirmed replacement name/,
+  );
+  assert.equal(
+    f.data.payloads.find((row) => row.path === path)?.payload.revision,
+    1,
+  );
+  assert.equal(name.value, 'Confirmed replacement name');
+  f.ui.leave();
 });

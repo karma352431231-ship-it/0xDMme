@@ -349,27 +349,43 @@ function expectedRole(previous: GroupEvent, event: GroupEvent): GroupMember[] {
     m.accountId === event.target ? { ...m, role: after.role } : m,
   );
 }
+/** The owner hands ownership to a current member, who need not accept
+ * (owner decision, 24/10/2026). An offer accepted by its target, signed before
+ * that decision, still completes the same way. */
 function expectedTransfer(
   previous: GroupEvent,
   event: GroupEvent,
 ): GroupMember[] {
-  const consent = matchingConsent(previous, event);
+  const successor = event.consent
+    ? acceptedSuccessor(previous, event)
+    : directSuccessor(previous, event);
   if (
-    consent.kind !== 'transfer' ||
-    consent.actor !== previous.owner ||
-    event.target !== event.actor ||
-    event.owner !== event.actor ||
+    event.owner !== successor ||
     !previous.members.some(
-      (m) => m.accountId === event.actor && m.role !== 'owner',
+      (m) => m.accountId === successor && m.role !== 'owner',
     )
   )
     rejectTransition();
   return previous.members.map((m) => {
     if (m.accountId === previous.owner)
       return { ...m, role: 'member' as const };
-    if (m.accountId === event.actor) return { ...m, role: 'owner' as const };
+    if (m.accountId === successor) return { ...m, role: 'owner' as const };
     return m;
   });
+}
+function directSuccessor(previous: GroupEvent, event: GroupEvent): string {
+  if (event.actor !== previous.owner || !event.target) rejectTransition();
+  return event.target;
+}
+function acceptedSuccessor(previous: GroupEvent, event: GroupEvent): string {
+  const consent = matchingConsent(previous, event);
+  if (
+    consent.kind !== 'transfer' ||
+    consent.actor !== previous.owner ||
+    event.target !== event.actor
+  )
+    rejectTransition();
+  return event.actor;
 }
 function expectedDeletion(
   previous: GroupEvent,

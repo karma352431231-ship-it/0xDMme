@@ -1,36 +1,10 @@
-import {
-  PublicActionGate,
-  mountPublicProfileInvitation,
-  publicProfileGuidanceButton,
-} from '../public-action-guidance/index.ts';
+import { PublicActionGate } from '../public-action-guidance/index.ts';
 import { bindCommunityCreationEntry } from './creation-entry.ts';
 import { showToast } from '../toast/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
-import { navigateApp } from '../app-navigation/index.ts';
-import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
-import {
-  t,
-  translatedError,
-  currentLanguage,
-} from '../../shared/i18n/index.ts';
-import { publicationNotificationRow } from './notification-row.ts';
-import { communityAbout, communityCreationDate } from './community-about.ts';
-import {
-  mountMentionInput,
-  mentionValue,
-  renderMentions,
-} from '../public-mentions/index.ts';
-import {
-  mountCommunityFollowerPage,
-  mountCommunityFollowerPreview,
-} from './followers.ts';
-import { communityPresentationEditor } from './presentation-editor.ts';
-import { mountCommunityCreation } from './community-create.ts';
-import {
-  classificationBadges,
-  classificationSettings,
-} from './classification.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
+import { mountCommunityFollowerPage } from './followers.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
@@ -42,24 +16,18 @@ import { uuid } from '../../shared/account/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type {
   Community,
-  CommunityPage,
   CommunityState,
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { Communities } from './controller.ts';
 import { readCommunityDetail } from './detail-refresh.ts';
-import { CommunityDirectory } from './directory-refresh.ts';
+import { CommunityDirectoryView } from './community-directory.ts';
+import { CommunityNotifications } from './reply-notifications.ts';
+import { CommunityEditor } from './community-editor.ts';
+import { CommunityDetailView } from './community-detail.ts';
+import type { CommunityScreen } from './screen.ts';
 import { clearCommunityProfileInvitation } from './directory-notice.ts';
-import {
-  communityButton,
-  communityCard,
-  communityElement,
-  communityField,
-  communityLink,
-} from './elements.ts';
-import { mountCommunityGovernance } from './governance.ts';
-import { mountCommunityBadges } from './badges.ts';
-import { manageGroups } from './manage-tabs.ts';
+import { communityButton, communityElement } from './elements.ts';
 import { communityHoverProvider } from './community-hover.ts';
 import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
@@ -68,15 +36,12 @@ import { FeedReturn } from './feed-return.ts';
 import type { FeedBookmark } from './feed-return.ts';
 import { previewModeratedMedia } from './moderation-preview.ts';
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
-import { replyNotificationPage } from '../../shared/community-posts/index.ts';
-import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
 import type { FeedProfileFollows } from './feed-follow.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
-import { showPublicAvatar } from '../public-media/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { communityAvatar, openPostFromCard } from './presentation.ts';
+import { openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
@@ -125,11 +90,25 @@ export function startCommunities(
     profiles,
     participation,
   );
-  const followedDirectory = new CommunityDirectory({
-    load: (after) => controller.list('following', after),
-    rows,
-    release: clearPublicPhotos,
+  const directoryView = new CommunityDirectoryView({
+    controller,
+    signal: () => abort.signal,
     run,
+  });
+  const notifications = new CommunityNotifications({ controller, run });
+  const editor = new CommunityEditor({
+    controller,
+    participation,
+    run,
+    save: mutateWork,
+    tags: (host, id) => posts.manageTags(host, id),
+  });
+  const detail = new CommunityDetailView({
+    controller,
+    participation,
+    screen,
+    run,
+    saveFollow: (data) => mutateWork('follow', data),
   });
   document.addEventListener('click', openPostFromCard);
   feedReturn.bind({
@@ -157,8 +136,7 @@ export function startCommunities(
     current: Community | null = null,
     generation = 0,
     busy = false;
-  let abort = new AbortController(),
-    presentation: ReturnType<typeof communityPresentationEditor> | null = null;
+  let abort = new AbortController();
   // Query of the last list shown (feed, ranking, community…), for the post arrow.
   let lastList: string | null = null;
   let view = 'feed',
@@ -167,33 +145,11 @@ export function startCommunities(
     selected: string | null = null,
     selectedSlug: string | null = null,
     selectedPost: string | null = null,
-    selectedTag: string | null = null,
-    cursor: string | null = null;
+    selectedTag: string | null = null;
   let output: HTMLElement | null = null;
   let discoveryMounted = false;
-  let creationMounted = false;
   // The DM view is shared: the communities page owns it for view=dms, the workspace for its chat column.
   let dmOwner: 'page' | 'panel' | null = null;
-  const publicPhotos = new Map<() => void, HTMLElement>();
-  function clearPublicPhotos(container?: HTMLElement | null): void {
-    for (const [cleanup, node] of publicPhotos) {
-      if (container && !container.contains(node)) continue;
-      cleanup();
-      publicPhotos.delete(cleanup);
-    }
-  }
-  function publicPhoto(container: HTMLElement, item: Community): void {
-    if (!item.avatar) return;
-    publicPhotos.set(
-      showPublicAvatar(container, {
-        kind: 'community-photo',
-        target: item.id,
-        reference: item.avatar,
-        signal: abort.signal,
-      }),
-      container,
-    );
-  }
   function controls(options: { background?: boolean }): void {
     if (options.background) return;
     mounted
@@ -230,16 +186,25 @@ export function startCommunities(
   ): Promise<void> {
     return operations.run(work, options);
   }
+  function screen(): CommunityScreen | null {
+    if (!mounted) return null;
+    const old = generation;
+    return {
+      host: mounted,
+      signal: abort.signal,
+      current: () => old === generation && mounted !== null,
+      present: navigation,
+    };
+  }
   function signal(): AbortSignal {
     return AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]);
   }
   function navigation(): void {
     if (!mounted) return;
     discoveryMounted = false;
-    creationMounted = false;
-    presentation?.dispose();
-    presentation = null;
-    clearPublicPhotos(mounted);
+    editor.reset();
+    directoryView.release(mounted);
+    detail.release(mounted);
     mounted.replaceChildren();
     delete mounted.dataset['communityLayout'];
     communityNavigation(mounted, {
@@ -257,35 +222,6 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  function rows(container: HTMLElement, page: CommunityPage): void {
-    for (const item of page.items) {
-      const row = communityElement('div', '', 'community-row');
-      const a = communityElement('a', '', 'community-row-link'),
-        avatar = communityAvatar(item.name),
-        copy = communityElement('span', '', 'community-row-copy');
-      a.href = communityHref(item);
-      if (item.id === selected) a.setAttribute('aria-current', 'page');
-      copy.append(
-        communityElement('strong', item.name),
-        communityElement('small', followerLabel(item)),
-      );
-      a.append(avatar, copy);
-      row.append(a);
-      container.append(row);
-      publicPhoto(avatar, item);
-    }
-    if (!page.items.length)
-      container.append(
-        communityElement('p', t('No communities in this list.')),
-      );
-  }
-  function followerLabel(value: Community): string {
-    return t('{0} {1}{2}', [
-      value.followers,
-      value.followers === 1 ? t('follower') : t('followers'),
-      value.archived ? t(' · Archived') : '',
-    ]);
-  }
   async function dmSidebar(): Promise<void> {
     if (!sidebar) return;
     const old = generation;
@@ -295,14 +231,14 @@ export function startCommunities(
     if (!sidebar) return;
     if (view === 'dms') {
       clearCommunityProfileInvitation();
-      clearPublicPhotos(sidebar);
+      directoryView.release(sidebar);
       sidebar.replaceChildren();
       communityDirectoryNavigation(sidebar, view, selected);
       await dmSidebar();
       return;
     }
     const old = generation;
-    await followedDirectory.refresh({
+    await directoryView.sidebar({
       host: sidebar,
       view,
       selected,
@@ -311,279 +247,15 @@ export function startCommunities(
     });
   }
 
-  async function notifications(): Promise<void> {
-    const old = generation,
-      page = replyNotificationPage(
-        await controller.request('post-notifications', { after: cursor }),
-      );
-    if (old !== generation || !mounted) return;
-    navigation();
-    const card = communityCard(t('Notifications'));
-    mounted.append(card);
-    card.append(
-      communityElement(
-        'p',
-        t(
-          'Replies to your content and posts/replies from accounts with notifications enabled.',
-        ),
-      ),
-    );
-    for (const item of page.items)
-      card.append(
-        publicationNotificationRow(item, {
-          open: async (reply) => {
-            await controller.request('post-notifications-read', {
-              replies: [reply],
-            });
-          },
-          current: () => old === generation && mounted !== null,
-        }),
-      );
-    if (!page.items.length)
-      card.append(communityElement('p', t('No notifications on this page.')));
-    cursor = page.next;
-    if (page.next)
-      communityButton(card, t('Earlier notifications'), () =>
-        run(notifications),
-      );
-    communityButton(card, t('Reload notifications'), () =>
-      run(async () => {
-        cursor = null;
-        await notifications();
-      }),
-    );
-  }
-  async function listing(): Promise<void> {
-    const old = generation;
-    const page = await controller.list(
-      view === 'communities' ? 'following' : view,
-      cursor,
-    );
-    if (old !== generation || !mounted) return;
-    navigation();
-    const card = communityCard(
-      view === 'invitations' ? t('Community transfers') : t('My communities'),
-    );
-    mounted.append(card);
-    if (view === 'communities') {
-      const links = communityElement('nav', '', 'community-personal-links');
-      links.setAttribute('aria-label', t('Your lists'));
-      for (const [key, label] of [
-        ['following', t('Following feed')],
-        ['saved', t('Saved')],
-        ['replies', t('Replies')],
-        ['create', t('Create community')],
-      ] as const)
-        communityLink(links, label, `#communities?view=${key}`);
-      card.append(links);
-    }
-    rows(card, page);
-    cursor = page.next;
-    if (page.next) communityButton(card, t('Next page'), () => run(listing));
-    communityButton(card, t('Reload list'), () => {
-      cursor = null;
-      return run(listing);
-    });
-  }
-  function metaForm(
-    card: HTMLElement,
-    value: { name: string; description: string; rules: string },
-  ) {
-    const name = communityField(card, t('Community name'), {
-      value: value.name,
-      maximum: 100,
-    });
-    const description = communityField(card, t('Description'), {
-      value: value.description,
-      maximum: 1000,
-      multiline: true,
-    });
-    const rules = communityField(card, t('Local rules'), {
-      value: value.rules,
-      maximum: 4000,
-      multiline: true,
-    });
-    mountMentionInput(description, abort.signal);
-    return () => ({
-      name: name.value,
-      description: mentionValue(description),
-      rules: rules.value,
-    });
-  }
-  async function creation(): Promise<void> {
-    if (!mounted || creationMounted) return;
-    const old = generation;
-    const allowed = await participation.allow('create-community', abort.signal);
-    if (old !== generation || !mounted || creationMounted) return;
-    navigation();
-    creationMounted = true;
-    if (!allowed) {
-      mountPublicProfileInvitation(mounted, 'create-community');
-      return;
-    }
-    mountCommunityCreation(mounted, {
-      signal: abort.signal,
-      run,
-      fields: (host) =>
-        metaForm(host, { name: '', description: '', rules: '' }),
-      request: (operation, data) => controller.request(operation, data),
-      current: () => old === generation,
-      open: (id) => {
-        navigateApp(`#communities?id=${id}`);
-      },
-    });
-  }
-  /**
-   * The first thing a visitor sees: banner in the community's tone, a large
-   * photo, the name, followers and the description; follow and manage at hand.
-   */
-  function summary(value: Community): void {
-    if (!mounted) return;
-    const hero = communityElement('section', '', 'community-hero');
-    hero.setAttribute('aria-label', t('Community {0}', [value.name]));
-    mounted.append(hero);
-    const avatar = communityAvatar(value.name);
-    const banner = communityElement('div', '', 'community-banner');
-    banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
-    if (value.banner)
-      publicPhotos.set(
-        showPublicAvatar(banner, {
-          kind: 'community-banner',
-          target: value.id,
-          reference: value.banner,
-          signal: abort.signal,
-        }),
-        banner,
-      );
-    const head = communityElement('div', '', 'community-hero-head');
-    const title = communityElement('div', '', 'community-hero-title');
-    title.append(
-      communityElement('h1', value.name),
-      ...(value.archived
-        ? [communityElement('p', t('Archived'), 'community-hero-meta')]
-        : []),
-    );
-    head.append(avatar, title);
-    hero.append(banner, head);
-    publicPhoto(avatar, value);
-    // The follower line sits under the name, aligned with it.
-    mountCommunityFollowerPreview(title, {
-      id: value.id,
-      total: value.followers,
-      signedIn: state !== null,
-      controller,
-      signal: abort.signal,
-    });
-    title.append(
-      communityCreationDate(value),
-      classificationBadges(value.classification),
-    );
-    if (value.description) {
-      const description = communityElement(
-        'p',
-        '',
-        'community-hero-description',
-      );
-      renderMentions(description, value.description);
-      hero.append(description);
-    }
-    const about = communityAbout(value);
-    if (about) hero.append(about);
-    if (!state) {
-      publicProfileGuidanceButton(
-        head,
-        'follow-community',
-        abort.signal,
-      ).className = 'community-follow';
-      return;
-    }
-    participant(head, state);
-  }
-  function communityFollowControl(
-    card: HTMLElement,
-    own: CommunityState,
-  ): void {
-    if (own.role !== 'owner') {
-      communityButton(
-        card,
-        own.following ? t('follow.following') : t('Follow'),
-        () =>
-          run(async () => {
-            const old = generation,
-              pending = abort.signal;
-            if (
-              (await participation.allow('follow-community', pending)) &&
-              old === generation &&
-              !pending.aborted
-            )
-              await mutateWork('follow', {
-                id: own.community.id,
-                following: !own.following,
-              });
-          }),
-      );
-      const follow = card.lastElementChild;
-      follow?.classList.add('community-follow');
-      follow?.setAttribute('aria-pressed', String(own.following));
-    }
-  }
-  function participant(card: HTMLElement, own: CommunityState): void {
-    communityFollowControl(card, own);
-    if (!own.canPost)
-      card.after(
-        communityElement(
-          'p',
-          own.community.archived
-            ? t('Participation ended: community archived.')
-            : t('Your participation is suspended.'),
-          'community-hero-notice',
-        ),
-      );
-    if (own.sanction) {
-      const s = own.sanction;
-      card.append(
-        communityElement('p', t('Reason: {0}', [s.reason])),
-        communityElement(
-          'p',
-          s.until
-            ? t('Until {0}', [
-                new Date(s.until).toLocaleString(currentLanguage()),
-              ])
-            : t('Reversible ban'),
-        ),
-      );
-      if (s.appeal)
-        card.append(communityElement('p', t('Appeal: {0}', [s.appeal])));
-      if (s.decision)
-        card.append(communityElement('p', t('Reply: {0}', [s.decision])));
-    }
-  }
-  /**
-   * The arrow returns to `href`; the community photo and name enter the
-   * community. Both are links, so the feed panel keeps them in place.
-   */
-  function backHeader(value: Community, href: string): HTMLElement {
-    const header = communityElement('div', '', 'community-post-back'),
-      arrow = communityElement('a', '←', 'community-post-back-arrow'),
-      identity = communityElement('a', '', 'community-post-back-identity'),
-      avatar = communityAvatar(value.name);
-    arrow.href = href;
-    arrow.title = t('Back');
-    arrow.setAttribute('aria-label', t('Back'));
-    identity.href = communityHref(value);
-    identity.append(avatar, communityElement('span', value.name));
-    header.append(arrow, identity);
-    publicPhoto(avatar, value);
-    return header;
-  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'post';
     mounted.append(
-      backHeader(
+      detail.backHeader(
         value,
         feedReturn.target() ?? postReturnTarget(lastList, value.id),
+        abort.signal,
       ),
     );
     const postContainer = communityElement('section', '', 'community-posts');
@@ -620,7 +292,7 @@ export function startCommunities(
     }
     // Wide communities page: posts on the left, about and management on the right.
     mounted.dataset['communityLayout'] = 'detail';
-    summary(current);
+    detail.summary(screen()!, current, state);
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);
     posts.mount(postContainer, {
@@ -642,7 +314,7 @@ export function startCommunities(
         communityElement('summary', t('Participation and reports')),
       );
       mounted.append(management);
-      governance(management, state);
+      editor.governance(management, state);
     }
     communityButton(mounted, t('Reload community'), () => run(refresh));
   }
@@ -650,47 +322,11 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = backHeader(value, communityHref(value));
+    const back = detail.backHeader(value, communityHref(value), abort.signal);
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', t('Manage community')));
     mounted.append(back, management);
-    const groups = manageGroups(
-      management,
-      own.role === 'owner'
-        ? ['general', 'tags', 'moderation', 'ownership']
-        : ['general', 'tags', 'moderation'],
-    );
-    presentation = communityPresentationEditor(groups.general, own, {
-      signal: abort.signal,
-      run,
-      prepare: (work) => run(work, { quiet: true }),
-      save: (data) => mutateWork('presentation', data),
-    });
-    mountCommunityBadges(groups.general, own.community.id, {
-      mutate,
-      query: run,
-      request: (op, data) => controller.request(op, data),
-    });
-    classificationSettings(groups.general, own, (nsfw) =>
-      mutate('nsfw', {
-        id: own.community.id,
-        revision: own.community.revision,
-        nsfw,
-      }),
-    );
-    posts.manageTags(groups.tags, own.community.id);
-    governance(groups.moderation, own, groups.ownership);
-  }
-  function governance(
-    container: HTMLElement,
-    own: CommunityState,
-    ownership: HTMLElement = container,
-  ): void {
-    mountCommunityGovernance({ container, ownership }, own, {
-      mutate,
-      query: run,
-      request: (operation, data) => controller.request(operation, data),
-    });
+    editor.manage(management, own, abort.signal);
   }
   async function mutateWork(
     operation: string,
@@ -700,31 +336,17 @@ export function startCommunities(
       result = communityState(await controller.request(operation, data));
     if (old !== generation) return;
     current = result.community;
-    if (operation === 'presentation' && presentation && state) {
+    if (operation === 'presentation' && state && editor.accept(result)) {
       Object.assign(state, result);
-      presentation.accept(result);
-      const header = mounted?.querySelector<HTMLElement>(
-        '.community-post-back',
-      );
-      if (header) {
-        clearPublicPhotos(header);
-        header.replaceWith(
-          backHeader(result.community, communityHref(result.community)),
-        );
-      }
+      const page = screen();
+      if (page) detail.replaceHeader(page, result.community);
     } else {
       state = result;
       details();
     }
     if (output) output.textContent = t('Change saved.');
-    followedDirectory.reset();
+    directoryView.resetSidebar();
     await directory();
-  }
-  function mutate(
-    operation: string,
-    data: Record<string, unknown>,
-  ): Promise<void> {
-    return run(() => mutateWork(operation, data));
   }
   async function refreshDiscovery(container: HTMLElement): Promise<void> {
     if (discoveryMounted) {
@@ -742,7 +364,7 @@ export function startCommunities(
       signedIn: session !== null,
       bookmark: returnBookmark,
       followChanged: async () => {
-        followedDirectory.reset();
+        directoryView.resetSidebar();
         await directory();
       },
     });
@@ -757,7 +379,7 @@ export function startCommunities(
       return;
     }
     if (view === 'create') {
-      await creation();
+      await editor.create(screen()!);
       return;
     }
     if (!selected) {
@@ -766,10 +388,10 @@ export function startCommunities(
         return;
       }
       if (view === 'replies') {
-        await notifications();
+        await notifications.show(screen()!);
         return;
       }
-      await listing();
+      await directoryView.listing(screen()!, view);
       return;
     }
     await refreshDetail();
@@ -793,7 +415,7 @@ export function startCommunities(
       selected = current.id;
       selectedSlug = null;
       state = next.state;
-      if (view === 'manage' && presentation?.retainDraft(next.state)) return;
+      if (view === 'manage' && editor.retainDraft(next.state)) return;
       if (next.changed || view === 'followers') details();
       else await posts.refresh();
     } catch (error: unknown) {
@@ -824,8 +446,7 @@ export function startCommunities(
     posts.leave();
     discovery.leave();
     discoveryMounted = false;
-    creationMounted = false;
-    followedDirectory.reset();
+    directoryView.resetSidebar();
     if (dmOwner === 'page') {
       dms.leave();
       dmOwner = null;
@@ -835,9 +456,9 @@ export function startCommunities(
     mounted = null;
     state = null;
     current = null;
-    presentation?.dispose();
-    presentation = null;
-    clearPublicPhotos();
+    editor.reset();
+    directoryView.release();
+    detail.release();
   }
   return {
     /** `directoryNode` is null when the feed is a workspace panel without the followed list. */
@@ -852,7 +473,8 @@ export function startCommunities(
       sidebar = directoryNode;
       abort = new AbortController();
       view = params.get('view') ?? discovery.visitView();
-      cursor = null;
+      directoryView.resetPage();
+      notifications.resetPage();
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         localDm = params.get('history') === 'local';
@@ -903,24 +525,11 @@ export function startCommunities(
     dmEvent: (event: LiveEvent) => dms.event(event),
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
-    /** Bounded inbox history for Atividade, including durable read state. */
-    async publicationNotifications(): Promise<readonly ReplyNotification[]> {
-      const page = replyNotificationPage(
-        await controller.request('post-notifications', {
-          after: null,
-          authors: true,
-        }),
-      );
-      return page.items;
-    },
-    async upvoteNotifications() {
-      return upvoteNoticePage(
-        await controller.request('post-upvote-notifications', { after: null }),
-      ).items;
-    },
-    async markUpvotesRead(ids: readonly string[]): Promise<void> {
-      await controller.request('post-upvote-notifications-read', { ids });
-    },
+    /** Bounded publication history and read acknowledgements for Activity. */
+    publicationNotifications: () => notifications.publications(),
+    upvoteNotifications: () => notifications.upvotes(),
+    markUpvotesRead: (ids: readonly string[]) =>
+      notifications.markUpvotesRead(ids),
     previewModeration(
       host: HTMLElement,
       detail: PublicModerationDetails,
@@ -928,16 +537,15 @@ export function startCommunities(
     ): void {
       previewModeratedMedia(controller, { host, detail, signal });
     },
-    async markRepliesRead(replies: readonly string[]): Promise<void> {
-      await controller.request('post-notifications-read', { replies });
-    },
+    markRepliesRead: (replies: readonly string[]) =>
+      notifications.markRepliesRead(replies),
     /** Pending community transfers, as listed in Communities → Transfers. */
     async pendingTransfers(): Promise<readonly Community[]> {
       return (await controller.list('invitations', null)).items;
     },
     canActivate: () =>
       !busy &&
-      !presentation?.dirty() &&
+      !editor.dirty() &&
       composer.canActivate() &&
       posts.canActivate() &&
       discovery.canActivate() &&
@@ -957,10 +565,10 @@ export function startCommunities(
       discoveryMounted = false;
       state = null;
       current = null;
-      followedDirectory.reset();
-      presentation?.dispose();
-      presentation = null;
-      clearPublicPhotos();
+      directoryView.resetSidebar();
+      editor.reset();
+      directoryView.release();
+      detail.release();
       sidebar?.replaceChildren();
       if (mounted) {
         navigation();

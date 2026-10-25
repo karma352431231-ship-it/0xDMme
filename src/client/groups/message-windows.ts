@@ -16,6 +16,12 @@ import { projectGroupMessages } from './message-projection.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
+import {
+  HistoryFloors,
+  historyPage,
+  reachFloor,
+} from '../history-window/index.ts';
+import type { HistoryFloor } from '../history-window/index.ts';
 import type { GroupReadContext, GroupView } from './reader.ts';
 interface Window {
   scope: string;
@@ -37,12 +43,22 @@ export class GroupMessageWindows {
   >();
   private readonly windows = new Map<string, Window>();
   private readonly index = new GroupMessageIndex();
+  /** How far back each group's latest window reaches; see history-window. */
+  private readonly floors = new HistoryFloors();
   /** False after the server answered that it has no delta operation. */
   private deltas = true;
   clear(): void {
     this.states.clear();
     this.windows.clear();
     this.index.clear();
+    this.floors.clear();
+  }
+  /** False once the group's latest window has nothing further back. */
+  olderAvailable(group: string, views: readonly GroupView[]): boolean {
+    return (
+      !this.floors.complete(group) &&
+      (this.floors.floor(group) !== null || views.length >= historyPage)
+    );
   }
   prepared(group: string): boolean {
     return this.states.get(group)?.prepared ?? false;
@@ -51,7 +67,12 @@ export class GroupMessageWindows {
     const state = this.states.get(group);
     if (state) state.prepared = true;
   }
-  async read(c: ReadContext, before: number | null): Promise<Window> {
+  /** The latest window keeps the group's floor; older reaches one page back. */
+  async read(
+    c: ReadContext,
+    before: number | null,
+    older = false,
+  ): Promise<Window> {
     const capture = chatSyncActive()
       ? new VerifiedReadCapture(this, 'group')
       : null;
@@ -66,7 +87,7 @@ export class GroupMessageWindows {
         }
       : c;
     try {
-      const result = await this.readCurrent(context, before);
+      const result = await this.readCurrent(context, before, older);
       capture?.collect(result.views);
       capture?.confirm();
       return result;
@@ -89,8 +110,45 @@ export class GroupMessageWindows {
   private async readCurrent(
     c: ReadContext,
     before: number | null,
+    older: boolean,
   ): Promise<Window> {
     c.guard?.();
+    const { scope, snapshot, read } = await this.target(c),
+      key = canonical([snapshot.groupId, before]);
+    const previous = this.previousState(snapshot, scope),
+      changed = await this.index.read(
+        read,
+        snapshot,
+        previous?.snapshot ?? null,
+      ),
+      floor = before === null ? this.floors.floor(snapshot.groupId) : null;
+    const loaded = await this.loadWindow(read, {
+      snapshot,
+      scope,
+      key,
+      before,
+      floor,
+      changed,
+      previous,
+    });
+    const reached = await this.reachFloor(read, {
+      scope,
+      snapshot,
+      views: loaded.views,
+      floor,
+      older: before === null && older,
+    });
+    const result = { ...loaded, views: reached.rows };
+    c.guard?.();
+    await c.api('group-message-confirm', wire(snapshot));
+    c.guard?.();
+    this.commitWindow({ snapshot, scope, key, changed, previous, result });
+    this.index.confirmed(snapshot);
+    if (before === null) this.floors.update(snapshot.groupId, reached);
+    return result;
+  }
+  /** The snapshot to read and the reader serving it. */
+  private async target(c: ReadContext) {
     // A snapshot always carries this directory and head, so the scope is known
     // before asking for it.
     const scope = canonical([
@@ -101,30 +159,32 @@ export class GroupMessageWindows {
       ]),
       delta = await this.delta(c, scope),
       fresh = delta?.snapshot ?? (await currentGroupSnapshot(c)),
-      snapshot = this.index.target(fresh),
-      key = canonical([snapshot.groupId, before]);
+      snapshot = this.index.target(fresh);
     const read =
       delta && snapshot === fresh ? { ...c, api: delta.serve(c.api) } : c;
-    const previous = this.previousState(snapshot, scope),
-      changed = await this.index.read(
-        read,
-        snapshot,
-        previous?.snapshot ?? null,
-      );
-    const result = await this.loadWindow(read, {
-      snapshot,
-      scope,
-      key,
-      before,
-      changed,
-      previous,
+    return { scope, snapshot, read };
+  }
+  /** Older pages at the same snapshot, back to the floor and one further
+   * when asked; each page is read and verified like the latest one. */
+  private reachFloor(
+    c: ReadContext,
+    input: {
+      scope: string;
+      snapshot: Snapshot;
+      views: GroupView[];
+      floor: HistoryFloor;
+      older: boolean;
+    },
+  ) {
+    const { scope, snapshot } = input;
+    return reachFloor({
+      rows: input.views,
+      floor: input.floor,
+      older: input.older,
+      page: async (before) =>
+        (await this.recent(c, { scope, snapshot, before })).views,
+      merge: joinPages,
     });
-    c.guard?.();
-    await c.api('group-message-confirm', wire(snapshot));
-    c.guard?.();
-    this.commitWindow({ snapshot, scope, key, changed, previous, result });
-    this.index.confirmed(snapshot);
-    return result;
   }
   /** Warm reads of a group with no unfinished change set ask for the delta. */
   private async delta(c: ReadContext, scope: string) {
@@ -154,6 +214,7 @@ export class GroupMessageWindows {
       scope: string;
       key: string;
       before: number | null;
+      floor: HistoryFloor;
       changed: IndexItem[] | null;
       previous: { snapshot: Snapshot } | null;
     },
@@ -178,6 +239,7 @@ export class GroupMessageWindows {
               input.before === null ||
               view.sequence < input.before,
           ),
+          input.floor,
         );
       });
       return {
@@ -366,4 +428,14 @@ function explicitRemoval(item: IndexItem): boolean {
     !!item.deletion &&
     object(item.deletion)['type'] === 'message'
   );
+}
+
+/** Group windows hold roots only; edits are already projected into them. */
+function joinPages(
+  newer: readonly GroupView[],
+  older: readonly GroupView[],
+): GroupView[] {
+  const rows = new Map(older.map((view) => [view.id, view]));
+  for (const view of newer) rows.set(view.id, view);
+  return [...rows.values()].sort((a, b) => a.sequence - b.sequence);
 }

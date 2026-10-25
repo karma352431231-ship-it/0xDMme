@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
+import deploy_reviewed_code as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups
@@ -21,8 +22,8 @@ class PreviewNotificationsReviewTests(unittest.TestCase):
             (self.live / 'src/server/database' / name).write_text('existing notification reader')
         for name in self.modules:
             (self.candidate / 'src/server/database' / name).write_text('reviewed notification reader')
-        self.exports = {remote.PREVIEW_NOTIFICATIONS_BEFORE: fixture.export(self.live),
-                        remote.PREVIEW_NOTIFICATIONS_REVIEWED: fixture.export(self.candidate)}
+        self.exports = {reviewed_code.PREVIEW_NOTIFICATIONS_BEFORE: fixture.export(self.live),
+                        reviewed_code.PREVIEW_NOTIFICATIONS_REVIEWED: fixture.export(self.candidate)}
 
     def test_exact_complete_sources_use_code_exchange_without_schema_review(self):
         with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),

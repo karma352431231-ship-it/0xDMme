@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { showToast } from '../toast/index.ts';
+import { layoutLength } from '../display-scale/index.ts';
 
 /** Frame of the chosen picture: its proportion, its look and the saved size. */
 export interface CropShape {
@@ -149,11 +150,13 @@ class CropDialog {
 
   /** Frame size follows the stage; the picture covers the frame at zoom 1. */
   private readonly layout = (): void => {
-    const box = this.stage.getBoundingClientRect();
-    const room = Math.max(120, Math.min(box.width, box.height) - 32);
+    const box = this.stage.getBoundingClientRect(),
+      boxWidth = layoutLength(box.width, this.stage),
+      boxHeight = layoutLength(box.height, this.stage);
+    const room = Math.max(120, Math.min(boxWidth, boxHeight) - 32);
     const wide = this.shape.aspect >= 1;
     const width = wide
-      ? Math.min(box.width - 32, room * this.shape.aspect)
+      ? Math.min(boxWidth - 32, room * this.shape.aspect)
       : room * this.shape.aspect;
     this.frameWidth = Math.max(120, width);
     this.frameHeight = this.frameWidth / this.shape.aspect;
@@ -227,7 +230,10 @@ class CropDialog {
       this.pinch = spread;
       return;
     }
-    this.move(event.clientX - last.x, event.clientY - last.y);
+    this.move(
+      layoutLength(event.clientX - last.x, this.stage),
+      layoutLength(event.clientY - last.y, this.stage),
+    );
   }
 
   /** Distance between two touches, for pinch zoom; 0 with fewer. */

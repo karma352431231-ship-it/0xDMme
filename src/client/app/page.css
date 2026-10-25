@@ -172,7 +172,7 @@ footer {
   justify-content: center;
   gap: 6px 12px;
   width: max-content;
-  max-width: calc(100vw - 32px);
+  max-width: calc(var(--viewport-width, 100vw) - 32px);
   transform: translateX(-50%);
   border: 1px solid var(--line-strong);
   background: var(--surface-3);

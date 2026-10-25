@@ -91,7 +91,7 @@
   top: 100%;
   z-index: 5;
   display: grid;
-  width: min(280px, calc(100vw - 32px));
+  width: min(280px, calc(var(--viewport-width, 100vw) - 32px));
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 12px;

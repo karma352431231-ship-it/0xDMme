@@ -53,8 +53,8 @@
   z-index: 60;
   top: calc(100% + 8px);
   right: 0;
-  width: min(340px, calc(100vw - 32px));
-  max-height: min(420px, calc(100dvh - 180px));
+  width: min(340px, calc(var(--viewport-width, 100vw) - 32px));
+  max-height: min(420px, calc(var(--viewport-height, 100dvh) - 180px));
   overflow: auto;
   padding: 8px;
   box-sizing: border-box;
@@ -160,7 +160,7 @@
   .public-search-results {
     left: 0;
     right: auto;
-    width: min(360px, calc(100vw - 64px));
+    width: min(360px, calc(var(--viewport-width, 100vw) - 64px));
   }
 }
 

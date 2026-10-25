@@ -15,7 +15,7 @@ import { communityElement as el } from './elements.ts';
 interface FollowersAccess {
   id: string;
   signedIn: boolean;
-  controller: Communities;
+  controller: Pick<Communities, 'request'>;
   signal: AbortSignal;
 }
 function identity(

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { groupUiFixture } from './fixtures/group-ui.ts';
 import type { GroupView } from '../src/client/groups/reader.ts';
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
+import type { CommunityNode } from './fixtures/community-dom.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -12,12 +13,12 @@ await test('group settings track owner/admin/member roles and keep local copies 
   const ownerButtons = f.nodes['groupMembers']!.querySelectorAll('button');
   assert.deepEqual(
     ownerButtons.map((button) => button.textContent),
-    ['Remove', 'Make administrator', 'Offer ownership'],
+    ['Remove', 'Make administrator', 'Make owner'],
   );
   assert.equal(f.nodes['groupManage']!.hidden, false);
   assert.equal(f.nodes['groupClear']!.hidden, false);
   assert.equal(f.nodes['groupDelete']!.hidden, false);
-  assert.equal(f.nodes['groupLeave']!.hidden, true);
+  assert.equal(f.nodes['groupLeave']!.hidden, false);
   for (const role of ['admin', 'member'] as const) {
     f.controller.selected!.state.members[0]!.role = role;
     f.controller.selected!.state.owner = f.other;
@@ -50,25 +51,23 @@ await test('group settings track owner/admin/member roles and keep local copies 
   f.ui.setSession(null);
 });
 
-await test('ownership is offered only after confirmation and changes only through consent', async () => {
+await test('the owner hands ownership over after confirmation, without the member accepting; older offers can still be accepted', async () => {
   const f = groupUiFixture();
   await f.ui.open(f.group);
-  const offer = f.nodes['groupMembers']!.querySelectorAll('button').find(
-    (node) => node.textContent === 'Offer ownership',
+  const handover = f.nodes['groupMembers']!.querySelectorAll('button').find(
+    (node) => node.textContent === 'Make owner',
   )!;
   f.state.confirm = false;
-  offer.click();
+  handover.click();
   await turn();
   assert.equal(
     f.calls.some((call) => call.startsWith('transfer:')),
     false,
   );
   f.state.confirm = true;
-  offer.click();
+  handover.click();
   await turn();
   assert.equal(f.calls.at(-1), `transfer:${f.other}`);
-  assert.equal(f.ui.selected!.state.owner, f.account);
-  assert.match(f.nodes['groupNotice']!.textContent, /Ownership changes after/);
   f.controller.incoming = [
     {
       id: 'offer',
@@ -83,6 +82,33 @@ await test('ownership is offered only after confirmation and changes only throug
   accept.click();
   await turn();
   assert.ok(f.calls.includes('respond:transfer:true'));
+  f.ui.setSession(null);
+});
+
+await test('the owner leaves by naming the new owner; closing the choice changes nothing', async () => {
+  const f = groupUiFixture();
+  await f.ui.open(f.group);
+  const membership = () =>
+    f.calls.filter((call) => call.startsWith('transfer:') || call === 'leave');
+  const choice = () =>
+    f.nodes['groupSettings']!.querySelectorAll(
+      '.group-handover',
+    )[0] as unknown as CommunityNode & { open: boolean; close(): void };
+  f.nodes['groupLeave']!.click();
+  await turn();
+  assert.equal(choice().open, true);
+  choice().close();
+  await turn();
+  assert.deepEqual(membership(), []);
+  f.nodes['groupLeave']!.click();
+  await turn();
+  const successor = choice()
+    .querySelectorAll('button')
+    .find((button) => button.className !== 'group-close')!;
+  successor.click();
+  await turn();
+  await turn();
+  assert.deepEqual(membership(), [`transfer:${f.other}`, 'leave']);
   f.ui.setSession(null);
 });
 

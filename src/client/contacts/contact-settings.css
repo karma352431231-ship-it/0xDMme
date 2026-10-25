@@ -1,6 +1,6 @@
 .contact-settings {
-  width: min(460px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  width: min(460px, calc(var(--viewport-width, 100vw) - 32px));
+  max-height: calc(var(--viewport-height, 100dvh) - 32px);
   overflow-y: auto;
 }
 .contact-settings form {

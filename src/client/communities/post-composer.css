@@ -1,6 +1,6 @@
 dialog.post-composer-dialog.community-scope {
-  width: min(620px, calc(100vw - 24px));
-  max-height: calc(100dvh - 32px);
+  width: min(620px, calc(var(--viewport-width, 100vw) - 24px));
+  max-height: calc(var(--viewport-height, 100dvh) - 32px);
   padding: 24px;
   border: 1px solid var(--line);
   border-radius: 22px;

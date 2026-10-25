@@ -13,6 +13,7 @@ import type {
   Messages,
   MessageView,
   ConversationProjection,
+  ReceiptCommit,
 } from '../../src/client/messages/controller.ts';
 import type { MessageItem } from '../../src/client/messages/history.ts';
 import type {
@@ -22,6 +23,7 @@ import type {
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import type { notificationMessages } from '../../src/client/messages/notification.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
+import type { BackupRecord } from '../../src/client/backup-records/index.ts';
 
 // Keep the actual controller, authenticated API, index, receipts and visibility.
 // Only local persistence/search adapters use synthetic records; no SDK decoding
@@ -48,6 +50,7 @@ const adapters: Record<string, string[]> = {
     'removeOutbox',
   ],
   'message-search': ['indexSearch', 'searchMessages'],
+  'vault-storage': ['localLocator'],
 };
 const bundle = await build({
   stdin: {
@@ -72,10 +75,12 @@ const bundle = await build({
         builder.onResolve(
           {
             filter:
-              /^\.\.\/(local-history|message-storage|message-search)\/index\.ts$/,
+              /^\.\.\/(local-history|message-storage|message-search|vault-storage)\/index\.ts$/,
           },
           ({ path, importer }) =>
-            importer.includes('/messages/')
+            importer.includes('/messages/') ||
+            (importer.includes('/personal-removals/') &&
+              path.includes('/message-storage/'))
               ? { path: path.split('/')[1]!, namespace: 'fixture' }
               : undefined,
         );
@@ -144,6 +149,11 @@ export function resumeFixture(incremental = false) {
     beforeDelivery: undefined as (() => void) | undefined,
     beforeLocalRead: undefined as ((name: string) => void) | undefined,
     beforeLocalOpen: undefined as (() => void) | undefined,
+    beforeLocalWrite: undefined as ((name: string) => void) | undefined,
+    receipts: [] as ReceiptCommit[],
+    offline: false,
+    history: [] as Extract<BackupRecord, { type: 'message' }>[],
+    beforeHistory: undefined as (() => void) | undefined,
   };
   const authority: VaultAuthority = {
     session,
@@ -159,14 +169,23 @@ export function resumeFixture(incremental = false) {
       data.authorityReads++;
       return work(authority);
     },
-    withLocalVault: (_locator, work) => work(authority),
+    withLocalVault: (_locator, work) => work({ ...authority, offline: true }),
   };
   const unused = () => {
     throw new Error('Operação fora do contrato de retomada.');
   };
   const fixture = {
     MessageStorageError,
-    conversationHistory: () => Promise.resolve([]),
+    conversationHistory: (_a: unknown, peer: string, before: number | null) => {
+      data.beforeHistory?.();
+      return Promise.resolve(
+        data.history.filter(
+          (row) =>
+            row.peer === peer &&
+            (before === null || (row.sequence ?? 0) < before),
+        ),
+      );
+    },
     relatedHistory: () => Promise.resolve([]),
     mergeHistory,
     historyRecord: unused,
@@ -178,11 +197,19 @@ export function resumeFixture(incremental = false) {
       return Promise.resolve(data.records.get(name) ?? null);
     },
     localPut: (_scope: string, name: string, value: unknown) => {
+      data.beforeLocalWrite?.(name);
       data.records.set(name, value);
       return Promise.resolve();
     },
     localDelete: unused,
-    localPage: unused,
+    localPage: (_scope: string, prefix: string) =>
+      Promise.resolve({
+        items: [...data.records]
+          .filter(([name]) => name.startsWith(prefix))
+          .slice(0, 64)
+          .map(([name, value]) => ({ name, value })),
+        next: null,
+      }),
     sealLocal: (_a: unknown, name: string, text: string) =>
       Promise.resolve({ id: name, text, bytes: new Uint8Array(text.length) }),
     enqueueOutbox: unused,
@@ -199,6 +226,11 @@ export function resumeFixture(incremental = false) {
     },
     indexSearch: () => Promise.resolve(),
     searchMessages: unused,
+    localLocator: () =>
+      Promise.resolve({
+        accountId: session.accountId,
+        deviceId: session.deviceId,
+      }),
   };
   const confirmResponse = (input?: RequestInit): Promise<Response> => {
     if (data.confirmation) return data.confirmation();
@@ -440,7 +472,11 @@ export function resumeFixture(incremental = false) {
     setTimeout,
     clearTimeout,
     fetch: respond,
-    navigator: { onLine: true },
+    navigator: {
+      get onLine() {
+        return !data.offline;
+      },
+    },
     messageController: undefined as
       | {
           Messages: typeof Messages;
@@ -459,6 +495,7 @@ export function resumeFixture(incremental = false) {
       );
       data.publication?.(rows, projection);
     },
+    { receipt: (receipt) => data.receipts.push(receipt) },
   );
   controller.setSession(session);
   controller.select(peer);

@@ -4,6 +4,7 @@ import { runInNewContext } from 'node:vm';
 import { randomUUID } from 'node:crypto';
 import { build } from 'esbuild';
 import type { startAccount } from '../src/client/account/index.ts';
+import type { AccountSession } from '../src/shared/account/index.ts';
 import { Wallet } from 'ethers';
 import { createIdentity, openFrom } from '../src/client/device-keys/index.ts';
 import { createWalletRecovery } from '../src/client/wallet-recovery/index.ts';
@@ -13,6 +14,11 @@ import {
   recoveryMessage,
   transferContext,
 } from '../src/shared/wallet-recovery/index.ts';
+import {
+  emptyProfile,
+  sealProfile,
+} from '../src/client/account-profile/index.ts';
+import { CommunityNode } from './fixtures/community-dom.ts';
 
 const bundle = await build({
   entryPoints: ['src/client/account/index.ts'],
@@ -58,6 +64,7 @@ function scope(options: {
   handoffSubmit?: (input: unknown) => void;
   mobileOpening?: true;
   handoffStatus?: Promise<Response>;
+  saveProfile?: Parameters<typeof startAccount>[0]['saveProfile'];
 }) {
   const address = options.walletSigner?.address ?? `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -68,6 +75,32 @@ function scope(options: {
   const historyWrites: unknown[] = [];
   const storage = options.storage ?? new Map<string, string>();
   const storedBeforeHistory: boolean[] = [];
+  const photoUrls: string[] = [],
+    revokedPhotos: string[] = [];
+  class LocalUrl extends URL {
+    static override createObjectURL() {
+      const url = `blob:synthetic-private-${photoUrls.length}`;
+      photoUrls.push(url);
+      return url;
+    }
+    static override revokeObjectURL(url: string) {
+      revokedPhotos.push(url);
+    }
+  }
+  class ProfileInput extends CommunityNode {
+    name = '';
+  }
+  class AvatarNode extends CommunityNode {
+    set src(value: string) {
+      this.setAttribute('src', value);
+    }
+  }
+  const nameForm = new EventTarget(),
+    preferencesForm = new EventTarget();
+  const nameInput = new ProfileInput('input'),
+    onlineInput = new ProfileInput('input');
+  onlineInput.name = 'online';
+  const avatar = new AvatarNode();
   class LocalDate extends Date {
     static override now() {
       return options.clock?.now ?? Date.now();
@@ -168,21 +201,31 @@ function scope(options: {
     ['[data-wallet-return]', returnPanel],
     ['[data-wallet-candidate]', returnCandidate],
     ['[data-wallet-confirm]', returnConfirm],
+    ['[data-name-form]', nameForm],
+    ['[data-preferences]', preferencesForm],
+    ['input[name="display-name"]', nameInput],
+    ['input[name="online"]', onlineInput],
   ]);
   const attributes = new Map<string, string>();
+  let renderCount = 0;
   const mounted = {
     innerHTML: '',
     addEventListener: () => {},
-    setAttribute: (name: string, value: string) => attributes.set(name, value),
+    setAttribute: (name: string, value: string) => {
+      renderCount++;
+      attributes.set(name, value);
+    },
     querySelector: (selector: string) => nodes.get(selector) ?? null,
     querySelectorAll: (selector: string) =>
-      selector === 'button'
-        ? [button, approve]
-        : selector === '[data-wallet]'
-          ? [button]
-          : [],
+      selector === 'input'
+        ? [nameInput, onlineInput]
+        : selector === 'button'
+          ? [button, approve]
+          : selector === '[data-wallet]'
+            ? [button]
+            : [],
   };
-  const session = {
+  const session: AccountSession = {
     accountId: randomUUID(),
     ecosystem: 'evm',
     address,
@@ -244,7 +287,9 @@ function scope(options: {
     window,
     Event,
     CustomEvent,
-    URL,
+    URL: LocalUrl,
+    Blob,
+    HTMLInputElement: ProfileInput,
     TextEncoder,
     TextDecoder,
     btoa,
@@ -273,11 +318,14 @@ function scope(options: {
     document: Object.assign(new EventTarget(), {
       activeElement: null,
       querySelectorAll: () => [],
+      createElement: (tag: string) => new AvatarNode(tag),
       getElementById: (id: string) =>
-        id === 'xdmme-wallet-approval-request' &&
-        options.approvalDocument !== undefined
-          ? approvalDocument
-          : null,
+        id === 'account-avatar'
+          ? avatar
+          : id === 'xdmme-wallet-approval-request' &&
+              options.approvalDocument !== undefined
+            ? approvalDocument
+            : null,
     }),
     localStorage: {
       getItem: (key: string) => loginStorage.get(key) ?? null,
@@ -315,6 +363,7 @@ function scope(options: {
     changed: (value) => states.push(value),
     ...(options.privateKey ? { privateKey: options.privateKey } : {}),
     ...(options.mobileOpening ? { mobileOpening: options.mobileOpening } : {}),
+    ...(options.saveProfile ? { saveProfile: options.saveProfile } : {}),
   });
   account.mount(mounted as unknown as HTMLElement);
   return {
@@ -341,6 +390,29 @@ function scope(options: {
     storage,
     storedBeforeHistory,
     inputs,
+    responses,
+    nameForm,
+    nameInput,
+    preferencesForm,
+    onlineInput,
+    photoUrls,
+    revokedPhotos,
+    get renderCount() {
+      return renderCount;
+    },
+    announceWallet: () =>
+      window.dispatchEvent(
+        new CustomEvent('eip6963:announceProvider', {
+          detail: {
+            info: {
+              uuid: randomUUID(),
+              name: 'Synthetic Wallet',
+              rdns: 'app.synthetic',
+            },
+            provider: window.ethereum,
+          },
+        }),
+      ),
     documentRemoved: () => documentRemoved,
     confirmApproval: () => approve.dispatchEvent(new Event('click')),
     incoming: (ticket = 'b'.repeat(64)) => {
@@ -1359,3 +1431,126 @@ await test(
     browser.dispose();
   },
 );
+
+await test('private name and preference drafts survive account remount and block automatic profile refresh', async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+  const browser = scope({ privateKey: () => Promise.resolve(key) });
+  await tick();
+  browser.responses.set('/api/account/profile', () =>
+    Promise.resolve(Response.json(null)),
+  );
+  await browser.account.acceptLinkedSession(browser.session);
+  browser.nameInput.value = 'Unconfirmed private name';
+  browser.nameForm.dispatchEvent(new Event('input'));
+  browser.onlineInput.checked = true;
+  const event = new Event('change');
+  Object.defineProperty(event, 'target', { value: browser.onlineInput });
+  browser.preferencesForm.dispatchEvent(event);
+  assert.equal(browser.account.canActivate(), false);
+  const before = browser.requests.length;
+  await browser.account.refreshPrivate();
+  assert.equal(browser.requests.length, before);
+  browser.nameInput.value = '';
+  browser.onlineInput.checked = false;
+  browser.account.mount(browser.view as unknown as HTMLElement);
+  assert.equal(browser.nameInput.value, 'Unconfirmed private name');
+  assert.equal(browser.onlineInput.checked, true);
+  assert.equal(browser.account.privacyPreferences()?.online, false);
+  browser.dispose();
+});
+
+await test('private profile photos retain their local URL across remount and release it on session replacement', async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+  const browser = scope({ privateKey: () => Promise.resolve(key) });
+  await tick();
+  const profile = emptyProfile();
+  profile.photo = {
+    type: 'image/png',
+    bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+  };
+  const envelope = await sealProfile({
+    profile,
+    key,
+    accountId: browser.session.accountId,
+    revision: 1,
+  });
+  browser.responses.set('/api/account/profile', () =>
+    Promise.resolve(Response.json(envelope)),
+  );
+  await browser.account.acceptLinkedSession(browser.session);
+  assert.equal(browser.photoUrls.length, 1);
+  browser.account.mount(browser.view as unknown as HTMLElement);
+  assert.equal(browser.photoUrls.length, 1);
+  assert.deepEqual(browser.revokedPhotos, []);
+  browser.responses.set('/api/account/profile', () =>
+    Promise.resolve(Response.json(null)),
+  );
+  await browser.account.acceptLinkedSession({
+    ...browser.session,
+    accountId: randomUUID(),
+    csrf: 'd'.repeat(64),
+  });
+  assert.deepEqual(browser.revokedPhotos, browser.photoUrls);
+  browser.dispose();
+});
+
+await test('a private save completed after session replacement cannot publish the old preferences or revision', async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+  const started = deferred<void>(),
+    finished = deferred<void>();
+  const browser = scope({
+    privateKey: () => Promise.resolve(key),
+    saveProfile: async () => {
+      started.resolve();
+      await finished.promise;
+    },
+  });
+  await tick();
+  browser.responses.set('/api/account/profile', () =>
+    Promise.resolve(Response.json(null)),
+  );
+  await browser.account.acceptLinkedSession(browser.session);
+  const saving = browser.account.savePrivacy({ online: true });
+  await started.promise;
+  const next = {
+    ...browser.session,
+    accountId: randomUUID(),
+    csrf: 'd'.repeat(64),
+  };
+  await browser.account.acceptLinkedSession(next);
+  finished.resolve();
+  await saving;
+  assert.equal(browser.account.privacyPreferences()?.online, false);
+  assert.equal(browser.account.sharedProfile()?.revision, 0);
+  assert.equal(
+    (browser.states.at(-1) as typeof next).accountId,
+    next.accountId,
+  );
+  browser.dispose();
+});
+
+await test('wallet discovery repaints the active chooser without prompting and stops after final departure', async () => {
+  const browser = scope({});
+  await tick();
+  const before = browser.renderCount;
+  browser.announceWallet();
+  assert.ok(browser.renderCount > before);
+  assert.deepEqual(browser.providerRequests, []);
+  browser.dispose();
+  const after = browser.renderCount;
+  browser.announceWallet();
+  assert.equal(browser.renderCount, after);
+  assert.deepEqual(browser.providerRequests, []);
+});

@@ -8,7 +8,7 @@ import { groupCanRead } from '../../shared/groups/index.ts';
 import type { GroupEvent } from '../../shared/groups/index.ts';
 import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import type { GroupPacket } from '../../shared/group-messages/index.ts';
-import type { ContactAuthority, ContactStore } from './contacts.ts';
+import type { ContactAuthority, DatabaseAdmission } from './admission.ts';
 import type { GroupStore } from './groups.ts';
 import {
   assertGroupContentQuota,
@@ -37,17 +37,17 @@ function unavailable(): never {
 }
 export class GroupMediaStore {
   private readonly pool: pg.Pool;
-  private readonly contacts: ContactStore;
+  private readonly admission: Pick<DatabaseAdmission, 'maintenance'>;
   private readonly groups: GroupStore;
   private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
-    contacts: ContactStore,
+    admission: Pick<DatabaseAdmission, 'maintenance'>,
     groups: GroupStore,
     capacity: ContentCapacity,
   ) {
     this.pool = pool;
-    this.contacts = contacts;
+    this.admission = admission;
     this.groups = groups;
     this.capacity = capacity;
   }
@@ -321,7 +321,7 @@ export class GroupMediaStore {
     await recoverInterruptedUploads(this.pool, 'group_media');
   }
   async garbage(): Promise<{ id: string; group_id: string }[]> {
-    return this.contacts.withMaintenance(async (client) => {
+    return this.admission.maintenance(async (client) => {
       const rows = await client.query<{ id: string; group_id: string }>(
         `WITH due AS MATERIALIZED (
           SELECT id,group_id,status FROM hash_talk.group_media WHERE status='deleting' OR

@@ -48,6 +48,7 @@
 @import '../communities/classification.css';
 @import '../communities/post-dividers.css';
 @import '../scrollbars/scrollbars.css';
+@import '../display-scale/display-scale.css';
 @import './theme.css';
 @import './shell-layout.css';
 @import './conversation-badges.css';

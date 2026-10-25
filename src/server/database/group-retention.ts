@@ -11,7 +11,7 @@ import {
   selectMediaCleanupBatch,
 } from '../../shared/group-retention/index.ts';
 import type { GroupEvent } from '../../shared/groups/index.ts';
-import type { ContactAuthority, ContactStore } from './contacts.ts';
+import type { ContactAuthority, DatabaseAdmission } from './admission.ts';
 import type { GroupStore } from './groups.ts';
 import type { GroupScope } from './group-media.ts';
 import {
@@ -33,19 +33,19 @@ interface CleanupRow {
 }
 export class GroupRetentionStore {
   private readonly pool: pg.Pool;
-  private readonly contacts: ContactStore;
+  private readonly admission: Pick<DatabaseAdmission, 'changed'>;
   private readonly groups: GroupStore;
   private readonly capacity: ContentCapacity;
   private after: string | null = null;
   private retiredAfter: string | null = null;
   constructor(
     pool: pg.Pool,
-    contacts: ContactStore,
+    admission: Pick<DatabaseAdmission, 'changed'>,
     groups: GroupStore,
     capacity: ContentCapacity,
   ) {
     this.pool = pool;
-    this.contacts = contacts;
+    this.admission = admission;
     this.groups = groups;
     this.capacity = capacity;
   }
@@ -124,7 +124,7 @@ export class GroupRetentionStore {
           [scope.groupId],
         );
         if (changed.rowCount)
-          this.contacts.changed(
+          this.admission.changed(
             client,
             state.members.map((m) => m.accountId),
             { category: 'group-messages' },
@@ -237,7 +237,7 @@ export class GroupRetentionStore {
         kind: 'cleanup',
         accounts: state.members.map((m) => m.accountId),
       });
-      this.contacts.changed(
+      this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },
@@ -254,7 +254,7 @@ export class GroupRetentionStore {
       [state.groupId, job.id],
     );
     if (expired.rowCount)
-      this.contacts.changed(
+      this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },
@@ -291,7 +291,7 @@ export class GroupRetentionStore {
       [state.groupId],
     );
     if (cleared.rowCount)
-      this.contacts.changed(
+      this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },
@@ -309,7 +309,7 @@ export class GroupRetentionStore {
         'DELETE FROM hash_talk.group_cleanups WHERE group_id=$1',
         [state.groupId],
       );
-      this.contacts.changed(
+      this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },

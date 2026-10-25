@@ -70,7 +70,8 @@ export function routeParams(hash: string): URLSearchParams {
   return appRoute(hash)?.params ?? new URLSearchParams();
 }
 
-/** Push navigation admits only public community/post UUIDs, including old workers. */
+/** Keep notification transport UUIDs stable across worker/page versions.
+ * Displayed navigation paths are compacted separately by appHref(). */
 export function publicPostHash(hash: string): string | null {
   const route = appRoute(hash);
   if (route?.page !== 'communities' || route.params.size !== 2) return null;
@@ -78,7 +79,7 @@ export function publicPostHash(hash: string): string | null {
     post = route.params.get('post');
   const uuid = /^[a-f0-9-]{36}$/u;
   return id && post && uuid.test(id) && uuid.test(post)
-    ? appHref('communities', new URLSearchParams({ id, post }))
+    ? `/communities/id/${id}/posts/${post}`
     : null;
 }
 

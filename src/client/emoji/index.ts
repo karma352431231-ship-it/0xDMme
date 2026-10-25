@@ -9,6 +9,7 @@ import {
 import type { EmojiRow } from './catalog.ts';
 import { EmojiArtwork } from './artwork.ts';
 import { emojiCatalogs } from './data.ts';
+import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 
 const catalog = new EmojiCatalog(emojiCatalogs[currentLanguage()]);
 const artwork = new EmojiArtwork();
@@ -289,14 +290,15 @@ export class EmojiPicker {
 /** Opens beside the button that asked for it; phones get a bottom sheet (CSS). */
 function place(dialog: HTMLDialogElement, anchor: HTMLElement): void {
   if (matchMedia('(max-width: 700px)').matches) return;
-  const box = anchor.getBoundingClientRect(),
+  const box = layoutBox(anchor.getBoundingClientRect(), dialog),
+    view = layoutViewport(dialog),
     width = dialog.offsetWidth,
     height = dialog.offsetHeight,
-    left = Math.min(Math.max(8, box.left), innerWidth - width - 8),
+    left = Math.min(Math.max(8, box.left), view.width - width - 8),
     above = box.top - height - 8;
   dialog.style.margin = '0';
   dialog.style.left = `${left}px`;
-  dialog.style.top = `${above >= 8 ? above : Math.min(box.bottom + 8, innerHeight - height - 8)}px`;
+  dialog.style.top = `${above >= 8 ? above : Math.min(box.bottom + 8, view.height - height - 8)}px`;
 }
 export async function emojiIntoComposer(
   picker: EmojiPicker,

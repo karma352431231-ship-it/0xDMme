@@ -570,12 +570,12 @@ await test('public push shows validated author and preview with monochrome symbo
   const publicPreview = {
     author: {
       id: crypto.randomUUID(),
-      handle: 'sintetico',
+      handle: 'synthetic',
       avatar: null as string | null,
     },
-    post: crypto.randomUUID(),
-    community: crypto.randomUUID(),
-    text: 'Pequena prévia pública',
+    post: '00000000-0000-4000-8000-000000000002',
+    community: '00000000-0000-4000-8000-000000000001',
+    text: 'Synthetic public preview',
     reply: true,
     followed: false,
   };
@@ -583,7 +583,7 @@ await test('public push shows validated author and preview with monochrome symbo
   const scope = await worker({ pushAllowed: true, publicPreview });
   await scope.dispatch('push');
   const notification = scope.notifications[0]!;
-  assert.match(notification.title, /@sintetico replied/u);
+  assert.match(notification.title, /@synthetic replied/u);
   assert.equal(notification.options.icon, publicPreview.author.avatar);
   assert.equal(notification.options.body, publicPreview.text);
   assert.equal(notification.options.badge, '/notification-badge.png');

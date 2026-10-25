@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { ConversationAction, ConversationEntry } from './directory.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
+import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 
 function actionSignature(
   actions: readonly ConversationAction[] = [],
@@ -249,14 +250,15 @@ export class ConversationMenu {
     dialog.addEventListener('cancel', () => this.close());
     document.body.append(dialog);
     dialog.showModal();
-    const rect = anchor.getBoundingClientRect();
+    const rect = layoutBox(anchor.getBoundingClientRect(), dialog),
+      view = layoutViewport(dialog);
     dialog.style.setProperty(
       '--menu-left',
-      `${Math.max(12, Math.min(window.innerWidth - dialog.offsetWidth - 12, rect.right - dialog.offsetWidth))}px`,
+      `${Math.max(12, Math.min(view.width - dialog.offsetWidth - 12, rect.right - dialog.offsetWidth))}px`,
     );
     dialog.style.setProperty(
       '--menu-top',
-      `${Math.max(12, Math.min(window.innerHeight - dialog.offsetHeight - 12, rect.bottom))}px`,
+      `${Math.max(12, Math.min(view.height - dialog.offsetHeight - 12, rect.bottom))}px`,
     );
   }
 }

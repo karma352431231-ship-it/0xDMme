@@ -6,7 +6,10 @@ import { AccountError } from '../../src/shared/account/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
 import { discussionPage } from '../../src/shared/community-discussion/index.ts';
-import type { DiscussionOrder } from '../../src/shared/community-discussion/index.ts';
+import type {
+  DiscussionOrder,
+  DiscussionPage,
+} from '../../src/shared/community-discussion/index.ts';
 import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
 import { sign } from '../../src/shared/devices/index.ts';
 import { Database } from '../../src/server/database/index.ts';
@@ -21,10 +24,16 @@ import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
 
+/** An opted-in read must return its preview projection, including an empty one. */
+function previewIds(page: DiscussionPage): string[] {
+  assert.ok(page.previews, 'Requested preview projection required.');
+  return page.previews.map((post) => post.id);
+}
+
 await test('feed and discussion: eligibility, representatives, diversity and public tree', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
-    throw new Error('Banco exclusivo necessário.');
+    throw new Error('Exclusive test database required.');
   const db = new Database(config.databaseUrl),
     sql = new pg.Client({ connectionString: config.databaseUrl });
   const origin = 'http://127.0.0.1:45145',
@@ -106,7 +115,7 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
   await owner.operate('create', {
     classification: { nsfw: false, topics: ['meme'] },
     id: community,
-    meta: { name: 'Discussão sintética', description: '', rules: '' },
+    meta: { name: 'Synthetic discussion', description: '', rules: '' },
   });
   const defaultTag = (await db.communityPosts.tags(community, null)).items[0]!
     .id;
@@ -119,8 +128,8 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
       id: community,
       post: id,
       content: {
-        title: parent ? '' : 'Título sintético',
-        text: 'Texto público sintético',
+        title: parent ? '' : 'Synthetic title',
+        text: 'Synthetic public text',
         tags: parent ? [] : [defaultTag],
       },
       ...(parent ? { parent } : {}),
@@ -423,7 +432,7 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
         post: nested,
         revision: marker.revision,
         record,
-        decision: 'Restaurar',
+        decision: 'Restore',
         restore: true,
       });
       assert.equal((await stats(popular)).participants, 2);
@@ -432,7 +441,7 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
           id: community,
           post: retry,
           parent: popular,
-          content: { title: '', text: 'Retry sintético', tags: [] },
+          content: { title: '', text: 'Synthetic retry', tags: [] },
         };
       await Promise.all([
         people[6]!.operate('reply-create', payload),
@@ -537,6 +546,117 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
         (await replies(popular, 'oldest')).items.at(-1)?.author,
         null,
       );
+    },
+  );
+  await t.test(
+    'one top child per parent is opt-in and preserves moderation, blocks and private viewer state',
+    async () => {
+      const original = await create(owner),
+        a = await create(owner, original),
+        b = await create(owner, original),
+        high = await create(stranger, a),
+        low = await create(followed, a),
+        hidden = await create(people[3]!, a),
+        only = await create(people[4]!, b);
+      await create(owner, high);
+      for (const [target, voters] of [
+        [high, [owner, reader]],
+        [low, [owner]],
+        [hidden, [owner, reader, followed]],
+      ] as const)
+        for (const who of voters)
+          await who.operate('post-vote', {
+            id: community,
+            post: target,
+            position: 1,
+            voteRevision: 0,
+          });
+      const hiddenState = postState(
+        await owner.operate('post-state', { id: community, post: hidden }),
+      );
+      await owner.operate('post-hide', {
+        id: community,
+        post: hidden,
+        revision: hiddenState.post.revision,
+        record: crypto.randomUUID(),
+        reason: 'Synthetic moderation',
+      });
+      const publicPage = () =>
+        communities
+          .discussion(community, original, {
+            order: 'oldest',
+            after: null,
+            preview: 'top',
+          })
+          .then(discussionPage);
+      const signedPage = () =>
+        reader
+          .operate('post-replies', {
+            id: community,
+            post: original,
+            order: 'oldest',
+            after: null,
+            preview: 'top',
+          })
+          .then(discussionPage);
+      const initial = await publicPage();
+      assert.deepEqual(previewIds(initial), [high, only]);
+      assert.ok(
+        initial.previews?.every(
+          (post) => post.status === 'visible' && post.viewer === undefined,
+        ),
+      );
+      assert.equal(
+        (await signedPage()).previews?.find((post) => post.id === high)?.viewer
+          ?.vote,
+        1,
+      );
+      assert.equal(
+        Object.hasOwn(
+          await communities.discussion(community, original, {
+            order: 'oldest',
+            after: null,
+          }),
+          'previews',
+        ),
+        false,
+      );
+      await sql.query(
+        'INSERT INTO hash_talk.social_blocks(actor,target) VALUES($1,$2)',
+        [identities[7]!.id, identities[2]!.id],
+      );
+      assert.deepEqual(previewIds(await signedPage()), [low, only]);
+      assert.deepEqual(previewIds(await publicPage()), [high, only]);
+      await remove(followed, low);
+      assert.deepEqual(previewIds(await signedPage()), [only]);
+      const url = `${origin}/api/communities/${community}/posts/${original}/replies?order=oldest`;
+      assert.equal((await fetch(url + '&preview=all')).status, 400);
+      const response = await fetch(url + '&preview=top');
+      assert.equal(response.status, 200);
+      assert.deepEqual(previewIds(discussionPage(await response.json())), [
+        high,
+        only,
+      ]);
+      assert.throws(
+        () =>
+          communities.discussion(community, original, {
+            order: 'votes',
+            after: null,
+            preview: 'all',
+          }),
+        AccountError,
+      );
+      const state = postState(
+        await owner.operate('post-state', { id: community, post: original }),
+      );
+      await owner.operate('post-hide', {
+        id: community,
+        post: original,
+        revision: state.post.revision,
+        record: crypto.randomUUID(),
+        reason: 'Synthetic root moderation',
+      });
+      assert.deepEqual((await publicPage()).previews, []);
     },
   );
 });

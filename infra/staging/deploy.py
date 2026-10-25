@@ -201,11 +201,17 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
+    names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
     # Operational installers are explicit, mutually exclusive CLI modes.
     # Keep ordinary code publication within the existing source budget without
     # transporting an unused worker installer or directory migration. Later
     # invitation/search verifiers import the directory transition's contracts.
+    # Proxy installers are needed only by their separately requested operations.
+    # Capacity schema readers reuse table contracts without loading the installer.
+    if 'capacity' not in config:
+        names.remove('deploy_capacity_proxy')
+    if 'capacity' not in config and 'request_limit' not in config:
+        names.remove('deploy_request_limit')
     if 'media_worker' not in config:
         names.remove('deploy_media_worker')
     if not config.get('worker_boot'):

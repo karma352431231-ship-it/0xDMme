@@ -559,6 +559,10 @@ export function startMessages(
     },
     media: (view, thumbnail) => controller.media(view, thumbnail),
     run,
+    older: {
+      available: () => controller.olderAvailable(rootsShown()),
+      load: loadOlder,
+    },
     composerChanged: composerStatus,
     outgoing: () => outgoing.forPeer(selected?.accountId),
     retryOutgoing: () => {
@@ -758,6 +762,28 @@ export function startMessages(
   }
   async function run(work: () => Promise<void>): Promise<void> {
     await synchronization.run(work);
+  }
+  /** One page further back in the selected conversation, keeping what is
+   * shown meanwhile; true when the window grew. */
+  async function loadOlder(): Promise<boolean> {
+    const peer = selected,
+      shown = rootsShown();
+    if (!peer) return false;
+    await run(async () => {
+      controller.requestOlder();
+      if (peer.localOnly) await controller.openArchive(peer.accountId);
+      else if (navigator.onLine)
+        await synchronization.history(() =>
+          controller.synchronize({ priority: 'interactive' }),
+        );
+      else await controller.openOffline(peer.accountId);
+      await controller.savePins();
+    });
+    return selected === peer && rootsShown() > shown;
+  }
+  function rootsShown(): number {
+    return (rows ?? []).filter((row) => !row.relation && row.kind !== 'profile')
+      .length;
   }
   function stopPreload(): void {
     synchronization.stopPreload();
@@ -1235,14 +1261,17 @@ export function startMessages(
       throw new Error(
         'Ask your contact for permission to send new messages. Your saved history remains available.',
       );
-    if (!(await composer.save(selected?.accountId ?? null))) return;
-    await renderPending();
-    if (navigator.onLine) {
-      await sendPending();
+    // Files chosen together leave one by one, each sent before the next is
+    // staged, so they arrive in the order they were chosen.
+    do {
+      if (!(await composer.save(selected?.accountId ?? null))) return;
+      await renderPending();
+      if (navigator.onLine) await sendPending();
+    } while (composer.hasAttachment);
+    if (navigator.onLine)
       await synchronizeVisible({ priority: 'interactive' }, () =>
         controller.savePins(),
       );
-    }
     if (startupWarmup.pending) await historyUi.markRead(daily);
     else await dailyTick();
   }
@@ -1527,20 +1556,6 @@ export function startMessages(
       void run(() =>
         navigator.onLine ? moreConversations() : refreshLocalContacts(true),
       );
-    });
-    bind('[data-message-older]', () => {
-      void run(async () => {
-        if (!selected) return;
-        controller.select(selected.accountId, true);
-        if (selected.localOnly)
-          await controller.openArchive(selected.accountId);
-        else if (navigator.onLine)
-          await synchronization.history(() =>
-            controller.synchronize({ priority: 'interactive' }),
-          );
-        else await controller.openOffline(selected.accountId);
-        await controller.savePins();
-      });
     });
     node<HTMLFormElement>('[data-message-form]')?.addEventListener(
       'submit',

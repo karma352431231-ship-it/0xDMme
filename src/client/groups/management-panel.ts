@@ -11,6 +11,7 @@ import { GroupDescriptionUi } from './description-ui.ts';
 import type { GroupMemberPresentation } from './member-presentation.ts';
 import type { GroupProfile } from './people.ts';
 import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
+import { chooseGroupSuccessor } from './owner-handover.ts';
 import {
   groupSettingsTemplate,
   bindGroupSettings,
@@ -28,7 +29,6 @@ interface ManagementOptions {
     | 'description'
     | 'updateDescription'
     | 'change'
-    | 'propose'
     | 'create'
     | 'admission'
     | 'incoming'
@@ -168,15 +168,11 @@ export class GroupManagementPanel {
       'click',
       () =>
         void this.options.run(async () => {
-          if (
-            !window.confirm(
-              t('Leave the group? You will lose access to the remote vault.'),
-            )
-          )
-            return;
+          const account = this.options.account();
+          if (!account || !(await this.confirmLeave(account))) return;
           await this.options.controller.change({
             kind: 'leave',
-            target: this.options.account() ?? null,
+            target: account,
           });
           await this.options.refresh();
           this.options.render();
@@ -263,6 +259,30 @@ export class GroupManagementPanel {
       () => this.options.controller.photo(),
     );
   }
+  /** A member confirms; the owner first hands ownership to the member they
+   * pick, signed by the owner alone, and leaves as a regular member. If the
+   * departure then fails, the handover stands and Leave can be retried. */
+  private async confirmLeave(account: string): Promise<boolean> {
+    const group = this.options.controller.selected;
+    if (!group || group.state.owner !== account)
+      return window.confirm(
+        t('Leave the group? You will lose access to the remote vault.'),
+      );
+    const settings = this.node('[data-group-settings]');
+    if (!settings) return false;
+    const successor = await chooseGroupSuccessor({
+      host: settings,
+      owner: account,
+      members: group.state.members,
+      name: (member) => this.options.members.name(member),
+    });
+    if (!successor) return false;
+    await this.options.controller.change({
+      kind: 'transfer',
+      target: successor,
+    });
+    return true;
+  }
   private renderLocalControls(group: GroupSummary): void {
     for (const selector of [
       '[data-group-leave]',
@@ -322,12 +342,13 @@ export class GroupManagementPanel {
     this.renderOwnership(group, account);
   }
   private renderOwnership(group: GroupSummary, account: string): void {
+    const owner = group.state.owner === account,
+      alone = group.state.members.length < 2;
+    // An owner alone in the group can only delete it.
     const leave = this.node('[data-group-leave]');
-    if (leave)
-      leave.hidden = !!group.localOnly || group.state.owner === account;
+    if (leave) leave.hidden = !!group.localOnly || (owner && alone);
     const transfer = this.node('[data-group-owner-note]');
-    if (transfer)
-      transfer.hidden = !!group.localOnly || group.state.owner !== account;
+    if (transfer) transfer.hidden = !!group.localOnly || !owner || alone;
     const deletion = this.node('[data-group-delete]');
     if (deletion)
       deletion.hidden = !!group.localOnly || group.state.owner !== account;
@@ -385,22 +406,21 @@ export class GroupManagementPanel {
     );
     row.append(
       withMenuIcon(
-        this.button(t('Offer ownership'), async () => {
+        this.button(t('Make owner'), async () => {
           if (
             !window.confirm(
               t(
-                'Offer ownership to {0}? They must accept. You will become a regular member after acceptance.',
+                'Make {0} the owner now? They do not need to accept. You will become a regular member.',
                 [this.options.members.name(member.accountId)],
               ),
             )
           )
             return;
-          await this.options.controller.propose(member.accountId, 'transfer');
-          this.options.report(
-            t(
-              'Transfer offered. Ownership changes after the selected member accepts.',
-            ),
-          );
+          await this.options.controller.change({
+            kind: 'transfer',
+            target: member.accountId,
+          });
+          await this.options.refresh();
         }),
         'shield',
       ),

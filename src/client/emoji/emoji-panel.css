@@ -1,8 +1,8 @@
 /* Emoji panel: compact, anchored to its button, recents on top and categories as a dock. */
 .emoji-picker {
   position: fixed;
-  width: min(360px, calc(100vw - 16px));
-  height: min(420px, calc(100dvh - 16px));
+  width: min(360px, calc(var(--viewport-width, 100vw) - 16px));
+  height: min(420px, calc(var(--viewport-height, 100dvh) - 16px));
   margin: auto;
   padding: 0;
   overflow: hidden;

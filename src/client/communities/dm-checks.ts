@@ -1,6 +1,7 @@
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
+import { WindowReceipts } from '../history-window/index.ts';
 const reactionReads = new WeakMap<
   HTMLElement,
   {
@@ -9,8 +10,30 @@ const reactionReads = new WeakMap<
     ids: Set<string>;
   }
 >();
+/** A deep window asks checks a page of ids at a time (history-window). */
+const windowChecks = new WeakMap<
+  HTMLElement,
+  {
+    peer: string;
+    read: WindowReceipts<never>;
+    own: WindowReceipts<{ received: boolean; read: boolean }>;
+  }
+>();
 export function clearDmChecks(history: HTMLElement): void {
   reactionReads.delete(history);
+  windowChecks.delete(history);
+}
+function checksFor(history: HTMLElement, peer: string) {
+  let held = windowChecks.get(history);
+  if (held?.peer !== peer) {
+    held = {
+      peer,
+      read: new WindowReceipts(),
+      own: new WindowReceipts((state) => state.read),
+    };
+    windowChecks.set(history, held);
+  }
+  return held;
 }
 
 /** Update just the metadata; media, draft, scroll position and bubbles are preserved. */
@@ -24,23 +47,33 @@ export async function refreshDmChecks(input: {
   work?: VaultWorkOptions;
 }): Promise<void> {
   if (!(await readDmReactions(input))) return;
-  const status = await input.controller.messageStates(
-    {
-      peer: input.peer,
-      read:
-        document.visibilityState === 'visible'
-          ? input.items.filter((item) => !item.own).map((item) => item.id)
-          : [],
-      own: input.items.filter((item) => item.own).map((item) => item.id),
-    },
-    input.work,
-  );
-  if (!input.usable()) return;
-  const byId = new Map(status.map((item) => [item.id, item]));
+  const held = checksFor(input.history, input.peer),
+    reads =
+      document.visibilityState === 'visible'
+        ? held.read.batches(
+            input.items.filter((item) => !item.own).map((item) => item.id),
+          )
+        : [],
+    owns = held.own.batches(
+      input.items.filter((item) => item.own).map((item) => item.id),
+    );
+  for (let page = 0; page < Math.max(reads.length, owns.length); page++) {
+    const batch = { read: reads[page] ?? [], own: owns[page] ?? [] };
+    const status = await input.controller.messageStates(
+      { peer: input.peer, ...batch },
+      input.work,
+    );
+    if (!input.usable()) return;
+    held.read.answered(batch.read);
+    held.own.answered(
+      batch.own,
+      new Map(status.map((item) => [item.id, item])),
+    );
+  }
   for (const row of input.history.querySelectorAll<HTMLElement>(
     '[data-message]',
   )) {
-    patchDmCheck(row, byId.get(row.dataset['message'] ?? ''));
+    patchDmCheck(row, held.own.state(row.dataset['message'] ?? ''));
   }
 }
 

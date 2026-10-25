@@ -8,7 +8,6 @@ import deploy_remote as base
 import deploy_blocks45 as backups
 import deploy_background as background
 import deploy_community_addresses as addresses
-import deploy_capacity_proxy as proxy
 
 BEFORE = '56e0d572edfd1c23f2a6d78f4b4676ee5718db9c'
 REVIEWED = 'afa885c49670662db20d609064171c9bfa5023d6'
@@ -108,6 +107,7 @@ def verify_migration(candidate, before):
 
 
 def activate(config, work, candidate, before_state):
+    import deploy_capacity_proxy as proxy
     proxy.review(config)
     background.verify_current(config)
     result = base.activate_database(config, work, candidate, {

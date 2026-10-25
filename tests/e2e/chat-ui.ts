@@ -19,10 +19,11 @@ export async function openDirect(page: Page): Promise<void> {
     return;
   }
   await openDirectory(page);
-  // These fixtures have exactly one accepted peer, no chosen display name and
-  // one private group. Select the actual peer row in the conversation directory.
+  // A saved contact can render before the accepted peer finishes loading.
+  // Its row opens contact settings; only the accepted peer opens this chat.
   const peer = page.locator('[data-conversation]').filter({
     has: page.getByText(/^0x[a-f0-9]{4}…[a-f0-9]{4}$/iu, { exact: true }),
+    hasNotText: 'saved in contacts',
   });
   await expect(peer).toHaveCount(1);
   await peer.click();
