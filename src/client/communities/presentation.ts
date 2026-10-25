@@ -1,5 +1,6 @@
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import { defaultPostTag } from '../../shared/community-posts/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
@@ -197,11 +198,28 @@ export function postPendingMedia(node: HTMLElement, post: CommunityPost): void {
   if (post.text || post.title || post.media?.length) return;
   node.append(el('p', t('Media awaiting approval.')));
 }
+/** Default tags read in the viewer's language; names managers chose stay as written. */
+export function postTagName(label: string): string {
+  switch (defaultPostTag(label)) {
+    case 'Discussion':
+      return t('Discussion');
+    case 'Opinion':
+      return t('Opinion');
+    case 'Memes':
+      return t('Memes');
+    default:
+      return label;
+  }
+}
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;
   const row = el('div', '', 'post-tags');
   for (const tag of post.tags) {
-    link(row, tag.label, `#communities?id=${post.community}&tag=${tag.id}`);
+    link(
+      row,
+      postTagName(tag.label),
+      `#communities?id=${post.community}&tag=${tag.id}`,
+    );
     row.lastElementChild?.classList.add('post-tag');
   }
   node.append(row);

@@ -4339,6 +4339,9 @@ export const catalog: Record<string, readonly [string, string]> = {
   'New tag name': ['New tag name', '新标签名称'],
   'Organization name': ['Organization name', '组织名称'],
   'Tag name': ['Tag name', '标签名称'],
+  Discussion: ['Discussion', '讨论'],
+  Opinion: ['Opinion', '观点'],
+  Memes: ['Memes', '梗图'],
   'Group name has no authorized administrator.': [
     'Group name has no authorized administrator.',
     '群组名称缺少已授权管理员。',

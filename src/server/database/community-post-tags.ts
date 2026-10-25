@@ -8,7 +8,10 @@ import {
   communityPageSize,
   communityRevision,
 } from '../../shared/communities/index.ts';
-import { postTagLabel } from '../../shared/community-posts/index.ts';
+import {
+  defaultPostTags,
+  postTagLabel,
+} from '../../shared/community-posts/index.ts';
 import type { PostTag, TagPage } from '../../shared/community-posts/index.ts';
 import { requireCommunityManager } from './community-authority.ts';
 import type { CommunityContext } from './community-authority.ts';
@@ -20,11 +23,7 @@ export async function seedCommunityTags(
 ): Promise<void> {
   await client.query(
     'INSERT INTO hash_talk.community_tags(id,community_id,label) SELECT unnest($1::uuid[]),$2,unnest($3::text[])',
-    [
-      [randomUUID(), randomUUID(), randomUUID()],
-      community,
-      ['Discussão', 'Opinião', 'Memes'],
-    ],
+    [defaultPostTags.map(() => randomUUID()), community, [...defaultPostTags]],
   );
 }
 export async function communityTagPage(

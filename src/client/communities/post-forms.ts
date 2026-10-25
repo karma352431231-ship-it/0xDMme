@@ -24,7 +24,7 @@ import {
   communityElement as el,
   communityField as field,
 } from './elements.ts';
-import { iconLabel } from './presentation.ts';
+import { iconLabel, postTagName } from './presentation.ts';
 import { markMissing } from './form-errors.ts';
 import type { CommunityIcon } from './presentation.ts';
 /** A row of the post's “...” menu that opens its own form. */
@@ -71,7 +71,7 @@ export function postTagSelect(
     none.value = '';
     select.replaceChildren(none);
     for (const tag of page.items) {
-      const option = el('option', tag.label);
+      const option = el('option', postTagName(tag.label));
       option.value = tag.id;
       select.append(option);
     }
@@ -114,7 +114,9 @@ function postTagChips(
   let chosen = [...value],
     page = source.page;
   const paint = (): void => {
-    const known = new Map(page.items.map((tag) => [tag.id, tag.label]));
+    const known = new Map(
+      page.items.map((tag) => [tag.id, postTagName(tag.label)]),
+    );
     const ids = [
       ...page.items.map((tag) => tag.id),
       ...chosen.filter((id) => !known.has(id)),

@@ -137,6 +137,21 @@ export function postTagIds(value: unknown): string[] {
     throw new AccountError(400, 'Duplicate tag in the post.');
   return ids;
 }
+/** Tags every new community starts with; managers can rename or retire them. */
+export const defaultPostTags = ['Discussion', 'Opinion', 'Memes'] as const;
+export type DefaultPostTag = (typeof defaultPostTags)[number];
+// Communities created before 25/10/2026 were seeded with Portuguese labels.
+const seededPostTags = new Map<string, DefaultPostTag>([
+  ['discussion', 'Discussion'],
+  ['opinion', 'Opinion'],
+  ['memes', 'Memes'],
+  ['discuss\u00e3o', 'Discussion'],
+  ['opini\u00e3o', 'Opinion'],
+]);
+/** The default tag a stored label names, so clients can show it in the viewer's language. */
+export function defaultPostTag(label: string): DefaultPostTag | null {
+  return seededPostTags.get(label.trim().toLowerCase()) ?? null;
+}
 export function postTagLabel(value: unknown): string {
   const label = communityText(value, 36);
   if (/[\n\t]/u.test(label))

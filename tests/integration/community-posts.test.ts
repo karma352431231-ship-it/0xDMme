@@ -231,9 +231,9 @@ await test('posts: open publication, local tags, privacy, revision, deletion and
     'tags belong to the community and support revision and deactivation without deleting old classification',
     async () => {
       assert.deepEqual(tags.items.map((tag) => tag.label).sort(), [
-        'Discussão',
+        'Discussion',
         'Memes',
-        'Opinião',
+        'Opinion',
       ]);
       const newTag = crypto.randomUUID();
       await assert.rejects(
