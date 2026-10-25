@@ -4,8 +4,15 @@ import { BrowserFailures } from './browser-failures.ts';
 test('browser failure observer detects native exceptions and stops on disposal', async ({
   browser,
   baseURL,
-}) => {
+}, info) => {
   if (!baseURL) throw new Error('Owned fixture origin missing.');
+  await info.attach('browser-version', {
+    body: JSON.stringify({
+      name: browser.browserType().name(),
+      version: browser.version(),
+    }),
+    contentType: 'application/json',
+  });
   const context = await browser.newContext();
   const failures = new BrowserFailures();
   try {

@@ -20,16 +20,19 @@ let killTimer: ReturnType<typeof setTimeout> | undefined;
 const failures: unknown[] = [];
 const stop = () => {
   if (controller.signal.aborted) return;
+  process.exitCode = 1;
   controller.abort();
-  if (!child) return;
-  signalProcess(child, 'SIGINT');
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const runningChild = child;
+  signalProcess(runningChild, 'SIGINT');
   killTimer = setTimeout(() => {
-    if (child) signalProcess(child, 'SIGKILL');
+    if (runningChild.exitCode === null && runningChild.signalCode === null)
+      signalProcess(runningChild, 'SIGKILL');
   }, 15_000);
 };
-process.once('SIGINT', stop);
-process.once('SIGTERM', stop);
-process.once('SIGHUP', stop);
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
+process.on('SIGHUP', stop);
 try {
   checkBrowsers(args);
   if (args.some((arg) => /^--(?:workers|fully-parallel)(?:=|$)/u.test(arg)))
@@ -64,14 +67,37 @@ try {
   child.stdout?.pipe(process.stdout);
   child.stderr?.pipe(process.stderr);
   const code = await processExit(child);
-  process.exitCode = typeof code === 'number' ? code : 1;
+  process.exitCode = controller.signal.aborted
+    ? 1
+    : typeof code === 'number'
+      ? code
+      : 1;
 } catch (error) {
   failures.push(error);
 } finally {
-  process.removeListener('SIGINT', stop);
-  process.removeListener('SIGTERM', stop);
-  process.removeListener('SIGHUP', stop);
   clearTimeout(killTimer);
+  try {
+    failures.push(...(await finalizeRun(child, environment)));
+  } finally {
+    clearTimeout(killTimer);
+    process.removeListener('SIGINT', stop);
+    process.removeListener('SIGTERM', stop);
+    process.removeListener('SIGHUP', stop);
+  }
+}
+
+if (failures.length)
+  throw new AggregateError(
+    failures,
+    'Browser execution or finalization failed.',
+  );
+
+/** Keep terminal handlers active until every owned finalization step settles. */
+async function finalizeRun(
+  child: ReturnType<typeof startProcess> | undefined,
+  environment: Awaited<ReturnType<typeof startEnvironment>> | undefined,
+): Promise<unknown[]> {
+  const failures: unknown[] = [];
   if (child) {
     try {
       await stopProcess(child);
@@ -100,13 +126,8 @@ try {
     }
     process.stdout.write(`Browser test evidence: ${environment.directory}\n`);
   }
+  return failures;
 }
-
-if (failures.length)
-  throw new AggregateError(
-    failures,
-    'Browser execution or finalization failed.',
-  );
 
 function checkBrowsers(args: readonly string[]): void {
   const selection = args
