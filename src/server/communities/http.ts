@@ -1,3 +1,6 @@
+import { postReadLookup } from './post-reads.ts';
+import type { CommunityPostReads } from './post-reads.ts';
+import { requireCommunityParams } from './query-params.ts';
 import { RankingLive } from '../community-ranking/index.ts';
 import type { WorkSignals } from '../database/index.ts';
 import { accountRankingLookup } from './account-ranking.ts';
@@ -22,8 +25,6 @@ import type {
   CommunityPage,
 } from '../../shared/communities/index.ts';
 import { RequestBudget } from '../request-budget/index.ts';
-import { discussionPage } from '../../shared/community-discussion/index.ts';
-import type { DiscussionPage } from '../../shared/community-discussion/index.ts';
 import { viewRequest } from './views.ts';
 import { postViewsPage } from '../../shared/community-views/index.ts';
 import {
@@ -38,65 +39,39 @@ import type {
   FeedPage,
   ExplorePage,
 } from '../../shared/community-discovery/index.ts';
-import {
-  communityPost,
-  postPage,
-  postCursor,
-  tagPage,
-} from '../../shared/community-posts/index.ts';
-import type {
-  CommunityPost,
-  PostPage,
-  TagPage,
-} from '../../shared/community-posts/index.ts';
 
-export function createCommunityHandler(read: {
-  rankingSignals?: Pick<WorkSignals, 'subscribe'>;
-  upvoters?: (
-    id: string,
-    post: string,
-    after: string | null,
-  ) => Promise<unknown>;
-  followers?: (
-    id: string,
-    after: string | null,
-    tab: CommunityFollowerTab,
-  ) => Promise<unknown>;
-  origin?: string;
-  suggestions?: (query: string) => Promise<CommunityPage>;
-  views?: (input: unknown) => Promise<unknown>;
-  shareClicks?: (input: unknown) => Promise<{ accepted: true }>;
-  accounts?: (
-    period: RankingPeriod,
-    after: string | null,
-    order?: AccountRankingOrder,
-  ) => Promise<AccountRankingPage>;
-  readAddress?: (slug: string) => Promise<Community>;
-  read: (id: string) => Promise<Community>;
-  list: (after: string | null) => Promise<CommunityPage>;
-  feed?: (filter: FeedFilter, after: string | null) => Promise<FeedPage>;
-  explore?: (
-    filter: ExploreFilter,
-    after: string | null,
-  ) => Promise<ExplorePage>;
-  post?: (community: string, id: string) => Promise<CommunityPost>;
-  postPage?: (
-    community: string,
-    after: string | null,
-    tag: string | null,
-  ) => Promise<PostPage>;
-  replies?: (
-    community: string,
-    parent: string,
-    after: string | null,
-  ) => Promise<PostPage>;
-  discussion?: (
-    community: string,
-    parent: string,
-    selection: { order: unknown; after: string | null },
-  ) => Promise<DiscussionPage>;
-  tags?: (community: string, after: string | null) => Promise<TagPage>;
-}) {
+export function createCommunityHandler(
+  read: {
+    rankingSignals?: Pick<WorkSignals, 'subscribe'>;
+    upvoters?: (
+      id: string,
+      post: string,
+      after: string | null,
+    ) => Promise<unknown>;
+    followers?: (
+      id: string,
+      after: string | null,
+      tab: CommunityFollowerTab,
+    ) => Promise<unknown>;
+    origin?: string;
+    suggestions?: (query: string) => Promise<CommunityPage>;
+    views?: (input: unknown) => Promise<unknown>;
+    shareClicks?: (input: unknown) => Promise<{ accepted: true }>;
+    accounts?: (
+      period: RankingPeriod,
+      after: string | null,
+      order?: AccountRankingOrder,
+    ) => Promise<AccountRankingPage>;
+    readAddress?: (slug: string) => Promise<Community>;
+    read: (id: string) => Promise<Community>;
+    list: (after: string | null) => Promise<CommunityPage>;
+    feed?: (filter: FeedFilter, after: string | null) => Promise<FeedPage>;
+    explore?: (
+      filter: ExploreFilter,
+      after: string | null,
+    ) => Promise<ExplorePage>;
+  } & CommunityPostReads,
+) {
   const budget = new RequestBudget();
   const live = read.rankingSignals
     ? new RankingLive(read.rankingSignals)
@@ -128,7 +103,7 @@ export function createCommunityHandler(read: {
   }
   async function followerLookup(address: URL): Promise<unknown> {
     if (!read.followers) throw new AccountError(404, 'Followers unavailable.');
-    params(address, ['after', 'tab']);
+    requireCommunityParams(address, ['after', 'tab']);
     const id = uuid(address.pathname.split('/')[3]);
     return communityFollowers(
       await read.followers(
@@ -231,20 +206,17 @@ export function createCommunityHandler(read: {
       );
     }
   }
-  function params(address: URL, allowed: string[]): void {
-    if (
-      [...address.searchParams.keys()].some(
-        (key) =>
-          !allowed.includes(key) ||
-          address.searchParams.getAll(key).length !== 1,
-      )
-    )
-      throw new AccountError(400, 'Invalid filters.');
-  }
   async function discoveryLookup(address: URL): Promise<unknown> {
     const query = address.searchParams;
     if (address.pathname.endsWith('/feed') && read.feed) {
-      params(address, ['order', 'period', 'community', 'tag', 'after', 'q']);
+      requireCommunityParams(address, [
+        'order',
+        'period',
+        'community',
+        'tag',
+        'after',
+        'q',
+      ]);
       return feedPage(
         await read.feed(
           feedFilter({
@@ -260,7 +232,7 @@ export function createCommunityHandler(read: {
       );
     }
     if (address.pathname.endsWith('/explore') && read.explore) {
-      params(address, ['order', 'period', 'topics', 'after']);
+      requireCommunityParams(address, ['order', 'period', 'topics', 'after']);
       return explorePage(
         await read.explore(
           exploreFilter({
@@ -279,75 +251,13 @@ export function createCommunityHandler(read: {
       return upvoterLookup(address, read.upvoters);
     return address.pathname.endsWith('/followers')
       ? followerLookup(address)
-      : postLookup(address);
-  }
-  async function postLookup(address: URL): Promise<unknown> {
-    const parts = address.pathname.split('/'),
-      id = uuid(parts[3]);
-    if (
-      parts.length === 7 &&
-      parts[4] === 'posts' &&
-      parts[6] === 'replies' &&
-      read.replies
-    ) {
-      return replyLookup(address, id, uuid(parts[5]));
-    }
-    if (parts.length === 5) return postList(address, id, parts[4]);
-    if (
-      parts[4] === 'posts' &&
-      parts.length === 6 &&
-      !address.search &&
-      read.post
-    )
-      return communityPost(await read.post(id, uuid(parts[5])));
-    throw new AccountError(404, 'Post unavailable.');
-  }
-  async function replyLookup(
-    address: URL,
-    id: string,
-    parent: string,
-  ): Promise<unknown> {
-    if (!read.replies) throw new AccountError(404, 'Replies unavailable.');
-    if (address.searchParams.has('order') && read.discussion) {
-      params(address, ['after', 'order']);
-      return discussionPage(
-        await read.discussion(id, parent, {
-          order: address.searchParams.get('order'),
-          after: address.searchParams.get('after'),
-        }),
-      );
-    }
-    params(address, ['after']);
-    return postPage(
-      await read.replies(
-        id,
-        parent,
-        postCursor(address.searchParams.get('after')),
-      ),
-    );
-  }
-  async function postList(
-    address: URL,
-    id: string,
-    kind: string | undefined,
-  ): Promise<unknown> {
-    if (kind === 'tags' && read.tags) {
-      params(address, ['after']);
-      return tagPage(
-        await read.tags(id, communityCursor(address.searchParams.get('after'))),
-      );
-    }
-    if (kind === 'posts' && read.postPage) {
-      params(address, ['after', 'tag']);
-      return postPage(
-        await read.postPage(
-          id,
-          postCursor(address.searchParams.get('after')),
-          communityCursor(address.searchParams.get('tag')),
-        ),
-      );
-    }
-    throw new AccountError(404, 'Post unavailable.');
+      : postReadLookup(address, {
+          post: read.post,
+          postPage: read.postPage,
+          replies: read.replies,
+          discussion: read.discussion,
+          tags: read.tags,
+        });
   }
   return {
     handle,

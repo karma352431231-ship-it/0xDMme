@@ -19,7 +19,7 @@
 }
 .post-thread-branch {
   position: relative;
-  margin-left: 11px;
+  margin-left: 16px;
   padding-left: 20px;
 }
 .post-thread-branch::before {
@@ -33,18 +33,19 @@
 .post-thread-branch:has(> .post-thread-children[hidden])::before {
   display: none;
 }
-.post-thread-children > .post-thread-item::before {
+:is(.post-thread-children, .post-thread-preview) > .post-thread-item::before {
   content: '';
   position: absolute;
   top: 0;
   left: -21px;
-  width: 18px;
-  height: 36px;
+  width: 20px;
+  height: 30px;
   border-left: 1px solid var(--line-strong);
   border-bottom: 1px solid var(--line-strong);
   border-bottom-left-radius: 12px;
 }
-.post-thread-children > .post-thread-item:not(:last-child)::after {
+:is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item:not(:last-child)::after {
   content: '';
   position: absolute;
   top: 0;
@@ -57,14 +58,69 @@
   padding-left: 0;
 }
 .post-thread-branch.post-thread-deep::before,
-.post-thread-deep > .post-thread-children > .post-thread-item::before,
-.post-thread-deep > .post-thread-children > .post-thread-item::after {
+.post-thread-deep
+  > :is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item::before,
+.post-thread-deep
+  > :is(.post-thread-children, .post-thread-preview)
+  > .post-thread-item::after {
   left: -9px;
   width: 8px;
 }
-#app-shell .post-thread-item > .community-reply {
-  border-top: 0;
-  padding-top: 14px;
+/* An isolated avatar column keeps the comment and its controls under the
+   author. Specificity prevents the surrounding feed cards from boxing replies. */
+#app-shell .post-thread-item > .community-card.community-reply {
+  --reply-avatar-size: 32px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--reply-avatar-size) minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 14px 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#app-shell .post-thread .community-reply > * {
+  grid-column: 2;
+  min-width: 0;
+}
+#app-shell .post-thread .community-reply > .community-post-header {
+  display: contents;
+  font-size: 14px;
+}
+#app-shell .post-thread .community-reply .community-post-identity {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 24px;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 4px 8px;
+}
+#app-shell .post-thread .community-reply .community-post-byline {
+  font-size: 13px;
+}
+#app-shell
+  .post-thread
+  .community-reply
+  .community-post-header
+  .community-avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: var(--reply-avatar-size);
+  height: var(--reply-avatar-size);
+  border-radius: 50%;
+  font-size: 12px;
+}
+#app-shell
+  .post-thread
+  .community-reply
+  .community-avatar
+  .public-avatar-preview {
+  border-radius: 0;
 }
 #app-shell .post-thread :is(.post-thread-toggle, .post-thread-more button) {
   min-height: 44px;
@@ -76,7 +132,8 @@
   text-align: left;
   font-size: 13px;
 }
-.post-thread-children[hidden] {
+.post-thread-children[hidden],
+.post-thread-preview[hidden] {
   display: none;
 }
 .post-thread-item > a,
@@ -87,12 +144,12 @@
 }
 @media (max-width: 700px) {
   .post-thread-branch {
-    padding-left: 10px;
-    margin-left: 7px;
+    padding-left: 12px;
+    margin-left: 16px;
   }
-  .post-thread-children > .post-thread-item::before,
-  .post-thread-children > .post-thread-item::after {
-    left: -11px;
-    width: 8px;
+  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::before,
+  :is(.post-thread-children, .post-thread-preview) > .post-thread-item::after {
+    left: -13px;
+    width: 12px;
   }
 }

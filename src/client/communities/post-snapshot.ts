@@ -1,3 +1,4 @@
+import type { DiscussionPage } from '../../shared/community-discussion/index.ts';
 import type {
   CommunityPost,
   PostPage,
@@ -16,13 +17,20 @@ export class PostSnapshot {
     query: string;
     value:
       | CommunityPost
-      | { items: (CommunityPost | FeedEntry)[]; next: string | null };
+      | {
+          items: (CommunityPost | FeedEntry)[];
+          next: string | null;
+          previews?: CommunityPost[];
+        };
   } | null = null;
   clear(): void {
     this.identity = '';
     this.current = null;
   }
-  changed(query: string, value: CommunityPost | PostPage | FeedPage): boolean {
+  changed(
+    query: string,
+    value: CommunityPost | PostPage | FeedPage | DiscussionPage,
+  ): boolean {
     const identity = JSON.stringify([query, value]);
     const changed = identity !== this.identity;
     this.identity = identity;
@@ -41,6 +49,13 @@ export class PostSnapshot {
                 ? { ...item, post: editedPost(item.post, post) }
                 : editedPost(item, post),
             ),
+            ...(value.previews
+              ? {
+                  previews: value.previews
+                    .map((item) => editedPost(item, post))
+                    .filter((item) => item.status === 'visible'),
+                }
+              : {}),
           }
         : editedPost(value, post);
     this.current = { query, value: next };

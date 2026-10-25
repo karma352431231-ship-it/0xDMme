@@ -1,5 +1,8 @@
 import type { CommunityMediaService } from '../community-media/index.ts';
-import { discussionOrder } from '../../shared/community-discussion/index.ts';
+import {
+  discussionOrder,
+  discussionPreview,
+} from '../../shared/community-discussion/index.ts';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
@@ -70,10 +73,11 @@ export class CommunityService {
   discussion(
     community: unknown,
     parent: unknown,
-    selection: { order: unknown; after: string | null },
+    selection: { order: unknown; after: string | null; preview?: unknown },
   ) {
     return this.requirePosts().discussion(uuid(community), uuid(parent), {
       order: discussionOrder(selection.order),
+      preview: discussionPreview(selection.preview),
       after: selection.after,
     });
   }

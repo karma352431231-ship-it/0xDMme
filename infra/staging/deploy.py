@@ -206,6 +206,12 @@ def executor_code(config):
     # Keep ordinary code publication within the existing source budget without
     # transporting an unused worker installer or directory migration. Later
     # invitation/search verifiers import the directory transition's contracts.
+    # Proxy installers are needed only by their separately requested operations.
+    # Capacity schema readers reuse table contracts without loading the installer.
+    if 'capacity' not in config:
+        names.remove('deploy_capacity_proxy')
+    if 'capacity' not in config and 'request_limit' not in config:
+        names.remove('deploy_request_limit')
     if 'media_worker' not in config:
         names.remove('deploy_media_worker')
     if not config.get('worker_boot'):
