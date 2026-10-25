@@ -7036,7 +7036,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Reload this page and click Test this package.',
     '请刷新此页并点击“测试此数据包”。',
   ],
-  'Collapse communities': ['Collapse communities', '收起社区'],
+  'Show or hide side panel': ['Show or hide side panel', '显示或隐藏侧边栏'],
   'Private recovery · 0xDMme': [
     'Private recovery · 0xDMme',
     '私密恢复 · 0xDMme',
