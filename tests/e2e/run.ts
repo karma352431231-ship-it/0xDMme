@@ -39,6 +39,7 @@ try {
       'Latency gates require a reviewed candidate/reference comparator; changing the status flag alone cannot enable them.',
     );
   environment = await startEnvironment(controller.signal);
+  controller.signal.throwIfAborted();
   const projects = args.some((arg) => arg.startsWith('--project'))
     ? []
     : ['--project=chromium'];
