@@ -93,9 +93,10 @@ await test('public profiles, community posts and split layout retain their own U
 });
 
 await test('push navigation remains restricted to public post UUIDs and accepts older workers', () => {
-  const id = crypto.randomUUID(),
-    post = crypto.randomUUID();
-  const expected = `/communities/id/${id}/posts/${post}`;
+  const id = '00000000-0000-4000-8000-000000000001',
+    post = '00000000-0000-4000-8000-000000000002';
+  const expected =
+    '/communities/id/AAAAAAAAQACAAAAAAAAAAQ/posts/AAAAAAAAQACAAAAAAAAAAg';
   assert.equal(publicPostHash(expected), expected);
   assert.equal(publicPostHash(`#comunidades?id=${id}&post=${post}`), expected);
   for (const hash of [

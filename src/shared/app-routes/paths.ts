@@ -1,3 +1,5 @@
+import { compactPublicId, expandPublicId } from './public-id.ts';
+
 /** Public navigation paths. Unconsumed filters keep their existing query contract. */
 const views = new Set([
   'feed',
@@ -22,10 +24,11 @@ function communityPath(params: URLSearchParams): string {
   let path = slug
     ? `/${encodeURIComponent(slug)}`
     : id
-      ? `/id/${encodeURIComponent(id)}`
+      ? `/id/${encodeURIComponent(compactPublicId(id))}`
       : '';
   const post = take(params, 'post');
-  if (post && path) path += `/posts/${encodeURIComponent(post)}`;
+  if (post && path)
+    path += `/posts/${encodeURIComponent(compactPublicId(post))}`;
   else if (post) params.set('post', post);
   const view = params.get('view');
   if (!path && view && views.has(view)) path = `/${take(params, 'view')!}`;
@@ -122,9 +125,20 @@ function readCommunityPath(parts: string[], params: URLSearchParams): boolean {
     !(parts.length === length + 2 && parts[length] === 'posts')
   )
     return false;
-  params.set(length === 2 ? 'id' : 'slug', parts[length - 1]!);
-  if (parts.length > length) params.set('post', parts[length + 1]!);
+  readCommunityTarget(parts, params, length);
   return true;
+}
+function readCommunityTarget(
+  parts: string[],
+  params: URLSearchParams,
+  length: number,
+): void {
+  params.set(
+    length === 2 ? 'id' : 'slug',
+    length === 2 ? expandPublicId(parts[length - 1]!) : parts[length - 1]!,
+  );
+  if (parts.length > length)
+    params.set('post', expandPublicId(parts[length + 1]!));
 }
 export function reservedCommunitySlug(value: string): boolean {
   return views.has(value) || value === 'id';
