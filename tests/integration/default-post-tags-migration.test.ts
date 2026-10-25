@@ -91,15 +91,14 @@ await test('the default tag backfill adds only missing labels to active communit
     'python3',
     [
       '-c',
-      "import sys,json;sys.path.insert(0,'infra/staging');import deploy_post_search as m;print(json.dumps([m.TABLES,m.COUNTER_CHECKS,m.GLOBAL_CHECK]))",
+      "import sys,json;sys.path.insert(0,'infra/staging');import deploy_default_tags_backfill as m;print(json.dumps([m.TABLES,m.COUNTER_CHECKS,m.GLOBAL_CHECK,m.METRICS,m.CHANGED]))",
     ],
     { timeout: 5000, maxBuffer: 65536 },
   );
-  const [tables, counterCheck, globalCheck] = JSON.parse(stdout) as [
-    string[],
-    string,
-    string,
-  ];
+  // The exact deploy contract runs here: tables, accounting checks, metrics.
+  const [tables, counterCheck, globalCheck, metricsSql, changed] = JSON.parse(
+    stdout,
+  ) as [string[], string, string, string, string[]];
   const client = await pool.connect();
   const labels = async (community: string) =>
     (
@@ -139,8 +138,16 @@ await test('the default tag backfill adds only missing labels to active communit
       'UPDATE hash_talk.communities SET archived=true WHERE id=$1',
       [archived],
     );
+    const metrics = async () =>
+      JSON.parse(
+        Object.values(
+          (await client.query(metricsSql)).rows[0] as Record<string, string>,
+        )[0]!,
+      ) as { preserved: string; defaults: number; missing: number };
     const currentBefore = await labels(current),
-      before = await digests();
+      before = await digests(),
+      metricsBefore = await metrics();
+    assert.ok(metricsBefore.missing >= 7);
     await client.query(
       await readFile(
         'src/server/database/migrations/100-default-post-tags-backfill.sql',
@@ -165,11 +172,17 @@ await test('the default tag backfill adds only missing labels to active communit
       legacyAfter.find((tag) => tag.label === 'help'),
       { label: 'help', active: false, revision: 1 },
     );
-    const after = await digests();
+    const after = await digests(),
+      metricsAfter = await metrics();
+    assert.deepEqual(metricsAfter, {
+      preserved: metricsBefore.preserved,
+      defaults: metricsBefore.defaults + metricsBefore.missing,
+      missing: 0,
+    });
     assert.deepEqual(
       [...tables].filter((name) => before.get(name) !== after.get(name)),
       // New rows are charged once to the global ledger behind content_usage.
-      ['community_tags', 'content_usage_legacy'],
+      changed,
     );
     assert.deepEqual(
       Object.values((await client.query(counterCheck)).rows[0] as object),
