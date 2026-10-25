@@ -296,8 +296,6 @@ def database_code_reviewed(candidate, live):
     import deploy_blocks45 as backups
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
-    # The first review with the same changed-module set is selected, so the
-    # newest transition for a module set must precede older ones.
     reviews = [
         (set(CREATED_COMMUNITIES_MODULES), CREATED_COMMUNITIES_BEFORE,
          CREATED_COMMUNITIES_REVIEWED),
@@ -349,12 +347,15 @@ def database_code_reviewed(candidate, live):
         (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
         (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
     ]
-    selected = next((review for review in reviews if changed == review[0]), None)
-    if selected is None:
+    # Several reviews may cover the same module set (successive releases of one
+    # module); the transition is reviewed when any of them matches exactly.
+    candidates = [review for review in reviews if changed == review[0]]
+    if not candidates:
         return False
     prefix = 'src/server/database/'
     def projection(revision):
         return {name[len(prefix):]: hashlib.sha256(value).hexdigest()
                 for name, value in backups.git_export(revision).items()
                 if name.startswith(prefix)}
-    return before == projection(selected[1]) and after == projection(selected[2])
+    return any(before == projection(old) and after == projection(new)
+               for _, old, new in candidates)

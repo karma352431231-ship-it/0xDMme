@@ -12,6 +12,11 @@ class CreatedCommunitiesReviewTests(contracts.SourceTextReviewTests):
     reviewed = reviewed_code.CREATED_COMMUNITIES_REVIEWED
     review_modules = reviewed_code.CREATED_COMMUNITIES_MODULES
 
+    def setUp(self):
+        super().setUp()
+        # The community reader release also reviews communities.ts alone.
+        self.exports = contracts.CommitExports(self.exports)
+
     def test_list_review_does_not_approve_runtime_changes(self):
         for name in ['package-lock.json', '.nvmrc']:
             with self.subTest(path=name):
