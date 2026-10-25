@@ -560,7 +560,9 @@ export function startMessages(
     media: (view, thumbnail) => controller.media(view, thumbnail),
     run,
     older: {
-      available: () => controller.olderAvailable(rootsShown()),
+      available: () =>
+        !synchronization.openingRequested &&
+        controller.olderAvailable(rootsShown()),
       load: loadOlder,
     },
     composerChanged: composerStatus,
@@ -768,8 +770,11 @@ export function startMessages(
   async function loadOlder(): Promise<boolean> {
     const peer = selected,
       shown = rootsShown();
-    if (!peer) return false;
-    await run(async () => {
+    if (!peer || synchronization.openingRequested) return false;
+    // A scroll is a selected-history request, not a disposable action while
+    // another foreground operation owns the engine. Navigation cancels it.
+    await synchronization.openOlder(async () => {
+      if (selected !== peer) return;
       controller.requestOlder();
       if (peer.localOnly) await controller.openArchive(peer.accountId);
       else if (navigator.onLine)

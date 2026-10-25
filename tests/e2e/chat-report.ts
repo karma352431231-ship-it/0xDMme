@@ -59,6 +59,7 @@ interface CaseReport {
     admission: unknown;
     navigationMs: number[] | null;
     boot: unknown;
+    browserFailures: unknown;
   };
 }
 async function attachment<T>(result: Result, name: string): Promise<T | null> {
@@ -100,6 +101,10 @@ async function specReports(
           admission: await admissionSummary(result),
           navigationMs: await attachment<number[]>(result, 'navigation-ms'),
           boot: await attachment<unknown>(result, 'boot-ms'),
+          browserFailures: await attachment<unknown>(
+            result,
+            'browser-failures',
+          ),
         },
       });
   return found;

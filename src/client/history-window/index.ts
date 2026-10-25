@@ -118,7 +118,10 @@ export async function reachFloor<T extends WindowRow>(input: {
     rows = input.merge(rows, page);
     if (reached === null) {
       // Older messages may have been removed since the floor was set.
-      if (step === 'behind') floor = oldest;
+      // Rebuilding a saved floor can already fetch rows older than that floor.
+      // If the extra page is empty, retain those verified rows the reader asked
+      // to include instead of clipping them back to the previous floor.
+      if (step === 'behind' || older) floor = oldest;
       if (older) complete = true;
       break;
     }

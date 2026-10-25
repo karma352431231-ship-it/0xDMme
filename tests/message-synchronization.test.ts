@@ -1453,3 +1453,27 @@ for (const error of [
     assert.equal(calls, 1);
   });
 }
+
+for (const choice of ['history', 'cancel', 'navigation'] as const)
+  await test(`older history waits for its owner and preserves ${choice}`, async (t) => {
+    const f = fixture(t),
+      gate = deferred<void>();
+    const actions: string[] = [];
+    const owner = f.sync.run(() => gate.promise);
+    await turn();
+    if (choice === 'navigation')
+      void f.sync.open(() => {
+        actions.push('navigation');
+        return Promise.resolve();
+      });
+    const history = f.sync.openOlder(() => {
+      actions.push('history');
+      return Promise.resolve();
+    });
+    await turn();
+    assert.deepEqual(actions, []);
+    if (choice === 'cancel') f.sync.cancelOpening();
+    gate.resolve();
+    await Promise.all([owner, history]);
+    assert.deepEqual(actions, choice === 'cancel' ? [] : [choice]);
+  });

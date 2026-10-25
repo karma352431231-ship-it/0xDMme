@@ -225,7 +225,7 @@ const messages = startMessages(devices, vault.sync, {
   preferences: () => account.privacyPreferences(),
 });
 const groupEntrypoints = startGroupEntrypoints({
-  available: () => !!connectedAccount && devices.authorized(),
+  available: () => !!connectedAccount && devices.hasVerifiedEnrollment(),
   create: () => messages.createGroup(),
   join: (url) => messages.joinGroup(url),
 });

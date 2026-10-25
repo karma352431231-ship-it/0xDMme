@@ -234,6 +234,12 @@ export class MessageSynchronization {
     void this.openNext();
     return result;
   }
+  /** Older history waits for the active owner, but never replaces a queued
+   * explicit destination. Selection changes cancel it with other openings. */
+  openOlder(work: () => Promise<void>): Promise<void> {
+    if (this.opening.waiting) return Promise.resolve();
+    return this.open(work);
+  }
   cancelOpening(): void {
     this.historyGeneration++;
     this.continuation.clear();

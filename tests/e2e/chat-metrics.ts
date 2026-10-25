@@ -1,3 +1,5 @@
+import { browserFailures } from './browser-failures.ts';
+import type { BrowserFailures } from './browser-failures.ts';
 import { expect } from '@playwright/test';
 import type { BrowserContext, Page, Request, Response } from '@playwright/test';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -55,7 +57,11 @@ export class ChatMetrics {
       event,
     });
   }
-  readonly errors: string[] = [];
+  private readonly issues: string[] = [];
+  private readonly failures: BrowserFailures[] = [];
+  get errors(): readonly string[] {
+    return [...this.issues, ...this.failures.flatMap((owner) => owner.errors)];
+  }
   readonly clocks: {
     page: number;
     roundTripMs: number;
@@ -102,6 +108,7 @@ export class ChatMetrics {
     return value;
   }
   async attach(context: BrowserContext): Promise<void> {
+    this.failures.push(browserFailures(context));
     await context.exposeBinding('chatE2EEvent', ({ page }, value: unknown) => {
       if (typeof value !== 'object' || value === null) return;
       if (!this.room()) return;
@@ -149,17 +156,14 @@ export class ChatMetrics {
   }
   private watchPage(page: Page): void {
     this.pageNumber(page);
-    const failed = () => this.errors.push('Unhandled browser exception');
     const departed = () => this.cancelDocument(page);
     const navigating = (request: Request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame())
         departed();
     };
-    page.on('pageerror', failed);
     page.on('close', departed);
     page.on('request', navigating);
     this.disposals.push(() => {
-      page.off('pageerror', failed);
       page.off('close', departed);
       page.off('request', navigating);
     });
@@ -291,7 +295,7 @@ export class ChatMetrics {
   private track(promise: Promise<void>): void {
     this.pending.add(promise);
     void promise
-      .catch(() => this.errors.push('Incomplete network measurement'))
+      .catch(() => this.issues.push('Incomplete network measurement'))
       .finally(() => this.pending.delete(promise));
   }
   async drain(timeoutMs = budgets.functionalDeadlineMs): Promise<void> {

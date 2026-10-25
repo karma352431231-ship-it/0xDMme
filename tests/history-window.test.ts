@@ -258,3 +258,28 @@ await test('reaching the top reads once at a time; a read with no progress shows
     Reflect.deleteProperty(globalThis, 'requestAnimationFrame');
   }
 });
+
+await test('an older request keeps rows fetched past its previous floor when no further page exists', async () => {
+  const rows = (from: number, through: number) =>
+    Array.from({ length: through - from + 1 }, (_, offset) => ({
+      id: String(from + offset),
+      kind: 'text',
+      sequence: from + offset,
+    }));
+  const cursors: number[] = [];
+  const result = await reachFloor({
+    rows: rows(27, 42),
+    floor: 7,
+    older: true,
+    page: (before) => {
+      cursors.push(before);
+      const from = Math.max(3, before - 16);
+      return Promise.resolve(from < before ? rows(from, before - 1) : []);
+    },
+    merge: (newer, older) => [...older, ...newer],
+  });
+  assert.deepEqual(cursors, [27, 11, 3]);
+  assert.deepEqual(result.rows, rows(3, 42));
+  assert.equal(result.floor, 3);
+  assert.equal(result.complete, true);
+});

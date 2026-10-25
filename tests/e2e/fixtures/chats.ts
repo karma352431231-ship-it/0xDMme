@@ -4,7 +4,10 @@ import { ChatMetrics } from '../chat-metrics.ts';
 import { uuid } from '../../../src/shared/account/index.ts';
 import { openDirect, openContacts, composer } from '../chat-ui.ts';
 
-async function connect(a: Page, b: Page): Promise<void> {
+export async function requestPrivateConversation(
+  a: Page,
+  b: Page,
+): Promise<void> {
   await openContacts(a);
   await a.getByRole('button', { name: 'My invitation ↗', exact: true }).click();
   await a
@@ -27,6 +30,8 @@ async function connect(a: Page, b: Page): Promise<void> {
     'Request sent',
   );
   await b.getByRole('button', { name: 'Close form', exact: true }).click();
+}
+export async function approvePrivateConversation(a: Page): Promise<void> {
   await a.reload();
   await a.getByRole('tab', { name: /^Requests/ }).click();
   await a
@@ -36,6 +41,10 @@ async function connect(a: Page, b: Page): Promise<void> {
   await expect(a.locator('[data-contact-status]')).toContainText(
     'Contact approved',
   );
+}
+async function connect(a: Page, b: Page): Promise<void> {
+  await requestPrivateConversation(a, b);
+  await approvePrivateConversation(a);
   await b.reload();
   await openDirect(a);
   await openDirect(b);
@@ -107,12 +116,15 @@ async function createGroup(a: Page, b: Page, title: string): Promise<string> {
 export const test = accountsTest.extend<{
   chats: { group: string; groupId: string };
 }>({
-  chats: async ({ accounts }, use) => {
-    await connect(accounts.a1, accounts.b1);
-    const group = 'Synthetic delivery group';
-    const groupId = await createGroup(accounts.a1, accounts.b1, group);
-    await use({ group, groupId });
-  },
+  chats: [
+    async ({ accounts }, use) => {
+      await connect(accounts.a1, accounts.b1);
+      const group = 'Synthetic delivery group';
+      const groupId = await createGroup(accounts.a1, accounts.b1, group);
+      await use({ group, groupId });
+    },
+    { timeout: 120_000 },
+  ],
 });
 export { expect };
 

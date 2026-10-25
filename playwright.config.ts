@@ -11,7 +11,9 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   timeout: 180_000,
-  globalTimeout: performanceRun ? 3_600_000 : 1_200_000,
+  // Fresh account pairs preserve the six-challenge/minute server quota.
+  // Bound the complete serial suite separately from each measured scenario.
+  globalTimeout: performanceRun ? 3_600_000 : 2_400_000,
   expect: { timeout: 30_000 },
   outputDir: `${process.env['CHAT_E2E_REPORT'] ?? '.local/chat-e2e/unowned'}/failures`,
   reporter: [
