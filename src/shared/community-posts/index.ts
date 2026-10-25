@@ -114,9 +114,8 @@ export function postContent(value: unknown): PostContent {
   const media = Object.hasOwn(data, 'media')
     ? communityMediaIds(data['media'])
     : [];
+  // Titles may span lines (owner, 25/10/2026): a title-only post reads like text.
   const title = communityMentionText(data['title'], 200, true);
-  if (/[\n\t]/u.test(title))
-    throw new AccountError(400, 'The title must be one line.');
   return {
     title,
     // A titled post or one with media may have no text; a reply needs one of them.

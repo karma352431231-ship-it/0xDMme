@@ -113,7 +113,25 @@ export class ReplyComposer {
     toolbar.after(this.dialog);
     this.dialog.showModal();
     this.trigger.setAttribute('aria-expanded', 'true');
-    text?.focus();
+    text?.focus({ preventScroll: true });
+    this.revealDraft();
+  }
+  /**
+   * Open at the bottom so the text, its emoji/GIF/media tools and Publish fit
+   * without scrolling. Late parent media or the phone keyboard can push them
+   * out again, so keep revealing until the person scrolls on their own.
+   */
+  private revealDraft(): void {
+    const reveal = () => {
+      this.dialog.scrollTop = this.dialog.scrollHeight;
+    };
+    reveal();
+    const scrolled = new AbortController(),
+      signal = AbortSignal.any([this.abort.signal, scrolled.signal]);
+    for (const type of ['wheel', 'touchmove'] as const)
+      this.dialog.addEventListener(type, () => scrolled.abort(), { signal });
+    this.dialog.addEventListener('load', reveal, { capture: true, signal });
+    window.visualViewport?.addEventListener('resize', reveal, { signal });
   }
   private context(): HTMLElement {
     const context = el('section', '', 'reply-parent-preview');

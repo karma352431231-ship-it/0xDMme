@@ -150,6 +150,21 @@ function postTagChips(
     group,
   };
 }
+/** The title starts as one row and grows with its lines, like the text field's content. */
+function growWithLines(field: HTMLTextAreaElement, signal: AbortSignal): void {
+  field.rows = 1;
+  field.classList.add('post-title-input');
+  const fit = () => {
+    // Detached or hidden fields measure 0; keep the one-row default until shown.
+    if (!field.scrollHeight) return;
+    field.style.height = 'auto';
+    const borders = field.offsetHeight - field.clientHeight;
+    field.style.height = `${field.scrollHeight + borders}px`;
+  };
+  field.addEventListener('input', fit, { signal });
+  field.addEventListener('focus', fit, { signal });
+  requestAnimationFrame(fit);
+}
 export function postForm(
   container: HTMLElement,
   value: PostContent,
@@ -159,6 +174,7 @@ export function postForm(
   const title = field(container, t('Title'), {
       value: value.title,
       maximum: 200,
+      multiline: true,
     }),
     text = field(container, t('Text (optional)'), {
       value: value.text,
@@ -167,6 +183,7 @@ export function postForm(
     }),
     chips = postTagChips(container, value.tags, tags);
   title.required = true;
+  if (title instanceof HTMLTextAreaElement) growWithLines(title, access.signal);
   mountMentionInput(title, access.signal);
   const media = postEditorMedia({
     container,

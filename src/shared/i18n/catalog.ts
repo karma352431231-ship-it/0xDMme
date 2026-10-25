@@ -9265,10 +9265,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '文字或提及数量超过限制。',
   ],
   timeout: ['Timed out', '已超时'],
-  'The title must be one line.': [
-    'The title must be one line.',
-    '标题必须为一行。',
-  ],
   'DM transfer interrupted.': ['DM transfer interrupted.', '私信传输已中断。'],
   'DM transfer busy.': ['DM transfer busy.', '私信传输繁忙。'],
   'Transfer is not for this profile or has already ended.': [

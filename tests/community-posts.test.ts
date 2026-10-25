@@ -37,11 +37,14 @@ await test('posts validate text, up to five distinct ordered tags and input budg
     postContent({ title: 'Só título', text: '', tags }).tags,
     tags,
   );
+  assert.equal(
+    postContent({ title: ' duas\r\nlinhas ', text: '', tags }).title,
+    'duas\nlinhas',
+  );
   for (const patch of [
     { text: '' },
     { text: 'x'.repeat(4001) },
     { title: 'x'.repeat(201) },
-    { title: 'duas\nlinhas' },
     { text: 'a\u200bb' },
     { tags: ['fora-do-contrato'] },
     { tags: [tags[0], tags[0]] },

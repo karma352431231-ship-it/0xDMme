@@ -4,6 +4,16 @@
 .post-text-area {
   position: relative;
 }
+/* A post title starts as one row and grows with its lines (post-forms.ts). */
+:is(#app-shell, .community-scope) textarea.post-title-input,
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  textarea.post-title-input {
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+}
 #app-shell .post-text-area > textarea {
   margin-bottom: 0;
   padding-bottom: 52px;
