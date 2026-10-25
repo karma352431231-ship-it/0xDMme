@@ -280,7 +280,6 @@ class RankingView {
         this.rows.delete(id);
       }
     if (!rows.length) this.status.textContent = t('ranking.empty');
-    this.paintStrip(rows);
   }
   private createRow(row: Row): HTMLElement {
     const link = el('a', '', 'ranking-side-row');
@@ -390,22 +389,9 @@ class RankingView {
   }
   private strip(): HTMLElement {
     const strip = el('div', '', 'ranking-side-strip');
+    // Collapsed, the column keeps only its way back (owner, 25/10/2026).
     strip.append(this.toggle('«', 'ranking.expand', false));
-    strip.append(el('div', '', 'ranking-side-faces'));
     return strip;
-  }
-  private paintStrip(rows: Row[]): void {
-    const faces = this.host.querySelector<HTMLElement>('.ranking-side-faces');
-    if (!faces) return;
-    faces.replaceChildren(
-      ...rows.slice(0, 8).map((row) => {
-        const link = el('a', '', 'ranking-side-face');
-        link.href = communityHref(row.community);
-        link.title = row.community.name;
-        link.append(communityAvatar(row.community.name));
-        return link;
-      }),
-    );
   }
   private setCollapsed(value: boolean): void {
     this.host.dataset['collapsed'] = String(value);

@@ -5850,6 +5850,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     '{0} 和另外 {1} 位你关注的人已关注',
   ],
   Following: ['Following', '已关注'],
+  'Created by you': ['Created by you', '你创建的'],
   Followers: ['Followers', '关注者'],
   'followers · archived': ['followers · archived', '位关注者 · 已归档'],
   'Mutual followers': ['Mutual followers', '共同关注者'],

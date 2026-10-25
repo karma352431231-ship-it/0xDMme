@@ -18,6 +18,8 @@ export interface DirectoryView {
 interface DirectoryOptions {
   load: (cursor: string | null) => Promise<CommunityPage>;
   rows: (host: HTMLElement, page: CommunityPage, view: DirectoryView) => void;
+  /** First page of the communities the person created, shown above Following. */
+  created: () => Promise<CommunityPage>;
   release: (host: HTMLElement) => void;
   run: (work: () => Promise<void>) => Promise<void>;
 }
@@ -41,16 +43,20 @@ export class CommunityDirectory {
 
   async refresh(view: DirectoryView): Promise<void> {
     try {
-      const page = view.signedIn ? await this.options.load(this.cursor) : null;
+      const [page, created] = await this.pages(view);
       if (!view.valid()) return;
       const snapshot = JSON.stringify([
         view.view,
         view.selected,
         currentLanguage(),
         page,
+        created,
       ]);
       if (snapshot === this.snapshot) return;
-      this.clear(view);
+      this.clear(
+        view,
+        created ? () => this.createdSection(created, view) : undefined,
+      );
       if (page) this.options.rows(view.host, page, view);
       else
         view.host.append(
@@ -76,12 +82,33 @@ export class CommunityDirectory {
     }
   }
 
-  private clear(view: DirectoryView): void {
+  /** Followed page and created communities, both only for a signed-in person. */
+  private pages(
+    view: DirectoryView,
+  ): Promise<[CommunityPage, CommunityPage] | [null, null]> {
+    if (!view.signedIn) return Promise.resolve([null, null]);
+    return Promise.all([
+      this.options.load(this.cursor),
+      this.options.created(),
+    ]);
+  }
+
+  private clear(view: DirectoryView, above?: () => void): void {
     this.snapshot = null;
     this.next = null;
     clearCommunityProfileInvitation();
     this.options.release(view.host);
     view.host.replaceChildren();
-    communityDirectoryNavigation(view.host, view.view, view.selected);
+    communityDirectoryNavigation(view.host, view.view, view.selected, above);
+  }
+
+  /**
+   * Created communities sit above Following: there are usually fewer of them.
+   * The heading stays even when the person has not created one yet.
+   */
+  private createdSection(page: CommunityPage, view: DirectoryView): void {
+    view.host.append(communityElement('h2', t('Created by you')));
+    // No placeholder text: an empty section is just its heading.
+    if (page.items.length) this.options.rows(view.host, page, view);
   }
 }

@@ -32,6 +32,7 @@ export class CommunityDirectoryView {
     this.options = options;
     this.followed = new CommunityDirectory({
       load: (after) => options.controller.list('following', after),
+      created: () => options.controller.list('owned', null),
       rows: (host, page, view) => this.rows(host, page, view.selected),
       release: (host) => this.photos.clear(host),
       run: options.run,
