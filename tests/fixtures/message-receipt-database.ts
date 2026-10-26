@@ -8,9 +8,14 @@ import {
   allocationPool,
   allocationWriter,
 } from './content-allocation-database.ts';
+import { groupQuotaPredecessor } from './group-quota-database.ts';
+import { historicalMigrations } from './historical-migrations.ts';
 
 /** Fresh app schema and synthetic identities; no legacy-data import or backfill rehearsal. */
-export async function messageReceiptFixture(t: TestContext) {
+export async function messageReceiptFixture(
+  t: TestContext,
+  options: { through?: 96 } = {},
+) {
   const url = new URL(readWebConfiguration(process.env).databaseUrl),
     name = 'hash_talk_test_receipts_' + crypto.randomUUID().replaceAll('-', '');
   assert.ok(url.pathname.startsWith('/hash_talk_test'));
@@ -47,7 +52,14 @@ export async function messageReceiptFixture(t: TestContext) {
     await admin.end();
   });
   await Promise.all([writer.connect(), reader.connect(), inspector.connect()]);
-  await db.migrate();
+  if (options.through === 96) {
+    await groupQuotaPredecessor(inspector, 93);
+    await historicalMigrations(inspector, [
+      '094-single-use-contact-invitations.sql',
+      '095-public-post-search.sql',
+      '096-message-sync-fences.sql',
+    ]);
+  } else await db.migrate();
   return {
     url: url.href,
     db,

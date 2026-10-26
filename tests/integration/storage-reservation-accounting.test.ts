@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { readStorageReservations } from '../../src/server/database/storage-reservations.ts';
@@ -401,7 +402,9 @@ await test('pending storage envelopes preserve quotas and bound aggregate observ
     ).rows,
     sourceHashes: await reservationSourceHashes(writer),
   };
-  await db.migrate();
+  await historicalMigrations(writer, [
+    '077-storage-reservation-accounting.sql',
+  ]);
   const context = { db, writer, reader, fixture, before };
   await verifyReads(t, context);
   await verifyStates(t, context);

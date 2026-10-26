@@ -26,6 +26,19 @@ interface GlobalContext {
   fixture: Awaited<ReturnType<typeof seedStorageReservations>>;
   sources: Awaited<ReturnType<typeof globalUsageSources>>;
 }
+const engagementSources = [
+  'engagement_state',
+  'engagement_counts',
+  'engagement_entities',
+  'engagement_contributors',
+  'engagement_visitors',
+  'engagement_observations',
+  'engagement_erasure',
+  'engagement_snapshots',
+  'engagement_coverage',
+  'engagement_operations',
+  'engagement_adjustments',
+].map((name) => ({ name, events: 12 }));
 async function rollback(client: pg.Client, work: () => Promise<void>) {
   await client.query('BEGIN');
   try {
@@ -333,8 +346,8 @@ await test('statement global accounting preserves populated history and avoids p
   });
   await Promise.all([writer.connect(), reader.connect()]);
   await globalUsagePredecessor(writer);
-  const fixture = await seedStorageReservations(writer),
-    sources = await globalUsageSources(writer),
+  const fixture = await seedStorageReservations(writer);
+  const sources = await globalUsageSources(writer),
     before = await globalSourceSnapshot(writer, sources),
     bytes = await globalBytes(writer),
     versions = (
@@ -385,12 +398,21 @@ await test('statement global accounting preserves populated history and avoids p
     },
   );
   await db.migrate();
-  const context = { writer, reader, fixture, sources };
+  const context = {
+    writer,
+    reader,
+    fixture,
+    sources: [...sources, ...engagementSources],
+  };
   await t.test(
     'migration preserves source fingerprints, exact totals and published checksums',
     async () => {
       assert.deepEqual(await globalSourceSnapshot(writer, sources), before);
-      assert.equal(await globalBytes(writer), bytes);
+      const added = await globalSourceSnapshot(writer, engagementSources);
+      const addedBytes = added
+        .filter((row) => row.name.startsWith('engagement_'))
+        .reduce((sum, row) => sum + BigInt(row.bytes), 0n);
+      assert.equal(await globalBytes(writer), bytes + addedBytes);
       assert.deepEqual(
         (
           await writer.query(
@@ -421,6 +443,7 @@ await test('statement global accounting preserves populated history and avoids p
         [
           ...sources.map(({ name, events }) => ({ name, events: events & ~1 })),
           { name: 'contact_invitations', events: 12 },
+          ...engagementSources,
           ...[
             'community_post_engagement',
             'community_share_clicks',
@@ -430,6 +453,9 @@ await test('statement global accounting preserves populated history and avoids p
       );
     },
   );
+  // The observation below measures application statements, independently of
+  // the new schema's charged baselines created by the migration itself.
+  await writer.query('TRUNCATE hash_talk.test_global_writes');
   await verifyBatches(t, context);
   await verifyCoordination(t, context);
 });

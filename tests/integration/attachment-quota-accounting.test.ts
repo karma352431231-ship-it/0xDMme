@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import {
@@ -520,7 +521,7 @@ await test('incremental attachment quotas preserve cross-table visibility and ch
         'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations ORDER BY version',
       )
     ).rows;
-  await db.migrate();
+  await historicalMigrations(writer, ['076-attachment-quota-accounting.sql']);
   const context = {
     db,
     writer,

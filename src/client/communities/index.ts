@@ -1,4 +1,5 @@
 import { PublicActionGate } from '../public-action-guidance/index.ts';
+import { announcePublicCommunity } from '../public-traffic/index.ts';
 import { bindCommunityCreationEntry } from './creation-entry.ts';
 import { showToast } from '../toast/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
@@ -412,6 +413,7 @@ export function startCommunities(
       });
       if (!next) return;
       current = next.community;
+      announcePublicCommunity(mounted, current.id);
       selected = current.id;
       selectedSlug = null;
       state = next.state;

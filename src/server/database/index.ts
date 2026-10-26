@@ -78,6 +78,8 @@ export type { CommunityPostStore } from './community-posts.ts';
 import { CommunityDiscoveryStore } from './community-discovery.ts';
 import { CommunityRankingStore } from './community-ranking.ts';
 import { CommunityViewsStore } from './community-views.ts';
+import { EngagementMetricsStore } from './engagement-metrics.ts';
+export type { EngagementMetricsStore } from './engagement-metrics.ts';
 export type { CommunityViewsStore } from './community-views.ts';
 import { WorkSignals } from './work-signals.ts';
 export { CommunityRankingStore } from './community-ranking.ts';
@@ -225,6 +227,9 @@ const migrations = [
   '097-community-games-topic.sql',
   '098-group-message-fences.sql',
   '099-post-share-counts.sql',
+  '100-engagement-storage.sql',
+  '101-engagement-domain-facts.sql',
+  '102-engagement-operations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -264,6 +269,7 @@ export class Database {
   readonly communityDiscovery: CommunityDiscoveryStore;
   readonly communityRanking: CommunityRankingStore;
   readonly communityViews: CommunityViewsStore;
+  readonly engagementMetrics: EngagementMetricsStore;
   readonly workSignals: WorkSignals;
   readonly socialDm: SocialDmStore;
   readonly socialCrypto: SocialCryptoStore;
@@ -326,6 +332,10 @@ export class Database {
       this.failed = true;
     });
     this.storageReservations = new StorageReservationStore(this.pool);
+    this.engagementMetrics = new EngagementMetricsStore(
+      this.pool,
+      contentCapacity,
+    );
     this.authentication = new AuthenticationStore(
       this.pool,
       contentCapacity,

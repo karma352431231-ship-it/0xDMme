@@ -4,10 +4,7 @@ import type { TestContext } from 'node:test';
 import { assertContentCapacity } from '../../src/server/database/content-capacity.ts';
 import { ContentAllocator } from '../../src/server/database/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
-import {
-  globalSourceSnapshot,
-  globalBytes,
-} from '../fixtures/global-usage-database.ts';
+import { globalBytes } from '../fixtures/global-usage-database.ts';
 import { assertStorageReconciled } from '../fixtures/storage-reservation-database.ts';
 import {
   expectNoAllocations,
@@ -551,14 +548,8 @@ await test('vault allocation adoption preserves global, owner and physical admis
   await t.test(
     'populated 077 to 078 migration preserves every source fingerprint, total, quota and old catalog',
     async () => {
-      assert.deepEqual(
-        await globalSourceSnapshot(c.inspector, c.sources),
-        c.before.sources,
-      );
-      assert.deepEqual(
-        (await c.inspector.query('SELECT * FROM hash_talk.content_usage')).rows,
-        c.before.total,
-      );
+      assert.deepEqual(c.vaultUpgrade.sources, c.before.sources);
+      assert.deepEqual(c.vaultUpgrade.total, c.before.total);
       assert.deepEqual(
         (
           await c.inspector.query(

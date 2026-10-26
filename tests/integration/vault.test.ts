@@ -1,3 +1,7 @@
+import {
+  currentGlobalUsageSources,
+  globalSourceSnapshot,
+} from '../fixtures/global-usage-database.ts';
 import assert from 'node:assert/strict';
 import { verifyVaultReservationCapacity } from './vault-reservation-fixture.ts';
 import { test } from 'node:test';
@@ -549,7 +553,7 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
     async () => {
       const otherIdentity = await createIdentity(
         outsider.session.deviceId,
-        'Outro',
+        'Other',
       );
       const otherRecovery = await createRecovery(
         outsider.session.accountId,
@@ -652,80 +656,17 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
         const metrics = await database.maintenanceSnapshot();
         assert.ok(metrics.oldestTransactionSeconds < 1);
         assert.ok(metrics.poolConnections <= 4);
-        const calculated = await inspector.query<{
-          actual: string;
-          used: string;
-        }>(
-          `SELECT used_bytes::text AS used,(
-            coalesce((SELECT sum(charge) FROM hash_talk.vault_operations),0)
-            +coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.message_attachments),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.personal_removals),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.message_packets),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.daily_controls),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.message_reads),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.conversation_controls),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.device_presence),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.push_subscriptions),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.push_controls),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.public_profiles),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.communities),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_follows),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_moderators),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_sanctions),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_reports),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_tags),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_posts),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_post_removals),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_votes),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_state),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_post_view_marks),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_upvote_deltas),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_generations),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_entries),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_reply_notifications),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_post_preferences),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.community_media),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.public_moderation),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_relations),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_blocks),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_directories),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_recovery),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_matrix_devices),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_matrix_keys),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_matrix_envelopes),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_messages),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_personal_secrets),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_media),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.social_receipts),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.call_controls),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.groups),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_events),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_members),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_consents),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_links),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_creation_window),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_key_sets),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_packets),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_matrix_envelopes),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_media),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_cleanups),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_controls),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.group_reads),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.status_posts),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.status_recipients),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.status_pages),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.status_media),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.organizations),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.representative_credentials),0)
-            +coalesce((SELECT sum(charge) FROM hash_talk.organization_domains),0)
-          )::text AS actual FROM hash_talk.content_usage WHERE singleton`,
+        const sources = await currentGlobalUsageSources(inspector);
+        const charged = await globalSourceSnapshot(inspector, sources);
+        const calculated = (
+          await inspector.query<{ used: string }>(
+            'SELECT used_bytes::text AS used FROM hash_talk.content_usage WHERE singleton',
+          )
+        ).rows[0]!;
+        assert.equal(
+          BigInt(calculated.used),
+          charged.reduce((sum, row) => sum + BigInt(row.bytes), 0n),
         );
-        assert.equal(calculated.rows[0]?.used, calculated.rows[0]?.actual);
       } finally {
         await capped.close();
       }

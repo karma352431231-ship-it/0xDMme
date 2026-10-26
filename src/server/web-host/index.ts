@@ -302,6 +302,13 @@ export function createWebServer(options: {
     close: () => void;
   };
   tls?: { cert: Buffer; key: Buffer };
+  engagement?: {
+    handle: (
+      request: IncomingMessage,
+      response: ServerResponse,
+    ) => Promise<void>;
+    close: () => void;
+  };
 }) {
   let stopping = false;
   let pendingHealth: Promise<boolean> | undefined;
@@ -341,6 +348,7 @@ export function createWebServer(options: {
     await publicRequest(request, response);
   }
   function publicDataHandler(request: IncomingMessage) {
+    if (request.url?.startsWith('/api/engagement/')) return options.engagement;
     if (request.url?.startsWith('/api/public-media/'))
       return options.publicMedia;
     if (request.url?.startsWith('/api/public-profiles/'))
@@ -389,6 +397,7 @@ export function createWebServer(options: {
       options.publicProfiles?.close();
       options.publicMedia?.close();
       options.communities?.close();
+      options.engagement?.close();
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => server.closeAllConnections(), 5_000);
         timeout.unref();

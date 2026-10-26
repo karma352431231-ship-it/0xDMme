@@ -52,7 +52,7 @@ async function fingerprints(client: pg.Client, tables: string[]) {
 }
 
 await test('populated 095 to 096 preserves messages, deletion metadata and accounting while enforcing migration guards', async (t) => {
-  const c = await messageReceiptFixture(t);
+  const c = await messageReceiptFixture(t, { through: 96 });
   const pair = await messagePair(c);
   for (let n = 0; n < 8; n++)
     await c.db.messages.admit(

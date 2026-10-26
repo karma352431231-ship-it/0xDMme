@@ -201,7 +201,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
+    names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_engagement_backup', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
     # Operational installers are explicit, mutually exclusive CLI modes.
     # Keep ordinary code publication within the existing source budget without
     # transporting an unused worker installer or directory migration. Later
@@ -218,12 +218,12 @@ def executor_code(config):
         names.remove('deploy_worker_boot')
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
-                'group_fences', 'share_counts']):
+                'group_fences', 'share_counts', 'engagement']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
-                                                 'share_counts']):
+                                                 'share_counts', 'engagement']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -233,6 +233,8 @@ def executor_code(config):
         names.append('deploy_group_fences')
     if config.get('share_counts') is True:
         names.append('deploy_post_share_counts')
+    if config.get('engagement') is True:
+        names.append('deploy_engagement')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -326,7 +328,11 @@ def main():
     parser.add_argument('--community-games', action='store_true', help='Apply the approved 096→097 Games topic constraint.')
     parser.add_argument('--group-fences', action='store_true', help='Apply the approved 097→098 finite group cut fence.')
     parser.add_argument('--share-counts', action='store_true', help='Apply the approved 098→099 public share count index.')
+    parser.add_argument('--engagement', action='store_true', help='Activate the approved 099→102 engagement collection schema.')
     args = parser.parse_args()
+    if args.engagement and any(vars(args)[name] for name in vars(args)
+                               if name not in ['engagement', 'check', 'activate']):
+        parser.error('Metric collection requires its separate --check or --activate release.')
     if args.share_counts and (args.prepare or args.group_fences or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
         parser.error('Share counts require their separate --check or --activate release.')
     if args.group_fences and (args.prepare or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
@@ -355,6 +361,8 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.engagement:
+        config['engagement'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:

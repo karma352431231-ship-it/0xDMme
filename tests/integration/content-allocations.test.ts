@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import {
   Database,
   ContentAllocator,
@@ -567,8 +568,7 @@ await test('transaction-owned content credits preserve atomic grants and recover
     ).rows,
     global = (await inspector.query('SELECT * FROM hash_talk.content_usage'))
       .rows;
-  await db.migrate();
-  await db.verifyMigrations();
+  await historicalMigrations(inspector, ['080-content-allocations.sql']);
   const allocator = new ContentAllocator(pool, () =>
       Promise.resolve(room.bytes),
     ),
@@ -601,6 +601,7 @@ await test('transaction-owned content credits preserve atomic grants and recover
       await assertStorageReconciled(inspector, fixture.accounts);
       await expectNoAllocations(inspector);
       await db.migrate();
+      await db.verifyMigrations();
     },
   );
   await verifyClaims(t, c);

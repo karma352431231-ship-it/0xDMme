@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import {
@@ -50,7 +51,7 @@ await test('forward upgrade preserves twelve-part progress and admits all thirty
   );
   assert.equal(checksums.rowCount, 90);
   const before = await totals(inspector);
-  await db.migrate();
+  await historicalMigrations(inspector, ['091-group-media-parts.sql']);
   assert.deepEqual(
     (
       await inspector.query(

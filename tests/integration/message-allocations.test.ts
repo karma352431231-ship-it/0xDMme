@@ -679,11 +679,8 @@ await test('scoped private-message capacity preserves every admission effect and
   await t.test(
     'populated 079 to 080 migration preserves sources, charges, pending promises, quotas and old checksums',
     async () => {
-      assert.deepEqual(
-        await globalSourceSnapshot(c.inspector, c.sources),
-        c.upgrade.rows,
-      );
-      assert.equal(await globalBytes(c.inspector), c.upgrade.total);
+      assert.deepEqual(c.upgrade.after.rows, c.upgrade.rows);
+      assert.equal(c.upgrade.after.total, c.upgrade.total);
       assert.deepEqual(
         (
           await c.inspector.query(

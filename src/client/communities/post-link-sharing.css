@@ -1,0 +1,9 @@
+.post-link-status {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.post-link-status:empty {
+  display: none;
+}
