@@ -8,12 +8,12 @@ applies migrations, changes infrastructure, or restarts a service.
 import json
 import os
 from pathlib import Path
-import re
 import shlex
 import subprocess
 import sys
 
 from deploy_remote import valid_release_branch
+import deploy_target as deployment_target
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
@@ -37,8 +37,9 @@ def run(args, timeout=30):
 def private_target_file():
     common = Path(run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir']))
     private_root = common.resolve().parent
-    run(['git', '-C', str(private_root), 'check-ignore', '--', '.local/VPS_SSH_TARGET'])
-    return private_root / '.local/VPS_SSH_TARGET'
+    directory = deployment_target.profile_directory(private_root, os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE'))
+    run(['git', '-C', str(private_root), 'check-ignore', '--', str((directory / 'VPS_SSH_TARGET').relative_to(private_root))])
+    return directory / 'VPS_SSH_TARGET'
 
 
 def main():
@@ -57,11 +58,7 @@ def main():
     if remote.split()[0] != revision:
         raise RuntimeError('Push this exact commit to GitHub first.')
     target_file = private_target_file()
-    if target_file.is_symlink():
-        raise RuntimeError('Private SSH target must be a regular local file.')
-    target = target_file.read_text().strip()
-    if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*', target):
-        raise RuntimeError('Invalid private SSH target; synchronization refused.')
+    target = deployment_target.target(target_file.parent)
     # The repository must have been prepared and reviewed separately. No bootstrap
     # or creation of arbitrary remote directories is performed by this tool.
     preflight = (
