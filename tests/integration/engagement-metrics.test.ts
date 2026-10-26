@@ -21,13 +21,23 @@ import {
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import type { EngagementMetric } from '../../src/shared/engagement-metrics/index.ts';
 import { publicModerationPolicy } from '../../src/shared/public-moderation/index.ts';
+import { closeDisposablePool } from '../fixtures/disposable-pool.ts';
 
 await test('engagement metrics preserve transactional facts, privacy, deletion and independent reports', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('An exclusive test database is required.');
-  const db = new Database(config.databaseUrl);
-  const inspector = new pg.Client({ connectionString: config.databaseUrl });
+  const administrator = new pg.Client({ connectionString: config.databaseUrl });
+  await administrator.connect();
+  const name =
+    'hash_talk_test_engagement_facts_' +
+    crypto.randomUUID().replaceAll('-', '');
+  await administrator.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
+  const isolated = new URL(config.databaseUrl);
+  isolated.pathname = '/' + name;
+  const environment = { ...process.env, HASH_TALK_DATABASE_URL: isolated.href };
+  const db = new Database(isolated.href);
+  const inspector = new pg.Client({ connectionString: isolated.href });
   await db.migrate();
   await inspector.connect();
   const communities = new CommunityService(
@@ -88,6 +98,11 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
     await db.engagementMetrics.collect();
     await inspector.end();
     await db.close();
+    try {
+      await administrator.query(`DROP DATABASE "${name}"`);
+    } finally {
+      await administrator.end();
+    }
   });
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
@@ -241,8 +256,8 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         await metric('reply_views_estimated', { postIds: [post] }),
         '1',
       );
-      const pool = new pg.Pool({ connectionString: config.databaseUrl });
-      t.after(() => pool.end());
+      const pool = new pg.Pool({ connectionString: isolated.href });
+      const closePool = closeDisposablePool(pool);
       const observation = {
         id: crypto.randomUUID(),
         kind: 'share',
@@ -250,13 +265,17 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         community,
         post,
       };
-      await assert.rejects(
-        new EngagementMetricsStore(pool, 1).observe({ items: [observation] }),
-      );
-      assert.equal(
-        await metric('share_actions_started', { postIds: [post] }),
-        '0',
-      );
+      try {
+        await assert.rejects(
+          new EngagementMetricsStore(pool, 1).observe({ items: [observation] }),
+        );
+        assert.equal(
+          await metric('share_actions_started', { postIds: [post] }),
+          '0',
+        );
+      } finally {
+        await closePool();
+      }
     },
   );
   await t.test(
@@ -657,7 +676,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         ['tests/fixtures/engagement-backup.py'],
         {
           cwd: new URL('../../', import.meta.url),
-          env: process.env,
+          env: environment,
           encoding: 'utf8',
           timeout: 60_000,
         },
@@ -679,6 +698,16 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         revision: own.post.revision,
       });
       assert.equal(await metric('posts_created'), before);
+      const retired = await db.engagementMetrics.report({
+        metrics: ['post_views_estimated'],
+        preset: 'last24h',
+        postIds: [post],
+      });
+      assert.equal(retired.rows[0]!.values.post_views_estimated!.value, null);
+      assert.equal(
+        retired.rows[0]!.values.post_views_estimated!.reason,
+        'entity_missing_or_erased',
+      );
       await inspector.query(
         "UPDATE hash_talk.engagement_contributors SET published_at=clock_timestamp()-interval '31 days' WHERE post=$1",
         [reply],
@@ -770,7 +799,11 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
   );
   await t.test(
     'the operator command produces independent read-only JSON with explicit limitations',
-    () => {
+    async () => {
+      const expected = await db.engagementMetrics.report({
+        metrics: ['accounts_created', 'public_profiles_created'],
+        preset: 'last24h',
+      });
       const result = spawnSync(
         process.execPath,
         [
@@ -782,7 +815,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         ],
         {
           cwd: new URL('../../', import.meta.url),
-          env: process.env,
+          env: environment,
           encoding: 'utf8',
           timeout: 15000,
         },
@@ -793,6 +826,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         typeof report === 'object' && report !== null && 'rows' in report,
       );
       assert.ok(result.stdout.includes('public_profiles_created'));
+      assert.deepEqual(report.rows, expected.rows);
     },
   );
 });

@@ -1,35 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
+import { closeDisposablePool } from '../fixtures/disposable-pool.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { EngagementMetricsStore } from '../../src/server/database/engagement-metrics.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { engagementCsv } from '../../src/server/engagement-metrics/index.ts';
-
-/** pg-pool can resolve end() before its clients finish closing their sockets. */
-function closeDisposablePool(pool: pg.Pool): () => Promise<void> {
-  const disconnected: Promise<void>[] = [];
-  pool.on('connect', (client: pg.PoolClient) => {
-    disconnected.push(
-      new Promise<void>((resolve) => client.once('end', resolve)),
-    );
-  });
-  return async () => {
-    const deadline = new AbortController();
-    try {
-      await Promise.race([
-        pool.end().then(() => Promise.all(disconnected)),
-        delay(5000, undefined, { signal: deadline.signal }).then(() => {
-          throw new Error('Disposable metric pool connections did not close.');
-        }),
-      ]);
-    } finally {
-      deadline.abort();
-    }
-  };
-}
 
 await test('metric operations preserve history, export every snapshot and recover bounded maintenance', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -350,6 +327,77 @@ await test('metric operations preserve history, export every snapshot and recove
     },
   );
 
+  await t.test(
+    'entity erasure drains a multi-batch backlog while project totals survive',
+    async () => {
+      const post = crypto.randomUUID();
+      const community = (
+        await pool.query<{ id: string }>(
+          "SELECT id::text FROM hash_talk.engagement_entities WHERE scope='community' AND NOT erased ORDER BY id LIMIT 1",
+        )
+      ).rows[0]!.id;
+      const projectTotal = async () =>
+        (
+          await pool.query<{ total: string }>(
+            "SELECT coalesce(sum(value),0)::text AS total FROM hash_talk.engagement_counts WHERE scope='project' AND metric='posts_created'",
+          )
+        ).rows[0]!.total;
+      const before = BigInt(await projectTotal());
+      await pool.query(
+        `INSERT INTO hash_talk.engagement_entities(id,kind,community,eligible,erased)
+        VALUES($1,'post',$2,false,true)`,
+        [post, community],
+      );
+      await pool.query(
+        `INSERT INTO hash_talk.engagement_counts(metric,bucket,scope,entity,shard,value)
+        SELECT 'posts_created',date_trunc('minute',clock_timestamp())-n*interval '1 minute',scope,entity,0,1
+        FROM generate_series(1,700) n CROSS JOIN (VALUES('project',$1::uuid),('post',$2::uuid)) targets(scope,entity)
+        ON CONFLICT(metric,bucket,scope,entity,shard,cause,category)
+        DO UPDATE SET value=hash_talk.engagement_counts.value+excluded.value`,
+        [project, post],
+      );
+      await pool.query(
+        "INSERT INTO hash_talk.engagement_erasure(scope,id) VALUES('post',$1)",
+        [post],
+      );
+      const remaining = async () =>
+        Number(
+          (
+            await pool.query<{ total: string }>(
+              "SELECT count(*)::text AS total FROM hash_talk.engagement_counts WHERE scope='post' AND entity=$1",
+              [post],
+            )
+          ).rows[0]!.total,
+        );
+      await metrics.collect();
+      assert.equal(await remaining(), 444);
+      const due = await metrics.nextCollection();
+      assert.ok(due !== null && due <= Date.now());
+      await metrics.collect();
+      assert.equal(await remaining(), 188);
+      await metrics.collect();
+      assert.equal(await remaining(), 0);
+      assert.equal(await projectTotal(), String(before + 700n));
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT 1 FROM hash_talk.engagement_erasure WHERE scope='post' AND id=$1",
+            [post],
+          )
+        ).rowCount,
+        0,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT 1 FROM hash_talk.engagement_entities WHERE scope='post' AND id=$1",
+            [post],
+          )
+        ).rowCount,
+        0,
+      );
+    },
+  );
   await t.test(
     'maintenance CLI exposes read-only gauge and physical-storage evidence',
     () => {
