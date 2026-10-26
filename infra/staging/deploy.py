@@ -25,6 +25,8 @@ import deploy_request_limit as request_limits
 import deploy_media_worker as media_worker
 import deploy_capacity_proxy as capacity_proxy
 import deploy_worker_boot as worker_boot
+import deploy_target as deployment_target
+import deploy_bootstrap as bootstrap
 from deploy_python import ensure_python314
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -182,21 +184,12 @@ def prepare(revision, branch):
     return manifest, archive_path
 
 
-def private_inputs():
-    values = []
+def private_inputs(profile=None):
+    directory = deployment_target.profile_directory(PRIVATE_ROOT, profile)
     for name in ['VPS_SSH_TARGET', 'VPS_DEPLOY_BASELINE.json']:
-        path = PRIVATE_ROOT / '.local' / name
-        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
-            raise RuntimeError('Private deployment input missing or permissions too broad.')
-        run(['git', 'check-ignore', '--', str(path.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
-        values.append(path.read_text())
-    target = values[0].strip()
-    if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*', target):
-        raise RuntimeError('Invalid private SSH target.')
-    baseline = json.loads(values[1])
-    if not baseline.get('files') or not baseline.get('services') or not baseline.get('sites'):
-        raise RuntimeError('Private preservation baseline incomplete.')
-    return target, baseline
+        run(['git', 'check-ignore', '--', str((directory / name).relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
+    return (deployment_target.target(directory),
+            deployment_target.preservation_baseline(directory, explicit=profile is not None))
 
 
 def executor_code(config):
@@ -315,6 +308,7 @@ def main():
     mode.add_argument('--prepare', action='store_true', help='Prepare the exact-commit build locally only.')
     mode.add_argument('--check', action='store_true', help='Prepare, synchronize Git and verify; do not activate.')
     mode.add_argument('--activate', action='store_true', help='Run the explicitly approved own code deployment.')
+    mode.add_argument('--bootstrap-check', action='store_true', help='Inspect an explicit empty target without installing or activating.')
     parser.add_argument('--request-limit', action='store_true',
                         help='Apply the separately approved 30 r/s site limit after code activation.')
     parser.add_argument('--media-worker', action='store_true',
@@ -330,6 +324,15 @@ def main():
     parser.add_argument('--share-counts', action='store_true', help='Apply the approved 098→099 public share count index.')
     parser.add_argument('--engagement', action='store_true', help='Activate the approved 099→102 engagement collection schema.')
     args = parser.parse_args()
+    profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
+    if profile is not None:
+        global LOCAL
+        LOCAL = deployment_target.profile_directory(PRIVATE_ROOT, profile) / 'deployment'
+        if any(value for name, value in vars(args).items()
+               if name not in ['prepare', 'check', 'activate', 'bootstrap_check']):
+            parser.error('Explicit targets require separately prepared operational transition reviews.')
+    if args.bootstrap_check and profile is None:
+        parser.error('First-install inspection requires an explicit private target profile.')
     if args.engagement and any(vars(args)[name] for name in vars(args)
                                if name not in ['engagement', 'check', 'activate']):
         parser.error('Metric collection requires its separate --check or --activate release.')
@@ -355,11 +358,17 @@ def main():
         parser.error('Verify the capacity transition before a separate media/request-limit release.')
     revision, branch = repository()
     proof = ci(revision, branch)
+    if args.bootstrap_check:
+        target, _baseline = private_inputs(profile)
+        print(run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                   '-o', 'StrictHostKeyChecking=yes', target,
+                   shlex.join(['/usr/bin/python3', '-c', bootstrap.remote_source()])], timeout=40).decode())
+        return
     manifest, archive = prepare(revision, branch)
     if args.prepare:
         print(json.dumps({'prepared': True, 'commit': revision, 'ci': proof, 'activated': False}))
         return
-    target, baseline = private_inputs()
+    target, baseline = private_inputs(profile)
     config = dict(manifest, baseline=baseline)
     if args.engagement:
         config['engagement'] = True
