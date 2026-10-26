@@ -11,6 +11,7 @@ import { MessageReadiness } from '../src/client/message-live/index.ts';
 const featureExports: Record<string, string[]> = {
   language: ['startLanguage', 'mountLanguageSettings', 'applyLanguage'],
   'public-search': ['mountPublicSearch'],
+  'public-traffic': ['startPublicTraffic'],
   appearance: ['startAppearance', 'paintAvatar'],
   pwa: ['startPwa'],
   account: ['startAccount'],
@@ -189,6 +190,7 @@ async function page(
     },
     VoicePlayback: class {},
     keepPageOnStrayDrop: () => {},
+    startPublicTraffic: () => {},
     bindContactShortcuts: () => {},
     ExternalMediaConsent: class {
       setSession(): void {}

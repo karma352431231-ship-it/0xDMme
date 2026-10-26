@@ -56,6 +56,7 @@ import type { PageKey } from './pages.ts';
 import { mountLanguageSettings, startLanguage } from '../language/index.ts';
 import { SessionBoot } from './session-boot.ts';
 import { NavigationVisits } from './navigation-visits.ts';
+import { startPublicTraffic } from '../public-traffic/index.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -773,6 +774,7 @@ window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
+if (!account.approvalPage) startPublicTraffic(element('page-content'));
 mobileConversation?.restore();
 connection();
 

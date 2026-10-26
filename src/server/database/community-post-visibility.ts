@@ -5,15 +5,11 @@ type Reader = Pick<pg.PoolClient, 'query'>;
  * Keep a removed media row's review effective after its bytes are collected. */
 export function blockedPost(alias: string): string {
   if (!/^[a-z]+$/u.test(alias)) throw new Error('Invalid post alias.');
-  return `EXISTS(SELECT 1 FROM hash_talk.public_moderation pm
-    WHERE pm.kind='post-media' AND pm.target=ANY(${alias}.media_ids)
-      AND pm.status IN ('rejected','held','failed','discarding','expired')
-      AND NOT EXISTS(SELECT 1 FROM hash_talk.public_moderation newer
-        WHERE newer.kind=pm.kind AND newer.target=pm.target AND newer.status='approved'
-          AND (newer.created_at,newer.id)>(pm.created_at,pm.id)))`;
+  return `hash_talk.public_post_media_blocked(${alias}.media_ids)`;
 }
 export function visiblePost(alias: string): string {
-  return `NOT ${alias}.deleted AND ${alias}.active_removal IS NULL AND NOT ${blockedPost(alias)}`;
+  if (!/^[a-z]+$/u.test(alias)) throw new Error('Invalid post alias.');
+  return `hash_talk.public_post_is_visible(${alias}.deleted,${alias}.active_removal,${alias}.media_ids)`;
 }
 export async function blockedPosts(
   client: Reader,

@@ -1,5 +1,6 @@
 import { createRuntimeContentCapacity } from './storage-capacity/index.ts';
 import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
+import { createEngagementHandler } from './engagement-metrics/index.ts';
 import {
   PublicMediaService,
   createPublicMediaHandler,
@@ -132,6 +133,13 @@ try {
     assets,
     database,
     objects,
+    engagement: createEngagementHandler({
+      origin: config.origin,
+      trustUnixProxy: Boolean(config.socketPath),
+      observe: (input) => database!.engagementMetrics.observe(input),
+      observeVisitor: (input) =>
+        database!.engagementMetrics.observeVisitor(input),
+    }),
     publicMedia: createPublicMediaHandler(
       new PublicMediaService(
         {

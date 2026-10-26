@@ -39,6 +39,11 @@ export class PublicMaintenance {
           },
           next: () => db.communityViews.nextCollection(),
         },
+        {
+          topic: 'engagement',
+          work: () => db.engagementMetrics.collect(),
+          next: () => db.engagementMetrics.nextCollection(),
+        },
       ],
       db.workSignals,
       options,

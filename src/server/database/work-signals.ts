@@ -18,6 +18,7 @@ const topics = [
   'public-media',
   'public-moderation',
   'post-views',
+  'engagement',
 ] as const;
 export type WorkTopic = (typeof topics)[number];
 function channel(topic: WorkTopic): string {
