@@ -347,16 +347,6 @@ await test('statement global accounting preserves populated history and avoids p
   await Promise.all([writer.connect(), reader.connect()]);
   await globalUsagePredecessor(writer);
   const fixture = await seedStorageReservations(writer);
-  // Prepare the independent tag-data baseline before the accounting assertions.
-  await writer.query(
-    await readFile(
-      new URL(
-        '../../src/server/database/migrations/100-default-post-tags-backfill.sql',
-        import.meta.url,
-      ),
-      'utf8',
-    ),
-  );
   const sources = await globalUsageSources(writer),
     before = await globalSourceSnapshot(writer, sources),
     bytes = await globalBytes(writer),
