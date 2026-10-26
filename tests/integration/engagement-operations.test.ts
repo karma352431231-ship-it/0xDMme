@@ -1,11 +1,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
 import { Database } from '../../src/server/database/index.ts';
 import { EngagementMetricsStore } from '../../src/server/database/engagement-metrics.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { engagementCsv } from '../../src/server/engagement-metrics/index.ts';
+
+/** pg-pool can resolve end() before its clients finish closing their sockets. */
+function closeDisposablePool(pool: pg.Pool): () => Promise<void> {
+  const disconnected: Promise<void>[] = [];
+  pool.on('connect', (client: pg.PoolClient) => {
+    disconnected.push(
+      new Promise<void>((resolve) => client.once('end', resolve)),
+    );
+  });
+  return async () => {
+    const deadline = new AbortController();
+    try {
+      await Promise.race([
+        pool.end().then(() => Promise.all(disconnected)),
+        delay(5000, undefined, { signal: deadline.signal }).then(() => {
+          throw new Error('Disposable metric pool connections did not close.');
+        }),
+      ]);
+    } finally {
+      deadline.abort();
+    }
+  };
+}
 
 await test('metric operations preserve history, export every snapshot and recover bounded maintenance', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -27,11 +51,16 @@ await test('metric operations preserve history, export every snapshot and recove
     statement_timeout: 4000,
     lock_timeout: 1000,
   });
+  const closePool = closeDisposablePool(pool);
   t.after(async () => {
-    await db.close();
-    await pool.end();
-    await administrator.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-    await administrator.end();
+    try {
+      await db.close();
+      await closePool();
+      // A leaked connection must fail cleanup instead of being killed after its test.
+      await administrator.query(`DROP DATABASE "${name}"`);
+    } finally {
+      await administrator.end();
+    }
   });
   await db.migrate();
   const metrics = db.engagementMetrics;
