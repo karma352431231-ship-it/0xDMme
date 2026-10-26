@@ -6,7 +6,7 @@ import pg from 'pg';
 /** Recreate the pre-counter schema in an exclusive database for upgrade coverage. */
 export async function groupQuotaPredecessor(
   client: pg.Client,
-  through: 72 | 90 = 72,
+  through: 72 | 90 | 93 = 72,
 ) {
   const directory = new URL(
     '../../src/server/database/migrations/',

@@ -45,6 +45,7 @@ export async function vaultAllocationFixture(
   t: TestContext,
   beforeUpgrade?: (client: pg.Client) => Promise<void>,
   beforeMessageUpgrade?: (client: pg.Client) => Promise<void>,
+  afterMessageUpgrade?: (client: pg.Client) => Promise<void>,
 ) {
   const config = readWebConfiguration(process.env),
     url = new URL(config.databaseUrl),
@@ -108,11 +109,26 @@ export async function vaultAllocationFixture(
       ).rows,
     };
   await applyVaultMigration(inspector, '081-vault-allocation-accounting.sql');
+  const vaultUpgrade = {
+    sources: await globalSourceSnapshot(inspector, sources),
+    total: (await inspector.query('SELECT * FROM hash_talk.content_usage'))
+      .rows as unknown[],
+  };
   const lifecycle = await vaultLifecyclePredecessor(inspector);
   await beforeUpgrade?.(inspector);
   await applyVaultMigration(inspector, '082-vault-lifecycle-allocations.sql');
+  const lifecycleUpgrade = {
+    sources: await globalSourceSnapshot(inspector, sources),
+    total: (
+      await inspector.query<{ bytes: string }>(
+        'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+      )
+    ).rows[0]!.bytes,
+  };
   const message = await messageAllocationPredecessor(inspector);
   await beforeMessageUpgrade?.(inspector);
+  await applyVaultMigration(inspector, '083-message-admission-allocations.sql');
+  await afterMessageUpgrade?.(inspector);
   await db.migrate();
   return {
     url: url.href,
@@ -127,6 +143,8 @@ export async function vaultAllocationFixture(
     fixture,
     sources,
     before,
+    vaultUpgrade,
+    lifecycleUpgrade,
     predecessor,
     lifecycle,
     message,

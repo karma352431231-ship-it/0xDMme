@@ -22,6 +22,8 @@ export function engagementCsv(report: EngagementReport): string {
     'timezone',
     'resolution_seconds',
     'maintenance_heartbeat',
+    'correction_revision',
+    'known_collection_issues',
     'caveats',
   ];
   const lines = [header.map(quote).join(',')];
@@ -46,6 +48,8 @@ export function engagementCsv(report: EngagementReport): string {
           report.query.timezone,
           String(report.resolutionSeconds),
           report.heartbeatAt ?? '',
+          report.correctionRevision,
+          JSON.stringify(report.coverage),
           report.caveats.join(' '),
         ]
           .map(quote)
@@ -60,7 +64,7 @@ export function engagementTable(report: EngagementReport): string {
     `Cutoff: ${report.cutoff} | Timezone: ${report.query.timezone} | Complete: ${String(report.complete)}`,
     `Requested: [${report.query.from}, ${report.query.to})`,
     `Effective additive interval: [${report.effectiveInterval.from}, ${report.effectiveInterval.to})`,
-    `Collection started: ${report.startedAt} | Definition: ${report.definitionVersion}`,
+    `Collection started: ${report.startedAt} | Definition: ${report.definitionVersion} | Corrections: ${report.correctionRevision}`,
     'Dimension | Metric | Value | Unit | Limitation',
   ];
   for (const row of report.rows)
@@ -77,6 +81,12 @@ export function engagementTable(report: EngagementReport): string {
       );
     }
   lines.push(...report.caveats.map((note) => `Note: ${note}`));
+  lines.push(
+    ...report.coverage.map(
+      (incident) =>
+        `Known collection issue: ${incident.reason} [${incident.from}, ${incident.to}] (${incident.occurrences} observations/incidents)`,
+    ),
+  );
   lines.push(
     ...Object.entries(report.unavailable).map(
       ([metric, reason]) => `${metric}: unavailable (${reason})`,

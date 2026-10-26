@@ -77,7 +77,7 @@ print('restored')
                 backups.matches_export(root,expected,source_only=True)
 
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
-        names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
+        names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_engagement_backup', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
                  'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']

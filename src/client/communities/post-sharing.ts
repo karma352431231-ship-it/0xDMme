@@ -33,12 +33,8 @@ export function postSharing(
   container.append(button);
   button.addEventListener('click', () => {
     if (button.getAttribute('aria-pressed') === 'true') return;
-    void countShareClick(post)
-      .catch(() => false)
-      .then((counted) => {
-        if (!counted && button.isConnected)
-          button.title = t('ranking.share-count-failed');
-      });
+    // Best-effort counting never adds collection feedback to the sharing UI.
+    void countShareClick(post).catch(() => false);
   });
   if (button instanceof HTMLAnchorElement) button.href = '#settings';
   if (!(button instanceof HTMLButtonElement) || !access) {

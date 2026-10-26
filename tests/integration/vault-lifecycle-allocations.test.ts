@@ -608,11 +608,8 @@ await test('vault lifecycle adoption preserves completion, physical promises, re
   await t.test(
     'populated 078 to 079 migration changes only derived discarding promises and preserves every source, quota, total and old catalog',
     async () => {
-      assert.deepEqual(
-        await globalSourceSnapshot(c.inspector, c.upgrade.sources),
-        c.upgrade.rows,
-      );
-      assert.equal(await globalBytes(c.inspector), c.upgrade.total);
+      assert.deepEqual(c.lifecycleUpgrade.sources, c.upgrade.rows);
+      assert.equal(BigInt(c.lifecycleUpgrade.total), c.upgrade.total);
       assert.deepEqual(
         (
           await c.inspector.query(
@@ -634,6 +631,7 @@ await test('vault lifecycle adoption preserves completion, physical promises, re
     'maintenance reversal preserves source rows and restores predecessor physical accounting',
     async () => {
       const before = await globalSourceSnapshot(c.inspector, c.upgrade.sources);
+      const totalBeforeReversal = await globalBytes(c.inspector);
       await c.inspector.query('BEGIN');
       try {
         await c.inspector.query(
@@ -645,7 +643,7 @@ await test('vault lifecycle adoption preserves completion, physical promises, re
           await globalSourceSnapshot(c.inspector, c.upgrade.sources),
           before,
         );
-        assert.equal(await globalBytes(c.inspector), c.upgrade.total);
+        assert.equal(await globalBytes(c.inspector), totalBeforeReversal);
         assert.deepEqual(
           await readStorageReservations(c.inspector),
           c.upgrade.pending,

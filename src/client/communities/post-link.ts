@@ -3,6 +3,10 @@ import { t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { communityElement as el } from './elements.ts';
 import { iconLabel } from './presentation.ts';
+import {
+  observePublicAction,
+  performPublicShare,
+} from '../public-traffic/index.ts';
 
 /** The public address of a post or reply; it opens that item in its discussion. */
 export function postShareUrl(
@@ -39,7 +43,18 @@ export function postLinkControl(
     }, 2000);
   };
   copy.addEventListener('click', () => {
-    void navigator.clipboard.writeText(postShareUrl(post)).then(
+    void performPublicShare(
+      { kind: 'copy', url: postShareUrl(post) },
+      {
+        share: (url) => navigator.share({ url }),
+        copy: (url) => navigator.clipboard.writeText(url),
+      },
+      (kind) =>
+        observePublicAction(
+          { category: 'post', community: post.community, post: post.id },
+          kind,
+        ),
+    ).then(
       () => settle(t('Link copied.')),
       () => settle(t('Could not copy the link.')),
     );

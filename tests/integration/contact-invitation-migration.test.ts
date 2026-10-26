@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { test } from 'node:test';
 import pg from 'pg';
-import { Database } from '../../src/server/database/index.ts';
+import { groupQuotaPredecessor } from '../fixtures/group-quota-database.ts';
 
 await test('093 to 094 bounds legacy invitations without changing approved contacts or personal quota', async (t) => {
   const url = new URL(process.env['HASH_TALK_DATABASE_URL'] ?? '');
@@ -14,29 +14,27 @@ await test('093 to 094 bounds legacy invitations without changing approved conta
     !url.pathname.startsWith('/hash_talk_test')
   )
     throw new Error('A dedicated local test database is required.');
-  const database = new Database(url.href),
-    client = new pg.Client({ connectionString: url.href });
-  t.after(() => database.close());
-  await database.migrate();
+  const administrator = new pg.Client({ connectionString: url.href });
+  await administrator.connect();
+  const name =
+    'hash_talk_test_contact_invitation_upgrade_' +
+    randomUUID().replaceAll('-', '');
+  await administrator.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
+  url.pathname = '/' + name;
+  const client = new pg.Client({ connectionString: url.href });
   await client.connect();
   t.after(async () => {
     try {
       await client.query('ROLLBACK');
     } finally {
       await client.end();
+      await administrator.query(`DROP DATABASE "${name}" WITH (FORCE)`);
+      await administrator.end();
     }
   });
-  // Recreate the pre-094 source inside a transaction; rollback restores the
-  // current test schema even when an assertion or the migration fails.
+  await groupQuotaPredecessor(client, 93);
+  // Exercise only 093→094; later metadata sources have their own accounting.
   await client.query('BEGIN');
-  const invitations = await client.query(
-    'SELECT 1 FROM hash_talk.contact_invitations LIMIT 1',
-  );
-  assert.equal(invitations.rowCount, 0, 'The test grant table must be empty');
-  await client.query('DROP TABLE hash_talk.contact_invitations');
-  await client.query(
-    'DROP FUNCTION hash_talk.wake_contact_invitation_cleanup()',
-  );
   const [owner, peer] = [randomUUID(), randomUUID()].sort(),
     hash = 'a'.repeat(64);
   for (const id of [owner!, peer!])
@@ -53,12 +51,11 @@ await test('093 to 094 bounds legacy invitations without changing approved conta
     [owner, peer],
   );
   const before = await accounting(client, owner!);
-  await client.query(
-    await readFile(
-      'src/server/database/migrations/094-single-use-contact-invitations.sql',
-      'utf8',
-    ),
+  const migration = await readFile(
+    'src/server/database/migrations/094-single-use-contact-invitations.sql',
+    'utf8',
   );
+  await client.query(migration);
   const grants = await client.query<{
     token_hash: string;
     full_day: boolean;
@@ -88,7 +85,8 @@ await test('093 to 094 bounds legacy invitations without changing approved conta
   assert.equal(after.personal, before.personal);
   // The real migrator records this same transaction timestamp for 094.
   await client.query(
-    'UPDATE hash_talk.schema_migrations SET applied_at=now() WHERE version=94',
+    'INSERT INTO hash_talk.schema_migrations(version,checksum,applied_at) VALUES(94,$1,now())',
+    [createHash('sha256').update(migration).digest('hex')],
   );
   const { stdout } = await promisify(execFile)('python3', [
     '-c',

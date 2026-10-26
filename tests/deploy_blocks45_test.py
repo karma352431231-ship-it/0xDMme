@@ -231,6 +231,7 @@ class ReviewedTransitionTests(unittest.TestCase):
             before = {'versions':[{'version':3}], 'tables':{}}
             with patch.object(base, 'digest', return_value='b' * 64), \
                     patch.object(transition, 'restore_transaction') as restore_sql, \
+                    patch.object(transition, 'pg', return_value=b'TABLE hash_talk accounts owner'), \
                     patch.object(transition, 'database_snapshot', return_value=before):
                 transition.restore(work, before, 'b' * 64)
                 restore_sql.assert_called_once_with(work,work/'database.dump',transition.pg,rollback=False)
@@ -259,6 +260,7 @@ class ReviewedTransitionTests(unittest.TestCase):
             before = {'versions':[{'version':3}], 'tables':{}}
             with patch.object(base,'digest',return_value='b'*64), \
                     patch.object(transition, 'restore_transaction') as restore_sql, \
+                    patch.object(transition, 'pg', return_value=b'TABLE hash_talk accounts owner'), \
                     patch.object(transition, 'database_snapshot', return_value=before):
                 transition.validate_restore(work, before, 'b' * 64)
                 restore_sql.assert_called_once_with(work,work/'database.dump',transition.pg,rollback=True)

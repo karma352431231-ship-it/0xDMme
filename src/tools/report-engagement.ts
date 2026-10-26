@@ -95,6 +95,10 @@ function argumentsForReport(args: string[]) {
     all: options.has('--all'),
     snapshots: options.has('--snapshots'),
     before: options.get('--before'),
+    snapshotCursor: options.get('--cursor'),
+    snapshotLimit: options.has('--limit')
+      ? Number(options.get('--limit'))
+      : undefined,
   };
 }
 function validateOutputOptions(
@@ -106,11 +110,18 @@ function validateOutputOptions(
   if (
     options.has('--snapshots') &&
     [...options.keys()].some(
-      (key) => !['--snapshots', '--before', '--format'].includes(key),
+      (key) =>
+        ![
+          '--snapshots',
+          '--before',
+          '--format',
+          '--cursor',
+          '--limit',
+        ].includes(key),
     )
   )
     throw new EngagementQueryError(
-      'Snapshot history accepts only --before and --format.',
+      'Snapshot history accepts --before, --cursor, --limit and --format.',
     );
   if (!['table', 'csv', 'json'].includes(format))
     throw new EngagementQueryError('Choose table, csv or json output.');
@@ -123,9 +134,15 @@ function optionValue(key: string, value: string): unknown {
 
 let database: Database | undefined;
 try {
-  const { query, format, all, snapshots, before } = argumentsForReport(
-    process.argv.slice(2),
-  );
+  const {
+    query,
+    format,
+    all,
+    snapshots,
+    before,
+    snapshotCursor,
+    snapshotLimit,
+  } = argumentsForReport(process.argv.slice(2));
   const config = readWebConfiguration(process.env);
   database = new Database(config.databaseUrl);
   await database.verifyMigrations();
@@ -134,14 +151,18 @@ try {
       throw new EngagementQueryError(
         'Snapshot history currently requires --format json.',
       );
-    const rows = await database.engagementMetrics.snapshotsPage(before);
+    const page = await database.engagementMetrics.snapshotsPage({
+      ...(before ? { before } : {}),
+      ...(snapshotCursor ? { cursor: snapshotCursor } : {}),
+      ...(snapshotLimit === undefined ? {} : { limit: snapshotLimit }),
+    });
     process.stdout.write(
       JSON.stringify(
         {
-          rows,
-          limit: 1000,
+          ...page,
+          limit: snapshotLimit ?? 1000,
           caveat:
-            'Rows are rolling-window snapshots, not additive daily uniques. Narrow a cutoff with more than 1000 entity rows through individual metric reports.',
+            'Rows are rolling-window aggregates, not additive daily uniques. Resume next to read every row at crowded cutoffs. Corrections append revisions; pages retain their original correction cutoff.',
         },
         null,
         2,

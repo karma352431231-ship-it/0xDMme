@@ -139,6 +139,8 @@ try {
       observe: (input) => database!.engagementMetrics.observe(input),
       observeVisitor: (input) =>
         database!.engagementMetrics.observeVisitor(input),
+      recordFailures: (summary) =>
+        database!.engagementMetrics.noteCollectionFailure(summary),
     }),
     publicMedia: createPublicMediaHandler(
       new PublicMediaService(

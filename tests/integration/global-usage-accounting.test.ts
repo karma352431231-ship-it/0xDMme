@@ -35,6 +35,9 @@ const engagementSources = [
   'engagement_observations',
   'engagement_erasure',
   'engagement_snapshots',
+  'engagement_coverage',
+  'engagement_operations',
+  'engagement_adjustments',
 ].map((name) => ({ name, events: 12 }));
 async function rollback(client: pg.Client, work: () => Promise<void>) {
   await client.query('BEGIN');
@@ -343,8 +346,18 @@ await test('statement global accounting preserves populated history and avoids p
   });
   await Promise.all([writer.connect(), reader.connect()]);
   await globalUsagePredecessor(writer);
-  const fixture = await seedStorageReservations(writer),
-    sources = await globalUsageSources(writer),
+  const fixture = await seedStorageReservations(writer);
+  // Prepare the independent tag-data baseline before the accounting assertions.
+  await writer.query(
+    await readFile(
+      new URL(
+        '../../src/server/database/migrations/100-default-post-tags-backfill.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const sources = await globalUsageSources(writer),
     before = await globalSourceSnapshot(writer, sources),
     bytes = await globalBytes(writer),
     versions = (

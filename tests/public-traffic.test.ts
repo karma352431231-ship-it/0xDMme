@@ -11,7 +11,7 @@ import {
   publicTrafficTarget,
   publicVisitorMarker,
 } from '../src/client/public-traffic/index.ts';
-import { performPublicShare } from '../src/client/communities/post-link-sharing.ts';
+import { performPublicShare } from '../src/client/public-traffic/actions.ts';
 import { appHref } from '../src/shared/app-routes/index.ts';
 
 const community = '11111111-1111-4111-8111-111111111111';

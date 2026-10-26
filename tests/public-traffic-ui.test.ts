@@ -4,6 +4,8 @@ import { setImmediate as turn } from 'node:timers/promises';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 import { observePublicPage } from '../src/client/public-traffic/index.ts';
 import { postLinkSharing } from '../src/client/communities/post-link-sharing.ts';
+import { postLinkControl } from '../src/client/communities/post-link.ts';
+import { postSharing } from '../src/client/communities/post-sharing.ts';
 import { setActiveLanguage, t } from '../src/shared/i18n/index.ts';
 import type { CommunityPost } from '../src/shared/community-posts/index.ts';
 
@@ -23,6 +25,8 @@ function environment(context: TestContext) {
         data.set(key, value);
       },
     },
+    HTMLAnchorElement: CommunityNode,
+    HTMLButtonElement: class extends CommunityNode {},
   };
   for (const [name, value] of Object.entries(globals)) {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -41,6 +45,43 @@ function environment(context: TestContext) {
   );
   return { document, window, clipboard, collection };
 }
+
+await test('failed legacy share counting adds no collection tooltip or visible status', async (context) => {
+  const { collection } = environment(context);
+  collection.mock.mockImplementation(() =>
+    Promise.resolve(new Response(null, { status: 503 })),
+  );
+  const host = new CommunityNode();
+  const post: CommunityPost = {
+    id: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    parent: null,
+    root: null,
+    status: 'visible',
+    author: null,
+    title: 'Synthetic post',
+    text: 'Synthetic content',
+    tags: [],
+    createdAt: '2026-10-26T00:00:00.000Z',
+    editedAt: null,
+    revision: 1,
+    score: 0,
+    replies: 0,
+  };
+  for (const language of ['en', 'zh-CN'] as const) {
+    setActiveLanguage(language);
+    postSharing(host as unknown as HTMLElement, post, null);
+    const button = host.querySelector('.post-share')!;
+    Object.defineProperty(button, 'isConnected', { value: true });
+    const element = button as unknown as HTMLElement;
+    const before = { title: element.title, content: host.textContent };
+    button.click();
+    await turn();
+    assert.equal(element.title, before.title);
+    assert.equal(host.textContent, before.content);
+    host.replaceChildren();
+  }
+});
 
 for (const status of [204, 503]) {
   await test(`public collection leaves page content unchanged with response ${status}`, async (context) => {
@@ -102,20 +143,22 @@ await test('copy/share visible and accessibility states use both official langua
     const buttons = toolbar.querySelectorAll('button');
     assert.deepEqual(
       buttons.map((button) => button.textContent),
-      [t('Share link'), t('Copy link')],
+      [t('Share link')],
     );
     const status = toolbar.children.find(
       (node) => node.getAttribute('role') === 'status',
     )!;
-    buttons[1]!.click();
+    const menu = new CommunityNode();
+    const copy = postLinkControl(menu as unknown as HTMLElement, post);
+    copy.click();
     await turn();
-    assert.equal(status.textContent, t('Link copied.'));
+    assert.equal(copy.textContent, t('Link copied.'));
     const fail = context.mock.method(clipboard, 'writeText', () =>
       Promise.reject(new Error('Synthetic clipboard denial.')),
     );
-    buttons[1]!.click();
+    copy.click();
     await turn();
-    assert.equal(status.textContent, t('Sharing is unavailable. Try again.'));
+    assert.equal(copy.textContent, t('Could not copy the link.'));
     fail.mock.restore();
     buttons[0]!.click();
     await turn();

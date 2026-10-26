@@ -227,8 +227,10 @@ const migrations = [
   '097-community-games-topic.sql',
   '098-group-message-fences.sql',
   '099-post-share-counts.sql',
-  '100-engagement-storage.sql',
-  '101-engagement-domain-facts.sql',
+  '100-default-post-tags-backfill.sql',
+  '101-engagement-storage.sql',
+  '102-engagement-domain-facts.sql',
+  '103-engagement-operations.sql',
 ];
 
 export interface MaintenanceSnapshot {

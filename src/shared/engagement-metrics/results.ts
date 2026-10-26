@@ -17,6 +17,8 @@ export interface EngagementReport {
   readonly cutoff: string;
   readonly startedAt: string;
   readonly heartbeatAt: string | null;
+  readonly correctionRevision: string;
+  readonly coverage: readonly EngagementCoverage[];
   readonly query: EngagementQuery;
   readonly effectiveInterval: { readonly from: string; readonly to: string };
   readonly resolutionSeconds: 60;
@@ -35,4 +37,21 @@ export interface EngagementSnapshot {
   readonly entity: string;
   readonly value: string;
   readonly complete: boolean;
+  readonly revision: string;
+}
+
+export interface EngagementCoverage {
+  readonly reason:
+    'collection_failure' | 'maintenance_gap' | 'snapshot_failure';
+  readonly from: string;
+  readonly to: string;
+  readonly occurrences: string;
+}
+
+export interface EngagementSnapshotPage {
+  readonly rows: readonly EngagementSnapshot[];
+  readonly next: string | null;
+  readonly asOf: string;
+  readonly correctionRevision: string;
+  readonly snapshotGeneration: string;
 }

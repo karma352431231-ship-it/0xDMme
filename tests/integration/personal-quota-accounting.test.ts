@@ -4,6 +4,7 @@ import type { TestContext } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import {
@@ -423,7 +424,11 @@ await test('direct personal accounting preserves the historical formula across m
   const previousVersions = await inspector.query(
     'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations ORDER BY version',
   );
-  await db.migrate();
+  await historicalMigrations(inspector, [
+    '074-personal-quota-accounting.sql',
+    '075-quota-lock-order.sql',
+    '076-attachment-quota-accounting.sql',
+  ]);
 
   const context = {
     db,

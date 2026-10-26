@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
+import { engagementCoverage } from './engagement-health.ts';
 import {
   engagementDefinitionVersion,
   engagementInterval,
@@ -15,6 +16,7 @@ import type {
   EngagementReport,
   EngagementRow,
   EngagementValue,
+  EngagementCoverage,
 } from '../../shared/engagement-metrics/index.ts';
 import { object } from '../../shared/account/index.ts';
 
@@ -24,6 +26,8 @@ interface ReportState {
   heartbeat: Date | null;
   authorErased: Date | null;
   communityErased: Date | null;
+  revision: string;
+  contributorsReset: Date | null;
 }
 interface RawValue {
   dimension: string;
@@ -245,7 +249,8 @@ async function visitors(
   if (!live) {
     const snapshot = await client.query<{ value: string }>(
       `SELECT value::text FROM hash_talk.engagement_snapshots WHERE metric='public_site_visitors_estimated'
-       AND scope='project' AND period='day' AND cutoff=$2 AND cutoff-interval '24 hours'=$1`,
+       AND scope='project' AND period='day' AND cutoff=$2 AND cutoff-interval '24 hours'=$1
+       ORDER BY revision DESC LIMIT 1`,
       [query.from, query.to],
     );
     return snapshot.rows.map((row) => ({
@@ -355,7 +360,7 @@ export async function engagementReport(
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const state = (
       await client.query<ReportState>(
-        'SELECT clock_timestamp() AS cutoff,started_at AS started,heartbeat_at AS heartbeat,author_erased_at AS "authorErased",community_erased_at AS "communityErased" FROM hash_talk.engagement_state WHERE singleton',
+        'SELECT date_trunc(\'milliseconds\',clock_timestamp())+interval \'1 millisecond\' AS cutoff,started_at AS started,heartbeat_at AS heartbeat,author_erased_at AS "authorErased",community_erased_at AS "communityErased",correction_revision::text AS revision,contributors_reset_at AS "contributorsReset" FROM hash_talk.engagement_state WHERE singleton',
       )
     ).rows[0];
     if (!state)
@@ -417,7 +422,11 @@ async function selected(
   const page = rows(query, raw, unavailable).sort((a, b) =>
     compare(query, a, b),
   );
-  return finish({ query, state, all, effective, page, unavailable });
+  const coverage = await engagementCoverage(client, {
+    from: query.from,
+    to: query.to,
+  });
+  return finish({ query, state, all, effective, page, unavailable, coverage });
 }
 
 async function filtersExist(
@@ -545,7 +554,10 @@ async function contributorMeasurement(
     query.eligibility === 'historical' &&
     state.authorErased !== null &&
     query.from < state.authorErased.toISOString();
-  if (!expired && !erased)
+  const restoredWithoutReferences =
+    state.contributorsReset !== null &&
+    query.from < state.contributorsReset.toISOString();
+  if (!expired && !erased && !restoredWithoutReferences)
     return { rows: await contributors(client, query), reason: null };
   if (query.eligibility !== 'historical' || query.groupBy === 'time')
     return {
@@ -593,8 +605,9 @@ function finish(options: {
   effective: { from: string; to: string };
   page: EngagementRow[];
   unavailable: Partial<Record<EngagementMetric, string>>;
+  coverage: EngagementCoverage[];
 }): EngagementReport {
-  const { query, state, all, effective, page, unavailable } = options;
+  const { query, state, all, effective, page, unavailable, coverage } = options;
   const offset = pageOffset(query);
   if (all && offset !== 0)
     throw new EngagementQueryError('A full export cannot start from a cursor.');
@@ -613,24 +626,56 @@ function finish(options: {
     cutoff: state.cutoff.toISOString(),
     startedAt: state.started.toISOString(),
     heartbeatAt: state.heartbeat?.toISOString() ?? null,
+    correctionRevision: state.revision,
+    coverage,
     query,
     effectiveInterval: effective,
     resolutionSeconds: 60,
-    complete:
-      query.from >= state.started.toISOString() &&
-      query.to <= state.cutoff.toISOString() &&
-      Object.keys(unavailable).length === 0,
+    complete: reportComplete(query, state, unavailable, coverage),
     caveats: [
       'Browser observations are best effort; estimates are browsers, not people, and are not bot-proof.',
       'Additive boundaries expand to whole minutes; the latest minute is provisional at the common cutoff.',
+      'The common cutoff is the exclusive end of the current millisecond; stored public observations use millisecond precision.',
       'Current values describe the report snapshot, independently of the selected event interval.',
       'Deleted entities and author references are excluded from detailed and distinct reports; project event totals survive.',
       'Share actions overlap copied links and do not prove external delivery.',
       'Calendar snapshot cutoffs are actual worker observation times; missing historical periods are not reconstructed.',
       'Continuation pages reevaluate current eligibility; use one process export for a stable reporting snapshot.',
+      'Coverage ranges aggregate known server failures; browser losses and process-local failures lost on restart cannot all be detected.',
+      'This database is one reporting dataset. Synthetic and staging traffic must use separate test databases.',
     ],
     unavailable,
     rows: all ? page : page.slice(offset, offset + query.limit),
     next,
   };
+}
+
+function reportComplete(
+  query: EngagementQuery,
+  state: ReportState,
+  unavailable: Partial<Record<EngagementMetric, string>>,
+  coverage: EngagementCoverage[],
+): boolean {
+  return (
+    query.from >= state.started.toISOString() &&
+    query.to <= state.cutoff.toISOString() &&
+    Object.keys(unavailable).length === 0 &&
+    !hasBrowserCollectionGap(query, coverage)
+  );
+}
+
+function hasBrowserCollectionGap(
+  query: EngagementQuery,
+  coverage: EngagementCoverage[],
+): boolean {
+  const observed = [
+    'public_page_views',
+    'public_site_visitors_estimated',
+    'share_actions_started',
+    'links_copied',
+  ];
+  return (
+    coverage.length > 0 &&
+    query.metrics.some((metric) => observed.includes(metric))
+  );
 }

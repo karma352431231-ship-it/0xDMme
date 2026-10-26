@@ -36,4 +36,19 @@ export type {
   EngagementRow,
   EngagementValue,
   EngagementSnapshot,
+  EngagementSnapshotPage,
+  EngagementCoverage,
 } from './results.ts';
+export {
+  engagementCorrection,
+  engagementTarget,
+  projectMetricEntity,
+  operationInteger,
+  operationTimestamp,
+} from './operations.ts';
+export type {
+  EngagementTarget,
+  EngagementCorrection,
+  TrafficCorrection,
+  SnapshotCorrection,
+} from './operations.ts';

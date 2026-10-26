@@ -40,6 +40,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
   const reviews: string[] = [];
   const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
   const origin = 'http://127.0.0.1:45130';
+  let collectorAvailable = true;
   const host = createWebServer({
     origin,
     database: db,
@@ -47,8 +48,13 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
     objects: { healthy: () => Promise.resolve(true) },
     engagement: createEngagementHandler({
       origin,
-      observe: (input) => db.engagementMetrics.observe(input),
+      observe: (input) =>
+        collectorAvailable
+          ? db.engagementMetrics.observe(input)
+          : Promise.reject(new Error('Synthetic collector outage.')),
       observeVisitor: (input) => db.engagementMetrics.observeVisitor(input),
+      recordFailures: (summary) =>
+        db.engagementMetrics.noteCollectionFailure(summary),
     }),
   });
   t.after(async () => {
@@ -342,6 +348,15 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         'marker',
         'seen_at',
       ]);
+      assert.equal(
+        (
+          await inspector.query(
+            "SELECT 1 FROM hash_talk.engagement_observations WHERE id=$1 AND expires_at>clock_timestamp()+interval '6 days'",
+            [visitor.id],
+          )
+        ).rowCount,
+        1,
+      );
     },
   );
   await t.test(
@@ -397,6 +412,99 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         404,
       );
       assert.equal(await metric('links_copied', { postIds: [post] }), '1');
+    },
+  );
+  await t.test(
+    'collector failure is visible after recovery and cannot fabricate a successful observation',
+    async () => {
+      const input = {
+        items: [
+          {
+            id: crypto.randomUUID(),
+            kind: 'page',
+            category: 'feed',
+            community: null,
+            post: null,
+          },
+        ],
+      };
+      const send = () =>
+        fetch(`${origin}/api/engagement/observations`, {
+          method: 'POST',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+      const before = BigInt(
+        (await metric('public_page_views', { pageCategories: ['feed'] }))!,
+      );
+      collectorAvailable = false;
+      try {
+        assert.equal((await send()).status, 503);
+      } finally {
+        collectorAvailable = true;
+      }
+      assert.equal(
+        await metric('public_page_views', { pageCategories: ['feed'] }),
+        String(before),
+      );
+      assert.equal((await send()).status, 204);
+      assert.equal(
+        await metric('public_page_views', { pageCategories: ['feed'] }),
+        String(before + 1n),
+      );
+      const report = await db.engagementMetrics.report({
+        metrics: ['public_page_views'],
+        preset: 'last24h',
+      });
+      assert.ok(
+        report.coverage.some((item) => item.reason === 'collection_failure'),
+      );
+    },
+  );
+  await t.test(
+    'qualified view corrections propagate across reporting scopes without changing public counters',
+    async () => {
+      const filters = [{}, { communityIds: [community] }, { postIds: [post] }];
+      const before = await Promise.all(
+        filters.map((filter) => metric('post_views_estimated', filter)),
+      );
+      const publicBefore = (
+        await inspector.query<{ views: string }>(
+          'SELECT views::text FROM hash_talk.community_posts WHERE id=$1',
+          [post],
+        )
+      ).rows[0]!.views;
+      const bucket = (
+        await inspector.query<{ bucket: Date }>(
+          "SELECT bucket FROM hash_talk.engagement_counts WHERE metric='post_views_estimated' AND scope='post' AND entity=$1 ORDER BY bucket DESC LIMIT 1",
+          [post],
+        )
+      ).rows[0]!.bucket.toISOString();
+      await db.engagementMetrics.correct({
+        id: crypto.randomUUID(),
+        kind: 'traffic',
+        metric: 'post_views_estimated',
+        scope: 'post',
+        entity: post,
+        bucket,
+        category: 'all',
+        delta: '-1',
+        reason: 'invalid_traffic',
+      });
+      for (const [index, filter] of filters.entries())
+        assert.equal(
+          await metric('post_views_estimated', filter),
+          String(BigInt(before[index]!) - 1n),
+        );
+      assert.equal(
+        (
+          await inspector.query<{ views: string }>(
+            'SELECT views::text FROM hash_talk.community_posts WHERE id=$1',
+            [post],
+          )
+        ).rows[0]!.views,
+        publicBefore,
+      );
     },
   );
   await t.test(
@@ -541,6 +649,24 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
     },
   );
   await t.test(
+    'filtered infrastructure backups preserve daily aggregates without temporary identifiers',
+    async () => {
+      await db.engagementMetrics.collect();
+      const result = spawnSync(
+        'python3',
+        ['tests/fixtures/engagement-backup.py'],
+        {
+          cwd: new URL('../../', import.meta.url),
+          env: process.env,
+          encoding: 'utf8',
+          timeout: 60_000,
+        },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      assert.ok(result.stdout.includes('preserved aggregates'));
+    },
+  );
+  await t.test(
     'deletion retires detail without erasing accepted project totals; cleanup is bounded',
     async () => {
       const before = await metric('posts_created');
@@ -553,7 +679,29 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         revision: own.post.revision,
       });
       assert.equal(await metric('posts_created'), before);
+      await inspector.query(
+        "UPDATE hash_talk.engagement_contributors SET published_at=clock_timestamp()-interval '31 days' WHERE post=$1",
+        [reply],
+      );
       for (let step = 0; step < 4; step++) await db.engagementMetrics.collect();
+      assert.equal(
+        (
+          await inspector.query(
+            "SELECT 1 FROM hash_talk.engagement_adjustments WHERE scope='post' AND entity=$1",
+            [post],
+          )
+        ).rowCount,
+        0,
+      );
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.engagement_contributors WHERE post=$1',
+            [reply],
+          )
+        ).rowCount,
+        0,
+      );
       assert.equal(
         (
           await inspector.query(
@@ -589,6 +737,20 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
             [expired],
           )
         ).rowCount,
+        1,
+      );
+      await inspector.query(
+        "UPDATE hash_talk.engagement_visitors SET seen_at=clock_timestamp()-interval '8 days' WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
+        [expired],
+      );
+      await db.engagementMetrics.collect();
+      assert.equal(
+        (
+          await inspector.query(
+            "SELECT 1 FROM hash_talk.engagement_visitors WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
+            [expired],
+          )
+        ).rowCount,
         0,
       );
       assert.ok(
@@ -600,7 +762,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
       );
       const snapshots = await db.engagementMetrics.snapshotsPage();
       assert.ok(
-        snapshots.some(
+        snapshots.rows.some(
           (item) => item.metric === 'public_site_visitors_estimated',
         ),
       );

@@ -1,4 +1,7 @@
 -- Metric-owned storage. No wallet, account, device key or browser/page timeline.
+CREATE FUNCTION hash_talk.engagement_technical_retention() RETURNS interval LANGUAGE sql IMMUTABLE AS $$
+  SELECT interval '7 days';
+$$;
 CREATE TABLE hash_talk.engagement_state (
   singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
   started_at timestamptz(3) NOT NULL DEFAULT clock_timestamp(),
@@ -63,7 +66,7 @@ CREATE INDEX engagement_visitors_expiry ON hash_talk.engagement_visitors(seen_at
 -- Replay protection has no visitor identity or entity reference.
 CREATE TABLE hash_talk.engagement_observations (
   id uuid PRIMARY KEY,
-  expires_at timestamptz(3) NOT NULL DEFAULT (clock_timestamp()+interval '48 hours'),
+  expires_at timestamptz(3) NOT NULL DEFAULT (clock_timestamp()+hash_talk.engagement_technical_retention()),
   charge integer NOT NULL DEFAULT 128 CHECK(charge=128)
 ) WITH (autovacuum_vacuum_scale_factor=0.05,autovacuum_vacuum_threshold=20,
   autovacuum_analyze_scale_factor=0.05,autovacuum_analyze_threshold=20);

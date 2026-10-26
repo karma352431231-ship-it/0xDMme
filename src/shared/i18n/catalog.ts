@@ -1,7 +1,6 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
   'Share link': ['Share link', '分享链接'],
-  'Copy link': ['Copy link', '复制链接'],
   'The browser received the sharing request.': [
     'The browser received the sharing request.',
     '浏览器已接收分享请求。',
@@ -61,10 +60,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.received-summary {0} {1} {2} {3}': [
     '{0} views · {1} upvotes · {2} comments · {3} share clicks',
     '{0} 次浏览 · {1} 次赞 · {2} 条评论 · {3} 次分享点击',
-  ],
-  'ranking.share-count-failed': [
-    'Sharing is available, but this click could not be counted.',
-    '仍可分享，但未能计入此次点击。',
   ],
   'Ranking uses 24 hours, 7 days or 30 days.': [
     'Ranking uses 24 hours, 7 days or 30 days.',

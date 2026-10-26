@@ -20,25 +20,42 @@ import { globalBytes, globalSourceSnapshot } from './global-usage-database.ts';
 
 export async function messageAllocationFixture(t: TestContext) {
   let before: { rows: unknown; total: bigint; catalog: unknown } | undefined;
-  const c = await vaultAllocationFixture(t, undefined, async (client) => {
-    const sources = (
-      await client.query<{
-        name: string;
-      }>(`SELECT DISTINCT c.relname AS name FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+  let after: { rows: unknown; total: bigint } | undefined;
+  const c = await vaultAllocationFixture(
+    t,
+    undefined,
+    async (client) => {
+      const sources = (
+        await client.query<{
+          name: string;
+        }>(`SELECT DISTINCT c.relname AS name FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
       WHERE t.tgfoid='hash_talk.track_statement_content_usage()'::regprocedure ORDER BY c.relname`)
-    ).rows;
-    before = {
-      rows: await globalSourceSnapshot(client, sources),
-      total: await globalBytes(client),
-      catalog: (
-        await client.query(
-          'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
-        )
-      ).rows,
-    };
-  });
+      ).rows;
+      before = {
+        rows: await globalSourceSnapshot(client, sources),
+        total: await globalBytes(client),
+        catalog: (
+          await client.query(
+            'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
+          )
+        ).rows,
+      };
+    },
+    async (client) => {
+      const sources = (
+        await client.query<{ name: string }>(`SELECT DISTINCT c.relname AS name
+      FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+      WHERE t.tgfoid='hash_talk.track_statement_content_usage()'::regprocedure ORDER BY c.relname`)
+      ).rows;
+      after = {
+        rows: await globalSourceSnapshot(client, sources),
+        total: await globalBytes(client),
+      };
+    },
+  );
   assert.ok(before);
-  return { ...c, upgrade: before };
+  assert.ok(after);
+  return { ...c, upgrade: { ...before, after } };
 }
 export type MessageAllocationFixture = Awaited<
   ReturnType<typeof messageAllocationFixture>

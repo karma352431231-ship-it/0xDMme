@@ -46,6 +46,16 @@ export async function globalUsageSources(client: pg.Client) {
   ).rows;
 }
 
+/** Current authored sources, including additive metadata introduced after 079. */
+export async function currentGlobalUsageSources(client: pg.Client) {
+  return (
+    await client.query<{ name: string }>(`SELECT DISTINCT c.relname AS name
+    FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='hash_talk' AND t.tgfoid='hash_talk.track_statement_content_usage()'::regprocedure
+    UNION SELECT 'profile_ranking_entries' AS name ORDER BY name`)
+  ).rows;
+}
+
 /** Columns later additive migrations derive from existing data. Upgrade
  * fingerprints compare every pre-existing column; 098 fills the group removal
  * fence from the existing revision. */

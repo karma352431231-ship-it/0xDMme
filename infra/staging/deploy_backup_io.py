@@ -4,13 +4,14 @@ import os
 import tempfile
 
 
-def restore_transaction(work, dump, execute, *, rollback):
+def restore_transaction(work, dump, execute, *, rollback, after_restore=b''):
     # NamedTemporaryFile creates a private 0600 file inside the own deployment.
     # A failed decode never reaches psql; its transaction has no commit marker.
     with tempfile.NamedTemporaryFile(prefix='restore-', suffix='.sql', dir=work) as sql:
         sql.write(b'BEGIN; DROP SCHEMA hash_talk CASCADE;\n')
         sql.flush()
         execute(['pg_restore', '--no-owner', '--no-acl', '--file=-', str(dump)], output=sql)
+        sql.write(after_restore)
         sql.write(b'\nROLLBACK;\n' if rollback else b'\nCOMMIT;\n')
         sql.flush()
         os.fsync(sql.fileno())

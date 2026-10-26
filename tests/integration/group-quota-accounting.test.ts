@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import {
@@ -53,7 +54,7 @@ await test('group accounting upgrades populated history and preserves transactio
   const checksums = await inspector.query(
     'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations ORDER BY version',
   );
-  await db.migrate();
+  await historicalMigrations(inspector, ['073-group-quota-accounting.sql']);
 
   await t.test(
     'backfill preserves all charges, old migration records and the global total',

@@ -17,6 +17,7 @@ import tarfile
 
 import deploy_remote as base
 from deploy_backup_io import restore_transaction
+import deploy_engagement_backup as engagement_backup
 
 BEFORE = 'd64711c0cdcb3024c6728e4328190d545988333e'
 REVIEWED = '203274bb8dac5031a0697cf892c4b96f7d7600ac'
@@ -213,8 +214,11 @@ def objects_snapshot():
 
 def backup(work):
     dump = work / 'database.dump'
+    excluded = engagement_backup.temporary_bytes(pg)
     pg(['pg_dump', '--format=custom', '--no-owner', '--no-acl', '--schema=hash_talk',
-        '--lock-wait-timeout=2s', '--file=' + str(dump)])
+        '--lock-wait-timeout=2s', *engagement_backup.dump_options(excluded), '--file=' + str(dump)])
+    if engagement_backup.temporary_bytes(pg) != excluded:
+        raise RuntimeError('Metric backup accounting changed while writers were stopped.')
     if dump.is_symlink() or not dump.is_file() or dump.stat().st_size <= 0:
         raise RuntimeError('Database backup is missing or irregular.')
     dump.chmod(0o600)
@@ -236,7 +240,9 @@ def backup(work):
             os.fsync(fd)
         finally:
             os.close(fd)
-    return base.digest(dump)
+    checksum = base.digest(dump)
+    engagement_backup.record(work, excluded, checksum)
+    return checksum
 
 
 def migrate(candidate):
@@ -263,7 +269,11 @@ def verify_migration(candidate, before):
 def restore_dump(work, checksum, *, rollback):
     if base.digest(work / 'database.dump') != checksum:
         raise RuntimeError('Backup digest changed; restore refused.')
-    restore_transaction(work, work / 'database.dump', pg, rollback=rollback)
+    filtered = engagement_backup.restore_sql(work, checksum, listing=pg(['pg_restore', '--list', str(work / 'database.dump')]))
+    if filtered:
+        restore_transaction(work, work / 'database.dump', pg, rollback=rollback, after_restore=filtered)
+    else:
+        restore_transaction(work, work / 'database.dump', pg, rollback=rollback)
 
 
 def validate_restore(work, expected, checksum, *, snapshot=None):

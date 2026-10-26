@@ -4,6 +4,7 @@ import type { TestContext } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import pg from 'pg';
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import { Wallet } from 'ethers';
 import { AccountService } from '../../src/server/account/index.ts';
 import { Database } from '../../src/server/database/index.ts';
@@ -438,8 +439,7 @@ await test('physical capacity preserves atomic reservations, cleanup and migrati
         'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations ORDER BY version',
       )
     ).rows;
-  await db.migrate();
-  await db.verifyMigrations();
+  await historicalMigrations(writer, ['078-storage-admission-baselines.sql']);
   await writer.query("SET hash_talk.storage_capacity_mode='volume'");
   await reader.query("SET hash_talk.storage_capacity_mode='volume'");
   await t.test(
@@ -460,6 +460,8 @@ await test('physical capacity preserves atomic reservations, cleanup and migrati
         versions,
       );
       await assertStorageReconciled(writer, fixture.accounts);
+      await db.migrate();
+      await db.verifyMigrations();
     },
   );
   const context = { db, writer, reader, capacity, volume, fixture };

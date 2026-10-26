@@ -8,6 +8,7 @@ import { appAddress } from '../app-navigation/index.ts';
 export { publicTrafficTarget } from './route.ts';
 export { publicVisitorMarker } from './marker.ts';
 export { PublicObservationQueue } from './queue.ts';
+export { performPublicShare } from './actions.ts';
 
 /** Own the observation lifetime separately from the application router's state. */
 export function startPublicTraffic(host: HTMLElement): () => void {

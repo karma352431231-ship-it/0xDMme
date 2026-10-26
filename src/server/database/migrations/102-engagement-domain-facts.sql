@@ -35,7 +35,7 @@ BEGIN
   PERFORM hash_talk.record_engagement(prefix||'_published',item.community_id,item.id);
   IF item.author IS NOT NULL THEN
     INSERT INTO hash_talk.engagement_contributors(post,community,author,published_at)
-      VALUES(item.id,item.community_id,item.author,clock_timestamp());
+      VALUES(item.id,item.community_id,item.author,date_trunc('milliseconds',clock_timestamp()));
   END IF;
 END;
 $$;
