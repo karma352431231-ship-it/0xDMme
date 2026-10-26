@@ -1,3 +1,4 @@
+import { startOperationalHealth } from './operational-health/index.ts';
 import { createRuntimeContentCapacity } from './storage-capacity/index.ts';
 import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
 import { createEngagementHandler } from './engagement-metrics/index.ts';
@@ -41,6 +42,7 @@ import {
 
 let database: Database | undefined;
 let stopApplication: (() => Promise<void>) | undefined;
+let operationalHealth: ReturnType<typeof startOperationalHealth> | undefined;
 
 try {
   const config = readWebConfiguration(process.env);
@@ -221,7 +223,10 @@ try {
   if (config.socketPath) await chmod(config.socketPath, 0o666);
   let closing = false;
   stopApplication = async () => {
-    const hostResult = await Promise.allSettled([host.close()]);
+    const hostResult = await Promise.allSettled([
+      host.close(),
+      operationalHealth?.close(),
+    ]);
     const results = [
       ...hostResult,
       ...(await Promise.allSettled([
@@ -254,6 +259,14 @@ try {
     process.exitCode = 1;
     shutdown();
   });
+  operationalHealth = startOperationalHealth({
+    server: host.server,
+    database,
+    directory: config.objectDirectory,
+  });
+  host.server.on('error', () =>
+    operationalHealth?.note({ reason: 'web-server-error' }),
+  );
   await database.workSignals.start().catch(() => {
     process.stderr.write('Signaling unavailable; reconnection scheduled.\n');
   });

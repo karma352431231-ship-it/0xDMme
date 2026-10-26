@@ -1,3 +1,5 @@
+import { readOperationalHealth } from './operational-health.ts';
+export type { OperationalDatabaseSnapshot } from './operational-health.ts';
 import { DatabaseAdmission } from './admission.ts';
 export type { DatabaseAdmission } from './admission.ts';
 export { physicalAllocationBytesSql } from './content-allocation-scopes.ts';
@@ -621,6 +623,10 @@ export class Database {
     const identity = result.rows[0]?.installation_id;
     if (!identity) throw new Error('Persistent state missing.');
     return identity;
+  }
+
+  operationalSnapshot() {
+    return readOperationalHealth(this.pool, this.contentAllocations?.activity);
   }
 
   /** Aggregate metadata only; no SQL text, account rows, IPs or identifiers. */
