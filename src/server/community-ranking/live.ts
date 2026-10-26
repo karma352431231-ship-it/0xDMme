@@ -1,20 +1,18 @@
 import type { ServerResponse } from 'node:http';
-import { getHeapStatistics } from 'node:v8';
 import { AccountError } from '../../shared/account/index.ts';
 import type { WorkSignals } from '../database/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
+interface Stream {
+  response: ServerResponse;
+  expiry: ReturnType<typeof setTimeout>;
+  release: () => void;
+}
 /** Public publication hints only. Reads retain validation and page/generation bounds. */
 export class RankingLive {
-  private readonly streams = new Set<ServerResponse>();
+  private readonly streams = new Set<Stream>();
   private readonly unsubscribe: () => void;
   private readonly heartbeat: ReturnType<typeof setInterval>;
   private closed = false;
-  private readonly capacity = Math.max(
-    1,
-    Math.floor(
-      Math.min(process.availableMemory(), getHeapStatistics().heap_size_limit) /
-        16384,
-    ),
-  );
   constructor(signals: Pick<WorkSignals, 'subscribe'>) {
     this.unsubscribe = signals.subscribe('ranking-published', () =>
       this.broadcast('event: changed\ndata: {}\n\n'),
@@ -26,24 +24,42 @@ export class RankingLive {
     this.heartbeat.unref();
   }
   open(response: ServerResponse): void {
-    if (this.closed || this.streams.size >= this.capacity)
-      throw new AccountError(503, 'Live update unavailable.');
-    response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-store');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.writeHead(200);
-    this.streams.add(response);
-    const expiry = setTimeout(() => response.end(), 300000);
-    expiry.unref();
-    const remove = () => {
-      clearTimeout(expiry);
-      this.streams.delete(response);
+    if (this.closed) throw new AccountError(503, 'Live update unavailable.');
+    // Conservative transport/buffer headroom shared with other owned operations.
+    const release = reserveOperationMemory(131072);
+    if (!release) throw new AccountError(503, 'Live update unavailable.');
+    const stream: Stream = {
+      response,
+      release,
+      expiry: setTimeout(() => this.end(stream), 300000),
     };
-    response.once('close', remove);
-    response.once('error', remove);
-    this.write(response, 'event: ready\ndata: {}\n\n');
+    stream.expiry.unref();
+    this.streams.add(stream);
+    try {
+      response.once('close', () => this.remove(stream));
+      response.once('error', () => this.remove(stream));
+      response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.setHeader('X-Accel-Buffering', 'no');
+      response.writeHead(200);
+      this.write(stream, 'event: ready\ndata: {}\n\n');
+    } catch (error) {
+      this.remove(stream);
+      throw error;
+    }
   }
-  private write(response: ServerResponse, frame: string): void {
+  private remove(stream: Stream): void {
+    clearTimeout(stream.expiry);
+    this.streams.delete(stream);
+    stream.release();
+  }
+  private end(stream: Stream): void {
+    this.remove(stream);
+    stream.response.end();
+  }
+  private write(stream: Stream, frame: string): void {
+    if (!this.streams.has(stream)) return;
+    const { response } = stream;
     try {
       if (
         !response.destroyed &&
@@ -54,17 +70,16 @@ export class RankingLive {
     } catch {
       /* The browser reconnects and reads the current published generation. */
     }
-    this.streams.delete(response);
+    this.remove(stream);
     response.destroy();
   }
   private broadcast(frame: string): void {
-    for (const response of this.streams) this.write(response, frame);
+    for (const stream of this.streams) this.write(stream, frame);
   }
   close(): void {
     this.closed = true;
     clearInterval(this.heartbeat);
     this.unsubscribe();
-    for (const response of this.streams) response.end();
-    this.streams.clear();
+    for (const stream of this.streams) this.end(stream);
   }
 }

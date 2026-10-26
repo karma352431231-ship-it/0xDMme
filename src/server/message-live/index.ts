@@ -3,11 +3,13 @@ import type { ServerResponse } from 'node:http';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { CommittedChange, DatabaseChanges } from '../database/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 interface Stream {
   session: AccountSession;
   response: ServerResponse;
   validate: () => Promise<boolean>;
   checking: Promise<boolean> | null;
+  release: () => void;
   callWakeups: boolean;
   categories: boolean;
   pending: Set<'changed' | 'call' | LiveChangeCategory>;
@@ -39,12 +41,15 @@ export class MessageLive {
     const remaining = Date.parse(input.session.expiresAt) - Date.now();
     if (!Number.isFinite(remaining) || remaining <= 0)
       throw new AccountError(401, 'Session ended or expired.');
-    // The host's existing socket/resource budgets still apply; no invented 8/2 product quota.
+    // Conservative headroom for transport buffers, session state and pending hints.
+    const release = reserveOperationMemory(131072);
+    if (!release) throw new AccountError(503, 'Live update unavailable.');
     const stream: Stream = {
       ...input,
       callWakeups: input.callWakeups === true,
       categories: input.categories === true,
       checking: null,
+      release,
       pending: new Set(),
       timer: null,
       expiry: setTimeout(
@@ -53,17 +58,24 @@ export class MessageLive {
       ),
     };
     stream.expiry.unref();
-    const response = input.response;
+    try {
+      this.attach(stream);
+    } catch (error) {
+      this.remove(stream);
+      throw error;
+    }
+  }
+  private attach(stream: Stream): void {
+    const { response, session } = stream;
+    response.once('close', () => this.remove(stream));
+    response.once('error', () => this.remove(stream));
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Accel-Buffering', 'no');
     response.writeHead(200);
-    const group =
-      this.streams.get(input.session.accountId) ?? new Set<Stream>();
+    const group = this.streams.get(session.accountId) ?? new Set<Stream>();
     group.add(stream);
-    this.streams.set(input.session.accountId, group);
-    response.once('close', () => this.remove(stream));
-    response.once('error', () => this.remove(stream));
+    this.streams.set(session.accountId, group);
     this.write(stream, 'event: ready\ndata: {}\n\n');
   }
   /** Transient call state is not a database commit. These empty hints only
@@ -136,12 +148,13 @@ export class MessageLive {
     stream.checking = new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => resolve(false), 5000);
       timer.unref();
-      void stream
-        .validate()
+      void Promise.resolve()
+        .then(() => stream.validate())
         .then(resolve, () => resolve(false))
         .finally(() => {
           clearTimeout(timer);
           stream.checking = null;
+          if (!this.has(stream)) stream.release();
         });
     });
     return stream.checking;
@@ -190,6 +203,10 @@ export class MessageLive {
   private remove(stream: Stream): void {
     if (stream.timer) clearTimeout(stream.timer);
     clearTimeout(stream.expiry);
+    stream.pending.clear();
+    // A closed socket can still own an in-flight authorization query. Keep its
+    // headroom until the actual validation settles, even after the SSE timeout.
+    if (!stream.checking) stream.release();
     const group = this.streams.get(stream.session.accountId);
     group?.delete(stream);
     if (!group?.size) this.streams.delete(stream.session.accountId);
