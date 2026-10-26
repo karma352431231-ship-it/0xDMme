@@ -15,6 +15,7 @@ import {
 import { communityIcon, iconLabel } from './presentation.ts';
 import { togglePostPreference, togglePostVote } from './post-interactions.ts';
 import { postReportForm } from './post-forms.ts';
+import { postLinkControl } from './post-link.ts';
 
 interface Actions {
   saved?: boolean | undefined;
@@ -36,6 +37,7 @@ export function preferenceControls(
   iconLabel(summary, 'more');
   menu.append(summary, content);
   container.append(menu);
+  if (post.status === 'visible') postLinkControl(content, post);
   const hide = button(content, t('Hide or show in my feeds'), () =>
     actions.run(async () => {
       const value = await togglePostPreference(post, 'hidden', actions);

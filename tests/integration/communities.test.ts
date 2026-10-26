@@ -989,6 +989,12 @@ await test('communities: open creation, privacy, management, sanctions, reports 
         ),
         false,
       );
+      // "Created by you" lists only communities the person owns.
+      const owned = communityPage(
+        await participant.operate('list', { kind: 'owned', after: null }),
+      );
+      assert.equal(owned.items.length, 24);
+      assert.equal(new Set(owned.items.map((item) => item.owner?.id)).size, 1);
       const usage = await inspector.query<{ bytes: string }>(
         'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
       );

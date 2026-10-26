@@ -24,7 +24,7 @@ import {
   communityElement as el,
   communityField as field,
 } from './elements.ts';
-import { iconLabel } from './presentation.ts';
+import { iconLabel, postTagName } from './presentation.ts';
 import { markMissing } from './form-errors.ts';
 import type { CommunityIcon } from './presentation.ts';
 /** A row of the post's “...” menu that opens its own form. */
@@ -71,7 +71,7 @@ export function postTagSelect(
     none.value = '';
     select.replaceChildren(none);
     for (const tag of page.items) {
-      const option = el('option', tag.label);
+      const option = el('option', postTagName(tag.label));
       option.value = tag.id;
       select.append(option);
     }
@@ -114,7 +114,9 @@ function postTagChips(
   let chosen = [...value],
     page = source.page;
   const paint = (): void => {
-    const known = new Map(page.items.map((tag) => [tag.id, tag.label]));
+    const known = new Map(
+      page.items.map((tag) => [tag.id, postTagName(tag.label)]),
+    );
     const ids = [
       ...page.items.map((tag) => tag.id),
       ...chosen.filter((id) => !known.has(id)),
@@ -150,6 +152,21 @@ function postTagChips(
     group,
   };
 }
+/** The title starts as one row and grows with its lines, like the text field's content. */
+function growWithLines(field: HTMLTextAreaElement, signal: AbortSignal): void {
+  field.rows = 1;
+  field.classList.add('post-title-input');
+  const fit = () => {
+    // Detached or hidden fields measure 0; keep the one-row default until shown.
+    if (!field.scrollHeight) return;
+    field.style.height = 'auto';
+    const borders = field.offsetHeight - field.clientHeight;
+    field.style.height = `${field.scrollHeight + borders}px`;
+  };
+  field.addEventListener('input', fit, { signal });
+  field.addEventListener('focus', fit, { signal });
+  requestAnimationFrame(fit);
+}
 export function postForm(
   container: HTMLElement,
   value: PostContent,
@@ -159,6 +176,7 @@ export function postForm(
   const title = field(container, t('Title'), {
       value: value.title,
       maximum: 200,
+      multiline: true,
     }),
     text = field(container, t('Text (optional)'), {
       value: value.text,
@@ -167,6 +185,7 @@ export function postForm(
     }),
     chips = postTagChips(container, value.tags, tags);
   title.required = true;
+  if (title instanceof HTMLTextAreaElement) growWithLines(title, access.signal);
   mountMentionInput(title, access.signal);
   const media = postEditorMedia({
     container,

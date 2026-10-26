@@ -32,6 +32,45 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Post titles (owner's option 2, 25/10/2026): the body face in bold, one
+   clear step over the description, which uses the softer --post-text. With
+   no description the title is the post's text, so it is lighter and smaller.
+   The opened post (post-focus.css) and replies keep their own title sizes. */
+:is(#app-shell, .community-scope) .community-card.community-post {
+  --post-title-size: 18px;
+  --post-title-only-size: 16.5px;
+}
+/* The split feed panel and phones have a smaller body, so a smaller title. */
+#app-shell .feed-panel .community-card.community-post {
+  --post-title-size: 16.5px;
+  --post-title-only-size: 15px;
+}
+@media (max-width: 700px) {
+  :is(#app-shell, .community-scope) .community-card.community-post {
+    --post-title-size: 17px;
+    --post-title-only-size: 15.5px;
+  }
+}
+:is(#app-shell, .community-scope)
+  .community-card.community-post:not(.community-reply, .community-post-focus)
+  > h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font: 700 var(--post-title-size) / 1.3 var(--font-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:is(#app-shell, .community-scope)
+  .community-card.community-post:not(
+    .community-reply,
+    .community-post-focus,
+    :has(> .community-text:not(:empty), > .post-preview)
+  )
+  > h2 {
+  font-weight: 600;
+  font-size: var(--post-title-only-size);
+  line-height: 1.4;
+}
 :is(.app[data-page='comunidades'], .community-scope) .community-card p {
   font-size: var(--fs-body);
   line-height: 1.6;

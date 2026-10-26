@@ -28,7 +28,12 @@ import { postPreview } from './post-preview.ts';
 import { postSharing } from './post-sharing.ts';
 import { postText } from './post-text.ts';
 import { postViews } from './post-views.ts';
-import { postComments, postHeader, postTagLink } from './presentation.ts';
+import {
+  postComments,
+  postHeader,
+  postPendingMedia,
+  postTagLink,
+} from './presentation.ts';
 import { publicUpvoteScore } from './upvoters.ts';
 
 export interface PostCardContext {
@@ -281,7 +286,7 @@ export function createPostCards(
         showPublicPostMedia(node, value.media, abort.signal),
         node,
       );
-    else if (!value.text) node.append(el('p', t('Media awaiting approval.')));
+    postPendingMedia(node, value);
     postTagLink(node, value);
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {

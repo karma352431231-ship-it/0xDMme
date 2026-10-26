@@ -237,6 +237,23 @@ GROUP_DELTA_REVIEWED = '28cf2122fb0ba9bb8147a01f57a1b46b46f983aa'
 
 GROUP_DELTA_MODULES = frozenset({'group-message-updates.ts', 'group-messages.ts'})
 
+# Owner asked on 25/10/2026 for a "Created by you" sidebar section and its
+# activation. Exact read-only list filter (c.owner) only; all migrations and
+# runtime stay fixed.
+CREATED_COMMUNITIES_BEFORE = '7bfe75bdaa95b12d9630f84950525d57b79dca04'
+
+CREATED_COMMUNITIES_REVIEWED = 'b32bdf02667e8c987811dacacd8f5e3c5be341d3'
+
+CREATED_COMMUNITIES_MODULES = frozenset({'communities.ts'})
+
+# Owner asked on 25/10/2026 for more default post tags, in English, for new
+# communities. Exact seed-list change only; all migrations and runtime fixed.
+DEFAULT_POST_TAGS_BEFORE = 'e86c3da6e08320698b43d63c69732dec0414a591'
+
+DEFAULT_POST_TAGS_REVIEWED = 'f14ffa8b3cb2a6daab9200d0342de61d20216cee'
+
+DEFAULT_POST_TAGS_MODULES = frozenset({'community-post-tags.ts'})
+
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -280,6 +297,9 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(CREATED_COMMUNITIES_MODULES), CREATED_COMMUNITIES_BEFORE,
+         CREATED_COMMUNITIES_REVIEWED),
+        (set(DEFAULT_POST_TAGS_MODULES), DEFAULT_POST_TAGS_BEFORE, DEFAULT_POST_TAGS_REVIEWED),
         (set(TOP_REPLY_PREVIEW_MODULES), TOP_REPLY_PREVIEW_BEFORE, TOP_REPLY_PREVIEW_REVIEWED),
         (set(HOTSPOT_ADMISSION_MODULES), HOTSPOT_ADMISSION_BEFORE, HOTSPOT_ADMISSION_REVIEWED),
         (set(GROUP_DELTA_MODULES), GROUP_DELTA_BEFORE, GROUP_DELTA_REVIEWED),
@@ -327,12 +347,15 @@ def database_code_reviewed(candidate, live):
         (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
         (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
     ]
-    selected = next((review for review in reviews if changed == review[0]), None)
-    if selected is None:
+    # Several reviews may cover the same module set (successive releases of one
+    # module); the transition is reviewed when any of them matches exactly.
+    candidates = [review for review in reviews if changed == review[0]]
+    if not candidates:
         return False
     prefix = 'src/server/database/'
     def projection(revision):
         return {name[len(prefix):]: hashlib.sha256(value).hexdigest()
                 for name, value in backups.git_export(revision).items()
                 if name.startswith(prefix)}
-    return before == projection(selected[1]) and after == projection(selected[2])
+    return any(before == projection(old) and after == projection(new)
+               for _, old, new in candidates)

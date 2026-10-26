@@ -177,21 +177,13 @@
   font-weight: 600;
   text-align: center;
 }
-/* Collapsed (full Communities page only): photos and the expand button. */
+/* Collapsed (full Communities page only): only the expand button. */
 .ranking-side-strip {
   display: none;
   flex-direction: column;
   align-items: center;
   gap: 12px;
   padding: 16px 0;
-}
-.ranking-side-faces {
-  display: grid;
-  gap: 10px;
-}
-.ranking-side-face .community-avatar {
-  width: 34px;
-  height: 34px;
 }
 #app-shell[data-page='comunidades']
   > .ranking-side[data-collapsed='true']

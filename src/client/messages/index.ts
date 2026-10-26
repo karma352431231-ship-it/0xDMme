@@ -1580,6 +1580,9 @@ export function startMessages(
     groupInvites: () => groups.invites(),
     respondGroupInvite: (id: string, accept: boolean) =>
       groups.respondInvite(id, accept),
+    /** Private contact photos for other views, from cards already verified on this device. */
+    peerPhoto: (host: HTMLElement, peer: string, signal: AbortSignal) =>
+      showPeerPhoto(host, peer, signal),
     statusesChanged(authors: ReadonlySet<string>): void {
       statusAuthors = authors;
       renderContacts();

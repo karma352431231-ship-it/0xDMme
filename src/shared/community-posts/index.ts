@@ -114,9 +114,8 @@ export function postContent(value: unknown): PostContent {
   const media = Object.hasOwn(data, 'media')
     ? communityMediaIds(data['media'])
     : [];
+  // Titles may span lines (owner, 25/10/2026): a title-only post reads like text.
   const title = communityMentionText(data['title'], 200, true);
-  if (/[\n\t]/u.test(title))
-    throw new AccountError(400, 'The title must be one line.');
   return {
     title,
     // A titled post or one with media may have no text; a reply needs one of them.
@@ -137,6 +136,31 @@ export function postTagIds(value: unknown): string[] {
   if (new Set(ids).size !== ids.length)
     throw new AccountError(400, 'Duplicate tag in the post.');
   return ids;
+}
+/** Tags every new community starts with; managers can rename or retire them. */
+export const defaultPostTags = [
+  'Discussion',
+  'Opinion',
+  'Memes',
+  'Question',
+  'News',
+  'Analysis',
+  'Alpha',
+  'Help',
+  'Announcement',
+  'Showcase',
+  'Event',
+] as const;
+export type DefaultPostTag = (typeof defaultPostTags)[number];
+const seededPostTags = new Map<string, DefaultPostTag>([
+  ...defaultPostTags.map((tag) => [tag.toLowerCase(), tag] as const),
+  // Communities created before 25/10/2026 were seeded with Portuguese labels.
+  ['discuss\u00e3o', 'Discussion'],
+  ['opini\u00e3o', 'Opinion'],
+]);
+/** The default tag a stored label names, so clients can show it in the viewer's language. */
+export function defaultPostTag(label: string): DefaultPostTag | null {
+  return seededPostTags.get(label.trim().toLowerCase()) ?? null;
 }
 export function postTagLabel(value: unknown): string {
   const label = communityText(value, 36);

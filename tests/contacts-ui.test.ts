@@ -13,7 +13,7 @@ import {
 import type { Peer } from '../src/shared/contacts/index.ts';
 import { CommunityNode } from './fixtures/community-dom.ts';
 
-await test('every contact row opens its settings without a three-dot menu, including approved peers without a saved bookmark', (t) => {
+await test('every contact row opens its settings without a three-dot menu and asks for the contact photo, including approved peers without a saved bookmark', (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -38,9 +38,13 @@ await test('every contact row opens its settings without a three-dot menu, inclu
   });
   const list = new CommunityNode('ul');
   let opened = 0;
+  const photos: [unknown, string, AbortSignal][] = [];
+  const photoScope = new AbortController();
   renderDirectory({
     list: list as unknown as HTMLElement,
     items,
+    signal: photoScope.signal,
+    peerPhoto: (host, account, signal) => photos.push([host, account, signal]),
     openChat: () => Promise.resolve(),
     openContact: () => {
       opened++;
@@ -63,6 +67,10 @@ await test('every contact row opens its settings without a three-dot menu, inclu
   );
   buttons[1]!.click();
   assert.equal(opened, 1);
+  // The private photo covers the row's own initials, for that contact only.
+  assert.deepEqual(photos, [
+    [list.querySelector('.contact-avatar'), 'peer', photoScope.signal],
+  ]);
 });
 
 await test('local search uses loaded page names and wallets without changing identity or data', () => {

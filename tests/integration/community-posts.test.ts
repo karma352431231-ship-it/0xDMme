@@ -5,6 +5,7 @@ import { AccountError } from '../../src/shared/account/index.ts';
 import { communityState } from '../../src/shared/communities/index.ts';
 import {
   communityPost,
+  defaultPostTags,
   postState,
   privatePostPage,
   tagPage,
@@ -230,11 +231,10 @@ await test('posts: open publication, local tags, privacy, revision, deletion and
   await t.test(
     'tags belong to the community and support revision and deactivation without deleting old classification',
     async () => {
-      assert.deepEqual(tags.items.map((tag) => tag.label).sort(), [
-        'Discussão',
-        'Memes',
-        'Opinião',
-      ]);
+      assert.deepEqual(
+        tags.items.map((tag) => tag.label),
+        [...defaultPostTags],
+      );
       const newTag = crypto.randomUUID();
       await assert.rejects(
         author.operate('tag-create', { id, tag: newTag, label: 'Test' }),
@@ -298,7 +298,8 @@ await test('posts: open publication, local tags, privacy, revision, deletion and
       const managed = tagPage(
         await owner.operate('tag-list', { id, after: null }),
       );
-      assert.equal(managed.items.length, 4);
+      // The defaults plus the one created above.
+      assert.equal(managed.items.length, defaultPostTags.length + 1);
       for (let i = 0; i < 25; i++)
         await owner.operate('tag-create', {
           id: other,
@@ -308,11 +309,11 @@ await test('posts: open publication, local tags, privacy, revision, deletion and
       const first = await communities.tags(other, null),
         second = await communities.tags(other, first.next);
       assert.equal(first.items.length, 24);
-      assert.equal(second.items.length, 4);
+      assert.equal(second.items.length, defaultPostTags.length + 25 - 24);
       assert.equal(second.next, null);
       assert.equal(
         new Set([...first.items, ...second.items].map((tag) => tag.id)).size,
-        28,
+        defaultPostTags.length + 25,
       );
       const managedFirst = tagPage(
           await owner.operate('tag-list', { id: other, after: null }),

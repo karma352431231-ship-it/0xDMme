@@ -22,7 +22,7 @@ import { postManagementMenu } from './post-menu.ts';
 import { postPreview } from './post-preview.ts';
 import { postSharing } from './post-sharing.ts';
 import { postViews } from './post-views.ts';
-import { postHeader, postTagLink } from './presentation.ts';
+import { postHeader, postPendingMedia, postTagLink } from './presentation.ts';
 import { highlightPostSearch } from './search-highlight.ts';
 
 interface FeedCardOptions {
@@ -178,7 +178,7 @@ function postContent(
     );
     if (post.media?.length)
       options.addCleanup(showPublicPostMedia(row, post.media, options.signal));
-    else if (!post.text) row.append(el('p', t('Media awaiting approval.')));
+    postPendingMedia(row, post);
     postTagLink(row, post);
   } else
     row.append(

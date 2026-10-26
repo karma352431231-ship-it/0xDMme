@@ -8,6 +8,14 @@ remote = fixtures.remote
 backups = fixtures.backups
 
 
+class CommitExports(dict):
+    """Exports for one review's commits. Another review of the same module set
+    may be tried too; commits outside this case export no files, so they never
+    match a real tree."""
+    def __missing__(self, sha):
+        return {}
+
+
 class SourceTextReviewTests(unittest.TestCase):
     before = reviewed_code.SOURCE_TEXT_BEFORE
     reviewed = reviewed_code.SOURCE_TEXT_REVIEWED

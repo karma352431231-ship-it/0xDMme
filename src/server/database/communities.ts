@@ -311,7 +311,12 @@ export class CommunityStore {
   ): Promise<CommunityPage> {
     keys(data, ['kind', 'after']);
     const kind = data['kind'];
-    if (kind !== 'following' && kind !== 'managed' && kind !== 'invitations')
+    if (
+      kind !== 'following' &&
+      kind !== 'managed' &&
+      kind !== 'owned' &&
+      kind !== 'invitations'
+    )
       throw new AccountError(400, 'Invalid list.');
     const after = communityCursor(data['after']);
     const filter = {
@@ -319,6 +324,8 @@ export class CommunityStore {
         'EXISTS(SELECT 1 FROM hash_talk.community_follows f WHERE f.community_id=c.id AND f.profile_id=$1)',
       managed:
         '(c.owner=$1 OR EXISTS(SELECT 1 FROM hash_talk.community_moderators m WHERE m.community_id=c.id AND m.profile_id=$1))',
+      // Communities the person created and still owns (community_owner index).
+      owned: 'c.owner=$1',
       invitations: 'c.transfer_to=$1',
     }[kind];
     const found = await context.client.query<CommunityRecord>(

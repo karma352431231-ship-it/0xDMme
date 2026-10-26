@@ -108,13 +108,22 @@ function createCommunityButton(): HTMLDetailsElement {
   return menu;
 }
 
+/** Sidebar head, then any section drawn by `above`, then the list heading. */
 export function communityDirectoryNavigation(
   container: HTMLElement,
   view: string,
   selected: string | null,
+  above?: () => void,
 ): void {
   const head = el('header', '', 'community-directory-head');
   head.append(el('h2', t('Communities')));
+  container.append(head, directoryTabs(view), directoryLinks(view, selected));
+  above?.();
+  container.append(
+    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
+  );
+}
+function directoryTabs(view: string): HTMLElement {
   const tabs = el('nav', '', 'community-directory-tabs');
   tabs.setAttribute('aria-label', t('Communities or handle messages'));
   for (const [key, title] of [
@@ -125,6 +134,9 @@ export function communityDirectoryNavigation(
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
+  return tabs;
+}
+function directoryLinks(view: string, selected: string | null): HTMLElement {
   const nav = el('nav', '', 'community-directory-nav');
   nav.setAttribute('aria-label', t('Community navigation'));
   for (const [key, title, icon] of [
@@ -137,12 +149,7 @@ export function communityDirectoryNavigation(
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
       a.setAttribute('aria-current', 'page');
   }
-  container.append(
-    head,
-    tabs,
-    nav,
-    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
-  );
+  return nav;
 }
 
 /** Where the arrow of an opened post leads: the list the reader came from, else its community. */

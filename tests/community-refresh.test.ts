@@ -91,6 +91,13 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+/** The sidebar also reads the person's created communities; these tests
+ * follow the followed list, so that read gets a stable empty page. */
+function ownedList(path: string, input?: RequestInit): boolean {
+  if (!path.endsWith('/list') || typeof input?.body !== 'string') return false;
+  const body = JSON.parse(input.body) as { payload: { kind?: unknown } };
+  return body.payload.kind === 'owned';
+}
 function requestAfter(input?: RequestInit): string | null {
   const payload = input?.body;
   if (typeof payload !== 'string') throw new Error('Corpo JSON ausente.');
@@ -317,6 +324,8 @@ function fixture(
         };
         data.payloads.push({ path, payload: body.payload });
       }
+      if (ownedList(path, input))
+        return Promise.resolve(Response.json({ items: [], next: null }));
       if (path.endsWith('/list')) data.listAfters.push(requestAfter(input));
       const override = data.overrides.get(path);
       return override ? override() : respond(path, input);

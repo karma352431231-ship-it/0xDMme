@@ -1,6 +1,10 @@
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
-import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import { defaultPostTag } from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPost,
+  DefaultPostTag,
+} from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 
@@ -14,6 +18,10 @@ const paths = {
     'M12 2c-6 6-6 14 0 20 6-6 6-14 0-20',
   ],
   share: ['M4 10V5h13', 'm14 2 3 3-3 3', 'M20 14v5H7', 'm10 16-3 3 3 3'],
+  link: [
+    'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1',
+    'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  ],
   transfer: ['M4 8h15', 'm16 5 3 3-3 3', 'M20 16H5', 'm8 13-3 3 3 3'],
   up: ['M12 20V4', 'm5 11 7-7 7 7'],
   down: ['M12 4v16', 'm5 13 7 7 7-7'],
@@ -192,11 +200,38 @@ export function postComments(
   container.append(a);
 }
 /** Each tag of the post links to its community filtered by that tag. */
+/** Text, title and approved media all missing: the post only had media still under review. */
+export function postPendingMedia(node: HTMLElement, post: CommunityPost): void {
+  if (post.text || post.title || post.media?.length) return;
+  node.append(el('p', t('Media awaiting approval.')));
+}
+const defaultTagNames: Record<DefaultPostTag, () => string> = {
+  Discussion: () => t('Discussion'),
+  Opinion: () => t('Opinion'),
+  Memes: () => t('Memes'),
+  Question: () => t('Question'),
+  News: () => t('News'),
+  Analysis: () => t('Analysis'),
+  Alpha: () => t('Alpha'),
+  Help: () => t('Help'),
+  Announcement: () => t('Announcement'),
+  Showcase: () => t('Showcase'),
+  Event: () => t('Event'),
+};
+/** Default tags read in the viewer's language; names managers chose stay as written. */
+export function postTagName(label: string): string {
+  const tag = defaultPostTag(label);
+  return tag ? defaultTagNames[tag]() : label;
+}
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;
   const row = el('div', '', 'post-tags');
   for (const tag of post.tags) {
-    link(row, tag.label, `#communities?id=${post.community}&tag=${tag.id}`);
+    link(
+      row,
+      postTagName(tag.label),
+      `#communities?id=${post.community}&tag=${tag.id}`,
+    );
     row.lastElementChild?.classList.add('post-tag');
   }
   node.append(row);
