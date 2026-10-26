@@ -62,7 +62,9 @@ export class PublicObservationQueue {
     }
   }
   private async request(url: string, body: unknown): Promise<void> {
-    const response = await this.send(url, {
+    // Native fetch must be called without the queue as its Window receiver.
+    const send = this.send;
+    const response = await send(url, {
       method: 'POST',
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json' },

@@ -179,7 +179,9 @@ await test('calendar reports use the chosen timezone and DST-aware midnight boun
 
 await test('queued traffic separates visitor transport from page dimensions and cancels disposal', async () => {
   const sent: { url: string; body: unknown }[] = [];
-  const queue = new PublicObservationQueue((url, init) => {
+  const queue = new PublicObservationQueue(function (this: unknown, url, init) {
+    // Native window.fetch refuses an unrelated receiver in real browsers.
+    if (this !== undefined) throw new TypeError('Illegal invocation');
     assert.ok(typeof url === 'string');
     const body = init?.body;
     assert.ok(typeof body === 'string');
