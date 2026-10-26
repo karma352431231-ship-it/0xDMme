@@ -26,7 +26,7 @@ function authority(account: string = crypto.randomUUID()): ContactAuthority {
       accountId: account,
       deviceId: crypto.randomUUID(),
       csrf: crypto.randomUUID(),
-      name: 'Sintético',
+      name: 'Synthetic',
       address: '0x' + '1'.repeat(40),
       ecosystem: 'evm',
       profileRevision: 0,
@@ -49,13 +49,27 @@ const body: SealedSecret = {
   wrappedKey: Buffer.alloc(384).toString('base64'),
   ciphertext: Buffer.alloc(32).toString('base64'),
 };
-function fixture(t: TestContext) {
+function fixture(t: TestContext, heads?: { caller: string; callee: string }) {
   let now = 100_000;
   const state = new CallState(() => now);
   t.after(() => state.close());
   const caller = authority(),
     callee = authority(),
     otherDevice = authority(callee.session.accountId);
+  if (heads) {
+    caller.directory = heads.caller;
+    callee.directory = heads.callee;
+    otherDevice.directory = heads.callee;
+  }
+  function gateFor(a: ContactAuthority): CallGate {
+    return {
+      ...gate,
+      peerDirectory:
+        a.session.accountId === caller.session.accountId
+          ? callee.directory
+          : caller.directory,
+    };
+  }
   const sequences = new Map<ContactAuthority, number>(),
     channels = new Map<ContactAuthority, string>();
   function endpoint(a: ContactAuthority, register = true, invitation = false) {
@@ -73,7 +87,7 @@ function fixture(t: TestContext) {
   function sync(
     a: ContactAuthority,
     input: Partial<Parameters<CallState['synchronize']>[1]> = {},
-    g = gate,
+    g = gateFor(a),
   ) {
     return state.synchronize(
       endpoint(a),
@@ -88,8 +102,8 @@ function fixture(t: TestContext) {
     state.start(
       endpoint(caller, false),
       callee.session.accountId,
-      gate.peerDirectory!,
-      gate,
+      callee.directory,
+      gateFor(caller),
     );
   const offer = (id: string, sequence = 1) =>
     state.offer(endpoint(caller, false), {
@@ -105,6 +119,7 @@ function fixture(t: TestContext) {
     caller,
     callee,
     otherDevice,
+    gateFor,
     endpoint,
     sync,
     start,
@@ -635,5 +650,104 @@ await test('legacy callers cannot publish invitations; unaccepted invitations ex
   f.state.invite(f.endpoint(f.caller, false, true), call.id, packets);
   f.advance(leaseMs + 1);
   assert.equal(f.sync(f.callee), null);
+  assert.equal(f.state.usage.calls, 0);
+});
+
+function distinctCall(
+  t: TestContext,
+  phase: 'ringing' | 'connecting' | 'active',
+) {
+  const f = fixture(t, { caller: 'a'.repeat(64), callee: 'b'.repeat(64) });
+  const call = f.start();
+  f.offer(call.id);
+  if (phase === 'ringing') return { ...f, call };
+  f.state.accept(f.endpoint(f.callee, false), call.id);
+  f.state.answer(f.endpoint(f.callee, false), {
+    id: call.id,
+    sequence: 1,
+    body,
+  });
+  if (phase === 'active') {
+    f.sync(f.caller, { media: 'connected' });
+    f.sync(f.callee, { media: 'connected' });
+  }
+  return { ...f, call };
+}
+for (const phase of ['ringing', 'connecting', 'active'] as const) {
+  await test(`additional caller channels preserve a ${phase} call with distinct directory heads`, (t) => {
+    const f = distinctCall(t, phase);
+    const otherTab = { ...f.caller };
+    const otherDevice = {
+      ...f.caller,
+      session: { ...f.caller.session, deviceId: crypto.randomUUID() },
+    };
+    for (const extra of [otherTab, otherDevice]) {
+      assert.equal(f.sync(extra, { ack: 1 }), null);
+      const endpoint = f.endpoint(extra, false);
+      assert.doesNotThrow(() => f.state.revalidate(endpoint, f.gateFor(extra)));
+      for (const command of [
+        () => f.state.authorized(endpoint, f.call.id),
+        () => f.state.accept(endpoint, f.call.id),
+        () =>
+          f.state.offer(endpoint, { id: f.call.id, sequence: 2, packets: [] }),
+        () => f.state.answer(endpoint, { id: f.call.id, sequence: 1, body }),
+        () => f.state.targets(endpoint, f.call.id),
+        () => f.state.end(endpoint, f.call.id),
+        () => f.state.invite(endpoint, f.call.id, []),
+      ])
+        assert.throws(command, { status: 409 });
+      const original = f.sync(f.caller, {
+        media: phase === 'active' ? 'connected' : 'idle',
+      });
+      assert.equal(original?.id, f.call.id);
+      assert.equal(original?.phase, phase);
+    }
+    if (phase !== 'ringing')
+      assert.deepEqual(
+        f.sync(f.caller, { media: phase === 'active' ? 'connected' : 'idle' })
+          ?.signal,
+        body,
+        'Other channels cannot acknowledge the caller-owned encrypted answer',
+      );
+  });
+}
+for (const side of ['caller', 'callee'] as const) {
+  await test(`additional ${side} channel does not extend the active endpoint lease`, (t) => {
+    const f = distinctCall(t, 'active');
+    const extra = { ...f[side] };
+    f.advance(leaseMs - 1);
+    assert.equal(f.sync(extra), null);
+    assert.equal(f.state.usage.calls, 1);
+    f.advance(1);
+    f.state.clean();
+    assert.equal(f.state.usage.calls, 0);
+  });
+  for (const reason of ['peer directory', 'consent'] as const) {
+    await test(`an additional ${side} channel still ends a call after real ${reason} loss`, (t) => {
+      const f = distinctCall(t, 'active');
+      const extra = { ...f[side] };
+      const gate = {
+        ...f.gateFor(extra),
+        ...(reason === 'peer directory'
+          ? { peerDirectory: 'c'.repeat(64) }
+          : { allowed: false }),
+      };
+      assert.equal(f.sync(extra, {}, gate), null);
+      assert.equal(f.state.usage.calls, 0);
+    });
+  }
+}
+await test('another caller channel honors peer receiving preference without confusing its own preference', (t) => {
+  const f = distinctCall(t, 'ringing');
+  const extra = { ...f.caller };
+  assert.equal(
+    f.sync(extra, {}, { ...f.gateFor(extra), receiving: false }),
+    null,
+  );
+  assert.equal(f.state.usage.calls, 1);
+  assert.equal(
+    f.sync(extra, {}, { ...f.gateFor(extra), peerReceiving: false }),
+    null,
+  );
   assert.equal(f.state.usage.calls, 0);
 });
