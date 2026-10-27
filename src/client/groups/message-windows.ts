@@ -9,6 +9,7 @@ import type { Snapshot, IndexItem } from './message-index.ts';
 import { GroupDelta } from './message-delta.ts';
 export { IncompleteGroupIndex } from './message-index.ts';
 import { projectGroupMessages } from './message-projection.ts';
+import { localGroupEdits } from './history.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -349,6 +350,12 @@ export class GroupMessageWindows {
         projected = projectGroupMessages(projected, edits);
       },
     );
+    const local = projected.filter((view) => view.localOnly);
+    if (local.length)
+      projected = projectGroupMessages(
+        projected,
+        await localGroupEdits(c.authority, input.snapshot.groupId, local),
+      );
     return {
       scope: input.scope,
       snapshot: input.snapshot,

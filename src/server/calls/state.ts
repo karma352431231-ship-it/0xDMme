@@ -163,7 +163,9 @@ export class CallState {
     if (offer && !call.signals.has(e.key)) call.signals.set(e.key, offer);
   }
   private validateCall(call: Connection, e: Endpoint, gate: CallGate): boolean {
-    const caller = e === call.caller;
+    // Peer authority follows the account; call control remains endpoint-owned.
+    const caller =
+      e.authority.session.accountId === call.caller.authority.session.accountId;
     const expected = caller ? call.directory : call.caller.authority.directory;
     if (expected !== gate.peerDirectory) {
       this.remove(call);

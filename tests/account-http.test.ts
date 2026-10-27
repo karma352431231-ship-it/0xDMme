@@ -34,6 +34,7 @@ for (const [route, maximum] of [
   ['calls/offer', 365_000],
   ['calls/sync', 16_000],
   ['messages/dm-attachment-reserve', 12_000],
+  ['messages/backup-ack', 8192],
   ['messages/snapshot', 4096],
 ] as const)
   await test(`route body byte budget is exact for ${route}`, async (t) => {
@@ -104,4 +105,32 @@ await test('closing the HTTP handler removes pending enrollment invitations', as
   const after = pending();
   await after.run();
   assert.equal(after.response.statusCode, 409);
+});
+
+await test('a full signed backup receipt batch fits its HTTP route', async (t) => {
+  const f = accountHttpFixture(t);
+  const body = JSON.stringify({
+    deviceId: crypto.randomUUID(),
+    directory: 'a'.repeat(64),
+    payload: {
+      items: Array.from({ length: 32 }, () => ({
+        id: crypto.randomUUID(),
+        hash: 'b'.repeat(64),
+      })),
+      snapshot: {
+        version: 2,
+        account: crypto.randomUUID(),
+        device: crypto.randomUUID(),
+        anchor: Number.MAX_SAFE_INTEGER,
+        invalidation: Number.MAX_SAFE_INTEGER,
+        source: 'full',
+      },
+    },
+    signature: 'c'.repeat(86) + '==',
+  });
+  assert.ok(Buffer.byteLength(body) > 4096);
+  const r = f.request('messages/backup-ack', body);
+  await r.run();
+  assert.equal(r.response.statusCode, 200);
+  assert.deepEqual(f.data.operations, ['backup-ack']);
 });

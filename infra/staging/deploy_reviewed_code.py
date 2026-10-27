@@ -254,6 +254,14 @@ DEFAULT_POST_TAGS_REVIEWED = 'f14ffa8b3cb2a6daab9200d0342de61d20216cee'
 
 DEFAULT_POST_TAGS_MODULES = frozenset({'community-post-tags.ts'})
 
+# Whole-tree pins for read-only counters; schema, runtime, retention and
+# authorization stay fixed.
+OPERATIONAL_HEALTH_BEFORE = '256592d48da9c67cb20cf38bee7dde4f7b51faa2'
+
+OPERATIONAL_HEALTH_REVIEWED = 'bf039545f56a1e4c9939dd25ea22f77fa23aed44'
+
+OPERATIONAL_HEALTH_MODULES = frozenset({'index.ts', 'operational-health.ts'})
+
 CATEGORIZED_MESSAGES_MODULES = frozenset({
     'backups.ts',
     'changes.ts',
@@ -297,6 +305,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(OPERATIONAL_HEALTH_MODULES), OPERATIONAL_HEALTH_BEFORE,
+         OPERATIONAL_HEALTH_REVIEWED),
         (set(CREATED_COMMUNITIES_MODULES), CREATED_COMMUNITIES_BEFORE,
          CREATED_COMMUNITIES_REVIEWED),
         (set(DEFAULT_POST_TAGS_MODULES), DEFAULT_POST_TAGS_BEFORE, DEFAULT_POST_TAGS_REVIEWED),

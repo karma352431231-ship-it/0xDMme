@@ -22,7 +22,7 @@ function session(account: string = crypto.randomUUID()): AccountSession {
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
     address: '0x' + '1'.repeat(40),
     ecosystem: 'evm',
-    name: 'Sintético',
+    name: 'Synthetic',
     profileRevision: 0,
     deviceState: 'pending',
     historyAuthorized: false,
@@ -127,6 +127,7 @@ await test('notifications during work or suspension wait for resume; session cha
   assert.deepEqual(applied, ['probe', 'refresh']);
 });
 await test('SSE admits more than 8 clients or 2 tabs; fanout targets affected accounts only and heartbeat needs no database', async (t) => {
+  t.mock.method(process, 'availableMemory', () => 512 * 1024 * 1024);
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const changes = new DatabaseChanges(),
     live = new MessageLive(changes);

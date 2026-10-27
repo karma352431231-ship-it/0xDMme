@@ -16,6 +16,7 @@ RuntimeDirectoryMode=0711
 EnvironmentFile=/etc/0xdmme/web.env
 WorkingDirectory=/opt/0xdmme/release
 ExecStart=/usr/bin/node src/server/main.ts
+ExecStopPost=-/usr/bin/python3 /opt/0xdmme/release/infra/staging/record_service_exit.py
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=15

@@ -2716,13 +2716,25 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
           peerHistory: b.events,
           recovery: [ka, kb],
           id: crypto.randomUUID(),
-          text: 'Exportação sintética ' + i,
+          text: 'Synthetic export ' + i,
         });
         await op(a, 'publish', { packet: p });
         packets.push(p);
       }
       const snap = await op(b, 'snapshot'),
         all: MessagePacket[] = [];
+      await assert.rejects(
+        op(b, 'backup-ack', {
+          snapshot: snap,
+          items: await Promise.all(
+            packets.map(async (p) => ({
+              id: p.id,
+              hash: await digest(JSON.stringify(p)),
+            })),
+          ),
+        }),
+        { status: 400 },
+      );
       for (let offset = 0; offset < packets.length; offset += 32) {
         const ids = packets.slice(offset, offset + 32).map((p) => p.id);
         const response = object(

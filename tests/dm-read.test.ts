@@ -19,18 +19,20 @@ await test('public read markers advance only for a still-visible received window
     updates = 0;
   const priorities: VaultWorkOptions['priority'][] = [];
   const marks: number[] = [],
-    acknowledgements: string[][] = [];
+    acknowledgements: string[][] = [],
+    ownerships: string[][] = [];
   const held = deferred<void>();
   let hold = false;
   const input = {
     history: new ChatNode() as unknown as HTMLElement,
     controller: {
       messageStates: async (
-        { read }: { peer: string; read: string[]; own: string[] },
+        { read, own }: { peer: string; read: string[]; own: string[] },
         options?: VaultWorkOptions,
       ) => {
         priorities.push(options?.priority);
         acknowledgements.push(read);
+        ownerships.push(own);
         if (hold) await held.promise;
         return [];
       },
@@ -50,6 +52,8 @@ await test('public read markers advance only for a still-visible received window
       items: [
         { id: 'incoming', own: false, sequence: 3 },
         { id: 'own', own: true, sequence: 4 },
+        { id: 'imported-incoming', own: false, sequence: 100, localOnly: true },
+        { id: 'imported-own', own: true, sequence: 101, localOnly: true },
       ],
       reactionReads: [],
     },
@@ -63,6 +67,7 @@ await test('public read markers advance only for a still-visible received window
   visible = true;
   await readVisibleDm(input);
   assert.deepEqual(acknowledgements, [['incoming']]);
+  assert.deepEqual(ownerships, [['own']]);
   assert.deepEqual(marks, [3]);
   assert.equal(updates, 1);
   assert.deepEqual(priorities, ['interactive', 'interactive']);

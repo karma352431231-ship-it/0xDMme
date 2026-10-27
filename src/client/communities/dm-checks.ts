@@ -41,7 +41,7 @@ export async function refreshDmChecks(input: {
   history: HTMLElement;
   controller: Pick<SocialDms, 'messageStates'>;
   peer: string;
-  items: Array<{ id: string; own: boolean }>;
+  items: Array<{ id: string; own: boolean; localOnly?: boolean }>;
   usable: () => boolean;
   reactionReads?: readonly string[];
   work?: VaultWorkOptions;
@@ -51,11 +51,15 @@ export async function refreshDmChecks(input: {
     reads =
       document.visibilityState === 'visible'
         ? held.read.batches(
-            input.items.filter((item) => !item.own).map((item) => item.id),
+            input.items
+              .filter((item) => !item.own && !item.localOnly)
+              .map((item) => item.id),
           )
         : [],
     owns = held.own.batches(
-      input.items.filter((item) => item.own).map((item) => item.id),
+      input.items
+        .filter((item) => item.own && !item.localOnly)
+        .map((item) => item.id),
     );
   for (let page = 0; page < Math.max(reads.length, owns.length); page++) {
     const batch = { read: reads[page] ?? [], own: owns[page] ?? [] };

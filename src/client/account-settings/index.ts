@@ -16,6 +16,7 @@ import type {
   SettingsPack,
 } from './record.ts';
 import { SettingsRecord } from './vault-record.ts';
+import { SettingsCompletion } from './completion.ts';
 import type { SettingsSync } from './vault-record.ts';
 import { openSettingsWizard } from './wizard.ts';
 import { currentLanguage } from '../../shared/i18n/index.ts';
@@ -88,6 +89,7 @@ function samePush(a: PushPreferences, b: PushPreferences): boolean {
 export class AccountSettingsController {
   private readonly ports: SettingsPorts;
   private readonly record: SettingsRecord;
+  private readonly completion: SettingsCompletion;
   private readonly languageRecord: LanguageRecord;
   private savedLanguage: AppLanguage | null = null;
   private languageReady = false;
@@ -101,8 +103,9 @@ export class AccountSettingsController {
   private pending: PreferenceChange[] = [];
   private applying = false;
   private writes: Promise<void> = Promise.resolve();
-  constructor(ports: SettingsPorts) {
+  constructor(ports: SettingsPorts, completion = new SettingsCompletion()) {
     this.ports = ports;
+    this.completion = completion;
     this.record = new SettingsRecord(ports.sync);
     this.languageRecord = new LanguageRecord(ports.sync);
     onPreference((change) => this.changed(change));
@@ -148,8 +151,7 @@ export class AccountSettingsController {
       this.languageReady = true;
       if (language) await this.ports.language?.set(language);
       if (generation !== this.generation) return;
-      if (value) await this.adopt(session, value);
-      else await this.offerWizard(session, generation);
+      await this.initializeChoices(session, generation, value);
       if (generation === this.generation) this.state = 'done';
     } catch (error: unknown) {
       if (generation !== this.generation) return;
@@ -157,6 +159,26 @@ export class AccountSettingsController {
       if (this.attempts >= loadAttempts)
         showToast(failure(t('Configurações da conta'), error));
     }
+  }
+  private async initializeChoices(
+    session: AccountSession,
+    generation: number,
+    value: AccountSettings | null,
+  ): Promise<void> {
+    if (value) {
+      await this.adopt(session, value);
+      this.guard(generation);
+      this.completion.remember(session.accountId);
+      return;
+    }
+    if (!this.completion.has(session.accountId))
+      return this.offerWizard(session, generation);
+    const current = (await this.currentPack()).settings;
+    this.guard(generation);
+    const pending = this.pending.splice(0);
+    const next = pending.reduce(withChange, current);
+    if (pending.length) this.save(session, next);
+    else this.saved = next;
   }
   /** Another device saved the account copy: apply it here, then keep it current. */
   private async adopt(session: AccountSession, value: AccountSettings) {
@@ -288,6 +310,7 @@ export class AccountSettingsController {
     await this.ports.language?.set(this.savedLanguage ?? currentLanguage());
     this.guard(generation);
     this.saved = pack.settings;
+    this.completion.remember(session.accountId);
     return problems;
   }
   private async applyPack(
