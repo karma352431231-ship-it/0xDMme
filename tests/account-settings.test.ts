@@ -16,6 +16,8 @@ const { SettingsRecord } =
   await import('../src/client/account-settings/vault-record.ts');
 const { AccountSettingsController } =
   await import('../src/client/account-settings/index.ts');
+const { SettingsCompletion } =
+  await import('../src/client/account-settings/completion.ts');
 const { LanguageRecord, languageRecordLabel } =
   await import('../src/client/language-record/index.ts');
 const { announcePreference } =
@@ -34,7 +36,7 @@ function session(accountId = crypto.randomUUID()): AccountSession {
     accountId,
     deviceId: crypto.randomUUID(),
     csrf: 'a'.repeat(64),
-    name: 'Privado',
+    name: 'Private',
     address: `0x${'1'.repeat(40)}`,
     ecosystem: 'evm',
     deviceState: 'pending',
@@ -85,7 +87,7 @@ await test('account record accepts only the known format', () => {
   assert.deepEqual(accountSettings(base), base);
   for (const invalid of [
     { ...base, version: 2 },
-    { ...base, theme: 'rosa' },
+    { ...base, theme: 'pink' },
     { ...base, sound: 'true' },
     { ...base, extra: true },
     { ...base, push: { ...base.push, enabled: 1 } },
@@ -129,7 +131,7 @@ await test('changes in Settings enter the account copy', () => {
   assert.equal(changed.theme, 'black');
   assert.equal(changed.push.enabled, true);
   assert.equal(changed.push.showCalls, false);
-  assert.equal(withChange(base, { theme: 'rosa' }).theme, 'navy');
+  assert.equal(withChange(base, { theme: 'pink' }).theme, 'navy');
   assert.equal(
     withChange(base, {
       push: { messages: false, calls: true, showCalls: true },
@@ -183,10 +185,11 @@ await test('complete local checkpoint cannot hide settings already saved on the 
 
 await test('query failure with a complete vault checkpoint does not imply missing settings', async () => {
   const sync = new FakeSync();
-  sync.refresh = () => Promise.reject(new Error('Sincronização indisponível.'));
+  sync.refresh = () =>
+    Promise.reject(new Error('Synchronization unavailable.'));
   await assert.rejects(
     new SettingsRecord(sync).load(crypto.randomUUID()),
-    /Sincronização indisponível/u,
+    /Synchronization unavailable/u,
   );
 });
 
@@ -448,4 +451,51 @@ await test('account change discards the previous copy and changes without a sess
     (await new SettingsRecord(sync).load(first.accountId))?.theme,
     'navy',
   );
+});
+
+await test('resetting the remote settings record does not reopen completed setup or rewrite preferences', async () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  const completion = new SettingsCompletion(storage);
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, base);
+  const first = new AccountSettingsController(ports(sync).value, completion);
+  first.setSession(account);
+  first.ready();
+  await waitFor(() => completion.has(account.accountId));
+  first.setSession(null);
+  sync.entries.clear();
+  const device = ports(sync);
+  const next = new AccountSettingsController(
+    device.value,
+    new SettingsCompletion(storage),
+  );
+  next.setSession(account);
+  const before = sync.refreshes;
+  next.ready();
+  await waitFor(() => sync.refreshes > before);
+  await settle();
+  assert.equal(
+    sync.entries.size,
+    0,
+    'Loading after reset must not republish removed settings.',
+  );
+  assert.deepEqual(
+    device.calls,
+    [],
+    'Existing device choices must stay unchanged.',
+  );
+  announcePreference({ sound: false });
+  await waitFor(() => sync.entries.size === 1);
+  assert.equal(
+    (await new SettingsRecord(sync).load(account.accountId))?.sound,
+    false,
+  );
+  next.setSession(null);
 });
