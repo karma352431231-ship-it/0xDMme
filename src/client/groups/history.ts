@@ -60,7 +60,7 @@ export async function localGroupViews(
     .sort((x, y) => y.sequence - x.sequence)
     .slice(0, 16)
     .reverse();
-  const edits = await localEdits(authority, groupId, views);
+  const edits = await localGroupEdits(authority, groupId, views);
   return {
     views: projectGroupMessages(views, edits),
     before:
@@ -72,7 +72,7 @@ export async function localGroupViews(
 function visibleRoot(view: GroupView): boolean {
   return view.kind !== 'profile' && !view.relation;
 }
-async function localEdits(
+export async function localGroupEdits(
   authority: VaultAuthority,
   group: string,
   views: GroupView[],

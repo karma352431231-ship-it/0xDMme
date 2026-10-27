@@ -7,6 +7,8 @@ import type { MessageService } from '../messages/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import { readAccountBody } from './http-body.ts';
 const messageBodyBudgets = new Map<string, number>([
+  // Thirty-two signed ID/hash receipts exceed the default 4 KiB envelope.
+  ['backup-ack', 8192],
   ['dm-attachment-part', 360000],
   ['dm-attachment-reserve', 12000],
   ['dm-register', 75000],

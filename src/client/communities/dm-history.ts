@@ -106,7 +106,8 @@ export class DmHistory {
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): HTMLElement {
-    const key = JSON.stringify([
+    const localMedia = input.localMedia || item.localOnly === true,
+      key = JSON.stringify([
         item.kind,
         item.text,
         item.reactions,
@@ -114,7 +115,7 @@ export class DmHistory {
         item.sentAt,
         item.displayText,
         item.edited,
-        input.localMedia,
+        localMedia,
       ]),
       held = this.rows.get(item.id);
     if (held?.key === key) return held.row;
@@ -130,23 +131,7 @@ export class DmHistory {
           signal: this.abort.signal,
         },
       );
-    if (item.kind === 'attachment' && item.media)
-      this.mediaUi.render({
-        article: bubble.row,
-        view: { ...item, peer: input.selected, archived: input.localMedia },
-        saveNotice: t(
-          'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
-        ),
-        content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
-        load: (_view, thumbnail) =>
-          this.options.controller.media(
-            item,
-            thumbnail,
-            false,
-            input.localMedia,
-          ),
-        run: this.options.run,
-      });
+    this.renderAttachment(bubble.row, item, { ...input, localMedia });
     const stopMenu = dmMessageMenu(bubble.row, {
       text:
         item.kind === 'text'
@@ -156,7 +141,7 @@ export class DmHistory {
       signal: this.abort.signal,
       picker: this.emoji,
       run: this.options.run,
-      ...(!input.localMedia
+      ...(!localMedia
         ? {
             react: (emoji: string) => this.options.react(item, emoji),
             edit: () => this.options.edit(item),
@@ -168,9 +153,7 @@ export class DmHistory {
       reactions: item.reactions,
       ownReaction: item.ownReaction,
       run: this.options.run,
-      ...(!input.localMedia
-        ? { react: () => this.options.react(item, '') }
-        : {}),
+      ...(!localMedia ? { react: () => this.options.react(item, '') } : {}),
     });
     this.rows.set(item.id, {
       key,
@@ -181,6 +164,24 @@ export class DmHistory {
       },
     });
     return bubble.row;
+  }
+  private renderAttachment(
+    article: HTMLElement,
+    item: DmItem,
+    input: { selected: string; localMedia: boolean },
+  ): void {
+    if (item.kind !== 'attachment' || !item.media) return;
+    this.mediaUi.render({
+      article,
+      view: { ...item, peer: input.selected, archived: input.localMedia },
+      saveNotice: t(
+        'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
+      ),
+      content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
+      load: (_view, thumbnail) =>
+        this.options.controller.media(item, thumbnail, false, input.localMedia),
+      run: this.options.run,
+    });
   }
   private editable(item: DmItem): boolean {
     return item.own && item.kind === 'text';

@@ -72,8 +72,9 @@ await test('public reaction actions fold into their original bubble without expo
     },
     sentAt: 1760000002000,
   };
-  const result = projectDmMessages([root], [reaction]);
+  const result = projectDmMessages([root], [reaction], (id) => id === root.id);
   assert.equal(result.length, 1);
+  assert.equal(result[0]?.localOnly, true);
   assert.equal(result[0]?.displayText, 'Original');
   assert.equal(result[0]?.sentAt, root.sentAt);
   assert.equal(result[0]?.ownReaction, '😂');
@@ -90,6 +91,7 @@ await test('public reaction actions fold into their original bubble without expo
   };
   assert.deepEqual(backupRecord(edit), edit);
   const edited = projectDmMessages([root], [reaction, edit])[0];
+  assert.equal(edited?.localOnly, undefined);
   assert.equal(edited?.displayText, 'Edited public text');
   assert.equal(edited?.edited, true);
   assert.equal(edited?.sentAt, root.sentAt);

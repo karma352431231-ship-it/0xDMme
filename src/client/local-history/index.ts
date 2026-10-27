@@ -519,22 +519,18 @@ async function discard(account: string, source: string): Promise<void> {
   }
 }
 /** Imports publish only after every record is durably stored. Permissions never enter this store. */
-function alreadyImported(
-  previous: StoredRecord | null,
-  record: BackupRecord,
-): boolean {
-  if (!previous) return false;
-  if (previous.hash !== record.hash)
-    throw new Error('Files differ for the same historical record.');
-  return true;
-}
 export async function importHistory(
   a: VaultAuthority,
   reader: BackupReader,
   guard: () => void,
 ): Promise<void> {
   const account = a.session.accountId,
-    source = reader.hash;
+    // A completed import owns every record, independently of automatic caches
+    // or another file. A separate local source also repairs legacy completion
+    // markers that skipped cached records. Archive bytes and keys are unchanged.
+    source = await bytesHash(
+      new TextEncoder().encode(`0xdmme-backup-import:v2:${reader.hash}`),
+    );
   await removeAbandonedImports(account);
   const created = Date.now();
   const existing = await transaction<ImportState | null>((tx, done) => {
@@ -559,7 +555,8 @@ export async function importHistory(
       guard();
       const record = await reader.read(index);
       const previous = await stored(a, record.type, record.id);
-      if (alreadyImported(previous, record)) continue;
+      if (previous && previous.hash !== record.hash)
+        throw new Error('Files differ for the same historical record.');
       const row = await sealHistoryRecord(a, source, record);
       guard();
       await storeRecord(row);

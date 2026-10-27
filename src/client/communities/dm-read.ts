@@ -9,7 +9,12 @@ export async function readVisibleDm(input: {
   controller: Pick<SocialDms, 'messageStates' | 'markRead'>;
   peer: string;
   page: {
-    items: { id: string; own: boolean; sequence: number }[];
+    items: {
+      id: string;
+      own: boolean;
+      sequence: number;
+      localOnly?: boolean;
+    }[];
     reactionReads: string[];
   };
   work?: VaultWorkOptions;
@@ -22,7 +27,9 @@ export async function readVisibleDm(input: {
     items: input.page.items,
     reactionReads: input.page.reactionReads,
   });
-  const received = input.page.items.filter((item) => !item.own);
+  const received = input.page.items.filter(
+    (item) => !item.own && !item.localOnly,
+  );
   if (!input.usable() || !received.length) return;
   await input.controller.markRead(
     input.peer,

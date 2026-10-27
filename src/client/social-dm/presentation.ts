@@ -4,6 +4,7 @@ type Record = Extract<BackupRecord, { type: 'dm-message' }>;
 export function projectDmMessages(
   roots: readonly Record[],
   actions: readonly Record[],
+  localOnly: (id: string) => boolean = () => false,
 ) {
   const originals = new Map(roots.map((row) => [row.id, row]));
   return dailyViews(
@@ -14,6 +15,7 @@ export function projectDmMessages(
     })),
   ).map((view) => ({
     ...originals.get(view.id)!,
+    ...(localOnly(view.id) ? { localOnly: true } : {}),
     sender: view.author,
     reactions: view.reactions,
     ownReaction: view.ownReaction,

@@ -873,6 +873,7 @@ export class SocialDms {
       items: projectDmMessages(
         roots,
         visible.filter((row) => row.relation),
+        (id) => this.removals.has('dm-message', id),
       ),
       reactionReads: visible
         .filter(

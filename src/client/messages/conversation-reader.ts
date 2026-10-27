@@ -247,13 +247,16 @@ export class ConversationReader {
     snapshot: () => unknown;
     guard: () => void;
   } {
-    const confirmed = this.confirmed;
+    const confirmed = this.confirmed,
+      selected = this.selection.capture(() => {});
     return {
       snapshot: () =>
         confirmed ? (JSON.parse(confirmed.snapshot) as unknown) : null,
       guard: () => {
+        selected();
         if (
           navigator.onLine &&
+          !view.archived &&
           (this.confirmed !== confirmed ||
             !confirmed?.views.some(
               (row) => row.id === view.id && row.hash === view.hash,
