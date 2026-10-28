@@ -57,13 +57,16 @@ const fixtureHost = process.env['HASH_TALK_FIXTURE_HOST'] ?? '127.0.0.1';
 if (!['127.0.0.1', 'localhost'].includes(fixtureHost))
   throw new Error('A fixture só aceita origem de loopback.');
 const origin = `http://${fixtureHost}:${fixturePort}`;
-const fixtureSeed =
-  process.env['HASH_TALK_FIXTURE_SYNTHETIC_SEED'] ??
-  `0x${randomBytes(32).toString('hex')}`;
-if (!/^0x[a-f0-9]{64}$/u.test(fixtureSeed))
-  throw new Error(
-    'Seed sintética de fixture inválida. Nunca forneça uma chave real.',
-  );
+function syntheticSeed(variable: string): string {
+  const seed = process.env[variable] ?? `0x${randomBytes(32).toString('hex')}`;
+  if (!/^0x[a-f0-9]{64}$/u.test(seed))
+    throw new Error('Invalid synthetic fixture seed. Never use a real key.');
+  return seed;
+}
+const fixtureSeed = syntheticSeed('HASH_TALK_FIXTURE_SYNTHETIC_SEED');
+const pairSeed = process.env['HASH_TALK_FIXTURE_PAIR_PORT']
+  ? syntheticSeed('HASH_TALK_FIXTURE_PAIR_SYNTHETIC_SEED')
+  : null;
 // Synthetic moderation inventory is confined to this loopback-only browser fixture.
 const database = new Database(
   config.databaseUrl,
@@ -206,12 +209,18 @@ function fixtureServer(
       ),
     ),
     communities: createCommunityHandler({
+      rankingSignals: database.workSignals,
       origin: testOrigin,
       views: (input) => database.communityViews.observe(input),
+      accounts: (period, after, order) =>
+        database.communityRanking.accountsPage(period, after, {
+          order: order ?? 'trending',
+        }),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),
       followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
+      suggestions: (query) => communities.suggestions(query),
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),
       post: (id, post) => communities.post(id, post),
@@ -302,10 +311,7 @@ if (process.env['HASH_TALK_FIXTURE_PAIR_PORT']) {
   )
     throw new Error('Porta pareada fora do intervalo exclusivo.');
   const otherAssets = new Map(assets);
-  otherAssets.set(
-    fixtureWalletPath,
-    await walletAsset(`0x${randomBytes(32).toString('hex')}`),
-  );
+  otherAssets.set(fixtureWalletPath, await walletAsset(pairSeed!));
   const hostname = fixtureHost === 'localhost' ? '127.0.0.1' : 'localhost';
   const other = fixtureServer(`http://${hostname}:${port}`, otherAssets);
   await new Promise<void>((resolve, reject) => {
