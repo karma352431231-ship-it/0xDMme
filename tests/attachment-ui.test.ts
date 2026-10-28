@@ -216,21 +216,47 @@ await test('conversation change during download discards bytes without recreatin
     true,
   );
 });
-await test('automatic failure allows one explicit retry without duplicate downloads from repeated clicks', async (t) => {
+await test('automatic failures retry twice, then allow one explicit retry without duplicate downloads', async (t) => {
   const { ui, blobs } = environment(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let loads = 0;
   const { preview, button } = render(ui, () => {
     loads++;
-    if (loads === 1) return Promise.reject(new Error('Offline'));
+    if (loads <= 3) return Promise.reject(new Error('Offline'));
     return Promise.resolve(png());
   });
   await flush();
   assert.equal(loads, 1);
+  assert.equal(button.hidden, true, 'no tap is asked for while retrying');
+  t.mock.timers.tick(1000);
+  await flush();
+  assert.equal(loads, 2);
+  t.mock.timers.tick(3000);
+  await flush();
+  assert.equal(loads, 3);
   assert.match(preview.textContent, /unavailable/);
   button.click();
   button.click();
   await flush();
+  assert.equal(loads, 4);
+  assert.equal(blobs.length, 1);
+  assert.equal(preview.children[0]?.children[0]?.tag, 'img');
+});
+
+await test('a preview that fails once while the conversation settles loads without a tap', async (t) => {
+  const { ui, blobs } = environment(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let loads = 0;
+  const { preview, button } = render(ui, () => {
+    loads++;
+    if (loads === 1) return Promise.reject(new Error('Not ready'));
+    return Promise.resolve(png());
+  });
+  await flush();
+  t.mock.timers.tick(1000);
+  await flush();
   assert.equal(loads, 2);
+  assert.equal(button.hidden, true);
   assert.equal(blobs.length, 1);
   assert.equal(preview.children[0]?.children[0]?.tag, 'img');
 });
