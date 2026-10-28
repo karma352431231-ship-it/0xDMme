@@ -396,6 +396,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
         ? context.startDmComposer(options)
         : {
             active: false,
+            unsent: false,
             editing: null,
             bind: noop,
             update: (state: { pending: boolean }) =>
@@ -403,6 +404,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
             restoreDraft: noop,
             leave: noop,
             cancelEdit: noop,
+            forgetDrafts: noop,
           },
     LiveMessages: function (options: {
       event: typeof emit;

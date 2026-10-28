@@ -17,6 +17,7 @@ import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import type { DmView } from './dm-chat.ts';
 import { DmComposition } from './dm-composition.ts';
+import { DmDrafts } from './dm-drafts.ts';
 
 export interface ChosenMedia {
   selection: AttachmentSelection;
@@ -43,6 +44,8 @@ export function startDmComposer(options: {
   changed: () => void;
 }) {
   let view: DmView | null = null,
+    bound: string | null = null,
+    unloadGuarded = false,
     chosen: ChosenMedia | null = null,
     pending = false,
     writable = false,
@@ -51,6 +54,7 @@ export function startDmComposer(options: {
   let abort = new AbortController();
   const emoji = new EmojiPicker();
   const composition = new DmComposition();
+  const drafts = new DmDrafts();
   const gifs = new GifSearch(
     () => options.privacy.authorize('gifs', abort.signal),
     () => AbortSignal.any([abort.signal, options.privacy.signal]),
@@ -171,9 +175,32 @@ export function startDmComposer(options: {
       releasePreview();
     }
     pending = false;
-    composition.clear();
-    view.text.value = '';
+    // A sent edit gives back the unsent text it had set aside.
+    view.text.value = composition.finish();
     view.text.dispatchEvent(new Event('input'));
+  }
+  function hasUnsent(): boolean {
+    return (
+      composition.target !== null ||
+      Boolean(view?.text.value.trim()) ||
+      drafts.size > 0
+    );
+  }
+  /** Kept drafts live in memory, so a reload asks first; registered once. */
+  function guardUnload(): void {
+    if (unloadGuarded) return;
+    unloadGuarded = true;
+    window.addEventListener('beforeunload', (event) => {
+      if (!hasUnsent()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+  }
+  function restore(next: DmView, peer: string): void {
+    const text = drafts.take(peer);
+    if (!text) return;
+    next.text.value = text;
+    next.text.dispatchEvent(new Event('input'));
   }
   function bindMedia(current: DmView): void {
     const input = node<HTMLInputElement>('[data-attachment-file]');
@@ -256,9 +283,12 @@ export function startDmComposer(options: {
   }
   return {
     /** Binds a freshly built conversation; a refresh reuses the same view. */
-    bind(next: DmView): void {
+    bind(next: DmView, peer: string): void {
       view = next;
+      bound = peer;
       composition.bind(next.form, next.text, sync);
+      restore(next, peer);
+      guardUnload();
       bindChatComposer(next.form, sync);
       next.form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -294,6 +324,14 @@ export function startDmComposer(options: {
     get active(): boolean {
       return recording.active || chosen !== null;
     },
+    /** Typed text, an edit in progress or a kept draft of another conversation. */
+    get unsent(): boolean {
+      return hasUnsent();
+    },
+    /** Drafts belong to the session that typed them. */
+    forgetDrafts(): void {
+      drafts.clear();
+    },
     get editing() {
       return composition.target;
     },
@@ -306,6 +344,8 @@ export function startDmComposer(options: {
       composition.cancel();
     },
     leave(): void {
+      if (view && bound) drafts.keep(bound, composition.unsent());
+      bound = null;
       composition.clear();
       recording.cancel();
       discardChosen();

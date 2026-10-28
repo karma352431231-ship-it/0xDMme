@@ -7,7 +7,7 @@ class CompositionNode extends CommunityNode {
   focus() {}
 }
 
-await test('canceling public DM editing empties the composer without changing the original or unrelated drafts', (t) => {
+await test('canceling public DM editing gives back the composer text without changing the original or unrelated drafts', (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -58,4 +58,17 @@ await test('canceling public DM editing empties the composer without changing th
   text.value = 'A new draft';
   composition.cancel();
   assert.equal(text.value, 'A new draft');
+  composition.choose(original);
+  assert.equal(text.value, original.displayText);
+  assert.equal(composition.unsent(), 'A new draft', 'the draft is set aside');
+  composition.cancel();
+  assert.equal(text.value, 'A new draft', 'cancel gives the draft back');
+  composition.choose(original);
+  assert.equal(
+    composition.finish(),
+    'A new draft',
+    'a sent edit gives it back',
+  );
+  assert.equal(composition.target, null);
+  assert.equal(composition.unsent(), text.value);
 });

@@ -312,7 +312,7 @@ export function startSocialDmUi(
     view = dmConversationView(container);
     viewKey = key;
     resetHistoryPosition(view.history);
-    composer.bind(view);
+    composer.bind(view, selected);
     depth.bind({
       history: view.history,
       button: view.older,
@@ -598,13 +598,14 @@ export function startSocialDmUi(
       projections.clear();
       depth.clear();
       leave();
+      composer.forgetDrafts();
       session = value;
       ownProfile = null;
       controller.setSession(value);
       unread.reset(value !== null);
       node?.replaceChildren();
     },
-    canActivate: () => !busy && !composer.active,
+    canActivate: () => !busy && !composer.active && !composer.unsent,
     /** Public identity only, independently live in the contact directory. */
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
       if (!session) {

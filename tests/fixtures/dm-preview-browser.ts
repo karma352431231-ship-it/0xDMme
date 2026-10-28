@@ -85,7 +85,7 @@ const composer = startDmComposer({
   discardPending: () => Promise.resolve(),
   changed: () => {},
 });
-composer.bind(view);
+composer.bind(view, peer.id);
 composer.update({ writable: true, pending: false, busy: false });
 const message = {
   type: 'dm-message' as const,
