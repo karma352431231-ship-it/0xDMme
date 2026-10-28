@@ -30,16 +30,18 @@ const svgNs = 'http://www.w3.org/2000/svg';
  * X-style framing before a photo or banner is saved (16/10/2026): drag to
  * move, slider, wheel or pinch to zoom, arrows and +/- from the keyboard.
  * Everything happens on this device; the framed copy then follows the same
- * preparation as any chosen picture. Cancel resolves to null.
+ * preparation as any chosen picture. Cancel resolves to null. `note` says
+ * what Apply does where that differs (saving at once or only a preview).
  */
 export async function cropImage(
   file: File,
   shape: CropShape,
+  note?: string,
 ): Promise<File | null> {
   const url = URL.createObjectURL(file);
   try {
     const image = await loadImage(url);
-    return await new CropDialog(image, shape).result(file);
+    return await new CropDialog(image, shape, note).result(file);
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -58,6 +60,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 class CropDialog {
   private readonly image: HTMLImageElement;
   private readonly shape: CropShape;
+  private readonly note: string | undefined;
   private readonly dialog: HTMLDialogElement;
   private readonly stage: HTMLElement;
   private readonly frame: HTMLElement;
@@ -70,9 +73,10 @@ class CropDialog {
   private y = 0;
   private pinch = 0;
 
-  constructor(image: HTMLImageElement, shape: CropShape) {
+  constructor(image: HTMLImageElement, shape: CropShape, note?: string) {
     this.image = image;
     this.shape = shape;
+    this.note = note;
     this.dialog = document.createElement('dialog');
     this.dialog.className = 'image-crop-dialog';
     this.dialog.setAttribute('aria-label', t('crop.title'));
@@ -106,6 +110,12 @@ class CropDialog {
       title.textContent = t('crop.title');
       header.append(cancel, title, apply);
       this.dialog.append(header, this.stage, this.zoomBar());
+      if (this.note) {
+        const note = document.createElement('p');
+        note.className = 'image-crop-note';
+        note.textContent = this.note;
+        this.dialog.append(note);
+      }
       document.body.append(this.dialog);
       const finish = (value: File | null) => {
         window.removeEventListener('resize', this.layout);

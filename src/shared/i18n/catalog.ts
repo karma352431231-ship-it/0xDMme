@@ -865,6 +865,14 @@ export const catalog: Record<string, readonly [string, string]> = {
   'crop.zoom-in': ['Zoom in', '放大'],
   'crop.zoom-out': ['Zoom out', '缩小'],
   'crop.apply': ['Apply', '应用'],
+  'Apply saves this photo to your private profile.': [
+    'Apply saves this photo to your private profile.',
+    '点击“应用”会将这张照片保存到你的私人资料。',
+  ],
+  'Apply shows a preview. Confirm changes to publish it.': [
+    'Apply shows a preview. Confirm changes to publish it.',
+    '点击“应用”只会显示预览。确认更改后才会发布。',
+  ],
   'crop.cancel': ['Cancel', '取消'],
   'crop.failed': [
     'Could not frame the picture. Try another one.',

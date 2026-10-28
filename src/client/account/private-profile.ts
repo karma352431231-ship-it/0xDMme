@@ -275,7 +275,11 @@ export class AccountPrivateProfile {
     input: HTMLInputElement | null,
   ): Promise<File | null> {
     try {
-      const framed = await cropImage(file, avatarCrop);
+      const framed = await cropImage(
+        file,
+        avatarCrop,
+        t('Apply saves this photo to your private profile.'),
+      );
       if (!framed && input) input.value = '';
       return framed;
     } catch {

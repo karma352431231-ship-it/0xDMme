@@ -219,6 +219,7 @@ export function startProfileEditor(
     const framed = await cropImage(
       file,
       kind === 'banner' ? bannerCrop : avatarCrop,
+      t('Apply shows a preview. Confirm changes to publish it.'),
     );
     if (!framed) return;
     const photo = await preparePhoto(framed);
