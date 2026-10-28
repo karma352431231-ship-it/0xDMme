@@ -19,9 +19,38 @@ export function hasPostDraft(container: HTMLElement): boolean {
   );
 }
 /** A reply needs words or media; whitespace alone is not publishable. */
-export function hasReplyContent(container: HTMLElement): boolean {
+function hasReplyContent(container: HTMLElement): boolean {
   if (container.querySelector(attachedMedia)) return true;
   return Boolean(container.querySelector('textarea')?.value.trim());
+}
+/**
+ * Both reply composers check content before the request. An empty reply is
+ * explained next to its field (marked invalid, described and focused) instead
+ * of surfacing the server's rejection; typing clears the explanation.
+ */
+export function requireReplyContent(
+  container: HTMLElement,
+  feedback: HTMLElement,
+  signal: AbortSignal,
+): boolean {
+  if (hasReplyContent(container)) return true;
+  feedback.textContent = t('Write a reply or add media before publishing.');
+  const text = container.querySelector('textarea');
+  if (!text) return false;
+  feedback.id ||= `reply-feedback-${crypto.randomUUID()}`;
+  text.setAttribute('aria-invalid', 'true');
+  text.setAttribute('aria-describedby', feedback.id);
+  text.addEventListener(
+    'input',
+    () => {
+      text.removeAttribute('aria-invalid');
+      text.removeAttribute('aria-describedby');
+      feedback.textContent = '';
+    },
+    { once: true, signal },
+  );
+  text.focus();
+  return false;
 }
 /** Both public composers use the same explicit discard choice and focus restoration. */
 export function confirmComposerDiscard(

@@ -8,7 +8,7 @@ import {
 import { communityIcon } from './presentation.ts';
 import { replyForm } from './post-forms.ts';
 import { submitPostReply } from './post-interactions.ts';
-import { hasPostDraft } from './composer-draft.ts';
+import { hasPostDraft, requireReplyContent } from './composer-draft.ts';
 
 /** Inside the discussion, expand the draft under its immediate parent. */
 export function inlinePostReply(
@@ -121,8 +121,10 @@ function inlineReplyBox(
     hide();
     return Promise.resolve();
   });
-  button(actions, t('Publish reply'), () =>
-    access.run(async () => {
+  button(actions, t('Publish reply'), () => {
+    if (!requireReplyContent(box, feedback, access.media.signal))
+      return Promise.resolve();
+    return access.run(async () => {
       feedback.textContent = '';
       try {
         if (!(await access.canReply()))
@@ -136,7 +138,7 @@ function inlineReplyBox(
             : t('Reply unavailable.');
         throw error;
       }
-    }),
-  ).classList.add('primary');
+    });
+  }).classList.add('primary');
   return box;
 }
