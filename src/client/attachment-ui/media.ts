@@ -225,7 +225,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     preview.textContent = t('Loading image…');
     // Rendering precedes DOM insertion; the serial queue starts after insertion.
     void Promise.resolve()
-      .then(request)
+      .then(() => withAutomaticRetries(request, input.current))
       .catch(() => {
         if (!input.current()) return;
         preview.textContent = t(
@@ -234,5 +234,29 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
         button.textContent = t('Try loading image');
         button.hidden = false;
       });
+  }
+}
+/** Waits before each automatic retry of a preview; then the person decides. */
+const previewRetryDelays = [1000, 3000];
+/**
+ * A preview requested while a reopened conversation is still settling can
+ * fail once and succeed moments later, so it is retried a bounded number of
+ * times before asking for a tap. Leaving the conversation stops the retries.
+ */
+export async function withAutomaticRetries(
+  work: () => Promise<void>,
+  current: () => boolean,
+  delays: readonly number[] = previewRetryDelays,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await work();
+      return;
+    } catch (error: unknown) {
+      const delay = delays[attempt];
+      if (delay === undefined || !current()) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (!current()) throw error;
+    }
   }
 }
