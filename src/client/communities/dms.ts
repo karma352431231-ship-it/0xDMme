@@ -40,6 +40,7 @@ import type { LiveEvent } from '../message-live/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import type { MenuIconName } from '../menu-icons/index.ts';
 
+import { publicProfileCreatedEvent } from '../profile-shortcut/index.ts';
 import { DmHistory } from './dm-history.ts';
 import { DmHistoryDepth } from './dm-window.ts';
 import { DmRefresh } from './dm-refresh.ts';
@@ -528,8 +529,32 @@ export function startSocialDmUi(
     clearView();
     refreshes.leave();
   }
+  // Once per session, and again when a public profile is created, so others
+  // can write to it before its owner ever opens handle messages.
+  let devicesChecked: AccountSession | null = null,
+    watchingCreation = false;
+  function publishDevices(): void {
+    if (!session || !navigator.onLine || devicesChecked === session) return;
+    devicesChecked = session;
+    controller.publishDevices().catch(() => {
+      // Not retried in this session: a profile-less account would only fail
+      // again. Opening handle messages publishes them and reports any error.
+    });
+  }
+  function watchProfileCreation(): void {
+    if (watchingCreation) return;
+    watchingCreation = true;
+    window.addEventListener(publicProfileCreatedEvent, () => {
+      devicesChecked = null;
+      publishDevices();
+    });
+  }
   return {
-    ready: () => unread.start(),
+    ready: () => {
+      unread.start();
+      watchProfileCreation();
+      publishDevices();
+    },
     event(signal: LiveEvent): void {
       const event = scopedLiveEvent(signal, [
         'handle-messages',

@@ -1,6 +1,7 @@
 import { closePublicProfileGuidance } from '../public-action-guidance/index.ts';
 import {
   forgetProfileReturn,
+  publicProfileCreatedEvent,
   takeProfileReturn,
 } from '../profile-shortcut/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
@@ -176,6 +177,7 @@ export function startPublicProfile(
         if (choice === null) return;
         await controller.create(handle, true);
         created = true;
+        window.dispatchEvent(new Event(publicProfileCreatedEvent));
         await editor.refresh();
         privacy.created(choice);
       }).then(() => {

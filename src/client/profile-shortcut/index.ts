@@ -1,6 +1,8 @@
 import { appAddress } from '../app-navigation/index.ts';
 
 const mountedEvent = '0xdmme-profile-shortcut-mounted';
+/** Fired once a public profile exists, for features that set up after it. */
+export const publicProfileCreatedEvent = '0xdmme-public-profile-created';
 /** Direct public-profile setup/edit category shared by participation links. */
 export const editPublicProfileHash = '#settings?section=profile';
 // The page a setup link was followed from, kept in memory for this visit only.

@@ -97,6 +97,14 @@ export interface SocialContext {
   api: SocialApi;
   machine: MessageCrypto;
 }
+/** The server's readiness rule: a directory exists and lists only active devices. */
+export function devicesCurrent(directory: SocialDirectoryPage): boolean {
+  const current = directory.events.at(-1);
+  if (!current) return false;
+  return current.devices.every((device) =>
+    Boolean(directory.active?.includes(device.id)),
+  );
+}
 export function dmMediaScope(account: string): string {
   return `dm-media:${account}`;
 }
@@ -171,6 +179,19 @@ export class SocialDms {
   ): Promise<SocialRelation | null> {
     const value = await this.request('state', { peer }, options);
     return value === null ? null : socialRelation(value);
+  }
+  /**
+   * Others can write to this profile only while its published DM devices are
+   * current (the server refuses senders otherwise). Publishes them when they
+   * are missing or stale; when current, this costs one directory read.
+   */
+  async publishDevices(options: VaultWorkOptions = {}): Promise<void> {
+    const directory = await readSocialDirectory(
+      (operation, data) => this.request(operation, data, options),
+      null,
+    );
+    if (devicesCurrent(directory)) return;
+    await this.initialize(options);
   }
   async initialize(options: VaultWorkOptions = {}): Promise<string> {
     return this.withCrypto(
