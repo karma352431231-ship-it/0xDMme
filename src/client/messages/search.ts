@@ -6,8 +6,14 @@ import {
 } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 import { pingNotice } from '../ping/index.ts';
+export interface SearchItem {
+  id: string;
+  peer: string;
+  sequence: number;
+  excerpt: string;
+}
 export interface SearchPage {
-  items: { id: string; peer: string; sequence: number; excerpt: string }[];
+  items: SearchItem[];
   next: string | null;
 }
 export class ConversationSearch {
@@ -17,14 +23,22 @@ export class ConversationSearch {
   private next: string | null = null;
   private query = '';
   private busy = false;
+  /** Set while the dialog closes to open a result, so its query and results stay. */
+  private keepResults = false;
   private readonly search: (
     query: string,
     after: string | null,
   ) => Promise<SearchPage>;
+  private readonly openResult: (
+    item: SearchItem,
+    entry: ConversationEntry,
+  ) => void;
   constructor(
     search: (query: string, after: string | null) => Promise<SearchPage>,
+    openResult: (item: SearchItem, entry: ConversationEntry) => void,
   ) {
     this.search = search;
+    this.openResult = openResult;
     this.dialog.className = 'conversation-search';
     this.dialog.setAttribute('aria-labelledby', 'conversation-search-title');
     this.dialog.innerHTML = t('html.bc850aca5a52');
@@ -62,11 +76,21 @@ export class ConversationSearch {
     this.node<HTMLInputElement>('input').focus();
   }
   close(): void {
+    this.keepResults = false;
     this.dialog.close();
     this.reset();
   }
+  /** Closes the dialog but keeps the query and results for the next opening. */
+  hide(): void {
+    this.keepResults = this.dialog.open || this.keepResults;
+    this.dialog.close();
+  }
   reset(): void {
     this.generation++;
+    if (this.keepResults) {
+      this.keepResults = false;
+      return;
+    }
     this.node<HTMLInputElement>('input').value = '';
     clearDirectory(this.node('[data-search-chats]'));
     this.clearResults();
@@ -146,7 +170,7 @@ export class ConversationSearch {
       const text = document.createElement('p');
       text.textContent = item.excerpt;
       row.append(title, text);
-      this.appendOpen(row, item.peer);
+      this.appendOpen(row, item);
       host.append(row);
     }
     if (!host.children.length && page.next === null)
@@ -154,15 +178,15 @@ export class ConversationSearch {
         pingNotice('puzzled', t('No messages found.'), 'search-empty'),
       );
   }
-  private appendOpen(row: HTMLElement, peer: string): void {
-    const entry = this.entries.find((entry) => entry.id === peer);
+  private appendOpen(row: HTMLElement, item: SearchItem): void {
+    const entry = this.entries.find((entry) => entry.id === item.peer);
     if (!entry) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = t('Open conversation');
     button.addEventListener('click', () => {
-      this.close();
-      entry.open();
+      this.hide();
+      this.openResult(item, entry);
     });
     row.append(button);
   }

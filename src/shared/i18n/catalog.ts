@@ -5730,6 +5730,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Write a reply or add media before publishing.',
     '请先写下回复或添加媒体，再发布。',
   ],
+  'This message is further back. Scroll up to load earlier messages.': [
+    'This message is further back. Scroll up to load earlier messages.',
+    '这条消息在更早的位置。请向上滚动以加载更早的消息。',
+  ],
   'Replies unavailable for your membership.': [
     'Replies unavailable for your membership.',
     '你的成员身份无法访问回复。',

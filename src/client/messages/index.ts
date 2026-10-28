@@ -30,8 +30,10 @@ import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
 import { ConversationSearch } from './search.ts';
-import type { SearchPage } from './search.ts';
-import type { ConversationAction } from './directory.ts';
+import type { SearchItem, SearchPage } from './search.ts';
+import { revealMessage } from './search-reveal.ts';
+import { showToast } from '../toast/index.ts';
+import type { ConversationAction, ConversationEntry } from './directory.ts';
 import { ConversationMenu } from './directory-menu.ts';
 import { ContactDirectory, Contacts } from '../contacts/index.ts';
 import { organizationActions } from './directory-actions.ts';
@@ -108,7 +110,7 @@ export function startMessages(
   let states = new Map<string, PeerState>();
   let navigatingToConversation = false;
   let directory: HTMLElement | null = null;
-  const searchPanel = new ConversationSearch(searchPage);
+  const searchPanel = new ConversationSearch(searchPage, openSearchResult);
   let mounted: HTMLElement | null = null,
     selected: ConversationPeer | null = null,
     session: AccountSession | null = null,
@@ -781,6 +783,37 @@ export function startMessages(
     });
     return selected === peer && rootsShown() > shown;
   }
+  /** Opens a private-chat match at its message; other results open their conversation. */
+  function openSearchResult(item: SearchItem, entry: ConversationEntry): void {
+    const peer = directoryData.peers.find((p) => p.accountId === item.peer);
+    if (!peer) {
+      entry.open();
+      return;
+    }
+    void requestPeer(peer).then(() => revealSearchMatch(item.id, peer));
+  }
+  async function revealSearchMatch(
+    id: string,
+    peer: ConversationPeer,
+  ): Promise<void> {
+    const open = () => selected?.accountId === peer.accountId;
+    const found = await revealMessage(id, {
+      row: (message) =>
+        node('[data-message-history]')?.querySelector<HTMLElement>(
+          `article[data-message="${CSS.escape(message)}"]`,
+        ) ?? null,
+      // A failed read counts as no progress, as in scroll-driven loading.
+      older: {
+        available: () => controller.olderAvailable(rootsShown()),
+        load: () => loadOlder().catch(() => false),
+      },
+      valid: open,
+    });
+    if (!found && open())
+      showToast(
+        t('This message is further back. Scroll up to load earlier messages.'),
+      );
+  }
   function rootsShown(): number {
     return (rows ?? []).filter((row) => !row.relation && row.kind !== 'profile')
       .length;
@@ -1361,7 +1394,9 @@ export function startMessages(
     else controller.pause(reason === 'directory' ? 'conversation' : 'account');
     groups.suspend();
     rows = null;
-    searchPanel.close();
+    // Returning to the list keeps the last search; account changes clear it.
+    if (reason === 'directory') searchPanel.hide();
+    else searchPanel.close();
     renderHistory();
   }
   function attachmentProgress(progress: { done: number; total: number }): void {

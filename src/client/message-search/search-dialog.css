@@ -109,3 +109,25 @@
     flex-basis: 100%;
   }
 }
+
+/* A message opened from a search result is centered and briefly marked. */
+article.search-match {
+  animation: search-match 2.4s ease-out;
+  border-radius: 12px;
+}
+@keyframes search-match {
+  0%,
+  60% {
+    box-shadow: 0 0 0 2px var(--accent);
+    background: var(--accent-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  article.search-match {
+    animation-duration: 2.4s;
+    animation-timing-function: steps(1, end);
+  }
+}
