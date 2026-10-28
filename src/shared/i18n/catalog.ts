@@ -5734,6 +5734,11 @@ export const catalog: Record<string, readonly [string, string]> = {
     'This message is further back. Scroll up to load earlier messages.',
     '这条消息在更早的位置。请向上滚动以加载更早的消息。',
   ],
+  '{0} accepted your request. You can start the conversation.': [
+    '{0} accepted your request. You can start the conversation.',
+    '{0} 已接受你的请求。现在可以开始聊天。',
+  ],
+  'Start conversation': ['Start conversation', '开始聊天'],
   'Replies unavailable for your membership.': [
     'Replies unavailable for your membership.',
     '你的成员身份无法访问回复。',

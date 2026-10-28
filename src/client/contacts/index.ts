@@ -35,6 +35,7 @@ import { shortAddress } from '../appearance/index.ts';
 import { DiscoveryChoices } from './discovery-choices.ts';
 import { ContactSettings } from './contact-settings.ts';
 import { contactDraft } from './contact-draft.ts';
+import { AcceptedRequest } from './accepted-request.ts';
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,
@@ -48,6 +49,7 @@ export function startContacts(
     book = new AddressBook(sync),
     directory = new ContactDirectory(sync);
   const discovery = new DiscoveryChoices();
+  const requests = new AcceptedRequest();
   const contactSettings = new ContactSettings({
     book,
     sync,
@@ -105,6 +107,7 @@ export function startContacts(
     if (busy) return;
     busy = true;
     const current = generation;
+    requests.dismiss();
     render();
     try {
       await work();
@@ -130,6 +133,7 @@ export function startContacts(
     text('[data-contact-status]', busy ? t('Updating contacts…') : status);
     text('[data-contact-editor-status]', busy ? t('Processing…') : status);
     text('[data-contact-invite-status]', busy ? t('Processing…') : status);
+    renderNextChat();
     renderInvite();
     renderBook();
     renderLists();
@@ -258,6 +262,31 @@ export function startContacts(
           'Permissions verified. Continue loading the vault index before editing contacts.',
         );
     if (received && node('[data-contact-invite-form]')) await inspectInvite();
+    noticeAccepted();
+  }
+  /** The request sent from here was accepted: say so and offer the chat. */
+  function noticeAccepted(): boolean {
+    const peer = requests.settle(contacts.pages.get('approved')?.items ?? []);
+    if (!peer) return false;
+    status = t('{0} accepted your request. You can start the conversation.', [
+      peer.name || shortAddress(peer.address),
+    ]);
+    return true;
+  }
+  function renderNextChat(): void {
+    const open = options.open;
+    const hosts = [mounted, editor].flatMap((root) => [
+      ...(root?.querySelectorAll<HTMLElement>('.contact-feedback') ?? []),
+    ]);
+    if (!open || busy) {
+      for (const host of hosts)
+        host.querySelector('[data-contact-next-chat]')?.remove();
+      return;
+    }
+    requests.render(hosts, (peer) => {
+      node<HTMLDialogElement>('[data-contact-editor]')?.close();
+      void run(() => open(peer));
+    });
   }
   function renderBook(): void {
     const list = node('[data-contact-list="approved"]');
@@ -445,6 +474,7 @@ export function startContacts(
     const accept = button(t('Accept'), async () => {
       await contacts.respond(contact.accountId, true);
       await refresh();
+      requests.approved(contact);
       status = t('Contact approved in both directions.');
     });
     accept.className = 'primary';
@@ -547,6 +577,7 @@ export function startContacts(
   }
   async function requestInvite(selected: Peer, token: string): Promise<void> {
     const expected = generation;
+    requests.wait(selected.accountId);
     const contact = await requestContact({
       contacts,
       book,
@@ -564,7 +595,7 @@ export function startContacts(
     invitePeer = null;
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
-    status = t('Request sent. Wait for acceptance.');
+    if (!requests.offered) status = t('Request sent. Wait for acceptance.');
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
@@ -574,6 +605,7 @@ export function startContacts(
     await discover();
     if (found) {
       const expected = generation;
+      requests.wait(found.accountId);
       const contact = await requestContact({
         contacts,
         book,
@@ -588,7 +620,7 @@ export function startContacts(
       await directory.saved(contact);
       await options.saved?.(contact);
       await refresh();
-      status = t('Request sent. Wait for acceptance.');
+      if (!requests.offered) status = t('Request sent. Wait for acceptance.');
     }
   }
   const actions: Record<string, () => Promise<void>> = {
@@ -639,6 +671,7 @@ export function startContacts(
     invitations.clear();
     found = null;
     invitePeer = null;
+    requests.clear();
     clearInputs();
     node('[data-contact-invite-peer]')?.replaceChildren();
     node('[data-contact-discovery-actions]')?.replaceChildren();
@@ -754,12 +787,10 @@ export function startContacts(
     async incomingRequests(): Promise<readonly Peer[]> {
       const previousRevision = contacts.state.revision;
       const incoming = await contacts.snapshot({ preservePages: true });
-      if (
-        mounted?.isConnected &&
-        !busy &&
-        previousRevision !== contacts.state.revision
-      )
-        render();
+      const changed = previousRevision !== contacts.state.revision;
+      if (changed && !busy) noticeAccepted();
+      const editing = node<HTMLDialogElement>('[data-contact-editor]')?.open;
+      if (changed && !busy && (mounted?.isConnected || editing)) render();
       return incoming.items;
     },
     async respondRequest(accountId: string, accept: boolean): Promise<void> {
