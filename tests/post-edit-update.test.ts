@@ -99,10 +99,12 @@ await test('confirmed root/reply edits replace only their card and show a locali
         cleanup: (node) => cleaned.push(node),
         render: (container, current) => {
           const card = document.createElement('article');
-          postHeader(card, current.post, {
-            id: value.community,
-            name: 'Synthetic',
-          });
+          postHeader(
+            card,
+            current.post,
+            { id: value.community, name: 'Synthetic' },
+            'community',
+          );
           const body = document.createElement('p');
           body.textContent = current.post.text;
           card.append(body);
@@ -118,6 +120,13 @@ await test('confirmed root/reply edits replace only their card and show a locali
       );
       assert.equal(badges[1]!.getAttribute('aria-label'), 'Chosen name');
       assert.equal(badges[1]!.textContent, 'Chosen name');
+      const feedCard = document.createElement('article');
+      postHeader(feedCard, value, { id: value.community, name: 'Synthetic' });
+      assert.equal(
+        feedCard.querySelectorAll('.community-author-badge').length,
+        0,
+        'community badges stay out of the feed',
+      );
       assert.equal(host.children[1], expanded);
       assert.equal(host.children[2], siblingDraft);
       assert.equal(siblingDraft.value, 'Unsent sibling reply');

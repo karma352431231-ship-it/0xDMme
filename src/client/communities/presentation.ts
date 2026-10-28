@@ -122,7 +122,9 @@ export function postHeader(
       `#users?handle=${encodeURIComponent(post.author.handle)}`,
     );
     identity.lastElementChild?.classList.add('community-post-author');
-    authorBadges(identity, post);
+    // Community badges belong to the community: shown inside it and on the
+    // post page, not in the feed (owner request, 28/10/2026).
+    if (context === 'community') authorBadges(identity, post);
   } else
     identity.append(el('span', t('Removed account'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
