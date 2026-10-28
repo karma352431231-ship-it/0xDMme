@@ -94,6 +94,17 @@
   font-size: var(--fs-small);
   margin: 8px 0;
 }
+.search-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.search-result-time {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
 [data-search-results] {
   overflow-wrap: anywhere;
 }

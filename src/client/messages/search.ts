@@ -6,11 +6,13 @@ import {
 } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 import { pingNotice } from '../ping/index.ts';
+import { newestFirst, searchResultTime } from './search-results.ts';
 export interface SearchItem {
   id: string;
   peer: string;
   sequence: number;
   excerpt: string;
+  sentAt?: number;
 }
 export interface SearchPage {
   items: SearchItem[];
@@ -21,6 +23,7 @@ export class ConversationSearch {
   private entries: readonly ConversationEntry[] = [];
   private generation = 0;
   private next: string | null = null;
+  private results: SearchItem[] = [];
   private query = '';
   private busy = false;
   /** Set while the dialog closes to open a result, so its query and results stay. */
@@ -97,6 +100,7 @@ export class ConversationSearch {
   }
   private clearResults(): void {
     this.next = null;
+    this.results = [];
     this.query = '';
     this.node('[data-search-messages]').replaceChildren();
     this.node('[data-search-next]').hidden = true;
@@ -159,17 +163,23 @@ export class ConversationSearch {
         ? translatedError(error.message)
         : t('Could not search.');
   }
+  /** Each page joins the results already found; the list stays newest first. */
   private renderMessages(page: SearchPage): void {
     const host = this.node('[data-search-messages]');
-    for (const item of page.items) {
+    this.results = newestFirst([...this.results, ...page.items]);
+    host.replaceChildren();
+    for (const item of this.results) {
       const row = document.createElement('li');
+      const heading = document.createElement('div');
+      heading.className = 'search-result-heading';
       const title = document.createElement('strong');
       title.textContent =
         this.entries.find((entry) => entry.id === item.peer)?.title ??
         t('Local history conversation');
+      heading.append(title, searchResultTime(item.sentAt));
       const text = document.createElement('p');
       text.textContent = item.excerpt;
-      row.append(title, text);
+      row.append(heading, text);
       this.appendOpen(row, item);
       host.append(row);
     }

@@ -824,6 +824,22 @@ function searchCursor(cursor: string | null): IDBValidKey | null {
   if (cursor.length > 1024) throw new Error('Invalid search page.');
   return JSON.parse(cursor) as IDBValidKey;
 }
+/** A found archived message as search shows it, with its send time if kept. */
+function historyResult(row: {
+  id: string;
+  peer: string;
+  sequence?: number;
+  sentAt?: number;
+  content: { text: string };
+}) {
+  return {
+    id: row.id,
+    peer: row.peer,
+    sequence: row.sequence ?? 0,
+    excerpt: row.content.text.slice(0, 160),
+    ...(row.sentAt === undefined ? {} : { sentAt: row.sentAt }),
+  };
+}
 export async function searchHistory(
   a: VaultAuthority,
   query: string,
@@ -842,6 +858,7 @@ export async function searchHistory(
     peer: string;
     sequence: number;
     excerpt: string;
+    sentAt?: number;
   }[] = [];
   for (let page = 0; page < 4; page++) {
     guard();
@@ -871,12 +888,7 @@ export async function searchHistory(
           .toLocaleLowerCase(currentLanguage())
           .includes(term)
       )
-        items.push({
-          id: row.id,
-          peer: row.peer,
-          sequence: row.sequence ?? 0,
-          excerpt: row.content.text.slice(0, 160),
-        });
+        items.push(historyResult(row));
     after = result.next;
     if (after === null || items.length >= 16) break;
   }

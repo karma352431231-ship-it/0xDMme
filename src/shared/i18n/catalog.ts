@@ -1067,6 +1067,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Change saved.': ['Change saved.', '更改已保存。'],
   'Changes confirmed.': ['Changes confirmed.', '更改已确认。'],
+  'Time unknown': ['Time unknown', '时间未知'],
   'Unsaved changes. Confirm to publish them.': [
     'Unsaved changes. Confirm to publish them.',
     '有未保存的更改。确认后即可发布。',
