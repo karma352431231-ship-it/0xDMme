@@ -18,6 +18,7 @@ export class PublicProfiles {
   private session: AccountSession | null = null;
   private generation = 0;
   profile: OwnPublicProfile | null = null;
+  private loaded = false;
   notices: PublicModerationNotice[] = [];
   moderationAfter: string | null = null;
   moderationOlder: string | null = null;
@@ -26,6 +27,10 @@ export class PublicProfiles {
   }
   hasSession(): boolean {
     return this.session !== null;
+  }
+  /** Whether `profile` is an answer yet; until then neither creation nor editing is shown. */
+  get known(): boolean {
+    return this.session === null || this.loaded;
   }
   setSession(session: AccountSession | null): boolean {
     if (
@@ -36,6 +41,7 @@ export class PublicProfiles {
     this.generation++;
     this.session = session;
     this.profile = null;
+    this.loaded = false;
     this.notices = [];
     this.moderationAfter = null;
     this.moderationOlder = null;
@@ -49,6 +55,7 @@ export class PublicProfiles {
     const data = await this.perform(operation, payload);
     if (generation !== this.generation) throw new Error('Session changed.');
     this.profile = ownPublicProfile(data);
+    this.loaded = true;
   }
   async perform(
     operation: string,

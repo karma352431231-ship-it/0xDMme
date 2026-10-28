@@ -14,6 +14,7 @@ import { publicationTitle, publicationQuote } from './publications.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { moderationRows } from './moderation.ts';
 import { ActivityUpdates } from './updates.ts';
+import { missingPublicProfile } from '../public-action-guidance/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
@@ -105,8 +106,12 @@ export function startActivity(
   const updates = new ActivityUpdates({
     read,
     failed: (error) => {
-      feedback =
-        error instanceof Error
+      // Without a public profile (or right after creating one, before every
+      // public source agrees) the public parts are simply not there yet:
+      // that is a state, not an error to show.
+      feedback = missingPublicProfile(error)
+        ? ''
+        : error instanceof Error
           ? translatedError(error.message)
           : t('Could not load.');
       render();

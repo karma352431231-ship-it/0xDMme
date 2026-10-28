@@ -74,18 +74,23 @@ export function startPublicProfile(
     return mounted?.querySelector<T>(selector) ?? null;
   }
   function renderIdentity(): void {
-    const own = controller.profile;
+    const own = controller.profile,
+      known = controller.known;
     const create = node('[data-public-create]'),
       owned = node('[data-public-owned]');
-    if (create) create.hidden = own !== null;
-    if (owned) owned.hidden = own === null;
+    // Neither form until the profile state is known, so a reload never
+    // flashes profile creation before the existing editor.
+    if (create) create.hidden = !known || own !== null;
+    if (owned) owned.hidden = !known || own === null;
     if (own) editor.paint();
   }
   function renderControls(): void {
     const mediaStatus = node('[data-external-media-status]');
     if (mediaStatus) mediaStatus.textContent = privacy.description();
     const output = node('[data-public-status]');
-    if (output) output.textContent = status;
+    if (output)
+      output.textContent =
+        status || (controller.known ? '' : t('Loading public profile…'));
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
       button.disabled = busy;
     });
