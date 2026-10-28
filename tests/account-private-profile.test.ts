@@ -6,11 +6,11 @@ import { openProfile } from '../src/client/account-profile/index.ts';
 import type { PrivateProfile } from '../src/client/account-profile/index.ts';
 
 class PreferenceInput extends EventTarget {
-  name = 'online';
+  name = 'backupReminder';
   checked = false;
   value = '';
 }
-await test('private photo saves automatically without confirming preferences being edited', async (t) => {
+await test('private photo saves automatically and each form confirms only its own draft', async (t) => {
   const core = createCore();
   core.session = {
     accountId: crypto.randomUUID(),
@@ -31,10 +31,14 @@ await test('private photo saves automatically without confirming preferences bei
       ['encrypt', 'decrypt'],
     );
   const preferences = new EventTarget(),
-    input = new PreferenceInput();
+    input = new PreferenceInput(),
+    nameForm = new EventTarget(),
+    nameInput = { value: 'Nome salvo' };
   const formNodes = new Map<string, unknown>([
     ['[data-preferences]', preferences],
-    ['input[name="online"]', input],
+    ['input[name="backupReminder"]', input],
+    ['[data-name-form]', nameForm],
+    ['input[name="display-name"]', nameInput],
   ]);
   core.mounted = {
     querySelector: (selector: string) => formNodes.get(selector) ?? null,
@@ -66,11 +70,13 @@ await test('private photo saves automatically without confirming preferences bei
       else Reflect.deleteProperty(globalThis, name);
     });
   }
-  t.mock.method(globalThis, 'fetch', () =>
-    Promise.resolve(
+  const requested: string[] = [];
+  t.mock.method(globalThis, 'fetch', (url: string) => {
+    requested.push(url);
+    return Promise.resolve(
       new Response('null', { headers: { 'Content-Type': 'application/json' } }),
-    ),
-  );
+    );
+  });
   const writes: PrivateProfile[] = [];
   let pending = Promise.resolve();
   const profile = new AccountPrivateProfile(
@@ -135,18 +141,25 @@ await test('private photo saves automatically without confirming preferences bei
   preferences.dispatchEvent(change);
   await profile.selectPhoto();
   assert.equal(writes.length, 1);
-  assert.equal(writes[0]?.preferences.online, false);
-  assert.equal(profile.privacyPreferences()?.online, false);
+  assert.equal(writes[0]?.preferences.backupReminder, false);
+  assert.equal(profile.backupReminder(), false);
   assert.ok(profile.shared()?.photo);
   assert.equal(core.session?.profileRevision, 1);
   assert.equal(profile.clean, false);
+  nameInput.value = 'Nome em rascunho';
+  nameForm.dispatchEvent(new Event('input'));
   preferences.dispatchEvent(new Event('submit'));
   await pending;
   assert.equal(writes.length, 2);
-  assert.equal(writes[1]?.preferences.online, true);
-  assert.equal(profile.privacyPreferences()?.online, true);
+  assert.equal(writes[1]?.preferences.backupReminder, true);
+  assert.equal(profile.backupReminder(), true);
   assert.ok(profile.shared()?.photo);
   assert.equal(core.session?.profileRevision, 2);
-  assert.equal(profile.clean, true);
+  assert.ok(
+    !requested.some((url) => url.endsWith('/name')),
+    'the reminder form must not confirm the drafted name',
+  );
+  assert.equal(core.session?.name, 'Nome salvo');
+  assert.equal(profile.clean, false, 'the name draft remains unsaved');
   profile.clear();
 });

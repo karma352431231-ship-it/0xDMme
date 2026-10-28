@@ -1,5 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
-import { PrivacyControls } from './privacy-controls.ts';
+import { PrivacyControls, privacyChoices } from './privacy-controls.ts';
 import { accountSession, profileEnvelope } from '../../shared/account/index.ts';
 import type {
   AccountSession,
@@ -14,6 +14,7 @@ import {
   PrivatePreferencesDraft,
 } from '../account-profile/index.ts';
 import type {
+  PreferenceName,
   PrivateProfile,
   ProfilePreferences,
 } from '../account-profile/index.ts';
@@ -47,17 +48,20 @@ interface ProfileAccount {
   withBusy: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
+/** The choice the profile preferences form confirms. */
+const reminderChoices = ['backupReminder'] as const;
+
 /**
  * The encrypted private profile of the session: its key, preferences, photo
- * and the drafts of the name and preference forms. Opened only with a key
- * from this device; cleared on logout, expiry and account changes.
+ * and the drafts of the name and preference forms. Each form confirms only
+ * its own fields. Opened only with a key from this device; cleared on logout,
+ * expiry and account changes.
  */
 export class AccountPrivateProfile {
   private profile: PrivateProfile | null = null;
   private key: CryptoKey | null = null;
   private readonly avatar = new PrivateProfileAvatar();
   private dirtyName = false;
-  private dirtyProfile = false;
   private draftName: string | null = null;
   private readonly photoDraft = new PrivatePhotoDraft();
   private readonly preferencesDraft = new PrivatePreferencesDraft();
@@ -88,9 +92,8 @@ export class AccountPrivateProfile {
       change: (name, value) => {
         if (!this.profile) return;
         this.preferencesDraft.set(this.profile.preferences, name, value);
-        this.dirtyProfile = true;
       },
-      confirm: (event) => this.confirmChanges(event),
+      confirm: (event) => this.confirmPreferences(event, privacyChoices),
     });
   }
   private get state(): ReturnType<ProfileAccount['read']> {
@@ -103,11 +106,11 @@ export class AccountPrivateProfile {
   get clean(): boolean {
     const nameChanged =
       this.dirtyName && this.draftName !== this.state.session?.name;
-    const preferencesChanged =
-      this.profile &&
-      JSON.stringify(this.preferencesDraft.value(this.profile.preferences)) !==
-        JSON.stringify(this.profile.preferences);
-    return !nameChanged && !this.photoDraft.dirty() && !preferencesChanged;
+    return (
+      !nameChanged &&
+      !this.photoDraft.dirty() &&
+      !this.preferencesDraft.changed()
+    );
   }
   clear(): void {
     this.photoDraft.clear();
@@ -117,7 +120,6 @@ export class AccountPrivateProfile {
     this.profile = null;
     this.avatar.clear();
     this.dirtyName = false;
-    this.dirtyProfile = false;
     this.draftName = null;
     this.privacyControls.render();
   }
@@ -177,10 +179,10 @@ export class AccountPrivateProfile {
       });
     });
     this.find('[data-name-form]')?.addEventListener('submit', (event) => {
-      void this.confirmChanges(event);
+      void this.confirmNameForm(event);
     });
     this.find('[data-preferences]')?.addEventListener('submit', (event) => {
-      void this.confirmChanges(event);
+      void this.confirmPreferences(event, reminderChoices);
     });
     this.find('[data-name-form]')?.addEventListener('input', () => {
       this.dirtyName = true;
@@ -195,10 +197,9 @@ export class AccountPrivateProfile {
       if (Object.hasOwn(this.profile.preferences, name))
         this.preferencesDraft.set(
           this.profile.preferences,
-          name as keyof ProfilePreferences,
+          name as PreferenceName,
           target.checked,
         );
-      this.dirtyProfile = true;
     });
   }
   mountPrivacy(host: HTMLElement): void {
@@ -286,9 +287,6 @@ export class AccountPrivateProfile {
         ...(this.options.saveProfile ? { save: this.options.saveProfile } : {}),
       });
       if (revision === null) return;
-      this.dirtyProfile =
-        JSON.stringify(this.preferencesDraft.value(profile.preferences)) !==
-        JSON.stringify(profile.preferences);
       this.host.setSession({ ...session, profileRevision: revision });
       this.account.notice(t('Profile saved.'));
       this.renderPhoto();
@@ -305,7 +303,7 @@ export class AccountPrivateProfile {
       !currentKey ||
       !profile ||
       this.state.busy ||
-      this.dirtyProfile
+      this.preferencesDraft.changed()
     )
       throw new Error(
         'Privacy settings not applied: the profile is loading or being edited.',
@@ -315,7 +313,12 @@ export class AccountPrivateProfile {
       return;
     try {
       await this.account.withBusy(async () => {
-        await this.persist(current, currentKey, { ...profile, preferences });
+        await this.persist(
+          current,
+          currentKey,
+          { ...profile, preferences },
+          [],
+        );
         if (this.profile === profile) profile.preferences = preferences;
       });
     } finally {
@@ -361,20 +364,37 @@ export class AccountPrivateProfile {
     if (session.profileRevision !== revision)
       this.host.setSession({ ...session, profileRevision: revision });
   }
-  private async confirmChanges(event: Event): Promise<void> {
+  /** The name form confirms the name only; drafted preferences stay drafts. */
+  private async confirmNameForm(event: Event): Promise<void> {
     event.preventDefault();
-    const original = this.state.session,
-      currentKey = this.key,
-      profile = this.profile;
+    const original = this.state.session;
     if (!original) return;
     const name = this.find<HTMLInputElement>(
       'input[name="display-name"]',
     )?.value;
     await this.host.operation(async () => {
-      if (this.dirtyProfile && (!currentKey || !profile))
-        throw new Error('Open your account to confirm the profile.');
       await this.confirmName(original, name);
-      await this.confirmContent(original, currentKey, profile);
+      this.account.notice(t('Changes confirmed.'));
+    });
+  }
+  /** A preferences form confirms its own choices; the name draft stays. */
+  private async confirmPreferences(
+    event: Event,
+    names: readonly PreferenceName[],
+  ): Promise<void> {
+    event.preventDefault();
+    const original = this.state.session,
+      currentKey = this.key,
+      profile = this.profile;
+    if (!original) return;
+    await this.host.operation(async () => {
+      if (this.preferencesDraft.changed(names)) {
+        if (!currentKey || !profile)
+          throw new Error('Open your account to confirm the profile.');
+        const current = this.state.session;
+        if (current?.accountId !== original.accountId) return;
+        await this.persist(current, currentKey, profile, names);
+      }
       this.account.notice(t('Changes confirmed.'));
     });
   }
@@ -391,25 +411,12 @@ export class AccountPrivateProfile {
     this.dirtyName = false;
     this.draftName = null;
   }
-  private async confirmContent(
-    original: AccountSession,
-    currentKey: CryptoKey | null,
-    profile: PrivateProfile | null,
-  ): Promise<void> {
-    const current = this.state.session;
-    if (
-      !this.dirtyProfile ||
-      !currentKey ||
-      !profile ||
-      current?.accountId !== original.accountId
-    )
-      return;
-    await this.persist(current, currentKey, profile);
-  }
+  /** Saves the profile with the drafted choices among `names` applied. */
   private async persist(
     current: AccountSession,
     currentKey: CryptoKey,
     profile: PrivateProfile,
+    names: readonly PreferenceName[],
   ): Promise<void> {
     const visible = this.profile;
     const revision = await writePrivateProfile({
@@ -417,7 +424,7 @@ export class AccountPrivateProfile {
       value: {
         ...profile,
         photo: this.photoDraft.value(profile.photo),
-        preferences: this.preferencesDraft.value(profile.preferences),
+        preferences: this.preferencesDraft.only(profile.preferences, names),
       },
       key: currentKey,
       current: () =>
@@ -429,11 +436,10 @@ export class AccountPrivateProfile {
     if (this.state.session?.csrf !== current.csrf || this.profile !== visible)
       return;
     this.photoDraft.commit(profile);
-    this.preferencesDraft.commit(profile);
+    this.preferencesDraft.commit(profile, names);
     this.host.setSession({ ...current, profileRevision: revision });
     await this.options.privacyChanged?.(profile.preferences);
     this.account.notice(t('Profile saved.'));
-    this.dirtyProfile = false;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     this.host.renderSidebar();
   }

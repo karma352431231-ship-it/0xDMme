@@ -13,7 +13,10 @@ import {
 import type { EncryptedProfile } from '../../shared/account/index.ts';
 
 export { PrivatePreferencesDraft } from './preferences-draft.ts';
-export type { ProfilePreferences } from './preferences-draft.ts';
+export type {
+  PreferenceName,
+  ProfilePreferences,
+} from './preferences-draft.ts';
 export interface PrivateProfile {
   preferences: ProfilePreferences;
   photo: { type: string; bytes: Uint8Array<ArrayBuffer> } | null;

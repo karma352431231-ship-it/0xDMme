@@ -99,8 +99,31 @@ await test('active preferences remain unchanged during drafting and can be disca
   draft.clear();
   assert.equal(draft.value(profile.preferences).online, false);
   draft.set(profile.preferences, 'online', true);
-  draft.commit(profile);
+  draft.commit(profile, ['online']);
   assert.equal(profile.preferences.online, true);
+  assert.equal(draft.changed(), false);
+});
+await test('each preferences form commits only its own drafted choices', () => {
+  const profile = emptyProfile(),
+    draft = new PrivatePreferencesDraft();
+  draft.set(profile.preferences, 'online', true);
+  draft.set(profile.preferences, 'backupReminder', true);
+  assert.equal(draft.changed(['readReceipts']), false);
+  assert.equal(
+    draft.only(profile.preferences, ['backupReminder']).online,
+    false,
+  );
+  draft.commit(profile, ['backupReminder']);
+  assert.equal(profile.preferences.backupReminder, true);
+  assert.equal(profile.preferences.online, false);
+  assert.equal(draft.changed(['online']), true);
+  assert.equal(draft.value(profile.preferences).online, true);
+  draft.set(profile.preferences, 'online', false);
+  assert.equal(
+    draft.changed(),
+    false,
+    'returning to the saved choice is no draft',
+  );
 });
 await test('notices distinguish posts from replies and never show hidden text', () => {
   assert.equal(publicationTitle('teste', 'post'), '@teste posted');

@@ -1,7 +1,8 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { ProfilePreferences } from '../account-profile/index.ts';
 
-const choices = ['online', 'readReceipts'] as const;
+/** The choices this category confirms; other profile choices keep their drafts. */
+export const privacyChoices = ['online', 'readReceipts'] as const;
 const template = t('html.7eb60c98aba6');
 
 /** The privacy category edits the same committed encrypted profile as account settings. */
@@ -23,7 +24,7 @@ export class PrivacyControls {
     host.querySelector('form')!.addEventListener('submit', (event) => {
       void this.ports.confirm(event);
     });
-    for (const name of choices) {
+    for (const name of privacyChoices) {
       const field = host.querySelector<HTMLInputElement>(
         `input[name="${name}"]`,
       )!;
@@ -46,7 +47,7 @@ export class PrivacyControls {
   }
   private renderChoices(value: ProfilePreferences | null): void {
     if (!this.host) return;
-    for (const name of choices) {
+    for (const name of privacyChoices) {
       const field = this.host.querySelector<HTMLInputElement>(
         `input[name="${name}"]`,
       );
