@@ -631,6 +631,10 @@
 .profile-editor-description small[data-over='true'] {
   color: var(--danger);
 }
+.public-profile-return {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
 .profile-editor-draft {
   display: flex;
   flex-wrap: wrap;

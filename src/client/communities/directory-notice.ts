@@ -1,6 +1,9 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { ApiResponseError } from '../api-response/index.ts';
-import { editPublicProfileHash } from '../profile-shortcut/index.ts';
+import {
+  editPublicProfileHash,
+  rememberProfileReturn,
+} from '../profile-shortcut/index.ts';
 import { communityElement as el } from './elements.ts';
 
 function invitation(): HTMLElement {
@@ -10,6 +13,7 @@ function invitation(): HTMLElement {
   heading.append(el('strong', t('community.profile-invitation.title')));
   const link = el('a', t('community.profile-invitation.link'));
   link.href = editPublicProfileHash;
+  rememberProfileReturn(link);
   notice.append(heading, link);
   return notice;
 }

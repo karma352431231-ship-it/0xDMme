@@ -1,5 +1,8 @@
 import { t } from '../../shared/i18n/index.ts';
-import { editPublicProfileHash } from '../profile-shortcut/index.ts';
+import {
+  editPublicProfileHash,
+  rememberProfileReturn,
+} from '../profile-shortcut/index.ts';
 
 export type PublicAction =
   'follow-community' | 'follow-profile' | 'post' | 'create-community';
@@ -32,6 +35,7 @@ export function mountPublicProfileInvitation(
   link.className = 'primary public-action-settings';
   link.textContent = t('Create public profile');
   link.href = editPublicProfileHash;
+  rememberProfileReturn(link);
   card.append(
     element('h2', t('A public profile is required')),
     element('p', t(messages[action])),

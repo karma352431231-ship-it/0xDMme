@@ -404,6 +404,7 @@ function leaveFeatures(next: PageKey): void {
   statuses.leave();
   representatives.leave();
   publicProfiles.leave();
+  if (next !== 'perfil') publicProfiles.forgetReturn();
   communities.leave();
   if (next !== 'comunidades') communities.forgetReturn();
   closePublicProfile?.();

@@ -1,6 +1,26 @@
+import { appAddress } from '../app-navigation/index.ts';
+
 const mountedEvent = '0xdmme-profile-shortcut-mounted';
 /** Direct public-profile setup/edit category shared by participation links. */
 export const editPublicProfileHash = '#settings?section=profile';
+// The page a setup link was followed from, kept in memory for this visit only.
+let returnAddress: string | null = null;
+/** A setup link remembers where it was clicked, so creation can lead back. */
+export function rememberProfileReturn(link: HTMLAnchorElement): void {
+  link.addEventListener('click', () => {
+    returnAddress = appAddress();
+  });
+}
+/** The remembered page, read once when the public profile is created. */
+export function takeProfileReturn(): string | null {
+  const address = returnAddress;
+  returnAddress = null;
+  return address;
+}
+/** Leaving setup without creating a profile ends the way back. */
+export function forgetProfileReturn(): void {
+  returnAddress = null;
+}
 /** A public action someone cannot take yet: it names the public-profile
  * prerequisite and opens its setup, which also asks to sign in when needed. */
 export function participationLink(
@@ -10,6 +30,7 @@ export function participationLink(
   link.href = editPublicProfileHash;
   link.setAttribute('aria-label', label);
   link.title = label;
+  rememberProfileReturn(link);
 }
 /** Both community layouts request the same public identity presentation. */
 export function appendOwnProfileShortcut(host: HTMLElement): void {

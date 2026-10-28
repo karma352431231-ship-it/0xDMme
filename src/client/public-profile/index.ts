@@ -1,4 +1,8 @@
 import { closePublicProfileGuidance } from '../public-action-guidance/index.ts';
+import {
+  forgetProfileReturn,
+  takeProfileReturn,
+} from '../profile-shortcut/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
@@ -166,14 +170,33 @@ export function startPublicProfile(
   function bindCreate(): void {
     node('[data-public-action="create"]')?.addEventListener('click', () => {
       const handle = node<HTMLInputElement>('[data-public-input]')?.value ?? '';
+      let created = false;
       void run(async () => {
         const choice = await privacy.beforeCreate(consentAbort.signal);
         if (choice === null) return;
         await controller.create(handle, true);
+        created = true;
         await editor.refresh();
         privacy.created(choice);
+      }).then(() => {
+        // After the queue settles, so the profile editor is already shown.
+        if (created) offerReturn(takeProfileReturn());
       });
     });
+  }
+  /** After creation, lead back to the action that asked for a public profile. */
+  function offerReturn(address: string | null): void {
+    const owned = node('[data-public-owned]');
+    if (!address || !owned) return;
+    const notice = document.createElement('p'),
+      back = document.createElement('a');
+    notice.className = 'public-profile-return';
+    notice.setAttribute('role', 'status');
+    back.href = address;
+    back.textContent = t('Go back to where you were');
+    notice.append(`${t('Public profile created.')} `, back);
+    owned.before(notice);
+    back.focus();
   }
   function mount(container: HTMLElement): void {
     consentAbort.abort();
@@ -224,6 +247,8 @@ export function startPublicProfile(
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),
     mount,
     leave,
+    /** The way back from setup lasts only while setup stays open. */
+    forgetReturn: forgetProfileReturn,
     ready,
     canActivate: () =>
       !busy &&
