@@ -1066,7 +1066,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '历史更改不匹配。',
   ],
   'Change saved.': ['Change saved.', '更改已保存。'],
-  'Changes confirmed.': ['Changes confirmed.', '更改已确认。'],
+  'Name saved.': ['Name saved.', '名称已保存。'],
+  'Preferences saved.': ['Preferences saved.', '偏好设置已保存。'],
   'Public profile created.': [
     'Public profile created.',
     '公开个人资料已创建。',

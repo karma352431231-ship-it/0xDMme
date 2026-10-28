@@ -62,6 +62,8 @@ export class AccountPrivateProfile {
   private key: CryptoKey | null = null;
   private readonly avatar = new PrivateProfileAvatar();
   private dirtyName = false;
+  /** The success notice of the last form save, until a form is edited again. */
+  private saved: string | null = null;
   private draftName: string | null = null;
   private readonly photoDraft = new PrivatePhotoDraft();
   private readonly preferencesDraft = new PrivatePreferencesDraft();
@@ -92,6 +94,7 @@ export class AccountPrivateProfile {
       change: (name, value) => {
         if (!this.profile) return;
         this.preferencesDraft.set(this.profile.preferences, name, value);
+        this.editing();
       },
       confirm: (event) => this.confirmPreferences(event, privacyChoices),
     });
@@ -121,6 +124,7 @@ export class AccountPrivateProfile {
     this.avatar.clear();
     this.dirtyName = false;
     this.draftName = null;
+    this.saved = null;
     this.privacyControls.render();
   }
   async load(
@@ -189,6 +193,7 @@ export class AccountPrivateProfile {
       this.draftName =
         this.find<HTMLInputElement>('input[name="display-name"]')?.value ??
         null;
+      this.editing();
     });
     this.find('[data-preferences]')?.addEventListener('change', (event) => {
       const target = event.target;
@@ -200,7 +205,21 @@ export class AccountPrivateProfile {
           name as PreferenceName,
           target.checked,
         );
+      this.editing();
     });
+  }
+  /** Each save names what it saved; editing again makes that notice stale. */
+  private confirmed(message: string): void {
+    this.saved = message;
+    this.account.notice(message);
+  }
+  private editing(): void {
+    if (this.saved === null) return;
+    const stale = this.state.status === this.saved;
+    this.saved = null;
+    if (!stale) return;
+    this.account.notice(t('Account ready.'));
+    this.host.render();
   }
   mountPrivacy(host: HTMLElement): void {
     this.privacyControls.mount(host);
@@ -374,7 +393,7 @@ export class AccountPrivateProfile {
     )?.value;
     await this.host.operation(async () => {
       await this.confirmName(original, name);
-      this.account.notice(t('Changes confirmed.'));
+      this.confirmed(t('Name saved.'));
     });
   }
   /** A preferences form confirms its own choices; the name draft stays. */
@@ -395,7 +414,7 @@ export class AccountPrivateProfile {
         if (current?.accountId !== original.accountId) return;
         await this.persist(current, currentKey, profile, names);
       }
-      this.account.notice(t('Changes confirmed.'));
+      this.confirmed(t('Preferences saved.'));
     });
   }
   private async confirmName(
