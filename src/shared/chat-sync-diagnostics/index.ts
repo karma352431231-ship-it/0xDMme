@@ -17,6 +17,9 @@ export const chatSyncEvents = [
   'work',
   'group-send',
   'group-receive',
+  'direct-send',
+  'direct-receive',
+  'coverage-limited',
 ] as const;
 export const chatSyncReasons = [
   'capture-started',
@@ -58,6 +61,8 @@ export const chatSyncReasons = [
   'accepted',
   'retired',
   'presented',
+  'committed',
+  'capture-bound',
 ] as const;
 export type ChatSyncReason = (typeof chatSyncReasons)[number];
 const failures = [

@@ -17,9 +17,15 @@ const conversations = new Map<string, number>();
 let messages = new Map<string, number>(),
   nextMessage = 0;
 const installed = new WeakSet<Window>();
+const committedMessages = new Set<string>();
+let captureEpoch = 0,
+  limited = false;
 
 function stop(): void {
   deadline = 0;
+  captureEpoch++;
+  committedMessages.clear();
+  limited = false;
   clearTimeout(timer);
   conversations.clear();
   messages = new Map();
@@ -101,18 +107,116 @@ export function traceGroupMessage(
   },
   id?: string,
 ): void {
+  traceMessageStage(owner, decision, id);
+}
+export function traceDirectMessage(
+  owner: object,
+  decision: { event: 'direct-send'; reason: ChatSyncDecision['reason'] },
+  id: string,
+): void {
+  traceMessageStage(owner, decision, id);
+}
+function captureLimited(owner: object): void {
+  if (limited) return;
+  limited = true;
+  traceChatSync(owner, null, {
+    event: 'coverage-limited',
+    reason: 'capture-bound',
+  });
+}
+function traceMessageStage(
+  owner: object,
+  decision: {
+    event: 'direct-send' | 'direct-receive' | 'group-send' | 'group-receive';
+    reason: ChatSyncDecision['reason'];
+    rows?: number;
+  },
+  id?: string,
+): void {
   if (!chatSyncActive()) return;
   let message: number | undefined;
   if (id !== undefined) {
     message = messages.get(id) ?? ++nextMessage;
     messages.delete(id);
     messages.set(id, message);
-    if (messages.size > 256) messages.delete(messages.keys().next().value!);
+    if (messages.size > 256) {
+      messages.delete(messages.keys().next().value!);
+      captureLimited(owner);
+    }
   }
   traceChatSync(owner, null, {
     ...decision,
     ...(message === undefined ? {} : { message }),
   });
+}
+interface VerifiedMessage {
+  id: string;
+  own: boolean;
+  kind: string;
+}
+/** Call only after durable storage AND the owning protocol's final confirmation.
+ * Only numeric capture slots escape; identities, content and crypto stay local. */
+export function traceVerifiedMessages(
+  owner: object,
+  channel: 'direct' | 'group',
+  rows: readonly VerifiedMessage[],
+): void {
+  if (!chatSyncActive()) return;
+  for (const row of rows) recordVerifiedMessage(owner, channel, row);
+}
+function recordVerifiedMessage(
+  owner: object,
+  channel: 'direct' | 'group',
+  row: VerifiedMessage,
+): void {
+  if (row.own || row.kind === 'profile') return;
+  const key = `${channel}:${row.id}`;
+  if (committedMessages.has(key)) return;
+  committedMessages.add(key);
+  if (committedMessages.size > 256) {
+    committedMessages.delete(committedMessages.values().next().value!);
+    captureLimited(owner);
+  }
+  traceMessageStage(
+    owner,
+    {
+      event: channel === 'direct' ? 'direct-receive' : 'group-receive',
+      reason: 'committed',
+    },
+    row.id,
+  );
+}
+/** One verified read owns this bounded metadata buffer. Failed reads never
+ * confirm it; a capture restart cannot inherit another capture's pending work. */
+export class VerifiedReadCapture {
+  private readonly epoch = captureEpoch;
+  private readonly rows = new Map<string, VerifiedMessage>();
+  private truncated = false;
+  private readonly owner: object;
+  private readonly channel: 'direct' | 'group';
+  constructor(owner: object, channel: 'direct' | 'group') {
+    this.owner = owner;
+    this.channel = channel;
+  }
+  collect(rows: readonly VerifiedMessage[]): void {
+    if (this.epoch !== captureEpoch || !chatSyncActive()) return;
+    for (const row of rows) this.retain(row);
+  }
+  private retain(row: VerifiedMessage): void {
+    if (row.own || row.kind === 'profile' || this.rows.has(row.id)) return;
+    if (this.rows.size === 256) {
+      this.truncated = true;
+      return;
+    }
+    this.rows.set(row.id, { id: row.id, own: row.own, kind: row.kind });
+  }
+  confirm(): void {
+    if (this.epoch === captureEpoch && chatSyncActive()) {
+      if (this.truncated) captureLimited(this.owner);
+      traceVerifiedMessages(this.owner, this.channel, [...this.rows.values()]);
+    }
+    this.rows.clear();
+  }
 }
 
 function failureReason(

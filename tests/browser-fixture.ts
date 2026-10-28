@@ -79,6 +79,15 @@ await objects.initialize();
 const assets = new Map(await loadWebAssets());
 if (process.env['HASH_TALK_FIXTURE_EMOJI_CONTROLS'] === '1')
   await emojiFixture(assets);
+const fixtureOwner = process.env['HASH_TALK_FIXTURE_OWNER'];
+if (fixtureOwner) {
+  if (!/^[a-f0-9]{48}$/u.test(fixtureOwner))
+    throw new Error('Invalid synthetic fixture ownership marker.');
+  assets.set(`/fixture-owner-${fixtureOwner}.txt`, {
+    type: 'text/plain; charset=utf-8',
+    content: new TextEncoder().encode(fixtureOwner),
+  });
+}
 const root = assets.get('/');
 if (!root) throw new Error('Build missing.');
 const html = new TextDecoder().decode(root.content);
@@ -93,6 +102,10 @@ async function walletAsset(seed: string): Promise<WebAsset> {
     minify: true,
     write: false,
     define: {
+      SYNTHETIC_CONTEXT_WALLETS:
+        process.env['HASH_TALK_FIXTURE_CONTEXT_WALLETS'] === '1'
+          ? 'true'
+          : 'false',
       SYNTHETIC_VAULT_CONTROLS:
         process.env['HASH_TALK_FIXTURE_VAULT_CONTROLS'] === '1'
           ? 'true'

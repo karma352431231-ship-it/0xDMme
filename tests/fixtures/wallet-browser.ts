@@ -9,13 +9,19 @@ import { syntheticRecoveryControls } from './recovery-browser.ts';
 // permits independent origins to exercise the same account and survive reload.
 // Never use a real wallet here; this module is absent from the product build.
 declare const SYNTHETIC_FIXTURE_SEED: string;
+declare const SYNTHETIC_CONTEXT_WALLETS: boolean;
 declare const SYNTHETIC_QR_CAMERA: boolean;
 declare const SYNTHETIC_VAULT_CONTROLS: boolean;
 declare const SYNTHETIC_RECOVERY_CONTROLS: boolean;
 if (SYNTHETIC_RECOVERY_CONTROLS) syntheticRecoveryControls();
 if (SYNTHETIC_QR_CAMERA) syntheticQrCamera();
 if (SYNTHETIC_VAULT_CONTROLS) syntheticVaultControls();
-const wallet = new Wallet(SYNTHETIC_FIXTURE_SEED);
+const contextSeed = SYNTHETIC_CONTEXT_WALLETS
+  ? localStorage.getItem('fixture:wallet')
+  : SYNTHETIC_FIXTURE_SEED;
+if (!contextSeed || !/^0x[a-f0-9]{64}$/u.test(contextSeed))
+  throw new Error('Missing synthetic context wallet.');
+const wallet = new Wallet(contextSeed);
 const provider = {
   isMetaMask: true,
   request(input: { method: string; params?: string[] }): Promise<unknown> {

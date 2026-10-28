@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "burst": { "messagesPerSender": 20, "intervalMs": 100, "repetitions": 5 },
+  "historyMessages": 12,
+  "navigationSwitches": 10,
+  "functionalDeadlineMs": 30000,
+  "quiescenceMs": 750,
+  "requestGates": {
+    "rationale": "Each accepted new text requires one real publish; retries are reported separately. Read/preparation budgets remain uncalibrated and are reported, never silently baselined.",
+    "newPublishesPerText": 1
+  },
+  "latency": {
+    "enforced": false,
+    "absoluteTargetP95Ms": 1000,
+    "targetRationale": "Proposed loopback recipient-presentation target, independent of observed lag; requires owner review and equivalent controlled candidate/reference calibration before gating.",
+    "relativeIncrease": 0.2,
+    "minimumIncreaseMs": 100,
+    "status": "Calibration pending; failure deadlines are not acceptable latency targets."
+  },
+  "artifacts": {
+    "retentionDays": 3,
+    "maxRunBytes": 104857600,
+    "maxRetainedBytes": 314572800
+  }
+}

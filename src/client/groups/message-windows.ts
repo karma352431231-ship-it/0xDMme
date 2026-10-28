@@ -1,3 +1,7 @@
+import {
+  chatSyncActive,
+  VerifiedReadCapture,
+} from '../chat-sync-diagnostics/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 import {
   GroupMessageIndex,
@@ -64,15 +68,30 @@ export class GroupMessageWindows {
     const state = this.states.get(group);
     if (state) state.prepared = true;
   }
-  /** The latest window (before null) keeps the group's floor and, with
-   * `older`, reaches one page further back; other cursors read single pages. */
+  /** The latest window keeps the group's floor; older reaches one page back. */
   async read(
     c: ReadContext,
     before: number | null,
     older = false,
   ): Promise<Window> {
+    const capture = chatSyncActive()
+      ? new VerifiedReadCapture(this, 'group')
+      : null;
+    const context = capture
+      ? {
+          ...c,
+          read: async (input: unknown) => {
+            const page = await c.read(input);
+            capture.collect(page.views);
+            return page;
+          },
+        }
+      : c;
     try {
-      return await this.readCurrent(c, before, older);
+      const result = await this.readCurrent(context, before, older);
+      capture?.collect(result.views);
+      capture?.confirm();
+      return result;
     } catch (error: unknown) {
       if (
         !(error instanceof IncompleteGroupIndex) &&

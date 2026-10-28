@@ -1,6 +1,12 @@
 module.exports = {
   forbidden: [
     {
+      name: 'product-cannot-import-test-adapters',
+      severity: 'error',
+      from: { path: '^src/' },
+      to: { path: '(^tests/|node_modules/(@playwright/|playwright))' },
+    },
+    {
       name: 'no-cycles',
       severity: 'error',
       from: {},

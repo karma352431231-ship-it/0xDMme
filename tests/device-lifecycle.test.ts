@@ -1,3 +1,7 @@
+import {
+  freshKeyring,
+  prepareEvent,
+} from '../src/client/device-operations/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -635,4 +639,78 @@ await test('enrollment join binds the new session to its proven recipient and pi
   const checkpoint = await readCheckpoint(f.session.accountId);
   assert.equal(checkpoint.trustedRoot, invitation.root);
   assert.deepEqual(checkpoint.events, []);
+});
+
+await test('local dialog eligibility survives a directory refresh without granting secret access', async (t) => {
+  const f = controllerFixture(t);
+  assert.equal(f.controller.hasVerifiedEnrollment, false);
+  const signature = await f.wallet.signMessage(recoveryMessage(f.config));
+  await f.controller.completeLoginOpening({
+    config: f.config,
+    count: 2,
+    signatures: [signature, signature],
+  });
+  await f.controller.refresh();
+  assert.equal(f.controller.authorized, true);
+  assert.equal(f.controller.hasVerifiedEnrollment, true);
+  const entered = deferred<void>(),
+    response = deferred<Response>();
+  f.overrides.set('/api/account/devices/read', () => {
+    entered.resolve();
+    return response.promise;
+  });
+  const reading = f.controller.refresh();
+  await waitForBoundary(entered.promise);
+  assert.equal(f.controller.authorized, false);
+  assert.equal(f.controller.hasVerifiedEnrollment, true);
+  response.resolve(
+    Response.json({
+      events: [],
+      revision: f.events.length,
+      head: await eventHash(f.events.at(-1)!),
+      serverTime: new Date().toISOString(),
+    }),
+  );
+  await reading;
+  assert.equal(f.controller.authorized, true);
+  f.overrides.delete('/api/account/devices/read');
+  const identity = f.controller.identity!,
+    ring = f.controller.ring!,
+    initial = f.events.at(-1)!,
+    other = await createIdentity(crypto.randomUUID(), 'Other device');
+  const linked = await prepareEvent({
+    accountId: f.session.accountId,
+    previous: initial,
+    kind: 'link',
+    signer: identity.public.id,
+    signing: identity.signing,
+    root: initial.root,
+    identities: [identity.public, other.public],
+    ring,
+    linkId: crypto.randomUUID(),
+    profile: null,
+  });
+  f.events.push(linked);
+  await f.controller.refresh();
+  assert.equal(f.controller.hasVerifiedEnrollment, true);
+  f.events.push(
+    await prepareEvent({
+      accountId: f.session.accountId,
+      previous: linked,
+      kind: 'revoke',
+      signer: other.public.id,
+      signing: other.signing,
+      root: initial.root,
+      identities: [other.public],
+      ring: freshKeyring(f.session.accountId, ring),
+      profile: null,
+    }),
+  );
+  await f.controller.refresh();
+  assert.equal(f.controller.authorized, false);
+  assert.equal(f.controller.hasVerifiedEnrollment, false);
+  f.controller.clearTransient();
+  assert.equal(f.controller.hasVerifiedEnrollment, false);
+  f.controller.setSession(null);
+  assert.equal(f.controller.hasVerifiedEnrollment, false);
 });

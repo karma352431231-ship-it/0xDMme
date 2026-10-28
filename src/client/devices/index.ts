@@ -359,6 +359,7 @@ export function startDevices(options: {
       await controller.saveProfile(session, profile, lease.epoch);
     },
     authorized: () => controller.authorized,
+    hasVerifiedEnrollment: () => controller.hasVerifiedEnrollment,
     stopCamera: () => camera?.stop(),
     enrollmentState: () => ({
       waiting,

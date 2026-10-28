@@ -37,3 +37,7 @@ Private data, keys, backups, inventories and private configuration are never par
 **Interface fonts.** Figtree and Sora under the SIL Open Font License 1.1, served from the app's origin. See [vendor/fonts/README.md](vendor/fonts/README.md).
 
 The library files in `vendor/` keep their original licenses.
+
+## Browser regression tooling (23 October 2026)
+
+`@playwright/test`, `playwright` and `playwright-core` are pinned to **1.64.1**, development-only, under Apache-2.0. Microsoft maintains the [upstream project](https://github.com/microsoft/playwright); the [pinned package metadata](https://registry.npmjs.org/@playwright/test/1.64.1) declares Node >=20, compatible with this repository's unchanged Node 24 toolchain. Browser binaries are separately installed on developer/test machines using the [official browser installer](https://playwright.dev/docs/browsers). No browser, driver, test wallet or OS package is added to the VPS or executable production bundle. Preserve upstream notices; npm license checks cover the lockfile.

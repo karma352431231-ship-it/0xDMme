@@ -137,8 +137,9 @@ await test('public sources include build instructions and licenses and exclude b
   for (const path of paths)
     assert.doesNotMatch(
       path,
-      /(?:^|\/)(?:\.local|\.git|\.env[^/]*|\.\.|server)(?:\/|$)|^\//u,
+      /(?:^|\/)(?:\.local|\.git|\.env[^/]*|\.\.|server|tests)(?:\/|$)|^\//u,
     );
+  verifyProductionWalletIsolation(assets);
   const worker = Buffer.from(assets.get('/sw.js')?.content ?? []).toString();
   assert.ok(!worker.includes(sourcePath));
   verifyEmojiSources(assets, worker);
@@ -152,6 +153,16 @@ await test('public sources include build instructions and licenses and exclude b
   assert.ok(!worker.includes(preferredPath));
   verifyMatrixSources(assets, worker);
 });
+function verifyProductionWalletIsolation(
+  assets: ReadonlyMap<string, { content: Uint8Array }>,
+): void {
+  for (const [path, asset] of assets)
+    if (/^\/app-[a-f0-9]+\.js$/u.test(path))
+      assert.doesNotMatch(
+        Buffer.from(asset.content).toString(),
+        /fixture:wallet|SYNTHETIC_CONTEXT_WALLETS|Missing synthetic context wallet/u,
+      );
+}
 function verifyEmojiSources(
   assets: ReadonlyMap<string, { content: Uint8Array }>,
   worker: string,

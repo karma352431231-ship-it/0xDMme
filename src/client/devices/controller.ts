@@ -391,6 +391,22 @@ export class DeviceController {
   get authorized(): boolean {
     return this.ring !== null && this.identity !== null;
   }
+  /** Local dialog eligibility only. A directory refresh temporarily clears the
+   * key ring; it does not undo the enrollment already verified for this exact
+   * directory. New directory events or identity/session reset reject reuse.
+   * Secret access and every submitted operation still require fresh authority. */
+  get hasVerifiedEnrollment(): boolean {
+    const session = this.session;
+    return (
+      this.authorized ||
+      (!!session &&
+        this.identity !== null &&
+        this.verified?.events === this.events.length &&
+        !!this.current?.devices.some(
+          (device) => device.id === session.deviceId,
+        ))
+    );
+  }
   async run<T>(
     operation: (
       session: AccountSession,

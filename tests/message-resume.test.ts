@@ -1114,3 +1114,25 @@ await test('scrolling up adds one verified page under the shown window, which st
   assert.equal(texts().length, 21);
   assert.equal(controller.olderAvailable(texts().length), false);
 });
+
+await test('history expands after background receipt fills a conversation that initially opened empty', async () => {
+  const { controller, data, add } = resumeFixture(true);
+  controller.setLiveConnected(true);
+  await controller.synchronize();
+  for (let index = 0; index < 20; index++) await add(`Received ${index}`);
+  const signal = new AbortController().signal;
+  for (let turn = 0; turn < 4; turn++)
+    if (!(await controller.synchronizeAll(signal))) break;
+  const texts = () =>
+    (data.frames.at(-1) ?? [])
+      .filter((row) => row.kind !== 'profile' && !row.relation)
+      .map((row) => row.text);
+  assert.equal(texts().length, 16);
+  controller.requestOlder();
+  let continuation = await controller.synchronize();
+  while (continuation) continuation = await continuation.resume();
+  assert.deepEqual(
+    texts(),
+    Array.from({ length: 20 }, (_, index) => `Received ${index}`),
+  );
+});
