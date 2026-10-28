@@ -1,8 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
+const attachedMedia =
+  '.media-picker-previews:not([hidden]) > *, .community-media-preview';
 export function hasPostDraft(container: HTMLElement): boolean {
   if (
     container.querySelector(
-      '.post-tag-chip-list button[aria-pressed="true"], .media-picker-previews:not([hidden]) > *, .community-media-preview',
+      `.post-tag-chip-list button[aria-pressed="true"], ${attachedMedia}`,
     )
   )
     return true;
@@ -15,6 +17,11 @@ export function hasPostDraft(container: HTMLElement): boolean {
       ? Boolean(input.files?.length)
       : input.value.length > 0,
   );
+}
+/** A reply needs words or media; whitespace alone is not publishable. */
+export function hasReplyContent(container: HTMLElement): boolean {
+  if (container.querySelector(attachedMedia)) return true;
+  return Boolean(container.querySelector('textarea')?.value.trim());
 }
 /** Both public composers use the same explicit discard choice and focus restoration. */
 export function confirmComposerDiscard(

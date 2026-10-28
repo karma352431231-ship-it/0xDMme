@@ -19,7 +19,11 @@ import {
   showPublicAvatar,
   showPublicPostMedia,
 } from '../public-media/index.ts';
-import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
+import {
+  hasPostDraft,
+  hasReplyContent,
+  confirmComposerDiscard,
+} from './composer-draft.ts';
 import { bindComposerBackdrop } from './composer-backdrop.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
 
@@ -177,6 +181,10 @@ export class ReplyComposer {
     >,
   ): Promise<void> {
     if (this.busy || this.closed || !this.access.valid()) return;
+    if (!hasReplyContent(this.draft)) {
+      this.markEmpty();
+      return;
+    }
     this.busy = true;
     this.feedback.textContent = '';
     const controls = [
@@ -218,6 +226,27 @@ export class ReplyComposer {
         node.disabled = previous[index]!;
       });
     }
+  }
+  /** Explains the missing content next to the field instead of a server error. */
+  private markEmpty(): void {
+    const text = this.draft.querySelector('textarea');
+    this.feedback.textContent = t(
+      'Write a reply or add media before publishing.',
+    );
+    if (!text) return;
+    this.feedback.id ||= `reply-feedback-${this.id}`;
+    text.setAttribute('aria-invalid', 'true');
+    text.setAttribute('aria-describedby', this.feedback.id);
+    text.addEventListener(
+      'input',
+      () => {
+        text.removeAttribute('aria-invalid');
+        text.removeAttribute('aria-describedby');
+        this.feedback.textContent = '';
+      },
+      { once: true, signal: this.abort.signal },
+    );
+    text.focus();
   }
   private requestClose(): void {
     if (this.busy) return;

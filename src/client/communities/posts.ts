@@ -26,6 +26,7 @@ export function startCommunityPosts(
     },
     leave,
     refresh: posts.refresh,
+    published: posts.published,
     invalidatePrivate: posts.invalidatePrivate,
     canActivate: () => posts.canActivate() && tags.canActivate(),
   };

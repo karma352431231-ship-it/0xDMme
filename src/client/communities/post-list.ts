@@ -541,6 +541,9 @@ export function startCommunityPostList(
     },
     leave,
     refresh: ready,
+    /** Shows a just-published post when its community's list is open. */
+    published: (id: string): Promise<void> =>
+      mounted && community === id ? ready() : Promise.resolve(),
     invalidatePrivate: closePrivateContent,
     canActivate: () => !busy,
   };

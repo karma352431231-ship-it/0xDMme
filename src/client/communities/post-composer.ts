@@ -28,14 +28,17 @@ export class PostComposer {
   private readonly controller: Communities;
   private readonly privacy: ExternalMediaConsent;
   private readonly participation: PublicActionAccess;
+  private readonly published: (community: string) => void;
   constructor(
     controller: Communities,
     privacy: ExternalMediaConsent,
     participation: PublicActionAccess,
+    published: (community: string) => void,
   ) {
     this.controller = controller;
     this.privacy = privacy;
     this.participation = participation;
+    this.published = published;
   }
   bind(): void {
     document.addEventListener('click', (event) => {
@@ -259,6 +262,7 @@ export class PostComposer {
         if (lifetime.signal.aborted) return;
         this.close();
         showToast(t('Post published.'), { success: true });
+        this.published(id);
       }),
     );
     publish.className = 'post-composer-publish';

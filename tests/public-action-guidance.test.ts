@@ -343,6 +343,7 @@ await test('guest Post opens guidance rather than a composer; leaving cancels an
     new Communities({} as VaultAccess),
     {} as ExternalMediaConsent,
     gate,
+    () => {},
   );
   composer.open();
   await turn();
@@ -356,6 +357,7 @@ await test('guest Post opens guidance rather than a composer; leaving cancels an
     new Communities({} as VaultAccess),
     {} as ExternalMediaConsent,
     { allow: () => pending.promise },
+    () => {},
   );
   delayed.open();
   f.window.dispatchEvent(new Event('hashchange'));
@@ -425,12 +427,17 @@ await test('an existing public profile opens the normal post composer once and k
     lists++;
     return Promise.resolve({ items: [], next: null });
   });
-  const composer = new PostComposer(controller, {} as ExternalMediaConsent, {
-    allow: () => {
-      checks++;
-      return Promise.resolve(true);
+  const composer = new PostComposer(
+    controller,
+    {} as ExternalMediaConsent,
+    {
+      allow: () => {
+        checks++;
+        return Promise.resolve(true);
+      },
     },
-  });
+    () => {},
+  );
   composer.open();
   composer.open();
   await turn();

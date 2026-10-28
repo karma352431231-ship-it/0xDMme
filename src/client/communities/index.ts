@@ -79,7 +79,14 @@ export function startCommunities(
       participation,
     }),
   );
-  const composer = new PostComposer(controller, privacy, participation);
+  const composer = new PostComposer(
+    controller,
+    privacy,
+    participation,
+    (id) => {
+      void posts.published(id);
+    },
+  );
   const feedReturn = new FeedReturn();
   let returnBookmark: FeedBookmark | null = null;
   const posts = startCommunityPosts(controller, privacy, (id) =>
