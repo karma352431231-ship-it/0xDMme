@@ -16,6 +16,7 @@ import { MessageRecoveryWakeup } from './recovery-wakeup.ts';
 import { interruptedMessageRead } from './read-target.ts';
 import type { MessageWorkResult } from './continuation.ts';
 import { MessageSyncReceiver } from './sync-receiver.ts';
+import { archiveStart, archiveToken, searchPosition } from './search-cursor.ts';
 import { loadSyncProgress, saveSyncProgress } from './sync-progress.ts';
 import { retainedMessageView } from './cache-projection.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
@@ -1386,20 +1387,18 @@ export class Messages {
           );
       };
       await check();
-      if (after?.startsWith('archive:') || snapshot() === 'local') {
+      const position = searchPosition(after);
+      if (position.archived || snapshot() === 'local') {
         const archived = await searchHistory(
           a,
           query,
-          after?.slice('archive:'.length) ?? null,
+          position.archived ? position.after : null,
           guard,
         );
-        return {
-          ...archived,
-          next: archived.next === null ? null : 'archive:' + archived.next,
-        };
+        return { ...archived, next: archiveToken(archived.next) };
       }
       const result = await searchMessages({ a, query, after, guard });
-      if (result.next === null) result.next = 'archive:';
+      if (result.next === null) result.next = archiveStart;
       await check();
       return result;
     };
