@@ -214,7 +214,8 @@ export class Backups {
       included = saved.included;
       const historical = saved.historical;
       await this.addProfile(writer, historical, guard);
-      for (const choices of this.windows(selected))
+      let processed = 0;
+      for (const choices of this.windows(selected)) {
         included += await this.writeWindow({
           choices,
           writer,
@@ -223,8 +224,11 @@ export class Backups {
           omitted,
           media,
           total: selected.length,
+          processed,
           done: included,
         });
+        processed += choices.length;
+      }
       if (groups)
         included += await this.groups.export({
           append: (row) => writer.add(row, guard),
@@ -257,13 +261,17 @@ export class Backups {
     omitted: string[];
     media: boolean;
     total: number;
+    /** Choices handled in earlier windows, for progress against `total`. */
+    processed: number;
     done: number;
   }): Promise<number> {
     const views = await this.messages.backupBatch(
       c.choices.flatMap((choice) => (choice.item ? [choice.item] : [])),
     );
-    let included = c.done;
+    let included = c.done,
+      handled = c.processed;
     for (const choice of c.choices) {
+      handled++;
       c.guard();
       let row: BackupRecord;
       try {
@@ -294,7 +302,7 @@ export class Backups {
         });
       window.dispatchEvent(
         new CustomEvent('0xdmme-backup-progress', {
-          detail: { done: included, total: c.total },
+          detail: { done: handled, total: c.total },
         }),
       );
     }

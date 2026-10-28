@@ -146,7 +146,10 @@ export function startBackups(
   window.addEventListener('0xdmme-backup-progress', (event) => {
     const detail = (event as CustomEvent<{ done: number; total: number }>)
       .detail;
-    status = t('Preparing backup: {0} items.', [detail.done]);
+    status =
+      detail.total > 0
+        ? t('Preparing backup: {0} of {1} items.', [detail.done, detail.total])
+        : t('Preparing backup: {0} items.', [detail.done]);
     render();
   });
   window.addEventListener('pagehide', () => {

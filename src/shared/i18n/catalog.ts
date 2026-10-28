@@ -5270,6 +5270,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     '准备仍在进行。请重试以恢复。',
   ],
   'session preparation': ['session preparation', '会话准备'],
+  'Preparing backup: {0} of {1} items.': [
+    'Preparing backup: {0} of {1} items.',
+    '正在准备备份：第 {0} 项，共 {1} 项。',
+  ],
   'Preparing backup: {0} items.': [
     'Preparing backup: {0} items.',
     '正在准备备份：{0} 项。',
