@@ -36,6 +36,8 @@ export function startRepresentatives(
     if (busy) return;
     busy = true;
     const current = generation;
+    // Feedback describes the latest operation; an earlier error does not stay.
+    notice('');
     host?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
       b.disabled = true;
     });
@@ -160,6 +162,8 @@ export function startRepresentatives(
         );
       list.append(row);
     }
+    if (!controller.organizations.length && !controller.cards.length)
+      list.append(paragraph(t('No organizations or authorizations yet.')));
     if (controller.hasMore)
       list.append(
         button(t('More organizations and authorizations'), async () => {

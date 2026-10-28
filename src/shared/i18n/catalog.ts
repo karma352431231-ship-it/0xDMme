@@ -4768,6 +4768,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   Sort: ['Sort', '排序'],
   'Sort comments': ['Sort comments', '排序评论'],
   'Sort posts': ['Sort posts', '排序帖子'],
+  'No organizations or authorizations yet.': [
+    'No organizations or authorizations yet.',
+    '还没有组织或授权。',
+  ],
   'Organization registered.': ['Organization registered.', '组织已注册。'],
   'Organizations and signed authorizations': [
     'Organizations and signed authorizations',
