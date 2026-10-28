@@ -1,5 +1,6 @@
 import { publicUpvoteScore } from './upvoters.ts';
 import { t } from '../../shared/i18n/index.ts';
+import { participationLink } from '../profile-shortcut/index.ts';
 import { postBookmark } from './post-bookmark.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
@@ -142,11 +143,9 @@ export function postVoting(
           }),
         )
       : el('a');
-    if (node instanceof HTMLAnchorElement) node.href = '#settings';
-    node.setAttribute(
-      'aria-label',
-      actions ? title : t('Sign in through Profile to vote'),
-    );
+    if (node instanceof HTMLAnchorElement)
+      participationLink(node, t('Create a public profile to vote'));
+    else node.setAttribute('aria-label', title);
     node.dataset['vote'] = String(position);
     node.setAttribute('aria-pressed', String(actions?.position === position));
     node.append(communityIcon(icon));

@@ -1,6 +1,7 @@
 import { countShareClick } from './share-click.ts';
 import { postLinkSharing } from './post-link-sharing.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
+import { participationLink } from '../profile-shortcut/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postShareState } from '../../shared/post-sharing/index.ts';
 import type { Communities } from './controller.ts';
@@ -36,9 +37,9 @@ export function postSharing(
     // Best-effort counting never adds collection feedback to the sharing UI.
     void countShareClick(post).catch(() => false);
   });
-  if (button instanceof HTMLAnchorElement) button.href = '#settings';
   if (!(button instanceof HTMLButtonElement) || !access) {
-    button.setAttribute('aria-label', t('Sign in through Profile to share'));
+    if (button instanceof HTMLAnchorElement)
+      participationLink(button, t('Create a public profile to share'));
     return;
   }
   button.type = 'button';

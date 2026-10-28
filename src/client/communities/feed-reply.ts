@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { participationLink } from '../profile-shortcut/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postState } from '../../shared/community-posts/index.ts';
 import type { ReplyActions } from './post-reply.ts';
@@ -46,8 +47,7 @@ export function feedReply(
     });
   } else {
     const login = el('a', t('Reply'), 'post-action post-comments');
-    login.href = '#settings';
-    login.setAttribute('aria-label', t('Sign in through Profile to reply'));
+    participationLink(login, t('Create a public profile to reply'));
     toolbar.append(login);
   }
   const discussion = el('a', '', 'post-discussion');

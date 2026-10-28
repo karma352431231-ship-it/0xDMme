@@ -1,4 +1,5 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
+import { participationLink } from '../profile-shortcut/index.ts';
 import { withoutBookmarkState } from './post-bookmark.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
@@ -183,8 +184,7 @@ export class ActivityPosts {
       });
     } else {
       const login = el('a', t('Reply'), 'post-action post-comments');
-      login.href = '#settings';
-      login.setAttribute('aria-label', t('Sign in through Profile to reply'));
+      participationLink(login, t('Create a public profile to reply'));
       toolbar.append(login);
       postSharing(toolbar, post, null);
     }

@@ -2809,9 +2809,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Sign in through Profile to access your list',
     '通过“个人资料”登录以访问列表',
   ],
-  'Sign in through Profile to share': [
-    'Sign in through Profile to share',
-    '通过“个人资料”登录以分享',
+  'Create a public profile to share': [
+    'Create a public profile to share',
+    '创建公开资料后即可分享',
   ],
   'Sign in through Profile to create a post.': [
     'Sign in through Profile to create a post.',
@@ -2821,13 +2821,13 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Sign in through Profile to participate',
     '通过“个人资料”登录以参与',
   ],
-  'Sign in through Profile to reply': [
-    'Sign in through Profile to reply',
-    '通过“个人资料”登录以回复',
+  'Create a public profile to reply': [
+    'Create a public profile to reply',
+    '创建公开资料后即可回复',
   ],
-  'Sign in through Profile to vote': [
-    'Sign in through Profile to vote',
-    '通过“个人资料”登录以投票',
+  'Create a public profile to vote': [
+    'Create a public profile to vote',
+    '创建公开资料后即可投票',
   ],
   'Sign in first.': ['Sign in first.', '请先登录。'],
   'Delivery suspended: renewed consent is required.': [
