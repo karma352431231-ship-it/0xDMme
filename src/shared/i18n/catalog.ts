@@ -4494,9 +4494,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     "This round's upload is already complete.",
     '本轮上传已完成。',
   ],
-  'sending or recording in Conversations': [
-    'sending or recording in Conversations',
-    '“对话”中的发送或录音',
+  'sending, recording or unsent text in Conversations': [
+    'sending, recording or unsent text in Conversations',
+    '“对话”中的发送、录音或未发送的文字',
   ],
   'Push delivery has not been configured in this environment yet.': [
     'Push delivery has not been configured in this environment yet.',

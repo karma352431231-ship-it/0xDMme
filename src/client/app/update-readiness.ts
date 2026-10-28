@@ -43,7 +43,7 @@ export function updateBlockReason(features: UpdateFeatures): string | null {
       ],
       [t('editing in Contacts'), features.contacts.canActivate],
       [
-        t('sending or recording in Conversations'),
+        t('sending, recording or unsent text in Conversations'),
         features.messages.canActivate,
       ],
       [t('publishing in My status'), features.statuses.canActivate],

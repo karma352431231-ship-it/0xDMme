@@ -1408,9 +1408,17 @@ export function startMessages(
     );
     status();
   }
+  /** Typed text is not stored anywhere, so leaving the page asks first. */
+  function unsentWork(): boolean {
+    return (
+      composer.recording ||
+      composer.voicePreview ||
+      textQueue.unsaved ||
+      composer.text.trim() !== ''
+    );
+  }
   function beforeUnload(event: BeforeUnloadEvent): void {
-    if (!composer.recording && !composer.voicePreview && !textQueue.unsaved)
-      return;
+    if (!unsentWork()) return;
     event.preventDefault();
     event.returnValue = '';
   }
@@ -1707,11 +1715,7 @@ export function startMessages(
       synchronization.resume();
     },
     canActivate: () =>
-      !synchronization.busy &&
-      !textQueue.unsaved &&
-      !composer.recording &&
-      !composer.voicePreview &&
-      groups.canActivate(),
+      !synchronization.busy && !unsentWork() && groups.canActivate(),
     // In-app navigation closes/rechecks history, while keeping the directory
     // previews that are already retained when the conversation is hidden.
     leave: () => releaseConversation('directory'),
