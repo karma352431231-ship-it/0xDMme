@@ -4110,6 +4110,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Could not copy the wallet address.',
     '无法复制钱包地址。',
   ],
+  'Text copied.': ['Text copied.', '文字已复制。'],
   'Could not copy the text.': ['Could not copy the text.', '无法复制文字。'],
   'Could not create the wallet-opening request. Check your connection and try again.':
     [

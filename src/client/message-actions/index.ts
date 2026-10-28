@@ -4,6 +4,7 @@ import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
+import { showToast } from '../toast/index.ts';
 interface MessageActionOptions<T extends DailyRow> {
   signal: AbortSignal;
   view: DailyView<T>;
@@ -50,6 +51,7 @@ export function messageActions<T extends DailyRow>(
         'edit',
       ),
     );
+  appendCopy(menu, c);
   const reaction = c.action(t('React…'), async () => {
     const emoji = await c.picker.choose(trigger);
     if (emoji !== null && !c.signal.aborted) await c.react(c.view, emoji);
@@ -58,6 +60,26 @@ export function messageActions<T extends DailyRow>(
   appendForward(menu, c);
   appendRemove(menu, c);
   return host;
+}
+
+/** Copies the visible text (a caption for attachments) on this device only.
+ * The clipboard call stays inside the click: browsers refuse it once queued. */
+function appendCopy<T extends DailyRow>(
+  menu: HTMLElement,
+  c: MessageActionOptions<T>,
+): void {
+  const text = c.view.content.text;
+  if (!text || !['text', 'attachment'].includes(c.view.kind)) return;
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.textContent = t('Copy text');
+  copy.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(
+      () => showToast(t('Text copied.'), { success: true }),
+      () => showToast(t('Could not copy the text.')),
+    );
+  });
+  menu.append(withMenuIcon(copy, 'copy'));
 }
 
 function appendForward<T extends DailyRow>(
