@@ -631,6 +631,21 @@
 .profile-editor-description small[data-over='true'] {
   color: var(--danger);
 }
+.profile-editor-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0 20px;
+}
+.profile-editor-draft p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.profile-editor-draft button[hidden] {
+  display: none;
+}
 #feed-panel .public-profile-description {
   padding: 0 14px 14px;
   font-size: 14px;

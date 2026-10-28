@@ -57,6 +57,67 @@ export function startProfileEditor(
     draftDescription: string | null = null;
   let banner: ProfileBanner = { revision: 0, banner: null };
   let description: ProfileDescription = { revision: 0, description: '' };
+  // Drafts live in memory until confirmed or the session changes, so leaving
+  // the page and coming back keeps them; a reload asks first.
+  let unloadGuard: AbortController | null = null;
+  function hasDraft(): boolean {
+    return (
+      draftAvatar !== undefined ||
+      draftBanner !== undefined ||
+      (draftDescription !== null &&
+        draftDescription.trim() !== description.description)
+    );
+  }
+  function guardUnload(): void {
+    if (unloadGuard) return;
+    unloadGuard = new AbortController();
+    window.addEventListener(
+      'beforeunload',
+      (event) => {
+        if (!hasDraft()) return;
+        event.preventDefault();
+        event.returnValue = '';
+      },
+      { signal: unloadGuard.signal },
+    );
+  }
+  function paintDraftState(): void {
+    const draft = hasDraft(),
+      state = node('[data-profile-draft-state]'),
+      discard = node('[data-discard-profile]');
+    if (state)
+      state.textContent = draft
+        ? t('Unsaved changes. Confirm to publish them.')
+        : '';
+    if (discard) discard.hidden = !draft;
+  }
+  /** Kept drafts need an explicit way back to the published profile. */
+  function discardDrafts(): void {
+    draftAvatar = undefined;
+    draftAvatarRevision = undefined;
+    draftBanner = undefined;
+    draftDescription = null;
+    const field = node<HTMLTextAreaElement>('[data-public-description]');
+    if (field) setMentionValue(field, description.description);
+    paint();
+    // The button hides itself; keep focus inside the editor.
+    field?.focus();
+  }
+  function draftControls(): HTMLElement {
+    const row = document.createElement('div'),
+      state = document.createElement('p'),
+      discard = document.createElement('button');
+    row.className = 'profile-editor-draft';
+    state.dataset['profileDraftState'] = '';
+    state.setAttribute('role', 'status');
+    discard.type = 'button';
+    discard.dataset['discardProfile'] = '';
+    discard.textContent = t('Discard changes');
+    discard.hidden = true;
+    discard.addEventListener('click', discardDrafts);
+    row.append(state, discard);
+    return row;
+  }
   function node<T extends HTMLElement>(selector: string): T | null {
     return host?.querySelector<T>(selector) ?? null;
   }
@@ -110,6 +171,7 @@ export function startProfileEditor(
     paintBanner();
     paintAvatar();
     paintDescription();
+    paintDraftState();
   }
   async function refresh(): Promise<void> {
     if (!host || !controller.profile) return;
@@ -265,6 +327,7 @@ export function startProfileEditor(
     field?.addEventListener('input', () => {
       draftDescription = mentionValue(field);
       count();
+      paintDraftState();
     });
     node('[data-confirm-profile]')?.addEventListener('click', () => {
       void options.run(confirm);
@@ -273,24 +336,18 @@ export function startProfileEditor(
   return {
     paint,
     refresh,
-    hasDraft: () =>
-      draftAvatar !== undefined ||
-      draftBanner !== undefined ||
-      (draftDescription !== null &&
-        draftDescription.trim() !== description.description),
+    hasDraft,
     disable,
     mount(container: HTMLElement | null): void {
       mentionsAbort.abort();
       mentionsAbort = new AbortController();
       release();
       generation++;
-      draftAvatar = undefined;
-      draftAvatarRevision = undefined;
-      draftBanner = undefined;
-      draftDescription = null;
       host = container;
       if (!container) return;
       container.innerHTML = template;
+      node('[data-confirm-profile]')?.before(draftControls());
+      guardUnload();
       const bannerImage = node<HTMLImageElement>('[data-pick="banner"] img'),
         avatarSlot = node('[data-avatar-slot]');
       if (bannerImage)
@@ -301,6 +358,8 @@ export function startProfileEditor(
     clear(): void {
       bannerPreview?.clear();
       avatarPreview?.clear();
+      unloadGuard?.abort();
+      unloadGuard = null;
       generation++;
       draftAvatar = undefined;
       draftAvatarRevision = undefined;

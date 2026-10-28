@@ -1067,6 +1067,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Change saved.': ['Change saved.', '更改已保存。'],
   'Changes confirmed.': ['Changes confirmed.', '更改已确认。'],
+  'Unsaved changes. Confirm to publish them.': [
+    'Unsaved changes. Confirm to publish them.',
+    '有未保存的更改。确认后即可发布。',
+  ],
   'Local changes are partially loaded; keep opening the local copy.': [
     'Local changes are partially loaded; keep opening the local copy.',
     '本地更改已部分加载；请继续打开本地副本。',
@@ -2469,6 +2473,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   Discard: ['Discard', '丢弃'],
   'Discard post?': ['Discard post?', '丢弃帖子？'],
   'Discard reply?': ['Discard reply?', '丢弃回复？'],
+  'Discard changes': ['Discard changes', '放弃更改'],
   Discover: ['Discover', '探索'],
   Description: ['Description', '简介'],
   'Invalid emoji artwork.': ['Invalid emoji artwork.', '表情图案无效。'],
