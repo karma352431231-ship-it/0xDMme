@@ -2472,6 +2472,11 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Report not confirmed.': ['Report not confirmed.', '举报未确认。'],
   Report: ['Report', '举报'],
+  "Your report goes to the 0xDMme team, not to the author or the community's moderators. The author does not see who reported.":
+    [
+      "Your report goes to the 0xDMme team, not to the author or the community's moderators. The author does not see who reported.",
+      '你的举报会发送给 0xDMme 团队，而不是作者或社区管理员。作者看不到是谁举报的。',
+    ],
   'Report post': ['Report post', '举报帖子'],
   'Report user': ['Report user', '举报用户'],
   'Community reports': ['Community reports', '社区举报'],

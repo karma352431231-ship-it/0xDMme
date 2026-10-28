@@ -405,6 +405,17 @@ export function postReportForm(
   report: (data: Record<string, unknown>) => Promise<void>,
 ): void {
   if (post.status !== 'visible') return;
+  // Reports are stored for the app's operators only; nothing in the app
+  // shows them to the author or to the community's moderators.
+  container.append(
+    el(
+      'p',
+      t(
+        "Your report goes to the 0xDMme team, not to the author or the community's moderators. The author does not see who reported.",
+      ),
+      'community-report-hint',
+    ),
+  );
   const reason = field(container, t('Post report reason'), {
       maximum: 900,
       multiline: true,

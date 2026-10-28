@@ -129,6 +129,12 @@
 .community-feedback:empty {
   display: none;
 }
+.community-report-hint {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .community-empty {
   padding: 28px 16px;
   border: 1px solid var(--line);
