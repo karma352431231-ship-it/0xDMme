@@ -593,6 +593,9 @@ export function startContacts(
     await options.saved?.(contact);
     received = null;
     invitePeer = null;
+    // The invitation is used up: clear its link so the form does not offer
+    // the same request again.
+    node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
     if (!requests.offered) status = t('Request sent. Wait for acceptance.');
