@@ -11,6 +11,8 @@ export const backupReportLimit = 32_000_000;
 export const backupChunk = 262144;
 /** One record, including a media record: base64 of a 10 MB chat file plus its fields (16/10/2026). */
 export const backupRecordLimit = 14_000_000;
+/** Chunks a record of `backupRecordLimit` bytes needs; the reader accepts every record the writer can emit. */
+export const backupRecordParts = Math.ceil(backupRecordLimit / backupChunk);
 /** Message text inside a record keeps its earlier bound. */
 export const backupTextLimit = 6_000_000;
 export const backupItemLimit = 65536;

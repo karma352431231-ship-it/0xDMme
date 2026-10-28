@@ -1470,15 +1470,19 @@ export const catalog: Record<string, readonly [string, string]> = {
     '备份不完整。重置需要所有对话和媒体。',
   ],
   'Backup already ended.': ['Backup already ended.', '备份已结束。'],
-  'Backup prepared. Keep the file and use “Validate file” to check the saved copy.':
+  'Backup prepared. Keep the file and use “Validate and import file” to check the saved copy.':
     [
-      'Backup prepared. Keep the file and use “Validate file” to check the saved copy.',
-      '备份已准备好。请保留文件，并使用“验证文件”检查保存的副本。',
+      'Backup prepared. Keep the file and use “Validate and import file” to check the saved copy.',
+      '备份已准备好。请保留文件，并使用“验证并导入文件”检查保存的副本。',
     ],
   'Backup truncated.': ['Backup truncated.', '备份被截断。'],
-  'Backup empty or larger than 1 GiB.': [
-    'Backup empty or larger than 1 GiB.',
-    '备份为空或超过 1 GiB。',
+  'Backup damaged or altered. Choose another intact copy.': [
+    'Backup damaged or altered. Choose another intact copy.',
+    '备份已损坏或被修改。请选择另一份完好的副本。',
+  ],
+  'Backup empty or larger than 4 GiB.': [
+    'Backup empty or larger than 4 GiB.',
+    '备份为空或超过 4 GiB。',
   ],
   'Badge updated.': ['Badge updated.', '徽章已更新。'],
   'Custom badges': ['Custom badges', '自定义徽章'],
@@ -4703,6 +4707,8 @@ export const catalog: Record<string, readonly [string, string]> = {
       'Operation interrupted. If reset was already sent, check storage before retrying.',
       '操作已中断。如果已发送重置请求，请检查存储状态后重试。',
     ],
+  'Operation interrupted.': ['Operation interrupted.', '操作已中断。'],
+  'Operation canceled.': ['Operation canceled.', '操作已取消。'],
   'Operation interrupted. If cleanup was sent, check the remote state.': [
     'Operation interrupted. If cleanup was sent, check the remote state.',
     '操作已中断。如果已发送清理请求，请检查远程状态。',
@@ -6674,8 +6680,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<fieldset class="appearance-options"><legend>主题</legend>{0}</fieldset><p class="appearance-feedback" role="status"></p><p class="settings-test-note">登录后，主题将随账户同步到各设备。</p>',
   ],
   'html.eedc51d31423': [
-    '<article class="card"><h2>Local backup</h2><p>Keep a full encrypted copy. Importing a file adds its history to this device\'s conversations.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Save backup file</button><a data-backup-download hidden>Download prepared file</a><button data-backup-validate type="button">Validate file</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>Cancel</button><section class="settings-danger"><h3>Danger zone</h3><p>Available after you validate a backup file: removes from your server vault only what that file preserves, after confirmation. Later messages and other people\'s copies remain.</p><button data-backup-clean type="button" disabled>Reset vault</button></section></article>',
-    '<article class="card"><h2>本地备份</h2><p>保留完整的加密副本。导入文件会将历史加入此设备的对话中。</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">保存备份文件</button><a data-backup-download hidden>下载已处理文件</a><button data-backup-validate type="button">验证文件</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>取消</button><section class="settings-danger"><h3>危险操作</h3><p>验证备份文件后可用：确认后，仅从服务器保险库中移除该文件已保存的内容。之后的消息和其他人的副本会保留。</p><button data-backup-clean type="button" disabled>重置保险库</button></section></article>',
+    '<article class="card"><h2>Local backup</h2><p>Keep a full encrypted copy. Importing a file adds its history to this device\'s conversations.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Save backup file</button><a data-backup-download hidden>Download prepared file</a><button data-backup-validate type="button">Validate and import file</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>Cancel</button><section class="settings-danger"><h3>Danger zone</h3><p>Available after you validate a backup file: removes from your server vault only what that file preserves, after confirmation. Later messages and other people\'s copies remain.</p><button data-backup-clean type="button" disabled>Reset vault</button></section></article>',
+    '<article class="card"><h2>本地备份</h2><p>保留完整的加密副本。导入文件会将历史加入此设备的对话中。</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">保存备份文件</button><a data-backup-download hidden>下载已处理文件</a><button data-backup-validate type="button">验证并导入文件</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>取消</button><section class="settings-danger"><h3>危险操作</h3><p>验证备份文件后可用：确认后，仅从服务器保险库中移除该文件已保存的内容。之后的消息和其他人的副本会保留。</p><button data-backup-clean type="button" disabled>重置保险库</button></section></article>',
   ],
   'html.dc84c57fff55': [
     '<article class="card call-settings"><h2>Voice calls</h2><p>Receive calls from approved contacts while the app is open and connected. Muted or archived conversations do not ring. No call history is kept.</p><button data-call-toggle type="button" aria-pressed="true">Disable incoming calls</button><p data-call-status role="status"></p></article>',

@@ -20,6 +20,8 @@ import type { VaultAuthority } from '../src/client/vault-authority/index.ts';
 import type { BackupRecord } from '../src/client/backup-records/index.ts';
 import { sealFile } from '../src/client/attachment-crypto/index.ts';
 import { encode } from '../src/shared/account/index.ts';
+import { chatFileLimit } from '../src/shared/attachments/index.ts';
+import { backupChunk } from '../src/shared/backups/index.ts';
 import { bytesHash } from '../src/shared/vault/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
 import { createGroupEvent } from '../src/client/groups/transitions.ts';
@@ -180,6 +182,68 @@ await test('file above 3 MB opens in a clean reader with a historical account ke
     globalThis.fetch = oldFetch;
   }
 });
+await test('media record near the chat attachment limit spans more than 32 parts and reopens complete', async () => {
+  const a = fixture(),
+    participant = await groupParticipant({
+      accountId: a.session.accountId,
+      deviceId: a.session.deviceId,
+    }),
+    state = await createGroupEvent(participant.authority, crypto.randomUUID());
+  const data = { state, title: 'Synthetic group', profileSequence: 1 },
+    group: BackupRecord = {
+      type: 'group',
+      id: crypto.randomUUID(),
+      hash: await groupSnapshotHash(data),
+      ...data,
+    };
+  const sealed = await sealFile(
+      new Uint8Array(9 * 1024 * 1024).fill(7),
+      chatFileLimit,
+    ),
+    id = crypto.randomUUID();
+  const message: BackupRecord = {
+    type: 'group-message',
+    id,
+    hash: 'b'.repeat(64),
+    groupId: state.groupId,
+    sequence: 1,
+    epoch: 1,
+    sender: a.session.accountId,
+    own: true,
+    kind: 'attachment',
+    text: JSON.stringify({
+      version: 1,
+      name: 'volume.bin',
+      type: 'application/octet-stream',
+      caption: 'Synthetic volume',
+      image: false,
+      file: sealed.file,
+      thumbnail: null,
+    }),
+  };
+  const media: BackupRecord = {
+    type: 'group-media',
+    id: sealed.file.ref.id,
+    hash: sealed.file.ref.hash,
+    groupId: state.groupId,
+    message: id,
+    thumbnail: false,
+    bytes: encode(sealed.bytes),
+  };
+  const reader = await BackupReader.open(
+    a,
+    await archive(a, [group, message, media]),
+    () => {},
+  );
+  const info = reader.report.records[2];
+  assert.ok(
+    info && info.parts > 32,
+    `expected over 32 parts, got ${info?.parts}`,
+  );
+  assert.equal(info.parts, Math.ceil(info.bytes / backupChunk));
+  assert.equal(reader.complete, true);
+  assert.deepEqual(await reader.read(2), media);
+});
 await test('wrong key, other account, tampering, truncation and extra bytes are rejected', async () => {
   const a = fixture(),
     file = await archive(a, [record()]);
@@ -195,7 +259,12 @@ await test('wrong key, other account, tampering, truncation and extra bytes are 
   );
   const bytes = new Uint8Array(await file.arrayBuffer());
   bytes[bytes.length - 1] = (bytes[bytes.length - 1] ?? 0) ^ 1;
-  await assert.rejects(BackupReader.open(a, new Blob([bytes]), () => {}));
+  await assert.rejects(
+    BackupReader.open(a, new Blob([bytes]), () => {}),
+    {
+      message: 'Backup damaged or altered. Choose another intact copy.',
+    },
+  );
   await assert.rejects(BackupReader.open(a, file.slice(0, -1), () => {}));
   await assert.rejects(
     BackupReader.open(a, new Blob([file, new Uint8Array([0])]), () => {}),

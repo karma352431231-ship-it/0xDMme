@@ -86,13 +86,14 @@ export class Backups {
     this.writer = null;
     this.exported.clear();
   }
-  guard(token = this.generation): () => void {
+  guard(
+    token = this.generation,
+    interrupted = 'Operation interrupted.',
+  ): () => void {
     const deadline = Date.now() + 7200_000;
     return () => {
       if (token !== this.generation || Date.now() > deadline)
-        throw new Error(
-          'Operation interrupted. If cleanup was sent, check the remote state.',
-        );
+        throw new Error(interrupted);
     };
   }
   list(): BackupChoice[] {
@@ -528,7 +529,10 @@ export class Backups {
       throw new Error(
         'No items in this export are eligible for cleanup. Attachments must be complete in the file.',
       );
-    const guard = this.guard();
+    const guard = this.guard(
+      this.generation,
+      'Operation interrupted. If cleanup was sent, check the remote state.',
+    );
     try {
       const result = await this.access.withVault(false, (a) =>
         cleanPersonal(a, items, reader.hash, guard),

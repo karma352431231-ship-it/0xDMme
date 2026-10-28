@@ -18,7 +18,9 @@ export function startBackups(
   const controller = new Backups(access, sync, options.profile);
   let mounted: HTMLElement | null = null,
     busy = false,
-    armed = false;
+    armed = false,
+    canceled = false;
+  let running: (() => Promise<void>) | null = null;
   let status = t(
     'The full backup includes conversations, audio, images and files.',
   );
@@ -61,16 +63,21 @@ export function startBackups(
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
     busy = true;
+    running = work;
+    canceled = false;
     render();
     try {
       await work();
     } catch (error: unknown) {
-      status =
-        error instanceof Error
-          ? translatedError(error.message)
-          : t('Could not complete the backup.');
+      // A user cancellation already set its own status; keep it.
+      if (!canceled)
+        status =
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Could not complete the backup.');
     } finally {
       busy = false;
+      running = null;
       render();
     }
   }
@@ -93,7 +100,7 @@ export function startBackups(
           [report.omitted.length],
         )
       : t(
-          'Backup prepared. Keep the file and use “Validate file” to check the saved copy.',
+          'Backup prepared. Keep the file and use “Validate and import file” to check the saved copy.',
         );
   }
   async function validate(): Promise<void> {
@@ -205,11 +212,15 @@ export function startBackups(
       container
         .querySelector('[data-backup-cancel]')
         ?.addEventListener('click', () => {
+          canceled = true;
+          status =
+            running === reset
+              ? t(
+                  'Operation interrupted. If reset was already sent, check storage before retrying.',
+                )
+              : t('Operation canceled.');
           controller.cancel();
           armed = false;
-          status = t(
-            'Operation interrupted. If reset was already sent, check storage before retrying.',
-          );
           render();
         });
       render();

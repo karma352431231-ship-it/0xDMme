@@ -12,6 +12,7 @@ import {
   backupChunk,
   backupLimit,
   backupRecordLimit,
+  backupRecordParts,
   backupItemLimit,
   backupFrameLimit,
   backupReportLimit,
@@ -123,18 +124,30 @@ async function decipher(
   context: { h: Header; index: number; kind: number },
   bytes: Uint8Array,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  return new Uint8Array(
-    await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: Uint8Array.from(bytes.slice(0, 12)),
-        additionalData: aad(context.h, context.index, context.kind),
-        tagLength: 128,
-      },
-      key,
-      Uint8Array.from(bytes.slice(12)),
-    ),
-  );
+  try {
+    return new Uint8Array(
+      await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: Uint8Array.from(bytes.slice(0, 12)),
+          additionalData: aad(context.h, context.index, context.kind),
+          tagLength: 128,
+        },
+        key,
+        Uint8Array.from(bytes.slice(12)),
+      ),
+    );
+  } catch (error: unknown) {
+    // Authentication failure: the file was altered or damaged after export.
+    if (error instanceof DOMException && error.name === 'OperationError')
+      throw new Error(
+        'Backup damaged or altered. Choose another intact copy.',
+        {
+          cause: error,
+        },
+      );
+    throw error;
+  }
 }
 async function chain(previous: string, bytes: Uint8Array): Promise<string> {
   const before = encoder.encode(previous);
@@ -331,7 +344,7 @@ export class BackupReader {
     guard: () => void,
   ): Promise<BackupReader> {
     if (file.size < 64 || file.size > backupLimit)
-      throw new Error('Backup empty or larger than 1 GiB.');
+      throw new Error('Backup empty or larger than 4 GiB.');
     const start = await read(file, 0, 12);
     if (!magic.every((b, i) => start[i] === b))
       throw new Error('Unsupported backup file.');
@@ -619,7 +632,7 @@ function parseInfo(value: unknown): RecordInfo {
     id: uuid(r['id']),
     hash: fingerprint(r['hash']),
     start: integer(r['start'], backupFrameLimit),
-    parts: integer(r['parts'], 32),
+    parts: integer(r['parts'], backupRecordParts),
     bytes: integer(r['bytes'], backupRecordLimit),
     digest: fingerprint(r['digest']),
   };
