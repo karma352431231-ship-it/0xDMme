@@ -23,6 +23,7 @@ import {
   hasPostDraft,
   requireReplyContent,
   confirmComposerDiscard,
+  guardDraftLinks,
 } from './composer-draft.ts';
 import { bindComposerBackdrop } from './composer-backdrop.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
@@ -100,6 +101,12 @@ export class ReplyComposer {
     bindComposerBackdrop(this.dialog, {
       signal: this.abort.signal,
       requestClose: () => this.requestClose(),
+    });
+    guardDraftLinks(this.dialog, {
+      draft: this.draft,
+      label: t('Discard reply?'),
+      close: () => this.close(),
+      signal: this.abort.signal,
     });
     this.access.media.signal.addEventListener('abort', () => this.close(), {
       once: true,

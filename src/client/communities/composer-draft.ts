@@ -52,6 +52,50 @@ export function requireReplyContent(
   text.focus();
   return false;
 }
+/** A plain click follows the link here; modified clicks open it elsewhere. */
+function leavesPage(event: MouseEvent, link: HTMLAnchorElement): boolean {
+  if (event.defaultPrevented || event.button !== 0) return false;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+    return false;
+  return link.target === '' || link.target === '_self';
+}
+/**
+ * A link inside a composer, such as the parent author's handle, would close
+ * it with the draft. With a draft, the click first asks through the same
+ * discard choice and follows the link only after Discard.
+ */
+export function guardDraftLinks(
+  dialog: HTMLDialogElement,
+  options: {
+    draft: HTMLElement;
+    label: string;
+    close: () => void;
+    signal: AbortSignal;
+  },
+): void {
+  dialog.addEventListener(
+    'click',
+    (event) => {
+      const link =
+        event.target instanceof Element
+          ? event.target.closest('a[href]')
+          : null;
+      if (!(link instanceof HTMLAnchorElement) || !leavesPage(event, link))
+        return;
+      if (!hasPostDraft(options.draft)) return;
+      event.preventDefault();
+      confirmComposerDiscard(dialog, {
+        draft: options.draft,
+        label: options.label,
+        close: () => {
+          options.close();
+          window.location.assign(link.href);
+        },
+      });
+    },
+    { signal: options.signal },
+  );
+}
 /** Both public composers use the same explicit discard choice and focus restoration. */
 export function confirmComposerDiscard(
   dialog: HTMLDialogElement,
