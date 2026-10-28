@@ -175,6 +175,7 @@ export function coordinatorFixture(
   const asyncNoop = () => Promise.resolve();
   const base = {
     close: noop,
+    hide: noop,
     leave: noop,
     reset: noop,
     clear: noop,
