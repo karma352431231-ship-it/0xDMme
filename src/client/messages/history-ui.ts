@@ -27,6 +27,7 @@ import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { messageRowKeys } from './row-keys.ts';
+import { openMessageMenu, reopenMessageMenu } from '../message-menu/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emojiText } from '../emoji/index.ts';
 import type { AttachmentUi } from '../attachment-ui/index.ts';
@@ -210,6 +211,7 @@ export class MessageHistoryUi {
           views,
           this.options.context().selected?.localOnly,
         );
+      const menu = openMessageMenu(history);
       const rows = views.map((view) => ({
         id: view.id,
         key: keys.get(view.id)!,
@@ -233,6 +235,7 @@ export class MessageHistoryUi {
         ],
         this.options.signal(),
       );
+      reopenMessageMenu(history, menu);
       this.renderStates();
     } else if (this.views !== null) this.renderStates();
   }

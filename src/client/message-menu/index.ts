@@ -129,3 +129,39 @@ function visibleChatBounds(trigger: HTMLElement, panel: HTMLElement) {
     bottom: Math.min(view.height - 8, chat.bottom),
   };
 }
+
+function messageRow(history: HTMLElement, id: string): HTMLElement | null {
+  return (
+    [...history.querySelectorAll<HTMLElement>('article[data-message]')].find(
+      (row) => row.dataset['message'] === id,
+    ) ?? null
+  );
+}
+/** The message whose menu is open, read before the history rows are rebuilt. */
+export function openMessageMenu(
+  history: HTMLElement,
+): { id: string; row: HTMLElement } | null {
+  const trigger = history.querySelector(
+    'article[data-message] .message-actions > button[aria-expanded="true"]',
+  );
+  const row = trigger?.closest<HTMLElement>('article[data-message]');
+  const id = row?.dataset['message'];
+  return row && id ? { id, row } : null;
+}
+/**
+ * A remote edit rebuilds that message's row and with it the open menu; open
+ * it again on the new row, focus inside, so the reader's action is not lost.
+ */
+export function reopenMessageMenu(
+  history: HTMLElement,
+  open: { id: string; row: HTMLElement } | null,
+): void {
+  if (!open) return;
+  const row = messageRow(history, open.id);
+  if (!row || row === open.row) return;
+  row
+    .querySelector<HTMLButtonElement>(
+      '.message-actions > button[aria-haspopup="menu"]',
+    )
+    ?.click();
+}
