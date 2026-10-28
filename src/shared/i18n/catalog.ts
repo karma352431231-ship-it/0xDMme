@@ -29,6 +29,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Create a public profile to publish a post.',
     '创建公开个人资料后即可发帖。',
   ],
+  'Create a public profile to vote, reply or share.': [
+    'Create a public profile to vote, reply or share.',
+    '创建公开个人资料后即可投票、回复或分享。',
+  ],
   'Create a public profile to create a community.': [
     'Create a public profile to create a community.',
     '创建公开个人资料后即可创建社区。',

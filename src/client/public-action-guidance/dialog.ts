@@ -5,12 +5,17 @@ import {
 } from '../profile-shortcut/index.ts';
 
 export type PublicAction =
-  'follow-community' | 'follow-profile' | 'post' | 'create-community';
+  | 'follow-community'
+  | 'follow-profile'
+  | 'post'
+  | 'create-community'
+  | 'participate';
 const messages = {
   'follow-community': 'Create a public profile to follow this community.',
   'follow-profile': 'Create a public profile to follow this profile.',
   post: 'Create a public profile to publish a post.',
   'create-community': 'Create a public profile to create a community.',
+  participate: 'Create a public profile to vote, reply or share.',
 } as const;
 let closeCurrent: (() => void) | null = null;
 

@@ -111,6 +111,7 @@ const descriptions: Record<PublicAction, string> = {
   'follow-profile': 'Create a public profile to follow this profile.',
   post: 'Create a public profile to publish a post.',
   'create-community': 'Create a public profile to create a community.',
+  participate: 'Create a public profile to vote, reply or share.',
 };
 for (const language of ['en', 'zh-CN'] as const)
   for (const action of Object.keys(descriptions) as PublicAction[])

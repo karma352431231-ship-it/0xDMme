@@ -15,6 +15,10 @@ import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
 import type { PublicActionAccess } from '../public-action-guidance/index.ts';
+import {
+  missingPublicProfile,
+  showPublicProfileGuidance,
+} from '../public-action-guidance/index.ts';
 import { mountPublicSearchToolbar } from '../public-search/index.ts';
 import { mountDiscoveryRanking, rankingScopes } from './account-ranking.ts';
 import { rankingTopicFilter } from './classification.ts';
@@ -88,6 +92,12 @@ export function startCommunityDiscovery(
       .then(work)
       .catch((error: unknown) => {
         page?.invalidate();
+        // A connected account without a public profile is led to create one
+        // instead of reading a server refusal in the feed status.
+        if (old === generation && missingPublicProfile(error)) {
+          showPublicProfileGuidance('participate');
+          return;
+        }
         if (old === generation && feedback)
           feedback.textContent =
             error instanceof Error
