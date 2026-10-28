@@ -98,6 +98,7 @@ class CropDialog {
 
   result(file: File): Promise<File | null> {
     return new Promise((resolve) => {
+      const opener = document.activeElement;
       const apply = button(t('crop.apply'), 'image-crop-apply');
       const cancel = button(t('crop.cancel'), 'image-crop-cancel');
       const header = document.createElement('header');
@@ -110,6 +111,8 @@ class CropDialog {
         window.removeEventListener('resize', this.layout);
         this.dialog.close();
         this.dialog.remove();
+        // The dialog is removed, so focus goes back to its opener explicitly.
+        if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
         resolve(value);
       };
       cancel.addEventListener('click', () => finish(null));

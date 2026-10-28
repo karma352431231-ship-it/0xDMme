@@ -210,13 +210,26 @@ export function startProfileEditor(
   }
   function prepare(work: () => Promise<void>): Promise<void> {
     return options.prepare(async () => {
+      // Disabling drops focus; give it back to the control that started the work.
+      const started = document.activeElement;
       disable(true);
       try {
         await work();
       } finally {
         disable(false);
+        returnFocus(started);
       }
     });
+  }
+  function returnFocus(started: Element | null): void {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    if (
+      started instanceof HTMLElement &&
+      started.isConnected &&
+      !started.hidden
+    )
+      started.focus();
   }
   function bind(): void {
     const input = node<HTMLInputElement>('[data-pick-file]');
