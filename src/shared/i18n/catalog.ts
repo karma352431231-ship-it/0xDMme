@@ -811,6 +811,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.largest': ['Largest', '最大'],
   'ranking.new': ['New', '最新'],
   'ranking.following': ['Following', '已关注'],
+  'ranking.filters': ['Community filters', '社区筛选'],
   'ranking.community': ['Community', '社区'],
   'ranking.window': ['Last 24 h', '最近 24 小时'],
   'ranking.full': ['See full ranking', '查看完整排行'],
