@@ -118,7 +118,8 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
       'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
     )
   ).rows;
-  assert.equal(after.length, 102);
+  // 103 only moves the account fact to commit; it adds no rows or charges.
+  assert.equal(after.length, 103);
   assert.deepEqual(after.slice(0, 99), versions);
   const charge = await client.query<{ bytes: string }>(contract.charge);
   assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));

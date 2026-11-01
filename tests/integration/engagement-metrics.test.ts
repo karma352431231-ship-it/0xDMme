@@ -829,4 +829,41 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
       assert.deepEqual(report.rows, expected.rows);
     },
   );
+  await t.test(
+    'an open first sign-in leaves the capacity ledger free and counts at commit',
+    async () => {
+      // Two sessions: one sign-in stays open while another needs the ledger.
+      const signIn = new pg.Client({ connectionString: isolated.href });
+      const other = new pg.Client({ connectionString: isolated.href });
+      await signIn.connect();
+      await other.connect();
+      const created = crypto.randomUUID();
+      accounts.push(created);
+      const existing = BigInt((await metric('accounts_existing'))!);
+      try {
+        await signIn.query('BEGIN');
+        await signIn.query(
+          'INSERT INTO hash_talk.accounts(id,address) VALUES($1,$2)',
+          [created, '0x' + created.replaceAll('-', '').padEnd(40, '0')],
+        );
+        // Before 103 the fact locked the ledger here, until commit.
+        await other.query('BEGIN');
+        await other.query(
+          'SELECT used_bytes FROM hash_talk.content_usage_legacy WHERE singleton FOR UPDATE NOWAIT',
+        );
+        await other.query('ROLLBACK');
+        assert.equal(BigInt((await metric('accounts_existing'))!), existing);
+        await signIn.query('COMMIT');
+        assert.equal(
+          BigInt((await metric('accounts_existing'))!),
+          existing + 1n,
+        );
+      } finally {
+        await signIn.query('ROLLBACK').catch(() => undefined);
+        await other.query('ROLLBACK').catch(() => undefined);
+        await signIn.end();
+        await other.end();
+      }
+    },
+  );
 });

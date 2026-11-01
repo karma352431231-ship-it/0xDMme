@@ -232,6 +232,7 @@ const migrations = [
   '100-engagement-storage.sql',
   '101-engagement-domain-facts.sql',
   '102-engagement-operations.sql',
+  '103-account-engagement-at-commit.sql',
 ];
 
 export interface MaintenanceSnapshot {
