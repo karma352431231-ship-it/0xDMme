@@ -67,6 +67,13 @@ await test('relations reject negative revisions and extra fields; tabs exclude p
     () => profileActivityFilter({ profile: profile.id, tab: 'saved' }),
     AccountError,
   );
+  assert.deepEqual(
+    profileActivityFilter({ profile: profile.id, tab: 'shared' }),
+    {
+      profile: profile.id,
+      tab: 'shared',
+    },
+  );
 });
 await test('profile reply requires correct community, root and parent; deleted root exposes no discussion', () => {
   const community = crypto.randomUUID(),
