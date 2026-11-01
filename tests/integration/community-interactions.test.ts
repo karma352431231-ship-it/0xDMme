@@ -41,6 +41,7 @@ import { readWebConfiguration } from '../../src/server/web-configuration/index.t
 import {
   createCommunityAccount,
   rootPostContent,
+  seedLegacyDownvote,
 } from './community-fixture.ts';
 
 await test('cut 5: tree, votes and direct notifications with authorization and persistence', async (t) => {
@@ -509,8 +510,8 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
       );
 
       assert.equal((await communities.post(community, root)).score, 1);
-      await vote(author, root, -1, 1);
-      await vote(author, root, -1, 1);
+      await vote(author, root, 0, 1);
+      await vote(author, root, 0, 1);
       assert.equal(
         (await communities.upvoters(community, root, null)).items.length,
         0,
@@ -521,20 +522,25 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
         0,
       );
 
+      // A downvote cast before they were turned off (01/11/2026) still
+      // counts, and its voter can withdraw it.
+      await seedLegacyDownvote(inspector, {
+        profile: authorProfile.id,
+        post: root,
+      });
       assert.equal((await communities.post(community, root)).score, -1);
-      await vote(author, root, 0, 2);
-      await vote(author, root, 0, 2);
+      await vote(author, root, 0, 3);
+      await vote(author, root, 0, 3);
       assert.equal((await communities.post(community, root)).score, 0);
       await assert.rejects(vote(author, root, 1, 0), bad(409));
       const results = await Promise.allSettled([
         vote(author, reply, 1, 0),
         vote(author, reply, -1, 0),
       ]);
-      assert.equal(
-        results.filter((result) => result.status === 'fulfilled').length,
-        1,
-      );
-      await vote(author, root, 1, 3);
+      const [upvote, downvote] = results;
+      assert.equal(upvote.status, 'fulfilled');
+      assert.ok(downvote.status === 'rejected' && bad(400)(downvote.reason));
+      await vote(author, root, 1, 4);
       const renewed = (await upvotes(owner)).items.find(
         (item) => item.post === root,
       )!;
@@ -548,7 +554,7 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
           ?.read,
         false,
       );
-      await vote(author, root, 0, 4);
+      await vote(author, root, 0, 5);
       await vote(outsider, root, 1, 0);
       assert.equal(
         (await upvotes(owner)).items.filter((item) => item.post === root)
@@ -701,11 +707,29 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
           voteRevision: 0,
         });
       }
-      await owner.operate('post-vote', {
-        id: community,
+      // Downvotes are refused at the API (01/11/2026) and write nothing...
+      await assert.rejects(
+        owner.operate('post-vote', {
+          id: community,
+          post: target,
+          position: -1,
+          voteRevision: 0,
+        }),
+        bad(400),
+      );
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.community_votes WHERE profile_id=$1 AND post_id=$2',
+            [ownerProfile.id, target],
+          )
+        ).rowCount,
+        0,
+      );
+      // ...while a downvote cast before stays out of the upvoter pages.
+      await seedLegacyDownvote(inspector, {
+        profile: ownerProfile.id,
         post: target,
-        position: -1,
-        voteRevision: 0,
       });
       const one = await communities.upvoters(community, target, null);
       assert.equal(one.items.length, 24);

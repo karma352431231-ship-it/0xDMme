@@ -156,14 +156,22 @@ await test('post toolbar keeps reposting while menu copy counts sharing in both 
       toolbar.children.map((node) => node.className),
       ['post-action post-share'],
     );
-    preferenceControls(toolbar as unknown as HTMLElement, post, {
-      controller: {
-        request: () => Promise.reject(new Error('Unexpected account request.')),
+    preferenceControls(
+      {
+        node: toolbar as unknown as HTMLElement,
+        toolbar: toolbar as unknown as HTMLElement,
       },
-      run: (work) => work(),
-      valid: () => true,
-      changed: () => Promise.resolve(),
-    });
+      post,
+      {
+        controller: {
+          request: () =>
+            Promise.reject(new Error('Unexpected account request.')),
+        },
+        run: (work) => work(),
+        valid: () => true,
+        changed: () => Promise.resolve(),
+      },
+    );
     const menu = toolbar.querySelector('.post-more')!;
     const copy = menu.querySelector('.post-copy-link')!;
     assert.equal(copy.textContent, t('Copy link'));

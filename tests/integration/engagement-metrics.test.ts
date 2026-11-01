@@ -11,6 +11,7 @@ import { readWebConfiguration } from '../../src/server/web-configuration/index.t
 import {
   createCommunityAccount,
   rootPostContent,
+  seedLegacyDownvote,
 } from './community-fixture.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import { EngagementMetricsStore } from '../../src/server/database/engagement-metrics.ts';
@@ -139,7 +140,9 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
     `metrics_${crypto.randomUUID().slice(0, 8)}`,
   );
   const reader = await make();
-  await reader.publicIdentity(`reader_${crypto.randomUUID().slice(0, 8)}`);
+  const readerProfile = await reader.publicIdentity(
+    `reader_${crypto.randomUUID().slice(0, 8)}`,
+  );
   for (const id of ids)
     await owner.operate('create', {
       id,
@@ -290,7 +293,10 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         });
       await vote(1, 0);
       await vote(1, 0);
-      await vote(-1, 1);
+      await seedLegacyDownvote(inspector, {
+        profile: readerProfile.id,
+        post,
+      });
       assert.equal(await metric('upvotes_added', { postIds: [post] }), '1');
       assert.equal(
         await metric('upvotes_removed', {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   submitPostReply,
-  togglePostVote,
+  togglePostUpvote,
   togglePostPreference,
 } from '../src/client/communities/post-interactions.ts';
 import { renderActivityEntry } from '../src/client/communities/activity-entry.ts';
@@ -46,7 +46,7 @@ await test('card vote uses current private position and revision and returns the
     current = state(value),
     changed = state({ ...value, score: 2 });
   const calls: { operation: string; payload: Record<string, unknown> }[] = [];
-  const result = await togglePostVote(value, 1, {
+  const result = await togglePostUpvote(value, {
     valid: () => true,
     controller: {
       request: (operation, payload) => {
@@ -117,7 +117,7 @@ await test('profile or session change during reading or preparation cannot publi
         },
       },
     };
-  assert.equal(await togglePostVote(parent, -1, access), null);
+  assert.equal(await togglePostUpvote(parent, access), null);
   assert.equal(writes, 1);
   valid = true;
   assert.equal(

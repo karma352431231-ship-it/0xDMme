@@ -6622,10 +6622,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Upvote; tap again to remove your vote',
     '点赞；再次点击撤回',
   ],
-  'Downvote; tap again to remove your vote': [
-    'Downvote; tap again to remove your vote',
-    '点踩；再次点击撤回',
-  ],
+  'Downvotes are disabled.': ['Downvotes are disabled.', '已停用点踩。'],
   'Post votes': ['Post votes', '帖子投票'],
   'Wallet {0}: {1}': ['Wallet {0}: {1}', '钱包 {0}：{1}'],
   'Wallet {0}: {1}{2}{3}': ['Wallet {0}: {1}{2}{3}', '钱包 {0}：{1}{2}{3}'],

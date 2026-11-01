@@ -22,7 +22,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  seedLegacyDownvote,
+} from './community-fixture.ts';
 
 /** An opted-in read must return its preview projection, including an empty one. */
 function previewIds(page: DiscussionPage): string[] {
@@ -273,12 +276,7 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
     'five-vote threshold is net and representative is unique per original and author across pagination',
     async () => {
       await upvotes([low, repeated]);
-      await people[5]!.operate('post-vote', {
-        id: community,
-        post: low,
-        position: -1,
-        voteRevision: 0,
-      });
+      await seedLegacyDownvote(sql, { profile: identities[5]!.id, post: low });
       let page = await feed();
       assert.ok(!page.items.some((item) => item.post.id === low));
       assert.ok(page.items.some((item) => item.post.id === repeated));

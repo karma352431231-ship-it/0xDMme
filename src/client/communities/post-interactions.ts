@@ -11,9 +11,9 @@ interface Interaction {
   controller: Pick<Communities, 'request'>;
   valid: () => boolean;
 }
-export async function togglePostVote(
+/** Upvote or withdraw it; a legacy downvote becomes an upvote. */
+export async function togglePostUpvote(
   post: CommunityPost,
-  position: 1 | -1,
   access: Interaction,
 ): Promise<PostState | null> {
   if (!access.valid()) return null;
@@ -23,7 +23,7 @@ export async function togglePostVote(
   const result = postState(
     await access.controller.request('post-vote', {
       ...payload,
-      position: state.vote.position === position ? 0 : position,
+      position: state.vote.position === 1 ? 0 : 1,
       voteRevision: state.vote.revision,
     }),
   );

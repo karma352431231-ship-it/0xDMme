@@ -292,15 +292,19 @@ await test('confirmed feed votes preserve the displayed page, scroll, card and d
       vote: { position: current.position, revision: 1 },
     });
   };
-  for (const [clicked, position, score] of [
-    [1, 1, 6],
-    [-1, -1, 4],
-    [-1, 0, 5],
+  // Upvote is the only vote control; downvotes were removed (01/11/2026).
+  const target = votes.querySelectorAll('button')[0]!;
+  assert.deepEqual(
+    votes
+      .querySelectorAll('button')
+      .map((node) => node.dataset['vote'] ?? 'score'),
+    ['1', 'score'],
+  );
+  for (const [position, score] of [
+    [1, 6],
+    [0, 5],
   ] as const) {
     confirmed = { position, score };
-    const target = votes
-      .querySelectorAll('button')
-      .find((node) => node.dataset['vote'] === String(clicked))!;
     target.click();
     await settled(fixture);
     assert.equal(fixture.host.scrollTop, 900);
@@ -310,10 +314,7 @@ await test('confirmed feed votes preserve the displayed page, scroll, card and d
     assert.equal(draft.parent, card);
     assert.equal(draft.value, 'Keep this draft');
     assert.equal(card.querySelector('.post-score')?.textContent, String(score));
-    assert.equal(
-      target.getAttribute('aria-pressed'),
-      String(clicked === position),
-    );
+    assert.equal(target.getAttribute('aria-pressed'), String(position === 1));
   }
 });
 

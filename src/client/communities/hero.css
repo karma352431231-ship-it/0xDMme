@@ -4,6 +4,9 @@
  */
 .community-hero {
   margin: 0 0 18px;
+  /* The last block (description, profiles in common or details) never
+     touches the bottom edge. */
+  padding-bottom: 20px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -127,7 +130,7 @@
   overflow-wrap: anywhere;
 }
 #app-shell .community-hero .community-info {
-  padding: 10px 20px 16px;
+  padding: 10px 20px 0;
   font-size: 13.5px;
 }
 #app-shell .community-hero .community-info > summary {
@@ -146,6 +149,7 @@
  */
 @media (min-width: 701px) {
   #app-shell [data-communities] .community-hero {
+    padding-bottom: 26px;
     border-radius: 20px;
   }
   #app-shell [data-communities] .community-hero-head {
@@ -185,7 +189,7 @@
     font-size: 17px;
   }
   #app-shell [data-communities] .community-hero .community-info {
-    padding: 12px 28px 22px;
+    padding: 12px 28px 0;
   }
   #app-shell [data-communities] .community-hero-notice {
     padding: 0 28px 16px;
@@ -219,8 +223,11 @@
     padding: 12px 14px 0;
     font-size: 15px;
   }
+  #app-shell .community-hero {
+    padding-bottom: 16px;
+  }
   #app-shell .community-hero .community-info {
-    padding: 8px 14px 14px;
+    padding: 8px 14px 0;
   }
   #app-shell .community-hero > .community-known-followers {
     padding: 10px 14px 0;

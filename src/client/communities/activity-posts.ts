@@ -148,7 +148,7 @@ export class ActivityPosts {
     card.stop();
     card.node
       .querySelectorAll(
-        '.post-actions, .reply-box, .post-options, .activity-post-status',
+        ':scope > .community-post-header > .post-more, .post-actions, .reply-box, .post-options, .activity-post-status',
       )
       .forEach((node) => node.remove());
     const toolbar = el('div', '', 'post-actions'),
@@ -177,7 +177,7 @@ export class ActivityPosts {
         ...actions,
         shared: card.entry.viewerShared ?? false,
       });
-      preferenceControls(toolbar, post, {
+      preferenceControls({ node: card.node, toolbar }, post, {
         ...actions,
         saved: card.entry.viewerSaved,
         options: (host) => this.options(card, host),

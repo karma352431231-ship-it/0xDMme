@@ -1,13 +1,52 @@
 /*
  * The "..." menu of posts and public profiles: a floating panel of actions
- * anchored to the action row, so it never passes the card edge. Forms that a
- * row opens (report, edit, delete, moderation) stay inside the panel.
+ * anchored to the row that holds it (a post's author row, a profile's action
+ * row), so it never passes the card edge. Forms that a row opens (report,
+ * edit, delete, moderation) stay inside the panel.
  */
 .post-actions {
   position: relative;
 }
 .post-actions .post-more {
   position: static;
+}
+/* Posts (01/11/2026): a quiet round button at the end of the author row,
+   on the handle line; the panel opens under it, against the right edge. */
+.community-post-header {
+  position: relative;
+}
+.community-post-header > .post-more {
+  position: static;
+  flex-shrink: 0;
+  margin: 0 -6px 0 auto;
+}
+.community-post-header > .community-post-follow ~ .post-more {
+  margin-left: 0;
+}
+#app-shell .community-post-header > .post-more > summary {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text-muted);
+  list-style: none;
+  cursor: pointer;
+}
+#app-shell .community-post-header > .post-more > summary:hover,
+#app-shell .community-post-header > .post-more[open] > summary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+#app-shell .community-post-header > .post-more > summary > svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 3;
+}
+#app-shell .community-post-header .post-more-content {
+  right: 0;
+  left: auto;
 }
 #app-shell .post-more-content {
   position: absolute;

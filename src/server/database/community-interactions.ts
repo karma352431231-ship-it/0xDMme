@@ -73,6 +73,9 @@ export async function setPostVote(
   const row = await loadPost(context, uuid(data['post'])),
     position = votePosition(data['position']),
     revision = postCount(data['voteRevision']);
+  // Downvotes are off (owner request, 01/11/2026), whatever a client sends.
+  // Rows cast before stay counted; their voter can still move them to 0 or 1.
+  if (position === -1) throw new AccountError(400, 'Downvotes are disabled.');
   await requireReplyTarget(context, row);
   const old = (await postVotes(context.client, context.actor.id, [row.id])).get(
     row.id,

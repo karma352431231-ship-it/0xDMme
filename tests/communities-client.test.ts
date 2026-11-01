@@ -12,7 +12,7 @@ import type {
 import { Communities } from '../src/client/communities/controller.ts';
 import {
   togglePostPreference,
-  togglePostVote,
+  togglePostUpvote,
 } from '../src/client/communities/post-interactions.ts';
 import type { CommunityPost } from '../src/shared/community-posts/index.ts';
 import { feedPage } from '../src/shared/community-discovery/index.ts';
@@ -173,17 +173,15 @@ function voteState(value: CommunityPost, position: number) {
     vote: { position, revision: 7 },
   };
 }
-await test('vote buttons use the current revision, switch position and remove repeated votes', async () => {
+await test('upvote uses the current revision, withdraws a repeated upvote and replaces a legacy downvote', async () => {
   const value = post();
-  for (const [current, clicked, expected] of [
-    [0, 1, 1],
-    [1, 1, 0],
-    [-1, 1, 1],
-    [1, -1, -1],
-    [-1, -1, 0],
+  for (const [current, expected] of [
+    [0, 1],
+    [1, 0],
+    [-1, 1],
   ] as const) {
     const writes: Record<string, unknown>[] = [];
-    await togglePostVote(value, clicked, {
+    await togglePostUpvote(value, {
       valid: () => true,
       controller: {
         request: (operation, payload) => {
@@ -221,7 +219,7 @@ await test('page change during a private query blocks subsequent votes or prefer
         },
       },
     };
-    if (kind === 'vote') await togglePostVote(value, 1, access);
+    if (kind === 'vote') await togglePostUpvote(value, access);
     else await togglePostPreference(value, 'saved', access);
     assert.equal(operations.length, 1);
   }

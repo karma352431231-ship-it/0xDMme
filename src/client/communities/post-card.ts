@@ -130,7 +130,7 @@ export function createPostCards(
     mediaCleanup.set(postViews(node, value, toolbar), node);
     if (!own) return node;
 
-    preferenceControls(toolbar, value, {
+    preferenceControls({ node, toolbar }, value, {
       controller,
       run,
       valid: valid,

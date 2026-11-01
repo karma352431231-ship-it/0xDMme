@@ -23,8 +23,8 @@
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: transparent;
-  color: var(--text-faint);
+  background: var(--surface-2);
+  color: var(--text-muted);
   font: inherit;
   text-align: left;
   text-overflow: ellipsis;
@@ -33,6 +33,6 @@
 }
 #app-shell .community-composer-field:hover,
 #app-shell .community-composer-field:focus-visible {
-  border-color: var(--text-faint);
-  color: var(--text-muted);
+  border-color: var(--text-muted);
+  color: var(--text);
 }

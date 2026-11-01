@@ -17,6 +17,7 @@ import { readWebConfiguration } from '../../src/server/web-configuration/index.t
 import {
   createCommunityAccount,
   rootPostContent,
+  seedLegacyDownvote,
 } from './community-fixture.ts';
 import type { PublicProfile } from '../../src/shared/public-profile/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
@@ -289,17 +290,9 @@ await test('rankings: exact metrics, aggregate votes, events, recovery and publi
         (await page()).items.find((r) => r.community.id === community)!.upvotes,
         1,
       );
-      const state = postState(
-        await users[1]!.operate('post-state', {
-          id: community,
-          post: original,
-        }),
-      );
-      await users[1]!.operate('post-vote', {
-        id: community,
+      await seedLegacyDownvote(inspector, {
+        profile: publicUsers[1]!.id,
         post: original,
-        voteRevision: state.vote.revision,
-        position: -1,
       });
       await refresh();
       assert.equal(

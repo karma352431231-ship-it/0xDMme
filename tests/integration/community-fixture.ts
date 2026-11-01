@@ -1,4 +1,5 @@
 import { Wallet } from 'ethers';
+import type pg from 'pg';
 import { eventHash, sign } from '../../src/shared/devices/index.ts';
 import { communityBody } from '../../src/shared/communities/index.ts';
 import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
@@ -15,6 +16,21 @@ import type { AccountService } from '../../src/server/account/index.ts';
 import type { DeviceService } from '../../src/server/devices/index.ts';
 import type { CommunityService } from '../../src/server/communities/index.ts';
 import type { PublicProfileService } from '../../src/server/public-profile/index.ts';
+
+/**
+ * New downvotes are refused (01/11/2026), but rows cast before stay and still
+ * count. Writes one such row the way the vote operation did, so the score,
+ * ranking and metric triggers see a legacy downvote.
+ */
+export async function seedLegacyDownvote(
+  client: Pick<pg.ClientBase, 'query'>,
+  vote: { profile: string; post: string },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO hash_talk.community_votes(profile_id,post_id,position,revision,voted_at) VALUES($1,$2,-1,1,clock_timestamp()) ON CONFLICT(profile_id,post_id) DO UPDATE SET position=-1,revision=hash_talk.community_votes.revision+1,voted_at=clock_timestamp()`,
+    [vote.profile, vote.post],
+  );
+}
 
 export async function createCommunityAccount(options: {
   account: AccountService;

@@ -109,7 +109,7 @@ export function renderFeedCard(
   );
   options.addCleanup(postViews(row, post, toolbar));
   if (signedIn) {
-    preferenceControls(toolbar, post, {
+    preferenceControls({ node: row, toolbar }, post, {
       ...actions,
       saved: entry.viewerSaved,
       options: (host) => managementMenu(host, post, options),

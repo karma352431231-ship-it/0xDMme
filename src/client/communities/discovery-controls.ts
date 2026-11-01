@@ -14,7 +14,7 @@ import {
   communityElement as el,
 } from './elements.ts';
 import { communityIcon, iconLabel } from './presentation.ts';
-import { togglePostPreference, togglePostVote } from './post-interactions.ts';
+import { togglePostPreference, togglePostUpvote } from './post-interactions.ts';
 import { postReportForm } from './post-forms.ts';
 import { postLinkControl } from './post-link.ts';
 
@@ -26,18 +26,27 @@ interface Actions {
   changed: (state?: PostState) => Promise<void>;
   options?: (container: HTMLElement) => Promise<PostState | void>;
 }
+/**
+ * Bookmark in the action row; the "..." menu at the end of the author row,
+ * beside the handle (owner request, 01/11/2026). A card without an author
+ * row keeps the menu in its action row.
+ */
 export function preferenceControls(
-  container: HTMLElement,
+  card: { node: HTMLElement; toolbar: HTMLElement },
   post: CommunityPost,
   actions: Actions,
 ): void {
-  postBookmark(container, post, actions);
+  postBookmark(card.toolbar, post, actions);
   const menu = el('details', '', 'post-more'),
-    summary = el('summary', t('More post options')),
+    summary = el('summary'),
     content = el('div', '', 'post-more-content');
+  summary.setAttribute('aria-label', t('More post options'));
   iconLabel(summary, 'more');
   menu.append(summary, content);
-  container.append(menu);
+  (
+    card.node.querySelector<HTMLElement>(':scope > .community-post-header') ??
+    card.toolbar
+  ).append(menu);
   if (post.status === 'visible') postLinkControl(content, post);
   const hide = button(content, t('Hide or show in my feeds'), () =>
     actions.run(async () => {
@@ -131,27 +140,24 @@ export function postVoting(
   const controls = el('div', '', 'post-votes');
   controls.setAttribute('aria-label', t('Post votes'));
   container.append(controls);
-  for (const [position, title, icon] of [
-    [1, t('Upvote; tap again to remove your vote'), 'up'],
-    [-1, t('Downvote; tap again to remove your vote'), 'down'],
-  ] as const) {
-    const node = actions
-      ? button(controls, '', () =>
-          actions.run(async () => {
-            const state = await togglePostVote(post, position, actions);
-            if (state && actions.valid()) await actions.changed(state);
-          }),
-        )
-      : el('a');
-    if (node instanceof HTMLAnchorElement)
-      participationLink(node, t('Create a public profile to vote'));
-    else node.setAttribute('aria-label', title);
-    node.dataset['vote'] = String(position);
-    node.setAttribute('aria-pressed', String(actions?.position === position));
-    node.append(communityIcon(icon));
-    if (!actions) controls.append(node);
-    if (position === 1) controls.append(publicUpvoteScore(post));
-  }
+  // Upvote only (owner request, 01/11/2026); the server refuses downvotes.
+  const node = actions
+    ? button(controls, '', () =>
+        actions.run(async () => {
+          const state = await togglePostUpvote(post, actions);
+          if (state && actions.valid()) await actions.changed(state);
+        }),
+      )
+    : el('a');
+  if (node instanceof HTMLAnchorElement)
+    participationLink(node, t('Create a public profile to vote'));
+  else
+    node.setAttribute('aria-label', t('Upvote; tap again to remove your vote'));
+  node.dataset['vote'] = '1';
+  node.setAttribute('aria-pressed', String(actions?.position === 1));
+  node.append(communityIcon('up'));
+  if (!actions) controls.append(node);
+  controls.append(publicUpvoteScore(post));
 }
 /** Compact menu for order/period choices; same values and validation as before. */
 export function discoveryMenu(
