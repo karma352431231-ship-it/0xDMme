@@ -33,6 +33,7 @@ import {
   communityButton as button,
   communityElement as el,
 } from './elements.ts';
+import { feedScroller } from './feed-return.ts';
 import { createPostCards } from './post-card.ts';
 import { replaceEditedPost } from './post-edit-update.ts';
 import { postTagSelect } from './post-forms.ts';
@@ -325,7 +326,11 @@ export function startCommunityPostList(
     }
     after = page.next;
   }
-  /** Nothing to page through or reload before the first post. */
+  /**
+   * Nothing to page through or reload before the first post. At the end of
+   * a page one button returns to the top with fresh posts (owner request,
+   * 01/11/2026).
+   */
   function paging(first: boolean): void {
     if (!controls) return;
     controls.replaceChildren();
@@ -336,12 +341,15 @@ export function startCommunityPostList(
         selected ? t('Earlier replies') : t('Earlier posts'),
         () => run(load),
       );
-    button(controls, t('Reload posts'), () =>
+    const top = button(controls, t('Back to top'), () =>
       run(async () => {
+        if (list) feedScroller(list).scrollTo({ top: 0, behavior: 'smooth' });
         after = null;
         await load();
       }),
     );
+    iconLabel(top, 'up');
+    top.classList.add('community-back-to-top');
   }
   function composer(): void {
     // A redrawn shell replaces the bar; the old one stops watching the screen.

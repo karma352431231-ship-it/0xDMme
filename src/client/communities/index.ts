@@ -28,7 +28,7 @@ import { CommunityEditor } from './community-editor.ts';
 import { CommunityDetailView } from './community-detail.ts';
 import type { CommunityScreen } from './screen.ts';
 import { clearCommunityProfileInvitation } from './directory-notice.ts';
-import { communityButton, communityElement } from './elements.ts';
+import { communityElement } from './elements.ts';
 import { communityHoverProvider } from './community-hover.ts';
 import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
@@ -324,7 +324,6 @@ export function startCommunities(
       mounted.append(management);
       editor.governance(management, state);
     }
-    communityButton(mounted, t('Reload community'), () => run(refresh));
   }
   /** Isolated settings screen for owners and moderators. */
   function manageScreen(value: Community, own: CommunityState): void {

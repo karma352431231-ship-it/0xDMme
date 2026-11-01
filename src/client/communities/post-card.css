@@ -205,6 +205,16 @@
   align-items: center;
   margin: 16px 0;
 }
+/* End of a page: one button back to the top with fresh posts. */
+.post-toolbar .community-back-to-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.post-toolbar .community-back-to-top > svg {
+  width: 15px;
+  height: 15px;
+}
 .post-toolbar label {
   display: flex;
   align-items: center;

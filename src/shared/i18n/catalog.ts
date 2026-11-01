@@ -5472,11 +5472,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Invalid reaction.': ['Invalid reaction.', '表情回应无效。'],
   'React…': ['React…', '回应…'],
   'Re-enable microphone': ['Re-enable microphone', '重新启用麦克风'],
-  'Reload community': ['Reload community', '重新加载社区'],
   'Reload conversation': ['Reload conversation', '重新加载对话'],
   'Reload list': ['Reload list', '重新加载列表'],
   'Reload notifications': ['Reload notifications', '重新加载通知'],
-  'Reload posts': ['Reload posts', '重新加载帖子'],
+  'Back to top': ['Back to top', '回到顶部'],
   'Recebida e preservada': ['Received and preserved', '已接收并保留'],
   "Received by one of the recipient's devices": [
     "Received by one of the recipient's devices",
