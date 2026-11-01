@@ -43,6 +43,18 @@
   right: 28px;
   bottom: calc(28px + env(safe-area-inset-bottom));
   z-index: 20;
+  transition:
+    opacity 0.18s,
+    transform 0.18s,
+    visibility 0.18s;
+}
+/* The "+" steps aside while a community's composer bar is on screen and
+   returns once the bar scrolls away (community-composer-bar.ts). */
+#app-shell:has(.community-composer-bar[data-on-screen]) .community-create-menu {
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
 }
 #app-shell .community-create-menu > .community-create-fab {
   display: grid;

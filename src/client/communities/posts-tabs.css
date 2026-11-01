@@ -5,6 +5,9 @@
   gap: 8px;
   margin: 0 0 14px;
 }
+.community-post-filters[hidden] {
+  display: none;
+}
 .community-post-tabs {
   display: flex;
   flex: 1;

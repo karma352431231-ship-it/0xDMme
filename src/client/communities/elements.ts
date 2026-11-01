@@ -57,6 +57,19 @@ export function communityButton(
   container.append(button);
   return button;
 }
+/**
+ * Follows a community link from inside a mounted screen exactly as a click on
+ * it would: the workspace panel keeps links clicked inside it, and the full
+ * Communities page navigates as usual.
+ */
+export function followCommunityLink(host: HTMLElement, hash: string): void {
+  const link = communityElement('a');
+  link.href = hash;
+  link.hidden = true;
+  host.append(link);
+  link.click();
+  link.remove();
+}
 export function communityLink(
   container: HTMLElement,
   title: string,

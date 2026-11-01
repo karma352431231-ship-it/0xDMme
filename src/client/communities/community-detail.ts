@@ -11,7 +11,7 @@ import type { Communities } from './controller.ts';
 import type { CommunityScreen } from './screen.ts';
 import { communityElement, communityButton } from './elements.ts';
 import { communityAbout, communityCreationDate } from './community-about.ts';
-import { mountCommunityFollowerPreview } from './followers.ts';
+import { communityFollowerCount, mountKnownFollowers } from './followers.ts';
 import { classificationBadges } from './classification.ts';
 import { communityAvatar } from './presentation.ts';
 import { CommunityPhotos } from './community-photos.ts';
@@ -69,21 +69,10 @@ export class CommunityDetailView {
         ? [communityElement('p', t('Archived'), 'community-hero-meta')]
         : []),
     );
+    title.append(heroStats(value));
     head.append(avatar, title);
     hero.append(banner, head);
     this.photos.avatar(avatar, value, screen.signal);
-    // The follower line sits under the name, aligned with it.
-    mountCommunityFollowerPreview(title, {
-      id: value.id,
-      total: value.followers,
-      signedIn: state !== null,
-      controller: this.options.controller,
-      signal: screen.signal,
-    });
-    title.append(
-      communityCreationDate(value),
-      classificationBadges(value.classification),
-    );
     if (value.description) {
       const description = communityElement(
         'p',
@@ -93,6 +82,14 @@ export class CommunityDetailView {
       renderMentions(description, value.description);
       hero.append(description);
     }
+    // Profiles in common sit below the description, never on the data line.
+    if (state)
+      mountKnownFollowers(hero, {
+        id: value.id,
+        signedIn: true,
+        controller: this.options.controller,
+        signal: screen.signal,
+      });
     const about = communityAbout(value);
     if (about) hero.append(about);
     if (!state) {
@@ -180,4 +177,16 @@ export class CommunityDetailView {
     this.photos.avatar(avatar, value, signal);
     return header;
   }
+}
+
+/** One line under the name (31/10/2026): topics · followers · creation date. */
+function heroStats(value: Community): HTMLElement {
+  const line = communityElement('p', '', 'community-hero-stats');
+  const topics = classificationBadges(value.classification);
+  if (topics.childElementCount) line.append(topics);
+  line.append(
+    communityFollowerCount({ id: value.id, total: value.followers }),
+    communityCreationDate(value),
+  );
+  return line;
 }

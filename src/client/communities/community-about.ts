@@ -14,13 +14,14 @@ export function communityAbout(value: Community): HTMLElement | null {
   return info;
 }
 
+/** Creation date as one item of the hero's data line, e.g. "Created on Oct 31, 2026". */
 export function communityCreationDate(value: Community): HTMLElement {
-  const node = el('p', '', 'community-hero-meta');
+  const node = el('span', '', 'community-hero-date');
   node.textContent = value.createdAt
     ? t('Created on {0}', [
         new Date(value.createdAt).toLocaleDateString(currentLanguage(), {
-          day: '2-digit',
-          month: '2-digit',
+          day: 'numeric',
+          month: 'short',
           year: 'numeric',
           timeZone: 'UTC',
         }),

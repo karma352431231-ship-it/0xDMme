@@ -189,13 +189,13 @@ export class CommunityDiscoveryStore {
     const { client, actor } = reader ?? { client: this.pool, actor: null };
     const found = await client.query<FeedRow>(
       `WITH activity AS (
-        SELECT id AS activity_id,id AS post_id,created_at,NULL::timestamptz AS shared_at FROM hash_talk.community_posts WHERE author=$1
-        UNION ALL SELECT id,post_id,created_at,created_at FROM hash_talk.community_post_shares WHERE profile_id=$1 AND shared AND $3='overview'
+        SELECT id AS activity_id,id AS post_id,created_at,NULL::timestamptz AS shared_at FROM hash_talk.community_posts WHERE author=$1 AND $3<>'shared'
+        UNION ALL SELECT id,post_id,created_at,created_at FROM hash_talk.community_post_shares WHERE profile_id=$1 AND shared AND $3 IN ('overview','shared')
       ) SELECT a.activity_id AS id,p.id AS post_id,p.community_id,c.name,a.created_at,a.shared_at,0::bigint AS rank
       FROM activity a JOIN hash_talk.community_posts p ON p.id=a.post_id JOIN hash_talk.communities c ON c.id=p.community_id
       WHERE true AND ${visiblePost('p')} AND a.created_at<=$2
       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
-      AND ($3='overview' OR ($3='posts' AND p.parent_id IS NULL) OR ($3='replies' AND p.parent_id IS NOT NULL))
+      AND ($3 IN ('overview','shared') OR ($3='posts' AND p.parent_id IS NULL) OR ($3='replies' AND p.parent_id IS NOT NULL))
       AND ($4::timestamptz IS NULL OR (a.created_at,a.activity_id)<($4,$5::uuid))
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$7 AND b.blocked AND
         (b.target=p.author OR b.target IN (SELECT a.author FROM hash_talk.community_posts a WHERE a.id=p.parent_id OR a.id=p.root_id)))

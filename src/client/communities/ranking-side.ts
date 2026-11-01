@@ -6,7 +6,10 @@ import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
-import { communityTopics } from '../../shared/community-classification/index.ts';
+import {
+  communityTopics,
+  type CommunityTopic,
+} from '../../shared/community-classification/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -15,6 +18,7 @@ import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { topicDot } from './classification.ts';
 import { growthLabel } from './ranking-side-growth.ts';
+import { rankingSideFilters } from './ranking-side-filters.ts';
 
 /**
  * FOMO-style ranking beside the feed (16/10/2026).
@@ -25,9 +29,10 @@ import { growthLabel } from './ranking-side-growth.ts';
  * fetched again on every refresh.
  *
  * Controls take at most two rows (19/10/2026): the Communities | Users switch
- * with the collapse button, then the community orders. The period is the
- * header of the numbers column and serves both rankings. Beside the chat the
- * switch above the column picks the scope, so the first row is hidden there.
+ * with the collapse button, then the community filters on one sideways
+ * scrolling row with the topic pill (31/10/2026). The period is the header of
+ * the numbers column and serves both rankings. Beside the chat the switch
+ * above the column picks the scope, so the first row is hidden there.
  */
 export type RankingTab = 'trending' | 'size' | 'new' | 'following';
 export type RankingScope = 'communities' | 'users';
@@ -65,8 +70,8 @@ export function startRankingSide(options: {
   const aside = el('aside', '', 'ranking-side');
   aside.setAttribute('aria-label', t('ranking.overall'));
   const view = new RankingView(aside, {
-    load: (tab, signal, period) =>
-      load(controller, { tab, signal, period, signedIn: options.signedIn }),
+    load: (filter, signal) =>
+      load(controller, { ...filter, signal, signedIn: options.signedIn }),
     scopeChanged: (scope) => options.scopeChanged?.(scope),
     signedIn: options.signedIn,
     following: (period, after) =>
@@ -93,31 +98,35 @@ export function startRankingSide(options: {
 
 async function load(
   controller: Communities,
-  input: {
-    tab: RankingTab;
+  input: RankingFilter & {
     signal: AbortSignal;
-    period: RankingPeriod;
     signedIn: () => boolean;
   },
 ): Promise<{ key: string; rows: Row[] } | null> {
-  const { tab, signal, period, signedIn } = input;
+  const { tab, signal, period, topics, signedIn } = input;
   if (tab === 'following') {
     if (!signedIn()) return null;
     const page = await controller.list('following', null);
+    // The followed list has no server topic filter; its entries carry topics.
+    const items = page.items.filter(
+      (c) =>
+        !topics.length ||
+        topics.some((topic) => c.classification?.topics.includes(topic)),
+    );
     return {
-      key: JSON.stringify(
-        page.items.map((c) => [c.id, c.followers, c.revision]),
-      ),
-      rows: page.items.map((community) => ({
+      key: JSON.stringify(items.map((c) => [c.id, c.followers, c.revision])),
+      rows: items.map((community) => ({
         community,
         participants: 0,
         previous: 0,
       })),
     };
   }
+  const query = new URLSearchParams({ order: tab, period });
+  if (topics.length) query.set('topics', topics.join(','));
   const page = explorePage(
     await communityRead(
-      `/api/communities/explore?order=${tab}&period=${period}`,
+      `/api/communities/explore?${query}`,
       AbortSignal.any([signal, AbortSignal.timeout(8000)]),
     ),
   );
@@ -131,9 +140,16 @@ async function load(
   };
 }
 
+type RankingFilter = {
+  tab: RankingTab;
+  period: RankingPeriod;
+  topics: readonly CommunityTopic[];
+};
+
 class RankingView {
   private tab: RankingTab = 'trending';
   private period: RankingPeriod = 'day';
+  private topics: readonly CommunityTopic[] = [];
   private scope: RankingScope = 'communities';
   private readonly accounts: AccountRankingView;
   private key = '';
@@ -147,14 +163,12 @@ class RankingView {
   private readonly tabsRow: HTMLElement;
   private readonly columnLabel: HTMLElement;
   private readonly periodHost: HTMLElement;
-  private readonly tabButtons = new Map<RankingTab, HTMLButtonElement>();
   private readonly scopeButtons = new Map<RankingScope, HTMLButtonElement>();
   private readonly host: HTMLElement;
   private readonly source: {
     load: (
-      tab: RankingTab,
+      filter: RankingFilter,
       signal: AbortSignal,
-      period: RankingPeriod,
     ) => Promise<{ key: string; rows: Row[] } | null>;
     scopeChanged: (scope: RankingScope) => void;
     signedIn: () => boolean;
@@ -171,9 +185,15 @@ class RankingView {
     this.status.setAttribute('role', 'status');
     this.columnLabel = el('span', t('ranking.community'));
     this.periodHost = el('div', '', 'ranking-side-period');
-    this.tabsRow = this.tabBar();
+    this.tabsRow = rankingSideFilters({
+      tabs,
+      tab: this.tab,
+      selectTab: (tab) => this.select(tab),
+      topicsChanged: (topics) => this.filterTopics(topics),
+      signal: this.abort.signal,
+    });
     this.pane = el('div', '', 'ranking-community-pane');
-    this.pane.append(this.list, this.status, this.footer());
+    this.pane.append(this.list, this.status);
     this.accounts = new AccountRankingView(this.abort.signal, {
       signedIn: source.signedIn,
       following: source.following,
@@ -236,11 +256,10 @@ class RankingView {
     if (this.busy && !force) return;
     this.busy = true;
     const epoch = ++this.epoch;
-    const tab = this.tab,
-      period = this.period;
+    const filter = { tab: this.tab, period: this.period, topics: this.topics };
     try {
-      const page = await this.source.load(tab, this.abort.signal, this.period);
-      if (this.current(epoch, tab, period)) this.apply(page, force);
+      const page = await this.source.load(filter, this.abort.signal);
+      if (this.current(epoch, filter)) this.apply(page, force);
     } catch {
       // A failed refresh keeps the last ranking until a publication or reconnect.
       if (epoch === this.epoch)
@@ -251,12 +270,13 @@ class RankingView {
       if (epoch === this.epoch) this.busy = false;
     }
   }
-  private current(
-    epoch: number,
-    tab: RankingTab,
-    period: RankingPeriod,
-  ): boolean {
-    return epoch === this.epoch && tab === this.tab && period === this.period;
+  private current(epoch: number, filter: RankingFilter): boolean {
+    return (
+      epoch === this.epoch &&
+      filter.tab === this.tab &&
+      filter.period === this.period &&
+      filter.topics === this.topics
+    );
   }
   /** Redraws only when the server published a different ranking. */
   private apply(page: { key: string; rows: Row[] } | null, force: boolean) {
@@ -303,10 +323,16 @@ class RankingView {
   private select(tab: RankingTab): void {
     if (tab === this.tab) return;
     this.tab = tab;
-    this.key = '';
-    for (const [id, button] of this.tabButtons)
-      button.setAttribute('aria-pressed', String(id === tab));
     this.showPeriod();
+    this.restart();
+  }
+  private filterTopics(topics: CommunityTopic[]): void {
+    this.topics = topics;
+    this.restart();
+  }
+  /** A different filter starts from an empty list, never the previous rows. */
+  private restart(): void {
+    this.key = '';
     this.list.replaceChildren();
     this.rows.clear();
     void this.refresh(true);
@@ -345,18 +371,6 @@ class RankingView {
     });
     return button;
   }
-  private tabBar(): HTMLElement {
-    const bar = el('div', '', 'ranking-side-tabs');
-    for (const [id, label] of tabs) {
-      const button = el('button', t(label));
-      button.type = 'button';
-      button.setAttribute('aria-pressed', String(id === this.tab));
-      button.addEventListener('click', () => this.select(id));
-      this.tabButtons.set(id, button);
-      bar.append(button);
-    }
-    return bar;
-  }
   /** Column header: what is ranked, and the period its numbers cover. */
   private columns(): HTMLElement {
     const row = el('div', '', 'ranking-side-columns');
@@ -381,11 +395,6 @@ class RankingView {
       this.scope === 'communities'
         ? this.tab === 'following'
         : this.accounts.following();
-  }
-  private footer(): HTMLElement {
-    const link = el('a', t('ranking.full'), 'ranking-side-full');
-    link.href = '#communities?view=explore';
-    return link;
   }
   private strip(): HTMLElement {
     const strip = el('div', '', 'ranking-side-strip');

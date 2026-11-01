@@ -6,6 +6,13 @@
   #app-shell[data-page='comunidades'] .community-directory-nav {
     gap: 2px;
   }
+  /* The ranking sidebar beside the feed replaces the Ranking page here
+     (31/10/2026); narrower screens keep the link. */
+  #app-shell[data-page='comunidades']
+    .community-directory-nav
+    .community-ranking-link {
+    display: none;
+  }
   #app-shell[data-page='comunidades'] .community-directory-nav a {
     min-height: 0;
     padding: 9px 10px;

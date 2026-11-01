@@ -122,7 +122,12 @@ export function profileActivityFilter(value: unknown) {
   const data = object(value);
   keys(data, ['profile', 'tab']);
   const tab = data['tab'];
-  if (tab !== 'overview' && tab !== 'posts' && tab !== 'replies')
+  if (
+    tab !== 'overview' &&
+    tab !== 'posts' &&
+    tab !== 'replies' &&
+    tab !== 'shared'
+  )
     throw new AccountError(400, 'Invalid profile tab.');
   return { profile: uuid(data['profile']), tab };
 }

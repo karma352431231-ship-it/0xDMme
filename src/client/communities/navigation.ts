@@ -146,6 +146,8 @@ function directoryLinks(view: string, selected: string | null): HTMLElement {
     link(nav, title, `#communities?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;
     iconLabel(a, icon);
+    // Hidden where the ranking sidebar is on screen (page-wide.css).
+    if (key === 'explore') a.classList.add('community-ranking-link');
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
       a.setAttribute('aria-current', 'page');
   }

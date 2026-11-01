@@ -3,10 +3,9 @@ import type { Communities } from './controller.ts';
 import type { CommunityScreen } from './screen.ts';
 import { mountPublicProfileInvitation } from '../public-action-guidance/index.ts';
 import type { PublicActionGate } from '../public-action-guidance/index.ts';
-import { navigateApp } from '../app-navigation/index.ts';
 import { mountMentionInput, mentionValue } from '../public-mentions/index.ts';
 import type { CommunityState } from '../../shared/communities/index.ts';
-import { communityField } from './elements.ts';
+import { communityField, followCommunityLink } from './elements.ts';
 import { communityPresentationEditor } from './presentation-editor.ts';
 import { mountCommunityCreation } from './community-create.ts';
 import { mountCommunityBadges } from './badges.ts';
@@ -132,8 +131,10 @@ export class CommunityEditor {
       request: (operation, data) =>
         this.options.controller.request(operation, data),
       current: () => screen.current(),
+      // Opened like a link click, so the split workspace keeps the new
+      // community in its panel instead of leaving for the full page.
       open: (id) => {
-        navigateApp(`#communities?id=${id}`);
+        followCommunityLink(screen.host, `#communities?id=${id}`);
       },
     });
   }

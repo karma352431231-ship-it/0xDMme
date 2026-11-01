@@ -70,10 +70,7 @@
   color: var(--warn);
   border-color: var(--warn);
 }
-/* Community page: topics sit quietly under the name, beside the creation date. */
-.community-hero-title > .community-classification-badges {
-  margin-top: 0.35rem;
-}
+/* Community page: topics open the data line under the name, quietly. */
 .community-hero-title .community-topic-badge {
   padding: 0.15rem 0.55rem;
   border-color: var(--line);

@@ -208,6 +208,7 @@ export function showProfilePage(
       ['overview', t('Overview')],
       ['posts', t('Posts')],
       ['replies', t('Replies')],
+      ['shared', t('Shared')],
     ] as const) {
       const button = element('button', label);
       button.type = 'button';

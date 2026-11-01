@@ -22,6 +22,7 @@ import {
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emptyCommunity } from './community-empty.ts';
+import { communityComposerBar } from './community-composer-bar.ts';
 import { Communities, communityRead } from './controller.ts';
 import {
   discoveryMenu,
@@ -76,7 +77,10 @@ export function startCommunityPostList(
     period: DiscoveryPeriod = 'all';
   let feedback: HTMLElement | null = null,
     list: HTMLElement | null = null,
-    controls: HTMLElement | null = null;
+    controls: HTMLElement | null = null,
+    filterBar: HTMLElement | null = null,
+    composerBar: ReturnType<typeof communityComposerBar> | null = null,
+    composerLifetime = new AbortController();
   function disabled(): void {
     for (const node of [mounted])
       node
@@ -244,23 +248,33 @@ export function startCommunityPostList(
     if (scope !== 'public') await loadPrivate();
     else await loadPublic();
     if (old !== generation || !list) return;
-    if (!list.children.length) empty(list);
-    paging();
+    settleList(list);
   }
-  /** A filtered list says so; an empty community invites its first post. */
-  function empty(host: HTMLElement): void {
-    if (scope !== 'public' || tag || period !== 'all') {
-      host.append(el('p', t('No posts in this list.')));
-      return;
-    }
-    emptyCommunity(host, {
-      community,
-      compose: own?.canPost ? createPost : null,
-      signal: signal(),
-    });
+  /** After a page loads: the empty message, the first-post state and paging. */
+  function settleList(host: HTMLElement): void {
+    const first = !host.children.length && unfiltered();
+    if (!host.children.length) empty(host, first);
+    awaitFirstPost(first);
+    paging(first);
   }
-  function createPost(): void {
-    openComposer(community);
+  function unfiltered(): boolean {
+    return scope === 'public' && !tag && period === 'all';
+  }
+  /** A filtered list says so; an empty community waits for its first post. */
+  function empty(host: HTMLElement, first: boolean): void {
+    if (first) emptyCommunity(host);
+    else host.append(el('p', t('No posts in this list.')));
+  }
+  /**
+   * Without any post there is nothing to sort: the order tabs step aside
+   * (31/10/2026) and the composer bar asks for the first post. Staff keep
+   * the "⋯" menu, which also leads to hidden posts and replies.
+   */
+  function awaitFirstPost(first: boolean): void {
+    composerBar?.setFirst(first);
+    if (!filterBar) return;
+    filterBar.hidden = first && (!own || own.role === 'participant');
+    filterBar.toggleAttribute('data-first-post', first);
   }
   async function loadPrivate(): Promise<void> {
     pageSnapshot.clear();
@@ -311,9 +325,11 @@ export function startCommunityPostList(
     }
     after = page.next;
   }
-  function paging(): void {
+  /** Nothing to page through or reload before the first post. */
+  function paging(first: boolean): void {
     if (!controls) return;
     controls.replaceChildren();
+    if (first) return;
     if (after)
       button(
         controls,
@@ -328,12 +344,18 @@ export function startCommunityPostList(
     );
   }
   function composer(): void {
+    // A redrawn shell replaces the bar; the old one stops watching the screen.
+    composerLifetime.abort();
+    composerLifetime = new AbortController();
+    composerBar = null;
     // An opened post answers through its own reply box.
-    if (!mounted || !own?.canPost || selected) return;
-    button(mounted, t('Create post'), () => {
-      openComposer(community);
-      return Promise.resolve();
+    if (!mounted || !own?.canPost || selected || !identity) return;
+    composerBar = communityComposerBar({
+      community: identity.name,
+      open: () => openComposer(community),
+      signal: AbortSignal.any([abort.signal, composerLifetime.signal]),
     });
+    mounted.append(composerBar.element);
   }
   /**
    * Order and "Meus posts" are tabs; period, tag and hidden posts live in a
@@ -342,6 +364,7 @@ export function startCommunityPostList(
   function filters(): void {
     if (!mounted) return;
     const bar = el('div', '', 'community-post-filters');
+    filterBar = bar;
     mounted.append(bar);
     orderTabs(bar);
     moreFilters(bar);
@@ -440,6 +463,7 @@ export function startCommunityPostList(
     feedback = el('p', '', 'community-feedback');
     feedback.setAttribute('role', 'status');
     mounted.append(feedback);
+    filterBar = null;
     composer();
     if (!selected) filters();
     list = el('div', '', 'community-post-list');
@@ -495,6 +519,8 @@ export function startCommunityPostList(
     identity = null;
     list = null;
     feedback = null;
+    filterBar = null;
+    composerBar = null;
   }
   return {
     mount(
