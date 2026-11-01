@@ -73,6 +73,36 @@
   color: var(--text-muted);
   font-size: 13px;
 }
+/* Topics · followers · creation date on one line under the name; the
+   items wrap whole on narrow screens. */
+#app-shell .community-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+.community-hero-stats > * + *::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--text-faint);
+}
+.community-hero-date {
+  white-space: nowrap;
+}
+/* Profiles in common: their own line below the description. */
+#app-shell .community-hero > .community-known-followers {
+  display: flex;
+  padding: 12px 20px 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+#app-shell .community-hero > .community-known-followers:empty {
+  display: none;
+}
 #app-shell .community-hero .community-follow {
   margin: 0;
   padding: 9px 20px;
@@ -137,9 +167,13 @@
   #app-shell [data-communities] .community-hero-title h1 {
     font-size: clamp(24px, 3vw, 34px);
   }
-  #app-shell [data-communities] .community-hero-meta {
+  #app-shell [data-communities] .community-hero-meta,
+  #app-shell [data-communities] .community-hero-stats {
     margin-top: 8px;
     font-size: 14px;
+  }
+  #app-shell [data-communities] .community-hero > .community-known-followers {
+    padding: 14px 28px 0;
   }
   #app-shell [data-communities] .community-hero .community-follow {
     margin-top: 16px;
@@ -187,5 +221,8 @@
   }
   #app-shell .community-hero .community-info {
     padding: 8px 14px 14px;
+  }
+  #app-shell .community-hero > .community-known-followers {
+    padding: 10px 14px 0;
   }
 }

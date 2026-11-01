@@ -301,6 +301,15 @@ export const catalog: Record<string, readonly [string, string]> = {
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
   'community.topics.toggle': ['Topics', '主题'],
   'community.topics.toggle-count {0}': ['Topics · {0}', '主题 · {0}'],
+  'community.composer.prompt {0}': ['Write a post in {0}…', '在 {0} 发帖…'],
+  'community.composer.first {0}': [
+    'Write the first post in {0}…',
+    '在 {0} 发布第一篇帖子…',
+  ],
+  'community.empty.note': [
+    'No posts yet. Posts will show up here.',
+    '还没有帖子。帖子会显示在这里。',
+  ],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
   'community.content-policy': [
     'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities.',
@@ -1803,10 +1812,6 @@ export const catalog: Record<string, readonly [string, string]> = {
       'When signed in, this choice follows your account and can be changed in Profile.',
       '登录后，此选项随账户同步，可在“个人资料”中更改。',
     ],
-  'Start the conversation in this community.': [
-    'Start the conversation in this community.',
-    '在此社区开始对话。',
-  ],
   comments: ['comments', '评论'],
   'Food and drink': ['Food and drink', '食物与饮料'],
   Shared: ['Shared', '已分享'],
@@ -2918,7 +2923,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Write a message or choose an attachment.',
     '请撰写消息或选择附件。',
   ],
-  'Write the first post': ['Write the first post', '发布第一篇帖子'],
   Dark: ['Dark', '深色'],
   'This status has expired or is not on this page.': [
     'This status has expired or is not on this page.',
@@ -4318,7 +4322,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'No notifications on this page.',
     '此页面没有通知。',
   ],
-  'No posts yet': ['No posts yet', '暂无帖子'],
   'No posts in this list.': ['No posts in this list.', '此列表没有帖子。'],
   'No public publications in this tab.': [
     'No public publications in this tab.',
@@ -4750,7 +4753,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     "The author's devices changed. Try again.",
     '作者的设备已更改。请重试。',
   ],
-  'Other trending communities': ['Other trending communities', '其他热门社区'],
   'Other tags': ['Other tags', '其他标签'],
   'Listen to call': ['Listen to call', '收听通话'],
   'Listen to voice message': ['Listen to voice message', '播放语音消息'],

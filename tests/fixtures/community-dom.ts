@@ -50,6 +50,14 @@ export class CommunityNode extends EventTarget {
   removeAttribute(name: string): void {
     this.attributes.delete(name);
   }
+  hasAttribute(name: string): boolean {
+    return this.attributes.has(name);
+  }
+  toggleAttribute(name: string, force = !this.attributes.has(name)): boolean {
+    if (force) this.attributes.set(name, '');
+    else this.attributes.delete(name);
+    return force;
+  }
   append(...nodes: CommunityNode[]): void {
     for (const node of nodes) {
       node.remove();

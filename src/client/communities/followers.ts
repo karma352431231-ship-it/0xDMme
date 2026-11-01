@@ -125,29 +125,32 @@ function knownFollowers(
   link.append(stack, el('span', text, 'community-known-text'));
   host.append(link);
 }
-/**
- * One line under the community name: the follower count, which opens its
- * own page, then the profiles in common for signed-in readers.
- */
-export function mountCommunityFollowerPreview(
-  host: HTMLElement,
-  input: FollowersAccess & { total: number },
-): void {
-  const line = el('div', '', 'community-followers'),
-    count = el('a', '', 'community-followers-link');
+/** The follower count, which opens the community's own followers page. */
+export function communityFollowerCount(input: {
+  id: string;
+  total: number;
+}): HTMLAnchorElement {
+  const count = el('a', '', 'community-followers-link');
   count.append(
     el('strong', input.total.toLocaleString(currentLanguage())),
     el('span', ` ${input.total === 1 ? t('follower') : t('followers')}`),
   );
   count.href = `#communities?id=${input.id}&view=followers`;
-  line.append(count);
-  host.append(line);
-  if (!input.signedIn) return;
-  const preview = el('span', '', 'community-known-followers');
-  line.append(preview);
+  return count;
+}
+/**
+ * Profiles in common for signed-in readers, on their own line below the
+ * community description; the line stays empty (and hidden) without any.
+ */
+export function mountKnownFollowers(
+  host: HTMLElement,
+  input: FollowersAccess,
+): void {
+  const preview = el('div', '', 'community-known-followers');
+  host.append(preview);
   void read(input, 'known', null)
     .then((page) => {
-      if (input.signal.aborted || !line.isConnected || !page.items.length)
+      if (input.signal.aborted || !preview.isConnected || !page.items.length)
         return;
       knownFollowers(preview, page, input);
     })
