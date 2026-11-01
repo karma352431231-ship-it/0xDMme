@@ -36,7 +36,10 @@ jobs:
       - run: npm run check
 
   integration:
-    runs-on: ubuntu-latest
+    # Pinned to the VPS's Ubuntu 24.04: its PostgreSQL 16 client matches the
+    # postgres:16 service. ubuntu-latest moved to Ubuntu 26 (client 18), whose
+    # restore scripts set transaction_timeout, which a 16 server rejects.
+    runs-on: ubuntu-24.04
     # Cold dependency setup took 5m; shard 1 needs another 5m27s on the active release.
     # Bound the entire job while keeping every test and its own deadlines unchanged.
     timeout-minutes: 15
