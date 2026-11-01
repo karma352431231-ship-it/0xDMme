@@ -3,8 +3,9 @@ import { test, type TestContext } from 'node:test';
 import { setImmediate as turn } from 'node:timers/promises';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 import { observePublicPage } from '../src/client/public-traffic/index.ts';
-import { postLinkSharing } from '../src/client/communities/post-link-sharing.ts';
-import { postLinkControl } from '../src/client/communities/post-link.ts';
+import { preferenceControls } from '../src/client/communities/discovery-controls.ts';
+import { engagementObservations } from '../src/shared/engagement-metrics/index.ts';
+import type { EngagementObservation } from '../src/shared/engagement-metrics/index.ts';
 import { postSharing } from '../src/client/communities/post-sharing.ts';
 import { setActiveLanguage, t } from '../src/shared/i18n/index.ts';
 import type { CommunityPost } from '../src/shared/community-posts/index.ts';
@@ -27,6 +28,7 @@ function environment(context: TestContext) {
     },
     HTMLAnchorElement: CommunityNode,
     HTMLButtonElement: class extends CommunityNode {},
+    HTMLInputElement: class extends CommunityNode {},
   };
   for (const [name, value] of Object.entries(globals)) {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -117,8 +119,18 @@ for (const status of [204, 503]) {
   });
 }
 
-await test('copy/share visible and accessibility states use both official languages', async (context) => {
-  const { clipboard } = environment(context);
+await test('post toolbar keeps reposting while menu copy counts sharing in both official languages', async (context) => {
+  const { clipboard, collection, window } = environment(context);
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const observed: EngagementObservation[] = [];
+  collection.mock.mockImplementation((url, options) => {
+    assert.equal(url, '/api/engagement/observations');
+    assert.equal(options?.credentials, 'omit');
+    const body = options?.body;
+    assert.ok(typeof body === 'string');
+    observed.push(...engagementObservations(JSON.parse(body) as unknown));
+    return Promise.resolve(new Response(null, { status: 204 }));
+  });
   const post: CommunityPost = {
     id: crypto.randomUUID(),
     community: crypto.randomUUID(),
@@ -139,20 +151,39 @@ await test('copy/share visible and accessibility states use both official langua
     setActiveLanguage(language);
     const toolbar = new CommunityNode();
     Object.defineProperty(toolbar, 'isConnected', { value: true });
-    postLinkSharing(toolbar as unknown as HTMLElement, post);
-    const buttons = toolbar.querySelectorAll('button');
+    postSharing(toolbar as unknown as HTMLElement, post, null);
     assert.deepEqual(
-      buttons.map((button) => button.textContent),
-      [t('Share link')],
+      toolbar.children.map((node) => node.className),
+      ['post-action post-share'],
     );
-    const status = toolbar.children.find(
-      (node) => node.getAttribute('role') === 'status',
-    )!;
-    const menu = new CommunityNode();
-    const copy = postLinkControl(menu as unknown as HTMLElement, post);
+    preferenceControls(toolbar as unknown as HTMLElement, post, {
+      controller: {
+        request: () => Promise.reject(new Error('Unexpected account request.')),
+      },
+      run: (work) => work(),
+      valid: () => true,
+      changed: () => Promise.resolve(),
+    });
+    const menu = toolbar.querySelector('.post-more')!;
+    const copy = menu.querySelector('.post-copy-link')!;
+    assert.equal(copy.textContent, t('Copy link'));
     copy.click();
     await turn();
     assert.equal(copy.textContent, t('Link copied.'));
+    context.mock.timers.tick(100);
+    await turn();
+    assert.deepEqual(
+      observed.map((item) => item.kind),
+      ['share', 'copy'],
+    );
+    assert.ok(
+      observed.every(
+        (item) =>
+          item.category === 'post' &&
+          item.community === post.community &&
+          item.post === post.id,
+      ),
+    );
     const fail = context.mock.method(clipboard, 'writeText', () =>
       Promise.reject(new Error('Synthetic clipboard denial.')),
     );
@@ -160,11 +191,13 @@ await test('copy/share visible and accessibility states use both official langua
     await turn();
     assert.equal(copy.textContent, t('Could not copy the link.'));
     fail.mock.restore();
-    buttons[0]!.click();
+    context.mock.timers.tick(100);
     await turn();
-    assert.equal(
-      status.textContent,
-      t('The browser received the sharing request.'),
+    assert.deepEqual(
+      observed.map((item) => item.kind),
+      ['share', 'copy', 'share'],
     );
+    observed.length = 0;
+    window.dispatchEvent(new Event('pagehide'));
   }
 });

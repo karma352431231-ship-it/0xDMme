@@ -1,5 +1,4 @@
 import { countShareClick } from './share-click.ts';
-import { postLinkSharing } from './post-link-sharing.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { participationLink } from '../profile-shortcut/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
@@ -19,7 +18,6 @@ export function postSharing(
   } | null,
 ): void {
   if (post.status !== 'visible') return;
-  postLinkSharing(container, post);
   const button = access ? el('button') : el('a');
   button.className = 'post-action post-share';
   // Public count of profiles sharing the post; older payloads omit it.

@@ -1,15 +1,5 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
-  'Share link': ['Share link', '分享链接'],
-  'The browser received the sharing request.': [
-    'The browser received the sharing request.',
-    '浏览器已接收分享请求。',
-  ],
-  'Sharing was canceled.': ['Sharing was canceled.', '分享已取消。'],
-  'Sharing is unavailable. Try again.': [
-    'Sharing is unavailable. Try again.',
-    '暂时无法分享，请重试。',
-  ],
   'Create public profile': ['Create public profile', '创建公开个人资料'],
   'Not now': ['Not now', '暂时不用'],
 
