@@ -358,6 +358,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 103:
+        import deploy_account_engagement
+        return deploy_account_engagement.review(candidate, live)
     if count == 102:
         import deploy_engagement
         return deploy_engagement.review(candidate, live)
@@ -1062,100 +1065,104 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 102:
+        count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+        if count == 103:
+            import deploy_account_engagement
+            return deploy_account_engagement.activate(config, work, candidate, before)
+        if count == 102:
             import deploy_engagement
             return deploy_engagement.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 99:
+        if count == 99:
             import deploy_post_share_counts
             return deploy_post_share_counts.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 98:
+        if count == 98:
             import deploy_group_fences
             return deploy_group_fences.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 97:
+        if count == 97:
             import deploy_community_games
             return deploy_community_games.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 96:
+        if count == 96:
             import deploy_message_sync
             return deploy_message_sync.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 95:
+        if count == 95:
             import deploy_post_search
             return deploy_post_search.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 94:
+        if count == 94:
             import deploy_contact_invitations
             return deploy_contact_invitations.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 93:
+        if count == 93:
             import deploy_profile_directory
             return deploy_profile_directory.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 92:
+        if count == 92:
             import deploy_account_rankings
             return deploy_account_rankings.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 91:
+        if count == 91:
             import deploy_group_media_parts
             return deploy_group_media_parts.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 90:
+        if count == 90:
             import deploy_capacity_database
             return deploy_capacity_database.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 72:
+        if count == 72:
             import deploy_community_addresses
             return deploy_community_addresses.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 71:
+        if count == 71:
             import deploy_chat_attachments
             return deploy_chat_attachments.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 70:
+        if count == 70:
             import deploy_ranking_activity
             return deploy_ranking_activity.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 69:
+        if count == 69:
             import deploy_social_reactions
             return deploy_social_reactions.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 68:
+        if count == 68:
             import deploy_public_upvotes
             return deploy_public_upvotes.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 67:
+        if count == 67:
             import deploy_community_classification
             return deploy_community_classification.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 66:
+        if count == 66:
             import deploy_message_changes
             return deploy_message_changes.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 64:
+        if count == 64:
             import deploy_mentions
             return deploy_mentions.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 62:
+        if count == 62:
             import deploy_discussion
             return deploy_discussion.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 61:
+        if count == 61:
             import deploy_social_experience
             return deploy_social_experience.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 58:
+        if count == 58:
             import deploy_social_controls
             return deploy_social_controls.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 55:
+        if count == 55:
             import deploy_post_tags
             return deploy_post_tags.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 54:
+        if count == 54:
             import deploy_group_links
             return deploy_group_links.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 53:
+        if count == 53:
             import deploy_profile_description
             return deploy_profile_description.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 52:
+        if count == 52:
             import deploy_profile_social
             return deploy_profile_social.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 49:
+        if count == 49:
             import deploy_background
             return deploy_background.activate(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 43:
+        if count == 43:
             return activate_communities(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 27:
+        if count == 27:
             return activate_calls(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 25:
+        if count == 25:
             return activate_representatives(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 24:
+        if count == 24:
             return activate_groups(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 19:
+        if count == 19:
             return activate_linked(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 18:
+        if count == 18:
             return activate_daily(config, work, candidate, before)
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 17:
+        if count == 17:
             return activate_backups(config, work, candidate, before)
         return activate_attachments(config, work, candidate, before)
     # Interrupted processes leave an explicit receipt; never blindly retry them.

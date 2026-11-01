@@ -7,14 +7,20 @@ migration 001–102 stays byte-identical."""
 import deploy_remote as base
 import deploy_blocks45 as backups
 import deploy_background as background
-import deploy_engagement as previous
+import deploy_post_search as previous
 
 BEFORE = 'c4773eeff75713704d092e580c20426a188cfaf4'
 REVIEWED = '383b1252f21609a5bceb79d5041bbea7668e325c'
-TABLES = previous.TABLES + previous.NEW_TABLES
+# Schema 102's metric tables (deploy_engagement.NEW_TABLES), named here so the
+# executor does not also load the 099→102 module within its source budget.
+METRIC_TABLES = ('engagement_state', 'engagement_counts', 'engagement_entities',
+                 'engagement_contributors', 'engagement_visitors', 'engagement_observations',
+                 'engagement_erasure', 'engagement_snapshots', 'engagement_coverage',
+                 'engagement_operations', 'engagement_adjustments')
+TABLES = previous.TABLES + METRIC_TABLES
 # A constraint trigger is not an accounting source: schema 102's 96 remain.
-COUNTER_CHECKS = previous.COUNTER_CHECKS
-GLOBAL_CHECK = previous.GLOBAL_CHECK
+COUNTER_CHECKS = previous.COUNTER_CHECKS.replace('tgrelid)=85', 'tgrelid)=96')
+GLOBAL_CHECK = previous.GLOBAL_CHECK.replace('sources<>85', 'sources<>96')
 TRIGGER = """FROM pg_trigger WHERE tgrelid='hash_talk.accounts'::regclass
  AND tgname='engagement_account_fact' AND NOT tgisinternal AND tgenabled='O'"""
 IMMEDIATE = """SELECT count(*)=1 AND bool_and(NOT tgdeferrable AND tgconstraint=0
@@ -33,7 +39,7 @@ def review(candidate, live):
         name = 'infra/staging/' + unit
         if base.digest(candidate / name) != base.digest(live / name):
             raise RuntimeError('The account fact change does not authorize unit changes.')
-    sql = previous.previous.directory.ranking.capacity
+    sql = previous.directory.ranking.capacity
     if sql.psql(IMMEDIATE) != b't':
         raise RuntimeError('Account fact predecessor schema differs.')
     for check in [COUNTER_CHECKS, GLOBAL_CHECK]:
@@ -42,7 +48,7 @@ def review(candidate, live):
 
 
 def snapshot():
-    batches = previous.previous.directory.ranking.batches
+    batches = previous.directory.ranking.batches
     small = tuple(name for name in TABLES if name not in batches.KEYS)
     result = backups.database_snapshot(small, version_limit=103, include_reserved=True)
     result['tables'].update(batches.snapshot(backups.node, backups.URL_CHECK))
@@ -55,7 +61,7 @@ def verify_migration(candidate, before):
             or before['tables'] != after['tables']):
         raise RuntimeError('The account fact change altered preserved data, accounting or migration history.')
     base.verify_community_tables(TABLES)
-    if any(previous.previous.directory.ranking.capacity.psql(sql) != b't' for sql in
+    if any(previous.directory.ranking.capacity.psql(sql) != b't' for sql in
            [SCHEMA_CHECK, COUNTER_CHECKS, GLOBAL_CHECK]):
         raise RuntimeError('Account fact trigger or capacity reconciliation failed.')
 
@@ -64,7 +70,7 @@ def activate(config, work, candidate, before_state):
     if config.get('account_engagement') is not True:
         raise RuntimeError('The account fact change requires explicit --account-engagement approval.')
     background.verify_current(config)
-    previous.previous.directory.ranking.parts.require_workers()
+    previous.directory.ranking.parts.require_workers()
     result = base.activate_database(config, work, candidate, {
         'before_state': before_state, 'review': review, 'snapshot': snapshot,
         'versions': 102, 'verify': verify_migration,
