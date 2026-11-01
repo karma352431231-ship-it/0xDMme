@@ -256,15 +256,6 @@
 .ranking-side-status:empty {
   display: none;
 }
-.ranking-side-full {
-  margin: 10px 16px 16px;
-  padding: 9px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  color: var(--text);
-  font-weight: 600;
-  text-align: center;
-}
 /* Collapsed (full Communities page only): photos and the expand button. */
 .ranking-side-strip {
   display: none;

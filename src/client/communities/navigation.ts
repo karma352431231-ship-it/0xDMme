@@ -125,6 +125,17 @@ export function communityDirectoryNavigation(
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
+  const nav = sectionLinks(view, selected);
+  container.append(
+    head,
+    tabs,
+    nav,
+    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
+  );
+}
+
+/** Feed and Ranking in the communities side menu. */
+function sectionLinks(view: string, selected: string | null): HTMLElement {
   const nav = el('nav', '', 'community-directory-nav');
   nav.setAttribute('aria-label', t('Community navigation'));
   for (const [key, title, icon] of [
@@ -134,15 +145,12 @@ export function communityDirectoryNavigation(
     link(nav, title, `#communities?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;
     iconLabel(a, icon);
+    // Hidden where the ranking sidebar is on screen (page-wide.css).
+    if (key === 'explore') a.classList.add('community-ranking-link');
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
       a.setAttribute('aria-current', 'page');
   }
-  container.append(
-    head,
-    tabs,
-    nav,
-    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
-  );
+  return nav;
 }
 
 /** Where the arrow of an opened post leads: the list the reader came from, else its community. */

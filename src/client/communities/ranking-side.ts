@@ -193,7 +193,7 @@ class RankingView {
       signal: this.abort.signal,
     });
     this.pane = el('div', '', 'ranking-community-pane');
-    this.pane.append(this.list, this.status, this.footer());
+    this.pane.append(this.list, this.status);
     this.accounts = new AccountRankingView(this.abort.signal, {
       signedIn: source.signedIn,
       following: source.following,
@@ -396,11 +396,6 @@ class RankingView {
       this.scope === 'communities'
         ? this.tab === 'following'
         : this.accounts.following();
-  }
-  private footer(): HTMLElement {
-    const link = el('a', t('ranking.full'), 'ranking-side-full');
-    link.href = '#communities?view=explore';
-    return link;
   }
   private strip(): HTMLElement {
     const strip = el('div', '', 'ranking-side-strip');
