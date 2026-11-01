@@ -237,6 +237,15 @@ GROUP_DELTA_REVIEWED = '28cf2122fb0ba9bb8147a01f57a1b46b46f983aa'
 
 GROUP_DELTA_MODULES = frozenset({'group-message-updates.ts', 'group-messages.ts'})
 
+# Owner asked on 01/11/2026 to turn downvotes off so no client can cast one.
+# Exact refusal of position -1 in the vote write only; all migrations and
+# runtime stay fixed.
+DOWNVOTE_REFUSAL_BEFORE = '4cfd560342423d52c4cdcb1ae20020aeaaa4d0bd'
+
+DOWNVOTE_REFUSAL_REVIEWED = '75d0130a8cca0873d7bea9613b9cefc6a214a6bb'
+
+DOWNVOTE_REFUSAL_MODULES = frozenset({'community-interactions.ts'})
+
 # Owner asked on 25/10/2026 for a "Created by you" sidebar section and its
 # activation. Exact read-only list filter (c.owner) only; all migrations and
 # runtime stay fixed.
@@ -305,6 +314,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(DOWNVOTE_REFUSAL_MODULES), DOWNVOTE_REFUSAL_BEFORE, DOWNVOTE_REFUSAL_REVIEWED),
         (set(OPERATIONAL_HEALTH_MODULES), OPERATIONAL_HEALTH_BEFORE,
          OPERATIONAL_HEALTH_REVIEWED),
         (set(CREATED_COMMUNITIES_MODULES), CREATED_COMMUNITIES_BEFORE,
