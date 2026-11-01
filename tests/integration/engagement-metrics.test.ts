@@ -830,7 +830,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
     },
   );
   await t.test(
-    'an open first sign-in leaves the capacity ledger free and counts at commit',
+    'a first sign-in holds the ledger only at commit; counter writers take it first',
     async () => {
       // Two sessions: one sign-in stays open while another needs the ledger.
       const signIn = new pg.Client({ connectionString: isolated.href });
@@ -858,6 +858,22 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
           BigInt((await metric('accounts_existing'))!),
           existing + 1n,
         );
+        // A fact that only updates an existing counter guards the ledger
+        // first too: every counter writer takes the ledger before its rows.
+        const fact =
+          "SELECT hash_talk.record_engagement('public_page_views',$1,$2)";
+        await inspector.query(fact, [community, post]);
+        await signIn.query('BEGIN');
+        await signIn.query(fact, [community, post]);
+        await other.query('BEGIN');
+        await assert.rejects(
+          other.query(
+            'SELECT used_bytes FROM hash_talk.content_usage_legacy WHERE singleton FOR UPDATE NOWAIT',
+          ),
+          { code: '55P03' },
+        );
+        await other.query('ROLLBACK');
+        await signIn.query('ROLLBACK');
       } finally {
         await signIn.query('ROLLBACK').catch(() => undefined);
         await other.query('ROLLBACK').catch(() => undefined);
