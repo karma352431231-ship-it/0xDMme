@@ -33,13 +33,14 @@ class AccountEngagementDeploymentTests(unittest.TestCase):
         with (patch.object(base, 'reviewed_database') as reviewed,
               patch.object(base, 'verify_community_tables') as tables,
               patch.object(base, 'digest', return_value='same'),
-              patch.object(sql, 'psql', return_value=b't')):
+              patch.object(sql, 'psql', side_effect=[b't', b'f', b't', b't'])):
             fact.review(Path('candidate'), Path('live'))
         self.assertEqual(reviewed.call_args.args[2], {'before': fact.BEFORE,
             'reviewed': fact.REVIEWED, 'versions': 103, 'previous_versions': 102})
         self.assertIn('engagement_counts', tables.call_args.args[0])
-        for digests, schema in [(['changed', 'old'], [b't']), (['same'] * 8, [b'f']),
-                                (['same'] * 8, [b't', b'f'])]:
+        # Immediate trigger, unguarded function, then both accounting checks.
+        for digests, schema in [(['changed', 'old'], [b't', b'f']), (['same'] * 8, [b'f', b'f']),
+                                (['same'] * 8, [b't', b't']), (['same'] * 8, [b't', b'f', b'f'])]:
             with (patch.object(base, 'reviewed_database'),
                   patch.object(base, 'verify_community_tables'),
                   patch.object(base, 'digest', side_effect=digests),
@@ -58,6 +59,7 @@ class AccountEngagementDeploymentTests(unittest.TestCase):
         self.assertIn('CREATE TRIGGER engagement_account_fact', fact.IMMEDIATE)
         self.assertIn('tginitdeferred', fact.SCHEMA_CHECK)
         self.assertIn('DEFERRABLE INITIALLY DEFERRED', fact.SCHEMA_CHECK)
+        self.assertIn('guard_content_usage()', fact.GUARDED)
 
     def test_changed_preserved_rows_history_or_schema_refuses_publication(self):
         before = {'versions': list(range(1, 103)), 'tables': {'engagement_counts': 'same', 'quota': 'same'}}
