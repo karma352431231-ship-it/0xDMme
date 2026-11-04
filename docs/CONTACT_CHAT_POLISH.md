@@ -52,3 +52,10 @@ unrelated module was modified. Full-shell WebKit fixtures passed 13 assertions a
 390 px and 10 at 1100 px, including avatar, blank status, GIF search, navigation,
 notice dismissal, profile framing, language spacing and invitation availability.
 Physical iPhone acceptance remains pending while the owner disconnects the phone.
+
+The code-only database transition is pinned from `e1d1c870` to application
+`071d8b02`: only `contacts.ts` differs in the complete database tree. All SQL
+migrations, lock/token owners, package locks and Node remain identical. The
+existing staging executor retains exact-source, preservation, CI and rollback
+guards. The owner authorized this activation explicitly; no migration flag or
+shared service change is part of this release.

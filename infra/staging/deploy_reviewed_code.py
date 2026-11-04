@@ -246,6 +246,14 @@ DOWNVOTE_REFUSAL_REVIEWED = '75d0130a8cca0873d7bea9613b9cefc6a214a6bb'
 
 DOWNVOTE_REFUSAL_MODULES = frozenset({'community-interactions.ts'})
 
+# Owner requested direct invitation acceptance and activation on 04/11/2026.
+# Only contact approval selection changes; token lifetime, locks, schema and
+# runtime remain byte-identical. Pin the complete database trees on both sides.
+CONTACT_INVITE_ACCEPTANCE_BEFORE = 'e1d1c870768b585cc001f2fffe3986b890ce738a'
+CONTACT_INVITE_ACCEPTANCE_REVIEWED = '071d8b0219beb95f6f7095d81f9da52c23e41a77'
+CONTACT_INVITE_ACCEPTANCE_MODULES = frozenset({'contacts.ts'})
+
+
 # Owner asked on 25/10/2026 for a "Created by you" sidebar section and its
 # activation. Exact read-only list filter (c.owner) only; all migrations and
 # runtime stay fixed.
@@ -314,6 +322,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(CONTACT_INVITE_ACCEPTANCE_MODULES), CONTACT_INVITE_ACCEPTANCE_BEFORE,
+         CONTACT_INVITE_ACCEPTANCE_REVIEWED),
         (set(DOWNVOTE_REFUSAL_MODULES), DOWNVOTE_REFUSAL_BEFORE, DOWNVOTE_REFUSAL_REVIEWED),
         (set(OPERATIONAL_HEALTH_MODULES), OPERATIONAL_HEALTH_BEFORE,
          OPERATIONAL_HEALTH_REVIEWED),
