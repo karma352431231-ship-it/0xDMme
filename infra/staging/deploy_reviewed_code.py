@@ -299,6 +299,22 @@ CATEGORIZED_MESSAGES_MODULES = frozenset({
     'work-signals.ts',
 })
 
+# Owner requested author-only handle deletion and scoped activation on 04/11/2026.
+# Exact complete database trees; existing schema/runtime and preservation guards remain.
+MOBILE_CHAT_DELETION_BEFORE = '98c3a2ee425b08ec7bf0f688080b3f523c7edeea'
+MOBILE_CHAT_DELETION_REVIEWED = '2364a241e3a6811b779129cd2690f071005d6e14'
+MOBILE_CHAT_DELETION_MODULES = frozenset({
+    'index.ts',
+    'social-actions.ts',
+    'social-crypto.ts',
+    'social-dm.ts',
+    'social-history.ts',
+    'social-media.ts',
+    'social-message-deletion.ts',
+    'social-read-receipts.ts',
+    'social-unread.ts',
+})
+
 
 def reviewed_lockfile_change(before, after):
     if frozenset([digest(before), digest(after)]) != PHANTOM_PROBE_LOCKFILES:
@@ -322,6 +338,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (set(MOBILE_CHAT_DELETION_MODULES), MOBILE_CHAT_DELETION_BEFORE,
+         MOBILE_CHAT_DELETION_REVIEWED),
         (set(CONTACT_INVITE_ACCEPTANCE_MODULES), CONTACT_INVITE_ACCEPTANCE_BEFORE,
          CONTACT_INVITE_ACCEPTANCE_REVIEWED),
         (set(DOWNVOTE_REFUSAL_MODULES), DOWNVOTE_REFUSAL_BEFORE, DOWNVOTE_REFUSAL_REVIEWED),
