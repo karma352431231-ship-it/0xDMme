@@ -75,3 +75,14 @@
     border-radius: 50%;
   }
 }
+
+@media (max-width: 700px) {
+  /* Only the history scrolls; a short viewport must not push the composer out. */
+  #app-shell .chat-panel .chat-thread {
+    overflow: hidden;
+  }
+  #app-shell .chat-panel .chat-mobile-back svg {
+    width: 18px;
+    height: 18px;
+  }
+}

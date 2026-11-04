@@ -184,20 +184,21 @@
     flex: 0 0 auto;
     flex-direction: column;
     width: 100%;
-    height: min(52dvh, 420px);
-    max-height: 70%;
-    min-height: 180px;
+    height: min(44%, 360px);
+    max-height: 360px;
+    min-height: 0;
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--line);
   }
   .emoji-composer-panel .emoji-close {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
+    padding: 8px;
     flex: none;
   }
   .emoji-composer-panel .emoji-close svg {
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -209,4 +210,48 @@
 
 .picker-modes .emoji-close {
   margin-left: auto;
+}
+
+/* Outrank generic chat form controls without changing the composer fields. */
+.chat-panel .emoji-panel .emoji-search {
+  display: flex;
+  flex-direction: row;
+  margin: 0;
+}
+.chat-panel .emoji-panel .emoji-search input {
+  width: 0;
+  min-height: 36px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.chat-panel .emoji-panel .emoji-tone select {
+  width: auto;
+  min-height: 36px;
+  padding: 0 4px;
+  border: 0;
+}
+@media (max-width: 700px) {
+  .emoji-composer-panel .picker-modes {
+    flex: none;
+    padding-top: 4px;
+  }
+  .emoji-composer-panel .emoji-top,
+  .emoji-composer-panel .emoji-dock,
+  .emoji-composer-panel .emoji-credit,
+  .emoji-composer-panel .emoji-section-title {
+    flex: none;
+  }
+  .emoji-composer-panel .emoji-recent {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 700px) {
+  .emoji-composer-panel:focus-within {
+    height: min(65%, 360px);
+  }
 }

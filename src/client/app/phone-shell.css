@@ -53,3 +53,67 @@
     height: 22px;
   }
 }
+
+/* One phone conversation owns the viewport, including @ chats opened from a link. */
+@media (max-width: 700px) {
+  #app-shell:is(
+    [data-page='conversas'][data-chat-open='true'],
+    [data-page='comunidades']:has(.social-dm-panel [data-dm-peer])
+  ) {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--phone-viewport-top, 0px);
+    height: var(--phone-viewport-height, var(--viewport-height, 100dvh));
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #app-shell:is(
+      [data-page='conversas'][data-chat-open='true'],
+      [data-page='comunidades']:has(.social-dm-panel [data-dm-peer])
+    )
+    :is(
+      .brand-bar,
+      .area-nav,
+      .mobile-nav,
+      .community-mobile-tabs,
+      .page-heading,
+      .community-heading,
+      .community-tools,
+      .community-feedback:empty
+    ) {
+    display: none;
+  }
+  #app-shell:is(
+      [data-page='conversas'][data-chat-open='true'],
+      [data-page='comunidades']:has(.social-dm-panel [data-dm-peer])
+    )
+    main {
+    grid-row: 1;
+    padding: 0;
+    overflow: hidden;
+  }
+  #app-shell:is(
+      [data-page='conversas'][data-chat-open='true'],
+      [data-page='comunidades']:has(.social-dm-panel [data-dm-peer])
+    )
+    #page-content {
+    min-height: 0;
+    overflow: hidden;
+  }
+  #app-shell[data-page='comunidades']:has(.social-dm-panel [data-dm-peer])
+    .social-dm-panel {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades']
+    [data-communities]:has(.social-dm-panel [data-dm-peer]) {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+}

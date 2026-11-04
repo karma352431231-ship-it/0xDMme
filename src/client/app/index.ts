@@ -16,6 +16,7 @@ import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
 import { startScrollbarFade } from '../scrollbars/index.ts';
+import { startPhoneViewport } from '../phone-viewport/index.ts';
 import { startAccount } from '../account/index.ts';
 import {
   startDevices,
@@ -69,6 +70,7 @@ startLanguage();
 keepPageOnStrayDrop();
 startTransientMenus();
 startScrollbarFade();
+startPhoneViewport();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;

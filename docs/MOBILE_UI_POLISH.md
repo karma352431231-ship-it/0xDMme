@@ -49,3 +49,30 @@ physical keyboard/safe-area acceptance remains the owner's manual test.
 
 The affected existing community refresh, DM coordinator and post-media tests also
 passed (55 tests), with their DOM/picker doubles aligned to the current contract.
+
+## Full phone conversation regression — 2026-11-04
+
+Physical iPhone feedback showed that the earlier simplified fixture missed the
+Communities frame around a handle conversation and its 420 px minimum height.
+The frame retained global navigation; WebKit keyboard panning then displaced the
+composer. The correction makes both private and handle conversations occupy the
+visible phone viewport, hides unrelated shell navigation while a conversation is
+open, and restores that navigation when the conversation leaves. The phone
+viewport owner publishes visible height/offset only; the shell owns framing,
+while the emoji dock retains selection/focus and cleanup ownership.
+
+Native iPhone geometry follows UIKit's keyboard layout guide, with page-level
+scroll disabled and existing inner history/page scrollers retained. Emoji panel
+height follows its conversation, the return arrow is compact and generic form
+styles no longer turn emoji search into an extra boxed field. Validation must
+include the real shell and actual WKWebView layout, including short viewport,
+keyboard opening/closing, repeated panel toggles and leaving the conversation.
+
+The focused release set passed 81 tests covering viewport lifecycle, startup,
+community refresh, DM composition, post media, emoji and web packaging. Lint,
+types, dependency boundaries, formatting, localization and the web build passed.
+The simulator compiled the native test target but failed to launch the app within
+the bounded run; it is not reported as an iPhone visual pass. The owner also
+requested complete removal of the native iPhone form/check toolbar. Its native
+integration remains outside this shared browser release and has its own signed
+app validation and installation evidence.

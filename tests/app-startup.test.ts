@@ -32,6 +32,7 @@ const featureExports: Record<string, string[]> = {
   'file-drop': ['keepPageOnStrayDrop'],
   'transient-menu': ['startTransientMenus'],
   scrollbars: ['startScrollbarFade'],
+  'phone-viewport': ['startPhoneViewport'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
   'notification-sound': ['applySoundPreference', 'storedSoundPreference'],
