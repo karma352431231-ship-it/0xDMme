@@ -193,16 +193,15 @@ export function startPanels(input: {
       closePublic();
       return;
     }
-    if (!split.matches) return;
+    if (!split.matches) {
+      setScope('public');
+      shell.dataset['chatOpen'] = String(dm.id !== null);
+    }
     if (dm.id !== publicTarget?.id || dm.local !== publicTarget.local)
       openPublic(dm.id, dm.local);
   }
   function readPanelRoute(): ReturnType<typeof splitTarget> | false {
-    const standalone = standalonePanelHref(
-      appAddress(),
-      wide.matches,
-      split.matches,
-    );
+    const standalone = standalonePanelHref(appAddress(), wide.matches);
     if (standalone) {
       navigateApp(standalone);
       return false;
@@ -266,7 +265,30 @@ export function startPanels(input: {
     id: string | null;
     local: boolean;
   }): boolean {
-    if (!split.matches) return false;
+    if (!split.matches) {
+      setScope('public');
+      if (!target.id) {
+        closePublic();
+        shell.dataset['chatOpen'] = 'false';
+        if (
+          (history.state as { conversationOpen?: boolean } | null)
+            ?.conversationOpen
+        )
+          history.back();
+        else navigateApp('#chats', { contactScope: 'public' });
+        return true;
+      }
+      openPublic(target.id, target.local);
+      shell.dataset['chatOpen'] = 'true';
+      navigateApp(
+        splitHref({ layout: 'solo', target: panelTarget, dm: target }),
+        {
+          conversationOpen: true,
+          contactScope: 'public',
+        },
+      );
+      return true;
+    }
     openPublic(target.id, target.local);
     navigateApp(
       splitHref({

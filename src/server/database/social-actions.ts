@@ -1,3 +1,4 @@
+import type { DmDeletionPacket } from '../../shared/dm-deletion/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
 import type { SocialContext } from './social-dm.ts';
@@ -11,7 +12,7 @@ export async function admitSocialAction(
   if (!relation) return;
   const result = await context.client.query<{
     hash: string;
-    body: MessagePacket | null;
+    body: MessagePacket | DmDeletionPacket | null;
   }>('SELECT hash,body FROM hash_talk.social_messages WHERE id=$1 FOR UPDATE', [
     relation.id,
   ]);
@@ -33,18 +34,28 @@ export async function admitSocialAction(
 }
 
 function validTarget(
-  target: { hash: string; body: MessagePacket | null } | undefined,
+  target:
+    { hash: string; body: MessagePacket | DmDeletionPacket | null } | undefined,
   packet: MessagePacket,
 ): boolean {
-  if (!target?.body) return false;
+  if (!target?.body || target.body.kind === 'deleted') return false;
   const relation = packet.relation!;
   return (
     target.hash === relation.hash &&
     !target.body.relation &&
     target.body.sender === relation.author &&
-    (relation.type !== 'edit' ||
-      (packet.sender === target.body.sender && target.body.kind === 'text')) &&
+    editableByAuthor(target.body, packet) &&
     [target.body.sender, target.body.recipient].includes(packet.sender) &&
     [target.body.sender, target.body.recipient].includes(packet.recipient)
+  );
+}
+
+function editableByAuthor(
+  target: MessagePacket,
+  action: MessagePacket,
+): boolean {
+  return (
+    action.relation!.type !== 'edit' ||
+    (action.sender === target.sender && target.kind === 'text')
   );
 }

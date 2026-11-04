@@ -1,3 +1,4 @@
+import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
@@ -22,11 +23,13 @@ interface HistoryOptions {
   react: (item: DmItem, emoji: string) => Promise<void>;
   edit: (item: DmItem) => void;
   reply?: (item: DmItem) => void;
+  remove?: (item: DmItem) => Promise<void>;
 }
 /** Owns one displayed message page, row reuse and media/menu disposal.
  * Authority, verified reading and conversation selection remain with their existing owners. */
 export class DmHistory {
   private readonly options: HistoryOptions;
+  private readonly deletion: MessageDeletionSelection;
   private readonly emoji = new EmojiPicker();
   private readonly mediaUi: AttachmentUi;
   private abort = new AbortController();
@@ -37,6 +40,7 @@ export class DmHistory {
   private readonly headings = new Map<string, HTMLElement>();
   constructor(options: HistoryOptions) {
     this.options = options;
+    this.deletion = new MessageDeletionSelection(options.run);
     this.mediaUi = new AttachmentUi(options.playback, () => {});
   }
   get signal(): AbortSignal {
@@ -47,6 +51,7 @@ export class DmHistory {
     return this.rows.size;
   }
   clear(): void {
+    this.deletion.clear();
     this.abort.abort();
     this.abort = new AbortController();
     for (const held of this.rows.values()) held.stop();
@@ -93,6 +98,18 @@ export class DmHistory {
       else current.history.insertBefore(row, cursorNode);
     }
     if (!page.items.length) current.gate.textContent = t('No messages yet.');
+    this.deletion.update(
+      current.history,
+      input.localMedia
+        ? []
+        : page.items
+            .filter((item) => item.own && !item.relation && this.options.remove)
+            .map((item) => ({
+              id: item.id,
+              row: this.rows.get(item.id)!.row,
+              remove: () => this.options.remove!(item),
+            })),
+    );
     restore();
   }
   /** One heading element per day label, reused across refreshes. */
@@ -165,12 +182,7 @@ export class DmHistory {
       run: this.options.run,
       ...(!localMedia
         ? {
-            react: (emoji: string) => this.options.react(item, emoji),
-            edit: () => this.options.edit(item),
-            ...(this.options.reply
-              ? { reply: () => this.options.reply?.(item) }
-              : {}),
-            editable: this.editable(item),
+            ...this.messageCapabilities(item),
           }
         : {}),
     });
@@ -189,6 +201,25 @@ export class DmHistory {
       },
     });
     return bubble.row;
+  }
+  private messageCapabilities(item: DmItem) {
+    return {
+      react: (emoji: string) => this.options.react(item, emoji),
+      edit: () => this.options.edit(item),
+      ...(this.options.reply
+        ? { reply: () => this.options.reply?.(item) }
+        : {}),
+      editable: this.editable(item),
+      ...(item.own && this.options.remove
+        ? {
+            remove: () => {
+              if (matchMedia('(max-width: 700px)').matches)
+                this.deletion.begin(item.id);
+              else void this.options.run(() => this.options.remove!(item));
+            },
+          }
+        : {}),
+    };
   }
   private renderAttachment(
     article: HTMLElement,

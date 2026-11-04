@@ -55,7 +55,7 @@ await test('split layout, filters and narrow-screen navigation preserve the same
   );
   const withoutDm = splitHref({ layout: 'all', target, dm: null });
   assert.equal(
-    standalonePanelHref(withoutDm, false, false),
+    standalonePanelHref(withoutDm, false),
     compact + '?tag=' + community,
   );
 });

@@ -48,7 +48,10 @@ import {
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
-import { startMobileConversation } from './mobile-conversation.ts';
+import {
+  canonicalizeMobilePublicConversation,
+  startMobileConversation,
+} from './mobile-conversation.ts';
 import { startConversationBadges } from './conversation-badges.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
@@ -136,6 +139,7 @@ const conversationBadge = conversationBadgeHost
 const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
   publicProfile: () => publicProfiles.exists(),
+  blockPublicUser: (peer) => publicProfiles.blockUser(peer),
   unreadChanged: (count) => conversationBadge('public', count),
   // Public DMs start from SessionBoot below; the feed uses the signing lane.
   coordinatedStartup: true,
@@ -205,6 +209,7 @@ const messages = startMessages(devices, vault.sync, {
   calls,
   playback,
   openConversation,
+  publicSearch: (query, after) => communities.searchDms(query, after),
   openContact: (contact: AddressBookEntry) => {
     contacts.showContact(contact, element('app-shell'));
   },
@@ -440,6 +445,7 @@ function route(): void {
     renderApprovalPage();
     return;
   }
+  canonicalizeMobilePublicConversation();
   canonicalizeRoute();
   const key = pageKey(appAddress());
   if (key === null) return;
@@ -721,7 +727,9 @@ document
   .querySelectorAll('#open-search, [data-open-search]')
   .forEach((control) => {
     control.addEventListener('click', () => {
-      messages.openSearch();
+      messages.openSearch(
+        appShell?.dataset['contactScope'] === 'public' ? 'public' : 'private',
+      );
     });
   });
 // "/" opens the conversation search unless the person is typing somewhere.
@@ -738,7 +746,9 @@ document.addEventListener('keydown', (event) => {
   )
     return;
   event.preventDefault();
-  messages.openSearch();
+  messages.openSearch(
+    appShell?.dataset['contactScope'] === 'public' ? 'public' : 'private',
+  );
 });
 conversationContent.addEventListener('click', (event) => {
   if (

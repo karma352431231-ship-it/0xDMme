@@ -33,7 +33,7 @@ export class SocialReadReceipts {
     const own = messageIds(data['own']);
     return this.social.withActor(authority, async (context) => {
       const result = await context.client.query<{ recipient: string }>(
-        'SELECT DISTINCT recipient FROM hash_talk.social_messages WHERE sender=$1 AND id=ANY($2::uuid[]) AND body IS NOT NULL',
+        "SELECT DISTINCT recipient FROM hash_talk.social_messages WHERE sender=$1 AND id=ANY($2::uuid[]) AND body IS NOT NULL AND body->>'kind'<>'deleted'",
         [context.actor.id, own],
       );
       const allowed = await this.social.deliveryBatch(
@@ -54,7 +54,7 @@ export class SocialReadReceipts {
           EXISTS(SELECT 1 FROM hash_talk.social_receipts r JOIN hash_talk.public_profiles p ON p.id=r.profile_id
             JOIN hash_talk.daily_controls d ON d.account_id=p.account_id AND d.read_receipts AND d.receipt_epoch=r.read_epoch
             WHERE r.message_id=m.id AND r.profile_id=m.recipient AND r.received) AS read
-          FROM hash_talk.social_messages m WHERE m.sender=$1 AND m.recipient=ANY($2::uuid[]) AND m.id=ANY($3::uuid[]) AND m.body IS NOT NULL
+          FROM hash_talk.social_messages m WHERE m.sender=$1 AND m.recipient=ANY($2::uuid[]) AND m.id=ANY($3::uuid[]) AND m.body IS NOT NULL AND m.body->>'kind'<>'deleted'
           AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.kind='dm-message' AND pr.id=m.id
             AND pr.account_id IN ($4,(SELECT account_id FROM hash_talk.public_profiles WHERE id=m.recipient)))`,
       [context.actor.id, peers, ids, context.authority.session.accountId],
@@ -69,7 +69,7 @@ export class SocialReadReceipts {
     const valid = await context.client.query(
       `SELECT m.id FROM hash_talk.social_messages m JOIN hash_talk.social_receipts r
         ON r.message_id=m.id AND r.profile_id=m.recipient AND r.device_id=$3 AND r.received
-        WHERE m.recipient=$1 AND m.sender=$2 AND m.id=ANY($4::uuid[]) AND m.body IS NOT NULL
+        WHERE m.recipient=$1 AND m.sender=$2 AND m.id=ANY($4::uuid[]) AND m.body IS NOT NULL AND m.body->>'kind'<>'deleted'
         AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$5 AND pr.kind='dm-message' AND pr.id=m.id)`,
       [
         context.actor.id,

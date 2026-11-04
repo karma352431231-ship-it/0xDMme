@@ -1,3 +1,4 @@
+import type { DmDeletionPacket } from '../../shared/dm-deletion/index.ts';
 import { SocialCleanupAuthority } from './social-cleanup-authority.ts';
 import { SocialReadReceipts } from './social-read-receipts.ts';
 import type pg from 'pg';
@@ -73,7 +74,7 @@ export class SocialHistoryStore {
         anchor: string;
         removals: string;
       }>(
-        `SELECT coalesce((SELECT max(sequence) FROM hash_talk.social_messages WHERE sender=$1 OR recipient=$1),0)::text AS anchor,(SELECT count(*) FROM hash_talk.personal_removals WHERE account_id=$2 AND kind='dm-message')::text AS removals`,
+        `SELECT coalesce((SELECT max(sequence) FROM hash_talk.social_messages WHERE sender=$1 OR recipient=$1),0)::text AS anchor,((SELECT count(*) FROM hash_talk.personal_removals WHERE account_id=$2 AND kind='dm-message')+(SELECT count(*) FROM hash_talk.social_messages WHERE (sender=$1 OR recipient=$1) AND body->>'kind'='deleted'))::text AS removals`,
         [context.actor.id, a.session.accountId],
       );
       return {
@@ -89,8 +90,8 @@ export class SocialHistoryStore {
     snapshot: SocialSnapshot,
   ): Promise<void> {
     const count = await context.client.query<{ n: string }>(
-      "SELECT count(*)::text AS n FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='dm-message'",
-      [context.authority.session.accountId],
+      "SELECT ((SELECT count(*) FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='dm-message')+(SELECT count(*) FROM hash_talk.social_messages WHERE (sender=$2 OR recipient=$2) AND body->>'kind'='deleted'))::text AS n",
+      [context.authority.session.accountId, context.actor.id],
     );
     if (
       snapshot.directory !== context.authority.directory ||
@@ -109,6 +110,7 @@ export class SocialHistoryStore {
       after: number;
       actions?: boolean;
       edits?: boolean;
+      deletions?: boolean;
     },
   ) {
     return this.social.withActor(a, async (context) => {
@@ -117,12 +119,13 @@ export class SocialHistoryStore {
         id: string;
         hash: string;
         sequence: string;
-        body: MessagePacket;
+        body: MessagePacket | DmDeletionPacket;
         received: boolean;
       }>(
         `WITH bounded AS (
         SELECT m.* FROM hash_talk.social_messages m WHERE (sender=$1 OR recipient=$1) AND sequence>$2 AND sequence<=$3 AND body IS NOT NULL AND ($6::boolean OR body->'relation' IS NULL)
         AND ($7::boolean OR body->'relation'->>'type' IS DISTINCT FROM 'edit')
+        AND ($8::boolean OR body->>'kind'<>'deleted')
         AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=m.id) ORDER BY sequence LIMIT 16
       ), candidates AS (
         SELECT id,hash,sequence,body,EXISTS(SELECT 1 FROM hash_talk.social_receipts r WHERE r.message_id=m.id AND r.profile_id=$1 AND r.device_id=$5 AND r.received) AS received,sum(charge) OVER(ORDER BY sequence) AS total,row_number() OVER(ORDER BY sequence) AS position
@@ -136,6 +139,7 @@ export class SocialHistoryStore {
           a.session.deviceId,
           input.actions ?? false,
           input.edits ?? false,
+          input.deletions ?? false,
         ],
       );
       const allowed = await this.social.deliveryBatch(
@@ -147,6 +151,7 @@ export class SocialHistoryStore {
         ),
       );
       const canRead = (row: (typeof rows.rows)[number]) =>
+        row.body.kind === 'deleted' ||
         row.received ||
         allowed.has(
           row.body.sender === context.actor.id
@@ -160,7 +165,10 @@ export class SocialHistoryStore {
         [
           context.actor.id,
           rows.rows
-            .filter(canRead)
+            .filter(
+              (row): row is typeof row & { body: MessagePacket } =>
+                row.body.kind !== 'deleted' && canRead(row),
+            )
             .flatMap((r) =>
               r.body.archives
                 .filter((k) => k.accountId === context.actor.id)
@@ -177,7 +185,11 @@ export class SocialHistoryStore {
           id: row.id,
           hash: row.hash,
           sequence: Number(row.sequence),
-          ...(canRead(row) ? { packet: row.body } : { unavailable: 423 }),
+          ...(row.body.kind === 'deleted'
+            ? { deletion: row.body }
+            : canRead(row)
+              ? { packet: row.body }
+              : { unavailable: 423 }),
         })),
         recovery: recovery.rows.map((r) => r.body),
         profiles: [...authors.values()],
@@ -209,7 +221,7 @@ export class SocialHistoryStore {
       hash: string;
       sender: string;
       recipient: string;
-      body: MessagePacket | null;
+      body: MessagePacket | DmDeletionPacket | null;
     }>(
       "SELECT hash,sender,recipient,body FROM hash_talk.social_messages WHERE id=$1 AND (sender=$2 OR recipient=$2) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$3 AND r.kind='dm-message' AND r.id=$1)",
       [id, actor.id, account],
@@ -221,6 +233,7 @@ export class SocialHistoryStore {
   }
   async owned(c: pg.PoolClient, a: ContactAuthority, id: string) {
     const row = await this.participant(c, a.session.accountId, id);
+    if (row.body.kind === 'deleted') return row;
     const prior = await c.query(
       'SELECT 1 FROM hash_talk.social_receipts WHERE message_id=$1 AND profile_id=$2 AND device_id=$3 AND received',
       [id, row.actor, a.session.deviceId],

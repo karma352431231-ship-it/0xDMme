@@ -36,6 +36,7 @@ export const socialDmOperations = [
   'dm-request',
   'dm-decide',
   'dm-block',
+  'dm-delete',
   'dm-directory',
   'dm-register',
   'dm-recovery-current',
@@ -53,7 +54,12 @@ export const socialDmOperations = [
 ] as const;
 type Store = Pick<
   Database,
-  'socialDm' | 'socialCrypto' | 'socialMatrix' | 'socialHistory' | 'socialMedia'
+  | 'socialDm'
+  | 'socialCrypto'
+  | 'socialDeletions'
+  | 'socialMatrix'
+  | 'socialHistory'
+  | 'socialMedia'
 >;
 export class SocialDmService {
   private readonly media: AttachmentService | null;
@@ -85,6 +91,7 @@ export class SocialDmService {
           'after',
           ...(Object.hasOwn(d, 'actions') ? ['actions'] : []),
           ...(Object.hasOwn(d, 'edits') ? ['edits'] : []),
+          ...(Object.hasOwn(d, 'deletions') ? ['deletions'] : []),
         ]);
         const s = object(d['snapshot']);
         keys(s, ['anchor', 'removals', 'directory', 'profile']);
@@ -92,6 +99,9 @@ export class SocialDmService {
           after: socialRevision(d['after']),
           actions: Object.hasOwn(d, 'actions') ? boolean(d['actions']) : false,
           edits: Object.hasOwn(d, 'edits') ? boolean(d['edits']) : false,
+          deletions: Object.hasOwn(d, 'deletions')
+            ? boolean(d['deletions'])
+            : false,
           snapshot: {
             anchor: socialRevision(s['anchor']),
             removals: socialRevision(s['removals']),
@@ -172,6 +182,11 @@ export class SocialDmService {
           revision: socialRevision(d['revision']),
           accept: boolean(d['accept']),
         });
+      },
+      'dm-delete': async (a, d) => {
+        keys(d, ['proof']);
+        await db.socialDeletions.remove(a, d['proof']);
+        return { status: 'deleted' };
       },
       'dm-block': async (a, d) => {
         keys(d, ['peer', 'blocked', 'revision']);

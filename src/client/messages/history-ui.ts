@@ -1,3 +1,5 @@
+import { renderSearchReturn } from '../chat-ui/index.ts';
+import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { MessageForwardSelection } from './forward-selection.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import {
@@ -57,6 +59,7 @@ interface HistoryPresentation {
   media: Messages['media'];
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
+  searchFocus?: { active: () => boolean; latest: () => void };
   receiptsVerified?: (window: {
     peer: string;
     outgoing: readonly string[];
@@ -86,6 +89,7 @@ interface HistoryPresentation {
 
 /** Consumes only verified windows. Never opens storage or bypasses the gate. */
 export class MessageHistoryUi {
+  private readonly deletion: MessageDeletionSelection;
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
@@ -105,6 +109,7 @@ export class MessageHistoryUi {
     outgoing: new WindowReceipts<boolean>((read) => read),
   };
   constructor(options: HistoryPresentation) {
+    this.deletion = new MessageDeletionSelection(options.run);
     this.options = options;
     this.forwarding =
       options.forwarding && options.flush
@@ -123,6 +128,7 @@ export class MessageHistoryUi {
     this.receipts.incoming.clear();
     this.receipts.outgoing.clear();
     this.loading.reset();
+    this.deletion.clear();
     this.avatarPhoto.clear();
     this.headerPhoto?.abort();
     this.forwarding?.clear();
@@ -156,12 +162,38 @@ export class MessageHistoryUi {
     if (!history) return;
     const restoreScroll = historyPosition(history);
     this.renderContent(history, update);
+    renderSearchReturn(history, this.options.searchFocus);
+    this.updateDeletion(history, rows);
     this.forwarding?.update();
     this.renderGate(history);
     this.renderPeer();
     restoreScroll();
     this.watchOlder(history)?.check();
     this.options.composerChanged();
+  }
+  private updateDeletion(
+    history: HTMLElement,
+    rows: readonly MessageView[] | null,
+  ): void {
+    this.deletion.update(
+      history,
+      (rows ?? [])
+        .filter((row) => row.own && !row.archived && !row.relation)
+        .flatMap((view) => {
+          const row = [
+            ...history.querySelectorAll<HTMLElement>('article[data-message]'),
+          ].find((row) => row.dataset['message'] === view.id);
+          return row
+            ? [
+                {
+                  id: view.id,
+                  row,
+                  remove: () => this.options.actions.remove(view),
+                },
+              ]
+            : [];
+        }),
+    );
   }
   /** One scroll binding per history element, replaced when it is remounted. */
   private watchOlder(history: HTMLElement): OlderHistory | null {
@@ -358,7 +390,8 @@ export class MessageHistoryUi {
     signal: AbortSignal,
   ): HTMLElement {
     const article = document.createElement('article');
-    const { remove, ...actions } = this.options.actions;
+    const { action, picker, choose, react } = this.options.actions;
+    const actions = { action, picker, choose, react };
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['message'] = view.id;
     article.setAttribute(
@@ -381,13 +414,24 @@ export class MessageHistoryUi {
       detail,
       messageActions({
         ...actions,
+        row: article,
         signal,
         view,
         forward: () => this.forwarding?.start(view),
         peers: this.options.context().peers.filter((peer) => !peer.localOnly),
         replyAllowed: !this.options.context().selected?.localOnly,
         // A remove capability exists in composition, but is offered only for an own live row.
-        ...(!view.archived && view.own ? { remove: () => remove(view) } : {}),
+        ...(!view.archived && view.own
+          ? {
+              remove: () => {
+                if (matchMedia('(max-width: 700px)').matches) {
+                  this.deletion.begin(view.id);
+                  return Promise.resolve();
+                }
+                return this.options.actions.remove(view);
+              },
+            }
+          : {}),
       }),
     );
     if (view.reactions.length)

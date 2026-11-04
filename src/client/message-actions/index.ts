@@ -16,17 +16,14 @@ interface MessageActionOptions<T extends DailyRow> {
   picker: Pick<EmojiPicker, 'choose'>;
   forward: (view: DailyView<T>) => void;
   remove?: () => Promise<void>;
+  row?: HTMLElement;
 }
 export function messageActions<T extends DailyRow>(
   c: MessageActionOptions<T>,
 ): HTMLElement {
   if (c.view.kind === 'profile' && !c.remove)
     return document.createElement('div');
-  const {
-    host,
-    panel: menu,
-    trigger,
-  } = anchoredMessageMenu({ signal: c.signal });
+  const { host, panel: menu, trigger } = anchoredMessageMenu(gestureOptions(c));
   if (c.view.kind === 'profile') {
     appendRemove(menu, c);
     return host;
@@ -60,6 +57,17 @@ export function messageActions<T extends DailyRow>(
   appendForward(menu, c);
   appendRemove(menu, c);
   return host;
+}
+
+/** Touch affordances use the same reply capability as the visible menu. */
+function gestureOptions<T extends DailyRow>(c: MessageActionOptions<T>) {
+  return {
+    signal: c.signal,
+    ...(c.row ? { row: c.row } : {}),
+    ...(c.replyAllowed !== false && c.view.kind !== 'profile'
+      ? { reply: () => c.choose('reply', c.view) }
+      : {}),
+  };
 }
 
 /** Copies the visible text (a caption for attachments) on this device only.

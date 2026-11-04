@@ -131,6 +131,7 @@ export class ConversationReader {
   /** How far back each conversation reaches; see history-window. */
   private readonly floors = new HistoryFloors();
   private olderRequested = false;
+  private searchBefore: number | null = null;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
   private readonly conversations = new ConfirmedConversations<MessageView>();
   private probedSnapshot: unknown = null;
@@ -289,12 +290,14 @@ export class ConversationReader {
   }
   canRestore(peer: string): boolean {
     return (
+      this.searchBefore === null &&
       this.authority.session() !== null &&
       this.conversations.reusable(peer) !== null
     );
   }
   /** Reproject only a verified window from this uninterrupted live session. */
   restoreSelected(): boolean {
+    if (this.searchBefore !== null) return false;
     const candidate = this.selected
       ? this.conversations.reusable(this.selected)
       : null;
@@ -319,6 +322,7 @@ export class ConversationReader {
     return true;
   }
   select(peer: string | null): void {
+    this.searchBefore = null;
     this.selection.invalidate();
     this.probedSnapshot = null;
     this.olderRequested = false;
@@ -332,6 +336,18 @@ export class ConversationReader {
     this.visibility.close();
     this.offlineIndex.reset();
     this.selected = peer;
+  }
+  focusMessage(sequence: number | null): void {
+    this.searchBefore = sequence === null ? null : sequence + 1;
+    this.confirmed = null;
+    this.verified.clear();
+    this.resetIndex();
+    this.olderRequested = false;
+    if (this.selected)
+      this.floors.update(this.selected, { floor: null, complete: false });
+  }
+  get searchFocused(): boolean {
+    return this.searchBefore !== null;
   }
   /** The next read of the selected conversation also reaches one page
    * further back, keeping what is shown until it completes. */
@@ -410,20 +426,23 @@ export class ConversationReader {
             );
           this.concealChangedFence(token, snapshot);
           const read = { a, generation, api, snapshot, selected };
-          const incremental = await readIncrementalWindow({
-            candidate: this.confirmed,
-            snapshot,
-            account: a.session.accountId,
-            peer: selected,
-            floor,
-            api,
-            remove: (item) =>
-              this.packets.remove({ a, generation, selected, api }, item),
-            read: (items) =>
-              this.readWindow({ a, generation, api, snapshot, items }),
-            delivery: (views) =>
-              this.refreshDelivery(snapshot, generation, views, a),
-          });
+          const incremental =
+            this.searchBefore === null
+              ? await readIncrementalWindow({
+                  candidate: this.confirmed,
+                  snapshot,
+                  account: a.session.accountId,
+                  peer: selected,
+                  floor,
+                  api,
+                  remove: (item) =>
+                    this.packets.remove({ a, generation, selected, api }, item),
+                  read: (items) =>
+                    this.readWindow({ a, generation, api, snapshot, items }),
+                  delivery: (views) =>
+                    this.refreshDelivery(snapshot, generation, views, a),
+                })
+              : null;
           if (incremental)
             return this.reachRemoteFloor(
               read,
@@ -432,7 +451,7 @@ export class ConversationReader {
             );
           return this.reachRemoteFloor(
             read,
-            await this.readRemotePage(read, null),
+            await this.readRemotePage(read, this.searchBefore),
             { floor, older },
           );
         },
@@ -466,7 +485,7 @@ export class ConversationReader {
           staged.liveViews,
         );
       this.confirmConversationChanges(staged.snapshot);
-      this.rememberConversation();
+      if (this.searchBefore === null) this.rememberConversation();
       this.readTarget.reset();
     } catch (error: unknown) {
       guardProjectionFailure(error, guard, () => this.visibility.close());
@@ -625,7 +644,7 @@ export class ConversationReader {
       guard = this.selection.capture(() => this.authority.guard(generation));
     const open = async (a: VaultAuthority) => {
       const reached = await reachFloor({
-        rows: await this.includeHistory(a, [], generation, null),
+        rows: await this.includeHistory(a, [], generation, this.searchBefore),
         floor,
         older,
         page: (before) => this.includeHistory(a, [], generation, before),
@@ -835,7 +854,7 @@ export class ConversationReader {
             guard();
             if (views) {
               this.confirmed = { ...this.confirmed, views };
-              this.rememberConversation();
+              if (this.searchBefore === null) this.rememberConversation();
               return false;
             }
           }
@@ -904,12 +923,22 @@ export class ConversationReader {
       await this.access.withLocalVault(locator, async (a) => {
         const removed = new RemovalIndex();
         await removed.load(a, () => guard());
-        const latest = await this.offlineViews(a, peer, null, guard);
+        const latest = await this.offlineViews(
+          a,
+          peer,
+          this.searchBefore,
+          guard,
+        );
         if (peer) latest.push(...(await this.packets.offlineProfiles(a, peer)));
         guard();
         this.selected = peer;
         const reached = await reachFloor({
-          rows: await this.includeHistory(a, latest, generation, null),
+          rows: await this.includeHistory(
+            a,
+            latest,
+            generation,
+            this.searchBefore,
+          ),
           floor,
           older,
           page: async (before) =>

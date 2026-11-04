@@ -1,3 +1,4 @@
+import { messageSearchExcerpt } from '../message-search/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { base64, encode } from '../../shared/account/index.ts';
 import { backupChunk, backupRecordLimit } from '../../shared/backups/index.ts';
@@ -773,14 +774,18 @@ export async function historyPage(
     next: page.next,
   };
 }
-async function searchablePage(a: VaultAuthority, after: IDBValidKey | null) {
+async function searchablePage(
+  a: VaultAuthority,
+  after: IDBValidKey | null,
+  family: 'message' | 'dm-message' = 'message',
+) {
   const account = a.session.accountId;
   if (
     after !== null &&
     (!Array.isArray(after) ||
       after.length !== 4 ||
       after[0] !== account ||
-      after[1] !== 'message')
+      after[1] !== family)
   )
     throw new Error('Search belongs to another account.');
   return transaction<{ rows: StoredRecord[]; next: IDBValidKey | null }>(
@@ -789,8 +794,8 @@ async function searchablePage(a: VaultAuthority, after: IDBValidKey | null) {
         .objectStore('records')
         .openCursor(
           IDBKeyRange.bound(
-            after ?? [account, 'message'],
-            [account, 'message', '\uffff'],
+            after ?? [account, family],
+            [account, family, '\uffff'],
             after !== null,
           ),
         );
@@ -803,7 +808,7 @@ async function searchablePage(a: VaultAuthority, after: IDBValidKey | null) {
         }
         if (rows.length === 16) {
           const last = rows.at(-1)!;
-          done({ rows, next: [account, 'message', last.id, last.source] });
+          done({ rows, next: [account, family, last.id, last.source] });
           return;
         }
         const row = cursor.value as StoredRecord;
@@ -888,12 +893,78 @@ export async function searchHistory(
           .toLocaleLowerCase(currentLanguage())
           .includes(term)
       )
-        items.push(historyResult(row));
+        items.push({
+          ...historyResult(row),
+          excerpt: messageSearchExcerpt(row.content.text, query),
+        });
     after = result.next;
     if (after === null || items.length >= 16) break;
   }
   guard();
   return { items, next: after === null ? null : JSON.stringify(after) };
+}
+/** Public-handle search retains its separate record family and public profile identity. */
+export async function searchDmHistory(
+  a: VaultAuthority,
+  query: string,
+  cursor: string | null,
+  guard: () => void,
+) {
+  const term = query
+    .normalize('NFKC')
+    .toLocaleLowerCase(currentLanguage())
+    .trim();
+  if (!term || term.length > 128)
+    throw new Error('Enter between 1 and 128 characters.');
+  let after = searchCursor(cursor);
+  const items: ReturnType<typeof historyResult>[] = [];
+  const profiles = new Map<
+    string,
+    Extract<BackupRecord, { type: 'dm-message' }>['peer']
+  >();
+  for (let page = 0; page < 4; page++) {
+    guard();
+    const result = await searchablePage(a, after, 'dm-message');
+    const opened = await Promise.all(
+      result.rows.map((row) => openHistoryRecord(a, row)),
+    );
+    const base = opened.filter(
+      (row): row is Extract<BackupRecord, { type: 'dm-message' }> =>
+        row.type === 'dm-message' && !row.relation,
+    );
+    for (const row of base) profiles.set(row.peer.id, row.peer);
+    const related = await relatedDmHistory(
+      a,
+      base.map((row) => row.id),
+      guard,
+    );
+    const views = dailyViews(
+      [...base, ...related].map((row) => ({
+        ...row,
+        peer: row.peer.id,
+        author: row.own ? row.self : row.peer.id,
+      })),
+    );
+    for (const view of views)
+      if (
+        view.content.text
+          .normalize('NFKC')
+          .toLocaleLowerCase(currentLanguage())
+          .includes(term)
+      )
+        items.push({
+          ...historyResult(view),
+          excerpt: messageSearchExcerpt(view.content.text, query),
+        });
+    after = result.next;
+    if (after === null || items.length >= 16) break;
+  }
+  guard();
+  return {
+    items,
+    profiles: [...profiles.values()],
+    next: after === null ? null : JSON.stringify(after),
+  };
 }
 export async function conversationHistory(
   a: VaultAuthority,

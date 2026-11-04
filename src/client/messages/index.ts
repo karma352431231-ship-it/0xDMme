@@ -1,4 +1,5 @@
-import { afterMessageWork, awaitMessageWork } from './continuation.ts';
+import { expectedInterruption } from '../synchronization-work/index.ts';
+import { awaitMessageWork } from './continuation.ts';
 export { notificationMessages } from './notification.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
@@ -89,6 +90,7 @@ export function startMessages(
     addContact: (wallet: WalletContact, alias: string) => void;
     directoryChanged: (available: boolean) => void;
     unreadChanged?: (count: number) => void;
+    publicSearch?: (query: string, after: string | null) => Promise<SearchPage>;
     directorySettled?: (session: AccountSession | null) => void;
     representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
@@ -110,7 +112,11 @@ export function startMessages(
   let states = new Map<string, PeerState>();
   let navigatingToConversation = false;
   let directory: HTMLElement | null = null;
-  const searchPanel = new ConversationSearch(searchPage, openSearchResult);
+  const searchPanel = new ConversationSearch(
+    searchPage,
+    openSearchResult,
+    options.publicSearch,
+  );
   let mounted: HTMLElement | null = null,
     selected: ConversationPeer | null = null,
     session: AccountSession | null = null,
@@ -566,6 +572,15 @@ export function startMessages(
       load: loadOlder,
     },
     composerChanged: composerStatus,
+    searchFocus: {
+      active: () => controller.searchFocused,
+      latest: () => {
+        void run(async () => {
+          controller.focusMessage(null);
+          await synchronizeVisible();
+        });
+      },
+    },
     outgoing: () => outgoing.forPeer(selected?.accountId),
     retryOutgoing: () => {
       outgoing.retry();
@@ -785,12 +800,24 @@ export function startMessages(
   }
   /** Opens a private-chat match at its message; other results open their conversation. */
   function openSearchResult(item: SearchItem, entry: ConversationEntry): void {
+    if (entry.reveal) {
+      entry.reveal(item.id, item.sequence);
+      return;
+    }
     const peer = directoryData.peers.find((p) => p.accountId === item.peer);
     if (!peer) {
       entry.open();
       return;
     }
-    void requestPeer(peer).then(() => revealSearchMatch(item.id, peer));
+    void requestPeer(peer, item.sequence)
+      .then(() => revealSearchMatch(item.id, peer))
+      .catch((error: unknown) => {
+        if (
+          selected?.accountId === peer.accountId &&
+          !expectedInterruption(error)
+        )
+          showToast(t('Could not open the selected message.'));
+      });
   }
   async function revealSearchMatch(
     id: string,
@@ -804,14 +831,19 @@ export function startMessages(
         ) ?? null,
       // A failed read counts as no progress, as in scroll-driven loading.
       older: {
-        available: () => controller.olderAvailable(rootsShown()),
+        available: () =>
+          !controller.searchFocused && controller.olderAvailable(rootsShown()),
         load: () => loadOlder().catch(() => false),
       },
       valid: open,
     });
     if (!found && open())
       showToast(
-        t('This message is further back. Scroll up to load earlier messages.'),
+        t(
+          controller.searchFocused
+            ? 'Could not open the selected message.'
+            : 'This message is further back. Scroll up to load earlier messages.',
+        ),
       );
   }
   function rootsShown(): number {
@@ -1083,9 +1115,10 @@ export function startMessages(
       });
     return !composer.recording && !composer.voicePreview && visits.open(peer);
   }
-  function requestPeer(peer: ConversationPeer): Promise<void> {
-    if (reopenSelectedPeer(peer)) return Promise.resolve();
-    if (reusePeer(peer)) return Promise.resolve();
+  function requestPeer(peer: ConversationPeer, focus?: number): Promise<void> {
+    if (focus === undefined && reopenSelectedPeer(peer))
+      return Promise.resolve();
+    if (focus === undefined && reusePeer(peer)) return Promise.resolve();
     const current = generation;
     const clear = directoryUi.openingPeer(peer.accountId);
     return synchronization
@@ -1093,17 +1126,23 @@ export function startMessages(
         async () => {
           clear();
           if (current === generation && !continuity.suspended)
-            await openPeer(peer);
+            await openPeer(peer, focus);
         },
         () =>
-          current === generation && !continuity.suspended && reusePeer(peer),
+          current === generation &&
+          !continuity.suspended &&
+          focus === undefined &&
+          reusePeer(peer),
       )
       .finally(() => {
         clear();
         broadcastProfile();
       });
   }
-  async function openPeer(peer: ConversationPeer): Promise<void> {
+  async function openPeer(
+    peer: ConversationPeer,
+    focus?: number,
+  ): Promise<void> {
     if (
       (composer.recording || composer.voicePreview) &&
       selected?.accountId !== peer.accountId
@@ -1112,6 +1151,7 @@ export function startMessages(
         'Send or remove the voice preview before changing recipients.',
       );
     selectPeer(peer);
+    if (focus !== undefined) controller.focusMessage(focus);
     if (!navigator.onLine) {
       await controller.openOffline(peer.accountId);
       return;
@@ -1120,7 +1160,7 @@ export function startMessages(
       await controller.openArchive(peer.accountId);
       return;
     }
-    if (visits.restore()) return;
+    if (focus === undefined && visits.restore()) return;
     await synchronizeVisible({ priority: 'interactive' }, async () => {
       await controller.savePins();
       await historyUi.markRead(daily);
@@ -1358,9 +1398,7 @@ export function startMessages(
           };
           return;
         }
-        if (!navigator.onLine) return search();
-        await controller.initialize();
-        return afterMessageWork(() => controller.synchronize(), search);
+        return search();
       },
       (work) =>
         synchronization.run(async () => {
@@ -1647,7 +1685,8 @@ export function startMessages(
       directoryData.peers.find((p) => p.accountId === peer)?.name ||
       directoryData.peers.find((p) => p.accountId === peer)?.address ||
       t('Approved contact {0}', [peer.slice(0, 8)]),
-    openSearch: () => searchPanel.open(),
+    openSearch: (scope: 'private' | 'public' = 'private') =>
+      searchPanel.open(scope),
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
     setSession(value: AccountSession | null): void {

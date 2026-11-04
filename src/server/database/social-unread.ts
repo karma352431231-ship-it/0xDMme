@@ -24,7 +24,7 @@ export async function socialUnread(input: {
         CROSS JOIN LATERAL (
           SELECT m.sequence FROM hash_talk.social_messages m
           WHERE m.recipient=$1 AND m.sender=p.peer
-            AND m.body IS NOT NULL AND m.body->'relation' IS NULL
+            AND m.body IS NOT NULL AND m.body->>'kind'<>'deleted' AND m.body->'relation' IS NULL
             AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r
               WHERE r.account_id=$3 AND r.kind='dm-message' AND r.id=m.id)
           ORDER BY m.sequence DESC LIMIT 100

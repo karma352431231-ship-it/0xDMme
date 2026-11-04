@@ -1,3 +1,7 @@
+import {
+  dmDeletionPacket,
+  verifyDmDeletion,
+} from '../../src/shared/dm-deletion/index.ts';
 import { deferred, waitForBoundary } from '../fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -1259,6 +1263,146 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
           [packets.map((body) => body.id)],
         );
       }
+    },
+  );
+  await t.test(
+    'author deletion is atomic, signed, quota-reducing and excludes legacy clients and strangers',
+    async () => {
+      const own = await am.encrypt({
+        authority: a.authority,
+        peerHistory: b.authority.events,
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'x',
+      });
+      await operate(alice, 'publish', { packet: own });
+      const hash = await digest(canonical(own));
+      const edited = await am.encrypt({
+        authority: a.authority,
+        peerHistory: b.authority.events,
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'changed',
+        relation: { id: own.id, hash, author: ap.id, type: 'edit' },
+      });
+      await operate(alice, 'publish', { packet: edited });
+      const unsigned = {
+        deviceId: a.deviceId,
+        directory: a.head,
+        payload: {
+          id: own.id,
+          hash,
+          recipient: bp.id,
+          revision: a.authority.events.length,
+        },
+      };
+      const proof = {
+        ...unsigned,
+        signature: await a.authority.sign(
+          messageBody(ap.id, a.deviceId, 'dm-delete', unsigned),
+        ),
+      };
+      const bobAuthority = {
+        session: bob.login.session,
+        directory: bob.directory,
+      };
+      const before = await db.socialHistory.snapshot(bobAuthority);
+      const usage = (
+        await db.vault.page(alice.login.session, alice.directory, 0)
+      ).used;
+      await assert.rejects(operate(bob, 'delete', { proof }), { status: 404 });
+      await assert.rejects(operate(outsider, 'delete', { proof }), {
+        status: 404,
+      });
+      await assert.rejects(
+        operate(alice, 'delete', {
+          proof: { ...proof, signature: encode(new Uint8Array(64)) },
+        }),
+      );
+      await assert.rejects(
+        operate(alice, 'delete', {
+          proof: {
+            ...proof,
+            payload: { ...proof.payload, hash: 'b'.repeat(64) },
+          },
+        }),
+        { status: 409 },
+      );
+      await operate(alice, 'delete', { proof });
+      assert.ok(
+        (await db.vault.page(alice.login.session, alice.directory, 0)).used <
+          usage,
+      );
+      const deleted = (
+        await inspector.query<{ body: unknown; charge: number }>(
+          'SELECT body,charge FROM hash_talk.social_messages WHERE id=$1',
+          [own.id],
+        )
+      ).rows[0]!;
+      const receipt = dmDeletionPacket(deleted.body);
+      await verifyDmDeletion(receipt, a.authority.events);
+      assert.equal(
+        JSON.stringify(receipt).includes(alice.wallet.address),
+        false,
+      );
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.social_messages WHERE id=$1 AND body IS NOT NULL',
+            [edited.id],
+          )
+        ).rowCount,
+        0,
+      );
+      const snapshot = await db.socialHistory.snapshot(bobAuthority);
+      assert.ok(snapshot && before);
+      await assert.rejects(
+        db.socialHistory.page(bobAuthority, {
+          snapshot: before,
+          after: 0,
+          actions: true,
+          edits: true,
+          deletions: true,
+        }),
+        { status: 409 },
+      );
+      const sequence = Number(
+        (
+          await inspector.query<{ sequence: string }>(
+            'SELECT sequence::text FROM hash_talk.social_messages WHERE id=$1',
+            [own.id],
+          )
+        ).rows[0]!.sequence,
+      );
+      const current = await db.socialHistory.page(bobAuthority, {
+        snapshot,
+        after: sequence - 1,
+        actions: true,
+        edits: true,
+        deletions: true,
+      });
+      assert.equal(
+        current.items.some((row) => row.id === own.id && 'deletion' in row),
+        true,
+      );
+      const legacy = await db.socialHistory.page(bobAuthority, {
+        snapshot,
+        after: sequence - 1,
+        actions: true,
+        edits: true,
+      });
+      assert.equal(
+        legacy.items.some((row) => row.id === own.id),
+        false,
+      );
+      const stableUsage = (
+        await db.vault.page(alice.login.session, alice.directory, 0)
+      ).used;
+      await operate(alice, 'delete', { proof });
+      assert.equal(
+        (await db.vault.page(alice.login.session, alice.directory, 0)).used,
+        stableUsage,
+      );
     },
   );
   await t.test(

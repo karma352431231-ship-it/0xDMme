@@ -63,7 +63,7 @@ try {
   );
   check(
     Math.abs(box(view.avatar).width - box(view.avatar).height) < 1,
-    'Handle avatar stays square',
+    'Handle avatar stays square even with a portrait image',
   );
   check(
     Math.abs(box(view.title).left - box(view.state).left) < 1,
@@ -73,6 +73,11 @@ try {
   const anchor = view.form.querySelector<HTMLButtonElement>(
     '[data-public-emoji]',
   )!;
+  if (matchMedia('(max-width:700px)').matches)
+    check(
+      box(anchor).width >= 44 && box(anchor).height >= 44,
+      'Phone emoji touch target is at least 44 by 44',
+    );
   const gifs = {
     page: () => Promise.resolve({ items: [], next: false }),
   } as unknown as GifSearch;
@@ -103,8 +108,53 @@ try {
       'Global navigation is absent in the phone conversation',
     );
   }
-  picker.close();
+  if (matchMedia('(max-width:700px)').matches) {
+    const dock = document.querySelector<HTMLElement>('.emoji-composer-panel')!;
+    const height = box(dock).height,
+      scroll = window.scrollY;
+    dock.querySelector<HTMLButtonElement>('[data-close]')!.click();
+    const reserved = document.querySelector<HTMLElement>(
+      '.emoji-keyboard-handoff',
+    )!;
+    check(
+      !!reserved && Math.abs(box(reserved).height - height) < 1,
+      'Returning to typing retains dock space until the keyboard arrives',
+    );
+    check(
+      document.activeElement === view.text && window.scrollY === scroll,
+      'Returning to typing focuses the composer without scrolling the document',
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 550));
+    check(
+      !document.querySelector('.emoji-keyboard-handoff'),
+      'Keyboard handoff cleans up if the keyboard does not resize',
+    );
+  } else picker.close();
   await opening;
+  if (matchMedia('(max-width:700px)').matches) {
+    const nextOpening = emojiIntoComposer(picker, anchor, view.text, {
+      start: 'gif',
+      pane: (pane) => mountGifPane(pane, gifs, () => {}),
+    });
+    await Promise.resolve();
+    document.querySelector<HTMLInputElement>('[data-gif-query]')!.focus();
+    const back = document.querySelector<HTMLButtonElement>(
+      '.emoji-composer-panel [data-close]',
+    )!;
+    const press = new Event('pointerdown', { cancelable: true });
+    back.dispatchEvent(press);
+    check(
+      press.defaultPrevented,
+      'Return control preserves the existing search keyboard',
+    );
+    back.click();
+    check(
+      document.activeElement === view.text &&
+        !document.querySelector('.emoji-keyboard-handoff'),
+      'An existing search keyboard transfers directly without an extra layout reservation',
+    );
+    await nextOpening;
+  }
   const warning = document.querySelector<HTMLButtonElement>('.dm-safety-close');
   warning?.click();
   check(

@@ -15,6 +15,10 @@
   background: var(--overlay);
 }
 .search-heading {
+  position: sticky;
+  top: -24px;
+  z-index: 1;
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -46,6 +50,13 @@
   display: flex;
   gap: 8px;
 }
+.conversation-search form {
+  position: sticky;
+  top: 28px;
+  z-index: 1;
+  padding-bottom: 8px;
+  background: var(--surface);
+}
 .search-input-row input {
   flex: 1;
   width: 100%;
@@ -56,6 +67,7 @@
   background: var(--surface);
   color: inherit;
   font: inherit;
+  font-size: max(16px, 1em);
 }
 .search-scope,
 [data-search-notice] {
@@ -93,6 +105,16 @@
   white-space: pre-wrap;
   font-size: var(--fs-small);
   margin: 8px 0;
+}
+.conversation-search [data-search-messages] .conversation-row {
+  width: 100%;
+  text-align: start;
+  cursor: pointer;
+}
+.conversation-search mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 3px;
 }
 .search-result-heading {
   display: flex;
@@ -141,4 +163,10 @@ article.search-match {
     animation-duration: 2.4s;
     animation-timing-function: steps(1, end);
   }
+}
+
+.conversation-search .search-result-excerpt {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
 }

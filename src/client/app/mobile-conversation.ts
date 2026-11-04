@@ -1,5 +1,5 @@
 import { appAddress, navigateApp } from '../app-navigation/index.ts';
-import { appRoute } from '../../shared/app-routes/index.ts';
+import { appRoute, appHref } from '../../shared/app-routes/index.ts';
 
 type Scope = 'private' | 'public';
 interface ConversationState {
@@ -9,6 +9,27 @@ interface ConversationState {
 function state(): ConversationState {
   const value: unknown = history.state;
   return typeof value === 'object' && value !== null ? value : {};
+}
+
+/** Resolve legacy public-DM links before a Communities screen can mount on a phone. */
+export function canonicalizeMobilePublicConversation(): void {
+  if (!matchMedia('(max-width: 700px)').matches) return;
+  const route = appRoute(appAddress());
+  if (route?.page !== 'communities' || route.params.get('view') !== 'dms')
+    return;
+  const peer = route.params.get('dm');
+  const params = new URLSearchParams();
+  if (peer) {
+    params.set('layout', 'chat');
+    params.set('dm', peer);
+  }
+  if (peer && route.params.get('history') === 'local')
+    params.set('history', 'local');
+  history.replaceState(
+    { ...state(), conversationOpen: Boolean(peer), contactScope: 'public' },
+    '',
+    appHref('chats', params),
+  );
 }
 
 /** A private chat is a history step, without putting its identity in the URL
@@ -21,7 +42,11 @@ export function startMobileConversation(options: {
   const mobile = matchMedia('(max-width: 700px)');
   // Reloading has no selected private peer to restore. Never show an empty
   // full-screen chat just because the browser retained a presentation marker.
-  if (mobile.matches && state().conversationOpen === true)
+  if (
+    mobile.matches &&
+    state().conversationOpen === true &&
+    state().contactScope !== 'public'
+  )
     history.replaceState({ ...state(), conversationOpen: false }, '');
   function restore(): void {
     if (!mobile.matches) return;
@@ -51,8 +76,12 @@ export function startMobileConversation(options: {
     restore,
     open(): void {
       if (!mobile.matches) return;
+      options.scope('private');
       const chats = appRoute(appAddress())?.page === 'chats';
-      if (chats && state().conversationOpen === true) return;
+      if (chats && state().conversationOpen === true) {
+        history.replaceState({ ...state(), contactScope: 'private' }, '');
+        return;
+      }
       const next = {
         conversationOpen: true,
         contactScope: 'private',

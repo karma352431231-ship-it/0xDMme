@@ -59,6 +59,7 @@ export function startCommunities(
     profiles: FeedProfileFollows;
     publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
+    blockPublicUser?: (peer: string) => Promise<void>;
     /** When the app coordinates session warmups, a mounted feed still loads
      * on session change (its requests use the signing lane), while public DMs,
      * which share the exclusive account turn, wait for sessionReady(). */
@@ -66,7 +67,12 @@ export function startCommunities(
   },
 ) {
   const { profiles } = options;
-  const dms = startSocialDmUi(access, sync, privacy, options.unreadChanged);
+  const dms = startSocialDmUi(access, sync, privacy, {
+    ...(options.unreadChanged ? { unreadChanged: options.unreadChanged } : {}),
+    ...(options.blockPublicUser
+      ? { blockPublic: options.blockPublicUser }
+      : {}),
+  });
   const controller = new Communities(access);
   const participation = new PublicActionGate({
     session: () => session,
@@ -531,6 +537,8 @@ export function startCommunities(
       dmOwner = null;
     },
     dmEvent: (event: LiveEvent) => dms.event(event),
+    searchDms: (query: string, after: string | null) =>
+      dms.search(query, after),
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
     /** Bounded publication history and read acknowledgements for Activity. */

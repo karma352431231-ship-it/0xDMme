@@ -589,7 +589,7 @@ await test('encrypted favorites resolve their own branches, preserve legacy pref
   content.set(pendingEntry.commit.id, JSON.stringify({ favorite: 'sim' }));
   await assert.rejects(daily.loadSettings([id]), /Invalid favorite/);
 });
-function archiveFixture(settingsId = original.peer) {
+function archiveFixture(settingsId: string = original.peer) {
   const entry = settingsEntry(settingsId, 1);
   const state = {
     saved: JSON.stringify({ mutedUntil: 0, archived: false, pinned: false }),
@@ -726,4 +726,21 @@ await test('own reaction ownership survives identical emojis from both authors a
   const after = dailyViews([original, mine, theirs, removed])[0]!;
   assert.equal(after.ownReaction, '');
   assert.deepEqual(after.reactions, ['😂']);
+});
+
+await test('public handle mute stays in its encrypted namespaced preference and never calls wallet mute transport', async () => {
+  const key = `public-dm:${crypto.randomUUID()}`,
+    { daily, state } = archiveFixture(key);
+  await daily.organize(
+    key,
+    { mutedUntil: Number.MAX_SAFE_INTEGER },
+    { mutePeer: null },
+  );
+  assert.equal(daily.conversation(key).mutedUntil, Number.MAX_SAFE_INTEGER);
+  assert.equal(state.mutedUntil, 0);
+  assert.equal(daily.conversation(original.peer).mutedUntil, 0);
+  await daily.loadSettings([key]);
+  assert.equal(daily.conversation(key).mutedUntil, Number.MAX_SAFE_INTEGER);
+  await daily.organize(key, { mutedUntil: 0 }, { mutePeer: null });
+  assert.equal(daily.conversation(key).mutedUntil, 0);
 });

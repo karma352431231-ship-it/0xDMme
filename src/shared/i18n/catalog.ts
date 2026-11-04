@@ -6846,8 +6846,8 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Edited · ': ['Edited · ', '已编辑 · '],
   'html.bc850aca5a52': [
-    '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">Search messages</button></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul><button type="button" data-search-next hidden>Continue search</button>',
-    '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">搜索消息</button></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul><button type="button" data-search-next hidden>继续搜索</button>',
+    '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul>',
+    '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul>',
   ],
   'html.71689221bc60': [
     '<article class="card notifications-card"><h2>Push on this device</h2><p>The provider receives subscription details and timing, without text, wallet or contact name.</p><div class="settings-actions"><button data-push-enable type="button">Enable push on this device</button><button data-push-disable type="button">Disable push on this device</button></div><p class="settings-hint">iPhone/iPad: open from the home screen icon before enabling. Your browser will ask for permission.</p><div data-push-settings></div>\n<section class="settings-block"><h3>Sounds</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">Disable sounds</button><p data-sound-status role="status"></p></div></section>\n<details class="settings-help"><summary>How do alerts and sounds work?</summary><p>Notifications can show names, photos and message previews on the lock screen. Public posts and replies show public details; handle DMs do not send push notifications. Calls may show “Incoming voice call”, depending on the preference above. Push permission and lock screen display are controlled by the browser and system.</p><p>Sounds are on initially and the choice stays in this browser, including when switching accounts. The browser may require a tap to allow audio. Push volume and sound follow your system. Muted or archived conversations do not alert; offline or without a valid session, no new remote alert is shown.</p></details><p data-daily-status role="status"></p></article>',
@@ -10232,4 +10232,56 @@ export const catalog: Record<string, readonly [string, string]> = {
       'People with your complete wallet address can request a chat that you must accept. Redeeming your invitation directly accepts the conversation. Your wallet is not published in a directory.',
       '知道你完整钱包地址的人可以发起需由你接受的聊天请求。兑换你的邀请即直接接受对话。你的钱包不会发布在目录中。',
     ],
+  'More history is available. Scroll to continue searching.': [
+    'More history is available. Scroll to continue searching.',
+    '还有更多历史记录，滚动以继续搜索。',
+  ],
+
+  'Allow handle messages': ['Allow handle messages', '允许用户名私信'],
+
+  'Prevent handle messages': ['Prevent handle messages', '禁止用户名私信'],
+
+  'Block user and hide posts': [
+    'Block user and hide posts',
+    '屏蔽用户并隐藏帖子',
+  ],
+
+  'Mute conversation': ['Mute conversation', '静音对话'],
+
+  'Unmute conversation': ['Unmute conversation', '取消对话静音'],
+
+  'Select message for deletion': [
+    'Select message for deletion',
+    '选择要删除的消息',
+  ],
+
+  'Delete for both ({0})': ['Delete for both ({0})', '为双方删除（{0}）'],
+
+  'Messages are blocked, but the public profile could not be blocked. Try again.':
+    [
+      'Messages are blocked, but the public profile could not be blocked. Try again.',
+      '已禁止私信，但无法屏蔽公开个人资料。请重试。',
+    ],
+
+  'Select up to 64 messages at a time.': [
+    'Select up to 64 messages at a time.',
+    '一次最多选择64条消息。',
+  ],
+  'Return to latest messages': ['Return to latest messages', '返回最新消息'],
+
+  'Recent conversations': ['Recent conversations', '最近的对话'],
+
+  'Search handle conversations': [
+    'Search handle conversations',
+    '搜索用户名对话',
+  ],
+
+  'Search private conversations': [
+    'Search private conversations',
+    '搜索私人对话',
+  ],
+  'Could not open the selected message.': [
+    'Could not open the selected message.',
+    '无法打开所选消息。',
+  ],
 };

@@ -38,6 +38,8 @@ class DmInbox {
 export function createDmInbox(
   controller: Pick<SocialDms, 'list' | 'receive' | 'unread'>,
   changed: (count: number) => void,
+  audible: (peers: readonly string[]) => Promise<string[]> = (peers) =>
+    Promise.resolve([...peers]),
 ): DmInbox {
   return new DmInbox(
     new DmUnreadUpdates({
@@ -46,7 +48,10 @@ export function createDmInbox(
         return { peers: page.items.map((row) => row.peer.id), next: page.next };
       },
       prepare: () => controller.receive(),
-      count: (peers) => controller.unread(peers),
+      count: async (peers) => {
+        const visible = await audible(peers);
+        return visible.length ? controller.unread(visible) : 0;
+      },
       changed,
     }),
   );

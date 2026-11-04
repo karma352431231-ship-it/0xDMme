@@ -17,6 +17,11 @@ class DirectoryNode extends ChatNode {
 }
 await test('public list updates previews without opening chat, reuses the row and rejects results after invalidation', async (t) => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const media = Object.getOwnPropertyDescriptor(globalThis, 'matchMedia');
+  Object.defineProperty(globalThis, 'matchMedia', {
+    configurable: true,
+    value: () => ({ matches: false }),
+  });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     value: {
@@ -27,6 +32,8 @@ await test('public list updates previews without opening chat, reuses the row an
   t.after(() => {
     if (original) Object.defineProperty(globalThis, 'document', original);
     else Reflect.deleteProperty(globalThis, 'document');
+    if (media) Object.defineProperty(globalThis, 'matchMedia', media);
+    else Reflect.deleteProperty(globalThis, 'matchMedia');
   });
   const peer = { id: crypto.randomUUID(), handle: 'synthetic', avatar: null };
   const relation = {

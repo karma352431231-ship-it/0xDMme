@@ -1,3 +1,5 @@
+export { messageSearchMatches, messageSearchExcerpt } from './text.ts';
+import { messageSearchExcerpt } from './text.ts';
 import { currentLanguage } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -134,7 +136,7 @@ export async function searchMessages(c: {
           id: row.value.cipher.id,
           peer: row.value.peer,
           sequence: row.value.sequence,
-          excerpt: text.slice(0, 160),
+          excerpt: messageSearchExcerpt(text, c.query),
           ...(await sentTime(c.a, row.value.sent)),
         });
       if (items.length === 16) return { items, next: after };

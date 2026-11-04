@@ -65,14 +65,11 @@ await test('public profiles, community posts and split layout retain their own U
     dm: null,
   });
   assert.equal(
-    standalonePanelHref(profile, false, false),
+    standalonePanelHref(profile, false),
     '/users/handle/chosen_name',
   );
-  assert.equal(
-    standalonePanelHref(href, false, false),
-    `/communities/dms?dm=${dm}`,
-  );
-  assert.equal(standalonePanelHref(profile, true, true), null);
+  assert.equal(standalonePanelHref(href, false), null);
+  assert.equal(standalonePanelHref(profile, true), null);
   const solo = splitTarget(
     splitHref({ layout: 'solo', target, dm: { id: dm, local: false } }),
   )!;
@@ -85,11 +82,7 @@ await test('public profiles, community posts and split layout retain their own U
     dm: { id: null, local: false },
   });
   assert.deepEqual(splitTarget(directory)?.dm, { id: null, local: false });
-  assert.equal(
-    standalonePanelHref(directory, false, false),
-    '/communities/dms',
-  );
-  assert.equal(standalonePanelHref(directory, false, true), null);
+  assert.equal(standalonePanelHref(directory, false), null);
 });
 
 await test('push navigation remains restricted to public post UUIDs and accepts older workers', () => {

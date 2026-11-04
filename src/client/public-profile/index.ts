@@ -1,3 +1,4 @@
+import { blockPublicUser } from './social-controls.ts';
 import { closePublicProfileGuidance } from '../public-action-guidance/index.ts';
 import {
   forgetProfileReturn,
@@ -233,6 +234,7 @@ export function startPublicProfile(
       });
     },
     follows: profileFollows(controller),
+    blockUser: (target: string) => blockPublicUser(controller, target),
     mountReview: review.mount,
     mentionNotifications: async () =>
       mentionNotificationPage(

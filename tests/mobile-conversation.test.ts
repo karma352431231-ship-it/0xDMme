@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
-import { startMobileConversation } from '../src/client/app/mobile-conversation.ts';
+import {
+  canonicalizeMobilePublicConversation,
+  startMobileConversation,
+} from '../src/client/app/mobile-conversation.ts';
 import { navigateApp } from '../src/client/app-navigation/index.ts';
 
 function fixture(t: TestContext, mobile = true, reload = false) {
@@ -40,8 +43,10 @@ function fixture(t: TestContext, mobile = true, reload = false) {
       entries.splice(++position, entries.length, { address, state });
       update();
     },
-    replaceState(...args: [unknown, string]) {
+    replaceState(...args: [unknown, string, string?]) {
       entries[position]!.state = args[0];
+      if (args[2]) entries[position]!.address = args[2];
+      update();
     },
     back() {
       position--;
@@ -146,4 +151,23 @@ await test('a reload without the private selection returns to the directory inst
   f.navigation.restore();
   assert.equal(f.shell.dataset.chatOpen, 'false');
   assert.equal(f.navigation.close(), false);
+});
+
+await test('phone public links normalize into Conversations before mounting and Back returns to its public directory', (t) => {
+  const f = fixture(t);
+  f.history.replaceState({ contactScope: 'public' }, '');
+  navigateApp('#communities?view=dms&dm=00000000-0000-4000-8000-000000000001');
+  const count = f.entries.length;
+  canonicalizeMobilePublicConversation();
+  f.navigation.restore();
+  assert.equal(f.location.pathname, '/chats');
+  assert.ok(f.location.search.includes('dm='));
+  assert.equal(f.entries.length, count);
+  assert.equal(f.shell.dataset.contactScope, 'public');
+  assert.equal(f.shell.dataset.chatOpen, 'true');
+  f.history.back();
+  f.navigation.restore();
+  assert.equal(f.location.pathname, '/chats');
+  assert.equal(f.shell.dataset.contactScope, 'public');
+  assert.equal(f.shell.dataset.chatOpen, 'false');
 });

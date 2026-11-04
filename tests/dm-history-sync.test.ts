@@ -164,3 +164,15 @@ await test('expected interruption during final public confirmation publishes no 
   assert.deepEqual(f.pages, [0]);
   assert.equal(f.saved.length, 1);
 });
+
+await test('a version 3 client that skipped author deletions is replayed before publishing version 4', async () => {
+  const f = fixture();
+  f.cursor({ ...f.snapshot, version: 3, after: f.snapshot.anchor });
+  await f.sync.run(f.options);
+  assert.deepEqual(f.pages, [0]);
+  assert.deepEqual(f.saved[0], {
+    ...f.snapshot,
+    version: 4,
+    after: f.snapshot.anchor,
+  });
+});

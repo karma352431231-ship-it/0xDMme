@@ -16,6 +16,32 @@ export function newestFirst<T extends TimedResult>(items: readonly T[]): T[] {
   return [...timed, ...items.filter((item) => item.sentAt === undefined)];
 }
 
+/** Pages may arrive in storage order; retain the latest match in each conversation. */
+export function latestConversationMatches<
+  T extends TimedResult & { peer: string; sequence: number },
+>(items: readonly T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const item of items) {
+    const previous = latest.get(item.peer);
+    if (!previous || newerMatch(item, previous)) latest.set(item.peer, item);
+  }
+  return newestFirst([...latest.values()]).slice(0, 100);
+}
+function newerMatch(
+  next: TimedResult & { sequence: number },
+  current: TimedResult & { sequence: number },
+): boolean {
+  if (
+    next.sentAt !== undefined &&
+    current.sentAt !== undefined &&
+    next.sentAt !== current.sentAt
+  )
+    return next.sentAt > current.sentAt;
+  if (next.sequence !== current.sequence)
+    return next.sequence > current.sequence;
+  return next.sentAt !== undefined && current.sentAt === undefined;
+}
+
 /** Date and time of a result, since matches span days and conversations. */
 export function searchResultTime(sentAt: number | undefined): HTMLElement {
   const time = document.createElement('time');

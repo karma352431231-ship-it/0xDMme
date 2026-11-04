@@ -199,3 +199,37 @@ await test('public receipt continues bounded pages automatically without clearin
   assert.equal(counts.filter((count) => count === 0).length, 1);
   inbox.reset(false);
 });
+
+await test('muted handle conversations still receive history but do not contribute notification counts', async (t) => {
+  onlineBrowser(t);
+  let received = 0;
+  const counts: number[] = [];
+  const inbox = createDmInbox(
+    {
+      list: () =>
+        Promise.resolve({
+          items: [
+            { peer: { id: 'muted' } },
+            { peer: { id: 'audible' } },
+          ] as SocialRelation[],
+          next: null,
+        }),
+      receive: () => {
+        received++;
+        return Promise.resolve();
+      },
+      unread: (peers) => {
+        assert.deepEqual(peers, ['audible']);
+        return Promise.resolve(2);
+      },
+    },
+    (count) => counts.push(count),
+    (peers) => Promise.resolve(peers.filter((peer) => peer !== 'muted')),
+  );
+  inbox.reset(true);
+  inbox.start();
+  await turn();
+  assert.equal(received, 1);
+  assert.equal(counts.at(-1), 2);
+  inbox.reset(false);
+});

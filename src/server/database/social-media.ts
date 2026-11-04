@@ -255,6 +255,7 @@ export class SocialMediaStore {
         !row ||
         row.status !== 'accepted' ||
         row.message_id !== input.message ||
+        message.body.kind === 'deleted' ||
         !message.body.attachments?.some((ref) => ref.id === row.id) ||
         !row.descriptor.parts[input.index]
       )

@@ -1,3 +1,13 @@
+import {
+  rememberDmDeletion,
+  filterDeletedDmRoots,
+  filterDeletedDmResults,
+} from './deletions.ts';
+import {
+  dmDeletionPacket,
+  verifyDmDeletion,
+} from '../../shared/dm-deletion/index.ts';
+import { messageBody } from '../../shared/messages/index.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
 import {
   decodeDailyText,
@@ -63,6 +73,7 @@ import {
   cacheDmRecord,
   dmConversationHistory,
   dmHistoryPeers,
+  searchDmHistory,
   historyRecord,
 } from '../local-history/index.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
@@ -459,6 +470,41 @@ export class SocialDms {
       { priority: 'interactive' },
     );
   }
+  async remove(
+    peer: string,
+    item: Extract<BackupRecord, { type: 'dm-message' }>,
+  ): Promise<void> {
+    if (!item.own || item.relation) throw new Error('Own message unavailable.');
+    await this.withCrypto(
+      async ({ authority, api }) => {
+        const payload = {
+          id: item.id,
+          hash: item.hash,
+          recipient: peer,
+          revision: authority.events.length,
+        };
+        const proof = {
+          deviceId: authority.session.deviceId,
+          directory: authority.directory,
+          payload,
+        };
+        await api('delete', {
+          proof: {
+            ...proof,
+            signature: await authority.sign(
+              messageBody(
+                authority.session.accountId,
+                proof.deviceId,
+                'dm-delete',
+                proof,
+              ),
+            ),
+          },
+        });
+      },
+      { priority: 'interactive' },
+    );
+  }
   private async encrypt(input: {
     authority: VaultAuthority;
     api: SocialApi;
@@ -536,6 +582,7 @@ export class SocialDms {
           after,
           actions: true,
           edits: true,
+          deletions: true,
         }),
       );
       const profiles = new Map(
@@ -549,6 +596,7 @@ export class SocialDms {
       for (const value of raw['items']) {
         const item = object(value),
           id = uuid(item['id']);
+        if (await this.applyDeletion(context, item)) continue;
         if (item['packet'] === undefined) {
           unavailable.push(t('dm-message:{0} unavailable', [id]));
           continue;
@@ -582,6 +630,29 @@ export class SocialDms {
         next: raw['next'] === null ? null : socialRevision(raw['next']),
       };
     }, options);
+  }
+  private async applyDeletion(
+    context: SocialContext,
+    item: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (item['deletion'] === undefined) return false;
+    const deletion = dmDeletionPacket(item['deletion']);
+    if (
+      deletion.id !== item['id'] ||
+      deletion.hash !== item['hash'] ||
+      ![deletion.sender, deletion.recipient].includes(
+        context.authority.session.accountId,
+      )
+    )
+      throw new Error('Deletion belongs to another message.');
+    const events = await this.senderHistory(context, {
+      id: deletion.id,
+      sender: deletion.sender,
+      senderRevision: deletion.senderRevision,
+    });
+    await verifyDmDeletion(deletion, events);
+    await rememberDmDeletion(context.privateAuthority, deletion);
+    return true;
   }
   private async decode(
     context: SocialContext,
@@ -641,7 +712,10 @@ export class SocialDms {
   }
   private async senderHistory(
     context: SocialContext,
-    packet: ReturnType<typeof socialPacket>,
+    packet: Pick<
+      ReturnType<typeof socialPacket>,
+      'id' | 'sender' | 'senderRevision'
+    >,
   ) {
     let events = context.authority.events;
     if (packet.sender !== context.authority.session.accountId) {
@@ -840,6 +914,18 @@ export class SocialDms {
       return previews;
     });
   }
+  async search(query: string, after: string | null) {
+    const generation = this.generation;
+    return this.access.withVault(true, async (a) => {
+      const result = await searchDmHistory(a, query, after, () =>
+        this.guard(generation),
+      );
+      return {
+        ...result,
+        items: await filterDeletedDmResults(a, result.items),
+      };
+    });
+  }
   async copies(after: string | null) {
     const generation = this.generation;
     return this.access.withVault(true, async (a) => {
@@ -889,7 +975,10 @@ export class SocialDms {
     );
     this.guard(generation);
     const visible = [...items, ...actions];
-    const roots = visible.filter((row) => !row.relation);
+    const roots = await filterDeletedDmRoots(
+      a,
+      visible.filter((row) => !row.relation),
+    );
     return {
       items: projectDmMessages(
         roots,

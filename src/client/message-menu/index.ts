@@ -1,7 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import { layoutBox, layoutViewport } from '../display-scale/index.ts';
+import { messageGestures } from './gestures.ts';
 interface MessageMenuOptions {
   signal: AbortSignal;
+  row?: HTMLElement;
+  reply?: () => void;
 }
 /** Compact anchored menu; native popover stays above scrolling chat without a modal backdrop. */
 export function anchoredMessageMenu(options: MessageMenuOptions): {
@@ -78,7 +81,9 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
       { signal, capture: true, passive: true },
     );
     window.addEventListener('resize', close, { signal });
-    panel.querySelector<HTMLElement>('button, select')?.focus();
+    panel
+      .querySelector<HTMLElement>('button, select')
+      ?.focus({ preventScroll: true });
   };
   trigger.addEventListener('click', open);
   panel.addEventListener('toggle', () => {
@@ -92,11 +97,28 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
     },
     { capture: true },
   );
+  const gestures = new AbortController();
   const stop = (): void => {
+    gestures.abort();
     close();
     options.signal.removeEventListener('abort', stop);
   };
   options.signal.addEventListener('abort', stop, { once: true });
+  if (options.row)
+    messageGestures(options.row, {
+      signal: AbortSignal.any([options.signal, gestures.signal]),
+      menu: () => {
+        if (!opened) open();
+      },
+      ...(options.reply
+        ? {
+            reply: () => {
+              close();
+              options.reply?.();
+            },
+          }
+        : {}),
+    });
   host.append(trigger, panel);
   return { host, panel, trigger, stop };
 }

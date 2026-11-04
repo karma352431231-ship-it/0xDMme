@@ -1,3 +1,7 @@
+import { DmSearch } from './dm-search.ts';
+import { navigateApp } from '../app-navigation/index.ts';
+import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
+import { DmControls } from './dm-controls.ts';
 import { dmFailure } from './dm-failures.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { DmProjections } from './dm-projections.ts';
@@ -51,12 +55,64 @@ export function startSocialDmUi(
   access: VaultAccess,
   sync: VaultSync,
   privacy: ExternalMediaConsent,
-  unreadChanged: (count: number) => void = () => {},
+  controlsOptions: {
+    unreadChanged?: (count: number) => void;
+    blockPublic?: (peer: string) => Promise<void>;
+  } = {},
 ) {
   const controller = new SocialDms(access, sync);
-  const unread = createDmInbox(controller, unreadChanged);
+  let pendingReveal: { peer: string; id: string; sequence: number } | null =
+    null;
+  const search = new DmSearch(controller, (selected, target) => {
+    if (target) pendingReveal = { peer: selected, ...target };
+    if (container && peer === selected) {
+      depth.focus(selected, target?.sequence ?? null);
+      void run(conversation);
+      return;
+    }
+    navigateApp(`#communities?view=dms&dm=${selected}`);
+  });
+  const controls = new DmControls({
+    access,
+    sync,
+    run,
+    block: async (peer, blocked, revision) => {
+      await controller.request('block', { peer, blocked, revision });
+    },
+    state: (peer) => controller.state(peer),
+    changed: async () => {
+      projections.clear();
+      await reload();
+    },
+    ...(controlsOptions.blockPublic
+      ? { blockPublic: controlsOptions.blockPublic }
+      : {}),
+  });
+  const unread = createDmInbox(
+    controller,
+    controlsOptions.unreadChanged ?? (() => {}),
+    (peers) => controls.audible(peers),
+  );
   const publicDirectory = new DmDirectory({
-    list: () => controller.list(null),
+    list: async (after) => {
+      if (!navigator.onLine || after?.startsWith('local:')) {
+        const page = await controller.copies(
+          after?.slice('local:'.length) || null,
+        );
+        return {
+          items: page.items.map((item) => ({
+            peer: item.peer,
+            label: t('Local copy'),
+            local: true as const,
+          })),
+          next: page.next ? 'local:' + page.next : null,
+        };
+      }
+      const page = await controller.list(after);
+      await controls.load(page.items.map((row) => row.peer.id));
+      return page;
+    },
+    actions: (relation) => controls.actions(relation),
     previews: (peers) => controller.directoryPreviews(peers),
   });
   const playback = new VoicePlayback();
@@ -68,6 +124,14 @@ export function startSocialDmUi(
     react,
     edit: (item) => composer.edit(item),
     reply: (item) => composer.reply(item),
+    remove: async (item) => {
+      const selected = peer;
+      if (!selected || !writable || !item.own)
+        throw new Error('Own message unavailable.');
+      await controller.remove(selected, item);
+      projections.clear();
+      await conversation();
+    },
   });
   const sending = new DmSending(controller);
   const composer = startDmComposer({
@@ -181,6 +245,11 @@ export function startSocialDmUi(
   }
   let writable = false,
     pendingMedia = false;
+  function focusSearchResult(id: string | null): void {
+    depth.clearFocus();
+    if (id && pendingReveal?.peer === id)
+      depth.focus(id, pendingReveal.sequence);
+  }
   function composerState() {
     return { writable, pending: pendingMedia, busy };
   }
@@ -333,7 +402,11 @@ export function startSocialDmUi(
   ) {
     const offline = localOnly || !navigator.onLine;
     if (offline) {
-      const page = await controller.cached(selected, null, work);
+      const page = await controller.cached(
+        selected,
+        depth.before(selected),
+        work,
+      );
       return {
         offline,
         value: null,
@@ -342,6 +415,7 @@ export function startSocialDmUi(
       };
     }
     const value = await openDmConversation(controller, selected, usable, work);
+    await controls.load([selected]);
     return {
       offline,
       value,
@@ -383,6 +457,27 @@ export function startSocialDmUi(
         live: refreshes.current,
       },
     );
+    renderSearchReturn(current.history, {
+      active: () => depth.before(selected) !== null,
+      latest: () => {
+        depth.focus(selected, null);
+        void run(conversation);
+      },
+    });
+    if (pendingReveal?.peer === selected) {
+      const target = pendingReveal;
+      pendingReveal = null;
+      await revealMessage(target.id, {
+        row: (id) =>
+          [
+            ...current.history.querySelectorAll<HTMLElement>(
+              'article[data-message]',
+            ),
+          ].find((row) => row.dataset['message'] === id) ?? null,
+        older: { available: () => false, load: () => Promise.resolve(false) },
+        valid: () => peer === selected && currentVerification(old, expected),
+      });
+    }
   }
   function paintHeader(
     current: DmView,
@@ -465,23 +560,16 @@ export function startSocialDmUi(
       current.options.append(withMenuIcon(link, 'profile'));
     }
     if (localOnly || !navigator.onLine) return;
-    const blocked = value?.blocked ?? false;
-    optionButton(
-      current,
-      {
-        label: blocked ? t('Unblock') : t('Block'),
-        icon: blocked ? 'unblock' : 'block',
-      },
-      async () => {
-        projections.clear();
-        await controller.request('block', {
-          peer: selected,
-          blocked: !blocked,
-          revision: value?.blockRevision ?? 0,
+    if (value)
+      for (const action of controls.actions(value)) {
+        const button = communityElement('button', action.label);
+        button.type = 'button';
+        button.addEventListener('click', () => {
+          button.closest('details')?.removeAttribute('open');
+          action.perform();
         });
-        await conversation();
-      },
-    );
+        current.options.append(button);
+      }
     optionButton(
       current,
       { label: t('Reload conversation'), icon: 'refresh' },
@@ -552,6 +640,7 @@ export function startSocialDmUi(
     });
   }
   return {
+    search: (query: string, after: string | null) => search.page(query, after),
     ready: () => {
       unread.start();
       watchProfileCreation();
@@ -572,6 +661,7 @@ export function startSocialDmUi(
       clearView();
       container = node;
       peer = id;
+      focusSearchResult(id);
       localOnly = local;
       if (!localOnly) refreshes.watch();
       cursor = null;
@@ -628,7 +718,9 @@ export function startSocialDmUi(
       composer.forgetDrafts();
       session = value;
       ownProfile = null;
+      pendingReveal = null;
       controller.setSession(value);
+      controls.setSession(value);
       unread.reset(value !== null);
       node?.replaceChildren();
     },

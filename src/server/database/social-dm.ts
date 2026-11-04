@@ -6,7 +6,11 @@ import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { PublicProfileStore } from './public-profile.ts';
-import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import {
+  assertContentCapacity,
+  assertVaultQuota,
+  assertContentReclamationCapacity,
+} from './vault-quota.ts';
 import { openSocialConversation } from './social-conversations.ts';
 import type { SocialRelationRow } from './social-conversations.ts';
 
@@ -40,6 +44,32 @@ export class SocialDmStore {
       );
       return work({ client, actor, authority });
     });
+  }
+  /** Author deletions hold the original participants' locks in the same admission transaction. */
+  withMessageMutation<T>(
+    authority: ContactAuthority,
+    id: string,
+    work: (context: SocialContext) => Promise<T>,
+  ): Promise<T> {
+    return this.contacts.withMessageParticipants(
+      authority,
+      async (client) => {
+        const result = await client.query<{ account_id: string }>(
+          'SELECT p.account_id FROM hash_talk.social_messages m JOIN hash_talk.public_profiles p ON p.id IN (m.sender,m.recipient) WHERE m.id=$1 ORDER BY p.account_id',
+          [id],
+        );
+        if (result.rows.length !== 2)
+          throw new AccountError(404, 'Own message unavailable.');
+        return result.rows.map((row) => row.account_id);
+      },
+      async (client) => {
+        const actor = await this.profiles.identity(
+          client,
+          authority.session.accountId,
+        );
+        return work({ client, actor, authority });
+      },
+    );
   }
   /** Read one optional public identity under current session/device authority. */
   async withOptionalActorRead<T>(
@@ -102,6 +132,23 @@ export class SocialDmStore {
         await this.profiles.accountFor(context.client, profile),
       );
     await assertContentCapacity(context.client, this.capacity);
+  }
+  async removalLimits(
+    context: SocialContext,
+    profiles: string[],
+  ): Promise<void> {
+    for (const profile of [...new Set(profiles)])
+      await assertVaultQuota(
+        context.client,
+        await this.profiles.accountFor(context.client, profile),
+      );
+    await assertContentReclamationCapacity(context.client, this.capacity);
+  }
+  async removed(context: SocialContext, profiles: string[]): Promise<void> {
+    const accounts = await Promise.all(
+      profiles.map((id) => this.profiles.accountFor(context.client, id)),
+    );
+    this.contacts.removed(context.client, accounts, 'handle-messages');
   }
   async target(context: SocialContext, id: string): Promise<PublicProfile> {
     if (id === context.actor.id)

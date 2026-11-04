@@ -63,6 +63,7 @@ export class MessageService {
       | 'groupRetention'
       | 'socialDm'
       | 'socialCrypto'
+      | 'socialDeletions'
       | 'socialMatrix'
       | 'socialHistory'
       | 'socialMedia'

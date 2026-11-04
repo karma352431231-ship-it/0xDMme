@@ -391,7 +391,7 @@ export class SocialCryptoStore {
         sequence: string;
         body: MessagePacket;
       }>(
-        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) AND body IS NOT NULL AND body->'relation' IS NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=hash_talk.social_messages.id) ORDER BY sequence DESC LIMIT 17`,
+        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) AND body IS NOT NULL AND body->>'kind'<>'deleted' AND body->'relation' IS NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=hash_talk.social_messages.id) ORDER BY sequence DESC LIMIT 17`,
         [
           context.actor.id,
           input.peer,

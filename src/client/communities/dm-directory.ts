@@ -1,3 +1,5 @@
+import { ConversationMenu } from '../conversation-menu/index.ts';
+import type { ConversationAction } from '../conversation-menu/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
@@ -8,19 +10,27 @@ import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { communityElement as el } from './elements.ts';
 
+export type DmDirectoryContact =
+  SocialRelation | { peer: PublicProfile; label: string; local: true };
+
 /** A public directory stays live independently of the selected conversation.
  * It owns at most one server page of rows and releases photo URLs on replacement. */
 export class DmDirectory {
   private host: HTMLElement | null = null;
   private valid: () => boolean = () => false;
   private generation = 0;
+  private cursor: string | null = null;
   private photos = new AbortController();
+  private readonly menu = new ConversationMenu();
   private readonly rows = new Map<
     string,
     { key: string; row: HTMLElement; stop: () => void }
   >();
   private readonly source: {
-    list: () => Promise<{ items: SocialRelation[] }>;
+    list: (
+      after: string | null,
+    ) => Promise<{ items: DmDirectoryContact[]; next?: string | null }>;
+    actions?: (relation: SocialRelation) => ConversationAction[];
     previews: (
       peers: readonly string[],
     ) => Promise<Map<string, ConversationPreview>>;
@@ -43,14 +53,17 @@ export class DmDirectory {
   }
   clear(): void {
     this.generation++;
+    this.menu.reset();
     this.photos.abort();
     this.photos = new AbortController();
     this.clearRows();
     this.host?.replaceChildren();
     this.host = null;
+    this.cursor = null;
   }
   invalidate(): void {
     this.generation++;
+    this.menu.reset();
     this.clearRows();
     if (this.available)
       this.host?.replaceChildren(el('p', t('Opening conversation…')));
@@ -60,9 +73,10 @@ export class DmDirectory {
     const generation = ++this.generation,
       host = this.host;
     try {
-      const page = await this.source.list();
+      const page = await this.source.list(this.cursor);
       if (!this.current(generation)) return;
       this.paintRelations(host, page.items);
+      this.pageControls(host, page.next ?? null);
       const previews = await this.source.previews(
         page.items.map((row) => row.peer.id),
       );
@@ -84,7 +98,7 @@ export class DmDirectory {
   private current(generation: number): boolean {
     return generation === this.generation && this.available;
   }
-  private paintRelations(host: HTMLElement, items: SocialRelation[]): void {
+  private paintRelations(host: HTMLElement, items: DmDirectoryContact[]): void {
     const keep = new Set(items.map((row) => row.peer.id));
     for (const [id, held] of this.rows)
       if (!keep.has(id)) {
@@ -92,7 +106,23 @@ export class DmDirectory {
         this.rows.delete(id);
       }
     host.replaceChildren();
-    for (const relation of items) host.append(this.row(relation));
+    const entries = items.map((relation) => ({
+      id: relation.peer.id,
+      kind: 'public',
+      title: `@${relation.peer.handle}`,
+      actions:
+        'local' in relation ? [] : (this.source.actions?.(relation) ?? []),
+    }));
+    this.menu.update(entries);
+    for (const relation of items) {
+      const row = this.row(relation);
+      const entry = entries.find((entry) => entry.id === relation.peer.id)!;
+      const trigger = row.querySelector<HTMLButtonElement>(
+        '.conversation-menu-trigger',
+      );
+      if (trigger) this.menu.bind(row, entry, trigger);
+      host.append(row);
+    }
     if (!items.length)
       host.append(
         el(
@@ -104,19 +134,57 @@ export class DmDirectory {
       );
     const all = el('a', t('All handle messages'));
     all.href = '#communities?view=dms';
-    host.append(all);
+    if (!matchMedia('(max-width: 700px)').matches) host.append(all);
+  }
+  private pageControls(host: HTMLElement, next: string | null): void {
+    if (next) this.pageButton(host, t('More conversations'), next);
+    if (this.cursor !== null)
+      this.pageButton(host, t('Recent conversations'), null);
+    if (navigator.onLine && !this.cursor?.startsWith('local:'))
+      this.pageButton(host, t('On this device'), 'local:');
+  }
+  private pageButton(
+    host: HTMLElement,
+    label: string,
+    cursor: string | null,
+  ): void {
+    const button = el('button', label, 'chat-older');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      button.disabled = true;
+      this.cursor = cursor;
+      void this.refresh().catch((error: unknown) => {
+        if (this.available)
+          host.textContent =
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('preview.unavailable');
+      });
+    });
+    host.append(button);
   }
   private clearRows(): void {
     for (const held of this.rows.values()) held.stop();
     this.rows.clear();
   }
-  private row(relation: SocialRelation): HTMLElement {
+  private row(relation: DmDirectoryContact): HTMLElement {
     const key = JSON.stringify(relation),
       previous = this.rows.get(relation.peer.id);
     if (previous?.key === key) return previous.row;
     previous?.stop();
-    const row = dmDirectoryRow(relation),
-      avatar = row.querySelector<HTMLElement>('.conversation-avatar');
+    const link = dmDirectoryRow(
+      relation,
+      'local' in relation ? '&history=local' : '',
+    );
+    const row = el('div', '', 'conversation-item');
+    const trigger = el('button', '⋮', 'conversation-menu-trigger');
+    trigger.type = 'button';
+    trigger.setAttribute(
+      'aria-label',
+      t('Options for {0}', [`@${relation.peer.handle}`]),
+    );
+    row.append(link, trigger);
+    const avatar = row.querySelector<HTMLElement>('.conversation-avatar');
     const stop =
       avatar && relation.peer.avatar
         ? showPublicAvatar(avatar, {

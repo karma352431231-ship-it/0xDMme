@@ -51,6 +51,10 @@ export class ChatNode extends CommunityNode {
     const index = before ? this.children.indexOf(before) : this.children.length;
     this.children.splice(index, 0, node);
   }
+  before(node: CommunityNode): void {
+    if (!this.parent) return;
+    (this.parent as ChatNode).insertBefore(node, this);
+  }
   replaceWith(node: CommunityNode): void {
     (this.parent as ChatNode).insertBefore(node, this);
     this.remove();

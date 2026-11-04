@@ -1,3 +1,4 @@
+import { SocialMessageDeletion } from './social-message-deletion.ts';
 import { readOperationalHealth } from './operational-health.ts';
 export type { OperationalDatabaseSnapshot } from './operational-health.ts';
 import { DatabaseAdmission } from './admission.ts';
@@ -276,6 +277,7 @@ export class Database {
   readonly workSignals: WorkSignals;
   readonly socialDm: SocialDmStore;
   readonly socialCrypto: SocialCryptoStore;
+  readonly socialDeletions: SocialMessageDeletion;
   readonly socialMatrix: SocialMatrixStore;
   readonly socialHistory: SocialHistoryStore;
   readonly socialMedia: SocialMediaStore;
@@ -384,6 +386,10 @@ export class Database {
     this.socialCrypto = new SocialCryptoStore(
       this.socialDm,
       this.publicProfiles,
+    );
+    this.socialDeletions = new SocialMessageDeletion(
+      this.socialDm,
+      this.socialCrypto,
     );
     this.socialHistory = new SocialHistoryStore(
       this.socialDm,

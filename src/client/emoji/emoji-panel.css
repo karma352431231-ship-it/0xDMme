@@ -211,6 +211,11 @@
 .picker-modes .emoji-close {
   margin-left: auto;
 }
+.emoji-keyboard-handoff {
+  flex: 0 0 auto;
+  max-height: 360px;
+  overflow: hidden;
+}
 
 /* Outrank generic chat form controls without changing the composer fields. */
 .chat-panel .emoji-panel .emoji-search {

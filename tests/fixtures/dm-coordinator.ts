@@ -25,6 +25,8 @@ const adapted: Record<string, string[]> = {
   '../attachment-ui/index.ts': ['AttachmentUi'],
   '../emoji/index.ts': ['EmojiPicker'],
   './dm-composer.ts': ['startDmComposer'],
+  './dm-controls.ts': ['DmControls'],
+  '../message-selection/index.ts': ['MessageDeletionSelection'],
   './dm-chat.ts': [
     'dmBubble',
     'dmConversationView',
@@ -38,6 +40,8 @@ const adapted: Record<string, string[]> = {
   '../chat-ui/index.ts': [
     'historyPosition',
     'resetHistoryPosition',
+    'renderSearchReturn',
+    'revealMessage',
     'watchOlderHistory',
   ],
   './elements.ts': ['communityElement'],
@@ -268,6 +272,17 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     cancel: () => void;
   };
   const fixture = {
+    DmControls: class {
+      setSession = noop;
+      load = asyncNoop;
+      actions = () => [];
+      audible = (peers: string[]) => Promise.resolve(peers);
+    },
+    MessageDeletionSelection: class {
+      update = noop;
+      clear = noop;
+      begin = noop;
+    },
     SocialDms: function () {
       // Keep the actual session/cancellation guards and signed list transport.
       return Object.assign(new SocialDms(access, new VaultSync(access)), {
@@ -475,6 +490,8 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     refreshDmChecks: asyncNoop,
     historyPosition: () => noop,
     resetHistoryPosition: noop,
+    renderSearchReturn: noop,
+    revealMessage: () => true,
     watchOlderHistory: (input: NonNullable<typeof data.older>) => {
       data.older = input;
       return { check: noop };

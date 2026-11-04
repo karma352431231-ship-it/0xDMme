@@ -191,3 +191,24 @@ export async function profileSocialControls(
     error,
   );
 }
+
+/** An explicit block from another public surface uses this same profile authority and revision. */
+export async function blockPublicUser(
+  controller: Pick<PublicProfiles, 'perform'>,
+  target: string,
+): Promise<void> {
+  const state = publicBlockState(
+    await controller.perform('block-state', { target }),
+  );
+  if (!state.blocked)
+    await controller.perform('block', {
+      target,
+      blocked: true,
+      revision: state.revision,
+    });
+  window.dispatchEvent(
+    new CustomEvent('0xdmme-public-block', {
+      detail: { target, blocked: true },
+    }),
+  );
+}

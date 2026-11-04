@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { insertEmoji } from './catalog.ts';
 import { EmojiPanel } from './panel.ts';
+import { holdKeyboardSpace } from './keyboard-handoff.ts';
 
 interface ComposerOptions {
   anchor: HTMLElement;
@@ -17,6 +18,7 @@ export class ComposerEmojiPanel {
   private completed: (() => void) | null = null;
   private abort = new AbortController();
   private controls: MutationObserver | null = null;
+  private keyboardHandoff: (() => void) | null = null;
   get isOpen(): boolean {
     return this.host !== null;
   }
@@ -86,6 +88,10 @@ export class ComposerEmojiPanel {
     if (back) {
       back.setAttribute('aria-label', t('Return to typing'));
       back.title = t('Return to typing');
+      // Preserve an already open search keyboard while switching to the composer.
+      back.addEventListener('pointerdown', (event) => event.preventDefault(), {
+        signal: this.abort.signal,
+      });
       back.innerHTML =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
     }
@@ -116,10 +122,15 @@ export class ComposerEmojiPanel {
   }
   returnToTyping(): void {
     const input = this.input;
+    const release =
+      this.host && input?.isConnected ? holdKeyboardSpace(this.host) : null;
     this.close();
-    if (input?.isConnected) input.focus();
+    this.keyboardHandoff = release;
+    if (input?.isConnected) input.focus({ preventScroll: true });
   }
   close(): void {
+    this.keyboardHandoff?.();
+    this.keyboardHandoff = null;
     this.abort.abort();
     this.controls?.disconnect();
     this.controls = null;

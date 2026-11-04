@@ -137,3 +137,7 @@
     opacity: 0;
   }
 }
+
+#app-shell .social-dm-panel .chat-peer-avatar img[hidden] {
+  display: none;
+}
