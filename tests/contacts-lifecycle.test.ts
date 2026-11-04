@@ -150,6 +150,7 @@ for (const withInvite of [false, true])
 
 await test('save and request by full address identify EVM/Solana without an ecosystem selector', async (t) => {
   browserEnvironment(t);
+  t.mock.method(Contacts.prototype, 'refresh', () => Promise.resolve());
   const access: VaultAccess = {
     withVault: () =>
       Promise.reject(new Error('Autoridade não usada nesta UI.')),

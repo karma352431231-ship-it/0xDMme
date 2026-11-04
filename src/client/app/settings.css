@@ -1064,3 +1064,24 @@
 #app-shell[data-page='perfil'] .settings-subsection > button {
   justify-self: start;
 }
+
+/* Settings fields and actions must remain separate, including language save. */
+.settings-block {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.settings-block > :is(button, .settings-actions) {
+  justify-self: start;
+}
+.settings-block > label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.settings-block > [role='status']:empty {
+  display: none;
+}
+.settings-block > :is(p, label, button) {
+  margin-block: 0;
+}

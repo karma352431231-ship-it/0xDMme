@@ -54,6 +54,22 @@ export function startContacts(
     book,
     sync,
     run,
+    requestable: (contact) =>
+      !['approved', 'outgoing'].some((kind) =>
+        contacts.pages
+          .get(kind as ContactList)
+          ?.items.some(
+            (peer) =>
+              peer.ecosystem === contact.ecosystem &&
+              peer.address === contact.address,
+          ),
+      ),
+    request: async (contact) => {
+      contactSettings.clear();
+      startAdding();
+      fillEditor({ address: contact.address, alias: contact.alias });
+      await requestWallet();
+    },
     saved: async (contact) => {
       await directory.saved(contact);
       await options.saved?.(contact);
@@ -77,6 +93,7 @@ export function startContacts(
     revoke: (hash) => contacts.revokeInvitation(hash),
   });
   let camera: QrCamera | null = null;
+  const boundInviteButtons = new WeakSet<Element>();
   // Photo loads belong to one directory render; the next render cancels them.
   let directoryPhotos = new AbortController();
   function node<T extends HTMLElement>(selector: string): T | null {
@@ -237,10 +254,18 @@ export function startContacts(
   }
   function bindOwnInvite(): void {
     const dialog = node<HTMLDialogElement>('[data-contact-invites]');
-    node('[data-contact-own-open]')?.addEventListener('click', () => {
-      dialog?.showModal();
-      renderInvite();
-    });
+    for (const root of [mounted, editor])
+      root?.querySelectorAll('[data-contact-own-open]').forEach((button) => {
+        if (boundInviteButtons.has(button)) return;
+        boundInviteButtons.add(button);
+        button.addEventListener('click', () => {
+          node<HTMLDialogElement>('[data-contact-editor]')?.close();
+          if (!dialog?.open) dialog?.showModal();
+          renderInvite();
+          if (button.getAttribute('data-contact-own-open') === 'create')
+            void run(rotate);
+        });
+      });
     node('[data-contact-invites-close]')?.addEventListener('click', () =>
       dialog?.close(),
     );
@@ -570,7 +595,7 @@ export function startContacts(
     target?.append(p);
     if (!node('[data-contact-invite-form]'))
       target?.append(
-        button(t('Request conversation'), () =>
+        button(t('Accept invitation'), () =>
           requestInvite(selected, invite.token),
         ),
       );
@@ -598,13 +623,15 @@ export function startContacts(
     node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
-    if (!requests.offered) status = t('Request sent. Wait for acceptance.');
+    requests.approved(selected);
+    status = t('Invitation accepted. You can start the conversation.');
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
     if (invitePeer && received) await requestInvite(invitePeer, received.token);
   }
   async function requestWallet(): Promise<void> {
+    await contacts.refresh();
     await discover();
     if (found) {
       const expected = generation;

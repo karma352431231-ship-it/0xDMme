@@ -1,0 +1,180 @@
+import { dmConversationView } from '../../src/client/communities/dm-chat.ts';
+import {
+  EmojiPicker,
+  emojiIntoComposer,
+} from '../../src/client/emoji/index.ts';
+import { GifSearch, mountGifPane } from '../../src/client/gif-search/index.ts';
+import { startPhoneViewport } from '../../src/client/phone-viewport/index.ts';
+import { startProfileEditor } from '../../src/client/public-profile/profile-editor.ts';
+import { PublicProfiles } from '../../src/client/public-profile/controller.ts';
+import { mountLanguageSettings } from '../../src/client/language/index.ts';
+import { editorTemplate } from '../../src/client/contacts/template.ts';
+import { t } from '../../src/shared/i18n/index.ts';
+
+const checks: string[] = [];
+function check(pass: boolean, label: string): void {
+  if (!pass) throw new Error(label);
+  checks.push(label);
+}
+function box(element: Element) {
+  return element.getBoundingClientRect();
+}
+const report = document.createElement('pre');
+report.dataset['uiChecks'] = 'running';
+document.body.append(report);
+try {
+  startPhoneViewport();
+  const shell = document.getElementById('app-shell')!;
+  shell.dataset['account'] = 'connected';
+  shell.dataset['page'] = 'comunidades';
+  const page = document.getElementById('page-content')!;
+  page.innerHTML = '<div data-communities></div>';
+  const host = page.firstElementChild as HTMLElement;
+  const view = dmConversationView(host);
+  view.title.textContent = '@synthetic_peer';
+  view.state.textContent = 'Message via @';
+  view.gate.textContent = '';
+  view.text.disabled = false;
+  view.form.hidden = false;
+  const photo = document.createElement('img');
+  photo.src =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="180"><rect width="100" height="180" fill="gray"/></svg>',
+    );
+  view.avatar.replaceChildren(photo);
+  for (let i = 0; i < 20; i++) {
+    const row = document.createElement('article');
+    row.className = i % 2 ? 'chat-message own' : 'chat-message';
+    row.textContent = `Synthetic conversation message ${String(i)}`;
+    view.history.append(row);
+  }
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+  check(
+    getComputedStyle(view.gate).display === 'none',
+    'Empty status reserves no history space',
+  );
+  const header = view.panel.querySelector('.chat-header')!;
+  check(
+    box(view.history).top - box(header).bottom < 100,
+    'Message area starts below the compact header and warning',
+  );
+  check(
+    Math.abs(box(view.avatar).width - box(view.avatar).height) < 1,
+    'Handle avatar stays square',
+  );
+  check(
+    Math.abs(box(view.title).left - box(view.state).left) < 1,
+    'Handle and subtitle align',
+  );
+  const picker = new EmojiPicker();
+  const anchor = view.form.querySelector<HTMLButtonElement>(
+    '[data-public-emoji]',
+  )!;
+  const gifs = {
+    page: () => Promise.resolve({ items: [], next: false }),
+  } as unknown as GifSearch;
+  const opening = emojiIntoComposer(picker, anchor, view.text, {
+    start: 'gif',
+    pane: (pane) => mountGifPane(pane, gifs, () => {}),
+  });
+  await Promise.resolve();
+  const query = document.querySelector<HTMLInputElement>('[data-gif-query]')!;
+  const search = query.closest('label')!;
+  check(
+    box(query).left >= box(search).left &&
+      box(query).right <= box(search).right + 1,
+    'GIF search fits its field',
+  );
+  check(
+    parseFloat(getComputedStyle(query).fontSize) >= 16,
+    'GIF search prevents iPhone focus zoom',
+  );
+  if (matchMedia('(max-width:700px)').matches) {
+    check(
+      document.activeElement !== query,
+      'Opening GIF does not open the phone keyboard',
+    );
+    check(
+      getComputedStyle(document.querySelector('.mobile-nav')!).display ===
+        'none',
+      'Global navigation is absent in the phone conversation',
+    );
+  }
+  picker.close();
+  await opening;
+  const warning = document.querySelector<HTMLButtonElement>('.dm-safety-close');
+  warning?.click();
+  check(
+    !document.querySelector('.dm-safety-notice'),
+    'Safety notice can be dismissed',
+  );
+  const settings = document.createElement('div');
+  settings.className = 'profile-settings';
+  page.replaceChildren(settings);
+  shell.dataset['page'] = 'perfil';
+  settings.innerHTML = t('html.d3072845e018');
+  const own = settings.querySelector<HTMLElement>('[data-public-owned]')!;
+  own.hidden = false;
+  settings.querySelector<HTMLElement>('[data-public-create]')!.hidden = true;
+  const controller = new PublicProfiles({
+    withVault: () => Promise.reject(new Error('Synthetic UI only')),
+    withLocalVault: () => Promise.reject(new Error('Synthetic UI only')),
+  });
+  controller.profile = {
+    profile: {
+      id: '11111111-1111-4111-8111-111111111111',
+      handle: 'synthetic',
+      avatar: null,
+    },
+    revision: 1,
+    pendingAvatar: null,
+  };
+  const editor = startProfileEditor(controller, {
+    run: (work) => work(),
+    prepare: (work) => work(),
+    changed: () => Promise.resolve(),
+  });
+  editor.mount(own);
+  editor.paint();
+  if (matchMedia('(max-width:700px)').matches)
+    check(
+      parseFloat(
+        getComputedStyle(own.querySelector('.profile-editor')!).borderTopWidth,
+      ) === 0,
+      'Phone public profile has one outside card',
+    );
+  const language = document.createElement('div');
+  settings.append(language);
+  mountLanguageSettings(
+    language,
+    () => Promise.resolve(),
+    () => null,
+  );
+  const select = language.querySelector('select')!,
+    save = language.querySelector('button')!;
+  check(
+    box(save).top - box(select).bottom >= 10,
+    'Language selection and save have a separate gap',
+  );
+  const editorHost = document.createElement('div');
+  editorHost.innerHTML = editorTemplate;
+  check(
+    !!editorHost.querySelector(
+      '[data-contact-editor] [data-contact-own-open="create"]',
+    ),
+    'Invite creation is available beside invitation entry',
+  );
+  check(
+    !!editorHost.querySelector('[data-contact-invites]'),
+    'Invitation management is available without a Contacts page',
+  );
+  report.dataset['uiChecks'] = 'passed';
+  report.textContent = checks.join('\n');
+} catch (error: unknown) {
+  report.dataset['uiChecks'] = 'failed';
+  report.textContent =
+    error instanceof Error ? error.message : 'UI fixture failed';
+}

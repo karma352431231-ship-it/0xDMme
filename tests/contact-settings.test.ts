@@ -32,6 +32,16 @@ class Dialog extends ChatNode {
     );
   }
   override querySelector(selector: string): ChatNode | null {
+    if (selector === '[data-contact-request]')
+      return (
+        this.fields
+          .get('form')!
+          .children.find(
+            (node): node is ChatNode =>
+              node instanceof ChatNode &&
+              node.dataset['contactRequest'] !== undefined,
+          ) ?? null
+      );
     return this.fields.get(selector) ?? null;
   }
   showModal() {
@@ -59,11 +69,17 @@ function fixture(t: TestContext) {
   });
   const book = new AddressBook({} as VaultSync);
   t.mock.method(book, 'versions', () => []);
+  const requests = { count: 0, available: true };
   const settings = new ContactSettings({
     book,
     sync: { heads: () => [], pending: null },
     run: (work) => work(),
     saved: () => Promise.resolve(),
+    requestable: () => requests.available,
+    request: () => {
+      requests.count++;
+      return Promise.resolve();
+    },
   });
   settings.mount(host as unknown as HTMLElement);
   const contact = {
@@ -77,7 +93,7 @@ function fixture(t: TestContext) {
     identityRevision: 0,
     removed: false,
   };
-  return { settings, dialog, book, contact };
+  return { settings, dialog, book, contact, requests };
 }
 
 await test('the chosen contact opens immediately in a modal and becomes editable after its current version loads', async (t) => {
@@ -110,4 +126,19 @@ await test('a failed version read cannot save a fallback, and clearing a pending
   f.settings.clear();
   await opening;
   assert.equal(f.dialog.open, false);
+});
+
+await test('a saved unrequested contact exposes an explicit request without changing its alias', async (t) => {
+  const f = fixture(t);
+  await f.settings.open(f.contact);
+  const request = f.dialog.querySelector('[data-contact-request]')!;
+  assert.equal(request.hidden, false);
+  assert.equal(f.requests.count, 0);
+  request.click();
+  await Promise.resolve();
+  assert.equal(f.requests.count, 1);
+  assert.equal(f.contact.alias, 'Chosen contact');
+  f.requests.available = false;
+  await f.settings.open(f.contact);
+  assert.equal(f.dialog.querySelector('[data-contact-request]')!.hidden, true);
 });

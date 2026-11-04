@@ -12,6 +12,7 @@ export function dmMessageMenu(
     picker: EmojiPicker;
     react?: (emoji: string) => Promise<void>;
     edit?: () => void;
+    reply?: () => void;
     editable?: boolean;
     run: (work: () => Promise<void>) => Promise<void>;
   },
@@ -29,6 +30,13 @@ export function dmMessageMenu(
     });
   });
   menu.panel.append(withMenuIcon(copy, 'copy'));
+  if (input.reply) {
+    const reply = document.createElement('button');
+    reply.type = 'button';
+    reply.textContent = t('Reply');
+    reply.addEventListener('click', () => input.reply?.());
+    menu.panel.append(withMenuIcon(reply, 'reply'));
+  }
   if (input.edit && input.editable) {
     const edit = document.createElement('button');
     edit.type = 'button';

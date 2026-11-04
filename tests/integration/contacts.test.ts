@@ -303,7 +303,7 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
     },
   );
   await t.test(
-    'revocable invitation only allows requesting and reveals no photo; only recipient accepts; crossing requests cannot approve',
+    'redeeming a revocable invitation is mutual approval and reveals no photo',
     async () => {
       const token = 'a'.repeat(64);
       await configure(b, 'invite');
@@ -317,13 +317,12 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
       );
       await assert.rejects(request(a, b));
       await request(a, b, token);
-      assert.equal(await allowed(a, b), false);
+      assert.equal(await allowed(a, b), true);
       await assert.rejects(respond(a, b, true));
       await assert.rejects(respond(c, a, true));
       await configure(a);
-      await assert.rejects(request(b, a));
-      assert.equal(await allowed(a, b), false);
-      await respond(b, a, true);
+      await request(b, a);
+      await assert.rejects(respond(b, a, true));
       assert.equal(await allowed(a, b), true);
       assert.equal(await allowed(b, a), true);
       assert.equal(
@@ -374,7 +373,7 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
     },
   );
   await t.test(
-    'independent contact invitations expire after 24 hours and allow exactly one new request',
+    'independent contact invitations expire after 24 hours and approve exactly one recipient',
     async () => {
       const owner = await create(),
         first = await create(),
@@ -411,7 +410,7 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
       assert.equal(
         await rev(first),
         revisionAfter,
-        'The same pending request is idempotent',
+        'The same approved redemption is idempotent',
       );
       await assert.rejects(request(second, owner, one), { status: 404 });
       assert.equal(
@@ -432,8 +431,8 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
       await request(second, owner, two);
       assert.equal(
         await allowed(first, owner),
-        false,
-        'A consumed invitation still requires the owner to accept',
+        true,
+        'Issuance and redemption supply both participants’ consent',
       );
       await assert.rejects(
         op(owner, 'configure', {
@@ -446,6 +445,41 @@ await test('persistent contacts: discovery, consent, blocking, no caps and HTTP'
       await assert.rejects(
         op(pending, 'issue-invitation', { hash: await digest(one) }),
       );
+    },
+  );
+  await t.test(
+    'wallet requests still require acceptance and crossing requests do not auto-approve',
+    async () => {
+      const owner = await create(),
+        recipient = await create();
+      await configure(owner);
+      await configure(recipient);
+      await request(owner, recipient);
+      await assert.rejects(request(recipient, owner), { status: 409 });
+      assert.equal(await allowed(owner, recipient), false);
+      await respond(recipient, owner, true);
+      assert.equal(await allowed(owner, recipient), true);
+    },
+  );
+  await t.test(
+    'a fresh invitation resolves a pending request but blocks and spent links never bypass consent',
+    async () => {
+      const owner = await create(),
+        recipient = await create();
+      await configure(owner);
+      await configure(recipient);
+      await request(recipient, owner);
+      const value = '2'.repeat(64);
+      await op(owner, 'issue-invitation', { hash: await digest(value) });
+      await request(recipient, owner, value);
+      assert.equal(await allowed(owner, recipient), true);
+      await op(owner, 'block', {
+        revision: await rev(owner),
+        wallet: recipient.wallet,
+        blocked: true,
+      });
+      await assert.rejects(request(recipient, owner, value), { status: 404 });
+      assert.equal(await allowed(owner, recipient), false);
     },
   );
   await t.test(

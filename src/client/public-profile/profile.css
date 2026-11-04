@@ -1049,3 +1049,27 @@
   width: auto;
   margin-left: auto;
 }
+
+@media (max-width: 700px) {
+  #app-shell .public-profile-card .profile-editor {
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    background: transparent;
+  }
+  #app-shell .public-profile-card .profile-editor-description {
+    padding-inline: 0;
+  }
+  #app-shell .public-profile-card .profile-editor-identity {
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  #app-shell .settings-body .public-profile-card {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    background: transparent;
+  }
+}

@@ -6,7 +6,7 @@ import { chatIcon } from '../chat-ui/index.ts';
 import { AddressBook, walletEntity, walletKey } from './agenda.ts';
 import type { BookVersion } from './agenda.ts';
 
-/** Contact settings never discover, request or accept a conversation. */
+/** Owns saved-contact edits and exposes an explicitly invoked request capability. */
 export class ContactSettings {
   private host: HTMLElement | null = null;
   private dialog: HTMLDialogElement | null = null;
@@ -23,6 +23,8 @@ export class ContactSettings {
     sync: Pick<VaultSync, 'heads' | 'pending'>;
     run: (work: () => Promise<void>) => Promise<void>;
     saved: (contact: AddressBookEntry) => Promise<void>;
+    requestable?: (contact: AddressBookEntry) => boolean;
+    request?: (contact: AddressBookEntry) => Promise<void>;
   };
   constructor(ports: ContactSettings['ports']) {
     this.ports = ports;
@@ -119,6 +121,18 @@ export class ContactSettings {
       ?.addEventListener('input', (event) => {
         this.draft = (event.currentTarget as HTMLInputElement).value;
       });
+    if (this.ports.request) {
+      const request = document.createElement('button');
+      request.type = 'button';
+      request.dataset['contactRequest'] = '';
+      request.textContent = t('Request conversation');
+      request.addEventListener('click', () => {
+        const contact = this.contact;
+        if (contact && this.ready)
+          void this.ports.run(() => this.ports.request!(contact));
+      });
+      this.dialog.querySelector('form')?.append(request);
+    }
     this.host!.append(this.dialog);
   }
   private render(): void {
@@ -149,6 +163,13 @@ export class ContactSettings {
       !this.ready;
     this.dialog!.querySelector('[data-contact-settings-status]')!.textContent =
       this.status;
+    const request = this.dialog!.querySelector<HTMLButtonElement>(
+      '[data-contact-request]',
+    );
+    if (request) {
+      request.hidden = !this.ports.requestable?.(this.contact);
+      request.disabled = !this.ready;
+    }
     this.renderVersions();
   }
   private renderVersions(): void {

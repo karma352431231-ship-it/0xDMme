@@ -67,6 +67,7 @@ export function startSocialDmUi(
     run,
     react,
     edit: (item) => composer.edit(item),
+    reply: (item) => composer.reply(item),
   });
   const sending = new DmSending(controller);
   const composer = startDmComposer({
@@ -82,6 +83,7 @@ export function startSocialDmUi(
         media,
         pending,
         editing: composer.editing,
+        replying: composer.replying,
       });
       if (selected !== peer) return;
       await conversation();

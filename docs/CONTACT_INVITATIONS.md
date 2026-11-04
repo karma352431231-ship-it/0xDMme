@@ -11,10 +11,13 @@ New raw tokens stay in screen memory and the owner's clipboard when copied.
 They are not written to the vault, logs or backend; the backend stores a hash.
 
 Looking up the recipient never spends the grant. The first successful new chat
-request consumes it atomically in the same transaction as the pending contact
-relation. Concurrent recipients cannot both succeed. A retry of the same pending
-request is idempotent; rejection does not restore a spent link. Accepting the
-request remains a separate action. Discovery mode and blocks still apply.
+redemption consumes it atomically in the same transaction as the approved contact
+relation. Concurrent recipients cannot both succeed. A retry by the same recipient
+is idempotent. Issuance is the owner's consent; explicitly redeeming it is the
+recipient's acceptance. Wallet-only requests still require a separate acceptance.
+Discovery mode, revocation, expiry and blocks still apply. This change was
+explicitly requested and authorized for main/VPS activation on 2026-11-04,
+superseding the earlier pending-request behavior. No schema migration is required.
 
 Revoking the displayed invitation deletes only that grant. Unused grants expire
 after 24 hours; consumed grants stay invalid through that deadline. The content worker reclaims
@@ -52,3 +55,15 @@ Help icons are removed. Explanations require one second of continuous mouse
 hover or keyboard focus, cancel on leave/Escape, and do not open on touch. A
 previously stored contacts-only restriction is preserved until its owner
 explicitly chooses and saves one of the two visible options.
+
+## Direct acceptance and contact actions — 2026-11-04
+
+Generating a code preauthorizes exactly one recipient until expiry/revocation.
+A fresh valid code can resolve an older pending/rejected request, but does not
+bypass either participant's block or contacts-only privacy. Reusing an already
+spent code never restores a removed/rejected relation; no-op retries require the
+same approved recipient. All admission, token consumption and approval remain in
+the existing transaction and global consent gate. Direct wallet requests keep
+separate recipient acceptance. The Add contact dialog offers invitation creation
+and copying without visiting My contacts; saved unrequested contacts expose an
+explicit conversation-request action and still require discovery authorization.

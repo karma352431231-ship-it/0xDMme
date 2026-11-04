@@ -11,6 +11,7 @@ type Message = Extract<BackupRecord, { type: 'dm-message' }> & {
  */
 export class DmComposition {
   target: Message | null = null;
+  replying: Message | null = null;
   private bar: HTMLElement | null = null;
   private label: HTMLElement | null = null;
   private text: HTMLTextAreaElement | null = null;
@@ -43,6 +44,7 @@ export class DmComposition {
       throw new Error('Edit by another author.');
     // Switching to another edit keeps the text set aside by the first one.
     if (!this.target) this.setAside = this.text?.value ?? '';
+    this.replying = null;
     this.target = target;
     if (this.bar) this.bar.hidden = false;
     if (this.label)
@@ -55,6 +57,17 @@ export class DmComposition {
       this.text.dispatchEvent(new Event('input'));
       this.text.focus();
     }
+  }
+  reply(target: Message): void {
+    if (target.relation) throw new Error('Invalid message relationship.');
+    this.cancel();
+    this.replying = target;
+    if (this.bar) this.bar.hidden = false;
+    if (this.label)
+      this.label.textContent = t('Replying to: {0}', [
+        target.displayText.slice(0, 120),
+      ]);
+    this.text?.focus();
   }
   cancel(): void {
     if (this.target && this.text) {
@@ -75,6 +88,7 @@ export class DmComposition {
   }
   clear(): void {
     this.target = null;
+    this.replying = null;
     this.setAside = '';
     if (this.bar) this.bar.hidden = true;
     if (this.label) this.label.textContent = '';

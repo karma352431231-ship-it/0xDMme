@@ -72,3 +72,22 @@
 [data-contacts-container] {
   grid-template-columns: minmax(0, 1fr);
 }
+
+.contact-settings form {
+  display: grid;
+  gap: 14px;
+}
+.contact-settings form > button {
+  justify-self: start;
+  margin: 0;
+}
+.contact-settings [data-contact-request][hidden] {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .contact-subtabs {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

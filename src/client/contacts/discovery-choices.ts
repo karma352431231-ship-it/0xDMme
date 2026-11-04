@@ -12,7 +12,7 @@ function descriptions(mode: (typeof modes)[number]): {
       title: t('Only through my invitation link'),
       hint: t('Invite people yourself'),
       explanation: t(
-        'Only people with an unused invitation can find your private account and request a chat. Each invitation expires after 24 hours and allows one request. New invitations are independent; you still choose whether to accept.',
+        'Your invitation lets one recipient accept a private conversation with you. Each invitation expires after 24 hours. New invitations are independent; wallet requests still require acceptance.',
       ),
     };
   return {
@@ -21,7 +21,7 @@ function descriptions(mode: (typeof modes)[number]): {
       'People who know your wallet address can send you a chat invitation',
     ),
     explanation: t(
-      'Anyone with your complete wallet address or active invitation link can find your private account and request a chat. You must accept before they can message you. This does not publish your wallet in a directory.',
+      'People with your complete wallet address can request a chat that you must accept. Redeeming your invitation directly accepts the conversation. Your wallet is not published in a directory.',
     ),
   };
 }

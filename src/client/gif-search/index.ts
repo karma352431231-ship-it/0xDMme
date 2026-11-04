@@ -211,7 +211,7 @@ export function mountGifPane(
       void load(false);
   });
   void load(true);
-  query.focus();
+  if (!matchMedia('(max-width: 700px)').matches) query.focus();
 }
 function failure(error: unknown): string {
   return error instanceof Error

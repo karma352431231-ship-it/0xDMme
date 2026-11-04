@@ -74,3 +74,66 @@
     height: calc(var(--viewport-height, 100dvh) - 170px);
   }
 }
+
+/* WebKit image intrinsic sizes must not stretch the shared header avatar. */
+#app-shell .social-dm-panel .chat-peer-avatar {
+  padding: 0;
+  aspect-ratio: 1;
+  align-self: center;
+  overflow: hidden;
+}
+#app-shell .social-dm-panel .chat-peer-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  object-fit: cover;
+  border-radius: inherit;
+}
+#app-shell .social-dm-panel .chat-peer {
+  align-self: center;
+}
+#app-shell .social-dm-panel .chat-peer :is(h3, p) {
+  margin-inline: 0;
+  text-align: start;
+}
+/* The history is its own scroll box; nothing may bleed under the header. */
+.social-dm-panel .chat-thread {
+  overflow: hidden;
+}
+.social-dm-panel .chat-history {
+  overflow-y: auto;
+}
+
+/* An empty status cannot reserve half of the conversation above the messages. */
+.social-dm-panel .chat-gate:empty {
+  display: none;
+}
+.dm-safety-notice {
+  flex: 0 0 auto;
+  font-weight: 500;
+}
+.chat-panel .dm-safety-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 5px;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+}
+.dm-safety-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dm-safety-notice:not(:hover):not(:focus-within) .dm-safety-close {
+    opacity: 0;
+  }
+}
