@@ -46,3 +46,6 @@ local browser automation was unavailable for a repeat on this isolated checkout.
 The structural review retained separate owners for profile drafts, recent emoji,
 shared rendering and dock cleanup. Native iPhone build 5 was installed separately;
 physical keyboard/safe-area acceptance remains the owner's manual test.
+
+The affected existing community refresh, DM coordinator and post-media tests also
+passed (55 tests), with their DOM/picker doubles aligned to the current contract.

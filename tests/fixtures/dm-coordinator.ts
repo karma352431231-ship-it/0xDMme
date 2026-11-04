@@ -363,7 +363,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       return { clearMedia: noop };
     },
     EmojiPicker: function () {
-      return { reset: noop };
+      return { reset: noop, close: noop };
     },
     bindChatComposer: noop,
     bindRecordGesture: noop,
