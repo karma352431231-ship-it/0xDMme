@@ -284,6 +284,7 @@ export function startDmComposer(options: {
   return {
     /** Binds a freshly built conversation; a refresh reuses the same view. */
     bind(next: DmView, peer: string): void {
+      emoji.close();
       view = next;
       bound = peer;
       composition.bind(next.form, next.text, sync);
@@ -344,6 +345,7 @@ export function startDmComposer(options: {
       composition.cancel();
     },
     leave(): void {
+      emoji.close();
       if (view && bound) drafts.keep(bound, composition.unsent());
       bound = null;
       composition.clear();

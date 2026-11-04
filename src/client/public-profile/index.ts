@@ -85,8 +85,6 @@ export function startPublicProfile(
     if (own) editor.paint();
   }
   function renderControls(): void {
-    const mediaStatus = node('[data-external-media-status]');
-    if (mediaStatus) mediaStatus.textContent = privacy.description();
     const output = node('[data-public-status]');
     if (output)
       output.textContent =
@@ -215,13 +213,6 @@ export function startPublicProfile(
     node('[data-public-action="reload"]')?.addEventListener('click', ready);
     bindModeration();
     bindCreate();
-    node('[data-public-action="external-media"]')?.addEventListener(
-      'click',
-      () => {
-        void run(() => privacy.configure(consentAbort.signal));
-      },
-    );
-    privacy.subscribe(renderControls, consentAbort.signal);
     render();
     ready();
   }

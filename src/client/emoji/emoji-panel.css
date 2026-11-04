@@ -19,7 +19,7 @@
 .emoji-picker::backdrop {
   background: transparent;
 }
-.emoji-picker button {
+.emoji-panel button {
   margin: 0;
   border: 0;
   color: inherit;
@@ -27,7 +27,7 @@
   background: transparent;
   cursor: pointer;
 }
-.emoji-picker h3 {
+.emoji-panel h3 {
   margin: 0;
   padding: 8px 12px 4px;
   color: var(--text-muted);
@@ -98,11 +98,13 @@
   background: var(--surface-2);
 }
 .emoji-recent-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 2px;
+  max-height: 84px;
   padding: 0 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .emoji-grid {
   display: grid;
@@ -165,4 +167,46 @@
 .emoji-dock button[aria-pressed='true'] {
   background: var(--accent-soft);
   color: var(--accent-text);
+}
+
+/* Shared content is used by modal selection and the conversation's dock. */
+.emoji-panel {
+  color: var(--text);
+  background: var(--surface);
+  overflow: hidden;
+}
+.emoji-panel [hidden] {
+  display: none;
+}
+@media (max-width: 700px) {
+  .emoji-composer-panel {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    width: 100%;
+    height: min(52dvh, 420px);
+    max-height: 70%;
+    min-height: 180px;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--line);
+  }
+  .emoji-composer-panel .emoji-close {
+    width: 44px;
+    height: 44px;
+    flex: none;
+  }
+  .emoji-composer-panel .emoji-close svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+  .chat-panel .chat-composer[data-emoji-open='true'] {
+    padding-bottom: 6px;
+  }
+}
+
+.picker-modes .emoji-close {
+  margin-left: auto;
 }

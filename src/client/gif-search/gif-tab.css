@@ -5,7 +5,7 @@
   padding: 10px 10px 0;
 }
 .picker-modes[hidden],
-.emoji-picker[data-mode='gif']
+.emoji-panel[data-mode='gif']
   > :is(
     .emoji-top,
     .emoji-recent,
@@ -49,7 +49,7 @@
   padding: 0 8px 8px;
   overflow-y: auto;
 }
-.emoji-picker .gif-tile {
+.emoji-panel .gif-tile {
   display: block;
   height: 112px;
   padding: 0;

@@ -298,6 +298,7 @@ export class MessageComposer {
     this.emoji.reset();
   }
   pause(): void {
+    this.emoji.close();
     if (this.voice.active)
       void this.voice.stop(
         t(

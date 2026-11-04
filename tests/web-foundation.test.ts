@@ -17,6 +17,22 @@ import {
 
 const databaseUrl = 'postgresql://hash_talk_dev@127.0.0.1:45432/hash_talk_dev';
 
+await test('the packaged emoji picker imports the shared real catalog', async () => {
+  const assets = await loadWebAssets();
+  const catalog = [...assets.keys()].find((path) =>
+    /^\/emoji-catalog-.*\.js$/u.test(path),
+  );
+  const app = [...assets.keys()].find((path) => /^\/app-.*\.js$/u.test(path));
+  assert.ok(catalog);
+  assert.ok(app);
+  assert.ok(
+    Buffer.from(assets.get(app)?.content ?? [])
+      .toString()
+      .includes(catalog),
+    'The app must import the catalog asset after the picker rendering moves.',
+  );
+});
+
 await test('main source package above 2 MiB loads completely', async (t) => {
   const directory = await mkdtemp(resolve(tmpdir(), '0xdmme-source-size-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

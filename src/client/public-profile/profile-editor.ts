@@ -84,12 +84,14 @@ export function startProfileEditor(
   function paintDraftState(): void {
     const draft = hasDraft(),
       state = node('[data-profile-draft-state]'),
-      discard = node('[data-discard-profile]');
+      discard = node('[data-discard-profile]'),
+      confirm = node('[data-confirm-profile]');
     if (state)
       state.textContent = draft
         ? t('Unsaved changes. Confirm to publish them.')
         : '';
     if (discard) discard.hidden = !draft;
+    if (confirm) confirm.hidden = !draft;
   }
   /** Kept drafts need an explicit way back to the published profile. */
   function discardDrafts(): void {
@@ -241,6 +243,7 @@ export function startProfileEditor(
     paint();
   }
   async function confirm(): Promise<void> {
+    if (!hasDraft()) return;
     // Validate before the first write. Successful parts are cleared so a retry
     // cannot accidentally resend an earlier image after a later failure.
     const text = profileDescriptionText(

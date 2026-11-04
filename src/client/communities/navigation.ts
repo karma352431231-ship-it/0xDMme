@@ -70,7 +70,7 @@ function moreChoices(options: {
     ['saved', t('Saved'), 'bookmark'],
     ['hidden', t('Hidden'), 'hide'],
     ['replies', t('Replies to your content'), 'reply'],
-    ['invitations', t('Transfers'), 'transfer'],
+    ['invitations', t('Ownership requests'), 'transfer'],
   ] as const)
     iconLabel(link(choices, title, `#communities?view=${key}`), icon);
   return choices;

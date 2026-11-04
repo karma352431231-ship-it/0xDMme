@@ -91,7 +91,9 @@ export class CommunityDirectoryView {
     if (!screen.current()) return;
     screen.present();
     const card = communityCard(
-      view === 'invitations' ? t('Community transfers') : t('My communities'),
+      view === 'invitations'
+        ? t('Community ownership requests')
+        : t('My communities'),
     );
     screen.host.append(card);
     if (view === 'communities') {
@@ -106,7 +108,18 @@ export class CommunityDirectoryView {
         communityLink(links, label, `#communities?view=${key}`);
       card.append(links);
     }
-    this.rows(card, page, null);
+    if (view === 'invitations')
+      card.append(
+        communityElement(
+          'p',
+          t(
+            'Requests from owners who want you to take over their community. Open a community to review the request.',
+          ),
+        ),
+      );
+    if (view === 'invitations' && !page.items.length)
+      card.append(communityElement('p', t('No pending ownership requests.')));
+    else this.rows(card, page, null);
     this.cursor = page.next;
     if (page.next)
       communityButton(card, t('Next page'), () =>
