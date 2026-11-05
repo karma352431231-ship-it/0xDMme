@@ -389,7 +389,14 @@ export function startCommunityPostList(
         void run(load);
       },
     );
-    void tagMenu(row).catch(() => undefined);
+    void tagMenu(row).catch((error: unknown) => {
+      // A newer list replaced this one; only a current failure is reported.
+      if (signal().aborted || !row.isConnected || !feedback) return;
+      feedback.textContent =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Operation unavailable. Check the state before retrying.');
+    });
   }
   function orderMenu(row: HTMLElement): void {
     const choices: (readonly [string, string])[] = [
@@ -432,7 +439,7 @@ export function startCommunityPostList(
       cursor = page.next;
       if (!cursor) break;
     }
-    if (!options.length || !row.isConnected) return;
+    if (!options.length || !row.isConnected || signal().aborted) return;
     if (tag && !options.some(([id]) => id === tag))
       options.push([tag, t('Previous tag or from link')]);
     discoveryMenu(
