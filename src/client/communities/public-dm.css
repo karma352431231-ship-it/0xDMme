@@ -141,3 +141,22 @@
 #app-shell .social-dm-panel .chat-peer-avatar img[hidden] {
   display: none;
 }
+
+/* Phone handle conversations share the private chat's unframed viewport. */
+@media (max-width: 700px) {
+  #app-shell[data-chat-scope='public'] .public-chat:has(.social-dm-panel),
+  #app-shell .social-dm-panel:has([data-dm-peer]) {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #app-shell[data-chat-scope='public']
+    .public-chat-body:has(> .social-dm-panel) {
+    padding: 0;
+  }
+}
+/* Only the broader public-profile block is destructive; message-only blocking keeps its normal glyph. */
+.social-dm-panel [data-conversation-action='public-block'] > .menu-item-icon,
+.conversation-menu [data-conversation-action='public-block'] > .menu-item-icon {
+  color: var(--danger);
+}

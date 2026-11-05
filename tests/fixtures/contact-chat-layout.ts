@@ -1,3 +1,6 @@
+import { messageGestures } from '../../src/client/message-menu/gestures.ts';
+import { DmComposition } from '../../src/client/communities/dm-composition.ts';
+import { withMenuIcon } from '../../src/client/menu-icons/index.ts';
 import { anchoredMessageMenu } from '../../src/client/message-menu/index.ts';
 import { dmConversationView } from '../../src/client/communities/dm-chat.ts';
 import {
@@ -27,16 +30,59 @@ try {
   startPhoneViewport();
   const shell = document.getElementById('app-shell')!;
   shell.dataset['account'] = 'connected';
-  shell.dataset['page'] = 'comunidades';
+  shell.dataset['page'] = 'conversas';
+  shell.dataset['chatOpen'] = 'true';
+  shell.dataset['chatScope'] = 'public';
   const page = document.getElementById('page-content')!;
-  page.innerHTML = '<div data-communities></div>';
-  const host = page.firstElementChild as HTMLElement;
+  page.innerHTML =
+    '<section class="public-chat"><div class="public-chat-body"></div></section>';
+  const host = page.querySelector<HTMLElement>('.public-chat-body')!;
   const view = dmConversationView(host);
   view.title.textContent = '@synthetic_peer';
   view.state.textContent = 'Message via @';
   view.gate.textContent = '';
   view.text.disabled = false;
   view.form.hidden = false;
+  if (matchMedia('(max-width:700px)').matches) {
+    for (const panel of [
+      view.panel,
+      page.querySelector<HTMLElement>('.public-chat')!,
+    ]) {
+      check(
+        parseFloat(getComputedStyle(panel).borderTopWidth) === 0 &&
+          parseFloat(getComputedStyle(panel).borderRadius) === 0,
+        'Phone handle conversation has no inner or outer card frame',
+      );
+    }
+    check(
+      Math.abs(box(view.panel).left - box(shell).left) < 1 &&
+        Math.abs(box(view.panel).right - box(shell).right) < 1,
+      'Handle conversation spans the phone width like the private chat',
+    );
+  }
+  const profileBlock = withMenuIcon(document.createElement('button'), 'block');
+  profileBlock.dataset['conversationAction'] = 'public-block';
+  const messageBlock = withMenuIcon(document.createElement('button'), 'block');
+  messageBlock.dataset['conversationAction'] = 'dm-block';
+  profileBlock.textContent = messageBlock.textContent = 'Synthetic block';
+  // Set labels before adding the same authored icons used by the real options renderer.
+  withMenuIcon(profileBlock, 'block');
+  withMenuIcon(messageBlock, 'block');
+  view.options.append(profileBlock, messageBlock);
+  const danger = document.createElement('span');
+  danger.style.color = 'var(--danger)';
+  view.options.append(danger);
+  check(
+    getComputedStyle(profileBlock.querySelector('svg')!).color ===
+      getComputedStyle(danger).color,
+    'Public profile and post block uses the danger glyph color',
+  );
+  check(
+    getComputedStyle(messageBlock.querySelector('svg')!).color ===
+      getComputedStyle(messageBlock).color,
+    'Message-only block keeps its normal glyph color',
+  );
+
   const photo = document.createElement('img');
   photo.src =
     'data:image/svg+xml,' +
@@ -81,8 +127,6 @@ try {
   choice.textContent = 'Synthetic action';
   menu.panel.append(choice);
   bubble.append(menu.host);
-  // DOM-generated pointers have no native active pointer to capture in this fixture.
-  bubble.setPointerCapture = () => {};
   view.text.focus({ preventScroll: true });
   bubble.dispatchEvent(
     new PointerEvent('pointerdown', {
@@ -116,6 +160,75 @@ try {
     'A new outside press closes the message menu',
   );
   menuLifetime.abort();
+  const switching = new DmComposition();
+  switching.bind(view.form, view.text, () => {});
+  const touchLifetime = new AbortController();
+  const replyRows = [
+    ...view.history.querySelectorAll<HTMLElement>('article'),
+  ].slice(0, 2);
+  const originals = replyRows.map((_row, index) => ({
+    type: 'dm-message' as const,
+    id: crypto.randomUUID(),
+    hash: 'synthetic',
+    self: 'self',
+    peer: { id: 'peer', handle: 'synthetic', avatar: null },
+    sequence: index + 1,
+    own: index === 1,
+    kind: 'text' as const,
+    media: null,
+    text: 'Synthetic original',
+    displayText: 'Synthetic original',
+  }));
+  replyRows.forEach((row, index) =>
+    messageGestures(row, {
+      signal: touchLifetime.signal,
+      menu: () => {},
+      reply: () => switching.reply(originals[index]!),
+    }),
+  );
+  view.text.value = 'Unsent draft';
+  for (let pass = 0; pass < 6; pass++) {
+    const index = pass % 2,
+      row = replyRows[index]!;
+    const down = new PointerEvent('pointerdown', {
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 7,
+      clientX: 10,
+      clientY: 10,
+      cancelable: true,
+    });
+    row.dispatchEvent(down);
+    window.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerType: 'touch',
+        pointerId: 7,
+        clientX: 70,
+        clientY: 12,
+      }),
+    );
+    row.dispatchEvent(
+      new PointerEvent('pointerleave', { pointerType: 'touch', pointerId: 7 }),
+    );
+    window.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerType: 'touch',
+        pointerId: 7,
+        clientX: 70,
+        clientY: 12,
+      }),
+    );
+    check(
+      down.defaultPrevented &&
+        switching.replying?.id === originals[index]!.id &&
+        document.activeElement === view.text &&
+        view.text.value === 'Unsent draft',
+      'Successive replies replace the target without losing composer focus or draft',
+    );
+  }
+  touchLifetime.abort();
+  switching.clear();
+  view.text.value = '';
   view.text.blur();
   const picker = new EmojiPicker();
   const anchor = view.form.querySelector<HTMLButtonElement>(

@@ -564,6 +564,7 @@ export function startSocialDmUi(
       for (const action of controls.actions(value)) {
         const button = communityElement('button', action.label);
         button.type = 'button';
+        button.dataset['conversationAction'] = action.id;
         button.addEventListener('click', () => {
           button.closest('details')?.removeAttribute('open');
           action.perform();

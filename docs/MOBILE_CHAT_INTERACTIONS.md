@@ -84,3 +84,30 @@ Verification includes local-only and busy handle reply, touch threshold/release,
 manual popover release/focus, progressive keyboard geometry, revocation and
 read-only history. Actual native root-panning measurements and manual physical
 acceptance are separate from these synthetic regressions.
+
+## Repeated reply gesture and phone frame — 2026-11-04
+
+The owner found that another reply could not reliably replace an active reply,
+and that the public chat's outer card still framed the full phone conversation.
+The gesture owner now keeps one primary touch's move/release/cancel listeners on
+the stable window until disposal. Leaving or moving the bubble no longer ends a
+valid horizontal gesture. A new press or window blur disposes any prior touch;
+pointer identity and cancellation still prevent stale replies. Pointerdown keeps
+composer focus, while the existing `touch-action: pan-y` retains native vertical
+scrolling. Interactive descendants remain native. Both private and handle
+callers use this same lifecycle; composition continues owning the selected reply
+and draft. No sending, message authority or history rules change.
+
+The public conversation stylesheet overrides the more specific workspace card
+only on phones. Both outer and inner frames are removed without affecting the
+list or desktop panels. The existing public-block action identifier colors only
+its authored glyph with the existing danger token, in the header and directory
+menus; message-only blocking inherits the normal foreground.
+
+Regression checks cover consecutive replies across different bubbles, leaving
+a bubble during a swipe, interruption/disposal, draft-preserving reply replacement
+and the actual outer Public conversation wrapper with full-width geometry and
+separate block-icon colors. No simulator is started for this correction.
+
+Pointer cancellation and native scrolling remain separate contracts, as specified
+in [Pointer Events](https://www.w3.org/TR/pointerevents3/#declaring-direct-manipulation-behavior).

@@ -13,7 +13,10 @@ function pointer(
   type: string,
   point: { x: number; y: number; kind?: string },
 ): void {
-  row.dispatchEvent(
+  (type === 'pointerdown' || type === 'pointerleave'
+    ? row
+    : window
+  ).dispatchEvent(
     Object.assign(new Event(type, { cancelable: true }), {
       clientX: point.x,
       clientY: point.y,
@@ -25,6 +28,15 @@ function pointer(
 }
 await test('touch hold opens once; a right swipe replies; scrolling/cancellation/abort preserve native intent', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
+  const savedWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: new EventTarget(),
+  });
+  t.after(() => {
+    if (savedWindow) Object.defineProperty(globalThis, 'window', savedWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
   const row = new Bubble(),
     stop = new AbortController();
   let menus = 0,
@@ -49,6 +61,7 @@ await test('touch hold opens once; a right swipe replies; scrolling/cancellation
   assert.equal(click.defaultPrevented, true);
   pointer(row, 'pointerdown', { x: 10, y: 10 });
   pointer(row, 'pointermove', { x: 64, y: 12 });
+  pointer(row, 'pointerleave', { x: 64, y: 12 });
   pointer(row, 'pointerup', { x: 64, y: 12 });
   assert.equal(replies, 1);
   pointer(row, 'pointerdown', { x: 10, y: 10 });
@@ -74,4 +87,56 @@ await test('touch hold opens once; a right swipe replies; scrolling/cancellation
   stop.abort();
   t.mock.timers.tick(600);
   assert.equal(menus, 1);
+});
+
+await test('a focused reply can switch repeatedly across bubbles and cleanly recover after interruption', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const surface = new EventTarget();
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: surface,
+  });
+  t.after(() => {
+    if (saved) Object.defineProperty(globalThis, 'window', saved);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  const stop = new AbortController();
+  const rows = [new Bubble(), new Bubble()];
+  const replies: number[] = [];
+  rows.forEach((row, i) =>
+    messageGestures(row as unknown as HTMLElement, {
+      signal: stop.signal,
+      menu: () => {},
+      reply: () => replies.push(i),
+    }),
+  );
+  for (let pass = 0; pass < 6; pass++) {
+    const row = rows[pass % 2]!;
+    const down = Object.assign(new Event('pointerdown', { cancelable: true }), {
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    row.dispatchEvent(down);
+    assert.equal(
+      down.defaultPrevented,
+      true,
+      'Starting another reply preserves the keyboard focus',
+    );
+    pointer(row, 'pointermove', { x: 70, y: 12 });
+    pointer(row, 'pointerleave', { x: 70, y: 12 });
+    pointer(row, 'pointerup', { x: 70, y: 12 });
+  }
+  assert.deepEqual(replies, [0, 1, 0, 1, 0, 1]);
+  pointer(rows[0]!, 'pointerdown', { x: 10, y: 10 });
+  surface.dispatchEvent(new Event('blur'));
+  pointer(rows[1]!, 'pointerdown', { x: 10, y: 10 });
+  pointer(rows[1]!, 'pointermove', { x: 70, y: 10 });
+  stop.abort();
+  pointer(rows[1]!, 'pointerup', { x: 70, y: 10 });
+  t.mock.timers.tick(600);
+  assert.equal(replies.length, 6, 'Disposal stops active window listeners');
 });

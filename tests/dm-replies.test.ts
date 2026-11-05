@@ -41,6 +41,15 @@ await test('a handle reply preserves typed text and cancellation, and is exclusi
   assert.equal(composition.replying, message);
   assert.equal(composition.target, null);
   assert.equal(text.value, 'Existing draft');
+  const next = {
+    ...message,
+    id: crypto.randomUUID(),
+    own: true,
+    displayText: 'Other original',
+  };
+  composition.reply(next);
+  assert.equal(composition.replying, next);
+  assert.equal(text.value, 'Existing draft');
   composition.cancel();
   assert.equal(composition.replying, null);
   assert.equal(text.value, 'Existing draft');
