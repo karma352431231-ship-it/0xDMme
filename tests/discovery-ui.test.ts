@@ -10,25 +10,20 @@ import {
 import type { AppLanguage } from '../src/shared/i18n/index.ts';
 import { CommunityNode } from './fixtures/community-dom.ts';
 
-await test('phone filter selectors and desktop menus share the selected value and reset the feed', async (t) => {
+await test('order menus reset the feed and show the selected value, with no system selector', async (t) => {
   const fixture = discoveryFixture();
   t.after(() => fixture.ui.leave());
   await settled(fixture);
   const row = fixture.host.querySelector('.community-feed-filter-row');
   assert.ok(row);
-  const selector = row
-    .querySelectorAll('select')
-    .find((node) => node.getAttribute('aria-label') === 'Sort');
-  assert.ok(selector);
-  selector.value = 'recent';
-  selector.dispatchEvent(new Event('change'));
+  assert.equal(row.querySelectorAll('select').length, 0);
+  button(row, 'Recent').click();
   await settled(fixture);
   assert.equal(fixture.requests.at(-1)?.order, 'recent');
   assert.equal(fixture.requests.at(-1)?.after, null);
   assert.equal(button(row, 'Recent').getAttribute('aria-pressed'), 'true');
   button(row, 'Highlights').click();
   await settled(fixture);
-  assert.equal(selector.value, 'mixed');
   assert.equal(fixture.requests.at(-1)?.order, 'mixed');
 });
 

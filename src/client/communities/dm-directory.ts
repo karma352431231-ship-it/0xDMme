@@ -140,8 +140,6 @@ export class DmDirectory {
     if (next) this.pageButton(host, t('More conversations'), next);
     if (this.cursor !== null)
       this.pageButton(host, t('Recent conversations'), null);
-    if (navigator.onLine && !this.cursor?.startsWith('local:'))
-      this.pageButton(host, t('On this device'), 'local:');
   }
   private pageButton(
     host: HTMLElement,

@@ -1,6 +1,6 @@
 import { watchRankingUpdates } from './ranking-live.ts';
 import { AccountRankingView, rankingPeriods } from './account-ranking.ts';
-import { discoveryMenu } from './discovery-controls.ts';
+import { discoveryMenu } from './discovery-menu.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';

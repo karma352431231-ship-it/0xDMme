@@ -13,7 +13,7 @@ import type {
 import { PostSnapshot } from './post-snapshot.ts';
 import { editedPost } from './post-edit-update.ts';
 import { communityRead } from './controller.ts';
-import { discoveryMenu } from './discovery-controls.ts';
+import { discoveryMenu } from './discovery-menu.ts';
 import {
   communityElement as el,
   communityButton as button,

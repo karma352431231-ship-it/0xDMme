@@ -27,7 +27,7 @@ import {
   discoveryMenu,
   discoveryPeriods,
   feedOrders,
-} from './discovery-controls.ts';
+} from './discovery-menu.ts';
 import { DiscoveryFeedPage } from './discovery-feed.ts';
 import { DiscoveryRankingPage } from './discovery-ranking.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';

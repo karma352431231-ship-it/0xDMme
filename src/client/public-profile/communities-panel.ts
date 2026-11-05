@@ -1,13 +1,9 @@
 import { communityHref } from '../../shared/app-routes/index.ts';
-import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import { t } from '../../shared/i18n/index.ts';
 import { communityPage } from '../../shared/communities/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import { communityAvatar } from '../communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
-
-// Photos shown before the “+N” control in the compact row.
-const compactCount = 5;
-const namedCount = 3;
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -19,103 +15,34 @@ function element<K extends keyof HTMLElementTagNameMap>(
   node.className = className;
   return node;
 }
-function button(text: string, className: string): HTMLButtonElement {
-  const node = element('button', text, className);
-  node.type = 'button';
-  return node;
-}
 
-/**
- * Up to three communities show their names immediately. Larger collections
- * use up to five photos and an expandable, paginated named list.
- */
+/** The Communities tab: a named list, one server page at a time. */
 export function profileCommunities(
   host: HTMLElement,
   input: {
-    total: number;
     read: (after: string | null) => Promise<unknown>;
     signal: AbortSignal;
     error: (error: unknown) => void;
   },
 ): void {
   const { read, signal, error } = input;
-  const compact = element('div', '', 'profile-communities-compact'),
-    list = element('ul', '', 'profile-communities-list'),
-    footer = element('div', '', 'profile-communities-footer'),
-    more = button(t('More communities'), 'profile-communities-more'),
-    less = button(t('Show less'), 'profile-communities-less'),
-    toggle = button('', 'profile-communities-toggle');
-  footer.append(more, less);
-  list.hidden = footer.hidden = true;
-  host.replaceChildren(element('h2', t('Communities')), compact, list, footer);
-  const loaded: Community[] = [];
+  const list = element('ul', '', 'profile-communities-list'),
+    more = element('button', t('More communities'), 'profile-communities-more');
+  more.type = 'button';
+  more.hidden = true;
+  host.replaceChildren(list, more);
   let next: string | null = null;
-  const avatar = (group: Community) => {
-    const node = communityAvatar(group.name);
-    if (group.avatar)
-      showPublicAvatar(node, {
-        kind: 'community-photo',
-        target: group.id,
-        reference: group.avatar,
-        signal,
-      });
-    return node;
-  };
-  function expand(open: boolean): void {
-    if (open && !list.childElementCount)
-      list.append(...loaded.map((group) => row(group, avatar(group))));
-    list.hidden = footer.hidden = !open;
-    compact.hidden = open;
-    more.hidden = next === null;
-    toggle.setAttribute('aria-expanded', String(open));
-    (open ? less : toggle).focus();
-  }
-  function fillCompact(total: number): void {
-    if (!loaded.length) {
-      compact.append(element('p', t('No followed communities.')));
-      return;
-    }
-    if (loaded.length <= namedCount && next === null) {
-      compact.hidden = true;
-      list.hidden = false;
-      list.append(...loaded.map((group) => row(group, avatar(group))));
-      return;
-    }
-    for (const group of loaded.slice(0, compactCount)) {
-      const link = element('a', '', 'profile-community-photo');
-      link.href = communityHref(group);
-      link.title = group.name;
-      link.setAttribute('aria-label', group.name);
-      link.append(avatar(group));
-      compact.append(link);
-    }
-    const hidden = total - Math.min(loaded.length, compactCount);
-    toggle.textContent =
-      hidden > 0
-        ? `+${hidden.toLocaleString(currentLanguage())}`
-        : t('View names');
-    toggle.setAttribute(
-      'aria-label',
-      t('View the list of {0} communities', [
-        total.toLocaleString(currentLanguage()),
-      ]),
-    );
-    toggle.setAttribute('aria-expanded', 'false');
-    compact.append(toggle);
-  }
   async function page(after: string | null): Promise<void> {
     const response = communityPage(await read(after));
     if (signal.aborted) return;
     next = response.next;
-    loaded.push(...response.items);
-    // The summary count can lag a follow made a moment ago.
-    if (after === null) fillCompact(Math.max(input.total, loaded.length));
-    else
-      list.append(...response.items.map((group) => row(group, avatar(group))));
+    list.append(...response.items.map((group) => row(group, signal)));
+    if (after === null && !response.items.length)
+      host.replaceChildren(
+        element('p', t('No followed communities.'), 'public-profile-empty'),
+      );
     more.hidden = next === null;
   }
-  toggle.addEventListener('click', () => expand(true));
-  less.addEventListener('click', () => expand(false));
   more.addEventListener('click', () => {
     if (more.disabled || next === null) return;
     more.disabled = true;
@@ -128,9 +55,17 @@ export function profileCommunities(
   void page(null).catch(error);
 }
 
-function row(group: Community, avatar: HTMLElement): HTMLLIElement {
-  const item = element('li');
-  const link = element('a', '', 'profile-community-row');
+function row(group: Community, signal: AbortSignal): HTMLLIElement {
+  const item = element('li'),
+    link = element('a', '', 'profile-community-row'),
+    avatar = communityAvatar(group.name);
+  if (group.avatar)
+    showPublicAvatar(avatar, {
+      kind: 'community-photo',
+      target: group.id,
+      reference: group.avatar,
+      signal,
+    });
   link.href = communityHref(group);
   link.append(avatar, element('span', group.name));
   item.append(link);

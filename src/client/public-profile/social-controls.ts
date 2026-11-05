@@ -39,6 +39,8 @@ export async function profileSocialControls(
   host: HTMLElement,
   summary: ProfileSummary,
   access: {
+    /** Where the "..." menu goes; the page keeps it apart from the actions. */
+    menuHost: HTMLElement;
     controller: PublicProfiles;
     signal: AbortSignal;
     error: (error: unknown) => void;
@@ -102,9 +104,12 @@ export async function profileSocialControls(
   check.append(communityIcon('check'));
   bell.append(communityIcon('bell'), check);
   function paint(): void {
-    followButton.textContent = follow.following
-      ? t('follow.following')
-      : t('Follow');
+    if (follow.following)
+      followButton.replaceChildren(
+        communityIcon('check'),
+        t('follow.following'),
+      );
+    else followButton.textContent = t('Follow');
     followButton.setAttribute('aria-pressed', String(follow.following));
     bell.disabled = !follow.following || access.block.blocked;
     bell.dataset['inactive'] = String(bell.disabled);
@@ -130,7 +135,7 @@ export async function profileSocialControls(
   summaryNode.setAttribute('aria-label', t('User options'));
   summaryNode.append(communityIcon('more'));
   menu.append(summaryNode, content);
-  host.append(menu);
+  access.menuHost.append(menu);
   const block = button(
     content,
     access.block.blocked ? t('Unblock user') : t('Block user'),

@@ -28,7 +28,7 @@ import {
   discoveryMenu,
   discoveryPeriods,
   feedOrders,
-} from './discovery-controls.ts';
+} from './discovery-menu.ts';
 import {
   communityButton as button,
   communityElement as el,

@@ -6,9 +6,11 @@ import {
   discoveryMenu,
   discoveryPeriods,
   feedOrders,
-} from '../../src/client/communities/discovery-controls.ts';
+} from '../../src/client/communities/discovery-menu.ts';
 import { mountPublicSearchToolbar } from '../../src/client/public-search/index.ts';
 import { communityIcon } from '../../src/client/communities/presentation.ts';
+import { showProfilePage } from '../../src/client/public-profile/page.ts';
+import type { PublicProfiles } from '../../src/client/public-profile/controller.ts';
 
 const shell = document.getElementById('app-shell')!;
 const page = document.getElementById('page-content')!;
@@ -79,7 +81,7 @@ function account(): void {
     'Wallet return instructions match the installed or browser context',
   );
 }
-function feed(): void {
+async function feed(): Promise<void> {
   shell.dataset['page'] = 'comunidades';
   page.innerHTML =
     '<div data-feed><div class="community-tools"><details class="community-more"><summary aria-label="More community options">…</summary></details></div><div class="post-toolbar community-feed-filters"><div class="community-feed-filter-row"><nav class="community-feed-scopes"><a href="#discover" aria-current="page">Discover</a><a href="#following">Following</a></nav></div></div></div>';
@@ -93,27 +95,63 @@ function feed(): void {
     'Period',
     { value: 'day', options: discoveryPeriods },
     () => {},
-  );
+  ).dataset['period'] = 'true';
   const toolbar = page.querySelector<HTMLElement>('.community-feed-filters')!;
   page
     .querySelector('.community-more > summary')!
     .replaceChildren(communityIcon('more'));
   mountPublicSearchToolbar(toolbar, new AbortController().signal);
   if (!phone) return;
-  const fields = row.querySelectorAll<HTMLElement>('a,select');
-  const tops = [...fields]
-    .filter((field) => field.getBoundingClientRect().width)
-    .map((field) => field.getBoundingClientRect().top);
+  const fields = [...row.querySelectorAll<HTMLElement>('a,summary')];
+  const boxes = fields.map((field) => field.getBoundingClientRect());
   check(
-    Math.max(...tops) - Math.min(...tops) < 6,
+    Math.max(...boxes.map((box) => box.top)) -
+      Math.min(...boxes.map((box) => box.top)) <
+      2,
     'All feed filters occupy one horizontal row',
   );
+  check(
+    Math.max(...boxes.map((box) => box.height)) -
+      Math.min(...boxes.map((box) => box.height)) <
+      1,
+    'Order and period controls match the scope pills in height',
+  );
+  check(
+    new Set(fields.map((field) => getComputedStyle(field).fontSize)).size === 1,
+    'Order and period controls match the scope pills in text size',
+  );
+  check(
+    !row.querySelector('select'),
+    'Order and period use the compact menu, not a system dialog',
+  );
   row.scrollLeft = row.scrollWidth;
-  const last = bounds('select[aria-label="Period"]');
+  const last = bounds('details[data-period] > summary');
   check(
     last.right <= row.getBoundingClientRect().right + 1,
     'The period remains reachable by scrolling',
   );
+  const opened = page.querySelector<HTMLDetailsElement>(
+    'details[data-period]',
+  )!;
+  opened.querySelector('summary')!.click();
+  const panel = opened
+    .querySelector('.discovery-menu-options')!
+    .getBoundingClientRect();
+  const option = opened.querySelector('button')!.getBoundingClientRect();
+  check(
+    panel.height > 100 && panel.left >= 12 && panel.right <= innerWidth - 11,
+    'The open period panel is whole on screen despite the scrolling row',
+  );
+  check(
+    document.elementFromPoint(option.left + 10, option.top + 8) ===
+      opened.querySelector('button'),
+    'The open panel is on top and its options can be tapped',
+  );
+  check(option.height <= 34, 'Filter options stay compact on phones');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  row.dispatchEvent(new Event('scroll'));
+  check(!opened.open, 'Scrolling the row closes the panel');
+  await new Promise((resolve) => setTimeout(resolve, 20));
   const search = bounds('.public-search');
   const more = bounds('.community-more > summary');
   check(
@@ -129,21 +167,28 @@ function feed(): void {
 function editor(): void {
   shell.dataset['page'] = 'perfil';
   page.innerHTML =
-    '<article class="card public-profile-card"><div data-editor></div></article>';
+    '<div class="profile-settings"><details class="settings-section" open><summary><span><strong>Public profile</strong></span></summary><div class="settings-body"><div data-public-profile-settings><article class="card public-profile-card"><div data-editor></div></article></div></div></details></div>';
   page.querySelector('[data-editor]')!.innerHTML = t('html.b1c18c8a59fa', [
     '',
     '',
   ]);
   if (!phone) return;
-  for (const selector of ['.public-profile-card', '.profile-editor'])
+  for (const selector of [
+    '.settings-section',
+    '.public-profile-card',
+    '.profile-editor',
+  ])
     check(
       getComputedStyle(page.querySelector(selector)!).borderTopWidth === '0px',
       'Profile editor frame removed: ' + selector,
     );
-  const card = bounds('.public-profile-card');
+  check(
+    bounds('.profile-editor-banner').width >= innerWidth - 1,
+    'Editor banner uses the full phone width',
+  );
   const description = bounds('.profile-editor-description');
   check(
-    Math.abs(card.width - description.width) < 2,
+    description.width >= innerWidth - 1,
     'Description uses the available editor width',
   );
   check(
@@ -153,52 +198,162 @@ function editor(): void {
     'Description retains its field boundary',
   );
 }
-function profile(): void {
+const profileId = '11111111-1111-4111-8111-111111111111';
+const communityId = '22222222-2222-4222-8222-222222222222';
+function syntheticPost() {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    community: communityId,
+    author: { id: profileId, handle: 'synthetic_profile', avatar: null },
+    title: 'Synthetic post title',
+    text: 'Synthetic post text',
+    tags: [],
+    createdAt: '2026-10-01T00:00:00.000Z',
+    editedAt: null,
+    revision: 1,
+    status: 'visible',
+    score: 3,
+    replies: 1,
+    parent: null,
+    root: null,
+  };
+}
+async function profile(): Promise<void> {
   shell.dataset['page'] = 'publico';
-  page.innerHTML =
-    '<section class="public-profile-page"><header class="public-profile-header"><div class="public-profile-banner"></div><div class="public-profile-identity"><span class="public-profile-avatar">S</span><div class="public-profile-title"><h1>@synthetic_profile</h1></div></div><p class="public-profile-description">Synthetic public description</p></header><div class="public-profile-layout"><aside class="public-profile-about">Synthetic public metrics</aside><div class="public-profile-timeline"><nav class="public-profile-tabs"><button>Overview</button><button>Posts</button><button>Replies</button><button>Shared</button></nav><section class="public-profile-activity community-scope"><article class="card community-card"><h2>Synthetic post</h2><div class="post-actions"><span class="post-votes"><button>↑</button><button class="post-score">12</button></span><a class="post-action">Reply 3</a><button class="post-action">Share 4</button><button class="post-action post-save">Save</button><span class="post-action post-views">Views 5</span></div></article></section></div></div></section>';
-  page
-    .querySelector('.post-votes button')!
-    .replaceChildren(communityIcon('up'));
-  const actionNodes = page.querySelectorAll('.post-action');
-  for (const [index, icon, count] of [
-    [0, 'comment', '3'],
-    [1, 'share', '4'],
-    [2, 'bookmark', ''],
-    [3, 'eye', '5'],
-  ] as const) {
-    actionNodes[index]!.replaceChildren(communityIcon(icon), count);
-  }
-  if (!phone) return;
-  for (const selector of ['.public-profile-header', '.public-profile-about'])
-    check(
-      getComputedStyle(page.querySelector(selector)!).borderTopWidth === '0px',
-      'Public profile frame removed: ' + selector,
+  const summary = {
+    profile: { id: profileId, handle: 'synthetic_profile', avatar: null },
+    description: 'Synthetic public description',
+    banner: null,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    conversations: 0,
+    posts: 1,
+    replies: 0,
+    communities: 1,
+    followers: 1,
+  };
+  window.fetch = (input) =>
+    Promise.resolve(
+      Response.json(
+        (input instanceof Request ? input.url : input.toString()).includes(
+          '/communities',
+        )
+          ? {
+              items: [
+                {
+                  id: communityId,
+                  name: 'Synthetic community',
+                  description: '',
+                  rules: '',
+                  revision: 1,
+                  archived: false,
+                  avatar: null,
+                  owner: null,
+                  followers: 1,
+                },
+              ],
+              next: null,
+            }
+          : summary,
+      ),
     );
+  const controller = {
+    profile: { profile: { id: crypto.randomUUID() } },
+    hasSession: () => true,
+    refresh: () => Promise.resolve(),
+    perform: (action: string) =>
+      Promise.resolve(
+        {
+          'block-state': { blocked: false, revision: 0 },
+          'follow-state': { following: true, revision: 1 },
+          'notification-state': { enabled: false, revision: 1 },
+          'mutual-followers': { items: [], total: 0, next: null },
+          activity: {
+            items: [
+              {
+                post: syntheticPost(),
+                community: { id: communityId, name: 'Synthetic community' },
+              },
+            ],
+            next: null,
+          },
+        }[action] ?? null,
+      ),
+  } as unknown as PublicProfiles;
+  showProfilePage(page, 'synthetic_profile', { controller });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  check(
+    page.querySelector('.public-profile-bar-title')?.textContent ===
+      '@synthetic_profile',
+    'The top bar names the profile',
+  );
+  check(
+    !!page.querySelector('.public-profile-bar-menu .post-more'),
+    'The options menu lives in the top bar',
+  );
+  check(
+    !page.querySelector('.public-profile-metrics, .public-profile-about'),
+    'The separate metrics table is gone',
+  );
+  check(
+    page
+      .querySelector('.public-profile-meta')
+      ?.textContent?.startsWith('1 follower') === true,
+    'One follower reads in the singular',
+  );
+  check(
+    !!page.querySelector('.community-post-community'),
+    'The first post leads with its community',
+  );
+  const tabs = [...page.querySelectorAll('.public-profile-tabs button')];
+  check(
+    tabs.map((tab) => tab.textContent).join('|') ===
+      'Posts 1|Replies 0|Shared|Communities 1',
+    'Tabs carry their counts',
+  );
+  check(
+    tabs[0]?.getAttribute('aria-current') === 'true',
+    'Posts is the first tab shown',
+  );
+  check(
+    !page.querySelector('.community-post-author'),
+    'Entries omit the author the page already names',
+  );
+  (tabs.at(-1) as HTMLButtonElement).click();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  check(
+    page
+      .querySelector('.profile-community-row')
+      ?.textContent?.includes('Synthetic community') === true,
+    'The Communities tab lists names',
+  );
+  check(
+    page.querySelector<HTMLElement>('.public-profile-activity')?.hidden ===
+      true,
+    'The Communities tab replaces the activity list',
+  );
+  if (!phone) return;
   check(
     bounds('.public-profile-banner').width >= innerWidth - 1,
     'Public profile banner uses the full phone width',
   );
-  const actions = page.querySelector('.post-actions')!;
-  const boxes = [...actions.children].map((child) =>
-    child.getBoundingClientRect(),
+  const message = bounds('.profile-message'),
+    follow = bounds('.profile-follow'),
+    bell = bounds('.profile-bell');
+  check(
+    Math.abs(message.top - follow.top) < 1 &&
+      Math.abs(follow.top - bell.top) < 1,
+    'Message, Following and the bell share one row',
   );
   check(
-    Math.max(...boxes.map((box) => box.top)) -
-      Math.min(...boxes.map((box) => box.top)) <
-      5,
-    'Profile post actions stay on one compact line',
-  );
-  check(
-    boxes.at(-1)!.right <= actions.getBoundingClientRect().right + 1,
-    'Profile post actions stay within the card',
+    Math.abs(message.width - follow.width) < 2,
+    'Message and Following have equal widths',
   );
 }
 
 try {
-  if (mode === 'feed') feed();
+  if (mode === 'feed') await feed();
   else if (mode === 'edit') editor();
-  else if (mode === 'profile') profile();
+  else if (mode === 'profile') await profile();
   else account();
   check(
     document.documentElement.scrollWidth <= innerWidth + 1,

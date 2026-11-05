@@ -1,10 +1,4 @@
 /* Compact order/period menus (feed, ranking and community posts). */
-.discovery-control {
-  display: contents;
-}
-.discovery-native {
-  display: none;
-}
 .discovery-menu {
   position: relative;
 }
@@ -54,4 +48,23 @@
 .discovery-menu-options button:hover,
 .discovery-menu-options button[aria-pressed='true'] {
   background: var(--accent-soft);
+}
+@media (max-width: 700px) {
+  #app-shell .discovery-menu-options {
+    padding: 4px;
+    border-radius: 10px;
+  }
+  #app-shell .discovery-menu-options button {
+    min-height: 0;
+    margin: 0;
+    padding: 7px 10px;
+    border: 0;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  #app-shell .discovery-menu-options button[aria-pressed='true'] {
+    background: var(--accent-soft);
+  }
 }

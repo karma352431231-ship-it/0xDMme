@@ -335,8 +335,6 @@ export function startSocialDmUi(
       expected = verification,
       page = await controller.copies(after);
     if (!currentVerification(old, expected)) return;
-    if (page.items.length && !after)
-      host.append(communityElement('h4', t('On this device'), 'dm-list-title'));
     for (const row of page.items)
       host.append(
         directoryRow(

@@ -251,7 +251,11 @@ export function startContacts(
       'click',
       () => camera?.stop(),
     );
+    node('[data-contact-invites-close]')?.addEventListener('click', () =>
+      node<HTMLDialogElement>('[data-contact-invites]')?.close(),
+    );
   }
+  /** Both the page view and the editor host hold buttons that open invitations. */
   function bindOwnInvite(): void {
     const dialog = node<HTMLDialogElement>('[data-contact-invites]');
     for (const root of [mounted, editor])
@@ -266,9 +270,6 @@ export function startContacts(
             void run(rotate);
         });
       });
-    node('[data-contact-invites-close]')?.addEventListener('click', () =>
-      dialog?.close(),
-    );
   }
   async function refresh(): Promise<void> {
     const deadline = Date.now() + 60_000;
@@ -851,6 +852,7 @@ export function startContacts(
       host.innerHTML = editorTemplate;
       bindContactTabs(host);
       bindEditor();
+      bindOwnInvite();
       bindControls(host);
       mountCamera();
       render();
