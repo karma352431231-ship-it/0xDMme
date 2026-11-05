@@ -86,6 +86,7 @@ await test('filters: Requests groups pending responses and Replies contains only
         'invites',
         'replies',
         'upvotes',
+        'follows',
         'mentions',
         'transfers',
         'moderation',

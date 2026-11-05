@@ -1,14 +1,8 @@
-@import './inline-post-reply.css';
-
 dialog.post-composer-dialog.community-scope.reply-box {
   margin: auto;
 }
 dialog.post-composer-dialog.community-scope .reply-parent-preview {
-  margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface-2);
+  padding: 12px 0 4px;
   overflow-wrap: anywhere;
 }
 dialog.post-composer-dialog.community-scope
@@ -71,4 +65,125 @@ dialog.post-composer-dialog.community-scope
   .reply-parent-preview
   .community-media-preview {
   margin: 0;
+}
+
+/*
+ * Reply screen (05/11/2026): one bar with Cancel and Reply, the replied post
+ * as a single line that opens, then the text with its tools; no inner boxes.
+ */
+dialog.post-composer-dialog.community-scope.reply-box[open] {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+dialog.post-composer-dialog.community-scope .reply-sheet-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--surface);
+}
+dialog.post-composer-dialog.community-scope
+  .reply-sheet-bar
+  > h2.reply-sheet-title {
+  flex: 1;
+  font-size: 16px;
+  text-align: center;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-sheet-bar
+  > .reply-sheet-cancel {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-sheet-bar
+  > .reply-sheet-publish {
+  min-height: 0;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+dialog.post-composer-dialog.community-scope .reply-parent {
+  margin: 0;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+dialog.post-composer-dialog.community-scope .reply-parent-summary {
+  display: grid;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 13px;
+  list-style: none;
+  cursor: pointer;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-summary::-webkit-details-marker {
+  display: none;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent[open]
+  .reply-parent-line {
+  display: none;
+}
+dialog.post-composer-dialog.community-scope .reply-parent-line {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+dialog.post-composer-dialog.community-scope.reply-box .post-composer-content {
+  flex: 1;
+  align-content: start;
+  padding: 12px 16px 16px;
+}
+/* The field label stays for assistive technology; the placeholder says it. */
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-composer-content
+  > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-text-area
+  > textarea {
+  min-height: 160px;
+  padding: 4px 0 52px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 16px;
+}
+dialog.post-composer-dialog.community-scope.reply-box .post-text-tools {
+  right: auto;
+  left: -6px;
+}
+dialog.post-composer-dialog.community-scope.reply-box > .community-feedback {
+  margin: 0 16px 12px;
+}
+@media (max-width: 700px) {
+  /* The whole screen, above the keyboard: the phone viewport is the visible area. */
+  dialog.post-composer-dialog.community-scope.reply-box {
+    width: 100%;
+    max-width: none;
+    height: var(--phone-viewport-height, 100dvh);
+    max-height: none;
+    margin: var(--phone-viewport-top, 0px) 0 0;
+    border: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+  }
 }

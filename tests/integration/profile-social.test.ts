@@ -14,6 +14,7 @@ import {
   profileDescription,
   mutualFollowers,
 } from '../../src/shared/profile-social/index.ts';
+import { followNoticePage } from '../../src/shared/follow-notices/index.ts';
 import { postShareState } from '../../src/shared/post-sharing/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
 import { communityPage } from '../../src/shared/communities/index.ts';
@@ -528,6 +529,45 @@ await test('social profile: metrics, public communities, follows, feeds and mode
       });
       assert.equal((await profiles.summary(identity.handle)).followers, 1);
       assert.notEqual(follower.id, identity.id);
+      // New followers reach the followed profile's Activity, newest first; a
+      // withdrawn follow withdraws its notice and following again is new.
+      const notices = () =>
+        operate(owner, 'follow-notifications', { after: null }).then(
+          followNoticePage,
+        );
+      // The 25 mutual followers above have unfollowed, which withdrew theirs.
+      const arrived = await notices();
+      assert.equal(arrived.items.length, 1);
+      assert.equal(arrived.next, null);
+      assert.equal(arrived.items[0]!.actor.id, follower.id);
+      assert.equal(arrived.items[0]!.read, false);
+      await operate(owner, 'follow-notifications-read', {
+        ids: [arrived.items[0]!.id],
+      });
+      assert.equal((await notices()).items[0]!.read, true);
+      assert.equal(
+        followNoticePage(
+          await operate(reader, 'follow-notifications', { after: null }),
+        ).items.some((item) => item.actor.id === identity.id),
+        false,
+      );
+      await operate(reader, 'follow', {
+        target: identity.id,
+        following: false,
+        revision: 3,
+      });
+      assert.ok(
+        !(await notices()).items.some((item) => item.actor.id === follower.id),
+      );
+      await operate(reader, 'follow', {
+        target: identity.id,
+        following: true,
+        revision: 4,
+      });
+      const again = (await notices()).items[0]!;
+      assert.equal(again.actor.id, follower.id);
+      assert.equal(again.read, false);
+      assert.notEqual(again.id, arrived.items[0]!.id);
     },
   );
   await t.test(

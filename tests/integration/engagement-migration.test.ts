@@ -111,14 +111,20 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
       ).rows[0]!.used_bytes,
     );
   const bytes = await ledger();
-  await db.migrate();
+  // The pinned 099→102 deploy contract counts triggers of schema 103, so it is
+  // checked there; 103 only moves the account fact to commit.
+  await historicalMigrations(client, [
+    '100-engagement-storage.sql',
+    '101-engagement-domain-facts.sql',
+    '102-engagement-operations.sql',
+    '103-account-engagement-at-commit.sql',
+  ]);
   assert.deepEqual(await snapshot(), before);
   const after = (
     await client.query(
       'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
     )
   ).rows;
-  // 103 only moves the account fact to commit; it adds no rows or charges.
   assert.equal(after.length, 103);
   assert.deepEqual(after.slice(0, 99), versions);
   const charge = await client.query<{ bytes: string }>(contract.charge);
@@ -130,6 +136,16 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
       : result;
     assert.deepEqual(Object.values(last.rows[0]!), [true]);
   }
+  // The runtime migrator accepts the explicit steps and adds only the empty
+  // follower notice table of 104.
+  await db.migrate();
+  assert.deepEqual(await snapshot(), before);
+  assert.equal(
+    (await client.query('SELECT version FROM hash_talk.schema_migrations'))
+      .rowCount,
+    104,
+  );
+  assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));
   await client.query('BEGIN');
   await client.query(
     "UPDATE hash_talk.engagement_counts SET value=value+1 WHERE metric='accounts_existing' AND scope='project'",

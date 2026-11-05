@@ -37,6 +37,7 @@ export async function rehearseAllocationReversal(input: {
       ...sources.map((s) => s.name),
       'community_ranking_entries',
       'contact_invitations',
+      'public_follow_notifications',
     ];
   for (const name of names) assert.match(name, /^[a-z_]+$/u);
   await client.query('BEGIN');

@@ -8,6 +8,7 @@ import {
 export { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { ActivitySeen } from './seen.ts';
 import { mentionRows } from './mentions.ts';
+import { followRows } from './follows.ts';
 import { PublicationPreview } from './publication-preview.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { publicationTitle, publicationQuote } from './publications.ts';
@@ -33,6 +34,7 @@ export type ActivityGroup =
   | 'transfers'
   | 'moderation'
   | 'upvotes'
+  | 'follows'
   | 'mentions';
 const groupOrder: readonly ActivityGroup[] = [
   'requests',
@@ -40,6 +42,7 @@ const groupOrder: readonly ActivityGroup[] = [
   'invites',
   'replies',
   'upvotes',
+  'follows',
   'mentions',
   'transfers',
   'moderation',
@@ -136,6 +139,9 @@ export function startActivity(
       ...snapshot.mentions.items
         .filter((item) => !item.read)
         .map((item) => 'mention:' + item.id),
+      ...snapshot.follows.items
+        .filter((item) => !item.read)
+        .map((item) => 'follow:' + item.id),
     ];
     if (host) {
       seen.view(ids);
@@ -512,6 +518,24 @@ export function startActivity(
                 throw new Error('Upvote read unavailable.');
               await sources.markUpvotesRead(ids);
             },
+            changed: () => options.countChanged(count()),
+          }),
+        ),
+      ],
+      [
+        'follows',
+        section(
+          t('New followers'),
+          snapshot.follows,
+          followRows(snapshot.follows.items, {
+            signal: publicationPreview.signal,
+            open: async (id) => {
+              if (!sources.markFollowsRead)
+                throw new Error('Follower notice read unavailable.');
+              await sources.markFollowsRead([id]);
+            },
+            current: () =>
+              current === generation && host !== null && session !== null,
             changed: () => options.countChanged(count()),
           }),
         ),

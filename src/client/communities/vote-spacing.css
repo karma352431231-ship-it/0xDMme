@@ -1,15 +1,30 @@
 /*
- * The score sits right beside the upvote arrow on every screen; the wider
- * spacing belonged to the arrow pair that had a downvote between them.
+ * The vote pill matches Reply and Share (05/11/2026): the same side margins
+ * and the same gap between the icon and the number. The pill itself has no
+ * padding (post-actions.css), so the arrow and the score carry it and keep the
+ * whole pill tappable. --vote-pad follows each layout's action padding.
  */
 #app-shell[data-page] .post-votes {
+  --vote-pad: 12px;
   gap: 0;
 }
 #app-shell[data-page] .post-votes [data-vote] {
-  min-width: 26px;
-  padding-inline: 8px 2px;
+  min-width: 0;
+  padding: 0 3px 0 var(--vote-pad);
+  /* 16px icon + 3px + the score's 3px = the 6px icon gap of the other pills. */
 }
 #app-shell[data-page] .post-votes .post-score {
   min-width: 0;
-  padding-inline: 2px 10px;
+  padding: 0 var(--vote-pad) 0 3px;
+}
+#app-shell .feed-panel .post-votes {
+  --vote-pad: 10px;
+}
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] .post-votes {
+    --vote-pad: 11px;
+  }
+  #app-shell .public-profile-activity .post-votes {
+    --vote-pad: 6px;
+  }
 }

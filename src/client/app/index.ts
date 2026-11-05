@@ -256,6 +256,8 @@ const activity = startActivity(
     moderation: () => publicProfiles.moderationNotifications(),
     mentions: () => publicProfiles.mentionNotifications(),
     markMentionsRead: (ids) => publicProfiles.markMentionsRead(ids),
+    follows: () => publicProfiles.followNotifications(),
+    markFollowsRead: (ids) => publicProfiles.markFollowsRead(ids),
     markModerationRead: (ids) => {
       publicProfiles.markModerationRead(ids);
       return Promise.resolve();

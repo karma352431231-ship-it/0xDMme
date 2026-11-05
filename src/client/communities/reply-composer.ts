@@ -36,6 +36,21 @@ export interface ReplyActions {
   media: PostEditorAccess;
   replied: (state: PostState) => Promise<void>;
 }
+/** Who is answered, and the post's title or opening words. */
+function replyParentLine(parent: CommunityPost): HTMLElement[] {
+  return [
+    el(
+      'span',
+      t('Replying to @{0}', [parent.author?.handle ?? '']),
+      'reply-parent-to',
+    ),
+    el(
+      'span',
+      parent.title || postPreviewText(parent.text) || '',
+      'reply-parent-line',
+    ),
+  ];
+}
 /** The clicked post is always the immediate parent, including a reply in the feed. */
 export class ReplyComposer {
   private readonly parent: CommunityPost;
@@ -63,17 +78,16 @@ export class ReplyComposer {
   }
   open(toolbar: HTMLElement): void {
     if (!this.access.valid() || this.access.media.signal.aborted) return;
-    const heading = el('header', '', 'post-composer-heading'),
-      copy = el('div', '', 'post-composer-heading-copy');
-    copy.append(el('h2', t('Reply')), el('p', t('Continue the conversation.')));
-    heading.append(copy);
-    button(heading, t('Close'), () => {
+    // One bar on top: way out, title, and the action (05/11/2026).
+    const bar = el('header', '', 'post-composer-heading reply-sheet-bar');
+    button(bar, t('Cancel'), () => {
       this.requestClose();
       return Promise.resolve();
-    });
+    }).classList.add('reply-sheet-cancel');
+    bar.append(el('h2', t('Reply'), 'reply-sheet-title'));
     this.dialog.setAttribute('aria-label', t('Reply to post'));
     this.feedback.setAttribute('role', 'status');
-    this.dialog.append(heading, this.context(), this.draft, this.feedback);
+    this.dialog.append(bar, this.context(), this.draft, this.feedback);
     const signal = AbortSignal.any([
       this.abort.signal,
       this.access.media.signal,
@@ -87,12 +101,10 @@ export class ReplyComposer {
         valid: () => !this.closed && this.access.valid(),
       },
     );
+    button(bar, t('Reply'), () => this.publish(content)).className =
+      'post-composer-publish reply-sheet-publish';
     const text = this.draft.querySelector('textarea');
     if (text) text.placeholder = t('Write your reply…');
-    const footer = el('footer', '', 'post-composer-footer');
-    this.draft.append(footer);
-    button(footer, t('Publish reply'), () => this.publish(content)).className =
-      'post-composer-publish';
     this.dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
       this.requestClose();
@@ -144,9 +156,14 @@ export class ReplyComposer {
     this.dialog.addEventListener('load', reveal, { capture: true, signal });
     window.visualViewport?.addEventListener('resize', reveal, { signal });
   }
+  /** One line naming the post; it opens to show the whole post again. */
   private context(): HTMLElement {
-    const context = el('section', '', 'reply-parent-preview');
-    context.setAttribute('aria-label', t('The post you are replying to'));
+    const holder = el('details', '', 'reply-parent'),
+      summary = el('summary', '', 'reply-parent-summary'),
+      context = el('section', '', 'reply-parent-preview');
+    holder.setAttribute('aria-label', t('The post you are replying to'));
+    summary.append(...replyParentLine(this.parent));
+    holder.append(summary, context);
     const avatar = postHeader(
       context,
       this.parent,
@@ -180,7 +197,7 @@ export class ReplyComposer {
         privacy: this.access.media.privacy,
         signal,
       });
-    return context;
+    return holder;
   }
   private async publish(
     content: () => Promise<

@@ -8,6 +8,7 @@ import {
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
+import { followNoticePage } from '../../shared/follow-notices/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
@@ -242,6 +243,13 @@ export function startPublicProfile(
       ).items,
     markMentionsRead: async (ids: readonly string[]) => {
       await controller.perform('mention-notifications-read', { ids });
+    },
+    followNotifications: async () =>
+      followNoticePage(
+        await controller.perform('follow-notifications', { after: null }),
+      ).items,
+    markFollowsRead: async (ids: readonly string[]) => {
+      await controller.perform('follow-notifications-read', { ids });
     },
     moderationNotifications: () => notices.read(),
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),

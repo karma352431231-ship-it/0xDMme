@@ -10,6 +10,8 @@ import {
 import { mountPublicSearchToolbar } from '../../src/client/public-search/index.ts';
 import { communityIcon } from '../../src/client/communities/presentation.ts';
 import { editorTemplate } from '../../src/client/contacts/template.ts';
+import { ReplyComposer } from '../../src/client/communities/reply-composer.ts';
+import type { ReplyActions } from '../../src/client/communities/reply-composer.ts';
 import { openImageViewer } from '../../src/client/image-viewer/index.ts';
 import { showProfilePage } from '../../src/client/public-profile/page.ts';
 import type { PublicProfiles } from '../../src/client/public-profile/controller.ts';
@@ -303,6 +305,78 @@ async function imageViewer(): Promise<void> {
     'A zoomed image cannot be dragged off its edge',
   );
 }
+async function replyScreen(): Promise<void> {
+  shell.dataset['page'] = 'comunidades';
+  const toolbar = document.createElement('div'),
+    trigger = document.createElement('button');
+  toolbar.className = 'post-actions';
+  page.append(toolbar);
+  const lifetime = new AbortController();
+  const composer = new ReplyComposer(
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      community: communityId,
+      author: { id: profileId, handle: 'synthetic_profile', avatar: null },
+      title: 'Synthetic post title that is long enough to need an ellipsis',
+      text: 'Synthetic post text',
+      tags: [],
+      createdAt: '2026-10-01T00:00:00.000Z',
+      editedAt: null,
+      revision: 1,
+      status: 'visible',
+      score: 1,
+      replies: 0,
+      parent: null,
+      root: null,
+    },
+    {
+      controller: { request: () => Promise.resolve({}) },
+      run: (work: () => Promise<void>) => work(),
+      valid: () => true,
+      canReply: () => Promise.resolve(true),
+      replied: () => Promise.resolve(),
+      media: { signal: lifetime.signal, valid: () => true },
+    } as unknown as ReplyActions,
+    trigger,
+  );
+  composer.open(toolbar);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const sheet = document.querySelector<HTMLDialogElement>('dialog.reply-box')!;
+  const box = sheet.getBoundingClientRect();
+  if (phone) {
+    check(
+      Math.abs(box.width - innerWidth) < 1 && box.top <= 1,
+      'The reply fills the phone screen',
+    );
+  }
+  const bar = sheet.querySelector('.reply-sheet-bar')!;
+  check(
+    !!bar.querySelector('.reply-sheet-cancel') &&
+      !!bar.querySelector('.reply-sheet-publish'),
+    'Cancel and Reply share the top bar',
+  );
+  const parent = sheet.querySelector<HTMLDetailsElement>(
+    'details.reply-parent',
+  )!;
+  check(
+    !parent.open &&
+      parent.querySelector('summary')!.getBoundingClientRect().height < 60,
+    'The replied post is one closed line',
+  );
+  const area = sheet.querySelector('textarea')!;
+  check(
+    getComputedStyle(area).borderTopWidth === '0px',
+    'The reply text has no box around it',
+  );
+  check(
+    area.getBoundingClientRect().top - box.top < 160,
+    'The text starts near the top of the reply',
+  );
+  check(
+    !!sheet.querySelector('.post-text-tools'),
+    'Emoji, GIF and file tools stay with the text',
+  );
+}
 const profileId = '11111111-1111-4111-8111-111111111111';
 const communityId = '22222222-2222-4222-8222-222222222222';
 function syntheticPost() {
@@ -461,6 +535,7 @@ try {
   else if (mode === 'profile') await profile();
   else if (mode === 'invite') inviteDialogs();
   else if (mode === 'viewer') await imageViewer();
+  else if (mode === 'reply') await replyScreen();
   else account();
   check(
     document.documentElement.scrollWidth <= innerWidth + 1,

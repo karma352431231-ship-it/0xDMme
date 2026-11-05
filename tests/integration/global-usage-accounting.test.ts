@@ -443,6 +443,7 @@ await test('statement global accounting preserves populated history and avoids p
         [
           ...sources.map(({ name, events }) => ({ name, events: events & ~1 })),
           { name: 'contact_invitations', events: 12 },
+          { name: 'public_follow_notifications', events: 12 },
           ...engagementSources,
           ...[
             'community_post_engagement',

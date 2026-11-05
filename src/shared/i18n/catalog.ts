@@ -502,6 +502,12 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Public handle': ['Public handle', '公开用户名'],
   '@{0} {1}': ['@{0} {1}', '@{0} {1}'],
   '@{0} mentioned you': ['@{0} mentioned you', '@{0} 提到了你'],
+  '@{0} started following you': ['@{0} started following you', '@{0} 关注了你'],
+  'New followers': ['New followers', '新关注者'],
+  'Follower notice read unavailable.': [
+    'Follower notice read unavailable.',
+    '无法标记关注提醒为已读。',
+  ],
   '@{0} wants to chat with you.': [
     '@{0} wants to chat with you.',
     '@{0} 想与你聊天。',
@@ -2241,7 +2247,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Keep editing': ['Keep editing', '继续编辑'],
   'Continue this thread →': ['Continue this thread →', '继续此讨论串 →'],
-  'Continue the conversation.': ['Continue the conversation.', '继续对话。'],
   'Continue loading before resuming.': [
     'Continue loading before resuming.',
     '请继续加载后再恢复。',
@@ -5411,7 +5416,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Published in this period': ['Published in this period', '本时段发布'],
   'Publishing status…': ['Publishing status…', '正在发布状态…'],
   'Publish post': ['Publish post', '发布帖子'],
-  'Publish reply': ['Publish reply', '发布回复'],
   'Publish status': ['Publish status', '发布状态'],
   'Push, sounds and conversation muting': [
     'Push, sounds and conversation muting',
@@ -9770,8 +9774,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     ],
   'View reply': ['View reply', '查看回复'],
   group: ['group', '群组'],
-  'Write a reply': ['Write a reply', '撰写回复'],
-  'Reply unavailable.': ['Reply unavailable.', '回复不可用。'],
   'Could not update the count.': [
     'Could not update the count.',
     '无法更新计数。',

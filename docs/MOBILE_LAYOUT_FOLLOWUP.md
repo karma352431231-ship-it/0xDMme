@@ -35,3 +35,11 @@ Contact dialogs on phones leave room for both system bars, which previously push
 A community page now reads like a public profile on every screen: one column without cards, a top bar with the way back, the name and options, then banner, photo, name, description, data line and Follow, then Posts and About and community rules as tabs when there is anything besides posts. Order, period and tag are the same compact menus as the feed; My posts and hidden posts are choices of the order menu. The write-a-post row is removed: inside a community the floating plus opens the composer on that community, and an empty community shows an invitation to write the first post.
 
 Contact dialogs show only problems and next steps; confirmations appear as a toast. The invitation dialog keeps only its expiry note, with its actions on one row. The ranking panel hides the user order row while Communities is shown and aligns it with the panel while Users is shown. The score sits right beside the upvote arrow on every screen.
+
+## Reply screen, follower notices and vote spacing
+
+Replying to a post opens one screen on phones and a centered window on wider screens: a bar with Cancel, the title and Reply; the replied post as one line that opens to show it again; then the text with its emoji, GIF and file tools, without inner boxes. The post page uses the same screen instead of its own inline form.
+
+A new follower now appears in Activity as "@name started following you". The notice exists only while the follow does: unfollowing withdraws it and following again is a new arrival. Blocked pairs receive none. It is in-app only, with no push. Migration 104 adds the table with the same storage accounting as the other public notices; there is no backfill of earlier follows.
+
+The vote pill now has the same side margins and icon gap as the Reply and Share pills on every layout.
