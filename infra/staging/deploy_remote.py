@@ -356,92 +356,44 @@ def backup_review(candidate, live):
         'reviewed':BACKUP_REVIEWED, 'versions':17})
 
 
+# Migration count → its reviewed transition module (review() and activate()).
+TRANSITIONS = {
+    104: 'deploy_follow_notices',
+    103: 'deploy_account_engagement',
+    102: 'deploy_engagement',
+    99: 'deploy_post_share_counts',
+    98: 'deploy_group_fences',
+    97: 'deploy_community_games',
+    96: 'deploy_message_sync',
+    95: 'deploy_post_search',
+    94: 'deploy_contact_invitations',
+    93: 'deploy_profile_directory',
+    92: 'deploy_account_rankings',
+    91: 'deploy_group_media_parts',
+    90: 'deploy_capacity_database',
+    72: 'deploy_community_addresses',
+    71: 'deploy_chat_attachments',
+    70: 'deploy_ranking_activity',
+    69: 'deploy_social_reactions',
+    68: 'deploy_public_upvotes',
+    67: 'deploy_community_classification',
+    66: 'deploy_message_changes',
+    64: 'deploy_mentions',
+    62: 'deploy_discussion',
+    61: 'deploy_social_experience',
+    58: 'deploy_social_controls',
+    55: 'deploy_post_tags',
+    54: 'deploy_group_links',
+    53: 'deploy_profile_description',
+    52: 'deploy_profile_social',
+    49: 'deploy_background',
+}
+
+
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
-    if count == 103:
-        import deploy_account_engagement
-        return deploy_account_engagement.review(candidate, live)
-    if count == 102:
-        import deploy_engagement
-        return deploy_engagement.review(candidate, live)
-    if count == 99:
-        import deploy_post_share_counts
-        return deploy_post_share_counts.review(candidate, live)
-    if count == 98:
-        import deploy_group_fences
-        return deploy_group_fences.review(candidate, live)
-    if count == 97:
-        import deploy_community_games
-        return deploy_community_games.review(candidate, live)
-    if count == 96:
-        import deploy_message_sync
-        return deploy_message_sync.review(candidate, live)
-    if count == 95:
-        import deploy_post_search
-        return deploy_post_search.review(candidate, live)
-    if count == 94:
-        import deploy_contact_invitations
-        return deploy_contact_invitations.review(candidate, live)
-    if count == 93:
-        import deploy_profile_directory
-        return deploy_profile_directory.review(candidate, live)
-    if count == 92:
-        import deploy_account_rankings
-        return deploy_account_rankings.review(candidate, live)
-    if count == 91:
-        import deploy_group_media_parts
-        return deploy_group_media_parts.review(candidate, live)
-    if count == 90:
-        import deploy_capacity_database
-        return deploy_capacity_database.review(candidate, live)
-    if count == 72:
-        import deploy_community_addresses
-        return deploy_community_addresses.review(candidate, live)
-    if count == 71:
-        import deploy_chat_attachments
-        return deploy_chat_attachments.review(candidate, live)
-    if count == 70:
-        import deploy_ranking_activity
-        return deploy_ranking_activity.review(candidate, live)
-    if count == 69:
-        import deploy_social_reactions
-        return deploy_social_reactions.review(candidate, live)
-    if count == 68:
-        import deploy_public_upvotes
-        return deploy_public_upvotes.review(candidate, live)
-    if count == 67:
-        import deploy_community_classification
-        return deploy_community_classification.review(candidate, live)
-    if count == 66:
-        import deploy_message_changes
-        return deploy_message_changes.review(candidate, live)
-    if count == 64:
-        import deploy_mentions
-        return deploy_mentions.review(candidate, live)
-    if count == 62:
-        import deploy_discussion
-        return deploy_discussion.review(candidate, live)
-    if count == 61:
-        import deploy_social_experience
-        return deploy_social_experience.review(candidate, live)
-    if count == 58:
-        import deploy_social_controls
-        return deploy_social_controls.review(candidate, live)
-    if count == 55:
-        import deploy_post_tags
-        return deploy_post_tags.review(candidate, live)
-    if count == 54:
-        import deploy_group_links
-        return deploy_group_links.review(candidate, live)
-    if count == 53:
-        import deploy_profile_description
-        return deploy_profile_description.review(candidate, live)
-    if count == 52:
-        import deploy_profile_social
-        return deploy_profile_social.review(candidate, live)
-    if count == 49:
-        import deploy_background
-        return deploy_background.review(candidate, live)
+    if count in TRANSITIONS:
+        return __import__(TRANSITIONS[count]).review(candidate, live)
     if count == 43:
         return communities_review(candidate, live)
     if count == 27:
@@ -1066,90 +1018,8 @@ def activate(config, work):
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
         count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
-        if count == 103:
-            import deploy_account_engagement
-            return deploy_account_engagement.activate(config, work, candidate, before)
-        if count == 102:
-            import deploy_engagement
-            return deploy_engagement.activate(config, work, candidate, before)
-        if count == 99:
-            import deploy_post_share_counts
-            return deploy_post_share_counts.activate(config, work, candidate, before)
-        if count == 98:
-            import deploy_group_fences
-            return deploy_group_fences.activate(config, work, candidate, before)
-        if count == 97:
-            import deploy_community_games
-            return deploy_community_games.activate(config, work, candidate, before)
-        if count == 96:
-            import deploy_message_sync
-            return deploy_message_sync.activate(config, work, candidate, before)
-        if count == 95:
-            import deploy_post_search
-            return deploy_post_search.activate(config, work, candidate, before)
-        if count == 94:
-            import deploy_contact_invitations
-            return deploy_contact_invitations.activate(config, work, candidate, before)
-        if count == 93:
-            import deploy_profile_directory
-            return deploy_profile_directory.activate(config, work, candidate, before)
-        if count == 92:
-            import deploy_account_rankings
-            return deploy_account_rankings.activate(config, work, candidate, before)
-        if count == 91:
-            import deploy_group_media_parts
-            return deploy_group_media_parts.activate(config, work, candidate, before)
-        if count == 90:
-            import deploy_capacity_database
-            return deploy_capacity_database.activate(config, work, candidate, before)
-        if count == 72:
-            import deploy_community_addresses
-            return deploy_community_addresses.activate(config, work, candidate, before)
-        if count == 71:
-            import deploy_chat_attachments
-            return deploy_chat_attachments.activate(config, work, candidate, before)
-        if count == 70:
-            import deploy_ranking_activity
-            return deploy_ranking_activity.activate(config, work, candidate, before)
-        if count == 69:
-            import deploy_social_reactions
-            return deploy_social_reactions.activate(config, work, candidate, before)
-        if count == 68:
-            import deploy_public_upvotes
-            return deploy_public_upvotes.activate(config, work, candidate, before)
-        if count == 67:
-            import deploy_community_classification
-            return deploy_community_classification.activate(config, work, candidate, before)
-        if count == 66:
-            import deploy_message_changes
-            return deploy_message_changes.activate(config, work, candidate, before)
-        if count == 64:
-            import deploy_mentions
-            return deploy_mentions.activate(config, work, candidate, before)
-        if count == 62:
-            import deploy_discussion
-            return deploy_discussion.activate(config, work, candidate, before)
-        if count == 61:
-            import deploy_social_experience
-            return deploy_social_experience.activate(config, work, candidate, before)
-        if count == 58:
-            import deploy_social_controls
-            return deploy_social_controls.activate(config, work, candidate, before)
-        if count == 55:
-            import deploy_post_tags
-            return deploy_post_tags.activate(config, work, candidate, before)
-        if count == 54:
-            import deploy_group_links
-            return deploy_group_links.activate(config, work, candidate, before)
-        if count == 53:
-            import deploy_profile_description
-            return deploy_profile_description.activate(config, work, candidate, before)
-        if count == 52:
-            import deploy_profile_social
-            return deploy_profile_social.activate(config, work, candidate, before)
-        if count == 49:
-            import deploy_background
-            return deploy_background.activate(config, work, candidate, before)
+        if count in TRANSITIONS:
+            return __import__(TRANSITIONS[count]).activate(config, work, candidate, before)
         if count == 43:
             return activate_communities(config, work, candidate, before)
         if count == 27:

@@ -211,12 +211,13 @@ def executor_code(config):
         names.remove('deploy_worker_boot')
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
-                'group_fences', 'share_counts', 'engagement', 'account_engagement']):
+                'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
-                                                 'share_counts', 'engagement', 'account_engagement']):
+                                                 'share_counts', 'engagement', 'account_engagement',
+                                                 'follow_notices']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -230,6 +231,8 @@ def executor_code(config):
         names.append('deploy_engagement')
     if config.get('account_engagement') is True:
         names.append('deploy_account_engagement')
+    if config.get('follow_notices') is True:
+        names.append('deploy_follow_notices')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -327,15 +330,19 @@ def main():
     parser.add_argument('--engagement', action='store_true', help='Activate the approved 099→102 engagement collection schema.')
     parser.add_argument('--account-engagement', action='store_true',
                         help='Apply the approved 102→103 account engagement fact at commit.')
+    parser.add_argument('--follow-notices', action='store_true',
+                        help='Apply the approved 103→104 follower notice table.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
         global LOCAL
         LOCAL = deployment_target.profile_directory(PRIVATE_ROOT, profile) / 'deployment'
-        # The owner approved 102→103 on the explicit target on 01/11/2026; every
-        # other transition still needs its own operational review there.
+        # The owner approved 102→103 on the explicit target on 01/11/2026 and
+        # 103→104 on 05/11/2026; every other transition still needs its own
+        # operational review there.
         if any(value for name, value in vars(args).items()
-               if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement']):
+               if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
+                               'follow_notices']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
     if args.bootstrap_check and profile is None:
         parser.error('First-install inspection requires an explicit private target profile.')
@@ -345,6 +352,9 @@ def main():
     if args.account_engagement and any(vars(args)[name] for name in vars(args)
                                        if name not in ['account_engagement', 'check', 'activate']):
         parser.error('The account fact change requires its separate --check or --activate release.')
+    if args.follow_notices and any(vars(args)[name] for name in vars(args)
+                                   if name not in ['follow_notices', 'check', 'activate']):
+        parser.error('Follower notices require their separate --check or --activate release.')
     if args.share_counts and (args.prepare or args.group_fences or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
         parser.error('Share counts require their separate --check or --activate release.')
     if args.group_fences and (args.prepare or args.community_games or args.message_sync or args.post_search or args.contact_invitations or args.profile_directory or args.capacity or args.request_limit or args.media_worker or args.worker_boot):
@@ -383,6 +393,8 @@ def main():
         config['engagement'] = True
     if args.account_engagement:
         config['account_engagement'] = True
+    if args.follow_notices:
+        config['follow_notices'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:
