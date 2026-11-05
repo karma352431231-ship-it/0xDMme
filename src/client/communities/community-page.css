@@ -1,0 +1,164 @@
+/*
+ * A community page reads like a public profile on every screen (05/11/2026):
+ * one column, a top bar with the way back and options, tabs and a flat list.
+ */
+#app-shell [data-community-layout='detail'] {
+  --community-bar: calc(48px + env(safe-area-inset-top));
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  margin-inline: auto;
+}
+.community-page-title {
+  display: none;
+}
+#app-shell [data-community-layout='detail'] > .community-tools {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  justify-content: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  height: var(--community-bar);
+  margin: 0;
+  padding: env(safe-area-inset-top) 8px 0;
+  background: var(--bg);
+}
+#app-shell
+  [data-community-layout='detail']
+  > .community-tools
+  > a.feed-back-link {
+  flex: none;
+  justify-content: center;
+  gap: 0;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 0;
+}
+#app-shell
+  [data-community-layout='detail']
+  > .community-tools
+  > a.feed-back-link:hover {
+  background: var(--surface-2);
+}
+#app-shell
+  [data-community-layout='detail']
+  > .community-tools
+  .feed-back-link
+  svg {
+  width: 22px;
+  height: 22px;
+}
+#app-shell [data-community-layout='detail'] .community-page-title {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 16px/1.2 var(--font-display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#app-shell
+  [data-community-layout='detail']
+  > .community-tools
+  > details.community-more
+  > summary {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+#app-shell [data-community-layout='detail'] .community-feedback:empty {
+  display: none;
+}
+.community-page-tabs {
+  position: sticky;
+  top: var(--community-bar);
+  z-index: 5;
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  scrollbar-width: none;
+}
+#app-shell .community-page-tabs button {
+  flex: 1 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 11px 8px 9px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#app-shell .community-page-tabs button[aria-current='true'] {
+  border-bottom-color: var(--text);
+  color: var(--text);
+}
+#app-shell [data-community-layout='detail'] [hidden] {
+  display: none;
+}
+/* A page without tabs still divides the header from the posts. */
+#app-shell
+  [data-community-layout='detail']
+  > .community-hero
+  + .community-posts {
+  border-top: 1px solid var(--line);
+}
+#app-shell [data-community-layout='detail'] .community-post-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+#app-shell
+  [data-community-layout='detail']
+  .community-post-list
+  > .community-card {
+  margin: 0;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.community-about-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+.community-about-panel h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+#app-shell .community-first-post {
+  display: block;
+  margin: 12px auto;
+}
+@media (max-width: 700px) {
+  /* The bar replaces the shell title and the list tabs on this screen. */
+  #app-shell[data-page='comunidades']:has([data-community-layout='detail'])
+    :is(.brand-bar, .community-mobile-tabs) {
+    display: none;
+  }
+  #app-shell[data-page='comunidades']:has([data-community-layout='detail'])
+    main {
+    padding: 0 0 96px;
+  }
+  #app-shell [data-community-layout='detail'] {
+    max-width: none;
+  }
+  .community-banner {
+    border-radius: 0;
+  }
+}

@@ -29,3 +29,9 @@ Two fingers on a public image open the viewer and keep zooming there; inside the
 Ranking on phones places what is ranked and the options on one row, then order, period and topics as equal pills. Search is removed from the ranking on every screen, and the user ranking uses the same order and period menus as the community ranking.
 
 Contact dialogs on phones leave room for both system bars, which previously pushed the top of a tall dialog off the screen. The three ways to add a contact share one row.
+
+## Community page layout and contact notices
+
+A community page now reads like a public profile on every screen: one column without cards, a top bar with the way back, the name and options, then banner, photo, name, description, data line and Follow, then Posts and About and community rules as tabs when there is anything besides posts. Order, period and tag are the same compact menus as the feed; My posts and hidden posts are choices of the order menu. The write-a-post row is removed: inside a community the floating plus opens the composer on that community, and an empty community shows an invitation to write the first post.
+
+Contact dialogs show only problems and next steps; confirmations appear as a toast. The invitation dialog keeps only its expiry note, with its actions on one row. The ranking panel hides the user order row while Communities is shown and aligns it with the panel while Users is shown. The score sits right beside the upvote arrow on every screen.

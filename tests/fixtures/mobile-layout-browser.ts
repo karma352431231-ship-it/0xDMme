@@ -225,6 +225,24 @@ function inviteDialogs(): void {
   invites.showModal();
   invites.querySelector<HTMLElement>('[data-contact-own-invite]')!.hidden =
     false;
+  const actions = [
+    ...invites.querySelectorAll<HTMLElement>('[data-contact-action]'),
+  ];
+  for (const action of actions) action.hidden = false;
+  const actionTops = actions.map((node) => node.getBoundingClientRect().top);
+  check(
+    Math.max(...actionTops) - Math.min(...actionTops) < 1,
+    'The invitation actions share one row',
+  );
+  check(
+    actions.at(-1)!.getBoundingClientRect().right <=
+      invites.getBoundingClientRect().right,
+    'The invitation actions fit inside the dialog',
+  );
+  check(
+    invites.querySelectorAll('.contact-hint').length === 1,
+    'The invitation dialog keeps only its expiry note',
+  );
   const box = invites.getBoundingClientRect();
   check(box.top >= 0, 'The invitation dialog starts on the screen');
   check(box.bottom <= innerHeight, 'The invitation dialog ends on the screen');

@@ -22,7 +22,6 @@ import {
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emptyCommunity } from './community-empty.ts';
-import { communityComposerBar } from './community-composer-bar.ts';
 import { Communities, communityRead } from './controller.ts';
 import {
   discoveryMenu,
@@ -36,11 +35,13 @@ import {
 import { feedScroller } from './feed-return.ts';
 import { createPostCards } from './post-card.ts';
 import { replaceEditedPost } from './post-edit-update.ts';
-import { postTagSelect } from './post-forms.ts';
 import { PostSnapshot } from './post-snapshot.ts';
 import { PostThread } from './post-thread.ts';
-import { iconLabel } from './presentation.ts';
+import { iconLabel, postTagName } from './presentation.ts';
 import { showRepliedAbove } from './reply-context.ts';
+/** Tags offered by the filter; a page holds many, so this bounds the requests. */
+const tagMenuPages = 5;
+
 export function startCommunityPostList(
   controller: Communities,
   privacy: ExternalMediaConsent,
@@ -79,9 +80,7 @@ export function startCommunityPostList(
   let feedback: HTMLElement | null = null,
     list: HTMLElement | null = null,
     controls: HTMLElement | null = null,
-    filterBar: HTMLElement | null = null,
-    composerBar: ReturnType<typeof communityComposerBar> | null = null,
-    composerLifetime = new AbortController();
+    filterBar: HTMLElement | null = null;
   function disabled(): void {
     for (const node of [mounted])
       node
@@ -263,16 +262,27 @@ export function startCommunityPostList(
   }
   /** A filtered list says so; an empty community waits for its first post. */
   function empty(host: HTMLElement, first: boolean): void {
-    if (first) emptyCommunity(host);
+    if (first) firstPostInvitation(host);
     else host.append(el('p', t('No posts in this list.')));
   }
+  function firstPostInvitation(host: HTMLElement): void {
+    emptyCommunity(host);
+    if (!own?.canPost || !identity) return;
+    const invite = button(
+      host,
+      t('community.composer.first {0}', [identity.name]),
+      () => {
+        openComposer(community);
+        return Promise.resolve();
+      },
+    );
+    invite.classList.add('community-first-post');
+  }
   /**
-   * Without any post there is nothing to sort: the order tabs step aside
-   * (31/10/2026) and the composer bar asks for the first post. Staff keep
-   * the "⋯" menu, which also leads to hidden posts and replies.
+   * Without any post there is nothing to sort, so the filters step aside.
+   * Staff keep them, as they also lead to hidden posts and replies.
    */
   function awaitFirstPost(first: boolean): void {
-    composerBar?.setFirst(first);
     if (!filterBar) return;
     filterBar.hidden = first && (!own || own.role === 'participant');
     filterBar.toggleAttribute('data-first-post', first);
@@ -351,81 +361,20 @@ export function startCommunityPostList(
     iconLabel(top, 'up');
     top.classList.add('community-back-to-top');
   }
-  function composer(): void {
-    // A redrawn shell replaces the bar; the old one stops watching the screen.
-    composerLifetime.abort();
-    composerLifetime = new AbortController();
-    composerBar = null;
-    // An opened post answers through its own reply box.
-    if (!mounted || !own?.canPost || selected || !identity) return;
-    composerBar = communityComposerBar({
-      community: identity.name,
-      open: () => openComposer(community),
-      signal: AbortSignal.any([abort.signal, composerLifetime.signal]),
-    });
-    mounted.append(composerBar.element);
-  }
   /**
-   * Order and "Meus posts" are tabs; period, tag and hidden posts live in a
-   * compact "⋯" menu instead of a row of loose buttons.
+   * Order, period and tag as the same compact menus as the feed. "My posts"
+   * and, for staff, hidden posts are further choices of the order menu.
    */
   function filters(): void {
     if (!mounted) return;
-    const bar = el('div', '', 'community-post-filters');
+    const bar = el('div', '', 'community-post-filters'),
+      row = el('div', '', 'community-feed-filter-row');
     filterBar = bar;
+    bar.append(row);
     mounted.append(bar);
-    orderTabs(bar);
-    moreFilters(bar);
-  }
-  function orderTabs(bar: HTMLElement): void {
-    const tabs = el('div', '', 'community-post-tabs');
-    tabs.setAttribute('role', 'group');
-    tabs.setAttribute('aria-label', t('Sort posts'));
-    const choices: (readonly [string, string])[] = [...feedOrders];
-    if (own) choices.push(['own', t('My posts')]);
-    const paint = (): void => {
-      tabs.querySelectorAll('button').forEach((node) => {
-        const current =
-          scope === 'public' ? node.value === order : node.value === scope;
-        node.setAttribute('aria-pressed', String(current));
-      });
-    };
-    for (const [value, title] of choices) {
-      const tab = el('button', title);
-      tab.type = 'button';
-      tab.value = value;
-      tab.addEventListener('click', () => {
-        if (value === 'own') scope = 'own';
-        else {
-          scope = 'public';
-          order = feedFilter({
-            scope: 'all',
-            order: value,
-            period,
-            community,
-            tag,
-          }).order;
-        }
-        after = null;
-        paint();
-        void run(load);
-      });
-      tabs.append(tab);
-    }
-    paint();
-    bar.append(tabs);
-  }
-  function moreFilters(bar: HTMLElement): void {
-    const menu = el('details', '', 'community-post-more'),
-      summary = el('summary'),
-      panel = el('div', '', 'community-post-more-panel');
-    iconLabel(summary, 'more');
-    summary.setAttribute('aria-label', t('More filters'));
-    summary.title = t('More filters');
-    menu.append(summary, panel);
-    bar.append(menu);
+    orderMenu(row);
     discoveryMenu(
-      panel,
+      row,
       t('Published in this period'),
       { value: period, options: discoveryPeriods },
       (value) => {
@@ -440,26 +389,61 @@ export function startCommunityPostList(
         void run(load);
       },
     );
-    const select = postTagSelect(
-      panel,
-      { value: tag, label: t('Filter by tag'), empty: t('All tags') },
-      tagSource(),
+    void tagMenu(row).catch(() => undefined);
+  }
+  function orderMenu(row: HTMLElement): void {
+    const choices: (readonly [string, string])[] = [
+      ...feedOrders,
+      ...(own ? ([['own', t('My posts')]] as const) : []),
+      ...(own && own.role !== 'participant'
+        ? ([['removed', t('Hidden posts and replies')]] as const)
+        : []),
+    ];
+    discoveryMenu(
+      row,
+      t('Sort posts'),
+      { value: scope === 'public' ? order : scope, options: choices },
+      (value) => {
+        if (value === 'own' || value === 'removed') scope = value;
+        else {
+          scope = 'public';
+          order = feedFilter({
+            scope: 'all',
+            order: value,
+            period,
+            community,
+            tag,
+          }).order;
+        }
+        after = null;
+        void run(load);
+      },
     );
-    select.addEventListener('change', () => {
-      tag = select.value || null;
-      after = null;
-      void run(load);
-    });
-    if (!own || own.role === 'participant') return;
-    iconLabel(
-      button(panel, t('Hidden posts and replies'), () =>
-        run(async () => {
-          scope = 'removed';
-          after = null;
-          await load();
-        }),
-      ),
-      'hide',
+  }
+  /** Shown once the community's tags are known; without tags there is no filter. */
+  async function tagMenu(row: HTMLElement): Promise<void> {
+    const source = tagSource(),
+      options: [string, string][] = [];
+    let cursor: string | null = null;
+    for (let pages = 0; pages < tagMenuPages; pages++) {
+      const page: TagPage = await source.load(cursor);
+      for (const item of page.items)
+        options.push([item.id, postTagName(item.label)]);
+      cursor = page.next;
+      if (!cursor) break;
+    }
+    if (!options.length || !row.isConnected) return;
+    if (tag && !options.some(([id]) => id === tag))
+      options.push([tag, t('Previous tag or from link')]);
+    discoveryMenu(
+      row,
+      t('Filter by tag'),
+      { value: tag ?? '', options: [['', t('All tags')], ...options] },
+      (value) => {
+        tag = value || null;
+        after = null;
+        void run(load);
+      },
     );
   }
   function shell(): void {
@@ -472,7 +456,6 @@ export function startCommunityPostList(
     feedback.setAttribute('role', 'status');
     mounted.append(feedback);
     filterBar = null;
-    composer();
     if (!selected) filters();
     list = el('div', '', 'community-post-list');
     controls = el('div', '', 'post-toolbar');
@@ -528,7 +511,6 @@ export function startCommunityPostList(
     list = null;
     feedback = null;
     filterBar = null;
-    composerBar = null;
   }
   return {
     mount(

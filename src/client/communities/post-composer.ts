@@ -42,13 +42,13 @@ export class PostComposer {
   }
   bind(): void {
     document.addEventListener('click', (event) => {
-      if (
-        !(event.target instanceof Element) ||
-        !event.target.closest('[data-community-compose]')
-      )
-        return;
+      if (!(event.target instanceof Element)) return;
+      const trigger = event.target.closest<HTMLElement>(
+        '[data-community-compose]',
+      );
+      if (!trigger) return;
       event.preventDefault();
-      this.open();
+      this.open(trigger.dataset['communityCompose'] || undefined);
     });
   }
 

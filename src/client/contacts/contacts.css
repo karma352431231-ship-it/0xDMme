@@ -115,8 +115,22 @@
 [data-contact-own-invite] > label {
   margin: 16px 0;
 }
-[data-contact-invites] > [data-contact-action='rotate'] {
-  margin-top: 12px;
+.contact-invite-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.contact-invite-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.contact-invite-actions button[hidden] {
+  display: none;
 }
 .contact-tabs {
   display: flex;
@@ -369,6 +383,11 @@
 }
 .contact-dialog .contact-feedback {
   margin: 20px -24px -24px;
+}
+/* The band exists only for a problem or a next step. */
+.contact-dialog
+  .contact-feedback:not(:has(p:not(:empty), [data-contact-next-chat])) {
+  display: none;
 }
 .contact-dialog video {
   width: 100%;

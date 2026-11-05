@@ -15,10 +15,3 @@
   font-size: var(--fs-small);
   text-align: center;
 }
-/* Before the first post the order tabs step aside; staff keep "⋯". */
-.community-post-filters[data-first-post] .community-post-tabs {
-  display: none;
-}
-.community-post-filters[data-first-post] {
-  justify-content: flex-end;
-}

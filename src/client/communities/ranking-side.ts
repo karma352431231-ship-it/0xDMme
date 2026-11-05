@@ -436,7 +436,15 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
     notation: 'compact',
   }).format(row.community.followers);
   numbers!.replaceChildren(
-    el('strong', t('ranking.followers {0}', [followers])),
+    el(
+      'strong',
+      t(
+        row.community.followers === 1
+          ? 'ranking.follower {0}'
+          : 'ranking.followers {0}',
+        [followers],
+      ),
+    ),
     tab === 'following'
       ? el('small')
       : growthLabel({ ...row, title: 'ranking.growth-title' }),

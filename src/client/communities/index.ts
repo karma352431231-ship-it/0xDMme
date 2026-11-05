@@ -39,6 +39,8 @@ import type { FeedBookmark } from './feed-return.ts';
 import { previewModeratedMedia } from './moderation-preview.ts';
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
+import { communityAbout } from './community-about.ts';
+import { communityPageTabs } from './community-page-tabs.ts';
 import type { FeedProfileFollows } from './feed-follow.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
@@ -234,6 +236,10 @@ export function startCommunities(
           ? selected
           : null,
       back: feedReturn.target(),
+      page:
+        current?.id === selected || current?.slug === selectedSlug
+          ? current
+          : null,
     });
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
@@ -264,6 +270,33 @@ export function startCommunities(
     });
   }
 
+  /**
+   * Rules, and for participants their sanctions, appeals and reports; owners
+   * and moderators manage from the isolated screen in the options menu.
+   */
+  function communityAboutPanel(
+    value: Community,
+    own: CommunityState | null,
+  ): HTMLElement | null {
+    const rules = communityAbout(value),
+      participant = own?.role === 'participant';
+    if (!rules && !participant) return null;
+    const panel = communityElement('section', '', 'community-about-panel');
+    if (rules) panel.append(rules);
+    if (participant) {
+      const management = communityElement(
+        'details',
+        '',
+        'community-management',
+      );
+      management.append(
+        communityElement('summary', t('Participation and reports')),
+      );
+      panel.append(management);
+      editor.governance(management, own);
+    }
+    return panel;
+  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
@@ -311,7 +344,8 @@ export function startCommunities(
     mounted.dataset['communityLayout'] = 'detail';
     detail.summary(screen()!, current, state);
     const postContainer = communityElement('section', '', 'community-posts');
-    mounted.append(postContainer);
+    const about = communityAboutPanel(current, state);
+    communityPageTabs(mounted, { posts: postContainer, about });
     posts.mount(postContainer, {
       community: current.id,
       identity: current,
@@ -319,20 +353,6 @@ export function startCommunities(
       post: selectedPost,
       tag: selectedTag,
     });
-    // Owners and moderators manage from the isolated screen (top-right link);
-    // participants keep their sanctions, appeals and reports here.
-    if (state?.role === 'participant') {
-      const management = communityElement(
-        'details',
-        '',
-        'community-management',
-      );
-      management.append(
-        communityElement('summary', t('Participation and reports')),
-      );
-      mounted.append(management);
-      editor.governance(management, state);
-    }
   }
   /** Isolated settings screen for owners and moderators. */
   function manageScreen(value: Community, own: CommunityState): void {

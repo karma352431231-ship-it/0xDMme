@@ -97,6 +97,13 @@
   overscroll-behavior-x: contain;
   user-select: none;
 }
+/* The user ranking's order row sits directly in the panel, aligned with it. */
+.ranking-side > .ranking-side-tabs {
+  padding: 0 16px 9px;
+}
+.ranking-side-tabs[hidden] {
+  display: none;
+}
 .ranking-side-tabs[data-dragging] {
   cursor: grabbing;
 }

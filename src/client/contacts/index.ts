@@ -16,6 +16,7 @@ import type {
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
+import { showToast } from '../toast/index.ts';
 import { AddressBook, incomingInvitation } from './agenda.ts';
 import { Contacts } from './controller.ts';
 import { PrivateContactInvitations } from './invitations.ts';
@@ -83,6 +84,8 @@ export function startContacts(
     generation = 0,
     offset = 0;
   let status = t('Connect and authorize the device to sync.');
+  // Dialogs show only what went wrong; confirmations reach the person as toasts.
+  let problem = '';
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
@@ -125,6 +128,7 @@ export function startContacts(
     busy = true;
     const current = generation;
     requests.dismiss();
+    problem = '';
     render();
     try {
       await work();
@@ -136,20 +140,29 @@ export function startContacts(
       const retry = node('[data-contact-action="refresh"]');
       if (retry) retry.hidden = false;
       if (current === generation)
-        status =
+        failed(
           error instanceof Error
             ? translatedError(error.message)
-            : t('Operation unavailable. Check the state before retrying.');
+            : t('Operation unavailable. Check the state before retrying.'),
+        );
     } finally {
       busy = false;
       render();
       if (current !== generation) ready();
     }
   }
+  function failed(message: string): void {
+    status = message;
+    problem = message;
+  }
+  function confirmed(message: string): void {
+    status = message;
+    showToast(message);
+  }
   function render(): void {
     text('[data-contact-status]', busy ? t('Updating contacts…') : status);
-    text('[data-contact-editor-status]', busy ? t('Processing…') : status);
-    text('[data-contact-invite-status]', busy ? t('Processing…') : status);
+    text('[data-contact-editor-status]', problem);
+    text('[data-contact-invite-status]', problem);
     renderNextChat();
     renderInvite();
     renderBook();
@@ -190,8 +203,10 @@ export function startContacts(
     if (own) own.hidden = !ownLink;
     const input = node<HTMLInputElement>('[data-contact-invite]');
     if (input) input.value = ownLink ?? '';
-    const rotate = node('[data-contact-action="rotate"]');
-    if (rotate) rotate.textContent = t('Create new invitation');
+    for (const action of ['copy', 'revoke']) {
+      const control = node(`[data-contact-action="${action}"]`);
+      if (control) control.hidden = !ownLink;
+    }
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
     if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
@@ -226,9 +241,6 @@ export function startContacts(
   }
   function startAdding(): void {
     resetEditor();
-    status = t(
-      'Saving stores the nickname in contacts; a conversation request requires acceptance.',
-    );
     render();
     openEditor('wallet');
   }
@@ -370,13 +382,15 @@ export function startContacts(
     if (expected !== generation) throw new Error('Session changed.');
     await directory.saved(contact);
     await options.saved?.(contact);
-    status = sync.pending
-      ? t(
-          'Contact saved on this device. It will be sent when the connection returns.',
-        )
-      : t(
-          'Private contact confirmed in the vault. This did not approve a conversation.',
-        );
+    confirmed(
+      sync.pending
+        ? t(
+            'Contact saved on this device. It will be sent when the connection returns.',
+          )
+        : t(
+            'Private contact confirmed in the vault. This did not approve a conversation.',
+          ),
+    );
     resetEditor();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
   }
@@ -580,8 +594,10 @@ export function startContacts(
     const target = node('[data-contact-invite-peer]');
     target?.replaceChildren();
     if (!invitePeer) {
-      status = t(
-        'Invitation unavailable, revoked or restricted by current privacy settings.',
+      failed(
+        t(
+          'Invitation unavailable, revoked or restricted by current privacy settings.',
+        ),
       );
       return;
     }
@@ -625,7 +641,7 @@ export function startContacts(
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
     requests.approved(selected);
-    status = t('Invitation accepted. You can start the conversation.');
+    confirmed(t('Invitation accepted. You can start the conversation.'));
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
@@ -651,7 +667,7 @@ export function startContacts(
       await directory.saved(contact);
       await options.saved?.(contact);
       await refresh();
-      if (!requests.offered) status = t('Request sent. Wait for acceptance.');
+      if (!requests.offered) confirmed(t('Request sent. Wait for acceptance.'));
     }
   }
   const actions: Record<string, () => Promise<void>> = {
@@ -660,15 +676,15 @@ export function startContacts(
     rotate,
     revoke: async () => {
       await invitations.revoke();
-      status = t(
-        'This invitation was revoked. Other invitations remain valid.',
+      confirmed(
+        t('This invitation was revoked. Other invitations remain valid.'),
       );
     },
     copy: async () => {
       const ownLink = invitations.link;
       if (!ownLink) throw new Error('Create an invitation first.');
       await navigator.clipboard.writeText(ownLink);
-      status = t('Link copied. Share it manually with the recipient.');
+      confirmed(t('Link copied. Share it manually with the recipient.'));
     },
     'book-more': async () => {
       if (directory.more) await directory.load(true);
@@ -733,7 +749,7 @@ export function startContacts(
       received = invite;
     } catch {
       received = null;
-      status = t('Invalid invitation. Check the full link.');
+      failed(t('Invalid invitation. Check the full link.'));
     }
     if (contactInvitationValue(location.hash) !== null)
       history.replaceState(null, '', location.pathname + '#contacts');
@@ -749,7 +765,7 @@ export function startContacts(
         if (stop) stop.hidden = !active;
       },
       failed: (message) => {
-        status = message;
+        failed(message);
         render();
       },
       decoded: (link) => {
