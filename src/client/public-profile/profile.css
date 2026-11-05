@@ -21,8 +21,8 @@
   white-space: nowrap;
 }
 .public-profile-bar {
-  position: sticky;
-  top: 0;
+  /* Scrolls with the page; it anchors the options menu. */
+  position: relative;
   z-index: 6;
   display: flex;
   align-items: center;
@@ -298,11 +298,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Tabs stay under the bar while the list scrolls. */
 .public-profile-tabs {
-  position: sticky;
-  top: var(--public-profile-bar);
-  z-index: 5;
   display: flex;
   overflow-x: auto;
   border-bottom: 1px solid var(--line);

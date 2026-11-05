@@ -13,8 +13,8 @@
   display: none;
 }
 #app-shell [data-community-layout='detail'] > .community-tools {
-  position: sticky;
-  top: 0;
+  /* Scrolls with the page; it anchors the options menu. */
+  position: relative;
   z-index: 6;
   justify-content: flex-start;
   gap: 6px;
@@ -75,9 +75,6 @@
   display: none;
 }
 .community-page-tabs {
-  position: sticky;
-  top: var(--community-bar);
-  z-index: 5;
   display: flex;
   overflow-x: auto;
   border-bottom: 1px solid var(--line);
