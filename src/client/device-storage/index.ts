@@ -197,6 +197,23 @@ export async function storedIdentity(
   await checkIdentity(identity);
   return identity;
 }
+/** Public keys stored for a device id, without creating or checking an identity. */
+export async function localDeviceKeys(
+  accountId: string,
+  deviceId: string,
+): Promise<LocalIdentity['public'] | null> {
+  const identity = await transaction(
+    `identity:${accountId}:${deviceId}`,
+    (_store, value) => value as LocalIdentity | undefined,
+  );
+  return identity?.public ?? null;
+}
+/** Asks the browser not to evict the device identity under storage pressure.
+ * The browser decides; a refusal leaves the wallet recovery path available. */
+export async function keepDeviceStorage(): Promise<void> {
+  if (typeof navigator.storage?.persist !== 'function') return;
+  await navigator.storage.persist();
+}
 export function nameIdentity(
   accountId: string,
   identity: LocalIdentity,

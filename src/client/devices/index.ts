@@ -10,6 +10,7 @@ import {
 } from '../../shared/device-enrollment/index.ts';
 import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
+import { keepDeviceStorage } from '../device-storage/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
 import type {
@@ -78,6 +79,7 @@ export function startDevices(options: {
       failed ||
         (!!controller.session &&
           !controller.authorized &&
+          !controller.keysLost &&
           !controller.walletPending),
     );
     show('[data-wallet-pending]', controller.walletPending !== null);
@@ -206,6 +208,7 @@ export function startDevices(options: {
   function needsWalletOpening(session: AccountSession): boolean {
     return (
       !controller.authorized &&
+      !controller.keysLost &&
       session.walletConfirmed === true &&
       attempted !== session.csrf &&
       !controller.walletPending
@@ -277,8 +280,14 @@ export function startDevices(options: {
     return controller.authorized ? (lease?.key ?? null) : null;
   }
   function renderOpeningStatus(): void {
-    if (controller.authorized)
+    if (controller.authorized) {
       message = t('Your account is ready on this device.');
+      // Best effort: the browser decides, and wallet recovery remains available.
+      void keepDeviceStorage().catch(() => undefined);
+    } else if (controller.keysLost)
+      message = t(
+        'This browser lost its device key. Select Complete sign-in and confirm with your wallet.',
+      );
     else if (!controller.walletPending)
       message = t(
         'The session is connected. Open your account to authorize the keys in this browser.',
@@ -359,6 +368,7 @@ export function startDevices(options: {
       await controller.saveProfile(session, profile, lease.epoch);
     },
     authorized: () => controller.authorized,
+    keysLost: () => controller.keysLost,
     stopCamera: () => camera?.stop(),
     enrollmentState: () => ({
       waiting,

@@ -40,6 +40,21 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function optionalAccountOptions(
+  options: Pick<
+    Parameters<typeof scope>[0],
+    'privateKey' | 'deviceKeysLost' | 'mobileOpening' | 'saveProfile'
+  >,
+) {
+  return {
+    ...(options.privateKey ? { privateKey: options.privateKey } : {}),
+    ...(options.deviceKeysLost
+      ? { deviceKeysLost: options.deviceKeysLost }
+      : {}),
+    ...(options.mobileOpening ? { mobileOpening: options.mobileOpening } : {}),
+    ...(options.saveProfile ? { saveProfile: options.saveProfile } : {}),
+  };
+}
 function scope(options: {
   accounts?: Promise<unknown>;
   signature?: Promise<unknown>;
@@ -60,6 +75,7 @@ function scope(options: {
   approvalDocument?: string;
   approvalRejection?: string;
   privateKey?: Parameters<typeof startAccount>[0]['privateKey'];
+  deviceKeysLost?: () => boolean;
   walletSigner?: Wallet;
   handoffSubmit?: (input: unknown) => void;
   mobileOpening?: true;
@@ -334,6 +350,9 @@ function scope(options: {
           throw new Error('LocalStorage blocked');
         loginStorage.set(key, value);
       },
+      removeItem: (key: string) => {
+        loginStorage.delete(key);
+      },
     },
     sessionStorage: {
       getItem: (key: string) => {
@@ -361,15 +380,14 @@ function scope(options: {
   }) as { startAccount: typeof startAccount };
   const account = api.startAccount({
     changed: (value) => states.push(value),
-    ...(options.privateKey ? { privateKey: options.privateKey } : {}),
-    ...(options.mobileOpening ? { mobileOpening: options.mobileOpening } : {}),
-    ...(options.saveProfile ? { saveProfile: options.saveProfile } : {}),
+    ...optionalAccountOptions(options),
   });
   account.mount(mounted as unknown as HTMLElement);
   return {
     account,
     states,
     requests,
+    loginStorage,
     session,
     status,
     diagnostic,
@@ -556,6 +574,34 @@ await test('a prompt resolved after its deadline creates no challenge and accumu
   ]);
   assert.equal(browser.account.canActivate(), true);
   browser.dispose();
+});
+
+await test('a browser that lost its device keys signs in under a new device id and forgets the id on sign-out', async () => {
+  const device = (browser: ReturnType<typeof scope>) =>
+    (browser.inputs.get('/api/account/challenge') as { deviceId: string })
+      .deviceId;
+  const intact = scope({ deviceKeysLost: () => false });
+  await tick();
+  intact.click();
+  await tick();
+  assert.equal(device(intact), intact.session.deviceId);
+  intact.dispose();
+  const signing = scope({ deviceKeysLost: () => true });
+  await tick();
+  signing.click();
+  await tick();
+  assert.notEqual(device(signing), signing.session.deviceId);
+  assert.equal(
+    signing.loginStorage.get('hash-talk:login-device'),
+    signing.session.deviceId,
+  );
+  await tick();
+  assert.ok(signing.requests.includes('/api/account/login'));
+  signing.changed();
+  await tick();
+  assert.ok(signing.requests.includes('/api/account/logout'));
+  assert.equal(signing.loginStorage.has('hash-talk:login-device'), false);
+  signing.dispose();
 });
 
 await test('account change during signing invalidates login before submission', async () => {

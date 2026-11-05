@@ -71,6 +71,14 @@ export async function api(
   return data;
 }
 
+/** A new id for this browser when the current one's keys are gone, kept only
+ * once a session confirms it. */
+export function loginDeviceId(keysLost: boolean): string {
+  return keysLost ? crypto.randomUUID() : deviceId();
+}
+export function forgetDeviceId(): void {
+  localStorage.removeItem('hash-talk:login-device');
+}
 export function deviceId(): string {
   const stored = localStorage.getItem('hash-talk:login-device');
   if (stored) return uuid(stored);

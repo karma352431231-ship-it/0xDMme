@@ -26,6 +26,7 @@ import { PrivateProfileAvatar } from './private-profile-avatar.ts';
 import { avatarCrop, cropImage } from '../image-crop/index.ts';
 
 export interface ProfileOptions {
+  deviceKeysLost?: () => boolean;
   privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
   privateKey?: (
     session: AccountSession,
@@ -136,12 +137,7 @@ export class AccountPrivateProfile {
       ? await this.options.privateKey(current, walletOpening)
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
-      this.account.notice(
-        t('Session connected. Open your account in Profile → Devices.'),
-      );
-      this.account.profileNotice(
-        t('Profile locked. Authorize this device through linking or recovery.'),
-      );
+      this.lockedNotice();
       return;
     }
     const stored = await api('profile');
@@ -166,6 +162,22 @@ export class AccountPrivateProfile {
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     this.account.notice(t('Account ready.'));
     this.account.profileNotice(t('Profile available.'));
+  }
+  private lockedNotice(): void {
+    if (this.options.deviceKeysLost?.()) {
+      const notice = t(
+        'This browser lost its device key. Select Complete sign-in and confirm with your wallet.',
+      );
+      this.account.notice(notice);
+      this.account.profileNotice(notice);
+      return;
+    }
+    this.account.notice(
+      t('Session connected. Open your account in Profile → Devices.'),
+    );
+    this.account.profileNotice(
+      t('Profile locked. Authorize this device through linking or recovery.'),
+    );
   }
   /** Reloads the session and profile unless a form has an unsaved draft. */
   async refresh(): Promise<void> {

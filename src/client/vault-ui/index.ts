@@ -16,6 +16,7 @@ export function startVault(access: VaultAccess) {
   let meter: HTMLElement | null = null;
   let busy = false;
   let known = false;
+  let failed = false;
   let message = t('Sign in to your account to check storage.');
   function render(): void {
     const status = mounted?.querySelector('[data-vault-status]');
@@ -47,7 +48,9 @@ export function startVault(access: VaultAccess) {
             storageSize(sync.state.used),
             storageSize(vaultQuota),
           ])
-        : t('Checking…');
+        : failed
+          ? t('Could not check storage.')
+          : t('Checking…');
     renderUsage(meter.querySelector<HTMLProgressElement>('progress'));
   }
   function renderUsage(usage: HTMLProgressElement | null): void {
@@ -56,9 +59,9 @@ export function startVault(access: VaultAccess) {
     else usage.removeAttribute('value');
   }
   function canRefresh(): boolean {
-    return (
-      !busy && mounted !== null && sync.session !== null && navigator.onLine
-    );
+    // The compact meter alone needs one successful query, not repeated ones.
+    const shown = mounted !== null || (meter !== null && !known);
+    return !busy && shown && sync.session !== null && navigator.onLine;
   }
   function retryVisible(show: boolean): void {
     const retry = mounted?.querySelector<HTMLElement>('[data-vault-retry]');
@@ -72,6 +75,7 @@ export function startVault(access: VaultAccess) {
     try {
       await sync.refresh();
       known = true;
+      failed = false;
       if (sync.pending) await sync.retry();
       message =
         sync.state.used >= vaultQuota * 0.9
@@ -81,6 +85,7 @@ export function startVault(access: VaultAccess) {
             );
       retryVisible(false);
     } catch (error: unknown) {
+      failed = true;
       message =
         error instanceof Error
           ? translatedError(error.message)
@@ -101,7 +106,10 @@ export function startVault(access: VaultAccess) {
   return {
     sync,
     setSession(session: AccountSession | null): void {
-      if (sync.session?.accountId !== session?.accountId) known = false;
+      if (sync.session?.accountId !== session?.accountId) {
+        known = false;
+        failed = false;
+      }
       sync.setSession(session);
       if (session) {
         void rememberLocator({
@@ -127,6 +135,7 @@ export function startVault(access: VaultAccess) {
       meter = container;
       container.innerHTML = t('html.a00be4e55c2e', [vaultQuota]);
       renderMeter();
+      void refresh();
     },
     mount(container: HTMLElement): void {
       mounted = container;

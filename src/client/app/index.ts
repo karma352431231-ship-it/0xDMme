@@ -303,6 +303,7 @@ const sessionBoot = new SessionBoot((session) => {
 let sessionExtrasFor = '';
 const account = startAccount({
   mobileOpening: true,
+  deviceKeysLost: () => devices.keysLost(),
   privacyChanged: (preferences) => messages.applyPrivacy(preferences),
   privateKey: async (session, walletOpening) => {
     const key = await devices.privateKey(session, walletOpening);

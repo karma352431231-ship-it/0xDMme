@@ -6063,6 +6063,15 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Session connected · open account in Profile → Devices',
     '会话已连接 · 请在“个人资料 → 设备”中打开账户',
   ],
+  'This browser lost its device key. Select Complete sign-in and confirm with your wallet.':
+    [
+      'This browser lost its device key. Select Complete sign-in and confirm with your wallet.',
+      '此浏览器已丢失设备密钥。请选择“完成登录”，并在钱包中确认。',
+    ],
+  'This device is already in the account. Refresh to check its access.': [
+    'This device is already in the account. Refresh to check its access.',
+    '此设备已在账户中。请刷新以检查其访问权限。',
+  ],
   'Session connected. Open your account in Profile → Devices.': [
     'Session connected. Open your account in Profile → Devices.',
     '会话已连接。请在“个人资料 → 设备”中打开账户。',

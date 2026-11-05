@@ -15,7 +15,7 @@ import type { discoverWallets } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { signWalletStatement } from '../wallet-statements/index.ts';
 import type { ApprovalFlow, IncomingRequest } from './approval-flow.ts';
-import { api, deviceId } from './core.ts';
+import { api } from './core.ts';
 import type { AccountSnapshot } from './core.ts';
 import type { createWalletReturn } from './wallet-return.ts';
 
@@ -44,6 +44,7 @@ export class WalletLogin {
   private readonly wallets: Wallets;
   private readonly approval: ApprovalFlow;
   private readonly walletReturn: ReturnType<typeof createWalletReturn>;
+  private readonly deviceId: () => string;
   private readonly host: {
     render: () => void;
     setSession: (session: AccountSession) => void;
@@ -56,12 +57,14 @@ export class WalletLogin {
     wallets: Wallets;
     approval: ApprovalFlow;
     walletReturn: ReturnType<typeof createWalletReturn>;
+    deviceId: () => string;
     host: WalletLogin['host'];
   }) {
     this.account = input.account;
     this.wallets = input.wallets;
     this.approval = input.approval;
     this.walletReturn = input.walletReturn;
+    this.deviceId = input.deviceId;
     this.host = input.host;
   }
   private get state(): ReturnType<LoginAccount['read']> {
@@ -198,7 +201,7 @@ export class WalletLogin {
               address: identity.address,
               chainId: identity.chainId,
             }
-          : { ...identity, deviceId: deviceId() },
+          : { ...identity, deviceId: this.deviceId() },
       }),
     );
     this.checkEpoch(currentEpoch);

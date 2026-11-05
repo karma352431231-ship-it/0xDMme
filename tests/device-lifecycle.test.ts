@@ -561,6 +561,139 @@ await test('direct wallet recovery initializes through the existing authority wi
   assert.ok(!f.calls.includes('/api/account/recovery-start'));
 });
 
+await test('a directory read in progress keeps this device authorized until it completes', async (t) => {
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Synthetic device',
+    revoked: [],
+    revision: 0,
+  });
+  const started = deferred<void>();
+  const release = deferred<void>();
+  f.overrides.set('/api/account/devices/read', async () => {
+    started.resolve();
+    await release.promise;
+    return Response.json({
+      events: [],
+      revision: f.events.length,
+      head: await eventHash(f.events.at(-1)!),
+      serverTime: new Date().toISOString(),
+    });
+  });
+  const refreshing = f.controller.refresh();
+  await waitForBoundary(started.promise);
+  assert.equal(f.controller.authorized, true);
+  release.resolve();
+  await refreshing;
+  assert.equal(f.controller.authorized, true);
+});
+
+await test('a failed directory read withdraws the authorization of this device', async (t) => {
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Synthetic device',
+    revoked: [],
+    revision: 0,
+  });
+  f.overrides.set('/api/account/devices/read', () =>
+    Promise.resolve(Response.json({ error: 'Unavailable.' }, { status: 503 })),
+  );
+  await assert.rejects(f.controller.refresh());
+  assert.equal(f.controller.authorized, false);
+});
+
+await test('browser storage lost: the same id stops before signing and a new id recovers, retiring the dead entry', async (t) => {
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Synthetic device',
+    revoked: [],
+    revision: 0,
+  });
+  const oldDevice = f.session.deviceId;
+  f.useStorage(deviceDatabase());
+  const sameId = new DeviceController();
+  sameId.setSession({ ...f.session, csrf: 'b'.repeat(64) });
+  await sameId.refresh();
+  assert.equal(sameId.authorized, false);
+  assert.equal(sameId.keysLost, true);
+  const signing = t.mock.method(f.wallet, 'signMessage');
+  await assert.rejects(
+    sameId.beginWalletRecovery({
+      mode: 'recover',
+      wallet: 'MetaMask',
+      name: 'Synthetic device',
+      revoked: [],
+      revision: 1,
+    }),
+    /lost its device key/,
+  );
+  assert.equal(signing.mock.callCount(), 0);
+  assert.equal(f.events.length, 1);
+  const replacement = crypto.randomUUID();
+  const fresh = new DeviceController();
+  fresh.setSession({
+    ...f.session,
+    deviceId: replacement,
+    csrf: 'c'.repeat(64),
+  });
+  await fresh.refresh();
+  assert.equal(fresh.keysLost, false);
+  assert.equal(
+    await fresh.beginWalletRecovery({
+      mode: 'recover',
+      wallet: 'MetaMask',
+      name: 'Synthetic device',
+      revoked: [],
+      revision: 1,
+    }),
+    true,
+  );
+  assert.equal(fresh.authorized, true);
+  const last = f.events.at(-1)!;
+  assert.deepEqual(
+    last.devices.map((device) => device.id),
+    [replacement],
+  );
+  assert.deepEqual(last.revoked, [oldDevice]);
+  await fresh.refresh();
+  assert.equal(fresh.authorized, true);
+});
+
+await test('recovery of a device that is listed with its own keys stops before signing', async (t) => {
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Synthetic device',
+    revoked: [],
+    revision: 0,
+  });
+  const signing = t.mock.method(f.wallet, 'signMessage');
+  await assert.rejects(
+    f.controller.beginWalletRecovery({
+      mode: 'recover',
+      wallet: 'MetaMask',
+      name: 'Synthetic device',
+      revoked: [],
+      revision: 1,
+    }),
+    /already in the account/,
+  );
+  assert.equal(signing.mock.callCount(), 0);
+  assert.equal(f.controller.keysLost, false);
+  assert.equal(f.controller.authorized, true);
+});
+
 await test('mobile return stays pending without signatures and confirms the encrypted result through the same checkpoint authority', async (t) => {
   const f = controllerFixture(t);
   assert.equal(

@@ -82,6 +82,7 @@ import {
 } from '../../shared/device-enrollment/index.ts';
 import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
 import { DeviceLinking, joinDeviceEnrollment } from './linking.ts';
+import { deviceKeysLost, lostDevices } from './lost-keys.ts';
 import { DeviceWalletRecovery } from './wallet-recovery-flow.ts';
 import type {
   WalletRecoveryStart,
@@ -310,6 +311,9 @@ export class DeviceController {
   current: DirectoryEvent | null = null;
   identity: LocalIdentity | null = null;
   ring: Keyring | null = null;
+  /** The directory lists this session's device under keys no longer held here.
+   * Only a sign-in with a new device id can recover it. */
+  keysLost = false;
   get walletPending(): RecoveryFlow | null {
     return this.walletRecovery.flow;
   }
@@ -379,6 +383,7 @@ export class DeviceController {
     this.current = null;
     this.identity = null;
     this.ring = null;
+    this.keysLost = false;
     this.events = [];
     this.trustedRoot = null;
     this.walletRecovery.reset();
@@ -554,9 +559,21 @@ export class DeviceController {
   }
   private async synchronize(session: AccountSession): Promise<void> {
     this.assertSession(session);
-    this.ring = null;
     this.directoryReadAt = null;
     const generation = this.generation;
+    try {
+      await this.readDirectory(session, generation);
+    } catch (error: unknown) {
+      // A failed read withdraws this session's authorization, never that of a
+      // replacement session completed while this operation awaited I/O.
+      if (generation === this.generation) this.ring = null;
+      throw error;
+    }
+  }
+  private async readDirectory(
+    session: AccountSession,
+    generation: number,
+  ): Promise<void> {
     const checkpoint = await readCheckpoint(session.accountId);
     const { current, events, serverTime } = await fetchDirectory(
       session,
@@ -586,25 +603,41 @@ export class DeviceController {
     }
     await this.openDirectoryRing(session, current);
   }
-  /** Key ring only for a trusted directory that still lists this device. */
+  /** Replaces the ring only with the verified result, so a read in progress
+   * never looks like lost authorization to this tab's other callers. */
   private async openDirectoryRing(
     session: AccountSession,
     current: DirectoryEvent | null,
   ): Promise<void> {
-    if (
-      current &&
-      this.identity &&
-      this.trustedRoot === (await digest(canonical(current.root)))
-    ) {
-      if (current.devices.some((device) => device.id === session.deviceId))
-        this.ring = await deviceSecrets(this.identity, current);
-    }
+    this.ring = await this.directoryRing(session, current);
     if (this.ring) this.directoryReadAt = performance.now();
     this.verified =
       this.ring && current
         ? { directory: await eventHash(current), events: this.events.length }
         : null;
     if (this.verified) this.signingLane.verifiedChanged();
+  }
+  private async directoryRing(
+    session: AccountSession,
+    current: DirectoryEvent | null,
+  ): Promise<Keyring | null> {
+    const identity = this.identity;
+    const listed = current?.devices.find(
+      (device) => device.id === session.deviceId,
+    );
+    const rootTrusted =
+      current !== null &&
+      this.trustedRoot === (await digest(canonical(current.root)));
+    this.assertSession(session);
+    this.keysLost = deviceKeysLost({
+      local: identity?.public,
+      listed,
+      rootTrusted,
+      rootPinned: this.trustedRoot !== null,
+    });
+    if (!current || !identity || !listed || !rootTrusted || this.keysLost)
+      return null;
+    return deviceSecrets(identity, current);
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
@@ -669,7 +702,7 @@ export class DeviceController {
           mode: previous ? 'recover' : 'initialize',
           config: proof.config,
           name: t('My device'),
-          revoked: [],
+          revoked: previous ? await this.recoveryRevocations(session, []) : [],
           revision: previous?.revision ?? 0,
           head: previous ? await eventHash(previous) : null,
         };
@@ -710,11 +743,31 @@ export class DeviceController {
       mode: input.mode,
       config,
       name: input.name,
-      revoked: [...input.revoked],
+      revoked:
+        input.mode === 'recover'
+          ? await this.recoveryRevocations(session, input.revoked)
+          : [...input.revoked],
       revision: this.current ? this.current.revision : 0,
       head: this.current ? await eventHash(this.current) : null,
     };
     return plan;
+  }
+  /** Recovery adds exactly one new device, so this one must not be listed yet;
+   * refuse here, before the wallet is asked to sign. Devices whose keys this
+   * browser lost leave the directory in the same event. */
+  private async recoveryRevocations(
+    session: AccountSession,
+    selected: string[],
+  ): Promise<string[]> {
+    if (!this.current) throw new Error('Directory missing.');
+    if (this.current.devices.some((device) => device.id === session.deviceId))
+      throw new Error(
+        this.keysLost
+          ? 'This browser lost its device key. Select Complete sign-in and confirm with your wallet.'
+          : 'This device is already in the account. Refresh to check its access.',
+      );
+    const lost = await lostDevices(session.accountId, this.current);
+    return [...new Set([...selected, ...lost])];
   }
   private walletConfig(session: AccountSession, mode: RecoveryPlan['mode']) {
     const config =

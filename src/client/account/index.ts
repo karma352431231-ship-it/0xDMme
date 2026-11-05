@@ -11,7 +11,13 @@ import {
   forgetLoginOpening,
 } from '../wallet-opening/index.ts';
 import { ApprovalFlow } from './approval-flow.ts';
-import { api, createCore, deviceId, node } from './core.ts';
+import {
+  api,
+  createCore,
+  forgetDeviceId,
+  loginDeviceId,
+  node,
+} from './core.ts';
 import { WalletLogin } from './login.ts';
 import { AccountPrivateProfile } from './private-profile.ts';
 import type { ProfileOptions } from './private-profile.ts';
@@ -94,7 +100,7 @@ export function startAccount(
   const walletReturn = createWalletReturn({
     expectedAccount: () => core.session,
     api,
-    deviceId,
+    deviceId: currentLoginDevice,
     openWallet: launchMobileWallet,
     ...mobileOpeningOptions(options.mobileOpening),
     changed: () => render(),
@@ -124,6 +130,7 @@ export function startAccount(
     wallets,
     approval,
     walletReturn,
+    deviceId: currentLoginDevice,
     host: {
       render,
       setSession,
@@ -166,6 +173,9 @@ export function startAccount(
   });
   picker.observeDiscovery();
 
+  function currentLoginDevice(): string {
+    return loginDeviceId(options.deviceKeysLost?.() === true);
+  }
   function invalidate(): number {
     return ++core.epoch;
   }
@@ -249,6 +259,8 @@ export function startAccount(
     core.epoch++;
     login.stopObserving();
     profile.clear();
+    // The id must change before the keys-lost state ends with the session.
+    if (options.deviceKeysLost?.()) forgetDeviceId();
     setSession(null);
     core.status = t('Signing out…');
     render();
