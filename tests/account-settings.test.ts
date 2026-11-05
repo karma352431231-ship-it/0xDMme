@@ -499,3 +499,61 @@ await test('resetting the remote settings record does not reopen completed setup
   );
   next.setSession(null);
 });
+
+await test('the setup the person waits for goes ahead of background vault work', async () => {
+  const sync = new FakeSync();
+  const work: unknown[] = [];
+  const refresh = sync.refresh.bind(sync),
+    save = sync.save.bind(sync);
+  sync.refresh = (options?: unknown) => {
+    work.push(['refresh', options]);
+    return refresh();
+  };
+  sync.save = (input, options?: unknown) => {
+    work.push(['save', options]);
+    return save(input);
+  };
+  const record = new SettingsRecord(sync),
+    account = crypto.randomUUID(),
+    interactive = { priority: 'interactive' } as const;
+  await record.load(account, interactive);
+  await record.save(account, base, interactive);
+  await new LanguageRecord(sync).save(account, 'en', () => {}, interactive);
+  assert.deepEqual(work, [
+    ['refresh', interactive],
+    ['save', interactive],
+    ['save', interactive],
+  ]);
+  // Background changes from Settings keep the ordinary lane.
+  work.length = 0;
+  await record.save(account, { ...base, sound: false });
+  assert.deepEqual(work, [['save', {}]]);
+});
+
+await test('a modal that is open when the account is ready delays the setup only until it closes', async () => {
+  const modal = new EventTarget();
+  const previous = globalThis.document;
+  Object.assign(globalThis, { document: { querySelector: () => modal } });
+  try {
+    const sync = new FakeSync();
+    const loads: string[] = [];
+    const refresh = sync.refresh.bind(sync);
+    sync.refresh = () => {
+      loads.push('refresh');
+      return refresh();
+    };
+    const controller = new AccountSettingsController(
+      ports(sync).value,
+      new SettingsCompletion(),
+    );
+    controller.setSession(session());
+    controller.ready();
+    await settle();
+    assert.deepEqual(loads, []);
+    Object.assign(globalThis, { document: { querySelector: () => null } });
+    modal.dispatchEvent(new Event('close'));
+    await waitFor(() => loads.length > 0);
+  } finally {
+    Object.assign(globalThis, { document: previous });
+  }
+});

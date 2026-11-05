@@ -57,6 +57,7 @@ export interface SettingsPorts {
 
 // Load failures are retried on later readiness calls, up to this many per account.
 const loadAttempts = 3;
+const interactive = { priority: 'interactive' } as const;
 const pendingLimit = 32;
 const offerKey = (accountId: string) => `0xdmme:push-offer:${accountId}`;
 
@@ -136,15 +137,21 @@ export class AccountSettingsController {
     if (!session || this.state !== 'idle' || this.attempts >= loadAttempts)
       return;
     // Wait for the encrypted profile and for any other modal to finish.
-    if (!this.ports.privacy.current() || document.querySelector('dialog[open]'))
+    if (!this.ports.privacy.current()) return;
+    const modal = document.querySelector<HTMLDialogElement>('dialog[open]');
+    if (modal) {
+      // Retried as soon as that modal closes, instead of at a later event.
+      modal.addEventListener('close', () => this.ready(), { once: true });
       return;
+    }
     this.state = 'loading';
     this.attempts++;
     void this.start(session, this.generation);
   }
   private async start(session: AccountSession, generation: number) {
     try {
-      const value = await this.record.load(session.accountId);
+      // The person has just opened the account and waits for this screen.
+      const value = await this.record.load(session.accountId, interactive);
       const language = await this.languageRecord.load(session.accountId);
       if (generation !== this.generation) return;
       this.savedLanguage = language;
@@ -267,7 +274,11 @@ export class AccountSettingsController {
     });
   }
   private async currentPack(): Promise<SettingsPack> {
-    const subscribed = await this.ports.push.pushSubscribed();
+    // The server's discovery mode and this device's push state are independent.
+    const [subscribed, discovery] = await Promise.all([
+      this.ports.push.pushSubscribed(),
+      this.ports.discovery.current(),
+    ]);
     const kinds = subscribed
       ? await this.ports.push.pushPreferences()
       : defaultPushPreferences;
@@ -285,7 +296,7 @@ export class AccountSettingsController {
         readReceipts: false,
         backupReminder: false,
       },
-      discovery: await this.ports.discovery.current(),
+      discovery,
     };
   }
   /** Runs inside the submit gesture: push is requested before any await. */
@@ -301,11 +312,17 @@ export class AccountSettingsController {
           .then((subscribed) =>
             subscribed ? this.ports.push.disablePush() : undefined,
           );
-    const problems = await this.applyPack(pack, pushStarted);
-    this.guard(generation);
-    await this.record.save(session.accountId, pack.settings);
-    this.guard(generation);
-    await this.saveLanguage(this.savedLanguage ?? currentLanguage());
+    // Every choice has its own owner, so they are applied side by side; the
+    // account copy is written alongside, as before regardless of their outcome.
+    const [problems] = await Promise.all([
+      this.applyPack(pack, pushStarted),
+      this.record
+        .save(session.accountId, pack.settings, interactive)
+        .then(() => {
+          this.guard(generation);
+          return this.saveLanguage(this.savedLanguage ?? currentLanguage());
+        }),
+    ]);
     this.guard(generation);
     await this.ports.language?.set(this.savedLanguage ?? currentLanguage());
     this.guard(generation);
@@ -336,10 +353,13 @@ export class AccountSettingsController {
     const problems: string[] = [];
     this.applying = true;
     try {
-      for (const [label, step] of steps)
-        await step().catch((error: unknown) => {
-          problems.push(failure(label, error));
-        });
+      await Promise.all(
+        steps.map(([label, step]) =>
+          step().catch((error: unknown) => {
+            problems.push(failure(label, error));
+          }),
+        ),
+      );
     } finally {
       this.applying = false;
     }
@@ -385,7 +405,13 @@ export class AccountSettingsController {
     const write = this.writes.then(async () => {
       current();
       if (this.savedLanguage === language) return;
-      await this.languageRecord.save(session.accountId, language, current);
+      // An explicit choice the person waits for, like the rest of the setup.
+      await this.languageRecord.save(
+        session.accountId,
+        language,
+        current,
+        interactive,
+      );
       this.savedLanguage = language;
     });
     this.writes = write.catch(() => undefined);
