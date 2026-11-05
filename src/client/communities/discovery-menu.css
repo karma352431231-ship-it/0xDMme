@@ -1,4 +1,10 @@
 /* Compact order/period menus (feed, ranking and community posts). */
+.discovery-control {
+  display: contents;
+}
+.discovery-native {
+  display: none;
+}
 .discovery-menu {
   position: relative;
 }

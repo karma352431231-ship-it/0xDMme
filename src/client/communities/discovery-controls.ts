@@ -170,6 +170,9 @@ export function discoveryMenu(
     summary = el('summary'),
     value = el('span', '', 'discovery-menu-value'),
     options = el('div', '', 'discovery-menu-options');
+  const control = el('div', '', 'discovery-control');
+  const native = el('select', '', 'discovery-native');
+  native.setAttribute('aria-label', label);
   options.setAttribute('role', 'group');
   options.setAttribute('aria-label', label);
   summary.append(value);
@@ -179,26 +182,33 @@ export function discoveryMenu(
     const title =
       selection.options.find(([key]) => key === current)?.[1] ?? current;
     value.textContent = title;
+    native.value = current;
     summary.setAttribute('aria-label', t('{0}: {1}', [label, title]));
     options.querySelectorAll('button').forEach((node) => {
       node.setAttribute('aria-pressed', String(node.value === current));
     });
   };
+  const choose = (key: string) => {
+    menu.open = false;
+    if (key === current) return;
+    current = key;
+    show();
+    changed(key);
+  };
+  native.addEventListener('change', () => choose(native.value));
   for (const [key, title] of selection.options) {
+    const nativeOption = el('option', title);
+    nativeOption.value = key;
+    native.append(nativeOption);
     const option = el('button', title);
     option.type = 'button';
     option.value = key;
-    option.addEventListener('click', () => {
-      menu.open = false;
-      if (key === current) return;
-      current = key;
-      show();
-      changed(key);
-    });
+    option.addEventListener('click', () => choose(key));
     options.append(option);
   }
   show();
-  container.append(menu);
+  control.append(menu, native);
+  container.append(control);
   return menu;
 }
 export const feedOrders = [

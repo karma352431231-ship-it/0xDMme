@@ -117,6 +117,8 @@ export function startCommunityDiscovery(
     const toolbar = el('div', '', 'post-toolbar community-feed-filters');
     toolbar.classList.toggle('community-ranking-filters', view === 'explore');
     mounted.append(toolbar);
+    const filterRow = el('div', '', 'community-feed-filter-row');
+    toolbar.append(filterRow);
     if (view === 'feed' || view === 'following') {
       const scopes = el('nav', '', 'community-feed-scopes');
       scopes.setAttribute('aria-label', t('Choose feed'));
@@ -128,12 +130,12 @@ export function startCommunityDiscovery(
         if (view === key)
           scopes.lastElementChild?.setAttribute('aria-current', 'page');
       }
-      toolbar.append(scopes);
+      filterRow.append(scopes);
     }
     const periodPanel = el('div', '', 'community-ranking-period');
     if (view === 'explore')
       discoveryMenu(
-        toolbar,
+        filterRow,
         t('Sort communities'),
         {
           value: exploreOrder,
@@ -152,7 +154,7 @@ export function startCommunityDiscovery(
       );
     else
       discoveryMenu(
-        toolbar,
+        filterRow,
         t('Sort'),
         { value: order, options: feedOrders },
         (value) => {
@@ -167,7 +169,7 @@ export function startCommunityDiscovery(
           void run(reload);
         },
       );
-    toolbar.append(periodPanel);
+    filterRow.append(periodPanel);
     periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
     discoveryMenu(
       periodPanel,
@@ -194,7 +196,7 @@ export function startCommunityDiscovery(
     );
     mountPublicSearchToolbar(toolbar, abort.signal);
     appendFeedSearchSummary(toolbar, search, view);
-    postShortcut(toolbar);
+    postShortcut(filterRow);
     rankingTopicFilter(mounted, {
       active: view === 'explore',
       selected: selectedTopics,

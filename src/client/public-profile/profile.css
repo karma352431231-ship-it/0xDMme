@@ -1066,10 +1066,77 @@
 }
 
 @media (max-width: 700px) {
-  #app-shell .settings-body .public-profile-card {
+  #app-shell main:has(> #page-content > .public-profile-page) {
+    padding-inline: 0;
+  }
+  #app-shell .public-profile-page {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+  #app-shell .public-profile-page .public-profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    padding-inline: 16px;
+  }
+  #app-shell .public-profile-card,
+  #app-shell
+    .public-profile-page
+    :is(.public-profile-header, .public-profile-about) {
     border: 0;
+    border-radius: 0;
     box-shadow: none;
     padding: 0;
     background: transparent;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-description {
+    padding: 16px 0 4px;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-identity {
+    padding-inline: 0;
+  }
+  #app-shell .public-profile-page .public-profile-identity {
+    gap: 12px;
+    padding: 0 16px 16px;
+  }
+  #app-shell .public-profile-page .public-profile-description {
+    padding: 0 16px 16px;
+  }
+  #app-shell .public-profile-activity .post-actions {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  #app-shell
+    .public-profile-activity
+    .post-actions
+    :is(.post-action, .post-votes) {
+    min-width: 0;
+    min-height: 40px;
+    padding: 4px 6px;
+    gap: 4px;
+    font-size: 12px;
+  }
+  #app-shell .public-profile-activity .post-votes :is(button, a) {
+    min-width: 32px;
+    min-height: 40px;
+    padding: 4px;
+  }
+  #app-shell .public-profile-activity .post-score {
+    min-width: 20px;
+  }
+  #app-shell .public-profile-activity .post-actions svg {
+    width: 18px;
+    height: 18px;
+  }
+  #app-shell .public-profile-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    gap: 4px;
+  }
+  #app-shell .public-profile-tabs button {
+    flex-shrink: 0;
+    padding: 8px 12px;
   }
 }

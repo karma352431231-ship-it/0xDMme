@@ -76,3 +76,5 @@ the bounded run; it is not reported as an iPhone visual pass. The owner also
 requested complete removal of the native iPhone form/check toolbar. Its native
 integration remains outside this shared browser release and has its own signed
 app validation and installation evidence.
+
+The later [mobile layout follow-up](MOBILE_LAYOUT_FOLLOWUP.md) removes the phone public-profile frames and updates account entry, wallet guidance and discovery filter placement.

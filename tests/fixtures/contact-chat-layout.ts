@@ -354,8 +354,11 @@ try {
     check(
       parseFloat(
         getComputedStyle(own.querySelector('.profile-editor')!).borderTopWidth,
-      ) === 0,
-      'Phone public profile has one outside card',
+      ) === 0 &&
+        parseFloat(
+          getComputedStyle(own.closest('.public-profile-card')!).borderTopWidth,
+        ) === 0,
+      'Phone public profile editor has no inner or outer card frame',
     );
   const language = document.createElement('div');
   settings.append(language);
