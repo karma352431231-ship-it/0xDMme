@@ -1,5 +1,4 @@
-import { publicIdentityAvatar } from '../public-identity/index.ts';
-import { upvoteRows } from './upvotes.ts';
+import { contentCards, contentCardRows } from './content-cards.ts';
 import {
   t,
   translatedError,
@@ -8,11 +7,10 @@ import {
 export { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { ActivitySeen } from './seen.ts';
 import { mentionRows } from './mentions.ts';
-import { followRows } from './follows.ts';
 import { PublicationPreview } from './publication-preview.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { publicationTitle, publicationQuote } from './publications.ts';
-import { noticeLink, bindNoticeRow } from './notice-link.ts';
+import { publicationQuote } from './publications.ts';
+import { bindNoticeRow } from './notice-link.ts';
 import { moderationRows } from './moderation.ts';
 import { ActivityUpdates } from './updates.ts';
 import { missingPublicProfile } from '../public-action-guidance/index.ts';
@@ -30,32 +28,29 @@ export type ActivityGroup =
   | 'requests'
   | 'calls'
   | 'invites'
-  | 'replies'
+  | 'content'
   | 'transfers'
   | 'moderation'
-  | 'upvotes'
-  | 'follows'
   | 'mentions';
 const groupOrder: readonly ActivityGroup[] = [
   'requests',
   'calls',
   'invites',
-  'replies',
-  'upvotes',
-  'follows',
+  'content',
   'mentions',
   'transfers',
   'moderation',
 ];
 /**
- * Tudo shows every group. Pedidos are the items waiting for an answer
- * (conversation, group invite, community transfer); Respostas are community replies.
+ * All shows every group. Requests are the items waiting for an answer
+ * (conversation, group invite, community transfer); Publications are the
+ * cards of the reader's content, followed posts and new followers.
  */
 export function activityGroups(
   filter: ActivityFilter,
 ): readonly ActivityGroup[] {
   if (filter === 'requests') return ['requests', 'invites', 'transfers'];
-  if (filter === 'replies') return ['replies'];
+  if (filter === 'replies') return ['content'];
   if (filter === 'mentions') return ['mentions'];
   return groupOrder;
 }
@@ -68,16 +63,6 @@ export function replyQuote(
   } | null,
 ): string {
   return publicationQuote(preview, 'reply');
-}
-function relativeTime(iso: string): string {
-  const minutes = Math.max(
-    0,
-    Math.floor((Date.now() - Date.parse(iso)) / 60_000),
-  );
-  if (minutes < 1) return t('activity.now');
-  if (minutes < 60) return t('{0} min ago', [minutes]);
-  if (minutes < 1440) return t('{0} h ago', [Math.floor(minutes / 60)]);
-  return new Date(iso).toLocaleDateString(currentLanguage());
 }
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -325,40 +310,20 @@ export function startActivity(
       }),
     );
   }
-  function replyRows(): HTMLElement[] {
-    return snapshot.replies.items.map((reply) => {
-      const preview = reply.preview;
-      const current = generation;
-      return row({
-        read: reply.read === true,
-        ...(preview?.identity
-          ? {
-              avatar: publicIdentityAvatar(
-                preview.identity,
-                publicationPreview.signal,
-              ),
-            }
-          : preview?.author
-            ? { avatar: { label: preview.author, seed: preview.author } }
-            : {}),
-        title: publicationTitle(preview?.author, reply.kind ?? 'reply'),
-        quote: publicationPreview.quote(preview, reply.kind ?? 'reply'),
-        detail: relativeTime(reply.createdAt),
-        actions: [
-          noticeLink({
-            label: t('Open'),
-            href: `#communities?id=${reply.community}&post=${reply.reply}`,
-            read: reply.read === true,
-            acknowledge: () => sources.markRepliesRead([reply.reply]),
-            current: () => current === generation,
-            acknowledged: () => {
-              reply.read = true;
-              options.countChanged(count());
-            },
-          }),
-        ],
-      });
-    });
+  function contentReads() {
+    return {
+      replies: (ids: readonly string[]) => sources.markRepliesRead(ids),
+      upvotes: async (ids: readonly string[]) => {
+        if (!sources.markUpvotesRead)
+          throw new Error('Upvote read unavailable.');
+        await sources.markUpvotesRead(ids);
+      },
+      follows: async (ids: readonly string[]) => {
+        if (!sources.markFollowsRead)
+          throw new Error('Follower notice read unavailable.');
+        await sources.markFollowsRead(ids);
+      },
+    };
   }
   function transferRows(): HTMLElement[] {
     return snapshot.transfers.items.map((community) =>
@@ -500,44 +465,31 @@ export function startActivity(
         section(t('Group invitations'), snapshot.invites, inviteRows()),
       ],
       [
-        'replies',
-        section(t('Community publications'), snapshot.replies, replyRows()),
-      ],
-      [
-        'upvotes',
+        'content',
         section(
-          t('upvote.heading'),
-          snapshot.upvotes,
-          upvoteRows(snapshot.upvotes.items, {
-            preview: (text) => publicationPreview.text(text),
-            signal: publicationPreview.signal,
-            current: () =>
-              current === generation && host !== null && session !== null,
-            open: async (ids) => {
-              if (!sources.markUpvotesRead)
-                throw new Error('Upvote read unavailable.');
-              await sources.markUpvotesRead(ids);
+          t('Publications'),
+          {
+            items: [],
+            problem: [snapshot.replies, snapshot.upvotes, snapshot.follows]
+              .map((loaded) => loaded.problem)
+              .filter(Boolean)
+              .join(' '),
+          },
+          contentCardRows(
+            contentCards({
+              replies: snapshot.replies.items,
+              upvotes: snapshot.upvotes.items,
+              follows: snapshot.follows.items,
+            }),
+            {
+              signal: publicationPreview.signal,
+              quote: (text) => publicationPreview.text(text),
+              current: () =>
+                current === generation && host !== null && session !== null,
+              changed: () => options.countChanged(count()),
+              read: contentReads(),
             },
-            changed: () => options.countChanged(count()),
-          }),
-        ),
-      ],
-      [
-        'follows',
-        section(
-          t('New followers'),
-          snapshot.follows,
-          followRows(snapshot.follows.items, {
-            signal: publicationPreview.signal,
-            open: async (id) => {
-              if (!sources.markFollowsRead)
-                throw new Error('Follower notice read unavailable.');
-              await sources.markFollowsRead([id]);
-            },
-            current: () =>
-              current === generation && host !== null && session !== null,
-            changed: () => options.countChanged(count()),
-          }),
+          ),
         ),
       ],
       [

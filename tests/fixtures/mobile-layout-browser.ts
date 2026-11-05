@@ -15,6 +15,10 @@ import type { ReplyActions } from '../../src/client/communities/reply-composer.t
 import { openImageViewer } from '../../src/client/image-viewer/index.ts';
 import { showProfilePage } from '../../src/client/public-profile/page.ts';
 import type { PublicProfiles } from '../../src/client/public-profile/controller.ts';
+import {
+  contentCardRows,
+  contentCards,
+} from '../../src/client/activity/content-cards.ts';
 
 const shell = document.getElementById('app-shell')!;
 const page = document.getElementById('page-content')!;
@@ -529,8 +533,148 @@ async function profile(): Promise<void> {
   );
 }
 
+/** Activity option A with synthetic notices: one card per own content. */
+function activityCards(): void {
+  shell.dataset['page'] = 'atividade';
+  const ago = (minutes: number) =>
+      new Date(Date.now() - minutes * 60_000).toISOString(),
+    person = (n: number, handle: string) => ({
+      id: `55555555-5555-4555-8555-${String(n).padStart(12, '0')}`,
+      handle,
+      avatar: null,
+    }),
+    post = '66666666-6666-4666-8666-666666666666',
+    mine = '77777777-7777-4777-8777-777777777777';
+  const handles = ['waterdrip', 'kira', 'mo', 'luna', 'zed', 'rafa'];
+  const upvotes = handles.map((handle, n) => ({
+    id: `88888888-8888-4888-8888-${String(n).padStart(12, '0')}`,
+    actor: person(n, handle),
+    community: communityId,
+    post,
+    kind: 'post' as const,
+    text: 'Bitcoin ETF flows this week, anyone tracking?',
+    createdAt: ago(5 + n),
+    read: false,
+  }));
+  const reply = (n: number, handle: string, text: string, target: string) => ({
+    reply: `99999999-9999-4999-8999-${String(n).padStart(12, '0')}`,
+    post,
+    community: communityId,
+    createdAt: ago(n),
+    read: n > 30,
+    kind: 'reply' as const,
+    preview: {
+      author: handle,
+      identity: person(n, handle),
+      text,
+      media: false,
+      status: 'visible' as const,
+    },
+    target: {
+      id: target,
+      kind: target === post ? ('post' as const) : ('reply' as const),
+      text:
+        target === post
+          ? 'Bitcoin ETF flows this week, anyone tracking?'
+          : 'Start with a hardware wallet, never share the seed',
+      status: 'visible' as const,
+    },
+  });
+  const cards = contentCards({
+    upvotes: [
+      ...upvotes,
+      {
+        ...upvotes[2]!,
+        id: upvotes[2]!.id.replace('8888-0', '8888-1'),
+        post: mine,
+        kind: 'reply' as const,
+        text: 'Start with a hardware wallet, never share the seed',
+        createdAt: ago(40),
+      },
+    ],
+    replies: [
+      reply(1, 'waterdrip', 'Inflows were huge on Tuesday', post),
+      reply(
+        2,
+        'luna',
+        'I keep a sheet, will share it later today with everyone here',
+        post,
+      ),
+      reply(3, 'zed', 'Following', post),
+      reply(41, 'zed', 'Which one do you use?', mine),
+    ],
+    follows: [
+      {
+        id: '12121212-1212-4121-8121-121212121212',
+        actor: person(1, 'waterdrip'),
+        createdAt: ago(2880),
+        read: true,
+      },
+      {
+        id: '13131313-1313-4131-8131-131313131313',
+        actor: person(3, 'mo'),
+        createdAt: ago(2900),
+        read: true,
+      },
+    ],
+  });
+  const lifetime = new AbortController();
+  const rows = contentCardRows(cards, {
+    signal: lifetime.signal,
+    current: () => true,
+    changed: () => {},
+    quote: (text) =>
+      Object.assign(document.createElement('p'), { textContent: text }),
+    read: {
+      upvotes: () => Promise.resolve(),
+      replies: () => Promise.resolve(),
+      follows: () => Promise.resolve(),
+    },
+  });
+  const host = document.createElement('section'),
+    group = document.createElement('section'),
+    list = document.createElement('ul');
+  host.className = 'activity';
+  group.className = 'activity-group';
+  list.className = 'activity-list';
+  list.append(...rows);
+  group.append(
+    Object.assign(document.createElement('h3'), {
+      textContent: t('Publications'),
+    }),
+    list,
+  );
+  host.append(group);
+  page.replaceChildren(host);
+  check(rows.length === 3, 'Upvotes and replies of one post share one card');
+  const first = rows[0]!;
+  check(
+    first.querySelectorAll('.activity-card-reply').length === 2 &&
+      first.querySelector('.activity-card-more') !== null,
+    'Two replies show and the rest are counted',
+  );
+  const faces = first
+    .querySelector('.activity-card-faces')!
+    .getBoundingClientRect();
+  const title = first
+    .querySelector('.activity-card-title')!
+    .getBoundingClientRect();
+  check(
+    faces.height <= 32 && title.height > 0,
+    'The card names its post above stacked faces',
+  );
+  for (const row of rows) {
+    const box = row.getBoundingClientRect();
+    check(
+      box.right <= innerWidth && box.left >= 0,
+      'Cards stay inside the screen',
+    );
+  }
+}
+
 try {
   if (mode === 'feed') await feed();
+  else if (mode === 'activity') activityCards();
   else if (mode === 'edit') editor();
   else if (mode === 'profile') await profile();
   else if (mode === 'invite') inviteDialogs();

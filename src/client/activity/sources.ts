@@ -1,6 +1,9 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { UpvoteNotice } from '../../shared/public-upvotes/index.ts';
-import type { ReplyPreview } from '../../shared/community-posts/index.ts';
+import type {
+  ReplyPreview,
+  ReplyTarget,
+} from '../../shared/community-posts/index.ts';
 import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
 import type { FollowNotice } from '../../shared/follow-notices/index.ts';
 import type { ModerationActivity } from './moderation.ts';
@@ -41,6 +44,8 @@ export interface ActivitySources {
       kind?: 'post' | 'reply';
       /** Author and start of the reply, already filtered by public visibility. */
       preview: ReplyPreview | null;
+      /** The reader's own content this reply answered. */
+      target?: ReplyTarget;
     }[]
   >;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;

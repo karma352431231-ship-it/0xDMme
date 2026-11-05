@@ -33,6 +33,7 @@ import {
   postContent,
   postCursor,
   replyPreview,
+  contentHeadline,
 } from '../../shared/community-posts/index.ts';
 import type {
   ReplyNotificationPage,
@@ -422,6 +423,44 @@ export class CommunityPostStore {
       })),
     };
   }
+  /**
+   * The reader's own post or reply that each direct reply answered, read in
+   * one bounded batch; replies by followed profiles elsewhere get none.
+   */
+  private async withTargets(
+    client: Pick<pg.PoolClient, 'query'>,
+    page: ReplyNotificationPage,
+    reader: string,
+  ): Promise<ReplyNotificationPage> {
+    const replies = new Map(
+      (
+        await this.readMany(
+          client,
+          page.items
+            .filter((item) => item.kind === 'reply')
+            .map((item) => item.reply),
+        )
+      ).map((post) => [post.id, post.parent]),
+    );
+    const parents = new Map(
+      (
+        await this.readMany(client, [
+          ...new Set(
+            [...replies.values()].filter((id): id is string => id !== null),
+          ),
+        ])
+      ).map((post) => [post.id, post]),
+    );
+    return {
+      ...page,
+      items: page.items.map((item) => {
+        const parent = parents.get(replies.get(item.reply) ?? '');
+        return parent?.author?.id === reader
+          ? { ...item, target: contentHeadline(parent) }
+          : item;
+      }),
+    };
+  }
   upvoters(community: string, post: string, after: string | null) {
     return this.upvotes.voters(community, post, after);
   }
@@ -737,9 +776,15 @@ export class CommunityPostStore {
     if (operation === 'post-notifications')
       return this.communities.withActor(authority, async (context) => {
         const page = await replyNotifications(context, operation, data);
-        return 'items' in page
-          ? this.withPreviews(context.client, page, data['authors'] === true)
-          : page;
+        if (!('items' in page)) return page;
+        const previewed = await this.withPreviews(
+          context.client,
+          page,
+          data['authors'] === true,
+        );
+        return data['targets'] === true
+          ? this.withTargets(context.client, previewed, context.actor.id)
+          : previewed;
       });
     if (operation === 'post-notifications-read')
       return this.communities.withActor(authority, async (context) => {

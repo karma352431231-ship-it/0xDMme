@@ -43,3 +43,9 @@ Replying to a post opens one screen on phones and a centered window on wider scr
 A new follower now appears in Activity as "@name started following you". The notice exists only while the follow does: unfollowing withdraws it and following again is a new arrival. Blocked pairs receive none. It is in-app only, with no push. Migration 104 adds the table with the same storage accounting as the other public notices; there is no backfill of earlier follows.
 
 The vote pill now has the same side margins and icon gap as the Reply and Share pills on every layout.
+
+## Activity cards
+
+Activity groups public notices by what they are about, on every screen. Each of the reader's own posts or replies gets one card: its title or text, one line with stacked faces for everyone who upvoted it, and its newest two replies with a count of the rest. A new reply or upvote moves the card to the top. Posts and replies from followed profiles keep one card each, and new followers share one card. Tapping a card opens the content and marks every arrival in it as read; tapping a reply opens that reply. Each arrival keeps its own read receipt, so the unread count is unchanged.
+
+Reply notices now name the reader's content they answered, for clients that ask for it; installed apps that do not ask keep the older shape. Upvote notices name a post by its title first.

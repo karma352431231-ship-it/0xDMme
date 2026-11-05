@@ -420,6 +420,14 @@ export interface ReplyPreview {
   status: 'visible' | 'removed' | 'deleted';
 }
 export const replyPreviewLength = 280;
+/** The reader's own post or reply that a direct reply answered. */
+export interface ReplyTarget {
+  id: string;
+  kind: 'post' | 'reply';
+  /** Title first for posts; empty once hidden. */
+  text: string;
+  status: ReplyPreview['status'];
+}
 export interface ReplyNotification {
   kind?: 'post' | 'reply';
   reply: string;
@@ -428,6 +436,8 @@ export interface ReplyNotification {
   createdAt: string;
   read: boolean;
   preview: ReplyPreview | null;
+  /** Present for a reply to the reader's content (05/11/2026). */
+  target?: ReplyTarget;
 }
 export function replyPreview(
   post: CommunityPost | undefined,
@@ -446,6 +456,30 @@ export function replyPreview(
     media: !!post.media?.length,
     status: 'visible',
   };
+}
+/** What a notice calls a post or reply: its title, else its text. */
+export function contentHeadline(post: CommunityPost): ReplyTarget {
+  const visible = post.status === 'visible';
+  return {
+    id: post.id,
+    kind: post.parent ? 'reply' : 'post',
+    text: visible
+      ? mentionPlainText(post.title || post.text).slice(0, replyPreviewLength)
+      : '',
+    status: post.status,
+  };
+}
+function parseReplyTarget(value: unknown): ReplyTarget {
+  const data = object(value);
+  keys(data, ['id', 'kind', 'text', 'status']);
+  const status = previewStatus(data['status']),
+    text = previewText(data['text']);
+  if (data['kind'] !== 'post' && data['kind'] !== 'reply')
+    throw new AccountError(400, 'Invalid reply preview.');
+  // Hidden content never carries what it said.
+  if (status !== 'visible' && text !== '')
+    throw new AccountError(400, 'Invalid reply preview.');
+  return { id: uuid(data['id']), kind: data['kind'], text, status };
 }
 function previewStatus(value: unknown): ReplyPreview['status'] {
   if (value === 'visible' || value === 'removed' || value === 'deleted')
@@ -522,6 +556,7 @@ export function replyNotificationPage(value: unknown): ReplyNotificationPage {
         'read',
         'preview',
         ...(Object.hasOwn(row, 'kind') ? ['kind'] : []),
+        ...(Object.hasOwn(row, 'target') ? ['target'] : []),
       ]);
       return {
         reply: uuid(row['reply']),
@@ -531,6 +566,9 @@ export function replyNotificationPage(value: unknown): ReplyNotificationPage {
         read: communityBoolean(row['read']),
         preview: parseReplyPreview(row['preview']),
         ...notificationKind(row),
+        ...(Object.hasOwn(row, 'target')
+          ? { target: parseReplyTarget(row['target']) }
+          : {}),
       };
     }),
     next: postCursor(data['next']),

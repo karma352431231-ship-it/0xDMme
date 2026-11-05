@@ -76,7 +76,7 @@ await test('no session means no reads and switching accounts clears the counter'
   assert.equal(counts.at(-1), 0);
 });
 
-await test('filters: Requests groups pending responses and Replies contains only community replies', () => {
+await test('filters: Requests groups pending responses and Publications holds the content cards', () => {
   for (const [filter, groups] of [
     [
       'all',
@@ -84,16 +84,14 @@ await test('filters: Requests groups pending responses and Replies contains only
         'requests',
         'calls',
         'invites',
-        'replies',
-        'upvotes',
-        'follows',
+        'content',
         'mentions',
         'transfers',
         'moderation',
       ],
     ],
     ['requests', ['requests', 'invites', 'transfers']],
-    ['replies', ['replies']],
+    ['replies', ['content']],
     ['mentions', ['mentions']],
   ] as const)
     assert.deepEqual(activityGroups(filter), groups);

@@ -30,6 +30,7 @@ export class CommunityNotifications {
       await this.controller.request('post-notifications', {
         after: null,
         authors: true,
+        targets: true,
       }),
     ).items;
   }

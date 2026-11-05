@@ -6,7 +6,7 @@ import {
 } from '../../shared/communities/index.ts';
 import {
   postCursor,
-  replyPreview,
+  contentHeadline,
 } from '../../shared/community-posts/index.ts';
 import type {
   UpvoteNoticePage,
@@ -163,7 +163,8 @@ export class CommunityUpvotes {
           community: post.community,
           post: post.id,
           kind: post.parent ? ('reply' as const) : ('post' as const),
-          text: replyPreview(post)!.text,
+          // Title first, as the Activity card names the content (05/11/2026).
+          text: contentHeadline(post).text,
           createdAt: row.created_at.toISOString(),
           read: row.read,
         },

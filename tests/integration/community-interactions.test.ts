@@ -172,6 +172,15 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
     replyNotificationPage(
       await who.operate('post-notifications', { after, authors: true }),
     );
+  // Activity cards name the reader's own content each reply answered.
+  const targeted = async (who: typeof owner) =>
+    replyNotificationPage(
+      await who.operate('post-notifications', {
+        after: null,
+        authors: true,
+        targets: true,
+      }),
+    ).items[0]!.target;
   const bad = (status: number) => (error: unknown) =>
     error instanceof AccountError && error.status === status;
   await create(owner, root);
@@ -232,6 +241,23 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
       await create(outsider, child, reply);
       assert.equal((await notices(author)).items.length, 1);
       assert.equal((await notices(owner)).items.length, 1);
+      // Clients that do not ask for targets keep the older shape.
+      assert.deepEqual(await targeted(author), {
+        id: reply,
+        kind: 'reply',
+        text: 'Resposta sintética',
+        status: 'visible',
+      });
+      const rootTarget = (await targeted(owner))!;
+      assert.deepEqual(
+        { ...rootTarget, text: '' },
+        { id: root, kind: 'post', text: '', status: 'visible' },
+      );
+      assert.ok(rootTarget.text);
+      assert.equal(
+        Object.hasOwn((await notices(owner)).items[0]!, 'target'),
+        false,
+      );
       await create(owner, crypto.randomUUID(), root);
       assert.equal((await notices(owner)).items.length, 1);
       assert.deepEqual(

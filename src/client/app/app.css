@@ -57,6 +57,7 @@
 @import '../chat-ui/chat-desktop.css';
 @import '../communities/feed-panel.css';
 @import '../activity/activity-page.css';
+@import '../activity/activity-cards.css';
 @import './base.css';
 @import '../push-settings/push-preferences.css';
 @import '../contacts/directory.css';

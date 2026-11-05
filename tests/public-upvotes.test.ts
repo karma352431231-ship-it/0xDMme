@@ -4,14 +4,8 @@ import {
   upvoteNoticePage,
   upvoterPage,
 } from '../src/shared/public-upvotes/index.ts';
-import {
-  groupUpvoteNotices,
-  upvoteTitle,
-} from '../src/client/activity/upvotes.ts';
 import { replyNotificationPage } from '../src/shared/community-posts/index.ts';
-import { setActiveLanguage } from '../src/shared/i18n/index.ts';
-const id = '11111111-1111-4111-a111-111111111111',
-  second = '22222222-2222-4222-a222-222222222222';
+const id = '11111111-1111-4111-a111-111111111111';
 const actor = { id, handle: 'voter', avatar: null };
 const item = {
   id,
@@ -46,29 +40,6 @@ await test('public upvote boundaries reject private fields, foreign photos and o
   assert.throws(() =>
     upvoterPage({ items: [{ ...actor, position: -1 }], next: null }),
   );
-});
-await test('upvote groups preserve every arrival and distinguish post/reply in both languages', () => {
-  const items = [
-    item,
-    { ...item, id: second },
-    { ...item, id: second, post: second, kind: 'reply' as const },
-  ];
-  const groups = groupUpvoteNotices(items);
-  assert.deepEqual(
-    groups.map((group) => group.length),
-    [2, 1],
-  );
-  for (const language of ['en', 'zh-CN'] as const) {
-    setActiveLanguage(language);
-    const title = upvoteTitle(groups[0]!);
-    assert.ok(title.includes('@voter'));
-    assert.ok(title.includes('1'));
-    assert.notEqual(
-      upvoteTitle([item]),
-      upvoteTitle([{ ...item, kind: 'reply' }]),
-    );
-  }
-  setActiveLanguage('en');
 });
 await test('publication preview exposes only matching visible public author identity', () => {
   const notice = {
