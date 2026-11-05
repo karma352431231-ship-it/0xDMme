@@ -12,7 +12,7 @@ class ViewerNode extends CommunityNode {
   isConnected = true;
   naturalWidth = 480;
   clientWidth = 320;
-  style = { width: '', height: '' };
+  style = { width: '', height: '', transform: '' };
   focus() {}
   showModal() {}
   override classList = {
@@ -95,11 +95,11 @@ await test('tapping the image toggles fit/full size; Escape, navigation and sess
   const image = dialog.querySelector('img') as ViewerNode;
   image.click();
   assert.match(dialog.className, /zoomed/u);
-  assert.equal(image.style.width, '640px');
+  assert.match(image.style.transform, /scale\(2\.5\)/u);
   assert.ok(f.body.querySelector('dialog'), 'Zooming does not close');
   image.click();
   assert.doesNotMatch(dialog.className, /zoomed/u);
-  assert.equal(image.style.width, '');
+  assert.equal(image.style.transform, '');
   dialog.dispatchEvent(new Event('cancel'));
   assert.equal(f.body.querySelector('dialog'), null);
   f.trigger.click();

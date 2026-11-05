@@ -19,3 +19,13 @@ The public handle list no longer offers a separate local-copies page. Local copi
 Create invitation in the add-contact dialog is now bound when the dialog is mounted. It previously worked only after the Contacts page had been opened once.
 
 The header module owns the profile identity presentation; the page module keeps tab selection and activity loading; the discovery menu moved out of the post controls into its own module, which owns the panel placement and its listeners.
+
+## Phone navigation, image zoom, ranking and dialogs
+
+The phone Communities tab returns to where it was left: a profile, community or post stay open across other tabs, and leaving them returns to the exact feed position. Only the tab link's destination is held, in memory; a reload starts from the feed. Community pages and posts opened from the feed keep the page the way profiles already did. Each feed view remembers one position per visit, so Feed, Ranking and Mine can be switched without losing it. A feed view reached this way is read again from its saved cursor and anchored to the same post.
+
+Two fingers on a public image open the viewer and keep zooming there; inside the viewer they zoom up to five times, one finger moves a zoomed image within its edges, and a tap still toggles zoom. The viewer owns its transform and gestures. The encrypted chat image viewer is unchanged.
+
+Ranking on phones places what is ranked and the options on one row, then order, period and topics as equal pills. Search is removed from the ranking on every screen, and the user ranking uses the same order and period menus as the community ranking.
+
+Contact dialogs on phones leave room for both system bars, which previously pushed the top of a tall dialog off the screen. The three ways to add a contact share one row.

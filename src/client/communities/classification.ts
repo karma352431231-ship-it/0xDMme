@@ -158,6 +158,7 @@ export function rankingTopicFilter(
   // Collapsed behind a button on every screen size (16/10/2026); the count
   // keeps an active filter visible while closed.
   const topics = el('details', '', 'community-ranking-topics');
+  topics.dataset['transientMenu'] = 'true';
   const toggle = el('summary', topicToggleLabel(options.selected.length));
   topics.append(toggle);
   host.append(topics);

@@ -169,8 +169,24 @@
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
+/* Floats under the filter row, which keeps its height while it is open. */
+#app-shell .community-ranking-filters {
+  position: relative;
+}
 #app-shell .community-ranking-topics[open] > .community-topic-picker {
-  margin-top: 0.75rem;
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 50vh;
+  margin: 0;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
 }
 .hover-card .community-classification-badges {
   margin-block: 0.6rem;

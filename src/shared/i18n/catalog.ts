@@ -828,6 +828,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.window': ['Last 24 h', '最近 24 小时'],
   'ranking.collapse': ['Collapse ranking', '收起排行'],
   'ranking.expand': ['Expand ranking', '展开排行'],
+  'ranking.follower {0}': ['{0} follower', '{0} 位关注者'],
   'ranking.followers {0}': ['{0} followers', '{0} 位关注者'],
   'ranking.growth-up {0}': ['▲ {0}%', '▲ {0}%'],
   'ranking.growth-down {0}': ['▼ {0}%', '▼ {0}%'],

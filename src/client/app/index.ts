@@ -32,7 +32,11 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { bindContactShortcuts, startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
-import { startCommunities, startRankingSide } from '../communities/index.ts';
+import {
+  startCommunities,
+  startCommunitiesTab,
+  startRankingSide,
+} from '../communities/index.ts';
 import { startRightColumn } from './right-column.ts';
 import { startPublicProfile } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -480,7 +484,9 @@ function route(): void {
   document
     .querySelectorAll<HTMLAnchorElement>('nav a[data-route]')
     .forEach((link) => {
-      if (link.dataset['route'] === key)
+      // A public profile is part of the Communities area.
+      const area = key === 'publico' ? 'comunidades' : key;
+      if (link.dataset['route'] === area)
         link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
@@ -785,6 +791,14 @@ window.addEventListener('hashchange', () => {
   route();
   mobileConversation?.restore();
 });
+const communitiesTab = document.querySelector<HTMLAnchorElement>(
+  '.mobile-nav a[data-route=comunidades]',
+);
+if (communitiesTab && !account.approvalPage)
+  startCommunitiesTab({
+    link: communitiesTab,
+    feedReturn: () => communities.feedReturnTarget(),
+  });
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);

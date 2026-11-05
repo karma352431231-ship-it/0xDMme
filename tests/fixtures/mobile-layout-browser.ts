@@ -9,6 +9,8 @@ import {
 } from '../../src/client/communities/discovery-menu.ts';
 import { mountPublicSearchToolbar } from '../../src/client/public-search/index.ts';
 import { communityIcon } from '../../src/client/communities/presentation.ts';
+import { editorTemplate } from '../../src/client/contacts/template.ts';
+import { openImageViewer } from '../../src/client/image-viewer/index.ts';
 import { showProfilePage } from '../../src/client/public-profile/page.ts';
 import type { PublicProfiles } from '../../src/client/public-profile/controller.ts';
 
@@ -198,6 +200,91 @@ function editor(): void {
     'Description retains its field boundary',
   );
 }
+function inviteDialogs(): void {
+  shell.dataset['page'] = 'conversas';
+  page.innerHTML = editorTemplate;
+  const editorDialog = page.querySelector<HTMLDialogElement>(
+    '[data-contact-editor]',
+  )!;
+  const invites = page.querySelector<HTMLDialogElement>(
+    '[data-contact-invites]',
+  )!;
+  editorDialog.showModal();
+  const tabs = [...editorDialog.querySelectorAll('.contact-subtabs button')];
+  const tops = tabs.map((tab) => tab.getBoundingClientRect().top);
+  check(
+    Math.max(...tops) - Math.min(...tops) < 1,
+    'The three ways to add a contact share one row',
+  );
+  check(
+    tabs.at(-1)!.getBoundingClientRect().right <=
+      editorDialog.getBoundingClientRect().right,
+    'The add-contact row fits inside the dialog',
+  );
+  editorDialog.close();
+  invites.showModal();
+  invites.querySelector<HTMLElement>('[data-contact-own-invite]')!.hidden =
+    false;
+  const box = invites.getBoundingClientRect();
+  check(box.top >= 0, 'The invitation dialog starts on the screen');
+  check(box.bottom <= innerHeight, 'The invitation dialog ends on the screen');
+}
+async function imageViewer(): Promise<void> {
+  const trigger = document.createElement('button');
+  page.append(trigger);
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 800;
+  canvas.getContext('2d')!.fillRect(0, 0, 1200, 800);
+  openImageViewer({
+    url: canvas.toDataURL(),
+    alt: 'Synthetic photo',
+    trigger,
+    signal: new AbortController().signal,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const image = document.querySelector<HTMLImageElement>(
+      '.public-image-frame img',
+    )!,
+    viewer = document.querySelector<HTMLDialogElement>('.public-image-viewer')!;
+  const fit = image.getBoundingClientRect();
+  const y = fit.top + fit.height / 2;
+  const pointer = (name: string, id: number, x: number) =>
+    image.dispatchEvent(
+      new PointerEvent(name, {
+        bubbles: true,
+        pointerId: id,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+  pointer('pointerdown', 1, 150);
+  pointer('pointerdown', 2, 210);
+  pointer('pointermove', 1, 90);
+  pointer('pointermove', 2, 270);
+  check(
+    viewer.classList.contains('zoomed'),
+    'Two fingers moving apart zoom the image',
+  );
+  const zoomed = image.getBoundingClientRect();
+  check(zoomed.width > fit.width * 2.5, 'The image grows with the fingers');
+  pointer('pointerup', 1, 90);
+  pointer('pointerup', 2, 270);
+  check(
+    document.body.contains(viewer) && viewer.open,
+    'Ending a pinch keeps the viewer open',
+  );
+  pointer('pointerdown', 3, 180);
+  pointer('pointermove', 3, 120);
+  pointer('pointerup', 3, 120);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const panned = image.getBoundingClientRect();
+  check(panned.left !== zoomed.left, 'One finger moves a zoomed image');
+  check(
+    panned.left <= 16 && panned.right >= innerWidth - 16,
+    'A zoomed image cannot be dragged off its edge',
+  );
+}
 const profileId = '11111111-1111-4111-8111-111111111111';
 const communityId = '22222222-2222-4222-8222-222222222222';
 function syntheticPost() {
@@ -354,6 +441,8 @@ try {
   if (mode === 'feed') await feed();
   else if (mode === 'edit') editor();
   else if (mode === 'profile') await profile();
+  else if (mode === 'invite') inviteDialogs();
+  else if (mode === 'viewer') await imageViewer();
   else account();
   check(
     document.documentElement.scrollWidth <= innerWidth + 1,

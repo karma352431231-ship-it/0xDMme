@@ -12,6 +12,8 @@ export function communityNavigation(
     signedIn: boolean;
     /** Community whose settings the person may open (owner or moderator). */
     manage?: string | null;
+    /** The kept way back to the feed position, when this page was opened from it. */
+    back?: string | null;
   },
 ): void {
   const active = options.selected ? 'communities' : options.view;
@@ -29,7 +31,11 @@ export function communityNavigation(
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Community access'));
   if (options.selected) {
-    const back = link(tools, t('Back to feed'), '#communities?view=feed');
+    const back = link(
+      tools,
+      t('Back to feed'),
+      options.back ?? '#communities?view=feed',
+    );
     back.classList.add('feed-back-link');
     iconLabel(back, 'back');
   }

@@ -25,7 +25,7 @@ const featureExports: Record<string, string[]> = {
   contacts: ['bindContactShortcuts', 'startContacts'],
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],
-  communities: ['startCommunities', 'startRankingSide'],
+  communities: ['startCommunities', 'startCommunitiesTab', 'startRankingSide'],
   'public-profile': ['startPublicProfile'],
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],

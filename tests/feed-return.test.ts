@@ -219,3 +219,71 @@ await test('feed page saved when opening a profile returns at the same position;
   t.mock.timers.tick(2001);
   assert.equal(leave(), false, 'pedido antigo não guarda uma saída posterior');
 });
+
+await test('links followed from the feed keep its page; other destinations do not', (t) => {
+  class FakeElement {
+    readonly href: string;
+    constructor(href: string) {
+      this.href = href;
+    }
+    closest() {
+      return this;
+    }
+    getAttribute() {
+      return this.href;
+    }
+  }
+  const events = new EventTarget();
+  for (const [name, value] of [
+    ['document', events],
+    ['Element', FakeElement],
+    ['location', { hash: '#communities', pathname: '/', search: '' }],
+  ] as const) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+  const kept: FeedBookmark[] = [];
+  let visits = 0;
+  const navigation = new FeedReturn();
+  navigation.bind({
+    container: () =>
+      ({ contains: (node: unknown) => node !== outside }) as HTMLElement,
+    bookmark: () => bookmark,
+    reset: () => Promise.resolve(),
+    keep: (value) => kept.push(value),
+    visit: () => {
+      visits++;
+    },
+  });
+  const outside = new FakeElement('#communities?view=explore');
+  const follow = (target: FakeElement) => {
+    const event = new Event('click');
+    Object.defineProperties(event, {
+      target: { value: target },
+      button: { value: 0 },
+    });
+    events.dispatchEvent(event);
+  };
+  for (const href of [
+    '#communities?id=group',
+    '#communities?id=group&post=one',
+    '#users?handle=karma',
+  ]) {
+    kept.length = 0;
+    navigation.clear();
+    follow(new FakeElement(href));
+    assert.equal(kept.length, 1, href);
+    assert.equal(
+      navigation.target(),
+      '#communities?view=following&return=feed',
+    );
+  }
+  // Choosing Ranking remembers the feed position through its own path.
+  follow(outside);
+  assert.equal(visits, 1);
+  assert.equal(navigation.target(), null);
+});

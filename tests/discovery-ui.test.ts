@@ -547,11 +547,17 @@ for (const language of ['en', 'zh-CN'] as const) {
     await settled(fixture);
     assert.equal(fixture.state.accountRequests.length, before);
     assert.ok(fixture.state.operations.includes('discovery-accounts'));
-    assert.equal(panel.querySelector('.ranking-periods')!.hidden, true);
+    assert.equal(
+      panel.querySelector('.community-ranking-period')!.hidden,
+      true,
+    );
     assert.equal(panel.querySelector('.ranking-side-growth'), null);
     button(panel, fixture.t('ranking.biggest')).click();
     await settled(fixture);
-    assert.equal(panel.querySelector('.ranking-periods')!.hidden, false);
+    assert.equal(
+      panel.querySelector('.community-ranking-period')!.hidden,
+      false,
+    );
   });
   await test(`Following does not show another account's list when signed out in ${language}`, async (t) => {
     const fixture = discoveryFixture({ view: 'explore', language });

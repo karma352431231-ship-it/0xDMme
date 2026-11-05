@@ -1,20 +1,17 @@
-.ranking-scopes,
-.ranking-periods {
+.ranking-scopes {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-block: 8px;
 }
-.ranking-scopes button,
-.ranking-periods button {
+.ranking-scopes button {
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text-muted);
 }
-.ranking-scopes button[aria-pressed='true'],
-.ranking-periods button[aria-pressed='true'] {
+.ranking-scopes button[aria-pressed='true'] {
   background: var(--surface-2);
   color: var(--text);
 }
@@ -75,9 +72,6 @@
 .ranking-community-pane[hidden],
 .account-ranking[hidden] {
   display: none;
-}
-.ranking-periods select {
-  max-width: 100%;
 }
 .ranking-side > .ranking-community-pane {
   display: flex;

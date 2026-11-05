@@ -25,7 +25,9 @@
   height: 100%;
   padding: 16px;
   box-sizing: border-box;
-  overflow: auto;
+  overflow: hidden;
+  /* The viewer owns every finger here; the page behind must not react. */
+  touch-action: none;
 }
 .public-image-frame img {
   display: block;
@@ -39,14 +41,14 @@
   border: 0;
   border-radius: 8px;
   cursor: zoom-in;
+  transition: transform 0.16s ease-out;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
 }
-.public-image-viewer.zoomed .public-image-frame {
-  display: block;
-}
-.public-image-viewer.zoomed img {
-  max-width: none;
-  max-height: none;
-  cursor: zoom-out;
+.public-image-viewer.zoomed .public-image-frame img {
+  border-radius: 0;
+  cursor: grab;
 }
 .public-image-close {
   position: fixed;

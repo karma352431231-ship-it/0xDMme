@@ -12,6 +12,7 @@ export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
 export { startRankingSide } from './ranking-side.ts';
+export { startCommunitiesTab } from './communities-tab.ts';
 export type { RankingScope } from './ranking-side.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
@@ -130,6 +131,7 @@ export function startCommunities(
     bookmark: () => discovery.bookmark(),
     reset: () => discovery.tabAgain(),
     keep: (bookmark) => discovery.keep(bookmark),
+    visit: () => discovery.visit(),
   });
   composer.bind();
   bindCommunityCreationEntry({
@@ -231,6 +233,7 @@ export function startCommunities(
         state.role !== 'participant'
           ? selected
           : null,
+      back: feedReturn.target(),
     });
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
