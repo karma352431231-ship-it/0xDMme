@@ -33,6 +33,7 @@ await test('message menu stays inside chat without a modal and closes on action,
     Element: CommunityNode,
     innerWidth: 900,
     innerHeight: 800,
+    matchMedia: () => ({ matches: false }),
   };
   const saved = Object.keys(globals).map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
@@ -59,7 +60,7 @@ await test('message menu stays inside chat without a modal and closes on action,
     panel.dispatchEvent(event);
     assert.equal(panel.hidden, true);
     menu.trigger.click();
-    const outside = new Event('click');
+    const outside = new Event('pointerdown');
     Object.defineProperty(outside, 'target', { value: new CommunityNode() });
     document.dispatchEvent(outside);
     assert.equal(panel.hidden, true);

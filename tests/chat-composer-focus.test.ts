@@ -17,13 +17,16 @@ for (const focused of [true, false])
   await test(`pressing send ${focused ? 'keeps focus in the typed field' : 'leaves focus alone when the field is not focused'}`, (t) => {
     const text = element(),
       send = element(),
+      emoji = element(),
       form = {
         querySelector: (selector: string) =>
           selector === 'textarea'
             ? text
             : selector === '[data-compose-send]'
               ? send
-              : null,
+              : selector.includes('[data-message-emoji]')
+                ? emoji
+                : null,
         querySelectorAll: () => [],
       };
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -38,7 +41,10 @@ for (const focused of [true, false])
     bindChatComposer(form as unknown as HTMLElement, () => {});
     for (const type of ['pointerdown', 'mousedown']) {
       let prevented = false;
-      for (const listener of send.listeners.get(type) ?? [])
+      for (const listener of [
+        ...(send.listeners.get(type) ?? []),
+        ...(emoji.listeners.get(type) ?? []),
+      ])
         listener({
           preventDefault: () => {
             prevented = true;

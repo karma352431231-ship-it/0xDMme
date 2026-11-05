@@ -1,3 +1,6 @@
+import { DmComposition } from '../../src/client/communities/dm-composition.ts';
+import { dmMessageMenu } from '../../src/client/communities/dm-message-menu.ts';
+import { bindChatComposer } from '../../src/client/chat-ui/index.ts';
 import { dmConversationView } from '../../src/client/communities/dm-chat.ts';
 import {
   EmojiPicker,
@@ -21,6 +24,11 @@ view.state.textContent = 'Synthetic layout check';
 view.gate.hidden = true;
 view.text.disabled = false;
 view.form.hidden = false;
+const composition = new DmComposition();
+composition.bind(view.form, view.text, () => {});
+bindChatComposer(view.form, () => {});
+const lifetime = new AbortController();
+const picker = new EmojiPicker();
 for (let i = 0; i < 24; i++) {
   const row = document.createElement('article');
   row.className = i % 2 ? 'chat-message own' : 'chat-message';
@@ -28,8 +36,27 @@ for (let i = 0; i < 24; i++) {
   text.textContent = `Synthetic message ${String(i)}`;
   row.append(text);
   view.history.append(row);
+  const message = {
+    type: 'dm-message' as const,
+    id: crypto.randomUUID(),
+    hash: 'synthetic',
+    self: 'self',
+    peer: { id: 'peer', handle: 'synthetic_peer', avatar: null },
+    sequence: i + 1,
+    own: i % 2 === 1,
+    kind: 'text' as const,
+    media: null,
+    text: text.textContent,
+    displayText: text.textContent,
+  };
+  dmMessageMenu(row, {
+    text: message.text,
+    signal: lifetime.signal,
+    picker,
+    run: (work) => work(),
+    reply: () => composition.reply(message),
+  });
 }
-const picker = new EmojiPicker();
 const anchor = view.form.querySelector<HTMLButtonElement>(
   '[data-public-emoji]',
 )!;
@@ -63,4 +90,13 @@ leave.addEventListener('click', () => {
   page.replaceChildren();
 });
 shell.append(privateFrame, leave);
+Object.assign(window, {
+  fixtureReply: () => {
+    const row = view.history.querySelector<HTMLElement>('.chat-message')!;
+    row.querySelector<HTMLButtonElement>('.message-actions > button')!.click();
+    [...row.querySelectorAll<HTMLButtonElement>('.message-menu button')]
+      .find((button) => button.textContent?.includes('Reply'))!
+      .click();
+  },
+});
 document.body.dataset['layoutReady'] = 'true';

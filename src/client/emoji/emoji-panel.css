@@ -184,7 +184,7 @@
     flex: 0 0 auto;
     flex-direction: column;
     width: 100%;
-    height: min(44%, 360px);
+    height: var(--emoji-replaced-height, min(44%, 360px));
     max-height: 360px;
     min-height: 0;
     padding-bottom: env(safe-area-inset-bottom);

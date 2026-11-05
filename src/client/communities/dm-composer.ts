@@ -341,7 +341,7 @@ export function startDmComposer(options: {
       return composition.replying?.id ?? null;
     },
     reply(target: Parameters<DmComposition['reply']>[0]): void {
-      if (!writable || busy || recording.active || chosen || pending) return;
+      if (!writable || recording.active || chosen || pending) return;
       composition.reply(target);
       sync();
     },

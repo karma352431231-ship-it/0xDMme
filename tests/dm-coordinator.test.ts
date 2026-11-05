@@ -543,3 +543,28 @@ await test('leaving a DM preserves its independently mounted directory until tha
   await turn();
   assert.ok(f.data.streamStops > stops);
 });
+
+for (const own of [false, true])
+  await test(`local-only ${own ? 'sent' : 'received'} handle originals retain reply while background work cannot grant mutation`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = dmCoordinatorFixture(t, true);
+    f.data.items = [
+      { ...message(), own, sender: own ? 'self' : 'peer', localOnly: true },
+    ];
+    f.ui.mount(f.host, 'first');
+    await turn();
+    await turn();
+    const menu = f.data.menus.at(-1)!;
+    assert.equal(typeof menu.reply, 'function');
+    assert.equal(menu.react, undefined);
+    assert.equal(menu.edit, undefined);
+    f.hold();
+    f.emit('changed');
+    t.mock.timers.tick(150);
+    await turn();
+    // The local reply context is independent of an asynchronous history refresh.
+    menu.reply!();
+    assert.match(f.views.at(-1)!.form.textContent, /Replying to/u);
+    f.release('first');
+    await turn();
+  });

@@ -17,6 +17,7 @@ export function messageGestures(
   let origin: { x: number; y: number; id: number } | null = null;
   let handled = false;
   let swiping = false;
+  let reached = false;
   const listen = { signal: options.signal };
   function cancel(): void {
     clearTimeout(timer);
@@ -27,6 +28,8 @@ export function messageGestures(
     origin = null;
     if (swiping) row.style.removeProperty('--message-swipe');
     swiping = false;
+    reached = false;
+    delete row.dataset?.['messageSwiping'];
   }
   function start(event: PointerEvent): void {
     if (event.pointerType !== 'touch' || !event.isPrimary) return;
@@ -46,23 +49,31 @@ export function messageGestures(
       y = event.clientY - origin.y;
     if (Math.hypot(x, y) < 10) return;
     cancel();
-    if (!options.reply || x < 0 || Math.abs(y) > Math.abs(x) / 2) {
+    if (
+      !options.reply ||
+      x < -10 ||
+      Math.abs(y) > Math.max(16, Math.abs(x) * 1.25)
+    ) {
       end();
       return;
     }
+    if (x < 10) return;
     swiping = true;
+    reached ||= x >= 40;
+    row.dataset['messageSwiping'] = 'true';
     row.style.setProperty('--message-swipe', `${Math.min(64, x)}px`);
   }
   row.addEventListener('pointerdown', start, listen);
   row.addEventListener('pointermove', move, listen);
   row.addEventListener(
     'pointerup',
-    (event) => {
-      if (origin && swiping && event.clientX - origin.x >= 48) {
+    () => {
+      const reply = origin && swiping && reached;
+      end();
+      if (reply) {
         handled = true;
         options.reply?.();
       }
-      end();
     },
     listen,
   );

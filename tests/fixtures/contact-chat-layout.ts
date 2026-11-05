@@ -1,3 +1,4 @@
+import { anchoredMessageMenu } from '../../src/client/message-menu/index.ts';
 import { dmConversationView } from '../../src/client/communities/dm-chat.ts';
 import {
   EmojiPicker,
@@ -69,6 +70,53 @@ try {
     Math.abs(box(view.title).left - box(view.state).left) < 1,
     'Handle and subtitle align',
   );
+  const bubble = view.history.querySelector<HTMLElement>('article')!;
+  const menuLifetime = new AbortController();
+  const menu = anchoredMessageMenu({
+    signal: menuLifetime.signal,
+    row: bubble,
+    reply: () => {},
+  });
+  const choice = document.createElement('button');
+  choice.textContent = 'Synthetic action';
+  menu.panel.append(choice);
+  bubble.append(menu.host);
+  // DOM-generated pointers have no native active pointer to capture in this fixture.
+  bubble.setPointerCapture = () => {};
+  view.text.focus({ preventScroll: true });
+  bubble.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 1,
+    }),
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, 520));
+  check(
+    menu.panel.popover === 'manual' && menu.panel.matches(':popover-open'),
+    'A held message opens a manually managed popover',
+  );
+  bubble.dispatchEvent(
+    new PointerEvent('pointerup', {
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 1,
+    }),
+  );
+  window.dispatchEvent(new Event('resize'));
+  check(
+    menu.panel.matches(':popover-open') && document.activeElement === view.text,
+    'Releasing a hold preserves its menu and the existing composer focus',
+  );
+  document.body.dispatchEvent(
+    new PointerEvent('pointerdown', { bubbles: true }),
+  );
+  check(
+    !menu.panel.matches(':popover-open'),
+    'A new outside press closes the message menu',
+  );
+  menuLifetime.abort();
+  view.text.blur();
   const picker = new EmojiPicker();
   const anchor = view.form.querySelector<HTMLButtonElement>(
     '[data-public-emoji]',
@@ -124,7 +172,7 @@ try {
       document.activeElement === view.text && window.scrollY === scroll,
       'Returning to typing focuses the composer without scrolling the document',
     );
-    await new Promise<void>((resolve) => setTimeout(resolve, 550));
+    await new Promise<void>((resolve) => setTimeout(resolve, 650));
     check(
       !document.querySelector('.emoji-keyboard-handoff'),
       'Keyboard handoff cleans up if the keyboard does not resize',

@@ -152,6 +152,7 @@ export class DmHistory {
         item.displayText,
         item.edited,
         localMedia,
+        input.localMedia,
       ]),
       held = this.rows.get(item.id);
     if (held?.key === key) return held.row;
@@ -180,11 +181,10 @@ export class DmHistory {
       signal: this.abort.signal,
       picker: this.emoji,
       run: this.options.run,
-      ...(!localMedia
-        ? {
-            ...this.messageCapabilities(item),
-          }
-        : {}),
+      ...this.messageCapabilities(item, {
+        readOnly: input.localMedia,
+        local: localMedia,
+      }),
     });
     dmReactionChips(bubble.row, {
       reactions: item.reactions,
@@ -202,13 +202,22 @@ export class DmHistory {
     });
     return bubble.row;
   }
-  private messageCapabilities(item: DmItem) {
+  /** Quoting local content is independent of permission to mutate its live original. */
+  private messageCapabilities(
+    item: DmItem,
+    input: { readOnly: boolean; local: boolean },
+  ) {
+    return {
+      ...(!input.readOnly && this.options.reply
+        ? { reply: () => this.options.reply?.(item) }
+        : {}),
+      ...(!input.local ? this.mutationCapabilities(item) : {}),
+    };
+  }
+  private mutationCapabilities(item: DmItem) {
     return {
       react: (emoji: string) => this.options.react(item, emoji),
       edit: () => this.options.edit(item),
-      ...(this.options.reply
-        ? { reply: () => this.options.reply?.(item) }
-        : {}),
       editable: this.editable(item),
       ...(item.own && this.options.remove
         ? {

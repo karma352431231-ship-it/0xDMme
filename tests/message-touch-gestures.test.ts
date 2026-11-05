@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { messageGestures } from '../src/client/message-menu/gestures.ts';
 class Bubble extends EventTarget {
+  dataset: Record<string, string> = {};
   style = { setProperty: () => {}, removeProperty: () => {} };
   closest() {
     return null;
@@ -50,6 +51,14 @@ await test('touch hold opens once; a right swipe replies; scrolling/cancellation
   pointer(row, 'pointermove', { x: 64, y: 12 });
   pointer(row, 'pointerup', { x: 64, y: 12 });
   assert.equal(replies, 1);
+  pointer(row, 'pointerdown', { x: 10, y: 10 });
+  pointer(row, 'pointermove', { x: 54, y: 24 });
+  pointer(row, 'pointerup', { x: 24, y: 10 });
+  assert.equal(
+    replies,
+    2,
+    'A reached reply threshold survives release coordinate drift',
+  );
   pointer(row, 'pointerdown', { x: 10, y: 10 });
   pointer(row, 'pointermove', { x: 12, y: 36 });
   t.mock.timers.tick(600);

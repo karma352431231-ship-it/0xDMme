@@ -1,7 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import { insertEmoji } from './catalog.ts';
 import { EmojiPanel } from './panel.ts';
-import { holdKeyboardSpace } from './keyboard-handoff.ts';
+import {
+  holdKeyboardSpace,
+  replaceKeyboardWithDock,
+} from './keyboard-handoff.ts';
 
 interface ComposerOptions {
   anchor: HTMLElement;
@@ -40,9 +43,10 @@ export class ComposerEmojiPanel {
     const atEnd =
       history &&
       history.scrollHeight - history.scrollTop - history.clientHeight < 80;
-    options.input.blur();
     form.dataset['emojiOpen'] = 'true';
     form.after(host);
+    this.keyboardHandoff = replaceKeyboardWithDock(host, options.input);
+    options.input.blur();
     const promise = new Promise<void>((resolve) => {
       this.completed = resolve;
     });

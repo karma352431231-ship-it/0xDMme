@@ -55,7 +55,7 @@ export class DmComposition {
     if (this.text) {
       this.text.value = target.displayText;
       this.text.dispatchEvent(new Event('input'));
-      this.text.focus();
+      this.text.focus({ preventScroll: true });
     }
   }
   reply(target: Message): void {
@@ -67,7 +67,7 @@ export class DmComposition {
       this.label.textContent = t('Replying to: {0}', [
         target.displayText.slice(0, 120),
       ]);
-    this.text?.focus();
+    this.text?.focus({ preventScroll: true });
   }
   cancel(): void {
     if (this.target && this.text) {

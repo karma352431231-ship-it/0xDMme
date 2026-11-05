@@ -6,6 +6,7 @@ interface MessageMenuOptions {
   row?: HTMLElement;
   reply?: () => void;
 }
+let activeMenu: (() => void) | null = null;
 /** Compact anchored menu; native popover stays above scrolling chat without a modal backdrop. */
 export function anchoredMessageMenu(options: MessageMenuOptions): {
   host: HTMLElement;
@@ -27,25 +28,29 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
   panel.className = 'message-menu';
   panel.setAttribute('role', 'menu');
   panel.setAttribute('aria-label', t('Message options'));
-  panel.popover = 'auto';
+  // Touch release must not light-dismiss a menu opened midway through a hold.
+  panel.popover = 'manual';
   panel.hidden = true;
   let opened = false,
     active: AbortController | null = null;
   const close = (): void => {
     if (!opened) return;
     opened = false;
+    if (activeMenu === close) activeMenu = null;
     if (typeof panel.hidePopover === 'function') panel.hidePopover();
     panel.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
     active?.abort();
     active = null;
   };
-  const open = (): void => {
+  const open = (focus = true): void => {
     if (opened) {
       close();
       return;
     }
     if (options.signal.aborted) return;
+    activeMenu?.();
+    activeMenu = close;
     panel.hidden = false;
     if (typeof panel.showPopover === 'function') panel.showPopover();
     opened = true;
@@ -54,7 +59,7 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
     active = new AbortController();
     const signal = AbortSignal.any([active.signal, options.signal]);
     document.addEventListener(
-      'click',
+      'pointerdown',
       (event) => {
         if (event.target instanceof Node && !host.contains(event.target))
           close();
@@ -76,16 +81,26 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
       (event) => {
         if (event.target instanceof Node && panel.contains(event.target))
           return;
-        close();
+        if (
+          event.target instanceof Element &&
+          event.target.closest('.chat-history')
+        )
+          close();
+        else placeMessageMenu(panel, trigger);
       },
       { signal, capture: true, passive: true },
     );
-    window.addEventListener('resize', close, { signal });
-    panel
-      .querySelector<HTMLElement>('button, select')
-      ?.focus({ preventScroll: true });
+    window.addEventListener('resize', () => placeMessageMenu(panel, trigger), {
+      signal,
+    });
+    if (focus)
+      panel
+        .querySelector<HTMLElement>('button, select')
+        ?.focus({ preventScroll: true });
   };
-  trigger.addEventListener('click', open);
+  trigger.addEventListener('click', (event) =>
+    open(event.detail === 0 || !matchMedia('(pointer: coarse)').matches),
+  );
   panel.addEventListener('toggle', () => {
     if (!panel.matches(':popover-open')) close();
   });
@@ -108,7 +123,7 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
     messageGestures(options.row, {
       signal: AbortSignal.any([options.signal, gestures.signal]),
       menu: () => {
-        if (!opened) open();
+        if (!opened) open(false);
       },
       ...(options.reply
         ? {

@@ -199,7 +199,13 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     blocked: false,
     sends: [] as { peer: string; text: string; id: string }[],
     bubbles: [] as { row: DmNode; signal: AbortSignal; stopped: boolean }[],
-    menus: [] as { react?: unknown; edit?: unknown; stopped: boolean }[],
+    menus: [] as {
+      react?: unknown;
+      edit?: unknown;
+      reply?: () => void;
+      remove?: unknown;
+      stopped: boolean;
+    }[],
     revokedUrls: [] as string[],
     selected: null as AttachmentSelection | null,
     streamStops: 0,
@@ -519,7 +525,12 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     },
     dmMessageMenu: (
       _row: DmNode,
-      input: { react?: unknown; edit?: unknown },
+      input: {
+        react?: unknown;
+        edit?: unknown;
+        reply?: () => void;
+        remove?: unknown;
+      },
     ) => {
       const menu = { ...input, stopped: false };
       data.menus.push(menu);

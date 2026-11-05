@@ -160,7 +160,7 @@ export class MessageComposer {
     const input = this.node<HTMLTextAreaElement>('[data-message-text]');
     if (!this.focusRequested || !input || input.disabled) return;
     this.focusRequested = false;
-    input.focus();
+    input.focus({ preventScroll: true });
   }
   choose(
     mode: 'reply' | 'edit',
@@ -204,7 +204,7 @@ export class MessageComposer {
     this.clearContext();
     input.dispatchEvent(new Event('input'));
     // Keep typing: the chat and its keyboard stay as they were.
-    input.focus();
+    input.focus({ preventScroll: true });
     return true;
   }
   /** Stages the text, with the first chosen file when there is one. Each file

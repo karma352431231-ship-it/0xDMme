@@ -50,6 +50,14 @@ export class DmControls {
     ): ConversationAction => ({
       id,
       label,
+      icon:
+        id === 'mute'
+          ? this.muted(peer)
+            ? 'unmute'
+            : 'mute'
+          : id === 'dm-block' && relation.blocked
+            ? 'unblock'
+            : 'block',
       perform: () => {
         void this.ports.run(async () => {
           await work();

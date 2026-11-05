@@ -56,3 +56,31 @@ in an assembled WebKit fixture. Build/sign/install the ordinary app with its
 existing container preserved. Compilation and synthetic fixtures are not manual
 acceptance of the owner's real conversations or wallets. Record exact passing CI,
 source-scoped activation and physical checks separately.
+
+## Touch stability correction — 2026-11-04
+
+The physical retest found incomplete handle reply gestures, a briefly visible
+hold menu and keyboard/emoji layout jumps. Reply context now remains available
+during background history work and for a retained local original inside an
+otherwise writable conversation. Read-only conversations and server mutation
+capabilities keep their existing gates. The history owner distinguishes local
+quotation from mutation of a live original.
+
+Message-menu owns one manually managed popover, preserves touch focus and waits
+for a new outside press instead of letting the hold's release light-dismiss it.
+Its gesture owner latches the reached reply threshold, allows a natural diagonal
+right drag and resets the bubble before opening the reply context. CSS eases the
+return and respects reduced motion. Private and public programmatic composer
+focus uses preventScroll; emoji/send controls retain focus until their click
+operation owns the handoff.
+
+The emoji owner reserves only space actually consumed/released by the keyboard
+on each animation frame, with a 600 ms bounded listener lifecycle. It no longer
+removes the entire dock reservation at the first 60 px resize. The same measured
+space is used in the keyboard-to-dock direction. Handle controls now use the
+existing block/unblock and mute/unmute line glyphs.
+
+Verification includes local-only and busy handle reply, touch threshold/release,
+manual popover release/focus, progressive keyboard geometry, revocation and
+read-only history. Actual native root-panning measurements and manual physical
+acceptance are separate from these synthetic regressions.

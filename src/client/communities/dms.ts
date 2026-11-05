@@ -568,7 +568,9 @@ export function startSocialDmUi(
           button.closest('details')?.removeAttribute('open');
           action.perform();
         });
-        current.options.append(button);
+        current.options.append(
+          action.icon ? withMenuIcon(button, action.icon) : button,
+        );
       }
     optionButton(
       current,
