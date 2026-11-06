@@ -134,11 +134,18 @@
   margin-right: 6px;
   font-weight: 600;
 }
-.activity-card-more {
-  margin: 6px 0 0 27px;
+#app-shell .activity-card .activity-card-more {
+  justify-self: start;
+  min-height: 32px;
+  margin: 4px 0 0 27px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
   color: var(--accent-text);
+  font: inherit;
   font-size: var(--fs-small);
   font-weight: 600;
+  cursor: pointer;
 }
 /* Read cards dim their words; avatars keep their colors. */
 #app-shell
@@ -165,17 +172,17 @@
   margin-top: 0;
 }
 .activity-card-thumb {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
+  /* Owner, 06/11/2026: larger on wide screens, a little larger on phones. */
+  --thumb: 64px;
+  flex: 0 0 var(--thumb);
+  width: var(--thumb);
+  height: var(--thumb);
   overflow: hidden;
   border-radius: 8px;
   background: var(--surface-2);
 }
 .activity-card-thumb.is-small {
-  flex-basis: 30px;
-  width: 30px;
-  height: 30px;
+  --thumb: 44px;
   margin-left: auto;
   border-radius: 6px;
 }
@@ -191,6 +198,12 @@
 
 /* Phones: no boxes; notices use the full width with a line between them. */
 @media (max-width: 700px) {
+  .activity-card-thumb {
+    --thumb: 52px;
+  }
+  .activity-card-thumb.is-small {
+    --thumb: 36px;
+  }
   #app-shell .activity-list:has(> .activity-card) {
     gap: 0;
   }

@@ -120,6 +120,22 @@
   margin-bottom: 4px;
   gap: 4px 8px;
 }
+/* The "..." of a reply sits at the end of its name row, not on a row of its
+   own between the name and the text (owner, 06/11/2026). */
+#app-shell .post-thread .community-reply > .community-post-header > .post-more {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  /* The 32px button overlaps the row instead of making it taller. */
+  margin: -4px -6px -12px 0;
+}
+#app-shell
+  .post-thread
+  .community-reply:has(> .community-post-header > .post-more)
+  .community-post-identity {
+  padding-right: 34px;
+}
 #app-shell .post-thread .community-reply .community-post-byline {
   font-size: 13px;
 }

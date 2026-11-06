@@ -76,21 +76,22 @@
 }
 
 /* Reply pictures/GIFs: 70% of the post presentation, then 30% smaller again
-   at the owner's request on 15/10/2026 (0.7 × 0.7 = 49%). */
+   at the owner's request on 15/10/2026 (0.7 × 0.7 = 49%), then 30% larger
+   again on 06/11/2026 (49% × 1.3 ≈ 64%). */
 :is(#app-shell, .community-scope)
   .community-post:is(.community-post-is-reply, .community-reply)
   > .community-external-gif {
-  width: min(100%, clamp(180px, 49%, 314px));
+  width: min(100%, clamp(234px, 64%, 408px));
 }
 :is(#app-shell, .community-scope)
   .community-post:is(.community-post-is-reply, .community-reply)
   > .community-public-media
   > figure:has(.public-picture-open) {
   /* Phones keep a readable floor. */
-  --picture-height: min(274px, 55vh);
+  --picture-height: min(356px, 62vh);
   width: min(
     100%,
-    clamp(180px, 49%, 314px),
+    clamp(234px, 64%, 408px),
     calc(var(--picture-height) * var(--picture-ratio))
   );
 }
@@ -99,7 +100,7 @@
   > .community-external-gif
   .chat-gif
   :is(video, img) {
-  max-height: 274px;
+  max-height: 356px;
 }
 :is(#app-shell, .community-scope)
   .community-post:is(.community-post-is-reply, .community-reply)

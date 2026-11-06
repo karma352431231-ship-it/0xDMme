@@ -229,3 +229,19 @@ await test('notice thumbnails are optional, checked public media and never on hi
   });
   assert.deepEqual(upvoted.items[0]!.thumbnail, media);
 });
+
+await test('a card lists its replies newest first, so a new reply replaces the oldest shown', () => {
+  const [card] = contentCards({
+    upvotes: [],
+    replies: [
+      replyTo('old', post, '2026-11-05T08:00:00Z'),
+      replyTo('newest', post, '2026-11-05T12:00:00Z'),
+      replyTo('middle', post, '2026-11-05T10:00:00Z'),
+    ],
+    follows: [],
+  });
+  assert.deepEqual(
+    card!.replies.map((item) => item.reply),
+    ['newest', 'middle', 'old'],
+  );
+});

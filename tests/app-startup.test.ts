@@ -12,6 +12,7 @@ const featureExports: Record<string, string[]> = {
   language: ['startLanguage', 'mountLanguageSettings', 'applyLanguage'],
   'public-search': ['mountPublicSearch'],
   'public-traffic': ['startPublicTraffic'],
+  'pull-refresh': ['startPullRefresh'],
   appearance: ['startAppearance', 'paintAvatar'],
   pwa: ['startPwa'],
   account: ['startAccount'],
@@ -192,6 +193,7 @@ async function page(
     VoicePlayback: class {},
     keepPageOnStrayDrop: () => {},
     startPublicTraffic: () => {},
+    startPullRefresh: () => () => {},
     bindContactShortcuts: () => {},
     ExternalMediaConsent: class {
       setSession(): void {}

@@ -51,3 +51,11 @@ Activity groups public notices by what they are about, on every screen. Each of 
 Reply notices now name the reader's content they answered, for clients that ask for it; installed apps that do not ask keep the older shape. Upvote notices name a post by its title first.
 
 On phones the cards have no boxes: notices use the full width with a line between them, and an unread one has a faint tint and a dot by its time. A post or reply with an image shows its public thumbnail as a small square beside the title, under the label and time, and a reply with an image shows a smaller one at the end of its line. Notices carry the first public media only for clients that send `thumbnails: true`.
+
+## Activity refresh, replies and pull to refresh
+
+Activity reads again every 30 seconds, but now redraws only when the notices changed, so photos and thumbnails no longer flash while the screen sits still. A card shows its two newest replies; "See more" opens all of them in place, newest first, and "Show fewer replies" closes them. Thumbnails are 64 px for the content and 44 px for replies on wider screens, 52 px and 36 px on phones.
+
+On phones the Activity Refresh button is gone: on every tab, pulling the page down while it is at its top reloads that tab. A touch that starts in a scrolled area, a text field or an open dialog does not count.
+
+In a post, the reply "..." sits on the name row instead of its own row, reply pictures are 30% larger, and the reply vote pill has the post's size and spacing.

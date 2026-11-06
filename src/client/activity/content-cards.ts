@@ -120,6 +120,10 @@ export function contentCards(input: {
       arrived(profile, follow.createdAt);
     }
   }
+  const newest = (a: { createdAt: string }, b: { createdAt: string }) =>
+    Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  // A card shows its newest replies first; a new one replaces the oldest shown.
+  for (const found of cards.values()) found.replies.sort(newest);
   return [...cards.values()].sort(
     (a, b) => Date.parse(b.latest) - Date.parse(a.latest),
   );
@@ -171,6 +175,8 @@ export interface ContentCardActions {
   /** The reply or followed post text, with its compact media preview. */
   quote: (text: string) => HTMLElement;
   read: { upvotes: Mark; replies: Mark; follows: Mark };
+  /** Keys of cards the reader opened with "See more", kept across redraws. */
+  expanded: Set<string>;
 }
 
 const iconPaths = {
@@ -299,15 +305,32 @@ function replyLine(
       : []),
   );
 }
-function moreReplies(count: number): HTMLElement | null {
-  if (count <= 0) return null;
-  return element(
-    'p',
-    count === 1
-      ? t('See 1 more reply')
-      : t('See {0} more replies', [count.toLocaleString(currentLanguage())]),
+/** Opens every reply of the card in place, newest first, and closes them again. */
+function moreReplies(
+  card: ContentCard,
+  row: HTMLElement,
+  actions: ContentCardActions,
+): HTMLElement | null {
+  const hidden = card.replies.length - shownReplies;
+  if (hidden <= 0) return null;
+  const open = actions.expanded.has(card.key);
+  const button = element(
+    'button',
+    open
+      ? t('Show fewer replies')
+      : hidden === 1
+        ? t('See 1 more reply')
+        : t('See {0} more replies', [hidden.toLocaleString(currentLanguage())]),
     'activity-card-more',
   );
+  button.type = 'button';
+  button.setAttribute('aria-expanded', String(open));
+  button.addEventListener('click', () => {
+    if (open) actions.expanded.delete(card.key);
+    else actions.expanded.add(card.key);
+    row.replaceWith(...contentCardRows([card], actions));
+  });
+  return button;
 }
 function upvoteLine(card: ContentCard, signal: AbortSignal): HTMLElement {
   const actors = card.upvotes.map((item) => item.actor);
@@ -377,14 +400,15 @@ function ownContent(
   row: HTMLElement,
   actions: ContentCardActions,
 ): Node[] {
-  const replies = card.replies
-    .slice(0, shownReplies)
-    .map((reply) => replyLine(reply, card, row, actions));
+  const shown = actions.expanded.has(card.key)
+    ? card.replies
+    : card.replies.slice(0, shownReplies);
+  const replies = shown.map((reply) => replyLine(reply, card, row, actions));
   return [
     titled(card, primaryLink(card, row, actions), actions.signal),
     ...(card.upvotes.length ? [upvoteLine(card, actions.signal)] : []),
     ...replies,
-    ...[moreReplies(card.replies.length - shownReplies)].filter(
+    ...[moreReplies(card, row, actions)].filter(
       (node): node is HTMLElement => node !== null,
     ),
   ];

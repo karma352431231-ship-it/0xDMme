@@ -512,6 +512,8 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Your reply': ['Your reply', '你的回复'],
   'See 1 more reply': ['See 1 more reply', '查看另外 1 条回复'],
   'See {0} more replies': ['See {0} more replies', '查看另外 {0} 条回复'],
+  'Show fewer replies': ['Show fewer replies', '收起回复'],
+  'Refreshing…': ['Refreshing…', '正在刷新…'],
   'Follower notice read unavailable.': [
     'Follower notice read unavailable.',
     '无法标记关注提醒为已读。',

@@ -86,6 +86,11 @@ export function startActivity(
   const publicationPreview = new PublicationPreview(options.externalMedia);
   let session: AccountSession | null = null;
   let snapshot = empty();
+  // What was last drawn: a periodic read that finds the same notices keeps
+  // the screen as it is, so photos and thumbnails do not reload (06/11/2026).
+  let drawn = '';
+  let reads = 0;
+  const expanded = new Set<string>();
   let host: HTMLElement | null = null;
   let generation = 0;
   let busy = false;
@@ -136,12 +141,18 @@ export function startActivity(
   }
   async function read(): Promise<void> {
     if (!session) return;
-    const old = ++generation;
-    const loaded = await readActivitySnapshot(
-      sources,
-      () => old === generation,
-    );
-    if (!loaded || old !== generation) return;
+    const old = ++reads,
+      view = generation;
+    const current = () => old === reads && view === generation;
+    const loaded = await readActivitySnapshot(sources, current);
+    if (!loaded || !current()) return;
+    const print = JSON.stringify(loaded);
+    if (print === drawn) {
+      options.countChanged(count());
+      return;
+    }
+    drawn = print;
+    generation++;
     snapshot = loaded;
     options.countChanged(count());
     render();
@@ -153,6 +164,8 @@ export function startActivity(
     updates.stop();
     generation++;
     snapshot = empty();
+    drawn = '';
+    expanded.clear();
     publicationPreview.clear();
     options.countChanged(0);
     render();
@@ -488,6 +501,7 @@ export function startActivity(
                 current === generation && host !== null && session !== null,
               changed: () => options.countChanged(count()),
               read: contentReads(),
+              expanded,
             },
           ),
         ),
@@ -526,6 +540,8 @@ export function startActivity(
       seen.setSession(value);
       generation++;
       snapshot = empty();
+      drawn = '';
+      expanded.clear();
       publicationPreview.clear();
       updates.stop();
       feedback = '';

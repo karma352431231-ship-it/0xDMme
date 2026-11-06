@@ -643,6 +643,7 @@ function activityCards(): void {
       replies: () => Promise.resolve(),
       follows: () => Promise.resolve(),
     },
+    expanded: new Set<string>(),
   });
   const host = document.createElement('section'),
     group = document.createElement('section'),
@@ -701,9 +702,205 @@ function activityCards(): void {
   }
 }
 
+/** A painted synthetic thumbnail served to the public media reader. */
+async function syntheticPicture(
+  n: number,
+  served: Map<string, Blob>,
+): Promise<{
+  id: string;
+  review: string;
+  result: {
+    kind: 'photo';
+    type: string;
+    bytes: number;
+    width: number;
+    height: number;
+    seconds: number;
+    fps: number;
+    thumbnailBytes: number;
+    normalized: boolean;
+  };
+}> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 96;
+  const paint = canvas.getContext('2d')!;
+  const hue = (n * 47) % 360;
+  paint.fillStyle = `hsl(${hue} 55% 40%)`;
+  paint.fillRect(0, 0, 96, 96);
+  paint.fillStyle = `hsl(${(hue + 40) % 360} 70% 70%)`;
+  for (let i = 0; i < 6; i++)
+    paint.fillRect((i * 17 + n * 5) % 80, (i * 29 + n * 11) % 80, 22, 14);
+  const blob = await new Promise<Blob>((done) =>
+    canvas.toBlob((value) => done(value!), 'image/png'),
+  );
+  const id = `41414141-4141-4414-8414-${String(n).padStart(12, '0')}`;
+  served.set(id, blob);
+  return {
+    id,
+    review: `42424242-4242-4424-8424-${String(n).padStart(12, '0')}`,
+    result: {
+      kind: 'photo',
+      type: 'image/jpeg',
+      bytes: 4000,
+      width: 640,
+      height: 640,
+      seconds: 0,
+      fps: 0,
+      thumbnailBytes: blob.size,
+      normalized: true,
+    },
+  };
+}
+/** Simulation for the owner: one post with 22 replies, "See more" opened. */
+async function activityMore(): Promise<void> {
+  shell.dataset['page'] = 'atividade';
+  const served = new Map<string, Blob>();
+  const original = window.fetch.bind(window);
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      input instanceof Request
+        ? input.url
+        : input instanceof URL
+          ? input.href
+          : input;
+    const id = [...served.keys()].find((key) => url.includes(key));
+    if (!id) return original(input, init);
+    const blob = served.get(id)!;
+    return Promise.resolve(
+      new Response(blob, {
+        headers: {
+          'content-type': 'image/png',
+          'content-length': String(blob.size),
+        },
+      }),
+    );
+  };
+  const ago = (minutes: number) =>
+      new Date(Date.now() - minutes * 60_000).toISOString(),
+    person = (n: number, handle: string) => ({
+      id: `55555555-5555-4555-8555-${String(n).padStart(12, '0')}`,
+      handle,
+      avatar: null,
+    }),
+    post = '66666666-6666-4666-8666-666666666666';
+  const postPicture = await syntheticPicture(0, served);
+  const people = ['waterdrip', 'karma', 'luna', 'kira', 'mo', 'zed', 'rafa'];
+  const lines = [
+    'Yes it is',
+    'Once again lmao',
+    'Lets see how it goes',
+    'That PSU is older than my laptop',
+    '500W is enough for a 3060',
+    'Where did you buy it?',
+    'Mine died after two years',
+    'Check the 12V rail before using it',
+    'Clean setup',
+    'Testando notificação',
+    'Is it modular?',
+    'EVGA is solid',
+    'Same one here',
+    'Post the full build please',
+    'How loud is the fan?',
+    'Got it for my server too',
+    'Upgrade to 650W if you can',
+    'Nice photo',
+    'lol the bed sheet',
+    'Bronze or gold?',
+    'Works fine for me',
+    'First!',
+  ];
+  const replies = await Promise.all(
+    lines.map(async (text, n) => {
+      const handle = people[n % people.length]!;
+      const picture =
+        n % 4 === 1 ? await syntheticPicture(n + 1, served) : null;
+      return {
+        reply: `99999999-9999-4999-8999-${String(n).padStart(12, '0')}`,
+        post,
+        community: communityId,
+        createdAt: ago(n * 7 + 1),
+        read: n > 5,
+        kind: 'reply' as const,
+        preview: {
+          author: handle,
+          identity: person(n, handle),
+          text,
+          media: picture !== null,
+          status: 'visible' as const,
+          ...(picture ? { thumbnail: picture } : {}),
+        },
+        target: {
+          id: post,
+          kind: 'post' as const,
+          text: 'Notification testa',
+          status: 'visible' as const,
+          thumbnail: postPicture,
+        },
+      };
+    }),
+  );
+  const cards = contentCards({
+    upvotes: [
+      {
+        id: '88888888-8888-4888-8888-000000000001',
+        actor: person(1, 'karma'),
+        community: communityId,
+        post,
+        kind: 'post' as const,
+        text: 'Notification testa',
+        createdAt: ago(3),
+        read: false,
+      },
+    ],
+    replies,
+    follows: [],
+  });
+  const lifetime = new AbortController();
+  const expanded = new Set<string>(
+    new URLSearchParams(location.search).has('open') ? [cards[0]!.key] : [],
+  );
+  const rows = contentCardRows(cards, {
+    signal: lifetime.signal,
+    current: () => true,
+    changed: () => {},
+    quote: (text) =>
+      Object.assign(document.createElement('p'), { textContent: text }),
+    read: {
+      upvotes: () => Promise.resolve(),
+      replies: () => Promise.resolve(),
+      follows: () => Promise.resolve(),
+    },
+    expanded,
+  });
+  const host = document.createElement('section'),
+    group = document.createElement('section'),
+    list = document.createElement('ul');
+  host.className = 'activity';
+  group.className = 'activity-group';
+  list.className = 'activity-list';
+  list.append(...rows);
+  group.append(
+    Object.assign(document.createElement('h3'), {
+      textContent: t('Publications'),
+    }),
+    list,
+  );
+  host.append(group);
+  page.replaceChildren(host);
+  const shown = rows[0]!.querySelectorAll('.activity-card-reply').length;
+  check(
+    shown === (expanded.size ? 22 : 2),
+    'See more shows every reply, otherwise the two newest',
+  );
+  const first = rows[0]!.querySelector('.activity-card-reply span')!;
+  check(first.textContent === 'Yes it is', 'The newest reply is on top');
+}
+
 try {
   if (mode === 'feed') await feed();
   else if (mode === 'activity') activityCards();
+  else if (mode === 'activity-more') await activityMore();
   else if (mode === 'edit') editor();
   else if (mode === 'profile') await profile();
   else if (mode === 'invite') inviteDialogs();

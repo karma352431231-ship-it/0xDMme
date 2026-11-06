@@ -1,3 +1,4 @@
+import { startPullRefresh } from '../pull-refresh/index.ts';
 import {
   appAddress,
   navigateApp,
@@ -805,10 +806,25 @@ window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
+if (!account.approvalPage)
+  startPullRefresh({
+    enabled: () =>
+      currentPage !== '' && matchMedia('(max-width: 700px)').matches,
+    refresh: () => {
+      reloadPage();
+      return Promise.resolve();
+    },
+  });
 if (!account.approvalPage) startPublicTraffic(element('page-content'));
 mobileConversation?.restore();
 connection();
 
+/** Pull to refresh: mounts the current page again, from its top. */
+function reloadPage(): void {
+  navigationVisits.clear();
+  currentPage = '';
+  route();
+}
 function setPublicSession(session: AccountSession | null): void {
   publicProfiles.setSession(session);
   communities.setSession(session);
