@@ -302,7 +302,7 @@ await test('feed and discussion: eligibility, representatives, diversity and pub
       );
       // Stranger stays eligible after removing its follow; membership alone is insufficient for replies.
       await sql.query(
-        'UPDATE hash_talk.public_profile_follows SET following=false WHERE follower=$1 AND target=$2',
+        'UPDATE hash_talk.public_profile_follows SET following=false,followed_at=NULL WHERE follower=$1 AND target=$2',
         [identities[7]!.id, identities[2]!.id],
       );
       const sample = await feed();
