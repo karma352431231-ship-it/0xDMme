@@ -110,6 +110,20 @@
   max-height: none;
 }
 
+/* Phones: a wide reply picture is a little larger (owner, 06/11/2026). */
+@media (max-width: 700px) {
+  :is(#app-shell, .community-scope)
+    .community-post:is(.community-post-is-reply, .community-reply)
+    > .community-public-media
+    > figure[data-orientation='landscape']:has(.public-picture-open) {
+    width: min(
+      100%,
+      clamp(272px, 82%, 408px),
+      calc(var(--picture-height) * var(--picture-ratio))
+    );
+  }
+}
+
 /* Public videos (16/10/2026): vertical "shorts" grow to an X-like height on
    every layout, and the frame matches the video so no side bars remain. One
    height drives both, replacing the per-layout preview caps for videos. */

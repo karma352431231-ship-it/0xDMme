@@ -19,6 +19,9 @@ export function mountPublicPicture(
     '--picture-ratio',
     String(media.result.width / media.result.height),
   );
+  // Layouts may size wide pictures differently (06/11/2026).
+  if (media.result.width > media.result.height * 1.1)
+    slot.dataset['orientation'] = 'landscape';
   const button = document.createElement('button'),
     image = document.createElement('img'),
     caption = document.createElement('span'),

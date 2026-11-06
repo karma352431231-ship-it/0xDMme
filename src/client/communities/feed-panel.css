@@ -240,3 +240,9 @@
     font-weight: 600;
   }
 }
+
+/* The panel's search lives in its heading; a feed toolbar never repeats it,
+   even if the feed was built before joining the panel (06/11/2026). */
+#app-shell .feed-panel .community-feed-filters > .public-search {
+  display: none;
+}

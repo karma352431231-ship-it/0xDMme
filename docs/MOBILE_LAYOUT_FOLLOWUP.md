@@ -59,3 +59,5 @@ Activity reads again every 30 seconds, but now redraws only when the notices cha
 On phones the Activity Refresh button is gone: on every tab, pulling the page down while it is at its top reloads that tab. A touch that starts in a scrolled area, a text field or an open dialog does not count.
 
 In a post, the reply "..." sits on the name row instead of its own row, reply pictures are 30% larger, and the reply vote pill has the post's size and spacing.
+
+Later the same day: phone Activity thumbnails grew to 60 px for the content and 42 px for replies; a wide reply picture in a post is a little larger on phones (272 px instead of 234 px at phone width), marked by the picture's `data-orientation`; the side panel no longer repeats the feed search below its heading search; and on wide Communities pages the profile photo sits after the search, beside "⋯".

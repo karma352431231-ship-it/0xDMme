@@ -67,6 +67,8 @@ export function startCommunityDiscovery(
     period: DiscoveryPeriod = 'all',
     exploreOrder: ExploreFilter['order'] = 'trending';
   let selectedTopics: CommunityTopic[] = [];
+  // The side panel has its own search in its heading (owner, 06/11/2026).
+  let inSidePanel = false;
   let page: DiscoveryFeedPage | DiscoveryRankingPage | null = null;
   let feedRefresh: FeedRefresh | null = null;
   let rankingScope: ReturnType<typeof rankingScopes> | null = null;
@@ -209,7 +211,8 @@ export function startCommunityDiscovery(
   }
   /** The ranking has no search; feeds show theirs with its current summary. */
   function feedSearch(toolbar: HTMLElement): void {
-    if (view !== 'explore') mountPublicSearchToolbar(toolbar, abort.signal);
+    if (view !== 'explore' && !inSidePanel)
+      mountPublicSearchToolbar(toolbar, abort.signal);
     appendFeedSearchSummary(toolbar, search, view);
   }
   /** Posting moved to the floating "+" menu; the toolbar keeps the own-profile shortcut. */
@@ -405,6 +408,7 @@ export function startCommunityDiscovery(
       }
       leave();
       mounted = container;
+      inSidePanel = container.closest('.feed-panel') !== null;
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;

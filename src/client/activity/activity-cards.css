@@ -199,10 +199,10 @@
 /* Phones: no boxes; notices use the full width with a line between them. */
 @media (max-width: 700px) {
   .activity-card-thumb {
-    --thumb: 52px;
+    --thumb: 60px;
   }
   .activity-card-thumb.is-small {
-    --thumb: 36px;
+    --thumb: 42px;
   }
   #app-shell .activity-list:has(> .activity-card) {
     gap: 0;
