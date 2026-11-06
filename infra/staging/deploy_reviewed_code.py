@@ -246,6 +246,16 @@ DOWNVOTE_REFUSAL_REVIEWED = '75d0130a8cca0873d7bea9613b9cefc6a214a6bb'
 
 DOWNVOTE_REFUSAL_MODULES = frozenset({'community-interactions.ts'})
 
+# Owner asked on 06/11/2026 for post and reply thumbnails in Activity. Notice
+# reads add the first public media only when a client asks; migrations (104)
+# and runtime stay fixed.
+ACTIVITY_THUMBNAILS_BEFORE = 'fda9bdcf788aaa79bcefc14e92db8f06a794c150'
+
+ACTIVITY_THUMBNAILS_REVIEWED = '4d2c0b4e7ebdae6e7891a044435c2cd328a108af'
+
+ACTIVITY_THUMBNAILS_MODULES = frozenset({'community-interactions.ts', 'community-posts.ts',
+                                         'community-upvotes.ts'})
+
 # Owner requested direct invitation acceptance and activation on 04/11/2026.
 # Only contact approval selection changes; token lifetime, locks, schema and
 # runtime remain byte-identical. Pin the complete database trees on both sides.
@@ -343,6 +353,8 @@ def database_code_reviewed(candidate, live):
         (set(CONTACT_INVITE_ACCEPTANCE_MODULES), CONTACT_INVITE_ACCEPTANCE_BEFORE,
          CONTACT_INVITE_ACCEPTANCE_REVIEWED),
         (set(DOWNVOTE_REFUSAL_MODULES), DOWNVOTE_REFUSAL_BEFORE, DOWNVOTE_REFUSAL_REVIEWED),
+        (set(ACTIVITY_THUMBNAILS_MODULES), ACTIVITY_THUMBNAILS_BEFORE,
+         ACTIVITY_THUMBNAILS_REVIEWED),
         (set(OPERATIONAL_HEALTH_MODULES), OPERATIONAL_HEALTH_BEFORE,
          OPERATIONAL_HEALTH_REVIEWED),
         (set(CREATED_COMMUNITIES_MODULES), CREATED_COMMUNITIES_BEFORE,
