@@ -31,6 +31,10 @@ const bundle = await build({
 const source = bundle.outputFiles[0]?.text;
 if (!source) throw new Error('Build de teste ausente.');
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+/** Waits a bounded number of turns for work whose turn count is not contractual. */
+async function until(condition: () => boolean, turns = 200): Promise<void> {
+  for (let turn = 0; turn < turns && !condition(); turn++) await tick();
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -595,11 +599,14 @@ await test('a browser that lost its device keys signs in under a new device id a
     signing.loginStorage.get('hash-talk:login-device'),
     signing.session.deviceId,
   );
-  await tick();
+  // Signing and sign-out finish through several asynchronous turns; a loaded
+  // CI runner can need more than one (failed run 42144833255).
+  await until(() => signing.requests.includes('/api/account/login'));
   assert.ok(signing.requests.includes('/api/account/login'));
   signing.changed();
-  await tick();
+  await until(() => signing.requests.includes('/api/account/logout'));
   assert.ok(signing.requests.includes('/api/account/logout'));
+  await until(() => !signing.loginStorage.has('hash-talk:login-device'));
   assert.equal(signing.loginStorage.has('hash-talk:login-device'), false);
   signing.dispose();
 });
