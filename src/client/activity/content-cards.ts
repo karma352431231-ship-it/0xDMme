@@ -6,6 +6,8 @@ import type {
   ReplyTarget,
 } from '../../shared/community-posts/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
+import type { PublicPostMedia } from '../../shared/public-media/index.ts';
+import { noticeThumbnail } from './notice-thumbnail.ts';
 import { publicIdentityAvatar } from '../public-identity/index.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { publicationQuote, publicationTitle } from './publications.ts';
@@ -33,6 +35,8 @@ export interface ContentCard {
   upvotes: UpvoteNotice[];
   replies: ActivityReply[];
   follows: FollowNotice[];
+  /** First public media of the content, shown as a small square. */
+  thumbnail?: PublicPostMedia;
 }
 const shownReplies = 2;
 
@@ -59,6 +63,10 @@ function arrived(target: ContentCard, at: string): void {
     target.latest = at;
   }
 }
+/** The first media seen for the content names it; later arrivals keep it. */
+function keepThumbnail(card: ContentCard, media: PublicPostMedia | undefined) {
+  if (media && !card.thumbnail) card.thumbnail = media;
+}
 function replyTargetText(target: ReplyTarget) {
   return publicationQuote({ ...target, media: false }, target.kind);
 }
@@ -78,6 +86,7 @@ export function contentCards(input: {
       headline: upvote.text,
     });
     found.upvotes.push(upvote);
+    keepThumbnail(found, upvote.thumbnail);
     arrived(found, upvote.createdAt);
   }
   for (const reply of input.replies) {
@@ -96,6 +105,7 @@ export function contentCards(input: {
           headline: publicationQuote(reply.preview, reply.kind ?? 'reply'),
         });
     found.replies.push(reply);
+    keepThumbnail(found, (target ?? reply.preview)?.thumbnail);
     arrived(found, reply.createdAt);
   }
   if (input.follows.length) {
@@ -279,6 +289,14 @@ function replyLine(
       ? [publicIdentityAvatar(preview.identity, actions.signal)]
       : []),
     link,
+    ...(preview?.thumbnail
+      ? [
+          noticeThumbnail(preview.thumbnail, {
+            signal: actions.signal,
+            small: true,
+          }),
+        ]
+      : []),
   );
 }
 function moreReplies(count: number): HTMLElement | null {
@@ -343,6 +361,17 @@ function primaryLink(
   link.classList.add('activity-card-title');
   return link;
 }
+/** The card's title with the content's thumbnail beside it, under the head. */
+function titled(
+  card: ContentCard,
+  link: HTMLElement,
+  signal: AbortSignal,
+): HTMLElement {
+  const body = element('div', '', 'activity-card-body');
+  body.append(link);
+  if (card.thumbnail) body.append(noticeThumbnail(card.thumbnail, { signal }));
+  return body;
+}
 function ownContent(
   card: ContentCard,
   row: HTMLElement,
@@ -352,7 +381,7 @@ function ownContent(
     .slice(0, shownReplies)
     .map((reply) => replyLine(reply, card, row, actions));
   return [
-    primaryLink(card, row, actions),
+    titled(card, primaryLink(card, row, actions), actions.signal),
     ...(card.upvotes.length ? [upvoteLine(card, actions.signal)] : []),
     ...replies,
     ...[moreReplies(card.replies.length - shownReplies)].filter(
@@ -373,9 +402,8 @@ function watchedContent(
       : element('span', card.headline),
   );
   const author = reply.preview?.identity;
-  if (!author) return [link];
-  const body = element('div', '', 'activity-card-line');
-  body.append(publicIdentityAvatar(author, actions.signal), link);
+  const body = titled(card, link, actions.signal);
+  if (author) body.prepend(publicIdentityAvatar(author, actions.signal));
   return [body];
 }
 function profileContent(

@@ -149,3 +149,68 @@
 #app-shell .activity-card .activity-card-reply[data-read='true'] {
   color: var(--text-muted);
 }
+
+/* The head (label and time) spans the card; the title shares a row with
+   the content's thumbnail only (05/11/2026). */
+.activity-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 3px;
+}
+#app-shell .activity-card-body > .activity-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+}
+.activity-card-thumb {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.activity-card-thumb.is-small {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: 6px;
+}
+.activity-card-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#app-shell .activity-card-line > .activity-card-reply {
+  flex: 1 1 auto;
+}
+
+/* Phones: no boxes; notices use the full width with a line between them. */
+@media (max-width: 700px) {
+  #app-shell .activity-list:has(> .activity-card) {
+    gap: 0;
+  }
+  #app-shell .activity-card,
+  #app-shell .activity-card + .activity-card {
+    padding: 14px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+  }
+  #app-shell .activity-card[data-read='false'] {
+    margin: 0 -12px;
+    padding-inline: 16px;
+    border-bottom-color: var(--line);
+    background: color-mix(in srgb, var(--accent-text) 7%, transparent);
+  }
+  #app-shell .activity-card .activity-card-line {
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: 0;
+  }
+}

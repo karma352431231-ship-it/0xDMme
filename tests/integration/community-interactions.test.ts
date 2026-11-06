@@ -179,6 +179,7 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
         after: null,
         authors: true,
         targets: true,
+        thumbnails: true,
       }),
     ).items[0]!.target;
   const bad = (status: number) => (error: unknown) =>
@@ -705,6 +706,21 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
         owner.operate('post-upvote-notifications', {
           after: null,
           wallet: 'private',
+        }),
+        bad(400),
+      );
+      // Thumbnails are opt-in; content without media has none.
+      const pictured = upvoteNoticePage(
+        await owner.operate('post-upvote-notifications', {
+          after: null,
+          thumbnails: true,
+        }),
+      );
+      assert.ok(pictured.items.every((item) => !('thumbnail' in item)));
+      await assert.rejects(
+        owner.operate('post-upvote-notifications', {
+          after: null,
+          thumbnails: 'yes',
         }),
         bad(400),
       );

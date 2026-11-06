@@ -31,6 +31,7 @@ export class CommunityNotifications {
         after: null,
         authors: true,
         targets: true,
+        thumbnails: true,
       }),
     ).items;
   }
@@ -38,6 +39,7 @@ export class CommunityNotifications {
     return upvoteNoticePage(
       await this.controller.request('post-upvote-notifications', {
         after: null,
+        thumbnails: true,
       }),
     ).items;
   }

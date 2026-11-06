@@ -580,6 +580,24 @@ function activityCards(): void {
       status: 'visible' as const,
     },
   });
+  const thumbnail = {
+    id: '31313131-3131-4313-8313-313131313131',
+    review: '32323232-3232-4323-8323-323232323232',
+    result: {
+      kind: 'photo' as const,
+      type: 'image/jpeg',
+      bytes: 3000,
+      width: 640,
+      height: 480,
+      seconds: 0,
+      fps: 0,
+      thumbnailBytes: 900,
+      normalized: true,
+    },
+  };
+  const pictured = reply(2, 'luna', 'Look at this one', post);
+  Object.assign(pictured.target, { thumbnail });
+  Object.assign(pictured.preview, { thumbnail });
   const cards = contentCards({
     upvotes: [
       ...upvotes,
@@ -594,12 +612,7 @@ function activityCards(): void {
     ],
     replies: [
       reply(1, 'waterdrip', 'Inflows were huge on Tuesday', post),
-      reply(
-        2,
-        'luna',
-        'I keep a sheet, will share it later today with everyone here',
-        post,
-      ),
+      pictured,
       reply(3, 'zed', 'Following', post),
       reply(41, 'zed', 'Which one do you use?', mine),
     ],
@@ -662,6 +675,22 @@ function activityCards(): void {
   check(
     faces.height <= 32 && title.height > 0,
     'The card names its post above stacked faces',
+  );
+  const head = first
+      .querySelector('.activity-card-head')!
+      .getBoundingClientRect(),
+    thumb = first
+      .querySelector('.activity-card-body > .activity-card-thumb')!
+      .getBoundingClientRect();
+  check(
+    thumb.top >= head.bottom && Math.abs(head.right - thumb.right) < 2,
+    'The time stays above the thumbnail, both aligned right',
+  );
+  check(
+    first.querySelector(
+      '.activity-card-reply + .activity-card-thumb.is-small',
+    ) !== null,
+    'A reply with an image shows a small thumbnail',
   );
   for (const row of rows) {
     const box = row.getBoundingClientRect();

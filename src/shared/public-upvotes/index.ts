@@ -10,6 +10,8 @@ import {
   replyPreviewLength,
 } from '../community-posts/index.ts';
 import { publicProfile } from '../public-profile/index.ts';
+import { publicPostMedia } from '../public-media/index.ts';
+import type { PublicPostMedia } from '../public-media/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 
 export interface UpvoteNotice {
@@ -21,6 +23,8 @@ export interface UpvoteNotice {
   text: string;
   createdAt: string;
   read: boolean;
+  /** First public media of the upvoted content (05/11/2026). */
+  thumbnail?: PublicPostMedia;
 }
 export interface UpvoteNoticePage {
   items: UpvoteNotice[];
@@ -41,6 +45,7 @@ function notice(value: unknown): UpvoteNotice {
     'text',
     'createdAt',
     'read',
+    ...(Object.hasOwn(data, 'thumbnail') ? ['thumbnail'] : []),
   ]);
   if (data['kind'] !== 'post' && data['kind'] !== 'reply')
     throw new AccountError(400, 'Invalid upvote notice.');
@@ -58,6 +63,9 @@ function notice(value: unknown): UpvoteNotice {
     text: data['text'],
     createdAt: postTime(data['createdAt']),
     read: communityBoolean(data['read']),
+    ...(Object.hasOwn(data, 'thumbnail')
+      ? { thumbnail: publicPostMedia([data['thumbnail']])[0]! }
+      : {}),
   };
 }
 export function upvoteNoticePage(value: unknown): UpvoteNoticePage {

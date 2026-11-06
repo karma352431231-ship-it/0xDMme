@@ -2,11 +2,13 @@ import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityArray,
+  communityBoolean,
   communityCursor,
 } from '../../shared/communities/index.ts';
 import {
   postCursor,
   contentHeadline,
+  postThumbnail,
 } from '../../shared/community-posts/index.ts';
 import type {
   UpvoteNoticePage,
@@ -113,10 +115,20 @@ export class CommunityUpvotes {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<UpvoteNoticePage | { saved: true }> {
-    keys(data, operation === 'post-upvote-notifications' ? ['after'] : ['ids']);
+    // Newer clients also ask for thumbnails; installed apps keep the older shape.
+    const thumbnails = Object.hasOwn(data, 'thumbnails');
+    keys(
+      data,
+      operation === 'post-upvote-notifications'
+        ? ['after', ...(thumbnails ? ['thumbnails'] : [])]
+        : ['ids'],
+    );
+    if (thumbnails) communityBoolean(data['thumbnails']);
     return this.access.communities.withActor(authority, async (context) => {
       if (operation === 'post-upvote-notifications')
-        return this.page(context, postCursor(data['after']));
+        return this.page(context, postCursor(data['after']), {
+          thumbnails: data['thumbnails'] === true,
+        });
       const ids = communityArray(data['ids']).map(uuid);
       await context.client.query(
         'UPDATE hash_talk.public_upvote_notifications SET read=true WHERE recipient=$1 AND id=ANY($2::uuid[]) AND NOT read',
@@ -128,6 +140,7 @@ export class CommunityUpvotes {
   private async page(
     context: { client: pg.PoolClient; actor: { id: string } },
     after: string | null,
+    options: { thumbnails: boolean },
   ): Promise<UpvoteNoticePage> {
     const [time, id] = (after ?? '').split('/');
     const found = await context.client.query<NoticeRow>(
@@ -167,6 +180,7 @@ export class CommunityUpvotes {
           text: contentHeadline(post).text,
           createdAt: row.created_at.toISOString(),
           read: row.read,
+          ...(options.thumbnails ? postThumbnail(post) : {}),
         },
       ];
     });

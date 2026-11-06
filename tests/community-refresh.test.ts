@@ -928,7 +928,7 @@ await test('notification pagination and reload retain their read acknowledgement
   assert.equal(inbox[0]?.reply, postId);
   assert.deepEqual(
     f.data.payloads.filter((row) => row.path === path).at(-1)?.payload,
-    { after: null, authors: true, targets: true },
+    { after: null, authors: true, targets: true, thumbnails: true },
   );
   await f.ui.markRepliesRead([postId]);
   await f.ui.markUpvotesRead([postId]);

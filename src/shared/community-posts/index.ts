@@ -418,6 +418,8 @@ export interface ReplyPreview {
   text: string;
   media: boolean;
   status: 'visible' | 'removed' | 'deleted';
+  /** First public image or video of a visible reply, for its thumbnail. */
+  thumbnail?: PublicPostMedia;
 }
 export const replyPreviewLength = 280;
 /** The reader's own post or reply that a direct reply answered. */
@@ -427,6 +429,7 @@ export interface ReplyTarget {
   /** Title first for posts; empty once hidden. */
   text: string;
   status: ReplyPreview['status'];
+  thumbnail?: PublicPostMedia;
 }
 export interface ReplyNotification {
   kind?: 'post' | 'reply';
@@ -457,6 +460,23 @@ export function replyPreview(
     status: 'visible',
   };
 }
+/** The first public media of visible content, which notices show small. */
+export function postThumbnail(post: CommunityPost): {
+  thumbnail?: PublicPostMedia;
+} {
+  const first = post.status === 'visible' ? post.media?.[0] : undefined;
+  return first ? { thumbnail: first } : {};
+}
+/** Hidden content never carries media; a thumbnail is one checked item. */
+function parseThumbnail(
+  data: Record<string, unknown>,
+  status: ReplyPreview['status'],
+): { thumbnail?: PublicPostMedia } {
+  if (!Object.hasOwn(data, 'thumbnail')) return {};
+  if (status !== 'visible')
+    throw new AccountError(400, 'Invalid reply preview.');
+  return { thumbnail: publicPostMedia([data['thumbnail']])[0]! };
+}
 /** What a notice calls a post or reply: its title, else its text. */
 export function contentHeadline(post: CommunityPost): ReplyTarget {
   const visible = post.status === 'visible';
@@ -471,7 +491,13 @@ export function contentHeadline(post: CommunityPost): ReplyTarget {
 }
 function parseReplyTarget(value: unknown): ReplyTarget {
   const data = object(value);
-  keys(data, ['id', 'kind', 'text', 'status']);
+  keys(data, [
+    'id',
+    'kind',
+    'text',
+    'status',
+    ...(Object.hasOwn(data, 'thumbnail') ? ['thumbnail'] : []),
+  ]);
   const status = previewStatus(data['status']),
     text = previewText(data['text']);
   if (data['kind'] !== 'post' && data['kind'] !== 'reply')
@@ -479,7 +505,13 @@ function parseReplyTarget(value: unknown): ReplyTarget {
   // Hidden content never carries what it said.
   if (status !== 'visible' && text !== '')
     throw new AccountError(400, 'Invalid reply preview.');
-  return { id: uuid(data['id']), kind: data['kind'], text, status };
+  return {
+    id: uuid(data['id']),
+    kind: data['kind'],
+    text,
+    status,
+    ...parseThumbnail(data, status),
+  };
 }
 function previewStatus(value: unknown): ReplyPreview['status'] {
   if (value === 'visible' || value === 'removed' || value === 'deleted')
@@ -500,6 +532,7 @@ function parseReplyPreview(value: unknown): ReplyPreview | null {
     'media',
     'status',
     ...(Object.hasOwn(data, 'identity') ? ['identity'] : []),
+    ...(Object.hasOwn(data, 'thumbnail') ? ['thumbnail'] : []),
   ]);
   const status = previewStatus(data['status']),
     text = previewText(data['text']),
@@ -514,6 +547,7 @@ function parseReplyPreview(value: unknown): ReplyPreview | null {
     media: communityBoolean(data['media']),
     status,
     ...(Object.hasOwn(data, 'identity') ? { identity } : {}),
+    ...parseThumbnail(data, status),
   };
 }
 function previewIdentity(

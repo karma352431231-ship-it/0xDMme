@@ -5,6 +5,8 @@ import {
   contentCards,
 } from '../src/client/activity/content-cards.ts';
 import { setActiveLanguage } from '../src/shared/i18n/index.ts';
+import { replyNotificationPage } from '../src/shared/community-posts/index.ts';
+import { upvoteNoticePage } from '../src/shared/public-upvotes/index.ts';
 
 const post = '11111111-1111-4111-a111-111111111111',
   reply = '22222222-2222-4222-a222-222222222222',
@@ -118,4 +120,112 @@ await test('actor phrases name up to two handles and count the rest in both lang
     );
   }
   setActiveLanguage('en');
+});
+
+const media = {
+  id: '44444444-4444-4444-8444-444444444444',
+  review: '55555555-5555-4555-8555-555555555555',
+  result: {
+    kind: 'photo' as const,
+    type: 'image/jpeg',
+    bytes: 3000,
+    width: 640,
+    height: 480,
+    seconds: 0,
+    fps: 0,
+    thumbnailBytes: 900,
+    normalized: true,
+  },
+};
+
+await test('a card keeps the first thumbnail of its content, from upvotes or reply targets', () => {
+  const withTarget = replyTo('r1', post, '2026-11-05T12:00:00Z');
+  Object.assign(withTarget.target!, { thumbnail: media });
+  const [card] = contentCards({
+    upvotes: [upvote('u1', 'waterdrip', '2026-11-05T10:00:00Z')],
+    replies: [withTarget],
+    follows: [],
+  });
+  assert.deepEqual(card!.thumbnail, media);
+  const [plain] = contentCards({
+    upvotes: [upvote('u1', 'waterdrip', '2026-11-05T10:00:00Z')],
+    replies: [],
+    follows: [],
+  });
+  assert.equal(plain!.thumbnail, undefined);
+});
+
+await test('notice thumbnails are optional, checked public media and never on hidden content', () => {
+  const notice = (preview: Record<string, unknown>, target?: unknown) => ({
+    reply: community,
+    post,
+    community,
+    createdAt: '2026-11-05T12:00:00.000Z',
+    read: false,
+    kind: 'reply',
+    preview,
+    ...(target ? { target } : {}),
+  });
+  const visible = {
+    author: 'luna',
+    text: 'Look',
+    media: true,
+    status: 'visible',
+  };
+  const page = replyNotificationPage({
+    items: [
+      notice(
+        { ...visible, thumbnail: media },
+        {
+          id: reply,
+          kind: 'post',
+          text: 'Post',
+          status: 'visible',
+          thumbnail: media,
+        },
+      ),
+    ],
+    next: null,
+  });
+  assert.deepEqual(page.items[0]!.preview!.thumbnail, media);
+  assert.deepEqual(page.items[0]!.target!.thumbnail, media);
+  assert.equal(
+    Object.hasOwn(
+      replyNotificationPage({ items: [notice(visible)], next: null }).items[0]!
+        .preview!,
+      'thumbnail',
+    ),
+    false,
+  );
+  for (const invalid of [
+    notice({
+      author: null,
+      text: '',
+      media: false,
+      status: 'removed',
+      thumbnail: media,
+    }),
+    notice(visible, {
+      id: reply,
+      kind: 'post',
+      text: '',
+      status: 'deleted',
+      thumbnail: media,
+    }),
+    notice({ ...visible, thumbnail: { ...media, id: 'not-an-id' } }),
+  ])
+    assert.throws(() =>
+      replyNotificationPage({ items: [invalid], next: null }),
+    );
+  const upvoted = upvoteNoticePage({
+    items: [
+      {
+        ...upvote(post, 'waterdrip', '2026-11-05T10:00:00.000Z'),
+        actor: { id: reply, handle: 'waterdrip', avatar: null },
+        thumbnail: media,
+      },
+    ],
+    next: null,
+  });
+  assert.deepEqual(upvoted.items[0]!.thumbnail, media);
 });

@@ -132,7 +132,7 @@ export async function replyNotifications(
     return { saved: true };
   }
   // Optional flags from newer clients; installed apps keep the older shape.
-  const flags = ['authors', 'targets'].filter((flag) =>
+  const flags = ['authors', 'targets', 'thumbnails'].filter((flag) =>
     Object.hasOwn(data, flag),
   );
   keys(data, ['after', ...flags]);
