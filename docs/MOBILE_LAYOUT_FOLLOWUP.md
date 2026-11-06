@@ -61,3 +61,7 @@ On phones the Activity Refresh button is gone: on every tab, pulling the page do
 In a post, the reply "..." sits on the name row instead of its own row, reply pictures are 30% larger, and the reply vote pill has the post's size and spacing.
 
 Later the same day: phone Activity thumbnails grew to 60 px for the content and 42 px for replies; a wide reply picture in a post is a little larger on phones (272 px instead of 234 px at phone width), marked by the picture's `data-orientation`; the side panel no longer repeats the feed search below its heading search; and on wide Communities pages the profile photo sits after the search, beside "⋯".
+
+## User ranking growth tags
+
+The user ranking's Trending order shows the relevance growth with a tag below it instead of the follower total: New for a public profile's first 48 hours, then Skyrocketing (growth of at least 300%), Viral (at least 5 shares in the period), Gaining followers (at least 5 new followers) or Trending (other positive growth). Negative or zero growth shows no tag. Biggest keeps the follower total it ranks by; Following shows only the follower total. New followers now count in the relevance score, a little below a distinct commenter. Migration 105 dates every follow from now on; older follows never count as new. Clients ask for the tag inputs with `tags=1`, so installed apps keep the older page shape.

@@ -847,6 +847,11 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.follower {0}': ['{0} follower', '{0} 位关注者'],
   'ranking.followers {0}': ['{0} followers', '{0} 位关注者'],
   'ranking.growth-up {0}': ['▲ {0}%', '▲ {0}%'],
+  'ranking.tag-new': ['New', '新人'],
+  'ranking.tag-skyrocketing': ['Skyrocketing', '飙升'],
+  'ranking.tag-viral': ['Viral', '爆款'],
+  'ranking.tag-followers': ['Gaining followers', '涨粉中'],
+  'ranking.tag-trending': ['Trending', '热门'],
   'ranking.growth-down {0}': ['▼ {0}%', '▼ {0}%'],
   'ranking.growth-flat {0}': ['{0}%', '{0}%'],
   'ranking.relevance-growth-title': [

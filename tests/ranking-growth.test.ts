@@ -7,7 +7,7 @@ import {
 } from '../src/shared/community-ranking/index.ts';
 import { accountRankingPage } from '../src/shared/account-ranking/index.ts';
 
-await test('accounts receive gains without age, followers or previous-window bonuses', () => {
+await test('accounts receive gains without age or previous-window bonuses; new followers count a little below commenters', () => {
   const base = emptyReceivedEngagement();
   assert.equal(accountRankingScore(base), 0);
   for (const patch of [
@@ -30,6 +30,10 @@ await test('accounts receive gains without age, followers or previous-window bon
     accountRankingScore({ ...base, commenters: 200 }) <
       2 * accountRankingScore({ ...base, commenters: 100 }),
   );
+  const follower = accountRankingScore({ ...base, newFollowers: 1 });
+  assert.ok(follower > 0);
+  assert.ok(follower < accountRankingScore({ ...base, commenters: 1 }));
+  assert.equal(accountRankingScore({ ...base, newFollowers: 0 }), 0);
 });
 await test('account ranking admits three bounded windows and rejects identity leaks', () => {
   for (const period of ['day', 'week', 'month'])
@@ -55,6 +59,29 @@ await test('account ranking admits three bounded windows and rejects identity le
     ],
   };
   assert.equal(accountRankingPage(page).items[0]!.views, 10);
+  // Growth tag inputs are optional and checked when present.
+  assert.equal(
+    Object.hasOwn(accountRankingPage(page).items[0]!, 'growth'),
+    false,
+  );
+  const tagged = {
+    ...page,
+    items: [
+      {
+        ...page.items[0],
+        growth: { newFollowers: 2, createdAt: new Date().toISOString() },
+      },
+    ],
+  };
+  assert.equal(accountRankingPage(tagged).items[0]!.growth!.newFollowers, 2);
+  for (const growth of [
+    { newFollowers: -1, createdAt: null },
+    { newFollowers: 1, createdAt: 'yesterday' },
+    { newFollowers: 1, createdAt: null, wallet: 'private' },
+  ])
+    assert.throws(() =>
+      accountRankingPage({ ...page, items: [{ ...page.items[0], growth }] }),
+    );
   assert.throws(() =>
     accountRankingPage({
       ...page,

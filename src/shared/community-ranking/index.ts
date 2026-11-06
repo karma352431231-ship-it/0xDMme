@@ -2,6 +2,11 @@ import { AccountError } from '../account/index.ts';
 /** Versioned, local transforms: changing one community never rescales another. */
 export const rankingVersion = 2;
 /**
+ * The user score's own formula version: 3 adds new followers (owner,
+ * 06/11/2026), so only profile entries are recomputed.
+ */
+export const accountRankingVersion = 3;
+/**
  * 3: received engagement and one selected window, up to 30 days.
  * 4: account entries also carry the previous window's score (19/10/2026).
  */
@@ -111,10 +116,14 @@ function receivedScore(c: ReceivedEngagement): number {
     0.4 * volume(c.engagedPosts)
   );
 }
-export function accountRankingScore(c: ReceivedEngagement): number {
+/** New followers weigh a little less than distinct commenters (06/11/2026). */
+export function accountRankingScore(
+  c: ReceivedEngagement & { newFollowers?: number },
+): number {
   return Math.round(
     (4 * volume(c.commenters) +
       2 * volume(c.conversations) +
+      3 * volume(c.newFollowers ?? 0) +
       receivedScore(c)) *
       1_000_000,
   );

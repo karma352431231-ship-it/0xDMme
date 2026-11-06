@@ -75,7 +75,7 @@ export function startRankingSide(options: {
     scopeChanged: (scope) => options.scopeChanged?.(scope),
     signedIn: options.signedIn,
     following: (period, after) =>
-      controller.request('discovery-accounts', { period, after }),
+      controller.request('discovery-accounts', { period, after, tags: true }),
   });
   options.shell.append(aside);
   const tick = () => {

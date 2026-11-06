@@ -1,12 +1,15 @@
 import type pg from 'pg';
 import {
   accountRankingScore,
-  rankingVersion,
+  accountRankingVersion,
   rankingMetricVersion,
   rankingPeriods,
 } from '../../shared/community-ranking/index.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { measurePostSignals } from './post-ranking-signals.ts';
+import type { PostRankingSignals } from './post-ranking-signals.ts';
+import { measureFollowSignals } from './profile-follow-signals.ts';
+import type { FollowRankingSignals } from './profile-follow-signals.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { PublicProfileStore } from './public-profile.ts';
@@ -19,6 +22,7 @@ const publicEntryMetrics = `jsonb_build_object(
   'upvotes',coalesce(s.metrics->p.period->'current'->'upvotes','0'::jsonb),
   'shares',coalesce(s.metrics->p.period->'current'->'shares','0'::jsonb),
   'comments',coalesce(s.metrics->p.period->'current'->'comments','0'::jsonb),
+  'newFollowers',coalesce(s.metrics->p.period->'current'->'newFollowers','0'::jsonb),
   'previousScore',coalesce(s.metrics->p.period->'previousScore','0'::jsonb))`;
 const publicationSource = `FROM hash_talk.public_profiles profile
   LEFT JOIN hash_talk.profile_ranking_state s ON s.profile_id=profile.id
@@ -43,7 +47,7 @@ export class ProfileRankingStore {
       WHERE ($1::timestamptz IS NULL OR cutoff IS NULL OR cutoff<$1) AND
       (revision<>processed OR due_at<=coalesce($1,clock_timestamp()) OR metrics IS NULL
       OR metrics->>'version' IS DISTINCT FROM $2::text OR metrics->>'formulaVersion' IS DISTINCT FROM $3::text)) AS pending`,
-      [cutoff, rankingMetricVersion, rankingVersion],
+      [cutoff, rankingMetricVersion, accountRankingVersion],
     );
     return result.rows[0]!.pending;
   }
@@ -58,7 +62,7 @@ export class ProfileRankingStore {
       WHERE (s.cutoff IS NULL OR s.cutoff<$1) AND (revision<>processed OR due_at<=$1 OR metrics IS NULL
       OR metrics->>'version' IS DISTINCT FROM $2::text OR metrics->>'formulaVersion' IS DISTINCT FROM $3::text)
       ORDER BY due_at,profile_id LIMIT 32`,
-      [cutoff, rankingMetricVersion, rankingVersion],
+      [cutoff, rankingMetricVersion, accountRankingVersion],
     );
     if (!batch.rows.length) return false;
     const { signals, previous } = await this.measure(
@@ -69,7 +73,7 @@ export class ProfileRankingStore {
     const updates = batch.rows.map((row) => {
       const metrics: Record<string, unknown> = {
         version: rankingMetricVersion,
-        formulaVersion: rankingVersion,
+        formulaVersion: accountRankingVersion,
       };
       let due: Date | null = null;
       for (const period of rankingPeriods) {
@@ -123,8 +127,17 @@ export class ProfileRankingStore {
         target: 'author',
         window: 'previous',
       });
+      const follows = await measureFollowSignals(client, { ids, cutoff });
+      const followsBefore = await measureFollowSignals(client, {
+        ids,
+        cutoff,
+        window: 'previous',
+      });
       await client.query('COMMIT');
-      return { signals, previous };
+      return {
+        signals: withFollows(signals, follows),
+        previous: withFollows(previous, followsBefore),
+      };
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       throw error;
@@ -171,4 +184,24 @@ export class ProfileRankingStore {
       ...selection,
     });
   }
+}
+
+/** Adds each period's new followers and keeps the earliest change as due. */
+function withFollows(
+  signals: PostRankingSignals[],
+  follows: FollowRankingSignals[],
+): (PostRankingSignals & { newFollowers: number })[] {
+  return signals.map((signal) => {
+    const found = follows.find(
+      (row) => row.id === signal.id && row.period === signal.period,
+    );
+    const due = [signal.due_at, found?.due_at ?? null]
+      .filter((at): at is Date => at !== null)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    return {
+      ...signal,
+      newFollowers: found?.newFollowers ?? 0,
+      due_at: due ?? null,
+    };
+  });
 }

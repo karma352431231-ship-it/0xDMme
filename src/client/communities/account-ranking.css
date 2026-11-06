@@ -66,6 +66,29 @@
 .account-ranking-numbers .ranking-side-growth[data-trend='down'] {
   color: var(--danger);
 }
+/* Trending (06/11/2026): the growth leads, with its tag below it. */
+.account-ranking-numbers .ranking-side-growth.is-lead {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.account-growth-tag {
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.account-growth-tag:is([data-tag='new'], [data-tag='followers']) {
+  color: var(--accent-text);
+}
+.account-growth-tag:is([data-tag='skyrocketing'], [data-tag='trending']) {
+  color: var(--ok);
+}
+.account-growth-tag[data-tag='viral'] {
+  color: var(--warn);
+}
 .account-ranking-avatar {
   border-radius: 50%;
 }

@@ -205,8 +205,10 @@ export class ProfileSocialStore {
         );
       if (old.following === following) return old;
       const result = await context.client.query<ProfileFollow>(
-        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision) VALUES($1,$2,$3,1)
+        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision,followed_at)
+        VALUES($1,$2,$3,1,CASE WHEN $3 THEN clock_timestamp() END)
         ON CONFLICT(follower,target) DO UPDATE SET following=$3,revision=hash_talk.public_profile_follows.revision+1,
+        followed_at=CASE WHEN $3 THEN clock_timestamp() END,
         notifications=false,notification_revision=hash_talk.public_profile_follows.notification_revision+CASE WHEN hash_talk.public_profile_follows.notifications THEN 1 ELSE 0 END RETURNING following,revision`,
         [actor, target, following],
       );

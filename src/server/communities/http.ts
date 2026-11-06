@@ -61,6 +61,7 @@ export function createCommunityHandler(
       period: RankingPeriod,
       after: string | null,
       order?: AccountRankingOrder,
+      tags?: boolean,
     ) => Promise<AccountRankingPage>;
     readAddress?: (slug: string) => Promise<Community>;
     read: (id: string) => Promise<Community>;

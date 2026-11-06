@@ -416,7 +416,11 @@ export function startCommunityDiscovery(
       const ranking = mountDiscoveryRanking(container, view, abort.signal, {
         signedIn: () => signedIn,
         following: (period, after) =>
-          controller.request('discovery-accounts', { period, after }),
+          controller.request('discovery-accounts', {
+            period,
+            after,
+            tags: true,
+          }),
       });
       rankingScope = ranking.scope;
       mounted = ranking.element;

@@ -137,13 +137,13 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
     assert.deepEqual(Object.values(last.rows[0]!), [true]);
   }
   // The runtime migrator accepts the explicit steps and adds only the empty
-  // follower notice table of 104.
+  // follower notice table of 104 and the follow date column of 105.
   await db.migrate();
   assert.deepEqual(await snapshot(), before);
   assert.equal(
     (await client.query('SELECT version FROM hash_talk.schema_migrations'))
       .rowCount,
-    104,
+    105,
   );
   assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));
   await client.query('BEGIN');

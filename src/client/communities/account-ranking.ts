@@ -17,6 +17,10 @@ import { mentionPlainText } from '../../shared/public-mentions/index.ts';
 import { accountOrderControls } from './account-ranking-controls.ts';
 import { discoveryMenu } from './discovery-menu.ts';
 import { growthLabel } from './ranking-side-growth.ts';
+import {
+  accountGrowthTag,
+  accountGrowthTagLabel,
+} from './account-growth-tag.ts';
 
 /** Windows offered by both rankings, labelled in the current language. */
 export function rankingPeriods(): readonly (readonly [
@@ -190,6 +194,7 @@ export class AccountRankingView {
     const query = new URLSearchParams({
       period: this.period,
       order: this.order,
+      tags: '1',
     });
     const after = append ? this.after : this.pageAfter;
     if (this.following()) {
@@ -240,7 +245,7 @@ export class AccountRankingView {
     const signal = AbortSignal.any([this.signal, this.lifetime.signal]);
     for (const item of items) {
       const row = el('li'),
-        { link, avatar } = accountRow(item, ++this.offset, this.following());
+        { link, avatar } = accountRow(item, ++this.offset, this.order);
       row.append(link);
       this.list.append(row);
       if (item.profile.avatar)
@@ -255,13 +260,14 @@ export class AccountRankingView {
 }
 /**
  * FOMO-style row (19/10/2026): @nick with the bio below, like a ticker over
- * its price; followers on the right like a market cap, with the relevance
- * growth below them. The received counters stay in the row's tooltip.
+ * its price. Trending shows the relevance growth with its tag below
+ * (06/11/2026); Biggest keeps the follower total it ranks by over the growth;
+ * Following shows only the follower total. Counters stay in the tooltip.
  */
 function accountRow(
   item: AccountRankingEntry,
   rank: number,
-  following: boolean,
+  order: AccountRankingOrder,
 ) {
   const link = el('a', '', 'account-ranking-row'),
     avatar = communityAvatar(item.profile.handle),
@@ -274,27 +280,7 @@ function accountRow(
   // Plain text: the row is already a link, so mentions cannot be links here.
   const bio = mentionPlainText(item.description).replace(/\s+/gu, ' ');
   if (bio) copy.append(el('small', bio, 'account-ranking-bio'));
-  const followers = new Intl.NumberFormat(currentLanguage(), {
-    notation: 'compact',
-  }).format(item.followers);
-  numbers.append(
-    el(
-      'strong',
-      t(
-        item.followers === 1 ? 'ranking.follower {0}' : 'ranking.followers {0}',
-        [followers],
-      ),
-    ),
-    ...(following
-      ? []
-      : [
-          growthLabel({
-            participants: item.score,
-            previous: item.previousScore,
-            title: 'ranking.relevance-growth-title',
-          }),
-        ]),
-  );
+  numbers.append(...rowNumbers(item, order));
   link.append(
     el('span', String(rank), 'ranking-side-rank'),
     avatar,
@@ -302,6 +288,32 @@ function accountRow(
     numbers,
   );
   return { link, avatar };
+}
+function followerTotal(item: AccountRankingEntry): HTMLElement {
+  const followers = new Intl.NumberFormat(currentLanguage(), {
+    notation: 'compact',
+  }).format(item.followers);
+  return el(
+    'strong',
+    t(item.followers === 1 ? 'ranking.follower {0}' : 'ranking.followers {0}', [
+      followers,
+    ]),
+  );
+}
+function rowNumbers(
+  item: AccountRankingEntry,
+  order: AccountRankingOrder,
+): HTMLElement[] {
+  if (order === 'following') return [followerTotal(item)];
+  const growth = growthLabel({
+    participants: item.score,
+    previous: item.previousScore,
+    title: 'ranking.relevance-growth-title',
+  });
+  if (order === 'size') return [followerTotal(item), growth];
+  const tag = accountGrowthTag(item, Date.now());
+  growth.classList.add('is-lead');
+  return [growth, ...(tag ? [accountGrowthTagLabel(tag)] : [])];
 }
 export function receivedSummary(item: {
   views: number;

@@ -1,3 +1,4 @@
+import { measureFollowSignals } from '../../src/server/database/profile-follow-signals.ts';
 import { measurePostSignals } from '../../src/server/database/post-ranking-signals.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -13,6 +14,10 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { PublicProfileService } from '../../src/server/public-profile/index.ts';
 import { CommunityService } from '../../src/server/communities/index.ts';
 import { CommunityRankingService } from '../../src/server/community-ranking/index.ts';
+import {
+  accountRankingScore,
+  emptyReceivedEngagement,
+} from '../../src/shared/community-ranking/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import {
   createCommunityAccount,
@@ -800,6 +805,55 @@ await test('rankings: exact metrics, aggregate votes, events, recovery and publi
     },
   );
   await t.test(
+    'dated new followers count per window and reach clients that ask for growth tags',
+    async () => {
+      const target = publicUsers[0]!.id;
+      // Two follows in the last day, one in the day before, one undated
+      // (made before migration 105), which never counts as new.
+      await inspector.query(
+        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision,followed_at)
+        VALUES($2,$1,true,1,clock_timestamp()-interval '2 hours'),($3,$1,true,1,clock_timestamp()-interval '30 hours')`,
+        [target, publicUsers[1]!.id, publicUsers[2]!.id],
+      );
+      const extra = await make();
+      const extraProfile = await extra.publicIdentity(
+        `rank_${crypto.randomUUID().slice(0, 8)}`,
+      );
+      await inspector.query(
+        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision) VALUES($2,$1,true,1)`,
+        [target, extraProfile.id],
+      );
+      const now = new Date();
+      const current = await measureFollowSignals(inspector, {
+        ids: [target],
+        cutoff: now,
+      });
+      const before = await measureFollowSignals(inspector, {
+        ids: [target],
+        cutoff: now,
+        window: 'previous',
+      });
+      const count = (rows: typeof current, period: string) =>
+        rows.find((row) => row.period === period)!.newFollowers;
+      assert.equal(count(current, 'day'), 1);
+      assert.equal(count(before, 'day'), 1);
+      assert.equal(count(current, 'week'), 2);
+      await refresh();
+      const plain = await db.communityRanking.accountsPage('week', null);
+      assert.ok(plain.items.every((row) => !('growth' in row)));
+      const tagged = await db.communityRanking.accountsPage('week', null, {
+        tags: true,
+      });
+      const entry = tagged.items.find((row) => row.profile.id === target)!;
+      assert.equal(entry.growth!.newFollowers, 2);
+      assert.ok(entry.growth!.createdAt);
+      await inspector.query(
+        'DELETE FROM hash_talk.public_profile_follows WHERE target=$1',
+        [target],
+      );
+    },
+  );
+  await t.test(
     '1,000 accounts reuse published pages and recompute only an affected author',
     async () => {
       const authors = Array.from({ length: 1000 }, () => crypto.randomUUID());
@@ -989,7 +1043,11 @@ await test('rankings: exact metrics, aggregate votes, events, recovery and publi
       });
       assert.equal(size.items[0]!.profile.id, largest.profile.id);
       assert.equal(size.items[0]!.followers, 4);
-      assert.equal(size.items[0]!.score, 0);
+      // Four new followers and nothing else (06/11/2026).
+      assert.equal(
+        size.items[0]!.score,
+        accountRankingScore({ ...emptyReceivedEngagement(), newFollowers: 4 }),
+      );
       assert.ok(size.next);
       const second = await db.communityRanking.accountsPage('day', size.next, {
         order: 'size',

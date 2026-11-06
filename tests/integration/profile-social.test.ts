@@ -568,6 +568,42 @@ await test('social profile: metrics, public communities, follows, feeds and mode
       assert.equal(again.actor.id, follower.id);
       assert.equal(again.read, false);
       assert.notEqual(again.id, arrived.items[0]!.id);
+      // Migration 105: a follow records when it started, an ended follow
+      // clears it, and both ask for the followed profile's ranking again.
+      const dated = async () =>
+        (
+          await inspector.query<{ followed_at: Date | null }>(
+            'SELECT followed_at FROM hash_talk.public_profile_follows WHERE follower=$1 AND target=$2',
+            [follower.id, identity.id],
+          )
+        ).rows[0]!.followed_at;
+      const ranking = async () =>
+        Number(
+          (
+            await inspector.query<{ revision: string }>(
+              'SELECT revision::text FROM hash_talk.profile_ranking_state WHERE profile_id=$1',
+              [identity.id],
+            )
+          ).rows[0]?.revision ?? 0,
+        );
+      assert.ok((await dated()) instanceof Date);
+      const marked = await ranking();
+      assert.ok(marked > 0);
+      await operate(reader, 'follow', {
+        target: identity.id,
+        following: false,
+        revision: 5,
+      });
+      assert.equal(await dated(), null);
+      const ended = await ranking();
+      assert.ok(ended > marked);
+      await operate(reader, 'follow', {
+        target: identity.id,
+        following: true,
+        revision: 6,
+      });
+      assert.ok((await dated()) instanceof Date);
+      assert.ok((await ranking()) > ended);
     },
   );
   await t.test(
