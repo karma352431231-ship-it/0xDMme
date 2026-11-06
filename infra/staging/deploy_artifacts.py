@@ -38,7 +38,11 @@ def retain_migration_backup(work, old, *, data, archive_bytes):
                 or digest(proxy_backup) != old.get('capacity_proxy_before_sha256')):
             raise RuntimeError('Historical capacity proxy backup differs from its receipt.')
     entries = set(p.name for p in work.iterdir())
-    if not required.issubset(entries) or not entries.issubset(required | {'qr.tar.gz'}):
+    # Since 102 the dump comes with its small restore manifest; keep it with
+    # the dump (first archived on 06/11/2026 for the 103 workspace).
+    import deploy_engagement_backup as engagement
+    optional = {'qr.tar.gz', engagement.MANIFEST}
+    if not required.issubset(entries) or not entries.issubset(required | optional):
         raise RuntimeError('Completed transition contents require manual review.')
     if work.stat().st_uid != os.geteuid() or any(p.is_symlink() for p in work.iterdir()):
         raise RuntimeError('Completed transition ownership/link requires review.')
@@ -46,7 +50,8 @@ def retain_migration_backup(work, old, *, data, archive_bytes):
     if not dump.is_file() or dump.stat().st_size <= 0:
         raise RuntimeError('Historical database backup is missing or irregular.')
     for name, limit in [('build.tar.gz',archive_bytes),
-                        ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024)]:
+                        ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024),
+                        (engagement.MANIFEST, 1024)]:
         path = work / name
         if path.exists() and (not path.is_file() or path.stat().st_size > limit):
             raise RuntimeError('Completed transition artifact budget/type differs.')

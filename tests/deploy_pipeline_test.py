@@ -1747,6 +1747,24 @@ class HistoricalBackupRetentionTests(unittest.TestCase):
                         self.assertEqual((root/'migration-backups'/('a'*40)/backup.name).read_bytes(), b'reviewed own proxy')
                 self.assertTrue((latest/'previous/package.json').exists())
 
+    def test_engagement_restore_manifest_is_archived_with_its_dump(self):
+        for size in [200, 2048]:
+            with self.subTest(size=size), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); old = self.completed(root, 'a'*40, 1)
+                latest = self.completed(root, 'b'*40, 2)
+                manifest = old/'engagement-backup.json'; manifest.write_bytes(b'x' * size)
+                with patch.object(remote,'DATA',root):
+                    if size > 1024:
+                        with self.assertRaisesRegex(RuntimeError, 'budget/type'):
+                            remote.prune_completed(root/('deployment-'+'c'*40))
+                        self.assertTrue(manifest.is_file())
+                    else:
+                        remote.prune_completed(root/('deployment-'+'c'*40))
+                        kept = root/'migration-backups'/('a'*40)
+                        self.assertEqual((kept/manifest.name).read_bytes(), b'x' * size)
+                        self.assertTrue((kept/'database.dump').is_file())
+                self.assertTrue((latest/'previous/package.json').exists())
+
     def test_unexpected_contents_links_or_collisions_stop_before_modifying_backups(self):
         for invalid in ['unexpected','link','collision']:
             with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as directory:
