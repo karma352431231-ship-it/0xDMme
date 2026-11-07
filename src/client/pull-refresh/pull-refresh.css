@@ -1,5 +1,7 @@
 /* Pull down to refresh on phones: a small round mark under the top bar that
-   follows the finger, turns when ready and spins while the page reloads. */
+   follows the finger and turns with it (owner, 07/11/2026). Pulling back or
+   letting go early turns it the other way as it slides away; it spins while
+   the page reloads. --pull, --turn and --pull-ratio come from index.ts. */
 .pull-refresh {
   position: fixed;
   z-index: 60;
@@ -18,7 +20,17 @@
   transition: opacity 0.15s ease;
 }
 .pull-refresh[data-state] {
+  opacity: var(--pull-ratio, 0);
+}
+.pull-refresh[data-state='refreshing'] {
   opacity: 1;
+}
+/* 220 ms, as returnMilliseconds in index.ts. */
+.pull-refresh[data-state='returning'],
+.pull-refresh[data-state='returning'] > span {
+  transition:
+    transform 0.22s ease-out,
+    opacity 0.22s ease-out;
 }
 .pull-refresh > span {
   width: 16px;
@@ -26,7 +38,7 @@
   border: 2px solid var(--text-muted);
   border-top-color: transparent;
   border-radius: 50%;
-  transform: rotate(calc(var(--pull, 0px) * 4deg));
+  transform: rotate(var(--turn, 0deg));
 }
 .pull-refresh[data-state='ready'] > span {
   border-color: var(--accent-text);
@@ -48,5 +60,9 @@
 @media (prefers-reduced-motion: reduce) {
   .pull-refresh[data-state='refreshing'] > span {
     animation-duration: 2.4s;
+  }
+  .pull-refresh[data-state='returning'],
+  .pull-refresh[data-state='returning'] > span {
+    transition: opacity 0.22s ease-out;
   }
 }

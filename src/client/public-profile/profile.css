@@ -775,32 +775,34 @@
   .public-profile-header .public-profile-banner {
     border-radius: 0;
   }
+  /* Same grey pills as the phone Communities feed (page-phone.css), so a
+     post looks the same on a profile as in the feed (owner, 07/11/2026). */
   #app-shell .public-profile-activity .post-actions {
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    gap: 4px;
+    gap: 6px;
+    margin-top: 8px;
   }
   #app-shell
     .public-profile-activity
     .post-actions
-    :is(.post-action, .post-votes) {
-    min-width: 0;
-    min-height: 40px;
-    padding: 4px 6px;
-    gap: 4px;
-    font-size: 12px;
+    :is(.post-action, .post-votes, .post-more > summary) {
+    min-height: 34px;
+    padding: 4px 11px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
   }
   #app-shell .public-profile-activity .post-votes :is(button, a) {
-    min-width: 32px;
-    min-height: 40px;
+    min-width: 34px;
+    min-height: 34px;
     padding: 4px;
   }
   #app-shell .public-profile-activity .post-score {
-    min-width: 20px;
+    color: var(--text);
   }
   #app-shell .public-profile-activity .post-actions svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
   }
   /* The editor fills the screen; only the description keeps a field boundary. */
   #app-shell[data-page='perfil']

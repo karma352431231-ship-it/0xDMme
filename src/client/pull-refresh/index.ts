@@ -8,6 +8,9 @@ import { t } from '../../shared/i18n/index.ts';
  */
 const threshold = 64;
 const maximum = 96;
+const turnPerPixel = 4;
+/** Matches the return transition in pull-refresh.css. */
+const returnMilliseconds = 220;
 
 function scrolledDown(start: Element | null): boolean {
   for (let node = start; node; node = node.parentElement) {
@@ -44,17 +47,35 @@ export function startPullRefresh(options: {
   let start: number | null = null;
   let pulled = 0;
   let busy = false;
-  const show = (distance: number) => {
+  let settling: ReturnType<typeof setTimeout> | undefined;
+  // The mark turns with the finger, so pulling back turns it the other way.
+  const place = (distance: number) => {
     indicator.style.setProperty('--pull', `${distance}px`);
+    indicator.style.setProperty('--turn', `${distance * turnPerPixel}deg`);
+    indicator.style.setProperty(
+      '--pull-ratio',
+      String(Math.min(1, distance / threshold)),
+    );
+  };
+  const show = (distance: number) => {
+    clearTimeout(settling);
+    place(distance);
     indicator.dataset['state'] = distance >= threshold ? 'ready' : 'pulling';
+  };
+  // Released or finished: the mark slides back up, unwinding until it is gone.
+  const settle = () => {
+    clearTimeout(settling);
+    if (!indicator.dataset['state']) return;
+    indicator.dataset['state'] = 'returning';
+    place(0);
+    settling = setTimeout(() => {
+      indicator.removeAttribute('data-state');
+    }, returnMilliseconds);
   };
   const reset = () => {
     start = null;
     pulled = 0;
-    if (!busy) {
-      indicator.removeAttribute('data-state');
-      indicator.style.removeProperty('--pull');
-    }
+    if (!busy) settle();
   };
   const begin = (event: TouchEvent) => {
     if (busy || event.touches.length !== 1 || !options.enabled()) return;
@@ -80,6 +101,7 @@ export function startPullRefresh(options: {
     reset();
     if (!ready) return;
     busy = true;
+    clearTimeout(settling);
     indicator.dataset['state'] = 'refreshing';
     indicator.setAttribute('aria-label', t('Refreshing…'));
     void options
@@ -100,6 +122,7 @@ export function startPullRefresh(options: {
   document.addEventListener('touchcancel', reset, listen);
   return () => {
     lifetime.abort();
+    clearTimeout(settling);
     indicator.remove();
   };
 }
