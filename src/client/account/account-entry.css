@@ -23,6 +23,41 @@
   line-height: 1.3;
 }
 
+#app-shell
+  .account-section
+  .account-card
+  .wallet-picker
+  [data-wallet-picker-back] {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  margin: 0 0 12px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+  text-decoration: none;
+}
+
+@media (max-width: 700px) {
+  #app-shell[data-page] .account-section[data-connected='false'] {
+    width: 100%;
+    min-width: 0;
+    margin-inline: 0;
+    padding: 20px 16px;
+    box-sizing: border-box;
+  }
+  #app-shell[data-page] .account-section[data-connected='false'] .account-card {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
 .account-card .wallet-picker .detail {
   font-size: var(--fs-caption);
   line-height: 1.6;

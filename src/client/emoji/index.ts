@@ -1,88 +1,45 @@
-import { t, currentLanguage } from '../../shared/i18n/index.ts';
-import { validReaction } from '../../shared/daily/index.ts';
-import {
-  EmojiCatalog,
-  emojiCategories,
-  emojiPageSize,
-  insertEmoji,
-} from './catalog.ts';
-import type { EmojiRow } from './catalog.ts';
-import { EmojiArtwork } from './artwork.ts';
-import { emojiCatalogs } from './data.ts';
+import { t } from '../../shared/i18n/index.ts';
+import { EmojiCatalog, insertEmoji } from './catalog.ts';
+import { EmojiPanel } from './panel.ts';
+import { ComposerEmojiPanel } from './composer-panel.ts';
 import { layoutBox, layoutViewport } from '../display-scale/index.ts';
-
-const catalog = new EmojiCatalog(emojiCatalogs[currentLanguage()]);
-const artwork = new EmojiArtwork();
 export { EmojiCatalog, insertEmoji };
-export type { EmojiRow };
-export function emojiText(host: HTMLElement, text: string): void {
-  artwork.text(host, text, catalog);
-}
+export { emojiText } from './panel.ts';
+export type { EmojiRow } from './catalog.ts';
 
-function element<T extends HTMLElement>(
-  host: HTMLElement,
-  selector: string,
-): T {
-  const node = host.querySelector<T>(selector);
-  if (!node) throw new Error('Emoji panel incomplete.');
-  return node;
-}
-function option(host: HTMLSelectElement, value: string, label: string): void {
-  const item = document.createElement('option');
-  item.value = value;
-  item.textContent = label;
-  host.append(item);
-}
-/** Category dock icons, drawn here; the order follows emojiCategories. */
-const categoryIcons = [
-  '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>',
-  '<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
-  '<path d="M5 19c0-8 6-13 14-14-1 8-6 14-14 14zM5 19l7-7"/>',
-  '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h2a2 2 0 0 1 0 4h-2M8 3v3M11 3v3"/>',
-  '<path d="M4 15l2-6h12l2 6v3H4zM7 18v2M17 18v2M6.5 15h.01M17.5 15h.01"/>',
-  '<circle cx="12" cy="12" r="9"/><path d="M3.5 9.5c5 2 12 2 17 0M3.5 14.5c5-2 12-2 17 0M12 3v18"/>',
-  '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z"/>',
-  '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
-  '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-] as const;
-const tones = [
-  ['all', '✋', t('All skin tones')],
-  ['none', '✋', t('No modifier')],
-  ['🏻', '✋🏻', t('Light')],
-  ['🏼', '✋🏼', t('Medium light')],
-  ['🏽', '✋🏽', t('Medium')],
-  ['🏾', '✋🏾', t('Medium dark')],
-  ['🏿', '✋🏿', t('Dark')],
-] as const;
+/** Modal selection owns one result; conversation composition has its own dock lifecycle. */
 export class EmojiPicker {
-  private recent: string[] = [];
   private dialog: HTMLDialogElement | null = null;
   private resolve: ((emoji: string | null) => void) | null = null;
   private anchor: HTMLElement | null = null;
-
-  /**
-   * `gifPane` adds the GIF tab (composer only); it mounts its own content and
-   * calls `close` when a GIF was chosen. Reactions keep the emoji panel alone.
-   * `start: 'gif'` opens on that tab, as the GIF button of community posts does.
-   */
+  private composer: ComposerEmojiPanel | null = null;
   choose(
     anchor: HTMLElement,
     gifPane?: (host: HTMLElement, close: () => void) => void,
     start: 'emoji' | 'gif' = 'emoji',
   ): Promise<string | null> {
-    this.finish(null);
+    this.close();
     this.anchor = anchor;
     const dialog = document.createElement('dialog');
-    dialog.className = 'emoji-picker';
+    dialog.className = 'emoji-picker emoji-panel';
     dialog.setAttribute('aria-label', t('Choose emoji'));
-    // Authored markup only; emoji names enter through textContent/attributes.
-    dialog.innerHTML = t('html.81724dfa0bc5');
     this.dialog = dialog;
     document.body.append(dialog);
     const promise = new Promise<string | null>((resolve) => {
       this.resolve = resolve;
     });
-    this.bind(dialog);
+    let panel: EmojiPanel;
+    try {
+      panel = new EmojiPanel(dialog, {
+        selected: (emoji) => this.finish(emoji),
+        close: () => this.finish(null),
+        ...(gifPane ? { gifPane } : {}),
+        start,
+      });
+    } catch (error: unknown) {
+      this.finish(null);
+      throw error;
+    }
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
       this.finish(null);
@@ -90,73 +47,43 @@ export class EmojiPicker {
     dialog.addEventListener('close', () => {
       if (this.dialog === dialog) this.finish(null);
     });
-    // A click outside the panel (on the backdrop) closes it.
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) this.finish(null);
     });
-    element<HTMLButtonElement>(dialog, '[data-close]').addEventListener(
-      'click',
-      () => this.finish(null),
-    );
     try {
       dialog.showModal();
     } catch (error: unknown) {
       this.finish(null);
       throw error;
     }
-    if (gifPane) this.modes(dialog, gifPane);
     place(dialog, anchor);
-    if (gifPane && start === 'gif')
-      // The tab's own handler mounts the pane, which focuses its search.
-      element<HTMLButtonElement>(dialog, '[data-mode="gif"]').click();
-    else element<HTMLInputElement>(dialog, '[data-query]').focus();
-    void artwork
-      .ready()
-      .then(() => {
-        if (dialog.isConnected)
-          element(dialog, '[data-art]').textContent = t(
-            'Twemoji artwork · CC-BY-4.0 · Recents only in this session',
-          );
-      })
-      .catch(() => {
-        if (dialog.isConnected)
-          element(dialog, '[data-art]').textContent = t(
-            "Artwork unavailable. You can still choose emoji using this device's appearance.",
-          );
-      });
+    if (start !== 'gif' && !matchMedia('(max-width: 700px)').matches)
+      panel.focusSearch();
     return promise;
   }
-  close(): void {
-    this.finish(null);
+  async compose(
+    options: Parameters<ComposerEmojiPanel['open']>[0],
+  ): Promise<void> {
+    if (this.composer?.isOpen) {
+      this.composer.returnToTyping();
+      return;
+    }
+    this.close();
+    const composer = new ComposerEmojiPanel();
+    this.composer = composer;
+    try {
+      await composer.open(options);
+    } finally {
+      if (this.composer === composer) this.composer = null;
+    }
   }
-  private modes(
-    dialog: HTMLDialogElement,
-    gifPane: (host: HTMLElement, close: () => void) => void,
-  ): void {
-    const modes = element(dialog, '[data-modes]'),
-      pane = element(dialog, '[data-gif-pane]');
-    modes.hidden = false;
-    let mounted = false;
-    modes.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const gif = tab.dataset['mode'] === 'gif';
-        dialog.dataset['mode'] = gif ? 'gif' : 'emoji';
-        modes
-          .querySelectorAll('[data-mode]')
-          .forEach((other) =>
-            other.setAttribute('aria-pressed', String(other === tab)),
-          );
-        pane.hidden = !gif;
-        if (gif && !mounted) {
-          mounted = true;
-          gifPane(pane, () => this.finish(null));
-        }
-      });
-    });
+  close(): void {
+    this.composer?.close();
+    this.composer = null;
+    this.finish(null);
   }
   reset(): void {
-    this.recent = [];
-    this.finish(null);
+    this.close();
   }
   private finish(emoji: string | null): void {
     const dialog = this.dialog,
@@ -165,126 +92,10 @@ export class EmojiPicker {
     this.dialog = null;
     this.resolve = null;
     this.anchor = null;
-    if (emoji)
-      this.recent = [
-        emoji,
-        ...this.recent.filter((item) => item !== emoji),
-      ].slice(0, 32);
     dialog?.close();
     dialog?.remove();
     resolve?.(emoji);
     if (anchor?.isConnected) anchor.focus();
-  }
-  private bind(dialog: HTMLDialogElement): void {
-    const query = element<HTMLInputElement>(dialog, '[data-query]'),
-      tone = element<HTMLSelectElement>(dialog, '[data-tone]'),
-      dock = element(dialog, '[data-dock]'),
-      grid = element(dialog, '[data-grid]');
-    for (const [value, glyph, label] of tones) {
-      option(tone, value, glyph);
-      tone.lastElementChild?.setAttribute('aria-label', label);
-    }
-    let category = '0',
-      offset = 0,
-      total = 0;
-    const tabs = emojiCategories.map((label, i) => {
-      const tab = document.createElement('button');
-      tab.type = 'button';
-      tab.title = label;
-      tab.setAttribute('aria-label', label);
-      tab.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${categoryIcons[i] ?? ''}</svg>`;
-      tab.addEventListener('click', () => {
-        category = String(i);
-        query.value = '';
-        render(true);
-      });
-      dock.append(tab);
-      return tab;
-    });
-    const render = (fresh: boolean) => {
-      if (fresh) {
-        offset = 0;
-        grid.replaceChildren();
-        grid.scrollTop = 0;
-      }
-      const searching = query.value.trim() !== '';
-      const result = catalog.search({
-        query: query.value,
-        category: searching ? 'all' : category,
-        tone: tone.value,
-        offset,
-        recent: this.recent,
-      });
-      total = result.total;
-      this.appendGlyphs(grid, result.entries);
-      tabs.forEach((tab, i) =>
-        tab.setAttribute(
-          'aria-pressed',
-          String(!searching && String(i) === category),
-        ),
-      );
-      element(dialog, '[data-section-title]').textContent = searching
-        ? t('Results')
-        : (emojiCategories[Number(category)] ?? '');
-      element(dialog, '[data-result]').textContent = total
-        ? ''
-        : t('No emoji found.');
-      this.renderRecent(dialog, searching, tone.value);
-      const typed = query.value.trim();
-      element<HTMLButtonElement>(dialog, '[data-custom]').hidden =
-        !typed || !validReaction(typed) || !!catalog.find(typed);
-    };
-    for (const control of [query, tone])
-      control.addEventListener('input', () => {
-        render(true);
-      });
-    // Next page loads as the grid scrolls, without pagination buttons.
-    grid.addEventListener('scroll', () => {
-      if (
-        offset + emojiPageSize < total &&
-        grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 80
-      ) {
-        offset += emojiPageSize;
-        render(false);
-      }
-    });
-    element(dialog, '[data-custom]').addEventListener('click', () => {
-      const emoji = query.value.trim();
-      if (emoji && validReaction(emoji)) this.finish(emoji);
-    });
-    render(true);
-  }
-  private renderRecent(
-    dialog: HTMLDialogElement,
-    searching: boolean,
-    tone: string,
-  ): void {
-    const section = element(dialog, '[data-recent-section]');
-    section.hidden = searching || !this.recent.length;
-    if (section.hidden) return;
-    const row = element(dialog, '[data-recent]');
-    row.replaceChildren();
-    this.appendGlyphs(
-      row,
-      catalog.search({
-        query: '',
-        category: 'recent',
-        tone,
-        offset: 0,
-        recent: this.recent,
-      }).entries,
-    );
-  }
-  private appendGlyphs(host: HTMLElement, rows: readonly EmojiRow[]): void {
-    for (const row of rows) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.title = row[1];
-      button.setAttribute('aria-label', row[1]);
-      button.append(artwork.glyph(row[0], catalog));
-      button.addEventListener('click', () => this.finish(row[0]));
-      host.append(button);
-    }
   }
 }
 /** Opens beside the button that asked for it; phones get a bottom sheet (CSS). */
@@ -309,6 +120,13 @@ export async function emojiIntoComposer(
     start?: 'emoji' | 'gif';
   } = {},
 ): Promise<void> {
+  if (
+    matchMedia('(max-width: 700px)').matches &&
+    input.closest('.chat-composer')
+  ) {
+    await picker.compose({ anchor, input, ...gif });
+    return;
+  }
   const start = input.selectionStart,
     end = input.selectionEnd,
     original = input.value;

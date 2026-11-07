@@ -163,9 +163,10 @@ try {
       origin: config.origin,
       views: (input) => database!.communityViews.observe(input),
       shareClicks: (input) => database!.communityViews.shareClicks(input),
-      accounts: (period, after, order) =>
+      accounts: (period, after, order, tags) =>
         database!.communityRanking.accountsPage(period, after, {
           order: order ?? 'trending',
+          tags: tags === true,
         }),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),

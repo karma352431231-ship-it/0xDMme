@@ -32,7 +32,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run probe:zk:prepare
       - run: npm run check
 
   integration:
@@ -70,7 +69,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run probe:zk:prepare
       # The runtime integration uses local synthetic media only. No executable is bundled/deployed.
       - name: Install synthetic media test runtime
         timeout-minutes: 3

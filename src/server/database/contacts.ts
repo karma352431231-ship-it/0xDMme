@@ -547,7 +547,8 @@ export class ContactStore {
         token: input.invite,
         relation,
       });
-      if (!this.needsRequest(relation, id)) return;
+      if (input.invite === null && !this.needsRequest(relation, id)) return;
+      if (input.invite !== null && relation?.state === 'approved') return;
       if (
         input.invite !== null &&
         !(await this.invitations.consume(client, {
@@ -558,8 +559,8 @@ export class ContactStore {
       )
         unavailable();
       await client.query(
-        "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'pending') ON CONFLICT(lo,hi) DO UPDATE SET requester=$1,state='pending'",
-        [id, target.accountId],
+        'INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,$3) ON CONFLICT(lo,hi) DO UPDATE SET requester=$1,state=$3',
+        [id, target.accountId, input.invite === null ? 'pending' : 'approved'],
       );
       await this.bump(client, [id, target.accountId]);
     });

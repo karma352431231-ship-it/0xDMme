@@ -1,4 +1,6 @@
+import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { t } from '../../shared/i18n/index.ts';
+import { decodeDailyText } from '../../shared/daily/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker } from '../emoji/index.ts';
@@ -20,11 +22,14 @@ interface HistoryOptions {
   run: (work: () => Promise<void>) => Promise<void>;
   react: (item: DmItem, emoji: string) => Promise<void>;
   edit: (item: DmItem) => void;
+  reply?: (item: DmItem) => void;
+  remove?: (item: DmItem) => Promise<void>;
 }
 /** Owns one displayed message page, row reuse and media/menu disposal.
  * Authority, verified reading and conversation selection remain with their existing owners. */
 export class DmHistory {
   private readonly options: HistoryOptions;
+  private readonly deletion: MessageDeletionSelection;
   private readonly emoji = new EmojiPicker();
   private readonly mediaUi: AttachmentUi;
   private abort = new AbortController();
@@ -35,6 +40,7 @@ export class DmHistory {
   private readonly headings = new Map<string, HTMLElement>();
   constructor(options: HistoryOptions) {
     this.options = options;
+    this.deletion = new MessageDeletionSelection(options.run);
     this.mediaUi = new AttachmentUi(options.playback, () => {});
   }
   get signal(): AbortSignal {
@@ -45,6 +51,7 @@ export class DmHistory {
     return this.rows.size;
   }
   clear(): void {
+    this.deletion.clear();
     this.abort.abort();
     this.abort = new AbortController();
     for (const held of this.rows.values()) held.stop();
@@ -91,6 +98,18 @@ export class DmHistory {
       else current.history.insertBefore(row, cursorNode);
     }
     if (!page.items.length) current.gate.textContent = t('No messages yet.');
+    this.deletion.update(
+      current.history,
+      input.localMedia
+        ? []
+        : page.items
+            .filter((item) => item.own && !item.relation && this.options.remove)
+            .map((item) => ({
+              id: item.id,
+              row: this.rows.get(item.id)!.row,
+              remove: () => this.options.remove!(item),
+            })),
+    );
     restore();
   }
   /** One heading element per day label, reused across refreshes. */
@@ -100,6 +119,23 @@ export class DmHistory {
     const heading = dayHeading(label);
     this.headings.set(label, heading);
     return heading;
+  }
+  private renderReply(row: HTMLElement, item: DmItem, page: DmPage): void {
+    const encoded =
+      item.kind === 'text'
+        ? item.text
+        : socialAttachment(JSON.parse(item.text) as unknown, item.media!)
+            .caption;
+    const replyId = decodeDailyText(encoded).reply;
+    if (replyId) {
+      const original = page.items.find((row) => row.id === replyId);
+      const quote = document.createElement('small');
+      quote.className = 'dm-reply-preview';
+      quote.textContent = original
+        ? t('Replying to: {0}', [original.displayText.slice(0, 120)])
+        : t('Reply: original message is outside this page or unavailable.');
+      row.prepend(quote);
+    }
   }
   private messageRow(
     item: DmItem,
@@ -116,6 +152,7 @@ export class DmHistory {
         item.displayText,
         item.edited,
         localMedia,
+        input.localMedia,
       ]),
       held = this.rows.get(item.id);
     if (held?.key === key) return held.row;
@@ -131,23 +168,23 @@ export class DmHistory {
           signal: this.abort.signal,
         },
       );
+    this.renderReply(bubble.row, item, page);
     this.renderAttachment(bubble.row, item, { ...input, localMedia });
     const stopMenu = dmMessageMenu(bubble.row, {
       text:
         item.kind === 'text'
-          ? item.text
-          : socialAttachment(JSON.parse(item.text) as unknown, item.media!)
-              .caption,
+          ? item.displayText
+          : decodeDailyText(
+              socialAttachment(JSON.parse(item.text) as unknown, item.media!)
+                .caption,
+            ).text,
       signal: this.abort.signal,
       picker: this.emoji,
       run: this.options.run,
-      ...(!localMedia
-        ? {
-            react: (emoji: string) => this.options.react(item, emoji),
-            edit: () => this.options.edit(item),
-            editable: this.editable(item),
-          }
-        : {}),
+      ...this.messageCapabilities(item, {
+        readOnly: input.localMedia,
+        local: localMedia,
+      }),
     });
     dmReactionChips(bubble.row, {
       reactions: item.reactions,
@@ -164,6 +201,34 @@ export class DmHistory {
       },
     });
     return bubble.row;
+  }
+  /** Quoting local content is independent of permission to mutate its live original. */
+  private messageCapabilities(
+    item: DmItem,
+    input: { readOnly: boolean; local: boolean },
+  ) {
+    return {
+      ...(!input.readOnly && this.options.reply
+        ? { reply: () => this.options.reply?.(item) }
+        : {}),
+      ...(!input.local ? this.mutationCapabilities(item) : {}),
+    };
+  }
+  private mutationCapabilities(item: DmItem) {
+    return {
+      react: (emoji: string) => this.options.react(item, emoji),
+      edit: () => this.options.edit(item),
+      editable: this.editable(item),
+      ...(item.own && this.options.remove
+        ? {
+            remove: () => {
+              if (matchMedia('(max-width: 700px)').matches)
+                this.deletion.begin(item.id);
+              else void this.options.run(() => this.options.remove!(item));
+            },
+          }
+        : {}),
+    };
   }
   private renderAttachment(
     article: HTMLElement,

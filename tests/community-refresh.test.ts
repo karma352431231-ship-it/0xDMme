@@ -992,8 +992,16 @@ await test('personal community lists advance explicitly and reset their page on 
     new URLSearchParams({ view: 'invitations' }),
   );
   await settled(f.ui);
-  assert.match(f.host.textContent, /Community transfers/);
+  assert.match(f.host.textContent, /Community ownership requests/);
+  assert.match(
+    f.host.textContent,
+    /owners who want you to take over their community/,
+  );
   assert.deepEqual(f.data.listAfters, [null, f.data.directory.next, null]);
+  f.data.directory.items = [];
+  f.ui.ready();
+  await settled(f.ui);
+  assert.match(f.host.textContent, /No pending ownership requests/);
   f.ui.leave();
 });
 

@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
+import { requestApi } from '../api-transport/index.ts';
 
 export type ApiFailure =
   'http' | 'non-json' | 'invalid-json' | 'network' | 'timeout' | 'cancelled';
@@ -115,7 +116,7 @@ export async function fetchApi(
   options: RequestInit,
 ): Promise<Response> {
   try {
-    const response = await fetch(path, options);
+    const response = await requestApi(path, options);
     if (options.signal) requestSignals.set(response, options.signal);
     return response;
   } catch (error: unknown) {

@@ -108,32 +108,23 @@ export function postHeader(
   node: HTMLElement,
   post: CommunityPost,
   group: { id: string; name: string },
-  context: 'feed' | 'community' = 'feed',
+  context: 'feed' | 'community' | 'profile' = 'feed',
 ): HTMLElement {
+  // A profile lists one author's posts, so they lead with the community.
   const header = el('div', '', 'community-post-header'),
-    avatar = authorAvatar(post),
+    avatar =
+      context === 'profile' ? communityAvatar(group.name) : authorAvatar(post),
     identity = el('div', '', 'community-post-identity');
   header.append(avatar, identity);
-  if (post.author) {
-    link(
-      identity,
-      `@${post.author.handle}`,
-      `#users?handle=${encodeURIComponent(post.author.handle)}`,
-    );
-    identity.lastElementChild?.classList.add('community-post-author');
-    // Community badges belong to the community: shown inside it and on the
-    // post page, not in the feed (owner request, 28/10/2026).
-    if (context === 'community') authorBadges(identity, post);
-  } else
-    identity.append(el('span', t('Removed account'), 'community-post-author'));
+  if (context !== 'profile') authorLine(identity, post, context);
   const byline = el('div', '', 'community-post-byline');
-  if (context === 'feed') {
+  if (context !== 'community') {
     link(byline, group.name, communityHref(group));
     byline.lastElementChild?.classList.add('community-post-community');
   }
   const time = el(
     'time',
-    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? t('post.edited') : ''}`,
+    `${context !== 'community' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? t('post.edited') : ''}`,
   );
   time.dateTime = post.createdAt;
   time.title = new Date(post.createdAt).toLocaleString(currentLanguage());
@@ -141,6 +132,25 @@ export function postHeader(
   identity.append(byline);
   node.prepend(header);
   return avatar;
+}
+function authorLine(
+  identity: HTMLElement,
+  post: CommunityPost,
+  context: 'feed' | 'community',
+): void {
+  if (!post.author) {
+    identity.append(el('span', t('Removed account'), 'community-post-author'));
+    return;
+  }
+  link(
+    identity,
+    `@${post.author.handle}`,
+    `#users?handle=${encodeURIComponent(post.author.handle)}`,
+  );
+  identity.lastElementChild?.classList.add('community-post-author');
+  // Community badges belong to the community: shown inside it and on the
+  // post page, not in the feed (owner request, 28/10/2026).
+  if (context === 'community') authorBadges(identity, post);
 }
 function authorBadges(identity: HTMLElement, post: CommunityPost): void {
   for (const badge of post.authorBadges ?? []) {

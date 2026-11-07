@@ -1,0 +1,68 @@
+/*
+ * Ranking on phones: what is ranked and the options on one row, then every
+ * filter on one row of equal pills, then the list.
+ */
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] :has(> .ranking-scopes) {
+    position: relative;
+  }
+  #app-shell[data-page='comunidades']
+    :has(> .ranking-scopes)
+    > .community-tools {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    margin: 0;
+  }
+  #app-shell[data-page='comunidades']
+    :has(> .ranking-scopes)
+    > .community-feedback:empty {
+    display: none;
+  }
+  #app-shell[data-page='comunidades'] .ranking-scopes {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    margin: 0 0 10px;
+    padding: 2px;
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  #app-shell[data-page='comunidades'] .ranking-scopes button {
+    min-height: 30px;
+    margin: 0;
+    padding: 4px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #app-shell[data-page='comunidades']
+    .ranking-scopes
+    button[aria-pressed='true'] {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  /* Three short pills fit, so nothing scrolls and the topic list can float. */
+  #app-shell[data-page='comunidades']
+    .community-ranking-filters
+    .community-feed-filter-row {
+    height: auto;
+    overflow: visible;
+  }
+  #app-shell[data-page='comunidades'] .community-ranking-topics {
+    padding: 0;
+  }
+  #app-shell[data-page='comunidades'] .community-ranking-topics > summary {
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 0;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}

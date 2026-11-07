@@ -123,6 +123,8 @@ export class PublicProfileService {
         'moderation-media',
         'mention-notifications',
         'mention-notifications-read',
+        'follow-notifications',
+        'follow-notifications-read',
         'moderation-appeal',
       ].includes(operation)
     )
@@ -170,6 +172,8 @@ export class PublicProfileService {
         'notification-state',
         'notification-set',
         'activity',
+        'follow-notifications',
+        'follow-notifications-read',
       ].includes(operation)
     )
       return this.socialOperation(operation, authority, data);
@@ -235,6 +239,8 @@ export class PublicProfileService {
         'notification-state',
         'notification-set',
         'activity',
+        'follow-notifications',
+        'follow-notifications-read',
       ].includes(operation)
     )
       return this.pages().operate(operation, authority, data);

@@ -5,7 +5,10 @@ import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import { AccountError, keys } from '../../shared/account/index.ts';
-import { communityPageSize } from '../../shared/communities/index.ts';
+import {
+  communityBoolean,
+  communityPageSize,
+} from '../../shared/communities/index.ts';
 import {
   discoveryKey,
   discoveryWindow,
@@ -368,7 +371,9 @@ export class CommunityDiscoveryStore {
     data: Record<string, unknown>,
   ): Promise<unknown> {
     if (operation === 'discovery-accounts') {
-      keys(data, ['period', 'after']);
+      const tags = Object.hasOwn(data, 'tags');
+      keys(data, ['period', 'after', ...(tags ? ['tags'] : [])]);
+      if (tags) communityBoolean(data['tags']);
       const period = rankingPeriod(data['period']);
       const after = data['after'];
       exploreCursor(after);
@@ -382,6 +387,7 @@ export class CommunityDiscoveryStore {
           order: 'following',
           actor: actor.id,
           client,
+          tags: data['tags'] === true,
         });
       });
     }

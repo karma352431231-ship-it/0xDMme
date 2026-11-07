@@ -41,7 +41,6 @@ await test('delegated dismissal covers current and dynamically mounted menus wit
     'community-more',
     'post-more',
     'discovery-menu',
-    'community-post-more',
     'group-member-menu',
     'settings-section',
   ].map(disclosure);
@@ -85,7 +84,7 @@ await test('delegated dismissal covers current and dynamically mounted menus wit
       .filter(({ menu }) => menu.className !== 'settings-section')
       .every(({ menu }) => !menu.open),
   );
-  assert.equal(menus[7]!.menu.open, true);
+  assert.equal(menus[6]!.menu.open, true);
   assert.equal(input.value, 'Unsaved synthetic draft');
 });
 

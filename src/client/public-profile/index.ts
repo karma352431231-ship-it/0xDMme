@@ -1,3 +1,4 @@
+import { blockPublicUser } from './social-controls.ts';
 import { closePublicProfileGuidance } from '../public-action-guidance/index.ts';
 import {
   forgetProfileReturn,
@@ -7,6 +8,7 @@ import {
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
+import { followNoticePage } from '../../shared/follow-notices/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
@@ -85,8 +87,6 @@ export function startPublicProfile(
     if (own) editor.paint();
   }
   function renderControls(): void {
-    const mediaStatus = node('[data-external-media-status]');
-    if (mediaStatus) mediaStatus.textContent = privacy.description();
     const output = node('[data-public-status]');
     if (output)
       output.textContent =
@@ -215,13 +215,6 @@ export function startPublicProfile(
     node('[data-public-action="reload"]')?.addEventListener('click', ready);
     bindModeration();
     bindCreate();
-    node('[data-public-action="external-media"]')?.addEventListener(
-      'click',
-      () => {
-        void run(() => privacy.configure(consentAbort.signal));
-      },
-    );
-    privacy.subscribe(renderControls, consentAbort.signal);
     render();
     ready();
   }
@@ -242,6 +235,7 @@ export function startPublicProfile(
       });
     },
     follows: profileFollows(controller),
+    blockUser: (target: string) => blockPublicUser(controller, target),
     mountReview: review.mount,
     mentionNotifications: async () =>
       mentionNotificationPage(
@@ -249,6 +243,13 @@ export function startPublicProfile(
       ).items,
     markMentionsRead: async (ids: readonly string[]) => {
       await controller.perform('mention-notifications-read', { ids });
+    },
+    followNotifications: async () =>
+      followNoticePage(
+        await controller.perform('follow-notifications', { after: null }),
+      ).items,
+    markFollowsRead: async (ids: readonly string[]) => {
+      await controller.perform('follow-notifications-read', { ids });
     },
     moderationNotifications: () => notices.read(),
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),

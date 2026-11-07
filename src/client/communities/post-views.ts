@@ -1,5 +1,6 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import { requestApi } from '../api-transport/index.ts';
 import { postViewsPage } from '../../shared/community-views/index.ts';
 import { communityElement as el } from './elements.ts';
 import { communityIcon } from './presentation.ts';
@@ -158,7 +159,7 @@ class ViewExposure {
     const batch = Array.from(this.pending.values()).slice(0, 24);
     let failed = false;
     try {
-      const response = await fetch('/api/communities/views', {
+      const response = await requestApi('/api/communities/views', {
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },

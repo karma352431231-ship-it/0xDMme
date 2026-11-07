@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 export { BackgroundVaultAccess } from './background.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type {
@@ -88,7 +89,7 @@ export function startDevices(options: {
     if (code) code.value = invitation ? enrollmentPayload(invitation) : '';
     const qr = node('[data-link-qr]');
     if (qr && invitation)
-      renderQr(qr, enrollmentUrl(invitation, location.origin));
+      renderQr(qr, enrollmentUrl(invitation, applicationOrigin()));
     else qr?.replaceChildren();
   }
   function renderList(): void {

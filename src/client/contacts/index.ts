@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -16,6 +17,7 @@ import type {
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
+import { showToast } from '../toast/index.ts';
 import { AddressBook, incomingInvitation } from './agenda.ts';
 import { Contacts } from './controller.ts';
 import { PrivateContactInvitations } from './invitations.ts';
@@ -54,6 +56,22 @@ export function startContacts(
     book,
     sync,
     run,
+    requestable: (contact) =>
+      !['approved', 'outgoing'].some((kind) =>
+        contacts.pages
+          .get(kind as ContactList)
+          ?.items.some(
+            (peer) =>
+              peer.ecosystem === contact.ecosystem &&
+              peer.address === contact.address,
+          ),
+      ),
+    request: async (contact) => {
+      contactSettings.clear();
+      startAdding();
+      fillEditor({ address: contact.address, alias: contact.alias });
+      await requestWallet();
+    },
     saved: async (contact) => {
       await directory.saved(contact);
       await options.saved?.(contact);
@@ -67,16 +85,19 @@ export function startContacts(
     generation = 0,
     offset = 0;
   let status = t('Connect and authorize the device to sync.');
+  // Dialogs show only what went wrong; confirmations reach the person as toasts.
+  let problem = '';
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
   const invitations = new PrivateContactInvitations({
     owner: () => contacts.session?.accountId ?? null,
-    origin: location.origin,
+    origin: applicationOrigin(),
     issue: (hash) => contacts.issueInvitation(hash),
     revoke: (hash) => contacts.revokeInvitation(hash),
   });
   let camera: QrCamera | null = null;
+  const boundInviteButtons = new WeakSet<Element>();
   // Photo loads belong to one directory render; the next render cancels them.
   let directoryPhotos = new AbortController();
   function node<T extends HTMLElement>(selector: string): T | null {
@@ -108,6 +129,7 @@ export function startContacts(
     busy = true;
     const current = generation;
     requests.dismiss();
+    problem = '';
     render();
     try {
       await work();
@@ -119,20 +141,29 @@ export function startContacts(
       const retry = node('[data-contact-action="refresh"]');
       if (retry) retry.hidden = false;
       if (current === generation)
-        status =
+        failed(
           error instanceof Error
             ? translatedError(error.message)
-            : t('Operation unavailable. Check the state before retrying.');
+            : t('Operation unavailable. Check the state before retrying.'),
+        );
     } finally {
       busy = false;
       render();
       if (current !== generation) ready();
     }
   }
+  function failed(message: string): void {
+    status = message;
+    problem = message;
+  }
+  function confirmed(message: string): void {
+    status = message;
+    showToast(message);
+  }
   function render(): void {
     text('[data-contact-status]', busy ? t('Updating contacts…') : status);
-    text('[data-contact-editor-status]', busy ? t('Processing…') : status);
-    text('[data-contact-invite-status]', busy ? t('Processing…') : status);
+    text('[data-contact-editor-status]', problem);
+    text('[data-contact-invite-status]', problem);
     renderNextChat();
     renderInvite();
     renderBook();
@@ -173,8 +204,10 @@ export function startContacts(
     if (own) own.hidden = !ownLink;
     const input = node<HTMLInputElement>('[data-contact-invite]');
     if (input) input.value = ownLink ?? '';
-    const rotate = node('[data-contact-action="rotate"]');
-    if (rotate) rotate.textContent = t('Create new invitation');
+    for (const action of ['copy', 'revoke']) {
+      const control = node(`[data-contact-action="${action}"]`);
+      if (control) control.hidden = !ownLink;
+    }
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
     if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
@@ -209,9 +242,6 @@ export function startContacts(
   }
   function startAdding(): void {
     resetEditor();
-    status = t(
-      'Saving stores the nickname in contacts; a conversation request requires acceptance.',
-    );
     render();
     openEditor('wallet');
   }
@@ -234,16 +264,25 @@ export function startContacts(
       'click',
       () => camera?.stop(),
     );
+    node('[data-contact-invites-close]')?.addEventListener('click', () =>
+      node<HTMLDialogElement>('[data-contact-invites]')?.close(),
+    );
   }
+  /** Both the page view and the editor host hold buttons that open invitations. */
   function bindOwnInvite(): void {
     const dialog = node<HTMLDialogElement>('[data-contact-invites]');
-    node('[data-contact-own-open]')?.addEventListener('click', () => {
-      dialog?.showModal();
-      renderInvite();
-    });
-    node('[data-contact-invites-close]')?.addEventListener('click', () =>
-      dialog?.close(),
-    );
+    for (const root of [mounted, editor])
+      root?.querySelectorAll('[data-contact-own-open]').forEach((button) => {
+        if (boundInviteButtons.has(button)) return;
+        boundInviteButtons.add(button);
+        button.addEventListener('click', () => {
+          node<HTMLDialogElement>('[data-contact-editor]')?.close();
+          if (!dialog?.open) dialog?.showModal();
+          renderInvite();
+          if (button.getAttribute('data-contact-own-open') === 'create')
+            void run(rotate);
+        });
+      });
   }
   async function refresh(): Promise<void> {
     const deadline = Date.now() + 60_000;
@@ -344,13 +383,15 @@ export function startContacts(
     if (expected !== generation) throw new Error('Session changed.');
     await directory.saved(contact);
     await options.saved?.(contact);
-    status = sync.pending
-      ? t(
-          'Contact saved on this device. It will be sent when the connection returns.',
-        )
-      : t(
-          'Private contact confirmed in the vault. This did not approve a conversation.',
-        );
+    confirmed(
+      sync.pending
+        ? t(
+            'Contact saved on this device. It will be sent when the connection returns.',
+          )
+        : t(
+            'Private contact confirmed in the vault. This did not approve a conversation.',
+          ),
+    );
     resetEditor();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
   }
@@ -548,14 +589,16 @@ export function startContacts(
   }
   async function inspectInvite(): Promise<void> {
     const link = value('[data-contact-received]');
-    if (link) received = readInvitation(link, location.origin);
+    if (link) received = readInvitation(link, applicationOrigin());
     if (!received) throw new Error('Enter a valid invitation.');
     invitePeer = await contacts.invite(received);
     const target = node('[data-contact-invite-peer]');
     target?.replaceChildren();
     if (!invitePeer) {
-      status = t(
-        'Invitation unavailable, revoked or restricted by current privacy settings.',
+      failed(
+        t(
+          'Invitation unavailable, revoked or restricted by current privacy settings.',
+        ),
       );
       return;
     }
@@ -570,7 +613,7 @@ export function startContacts(
     target?.append(p);
     if (!node('[data-contact-invite-form]'))
       target?.append(
-        button(t('Request conversation'), () =>
+        button(t('Accept invitation'), () =>
           requestInvite(selected, invite.token),
         ),
       );
@@ -598,13 +641,15 @@ export function startContacts(
     node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
-    if (!requests.offered) status = t('Request sent. Wait for acceptance.');
+    requests.approved(selected);
+    confirmed(t('Invitation accepted. You can start the conversation.'));
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
     if (invitePeer && received) await requestInvite(invitePeer, received.token);
   }
   async function requestWallet(): Promise<void> {
+    await contacts.refresh();
     await discover();
     if (found) {
       const expected = generation;
@@ -623,7 +668,7 @@ export function startContacts(
       await directory.saved(contact);
       await options.saved?.(contact);
       await refresh();
-      if (!requests.offered) status = t('Request sent. Wait for acceptance.');
+      if (!requests.offered) confirmed(t('Request sent. Wait for acceptance.'));
     }
   }
   const actions: Record<string, () => Promise<void>> = {
@@ -632,15 +677,15 @@ export function startContacts(
     rotate,
     revoke: async () => {
       await invitations.revoke();
-      status = t(
-        'This invitation was revoked. Other invitations remain valid.',
+      confirmed(
+        t('This invitation was revoked. Other invitations remain valid.'),
       );
     },
     copy: async () => {
       const ownLink = invitations.link;
       if (!ownLink) throw new Error('Create an invitation first.');
       await navigator.clipboard.writeText(ownLink);
-      status = t('Link copied. Share it manually with the recipient.');
+      confirmed(t('Link copied. Share it manually with the recipient.'));
     },
     'book-more': async () => {
       if (directory.more) await directory.load(true);
@@ -695,17 +740,17 @@ export function startContacts(
   function showReceivedInvite(): void {
     if (!received) return;
     const input = node<HTMLInputElement>('[data-contact-received]');
-    if (input) input.value = invitationLink(location.origin, received);
+    if (input) input.value = invitationLink(applicationOrigin(), received);
     openEditor('invite');
   }
   function readIncomingInvite(): void {
     try {
-      const invite = incomingInvitation(location.hash, location.origin);
+      const invite = incomingInvitation(location.hash, applicationOrigin());
       if (!invite) return;
       received = invite;
     } catch {
       received = null;
-      status = t('Invalid invitation. Check the full link.');
+      failed(t('Invalid invitation. Check the full link.'));
     }
     if (contactInvitationValue(location.hash) !== null)
       history.replaceState(null, '', location.pathname + '#contacts');
@@ -721,7 +766,7 @@ export function startContacts(
         if (stop) stop.hidden = !active;
       },
       failed: (message) => {
-        status = message;
+        failed(message);
         render();
       },
       decoded: (link) => {
@@ -824,6 +869,7 @@ export function startContacts(
       host.innerHTML = editorTemplate;
       bindContactTabs(host);
       bindEditor();
+      bindOwnInvite();
       bindControls(host);
       mountCamera();
       render();

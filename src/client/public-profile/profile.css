@@ -1,19 +1,109 @@
+/*
+ * Public profile (05/11/2026): one column on every screen and in the panel
+ * beside the chat. It reads top to bottom as who the person is, what can be
+ * done, and what they publish.
+ */
 .public-profile-page {
-  max-width: 1200px;
+  --public-profile-bar: calc(48px + env(safe-area-inset-top));
+  width: 100%;
+  max-width: 680px;
   margin: 0 auto;
   min-width: 0;
   color: var(--text);
 }
+/* The bar below names the page; the heading stays for assistive technology. */
+#app-shell[data-page='publico'] .page-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.public-profile-bar {
+  /* Scrolls with the page; it anchors the options menu. */
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: var(--public-profile-bar);
+  padding: env(safe-area-inset-top) 8px 0;
+  background: var(--bg);
+}
+.public-profile-back {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text);
+}
+.public-profile-back:hover {
+  background: var(--surface-2);
+}
+.public-profile-back svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.public-profile-bar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 16px/1.2 var(--font-display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.public-profile-bar-menu {
+  flex: none;
+}
+.public-profile-bar-menu:empty {
+  display: none;
+}
+/* Its panel floats from this button (communities/post-menu.css). */
+.public-profile-bar-menu .post-more {
+  position: static;
+}
+#app-shell .public-profile-bar-menu .post-more > summary {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text);
+  list-style: none;
+  cursor: pointer;
+}
+#app-shell .public-profile-bar-menu .post-more > summary:hover,
+#app-shell .public-profile-bar-menu .post-more[open] > summary {
+  background: var(--surface-2);
+}
+.public-profile-bar-menu svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#app-shell .public-profile-bar-menu .post-more-content {
+  top: calc(100% + 2px);
+  right: 8px;
+  left: auto;
+  width: min(300px, calc(100% - 16px));
+}
 .public-profile-header {
   display: block;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--surface);
-  margin-bottom: 24px;
-}
-.public-profile-header:has(.post-more[open]) {
-  overflow: visible;
+  margin-bottom: 4px;
 }
 /* Banners keep the 3:1 frame chosen in the editor on every screen (16/10/2026). */
 .public-profile-banner {
@@ -22,8 +112,9 @@
   background: var(--surface-3);
   overflow: hidden;
   position: relative;
-  border-start-start-radius: inherit;
-  border-start-end-radius: inherit;
+}
+.public-profile-header .public-profile-banner {
+  border-radius: 14px;
 }
 .public-profile-banner > .public-avatar-preview {
   width: 100%;
@@ -33,29 +124,21 @@
   border-radius: 0;
   object-fit: cover;
 }
-.public-profile-banner > span {
-  position: absolute;
-  bottom: 12px;
-  left: 20px;
-}
 .public-profile-identity {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  padding: 0 28px 24px;
+  padding: 0 16px 14px;
 }
 .public-profile-avatar {
   display: grid;
   place-items: center;
   position: relative;
-  width: 112px;
-  height: 112px;
-  flex: 0 0 112px;
-  margin-top: -28px;
-  border: 5px solid var(--surface);
+  box-sizing: border-box;
+  width: 84px;
+  height: 84px;
+  margin-top: -42px;
+  border: 4px solid var(--bg);
   border-radius: 50%;
   background: var(--surface-2);
-  font-size: 40px;
+  font-size: 32px;
   overflow: hidden;
 }
 .public-profile-avatar > .public-avatar-preview {
@@ -68,56 +151,183 @@
   border-radius: 0;
   object-fit: cover;
 }
-.public-profile-title {
-  min-width: 0;
-  padding-top: 16px;
+.public-profile-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
 }
-.public-profile-title h1 {
+.public-profile-name h1 {
+  min-width: 0;
   margin: 0;
-  font-size: clamp(22px, 3vw, 34px);
+  font: 700 22px/1.2 var(--font-display);
   overflow-wrap: anywhere;
 }
-.public-profile-title p {
-  color: var(--text-muted);
-  margin: 8px 0 0;
-  font-size: 14px;
+/* Owner-written description; plain text with line breaks and mentions. */
+.public-profile-description {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.public-profile-actions {
-  margin-left: auto;
+.public-profile-meta {
   display: flex;
-  gap: 10px;
-  align-items: center;
   flex-wrap: wrap;
-  padding-top: 16px;
+  gap: 2px 8px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
 }
-.public-profile-actions a,
-.public-profile-actions button {
+.public-profile-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.public-profile-meta > span + span::before {
+  content: '·';
+  margin-right: 8px;
+}
+/* Message leads; Follow and the bell stay quiet, all on one row. */
+.public-profile-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.public-profile-actions:empty {
+  display: none;
+}
+#app-shell .public-profile-actions > :is(a, button) {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 36px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  padding: 10px 16px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
   text-decoration: none;
-  font-size: 14px;
+  white-space: nowrap;
 }
-.public-profile-actions button {
+#app-shell .public-profile-actions > .profile-message {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+#app-shell
+  .public-profile-actions
+  > .profile-follow:not([aria-pressed='true']) {
+  color: var(--accent);
+}
+#app-shell .public-profile-actions > .profile-bell {
+  position: relative;
+  flex: 0 0 36px;
+  width: 36px;
+  padding: 0;
+}
+#app-shell .public-profile-actions > .profile-bell[aria-pressed='true'] {
+  border-color: transparent;
   background: var(--accent);
   color: var(--accent-ink);
 }
-.public-profile-actions button[aria-pressed='true'] {
-  background: var(--surface-2);
+#app-shell .public-profile-actions > .profile-bell[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+#app-shell .public-profile-actions > .profile-bell:disabled {
+  opacity: 0.45;
+}
+.public-profile-actions svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profile-bell-check {
+  display: none;
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border: 2px solid var(--bg);
+  border-radius: 999px;
+  background: var(--ok);
+  color: var(--surface);
+}
+#app-shell .public-profile-actions .profile-bell-check svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke-width: 3.2;
+}
+.profile-bell[aria-pressed='true'] > .profile-bell-check {
+  display: grid;
+}
+/* The pencil of one's own profile, beside the name. */
+#app-shell .public-profile-name > .profile-edit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
   color: var(--text);
 }
-.public-profile-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 28px;
-  align-items: start;
+.public-profile-name > .profile-edit svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.public-profile-timeline {
-  min-width: 0;
+.public-profile-tabs {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  scrollbar-width: none;
 }
-.public-profile-activity {
-  display: grid;
-  gap: 16px;
+#app-shell .public-profile-tabs button {
+  flex: 1 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 11px 8px 9px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#app-shell .public-profile-tabs button[aria-current='true'] {
+  border-bottom-color: var(--text);
+  color: var(--text);
+}
+.public-profile-tab-count {
+  font-weight: 500;
+}
+#app-shell .public-profile-page [hidden] {
+  display: none;
 }
 .public-profile-activity .post-actions {
   display: flex;
@@ -125,105 +335,17 @@
   gap: 8px 16px;
   align-items: center;
 }
-.public-profile-tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  padding: 0 0 16px;
-  margin-bottom: 16px;
-}
-.public-profile-tabs button {
-  border-radius: 999px;
-  padding: 10px 18px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-}
-.public-profile-tabs button[aria-current='true'] {
-  background: var(--surface-3);
-  color: var(--text);
-}
-.public-profile-about {
-  padding: 24px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
-.public-profile-about h2 {
-  font-size: 15px;
-  margin: 0 0 18px;
-}
-.public-profile-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px 12px;
+#app-shell .public-profile-activity > .community-card {
   margin: 0;
-}
-.public-profile-metrics dd {
-  margin: 0 0 7px;
-  font-size: 16px;
-  font-weight: 650;
-  overflow-wrap: anywhere;
-}
-.public-profile-metrics dt {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.5;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .public-profile-communities {
-  border-top: 1px solid var(--line);
-  margin-top: 24px;
-  padding-top: 24px;
-}
-/* Few communities show names; larger collections expand from a photo row. */
-/* Outranks the display of each part, including the toggle's button rule. */
-#app-shell .public-profile-communities [hidden] {
-  display: none;
-}
-.profile-communities-compact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.profile-communities-compact p {
-  margin: 0;
-  color: var(--text-muted);
-}
-.profile-community-photo {
-  display: inline-grid;
-  border-radius: 28%;
-}
-.profile-community-photo .community-avatar {
-  width: 44px;
-  height: 44px;
-  flex-basis: 44px;
-}
-.profile-community-photo:hover .community-avatar,
-.profile-community-photo:focus-visible .community-avatar {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-#app-shell .profile-communities-toggle {
-  display: inline-grid;
-  place-items: center;
-  min-height: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 12px;
-  width: auto;
-  min-width: 0;
-  border: 1px dashed var(--line-strong);
-  border-radius: 99px;
-  white-space: nowrap;
-  background: transparent;
-  color: var(--text);
-  font-size: var(--fs-small);
-  font-weight: 650;
-}
-#app-shell .profile-communities-toggle:hover {
-  border-style: solid;
-  background: var(--surface-2);
+  padding: 6px 8px;
 }
 .profile-communities-list {
   display: grid;
@@ -236,7 +358,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 8px;
+  padding: 8px;
   border-radius: 10px;
   color: var(--text);
   text-decoration: none;
@@ -245,198 +367,21 @@
 .profile-community-row:hover {
   background: var(--surface-2);
 }
-.profile-communities-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+.profile-community-row .community-avatar {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
 }
-#app-shell .profile-communities-footer button {
+#app-shell .profile-communities-more {
   min-height: 34px;
-  margin: 0;
+  margin: 10px 8px;
   padding: 4px 14px;
   border-radius: 99px;
   font-size: var(--fs-small);
 }
 .public-profile-empty {
-  padding: 32px 0;
+  padding: 32px 16px;
   color: var(--text-muted);
-}
-/* Owner-written description on the public page; plain text with line breaks. */
-.public-profile-description {
-  margin: 0;
-  padding: 0 28px 22px;
-  font-size: 15px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 900px) {
-  .public-profile-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-  .public-profile-about {
-    grid-row: 1;
-  }
-  .public-profile-metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .public-profile-communities {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .public-profile-communities h2 {
-    width: 100%;
-    margin-bottom: 0;
-  }
-}
-@media (max-width: 520px) {
-  .public-profile-identity {
-    gap: 12px;
-    padding: 0 16px 20px;
-    flex-wrap: wrap;
-  }
-  .public-profile-avatar {
-    width: 80px;
-    height: 80px;
-    flex-basis: 80px;
-  }
-  .public-profile-actions {
-    width: 100%;
-    margin-left: 0;
-    padding-top: 0;
-  }
-  .public-profile-about {
-    padding: 18px;
-  }
-  .public-profile-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-  .public-profile-tabs {
-    gap: 4px;
-  }
-  .public-profile-tabs button {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-}
-/*
- * Compact profile in the feed panel beside the chat: one column, a short
- * banner, a smaller photo and the summary above the activity. The id
- * outranks the panel's generic community control style.
- */
-#feed-panel .public-profile-header {
-  margin-bottom: 14px;
-  border-radius: 16px;
-}
-#feed-panel .public-profile-banner {
-  height: auto;
-}
-#feed-panel .public-profile-identity {
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 0 14px 14px;
-}
-#feed-panel .public-profile-avatar {
-  flex-basis: 68px;
-  align-self: flex-start;
-  width: 68px;
-  height: 68px;
-  margin-top: -24px;
-  border-width: 4px;
-  font-size: 26px;
-}
-#feed-panel .public-profile-title {
-  flex: 1;
-  padding-top: 10px;
-}
-#feed-panel .public-profile-title h1 {
-  font-size: 20px;
-}
-#feed-panel .public-profile-title p {
-  margin-top: 2px;
-  font-size: 13px;
-}
-#feed-panel .public-profile-actions {
-  width: 100%;
-  margin-left: 0;
-  padding-top: 4px;
-  gap: 8px;
-}
-#feed-panel .public-profile-actions :is(a, button) {
-  margin: 0;
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 13px;
-}
-#feed-panel .public-profile-layout {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-}
-#feed-panel .public-profile-about {
-  grid-row: 1;
-  padding: 14px 16px;
-  border-radius: 14px;
-}
-#feed-panel .public-profile-about h2 {
-  margin: 0 0 10px;
-  font-size: 13px;
-}
-#feed-panel .public-profile-metrics {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
-}
-#feed-panel .public-profile-metrics dd {
-  margin-bottom: 2px;
-  font-size: 14px;
-}
-#feed-panel .public-profile-metrics dt {
-  font-size: 11px;
-}
-#feed-panel .public-profile-communities {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  margin-top: 12px;
-  padding-top: 12px;
-}
-#feed-panel .public-profile-communities h2 {
-  width: 100%;
-  margin: 0;
-}
-#feed-panel .public-profile-communities a {
-  padding: 2px 0;
-  font-size: 13px;
-}
-#feed-panel .public-profile-tabs {
-  gap: 4px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-}
-#feed-panel .public-profile-tabs button {
-  padding: 7px 12px;
-  font-size: 13px;
-}
-#feed-panel .public-profile-actions button {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-#feed-panel .public-profile-actions button[aria-pressed='true'] {
-  background: var(--surface-2);
-  color: var(--text);
-}
-#feed-panel .public-profile-tabs button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-muted);
-}
-#feed-panel .public-profile-tabs button[aria-current='true'] {
-  background: var(--surface-3);
-  color: var(--text);
 }
 
 /*
@@ -650,44 +595,6 @@
 .profile-editor-draft button[hidden] {
   display: none;
 }
-#feed-panel .public-profile-description {
-  padding: 0 14px 14px;
-  font-size: 14px;
-}
-@media (max-width: 520px) {
-  .public-profile-description {
-    padding: 0 16px 18px;
-  }
-  .profile-editor-identity {
-    gap: 12px;
-    padding: 0 14px;
-  }
-  .profile-editor-avatar {
-    flex-basis: 76px;
-    width: 76px;
-    height: 76px;
-    margin-top: -28px;
-  }
-  #app-shell .public-profile-card .profile-editor .profile-editor-description {
-    padding: 14px;
-  }
-}
-.public-profile-actions svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-/* Its panel floats from this button (communities/post-menu.css). */
-.public-profile-actions .post-more > summary {
-  width: 40px;
-  padding: 8px;
-  list-style: none;
-  cursor: pointer;
-}
 
 /* Shared heading is used in split and isolated community layouts. */
 #app-shell .own-public-profile-shortcut {
@@ -739,7 +646,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 10px;
   color: var(--text-muted);
   font-size: var(--fs-caption);
 }
@@ -777,190 +684,14 @@
   gap: 8px;
   flex-basis: 100%;
 }
-.mutual-followers p:empty {
+.mutual-followers p:empty,
+.mutual-followers:has(> p:empty:only-child) {
   display: none;
 }
 
 /* Preparing a replacement keeps the current image visible at full opacity. */
 #app-shell .public-profile-card .profile-editor .profile-editor-pick:disabled {
   opacity: 1;
-}
-
-/*
- * Profile actions (16/10/2026): Message, Following, the bell, the pencil and
- * "..." share one height; only widths differ. The bell reads its state at a
- * glance: outline when off, filled accent with a check when on.
- */
-#app-shell .public-profile-actions > :is(a, button),
-#app-shell .public-profile-actions > .post-more > summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: 40px;
-  min-height: 0;
-  margin: 0;
-  padding: 0 18px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-}
-#app-shell .public-profile-actions > .profile-follow {
-  border-color: transparent;
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-#app-shell .public-profile-actions > .profile-follow[aria-pressed='true'] {
-  border-color: var(--line-strong);
-  background: transparent;
-  color: var(--text);
-}
-#app-shell .public-profile-actions > :is(.profile-bell, .profile-edit),
-#app-shell .public-profile-actions > .post-more > summary {
-  position: relative;
-  width: 40px;
-  padding: 0;
-}
-#app-shell .public-profile-actions > .profile-bell[aria-pressed='true'] {
-  border-color: transparent;
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-#app-shell .public-profile-actions > .profile-bell[aria-pressed='true'] svg {
-  fill: currentColor;
-}
-#app-shell .public-profile-actions > .profile-bell:disabled {
-  opacity: 0.45;
-}
-.profile-bell-check {
-  display: none;
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  place-items: center;
-  width: 17px;
-  height: 17px;
-  border: 2px solid var(--surface);
-  border-radius: 999px;
-  background: var(--ok);
-  color: var(--surface);
-}
-#app-shell .public-profile-actions .profile-bell-check svg {
-  width: 10px;
-  height: 10px;
-  fill: none;
-  stroke-width: 3.2;
-}
-.profile-bell[aria-pressed='true'] > .profile-bell-check {
-  display: grid;
-}
-#feed-panel .public-profile-actions > :is(a, button),
-#feed-panel .public-profile-actions > .post-more > summary {
-  height: 34px;
-  font-size: 13px;
-}
-#feed-panel .public-profile-actions > :is(.profile-bell, .profile-edit),
-#feed-panel .public-profile-actions > .post-more > summary {
-  width: 34px;
-}
-
-/*
- * One column (phones, narrow desktop windows and beside the chat), 16/10/2026:
- * the header, the numbers and the communities read as one card instead of
- * separate blocks.
- */
-@media (max-width: 900px) {
-  .public-profile-page > .public-profile-header {
-    margin-bottom: 0;
-    border-bottom: 0;
-    border-end-start-radius: 0;
-    border-end-end-radius: 0;
-  }
-  .public-profile-page .public-profile-layout {
-    gap: 16px;
-  }
-  .public-profile-page .public-profile-about {
-    padding: 0 16px 16px;
-    border-top: 0;
-    border-start-start-radius: 0;
-    border-start-end-radius: 0;
-  }
-  .public-profile-page .public-profile-about > h2 {
-    display: none;
-  }
-  .public-profile-page .public-profile-metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-  }
-  .public-profile-page .public-profile-metrics dd {
-    margin-bottom: 2px;
-    font-size: 15px;
-  }
-  .public-profile-page .public-profile-metrics dt {
-    font-size: 11px;
-    line-height: 1.3;
-  }
-  .public-profile-page .public-profile-communities {
-    margin-top: 14px;
-    padding-top: 14px;
-  }
-  .public-profile-page .public-profile-identity {
-    padding-bottom: 14px;
-  }
-  .public-profile-page .public-profile-description {
-    padding-bottom: 14px;
-  }
-}
-
-/* Beside the chat the profile is one column too: the same single card. */
-#feed-panel .public-profile-page > .public-profile-header {
-  margin-bottom: 0;
-  border-bottom: 0;
-  border-end-start-radius: 0;
-  border-end-end-radius: 0;
-}
-#feed-panel .public-profile-page .public-profile-about {
-  padding-top: 0;
-  border-top: 0;
-  border-start-start-radius: 0;
-  border-start-end-radius: 0;
-}
-#feed-panel .public-profile-page .public-profile-about > h2 {
-  display: none;
-}
-#feed-panel .public-profile-page .public-profile-metrics {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-/* Phones: Message, Following, the bell and "..." stay on one row. */
-@media (max-width: 520px) {
-  #app-shell .public-profile-actions {
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-  #app-shell .public-profile-actions > :is(a, button),
-  #app-shell .public-profile-actions > .post-more > summary {
-    height: 36px;
-    padding: 0 14px;
-    font-size: 13px;
-  }
-  #app-shell .public-profile-actions > :is(.profile-bell, .profile-edit),
-  #app-shell .public-profile-actions > .post-more > summary {
-    width: 36px;
-    padding: 0;
-  }
-  #app-shell .public-profile-actions svg {
-    width: 18px;
-    height: 18px;
-  }
 }
 
 /*
@@ -1030,22 +761,74 @@
   }
 }
 
-/*
- * Own profile: the lone edit pencil stays on the name row, alone at the right
- * edge, also beside the chat and on phones where actions take a full row
- * (19/10/2026). The name shrinks first, so the pencil never wraps below.
- */
-#app-shell .public-profile-identity:has(.profile-edit:only-child) {
-  flex-wrap: nowrap;
-}
-#app-shell
-  .public-profile-identity:has(.profile-edit:only-child)
-  > .public-profile-title {
-  flex: 1 1 0;
-}
-#app-shell .public-profile-actions:has(> .profile-edit:only-child) {
-  flex: 0 0 auto;
-  align-self: center;
-  width: auto;
-  margin-left: auto;
+/* Phones: every part reaches the screen edges; the shell's title bar yields. */
+@media (max-width: 700px) {
+  #app-shell[data-page='publico'] .brand-bar {
+    display: none;
+  }
+  #app-shell main:has(> #page-content > .public-profile-page) {
+    padding: 0 0 24px;
+  }
+  #app-shell .public-profile-page {
+    max-width: none;
+  }
+  .public-profile-header .public-profile-banner {
+    border-radius: 0;
+  }
+  /* Same grey pills as the phone Communities feed (page-phone.css), so a
+     post looks the same on a profile as in the feed (owner, 07/11/2026). */
+  #app-shell .public-profile-activity .post-actions {
+    gap: 6px;
+    margin-top: 8px;
+  }
+  #app-shell
+    .public-profile-activity
+    .post-actions
+    :is(.post-action, .post-votes, .post-more > summary) {
+    min-height: 34px;
+    padding: 4px 11px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #app-shell .public-profile-activity .post-votes :is(button, a) {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 4px;
+  }
+  #app-shell .public-profile-activity .post-score {
+    color: var(--text);
+  }
+  #app-shell .public-profile-activity .post-actions svg {
+    width: 16px;
+    height: 16px;
+  }
+  /* The editor fills the screen; only the description keeps a field boundary. */
+  #app-shell[data-page='perfil']
+    .settings-section[open]:has([data-public-profile-settings])
+    > .settings-body {
+    padding: 0;
+  }
+  #app-shell [data-public-profile-settings] {
+    margin: 0;
+  }
+  #app-shell[data-page='perfil']
+    .settings-body
+    [data-public-profile-settings]
+    .public-profile-card,
+  #app-shell .public-profile-card .profile-editor {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-identity {
+    padding-inline: 16px;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-description {
+    padding: 16px 16px 4px;
+  }
 }

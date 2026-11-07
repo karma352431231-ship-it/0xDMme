@@ -1,0 +1,98 @@
+import groovy.io.FileType
+import java.nio.file.Files
+import java.util.zip.GZIPOutputStream
+import java.util.zip.ZipFile
+import javax.inject.Inject
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+
+/** Android's asset merger removes one .gz suffix and decompresses that layer.
+ * An outer layer in generated input preserves the shared product's exact files.
+ */
+abstract class PreserveGzipAssets extends DefaultTask {
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getInputAssets()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputAssets()
+
+    @Inject
+    abstract FileSystemOperations getFileOperations()
+
+    @TaskAction
+    void prepare() {
+        def source = inputAssets.get().asFile
+        def destination = outputAssets.get().asFile
+        fileOperations.sync {
+            from(source)
+            into(destination)
+            exclude('**/*.gz')
+        }
+        source.eachFileRecurse(FileType.FILES) { asset ->
+            if (!asset.name.endsWith('.gz')) return
+            def relative = source.toPath().relativize(asset.toPath())
+            def target = destination.toPath().resolve(relative.toString() + '.gz')
+            Files.createDirectories(target.parent)
+            new GZIPOutputStream(Files.newOutputStream(target)).withCloseable { output ->
+                Files.copy(asset.toPath(), output)
+            }
+        }
+    }
+}
+
+/** Reject a successful assembly if gzip URLs or bytes were changed by merging. */
+abstract class VerifyGzipAssets extends DefaultTask {
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getInputAssets()
+
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getApkDirectory()
+
+    @TaskAction
+    void verify() {
+        def packages = apkDirectory.get().asFile.listFiles().findAll { it.name.endsWith('.apk') }
+        if (packages.size() != 1) throw new GradleException('Expected one ordinary Android APK.')
+        def source = inputAssets.get().asFile
+        new ZipFile(packages.first()).withCloseable { archive ->
+            source.eachFileRecurse(FileType.FILES) { asset ->
+                if (!asset.name.endsWith('.gz')) return
+                def relative = source.toPath().relativize(asset.toPath()).toString().replace(File.separator, '/')
+                def entry = archive.getEntry('assets/' + relative)
+                if (entry == null) throw new GradleException('Packaged gzip asset is missing: ' + relative)
+                def actual = archive.getInputStream(entry).withCloseable { it.readAllBytes() }
+                if (!Arrays.equals(actual, asset.bytes)) {
+                    throw new GradleException('Packaged gzip asset bytes changed: ' + relative)
+                }
+            }
+        }
+    }
+}
+
+// The applying Android build supplies its public APK artifact token; applied
+// scripts do not inherit the Android plugin's compilation classpath.
+ext.configureExactAssets = { apkArtifact ->
+    def originalAssets = layout.projectDirectory.dir('src/main/assets')
+    def prepareAssets = tasks.register('prepareMainGzipAssets', PreserveGzipAssets) {
+        inputAssets.set(originalAssets)
+        outputAssets.set(layout.buildDirectory.dir('generated/exact-main-assets'))
+    }
+    android.sourceSets.main.assets.setSrcDirs([])
+    androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+        variant.sources.assets.addGeneratedSourceDirectory(prepareAssets) { it.outputAssets }
+        def verification = tasks.register("verify${variant.name.capitalize()}GzipAssets", VerifyGzipAssets) {
+            inputAssets.set(originalAssets)
+            apkDirectory.set(variant.artifacts.get(apkArtifact))
+        }
+        tasks.configureEach {
+            if (name == "assemble${variant.name.capitalize()}") dependsOn(verification)
+        }
+    }
+}

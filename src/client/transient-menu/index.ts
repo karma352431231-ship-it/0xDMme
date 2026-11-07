@@ -4,7 +4,6 @@ const disclosures = [
   '.community-more',
   '.post-more',
   '.discovery-menu',
-  '.community-post-more',
   '.group-member-menu',
   '[data-transient-menu]',
 ];

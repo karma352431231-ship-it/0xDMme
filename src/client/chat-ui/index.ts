@@ -1,3 +1,6 @@
+export { renderSearchReturn } from './search-return.ts';
+export { revealMessage } from './search-reveal.ts';
+export type { RevealPorts } from './search-reveal.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { sendOnEnter } from './enter.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
@@ -135,7 +138,7 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     changed();
   };
   text?.addEventListener('input', resize);
-  keepFocusOnSend(form, text);
+  keepComposerFocus(form, text);
   // Text, a photo or a voice preview: Enter sends whatever Enviar would send.
   if (text)
     sendOnEnter(text, () => {
@@ -155,18 +158,24 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     });
 }
 
-/** Tapping send must not move focus off the field: on touch keyboards that
+/** Send and emoji controls retain focus until their click operation owns the handoff: on touch keyboards that
  * closes the keyboard and shifts the layout under the finger mid-tap. The
  * click itself still fires and sends. */
-function keepFocusOnSend(
+function keepComposerFocus(
   form: HTMLElement,
   text: HTMLTextAreaElement | null,
 ): void {
-  const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
-  for (const type of ['pointerdown', 'mousedown'] as const)
-    send?.addEventListener(type, (event) => {
-      if (text && document.activeElement === text) event.preventDefault();
-    });
+  const controls = [
+    form.querySelector<HTMLButtonElement>('[data-compose-send]'),
+    form.querySelector<HTMLButtonElement>(
+      '[data-message-emoji], [data-group-emoji], [data-public-emoji]',
+    ),
+  ];
+  for (const control of controls)
+    for (const type of ['pointerdown', 'mousedown'] as const)
+      control?.addEventListener(type, (event) => {
+        if (text && document.activeElement === text) event.preventDefault();
+      });
 }
 
 export function bindChatOptions(host: HTMLElement): void {

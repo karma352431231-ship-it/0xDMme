@@ -56,6 +56,11 @@ export async function requestContact(
   try {
     return await remember(input);
   } catch (error: unknown) {
-    throw new Error('contacts.request-sent-save-failed', { cause: error });
+    throw new Error(
+      input.token === null
+        ? 'contacts.request-sent-save-failed'
+        : 'contacts.invitation-accepted-save-failed',
+      { cause: error },
+    );
   }
 }

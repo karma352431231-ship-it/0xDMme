@@ -15,7 +15,12 @@ import { communityAvatar } from './presentation.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { mentionPlainText } from '../../shared/public-mentions/index.ts';
 import { accountOrderControls } from './account-ranking-controls.ts';
+import { discoveryMenu } from './discovery-menu.ts';
 import { growthLabel } from './ranking-side-growth.ts';
+import {
+  accountGrowthTag,
+  accountGrowthTagLabel,
+} from './account-growth-tag.ts';
 
 /** Windows offered by both rankings, labelled in the current language. */
 export function rankingPeriods(): readonly (readonly [
@@ -189,6 +194,7 @@ export class AccountRankingView {
     const query = new URLSearchParams({
       period: this.period,
       order: this.order,
+      tags: '1',
     });
     const after = append ? this.after : this.pageAfter;
     if (this.following()) {
@@ -239,7 +245,7 @@ export class AccountRankingView {
     const signal = AbortSignal.any([this.signal, this.lifetime.signal]);
     for (const item of items) {
       const row = el('li'),
-        { link, avatar } = accountRow(item, ++this.offset, this.following());
+        { link, avatar } = accountRow(item, ++this.offset, this.order);
       row.append(link);
       this.list.append(row);
       if (item.profile.avatar)
@@ -254,13 +260,14 @@ export class AccountRankingView {
 }
 /**
  * FOMO-style row (19/10/2026): @nick with the bio below, like a ticker over
- * its price; followers on the right like a market cap, with the relevance
- * growth below them. The received counters stay in the row's tooltip.
+ * its price. Trending shows the relevance growth with its tag below
+ * (06/11/2026); Biggest keeps the follower total it ranks by over the growth;
+ * Following shows only the follower total. Counters stay in the tooltip.
  */
 function accountRow(
   item: AccountRankingEntry,
   rank: number,
-  following: boolean,
+  order: AccountRankingOrder,
 ) {
   const link = el('a', '', 'account-ranking-row'),
     avatar = communityAvatar(item.profile.handle),
@@ -273,21 +280,7 @@ function accountRow(
   // Plain text: the row is already a link, so mentions cannot be links here.
   const bio = mentionPlainText(item.description).replace(/\s+/gu, ' ');
   if (bio) copy.append(el('small', bio, 'account-ranking-bio'));
-  const followers = new Intl.NumberFormat(currentLanguage(), {
-    notation: 'compact',
-  }).format(item.followers);
-  numbers.append(
-    el('strong', t('ranking.followers {0}', [followers])),
-    ...(following
-      ? []
-      : [
-          growthLabel({
-            participants: item.score,
-            previous: item.previousScore,
-            title: 'ranking.relevance-growth-title',
-          }),
-        ]),
-  );
+  numbers.append(...rowNumbers(item, order));
   link.append(
     el('span', String(rank), 'ranking-side-rank'),
     avatar,
@@ -295,6 +288,32 @@ function accountRow(
     numbers,
   );
   return { link, avatar };
+}
+function followerTotal(item: AccountRankingEntry): HTMLElement {
+  const followers = new Intl.NumberFormat(currentLanguage(), {
+    notation: 'compact',
+  }).format(item.followers);
+  return el(
+    'strong',
+    t(item.followers === 1 ? 'ranking.follower {0}' : 'ranking.followers {0}', [
+      followers,
+    ]),
+  );
+}
+function rowNumbers(
+  item: AccountRankingEntry,
+  order: AccountRankingOrder,
+): HTMLElement[] {
+  if (order === 'following') return [followerTotal(item)];
+  const growth = growthLabel({
+    participants: item.score,
+    previous: item.previousScore,
+    title: 'ranking.relevance-growth-title',
+  });
+  if (order === 'size') return [followerTotal(item), growth];
+  const tag = accountGrowthTag(item, Date.now());
+  growth.classList.add('is-lead');
+  return [growth, ...(tag ? [accountGrowthTagLabel(tag)] : [])];
 }
 export function receivedSummary(item: {
   views: number;
@@ -323,13 +342,13 @@ export function rankingScopes(
   const accounts = new AccountRankingView(signal, {
       ...source,
       orderChanged: (order) => {
-        periods.hidden = order === 'following';
+        filters.periods.hidden = order === 'following';
         source.orderChanged?.(order);
       },
     }),
     bar = el('nav', '', 'ranking-scopes');
-  const periods = periodButtons((period) => accounts.setPeriod(period));
-  accounts.element.prepend(accounts.controls, periods);
+  const filters = accountFilters(accounts);
+  accounts.element.prepend(filters.toolbar);
   bar.setAttribute('aria-label', t('ranking.scope'));
   accounts.element.hidden = true;
   let active = false;
@@ -361,23 +380,45 @@ export function rankingScopes(
   };
 }
 
-function periodButtons(selected: (period: RankingPeriod) => void) {
-  const periods = el('nav', '', 'ranking-periods'),
-    buttons = new Map<RankingPeriod, HTMLButtonElement>();
-  periods.setAttribute('aria-label', t('Period'));
-  for (const [period, label] of rankingPeriods()) {
-    const button = el('button', label);
-    button.type = 'button';
-    button.setAttribute('aria-pressed', String(period === 'day'));
-    button.addEventListener('click', () => {
-      for (const [value, node] of buttons)
-        node.setAttribute('aria-pressed', String(value === period));
-      selected(period);
-    });
-    periods.append(button);
-    buttons.set(period, button);
-  }
-  return periods;
+/** The same order and period menus as the community ranking beside it. */
+function accountFilters(accounts: AccountRankingView): {
+  toolbar: HTMLElement;
+  periods: HTMLElement;
+} {
+  const toolbar = el(
+      'div',
+      '',
+      'post-toolbar community-feed-filters community-ranking-filters',
+    ),
+    row = el('div', '', 'community-feed-filter-row'),
+    periods = el('div', '', 'community-ranking-period');
+  const orders: readonly (readonly [AccountRankingOrder, string])[] = [
+    ['trending', t('ranking.trending')],
+    ['size', t('ranking.biggest')],
+    ['following', t('ranking.following')],
+  ];
+  discoveryMenu(
+    row,
+    t('ranking.scope'),
+    { value: 'trending', options: orders },
+    (value) => {
+      const choice = orders.find(([order]) => order === value);
+      if (choice) accounts.setOrder(choice[0]);
+    },
+  );
+  const windows = rankingPeriods();
+  discoveryMenu(
+    periods,
+    t('Period'),
+    { value: 'day', options: windows },
+    (value) => {
+      const choice = windows.find(([period]) => period === value);
+      if (choice) accounts.setPeriod(choice[0]);
+    },
+  );
+  row.append(periods);
+  toolbar.append(row);
+  return { toolbar, periods };
 }
 
 export function mountDiscoveryRanking(

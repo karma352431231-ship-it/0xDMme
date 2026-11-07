@@ -27,7 +27,7 @@ import {
   discoveryMenu,
   discoveryPeriods,
   feedOrders,
-} from './discovery-controls.ts';
+} from './discovery-menu.ts';
 import { DiscoveryFeedPage } from './discovery-feed.ts';
 import { DiscoveryRankingPage } from './discovery-ranking.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
@@ -67,6 +67,8 @@ export function startCommunityDiscovery(
     period: DiscoveryPeriod = 'all',
     exploreOrder: ExploreFilter['order'] = 'trending';
   let selectedTopics: CommunityTopic[] = [];
+  // The side panel has its own search in its heading (owner, 06/11/2026).
+  let inSidePanel = false;
   let page: DiscoveryFeedPage | DiscoveryRankingPage | null = null;
   let feedRefresh: FeedRefresh | null = null;
   let rankingScope: ReturnType<typeof rankingScopes> | null = null;
@@ -75,7 +77,9 @@ export function startCommunityDiscovery(
   // Nodes the communities page placed before this feed; the rest belong to it.
   let foreign = new Set<Node>();
   const park = new FeedPark();
-  let tabBookmark: FeedBookmark | null = null;
+  // One position per feed view, in memory, for this visit to the app.
+  const tabBookmarks = new Map<string, FeedBookmark>();
+  let lastVisited = 'feed';
   function disabled(): void {
     mounted
       ?.querySelectorAll<
@@ -117,6 +121,8 @@ export function startCommunityDiscovery(
     const toolbar = el('div', '', 'post-toolbar community-feed-filters');
     toolbar.classList.toggle('community-ranking-filters', view === 'explore');
     mounted.append(toolbar);
+    const filterRow = el('div', '', 'community-feed-filter-row');
+    toolbar.append(filterRow);
     if (view === 'feed' || view === 'following') {
       const scopes = el('nav', '', 'community-feed-scopes');
       scopes.setAttribute('aria-label', t('Choose feed'));
@@ -128,12 +134,12 @@ export function startCommunityDiscovery(
         if (view === key)
           scopes.lastElementChild?.setAttribute('aria-current', 'page');
       }
-      toolbar.append(scopes);
+      filterRow.append(scopes);
     }
     const periodPanel = el('div', '', 'community-ranking-period');
     if (view === 'explore')
       discoveryMenu(
-        toolbar,
+        filterRow,
         t('Sort communities'),
         {
           value: exploreOrder,
@@ -152,7 +158,7 @@ export function startCommunityDiscovery(
       );
     else
       discoveryMenu(
-        toolbar,
+        filterRow,
         t('Sort'),
         { value: order, options: feedOrders },
         (value) => {
@@ -167,7 +173,7 @@ export function startCommunityDiscovery(
           void run(reload);
         },
       );
-    toolbar.append(periodPanel);
+    filterRow.append(periodPanel);
     periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
     discoveryMenu(
       periodPanel,
@@ -192,10 +198,9 @@ export function startCommunityDiscovery(
         void run(reload);
       },
     );
-    mountPublicSearchToolbar(toolbar, abort.signal);
-    appendFeedSearchSummary(toolbar, search, view);
-    postShortcut(toolbar);
-    rankingTopicFilter(mounted, {
+    feedSearch(toolbar);
+    postShortcut(filterRow);
+    rankingTopicFilter(filterRow, {
       active: view === 'explore',
       selected: selectedTopics,
       change: (value) => {
@@ -203,6 +208,12 @@ export function startCommunityDiscovery(
         void run(reload);
       },
     });
+  }
+  /** The ranking has no search; feeds show theirs with its current summary. */
+  function feedSearch(toolbar: HTMLElement): void {
+    if (view !== 'explore' && !inSidePanel)
+      mountPublicSearchToolbar(toolbar, abort.signal);
+    appendFeedSearchSummary(toolbar, search, view);
   }
   /** Posting moved to the floating "+" menu; the toolbar keeps the own-profile shortcut. */
   function postShortcut(toolbar: HTMLElement): void {
@@ -356,15 +367,21 @@ export function startCommunityDiscovery(
       ...feedPosition(mounted),
     };
   }
+  function remember(): FeedBookmark | null {
+    const saved = bookmark();
+    if (saved) {
+      tabBookmarks.set(saved.view, saved);
+      lastVisited = saved.view;
+    }
+    return saved;
+  }
   function returningBookmark(options: {
     view: string;
     search?: string;
     bookmark?: FeedBookmark | null;
   }): FeedBookmark | null {
-    const saved =
-      options.bookmark ??
-      (tabBookmark?.view === options.view ? tabBookmark : null);
-    tabBookmark = null;
+    const saved = options.bookmark ?? tabBookmarks.get(options.view) ?? null;
+    tabBookmarks.delete(options.view);
     return saved && (saved.search ?? '') !== postSearchQuery(options.search)
       ? null
       : saved;
@@ -383,25 +400,27 @@ export function startCommunityDiscovery(
       followChanged = options.followChanged ?? (() => Promise.resolve());
       search = postSearchQuery(options.search);
       foreign = new Set(container.childNodes);
-      const kept = park.resume(
-        container,
-        returningBookmark(options),
-        options.signedIn,
-      );
+      const returning = returningBookmark(options);
+      const kept = park.resume(container, returning, options.signedIn);
       if (kept) {
         resume(container, kept);
         return;
       }
       leave();
       mounted = container;
+      inSidePanel = container.closest('.feed-panel') !== null;
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;
-      initialFilters(options.bookmark);
+      initialFilters(returning);
       const ranking = mountDiscoveryRanking(container, view, abort.signal, {
         signedIn: () => signedIn,
         following: (period, after) =>
-          controller.request('discovery-accounts', { period, after }),
+          controller.request('discovery-accounts', {
+            period,
+            after,
+            tags: true,
+          }),
       });
       rankingScope = ranking.scope;
       mounted = ranking.element;
@@ -475,24 +494,26 @@ export function startCommunityDiscovery(
               followChanged: () => followChanged(),
             });
       startRefreshPill();
-      startPage(options.bookmark);
+      startPage(returning);
     },
     leave,
-    visitView: (): string => tabBookmark?.view ?? 'feed',
+    visitView: (): string => lastVisited,
     /** Keep the current bounded page across in-app tabs, without persisting content. */
     pause(): void {
-      const saved = bookmark();
-      if (saved) {
-        tabBookmark = saved;
-        park.request(saved, true);
-      }
+      const saved = remember();
+      if (saved) park.request(saved, true);
       leave();
+    },
+    /** Another Communities tab was chosen: its page replaces this one. */
+    visit: (): void => {
+      remember();
     },
     /** A profile link in this feed was followed: keep the page for the way back. */
     keep: (bookmark: FeedBookmark) => park.request(bookmark),
     /** Session change: a kept page never outlives the account that saw it. */
     discard(): void {
-      tabBookmark = null;
+      tabBookmarks.clear();
+      lastVisited = 'feed';
       park.release();
     },
     bookmark,

@@ -322,7 +322,7 @@ export class Daily {
   }
   async organize(
     peer: string,
-    patch: { archived?: boolean; pinned?: boolean },
+    patch: { archived?: boolean; pinned?: boolean; mutedUntil?: number },
     options: { mutePeer?: string | null } = {},
   ): Promise<void> {
     const generation = this.generation;

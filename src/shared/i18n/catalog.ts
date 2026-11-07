@@ -246,16 +246,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'follow.community': ['Community', '社区'],
   'follow.user': ['User', '用户'],
   'upvote.heading': ['Upvotes', '赞同'],
-  '@{0} upvoted your post': ['@{0} upvoted your post', '@{0} 赞同了你的帖子'],
-  '@{0} and {1} others upvoted your post': [
-    '@{0} and {1} others upvoted your post',
-    '@{0} 和其他 {1} 人赞同了你的帖子',
-  ],
-  '@{0} upvoted your reply': ['@{0} upvoted your reply', '@{0} 赞同了你的回复'],
-  '@{0} and {1} others upvoted your reply': [
-    '@{0} and {1} others upvoted your reply',
-    '@{0} 和其他 {1} 人赞同了你的回复',
-  ],
   'upvote.show': ['View who upvoted', '查看赞同者'],
   'upvote.more': ['Next page', '下一页'],
   'upvote.loading': ['Loading upvotes…', '正在加载赞同…'],
@@ -301,7 +291,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
   'community.topics.toggle': ['Topics', '主题'],
   'community.topics.toggle-count {0}': ['Topics · {0}', '主题 · {0}'],
-  'community.composer.prompt {0}': ['Write a post in {0}…', '在 {0} 发帖…'],
+  'community.sections': ['Community sections', '社区分区'],
   'community.composer.first {0}': [
     'Write the first post in {0}…',
     '在 {0} 发布第一篇帖子…',
@@ -396,6 +386,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Create your public profile here',
     '在此创建你的公开个人资料',
   ],
+  'wallet.mobile-return-app': [
+    'On mobile, selecting an ecosystem attempts to open your wallet for signing. Return to this app to confirm the address. EVM and Solana are separate accounts.',
+    '在手机上选择生态系统会尝试打开钱包进行签名。返回此应用确认地址。EVM 和 Solana 是独立的账户。',
+  ],
   'wallet.available': ['Available', '可用'],
   'wallet.not-detected': ['Not detected', '未检测到'],
   'Language saved.': ['Language saved.', '语言已保存。'],
@@ -476,7 +470,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '{0} saved · {1} pass · {2} blocked · expires at {3} (Fortaleza)',
     '已保存 {0} 项 · 通过 {1} 项 · 拦截 {2} 项 · {3} 到期（福塔莱萨时间）',
   ],
-  '{0} followers': ['{0} followers', '{0} 位关注者'],
   '{0} conflicting versions': ['{0} conflicting versions', '{0} 个冲突版本'],
   '{0} estimated views': ['{0} estimated views', '约 {0} 次浏览'],
   '{0} votes': ['{0} votes', '{0} 票'],
@@ -499,6 +492,32 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Public handle': ['Public handle', '公开用户名'],
   '@{0} {1}': ['@{0} {1}', '@{0} {1}'],
   '@{0} mentioned you': ['@{0} mentioned you', '@{0} 提到了你'],
+  '@{0} started following you': ['@{0} started following you', '@{0} 关注了你'],
+  'New followers': ['New followers', '新关注者'],
+  '@{0} and @{1} started following you': [
+    '@{0} and @{1} started following you',
+    '@{0} 和 @{1} 关注了你',
+  ],
+  '@{0}, @{1} and {2} others started following you': [
+    '@{0}, @{1} and {2} others started following you',
+    '@{0}、@{1} 和其他 {2} 人关注了你',
+  ],
+  '@{0} upvoted': ['@{0} upvoted', '@{0} 赞同了'],
+  '@{0} and @{1} upvoted': ['@{0} and @{1} upvoted', '@{0} 和 @{1} 赞同了'],
+  '@{0}, @{1} and {2} others upvoted': [
+    '@{0}, @{1} and {2} others upvoted',
+    '@{0}、@{1} 和其他 {2} 人赞同了',
+  ],
+  'Your post': ['Your post', '你的帖子'],
+  'Your reply': ['Your reply', '你的回复'],
+  'See 1 more reply': ['See 1 more reply', '查看另外 1 条回复'],
+  'See {0} more replies': ['See {0} more replies', '查看另外 {0} 条回复'],
+  'Show fewer replies': ['Show fewer replies', '收起回复'],
+  'Refreshing…': ['Refreshing…', '正在刷新…'],
+  'Follower notice read unavailable.': [
+    'Follower notice read unavailable.',
+    '无法标记关注提醒为已读。',
+  ],
   '@{0} wants to chat with you.': [
     '@{0} wants to chat with you.',
     '@{0} 想与你聊天。',
@@ -825,8 +844,14 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.window': ['Last 24 h', '最近 24 小时'],
   'ranking.collapse': ['Collapse ranking', '收起排行'],
   'ranking.expand': ['Expand ranking', '展开排行'],
+  'ranking.follower {0}': ['{0} follower', '{0} 位关注者'],
   'ranking.followers {0}': ['{0} followers', '{0} 位关注者'],
   'ranking.growth-up {0}': ['▲ {0}%', '▲ {0}%'],
+  'ranking.tag-new': ['New', '新人'],
+  'ranking.tag-skyrocketing': ['Skyrocketing', '飙升'],
+  'ranking.tag-viral': ['Viral', '爆款'],
+  'ranking.tag-followers': ['Gaining followers', '涨粉中'],
+  'ranking.tag-trending': ['Trending', '热门'],
   'ranking.growth-down {0}': ['▼ {0}%', '▼ {0}%'],
   'ranking.growth-flat {0}': ['{0}%', '{0}%'],
   'ranking.relevance-growth-title': [
@@ -2237,7 +2262,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Keep editing': ['Keep editing', '继续编辑'],
   'Continue this thread →': ['Continue this thread →', '继续此讨论串 →'],
-  'Continue the conversation.': ['Continue the conversation.', '继续对话。'],
   'Continue loading before resuming.': [
     'Continue loading before resuming.',
     '请继续加载后再恢复。',
@@ -2457,7 +2481,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Creation date not recorded',
     '未记录创建日期',
   ],
-  'Date not recorded': ['Date not recorded', '未记录日期'],
   'Give your post a title.': ['Give your post a title.', '为帖子添加标题。'],
   Unfollow: ['Unfollow', '取消关注'],
   'Report sent.': ['Report sent.', '举报已发送。'],
@@ -3967,7 +3990,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Invalid group mode.': ['Invalid group mode.', '群组模式无效。'],
   'Show GIF': ['Show GIF', '显示 GIF'],
-  'Show less': ['Show less', '收起'],
   Reason: ['Reason', '原因'],
   'Report reason': ['Report reason', '举报原因'],
   'Post report reason': ['Post report reason', '帖子举报原因'],
@@ -4368,7 +4390,6 @@ export const catalog: Record<string, readonly [string, string]> = {
       'No wallets detected. Open this address in a browser with your test wallet; do not use an account with funds.',
       '未检测到钱包。请在支持测试钱包的浏览器中打开此地址；不要使用有资金的账户。',
     ],
-  'On this device': ['On this device', '在此设备上'],
   Name: ['Name', '名称'],
   'Community name': ['Community name', '社区名称'],
   'New tag name': ['New tag name', '新标签名称'],
@@ -5109,7 +5130,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Public profile changed.',
     '公开个人资料已更改。',
   ],
-  'Public profile since': ['Public profile since', '公开个人资料创建于'],
+  'Since {0}': ['Since {0}', '{0} 加入'],
   'Historical public DM profile missing.': [
     'Historical public DM profile missing.',
     '缺少私信的历史公开个人资料。',
@@ -5406,11 +5427,9 @@ export const catalog: Record<string, readonly [string, string]> = {
       '发布待完成。请恢复或取消上传后，再准备下一条状态。',
     ],
   Publications: ['Publications', '发布内容'],
-  'Community publications': ['Community publications', '社区发布内容'],
   'Published in this period': ['Published in this period', '本时段发布'],
   'Publishing status…': ['Publishing status…', '正在发布状态…'],
   'Publish post': ['Publish post', '发布帖子'],
-  'Publish reply': ['Publish reply', '发布回复'],
   'Publish status': ['Publish status', '发布状态'],
   'Push, sounds and conversation muting': [
     'Push, sounds and conversation muting',
@@ -5852,11 +5871,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '退出群组？你将失去访问远程保险库的权限。',
   ],
   Save: ['Save', '保存'],
-  'Saving stores the nickname in contacts; a conversation request requires acceptance.':
-    [
-      'Saving stores the nickname in contacts; a conversation request requires acceptance.',
-      '保存会将备注名存入联系人；聊天请求仍需要对方接受。',
-    ],
   'Saving stores the contact; requesting a conversation still requires acceptance.':
     [
       'Saving stores the contact; requesting a conversation still requires acceptance.',
@@ -6183,7 +6197,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Sync the vault before opening conversation preferences.',
     '打开对话设置前请先同步保险库。',
   ],
-  About: ['About', '关于'],
   'About and community rules': ['About and community rules', '社区介绍与规则'],
   'About the app': ['About the app', '关于应用'],
   Social: ['Social', '社交'],
@@ -6483,10 +6496,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '正在验证并导入加密历史…',
   ],
   View: ['View', '查看'],
-  'View the list of {0} communities': [
-    'View the list of {0} communities',
-    '查看 {0} 个社区列表',
-  ],
   'View analysis and appeal': ['View analysis and appeal', '查看分析并申诉'],
   'View original image': ['View original image', '查看原始图片'],
   'View more': ['View more', '查看更多'],
@@ -6495,7 +6504,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     'View my prepared media (restricted)',
     '查看我的已处理媒体（受限）',
   ],
-  'View names': ['View names', '查看名称'],
   'All handle messages': ['All handle messages', '全部用户名私信'],
   'DM conversation not confirmed.': [
     'DM conversation not confirmed.',
@@ -6579,7 +6587,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Matrix binding missing.': ['Matrix binding missing.', '缺少 Matrix 绑定。'],
   'Key bindings missing.': ['Key bindings missing.', '缺少密钥绑定。'],
   'Group bindings missing.': ['Group bindings missing.', '缺少群组绑定。'],
-  Overview: ['Overview', '概览'],
   'Visibility applied on the server. Previously approved contacts were preserved.':
     [
       'Visibility applied on the server. Previously approved contacts were preserved.',
@@ -6681,8 +6688,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<article class="card"><h2>在线状态与已读回执</h2><form data-privacy-preferences><label><input type="checkbox" name="online"> 向已批准联系人显示在线状态</label><label><input type="checkbox" name="readReceipts"> 发送已读回执</label><p>这些选项适用于你的账户。请确认以应用。</p><button class="primary" type="submit">确认更改</button></form><p data-privacy-status role="status"></p></article>',
   ],
   'html.6c0fbe0bf86d': [
-    '<article class="card account-card"><span class="eyebrow">WALLET ACCOUNT</span><h2 data-account-title>Your profile on 0xDMme</h2>\n<p data-account-intro>Sign in with your wallet or link this device in Profile → Devices. Access signatures do not move funds.</p>\n<button class="primary" type="button" data-wallet-approve hidden>Confirm signature</button>\n<button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Connect wallet</button>\n<section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Choose wallet">\n<div data-wallet-brands><h3>Choose your wallet</h3><p class="detail">Detection indicates availability in this browser. In mobile Chrome/Safari, choose the app you installed; it may not be detected here.</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Backpack"><span>Backpack</span><span class="wallet-detection" data-brand-detection="Backpack">Not detected</span></button></div>\n<div data-other-wallets class="wallet-options"></div></div>\n<div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← Change wallet</button><h3 data-wallet-network-title></h3><p class="detail">Choose the account\'s ecosystem.</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet="MetaMask" data-network-brand="MetaMask"><span>EVM</span><span class="wallet-detection" data-detection="MetaMask">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">Not detected</span></button></div>\n<div data-other-wallet-networks class="wallet-options"></div></div>\n<p class="detail">On mobile, selecting an ecosystem attempts to open your wallet for signing. Return to this browser to confirm the address. EVM and Solana are separate accounts.</p></section>\n<p data-wallet-purpose hidden>Only sign if you opened this request in your browser. It will connect that browser to your account; reject links sent by other people.</p>\n<div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Open wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirm this address in this browser</button><button data-wallet-cancel type="button">Cancel request</button></div>\n<p class="detail" data-wallet-manual hidden>Use your phone\'s recent apps screen to return to the original browser. The request is only confirmed as signed when this page says so.</p>\n<p data-account-status role="status">Checking session…</p><button data-account-finish type="button" hidden>Complete sign-in</button>\n<details data-wallet-diagnostics hidden open><summary>Sign-in diagnostics</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">If it fails, send this line. It contains no ticket, address or signature.</p></details>\n<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Change profile photo">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">Copy wallet</button><button data-logout type="button" aria-label="Sign out">Sign out</button></div></div></div>\n<details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>Private profile</strong><small>Name and photo your approved contacts see, and the backup reminder</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">\n<form data-name-form><label>Name shown in contact requests<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Confirm changes</button></form>\n<div data-private-profile hidden><p data-photo-draft-status></p><button type="button" data-private-photo-remove>Remove photo</button><h3>Preferences</h3>\n<form data-preferences><label><input type="checkbox" name="backupReminder"> Remind me to save a backup every seven days</label><button class="primary" type="submit">Confirm changes</button></form></div>\n</div></details><p data-profile-status role="status"></p></div></article>',
-    '<article class="card account-card"><span class="eyebrow">钱包账户</span><h2 data-account-title>你的 0xDMme 个人资料</h2>\n<p data-account-intro>请使用钱包登录，或在“个人资料 → 设备”中关联此设备。访问签名不会转移资金。</p>\n<button class="primary" type="button" data-wallet-approve hidden>确认签名</button>\n<button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">连接钱包</button>\n<section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="选择钱包">\n<div data-wallet-brands><h3>选择钱包</h3><p class="detail">检测结果仅表示钱包在此浏览器中可用。在手机 Chrome/Safari 中，请选择你已安装的应用；这里可能无法检测到它。</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Backpack"><span>Backpack</span><span class="wallet-detection" data-brand-detection="Backpack">未检测到</span></button></div>\n<div data-other-wallets class="wallet-options"></div></div>\n<div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← 更换钱包</button><h3 data-wallet-network-title></h3><p class="detail">请选择账户生态系统。</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet="MetaMask" data-network-brand="MetaMask"><span>EVM</span><span class="wallet-detection" data-detection="MetaMask">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">未检测到</span></button></div>\n<div data-other-wallet-networks class="wallet-options"></div></div>\n<p class="detail">在手机上选择生态系统后，会尝试打开钱包以签名。请返回此浏览器确认地址。EVM 和 Solana 使用不同账户。</p></section>\n<p data-wallet-purpose hidden>请仅在你自己于浏览器中发起此请求时签名。签名会将该浏览器连接到你的账户；请拒绝他人发来的链接。</p>\n<div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">打开钱包</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>在此浏览器中确认此地址</button><button data-wallet-cancel type="button">取消请求</button></div>\n<p class="detail" data-wallet-manual hidden>请通过手机最近使用的应用界面返回原浏览器。只有此页面显示已确认时，才表示请求签名完成。</p>\n<p data-account-status role="status">正在检查会话…</p><button data-account-finish type="button" hidden>完成登录</button>\n<details data-wallet-diagnostics hidden open><summary>登录诊断</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">如果失败，请发送此行。它不包含请求凭证、地址或签名。</p></details>\n<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="更换个人资料图片">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">复制钱包地址</button><button data-logout type="button" aria-label="退出登录">退出登录</button></div></div></div>\n<details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>私人资料</strong><small>已批准的联系人可见的名称和照片，以及备份提醒</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">\n<form data-name-form><label>联系人请求中显示的名称<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">确认更改</button></form>\n<div data-private-profile hidden><p data-photo-draft-status></p><button type="button" data-private-photo-remove>移除图片</button><h3>偏好设置</h3>\n<form data-preferences><label><input type="checkbox" name="backupReminder"> 每七天提醒保存备份</label><button class="primary" type="submit">确认更改</button></form></div>\n</div></details><p data-profile-status role="status"></p></div></article>',
+    '<article class="card account-card"><span class="eyebrow">WALLET ACCOUNT</span><h2 data-account-title>Your profile on 0xDMme</h2>\n<p data-account-intro>Sign in with your wallet or link this device in Profile → Devices. Access signatures do not move funds.</p>\n<button class="primary" type="button" data-wallet-approve hidden>Confirm signature</button>\n<button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Connect wallet</button>\n<section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Choose wallet">\n<div data-wallet-brands><h3>Choose your wallet</h3>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Backpack"><span>Backpack</span><span class="wallet-detection" data-brand-detection="Backpack">Not detected</span></button></div>\n<div data-other-wallets class="wallet-options"></div></div>\n<div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← Change wallet</button><h3 data-wallet-network-title></h3><p class="detail">Choose the account\'s ecosystem.</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet="MetaMask" data-network-brand="MetaMask"><span>EVM</span><span class="wallet-detection" data-detection="MetaMask">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">Not detected</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">Not detected</span></button></div>\n<div data-other-wallet-networks class="wallet-options"></div></div>\n<p class="detail" data-wallet-mobile-instructions>On mobile, selecting an ecosystem attempts to open your wallet for signing. Return to this browser to confirm the address. EVM and Solana are separate accounts.</p></section>\n<p data-wallet-purpose hidden>Only sign if you opened this request in your browser. It will connect that browser to your account; reject links sent by other people.</p>\n<div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Open wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirm this address in this browser</button><button data-wallet-cancel type="button">Cancel request</button></div>\n<p class="detail" data-wallet-manual hidden>Use your phone\'s recent apps screen to return to the original browser. The request is only confirmed as signed when this page says so.</p>\n<p data-account-status role="status">Checking session…</p><button data-account-finish type="button" hidden>Complete sign-in</button>\n<details data-wallet-diagnostics hidden open><summary>Sign-in diagnostics</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">If it fails, send this line. It contains no ticket, address or signature.</p></details>\n<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Change profile photo">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">Copy wallet</button><button data-logout type="button" aria-label="Sign out">Sign out</button></div></div></div>\n<details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>Private profile</strong><small>Name and photo your approved contacts see, and the backup reminder</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">\n<form data-name-form><label>Name shown in contact requests<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Confirm changes</button></form>\n<div data-private-profile hidden><p data-photo-draft-status></p><button type="button" data-private-photo-remove>Remove photo</button><h3>Preferences</h3>\n<form data-preferences><label><input type="checkbox" name="backupReminder"> Remind me to save a backup every seven days</label><button class="primary" type="submit">Confirm changes</button></form></div>\n</div></details><p data-profile-status role="status"></p></div></article>',
+    '<article class="card account-card"><span class="eyebrow">钱包账户</span><h2 data-account-title>你的 0xDMme 个人资料</h2>\n<p data-account-intro>请使用钱包登录，或在“个人资料 → 设备”中关联此设备。访问签名不会转移资金。</p>\n<button class="primary" type="button" data-wallet-approve hidden>确认签名</button>\n<button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">连接钱包</button>\n<section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="选择钱包">\n<div data-wallet-brands><h3>选择钱包</h3>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet-brand="Backpack"><span>Backpack</span><span class="wallet-detection" data-brand-detection="Backpack">未检测到</span></button></div>\n<div data-other-wallets class="wallet-options"></div></div>\n<div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← 更换钱包</button><h3 data-wallet-network-title></h3><p class="detail">请选择账户生态系统。</p>\n<div class="wallet-options"><button type="button" class="wallet-option" data-wallet="MetaMask" data-network-brand="MetaMask"><span>EVM</span><span class="wallet-detection" data-detection="MetaMask">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">未检测到</span></button>\n<button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">未检测到</span></button></div>\n<div data-other-wallet-networks class="wallet-options"></div></div>\n<p class="detail" data-wallet-mobile-instructions>在手机上选择生态系统后，会尝试打开钱包以签名。请返回此浏览器确认地址。EVM 和 Solana 使用不同账户。</p></section>\n<p data-wallet-purpose hidden>请仅在你自己于浏览器中发起此请求时签名。签名会将该浏览器连接到你的账户；请拒绝他人发来的链接。</p>\n<div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">打开钱包</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>在此浏览器中确认此地址</button><button data-wallet-cancel type="button">取消请求</button></div>\n<p class="detail" data-wallet-manual hidden>请通过手机最近使用的应用界面返回原浏览器。只有此页面显示已确认时，才表示请求签名完成。</p>\n<p data-account-status role="status">正在检查会话…</p><button data-account-finish type="button" hidden>完成登录</button>\n<details data-wallet-diagnostics hidden open><summary>登录诊断</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">如果失败，请发送此行。它不包含请求凭证、地址或签名。</p></details>\n<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="更换个人资料图片">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">复制钱包地址</button><button data-logout type="button" aria-label="退出登录">退出登录</button></div></div></div>\n<details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>私人资料</strong><small>已批准的联系人可见的名称和照片，以及备份提醒</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">\n<form data-name-form><label>联系人请求中显示的名称<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">确认更改</button></form>\n<div data-private-profile hidden><p data-photo-draft-status></p><button type="button" data-private-photo-remove>移除图片</button><h3>偏好设置</h3>\n<form data-preferences><label><input type="checkbox" name="backupReminder"> 每七天提醒保存备份</label><button class="primary" type="submit">确认更改</button></form></div>\n</div></details><p data-profile-status role="status"></p></div></article>',
   ],
   'html.5ee9df8dde64': [
     '<h2>Notifications on this device</h2><p>Your account receives push notifications. Enable them here too for message and call alerts.</p><p data-push-offer-status role="status"></p><div class="settings-actions"><button type="button" data-push-offer-later>Not now</button><button type="button" class="primary" data-push-offer-enable>Enable notifications</button></div>',
@@ -6770,16 +6777,16 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<article class="card contacts-card">\n<header class="contacts-heading"><div><h1>联系人</h1><p>你的联系人与聊天请求。</p></div><div class="contact-create-actions"><button data-private-group-action="create" type="button">创建群组</button><button data-private-group-action="join" type="button">通过链接加入</button><button data-contact-add class="primary" type="button"><span aria-hidden="true">＋</span> 添加联系人</button></div></header>\n<div class="contacts-toolbar"><label class="contact-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg><input data-book-search type="search" maxlength="80" autocomplete="off" aria-label="搜索此列表" placeholder="搜索此列表…"></label><button data-contact-own-open class="contact-invite-link" type="button">我的邀请 ↗</button></div>\n<div class="contact-tabs" role="tablist" aria-label="联系人列表">\n<button data-contact-tab="main" data-tab="approved" role="tab" id="contacts-tab-approved" aria-controls="contacts-panel-approved" aria-selected="true" type="button">联系人</button>\n<button data-contact-tab="main" data-tab="requests" role="tab" id="contacts-tab-requests" aria-controls="contacts-panel-requests" aria-selected="false" tabindex="-1" type="button">请求 <span data-contact-request-count class="contact-count" hidden></span></button>\n\n<button data-contact-tab="main" data-tab="blocked" role="tab" id="contacts-tab-blocked" aria-controls="contacts-panel-blocked" aria-selected="false" tabindex="-1" type="button">已屏蔽</button></div>\n<section data-contact-panel="main" data-tab="approved" id="contacts-panel-approved" role="tabpanel" aria-labelledby="contacts-tab-approved"><div class="contact-section-heading"><h2>联系人</h2><span data-contact-page-state="approved"></span></div><ul data-contact-list="approved" class="contact-list"></ul><button data-contact-page="approved" class="contact-more" type="button" hidden>下一页</button><button data-contact-page="outgoing" class="contact-more" type="button" hidden>更多待接受的联系人</button><button data-contact-action="book-more" class="contact-more" type="button" hidden>更多已保存的联系人</button></section>\n<section data-contact-panel="main" data-tab="requests" id="contacts-panel-requests" role="tabpanel" aria-labelledby="contacts-tab-requests" hidden><div class="contact-subtabs" role="tablist" aria-label="请求"><button data-contact-tab="requests" data-tab="incoming" role="tab" id="contacts-tab-incoming" aria-controls="contacts-panel-incoming" aria-selected="true" type="button">已收到</button><button data-contact-tab="requests" data-tab="outgoing" role="tab" id="contacts-tab-outgoing" aria-controls="contacts-panel-outgoing" aria-selected="false" tabindex="-1" type="button">已发送</button><button data-contact-tab="requests" data-tab="rejected" role="tab" id="contacts-tab-rejected" aria-controls="contacts-panel-rejected" aria-selected="false" tabindex="-1" type="button">已拒绝</button></div>\n<section data-contact-panel="requests" data-tab="incoming" id="contacts-panel-incoming" role="tabpanel" aria-labelledby="contacts-tab-incoming"><p class="contact-hint">由你决定谁可以与你聊天。</p><ul data-contact-list="incoming" class="contact-list"></ul><button data-contact-page="incoming" class="contact-more" type="button" hidden>下一页</button></section>\n<section data-contact-panel="requests" data-tab="outgoing" id="contacts-panel-outgoing" role="tabpanel" aria-labelledby="contacts-tab-outgoing" hidden><p class="contact-hint">等待接收者接受。</p><ul data-contact-list="outgoing" class="contact-list"></ul><button data-contact-page="outgoing" class="contact-more" type="button" hidden>下一页</button></section>\n<section data-contact-panel="requests" data-tab="rejected" id="contacts-panel-rejected" role="tabpanel" aria-labelledby="contacts-tab-rejected" hidden><ul data-contact-list="rejected" class="contact-list"></ul><button data-contact-page="rejected" class="contact-more" type="button" hidden>下一页</button></section></section>\n\n<section data-contact-panel="main" data-tab="blocked" id="contacts-panel-blocked" role="tabpanel" aria-labelledby="contacts-tab-blocked" hidden><div class="contact-section-heading"><h2>屏蔽列表</h2></div><p class="contact-hint">解除屏蔽后，需要重新接受才能聊天。屏蔽针对该身份。</p><ul data-contact-list="blocked" class="contact-list"></ul><button data-contact-page="blocked" class="contact-more" type="button" hidden>下一页</button></section>\n<div class="contact-feedback"><p data-contact-status role="status"></p><button data-contact-action="refresh" type="button" hidden>重试</button></div><p class="contact-test-note">搜索此设备上已加载的项目。</p>{0}</article>',
   ],
   'html.628f1388b464': [
-    '<dialog data-contact-editor class="contact-dialog" aria-labelledby="contact-editor-title"><header><div><span class="contact-eyebrow">YOUR CONTACTS</span><h2 id="contact-editor-title" data-book-title>Add contact</h2></div><button data-contact-editor-close class="contact-close" type="button" aria-label="Close form">{0}</button></header>\n<div class="contact-subtabs" role="tablist" aria-label="How to add a contact"><button data-contact-tab="editor" data-tab="wallet" role="tab" id="contact-tab-wallet" aria-controls="contact-panel-wallet" aria-selected="true" type="button">By wallet</button><button data-contact-tab="editor" data-tab="invite" role="tab" id="contact-tab-invite" aria-controls="contact-panel-invite" aria-selected="false" tabindex="-1" type="button">By invitation</button></div>\n<section data-contact-panel="editor" data-tab="wallet" id="contact-panel-wallet" role="tabpanel" aria-labelledby="contact-tab-wallet"><form data-book-form><label>Full wallet address<input data-book-address required maxlength="128" autocomplete="off" spellcheck="false" placeholder="0x… or a Solana address"></label><label><span>Private nickname <small class="contact-optional">optional</small></span><input data-book-alias maxlength="80" autocomplete="off" placeholder="How you want to save this contact"></label><p class="contact-hint">Saving to contacts does not send a request.</p><div class="contact-form-actions"><button type="submit" class="primary">Save contact</button><button data-contact-action="discover" type="button">Request conversation</button></div></form><p data-contact-discovery class="contact-hint"></p><div data-contact-discovery-actions></div></section>\n<section data-contact-panel="editor" data-tab="invite" id="contact-panel-invite" role="tabpanel" aria-labelledby="contact-tab-invite" hidden>{1}<div data-contact-invite-peer></div></section>\n<div class="contact-feedback"><p data-contact-editor-status role="status"></p></div></dialog>',
-    '<dialog data-contact-editor class="contact-dialog" aria-labelledby="contact-editor-title"><header><div><span class="contact-eyebrow">你的联系人</span><h2 id="contact-editor-title" data-book-title>添加联系人</h2></div><button data-contact-editor-close class="contact-close" type="button" aria-label="关闭表单">{0}</button></header>\n<div class="contact-subtabs" role="tablist" aria-label="如何添加联系人"><button data-contact-tab="editor" data-tab="wallet" role="tab" id="contact-tab-wallet" aria-controls="contact-panel-wallet" aria-selected="true" type="button">通过钱包</button><button data-contact-tab="editor" data-tab="invite" role="tab" id="contact-tab-invite" aria-controls="contact-panel-invite" aria-selected="false" tabindex="-1" type="button">通过邀请</button></div>\n<section data-contact-panel="editor" data-tab="wallet" id="contact-panel-wallet" role="tabpanel" aria-labelledby="contact-tab-wallet"><form data-book-form><label>完整钱包地址<input data-book-address required maxlength="128" autocomplete="off" spellcheck="false" placeholder="0x… 或 Solana 地址"></label><label><span>私密备注名 <small class="contact-optional">可选</small></span><input data-book-alias maxlength="80" autocomplete="off" placeholder="此联系人的保存名称"></label><p class="contact-hint">保存到联系人不会发送请求。</p><div class="contact-form-actions"><button type="submit" class="primary">保存联系人</button><button data-contact-action="discover" type="button">申请聊天</button></div></form><p data-contact-discovery class="contact-hint"></p><div data-contact-discovery-actions></div></section>\n<section data-contact-panel="editor" data-tab="invite" id="contact-panel-invite" role="tabpanel" aria-labelledby="contact-tab-invite" hidden>{1}<div data-contact-invite-peer></div></section>\n<div class="contact-feedback"><p data-contact-editor-status role="status"></p></div></dialog>',
+    '<dialog data-contact-editor class="contact-dialog" aria-labelledby="contact-editor-title"><header><div><span class="contact-eyebrow">YOUR CONTACTS</span><h2 id="contact-editor-title" data-book-title>Add contact</h2></div><button data-contact-editor-close class="contact-close" type="button" aria-label="Close form">{0}</button></header>\n<div class="contact-subtabs" role="tablist" aria-label="How to add a contact"><button data-contact-tab="editor" data-tab="wallet" role="tab" id="contact-tab-wallet" aria-controls="contact-panel-wallet" aria-selected="true" type="button">By wallet</button><button data-contact-tab="editor" data-tab="invite" role="tab" id="contact-tab-invite" aria-controls="contact-panel-invite" aria-selected="false" tabindex="-1" type="button">By invitation</button><button data-contact-own-open="create" type="button">Create invitation</button></div>\n<section data-contact-panel="editor" data-tab="wallet" id="contact-panel-wallet" role="tabpanel" aria-labelledby="contact-tab-wallet"><form data-book-form><label>Full wallet address<input data-book-address required maxlength="128" autocomplete="off" spellcheck="false" placeholder="0x… or a Solana address"></label><label><span>Private nickname <small class="contact-optional">optional</small></span><input data-book-alias maxlength="80" autocomplete="off" placeholder="How you want to save this contact"></label><p class="contact-hint">Saving to contacts does not send a request.</p><div class="contact-form-actions"><button type="submit" class="primary">Save contact</button><button data-contact-action="discover" type="button">Request conversation</button></div></form><p data-contact-discovery class="contact-hint"></p><div data-contact-discovery-actions></div></section>\n<section data-contact-panel="editor" data-tab="invite" id="contact-panel-invite" role="tabpanel" aria-labelledby="contact-tab-invite" hidden>{1}<div data-contact-invite-peer></div></section>\n<div class="contact-feedback"><p data-contact-editor-status role="status"></p></div></dialog>',
+    '<dialog data-contact-editor class="contact-dialog" aria-labelledby="contact-editor-title"><header><div><span class="contact-eyebrow">你的联系人</span><h2 id="contact-editor-title" data-book-title>添加联系人</h2></div><button data-contact-editor-close class="contact-close" type="button" aria-label="关闭表单">{0}</button></header>\n<div class="contact-subtabs" role="tablist" aria-label="如何添加联系人"><button data-contact-tab="editor" data-tab="wallet" role="tab" id="contact-tab-wallet" aria-controls="contact-panel-wallet" aria-selected="true" type="button">通过钱包</button><button data-contact-tab="editor" data-tab="invite" role="tab" id="contact-tab-invite" aria-controls="contact-panel-invite" aria-selected="false" tabindex="-1" type="button">通过邀请</button><button data-contact-own-open="create" type="button">创建邀请</button></div>\n<section data-contact-panel="editor" data-tab="wallet" id="contact-panel-wallet" role="tabpanel" aria-labelledby="contact-tab-wallet"><form data-book-form><label>完整钱包地址<input data-book-address required maxlength="128" autocomplete="off" spellcheck="false" placeholder="0x… 或 Solana 地址"></label><label><span>私密备注名 <small class="contact-optional">可选</small></span><input data-book-alias maxlength="80" autocomplete="off" placeholder="此联系人的保存名称"></label><p class="contact-hint">保存到联系人不会发送请求。</p><div class="contact-form-actions"><button type="submit" class="primary">保存联系人</button><button data-contact-action="discover" type="button">申请聊天</button></div></form><p data-contact-discovery class="contact-hint"></p><div data-contact-discovery-actions></div></section>\n<section data-contact-panel="editor" data-tab="invite" id="contact-panel-invite" role="tabpanel" aria-labelledby="contact-tab-invite" hidden>{1}<div data-contact-invite-peer></div></section>\n<div class="contact-feedback"><p data-contact-editor-status role="status"></p></div></dialog>',
   ],
   'html.597746d2b14a': [
-    '<dialog data-contact-invites class="contact-dialog" aria-labelledby="contact-invites-title"><header><div><span class="contact-eyebrow">SHARE CONTACT</span><h2 id="contact-invites-title">My invitation</h2></div><button data-contact-invites-close class="contact-close" type="button" aria-label="Close my invitation">{0}</button></header><p class="contact-hint">Create a fresh invitation before sharing its link or QR. You still choose whether to accept the request.</p><div data-contact-own-invite hidden><label>My invitation link<input data-contact-invite readonly spellcheck="false"></label><div data-contact-invite-qr class="device-qr"></div><div class="contact-form-actions"><button data-contact-action="copy" type="button" class="primary">Copy link</button><button data-contact-action="revoke" type="button">Revoke invitation</button></div></div><button data-contact-action="rotate" type="button">Create new invitation</button><p class="contact-hint">Each invitation expires after 24 hours and allows one request. Creating another does not cancel previous invitations.</p><div class="contact-feedback"><p data-contact-invite-status role="status"></p></div></dialog>',
-    '<dialog data-contact-invites class="contact-dialog" aria-labelledby="contact-invites-title"><header><div><span class="contact-eyebrow">分享联系人</span><h2 id="contact-invites-title">我的邀请</h2></div><button data-contact-invites-close class="contact-close" type="button" aria-label="关闭我的邀请">{0}</button></header><p class="contact-hint">分享链接或二维码前，请先创建新邀请。你仍可选择是否接受申请。</p><div data-contact-own-invite hidden><label>我的邀请链接<input data-contact-invite readonly spellcheck="false"></label><div data-contact-invite-qr class="device-qr"></div><div class="contact-form-actions"><button data-contact-action="copy" type="button" class="primary">复制链接</button><button data-contact-action="revoke" type="button">撤销邀请</button></div></div><button data-contact-action="rotate" type="button">创建新邀请</button><p class="contact-hint">每个邀请在24小时后到期，仅可申请一次。创建新邀请不会撤销已有邀请。</p><div class="contact-feedback"><p data-contact-invite-status role="status"></p></div></dialog>',
+    '<dialog data-contact-invites class="contact-dialog" aria-labelledby="contact-invites-title"><header><div><span class="contact-eyebrow">SHARE CONTACT</span><h2 id="contact-invites-title">My invitation</h2></div><button data-contact-invites-close class="contact-close" type="button" aria-label="Close my invitation">{0}</button></header><div data-contact-own-invite hidden><label>My invitation link<input data-contact-invite readonly spellcheck="false"></label><div data-contact-invite-qr class="device-qr"></div></div><div class="contact-form-actions contact-invite-actions"><button data-contact-action="copy" type="button" class="primary" hidden>Copy link</button><button data-contact-action="revoke" type="button" hidden>Revoke</button><button data-contact-action="rotate" type="button">New invitation</button></div><p class="contact-hint">Each invitation expires after 24 hours and allows one recipient to accept. Creating another does not cancel previous invitations.</p><div class="contact-feedback"><p data-contact-invite-status role="status"></p></div></dialog>',
+    '<dialog data-contact-invites class="contact-dialog" aria-labelledby="contact-invites-title"><header><div><span class="contact-eyebrow">分享联系人</span><h2 id="contact-invites-title">我的邀请</h2></div><button data-contact-invites-close class="contact-close" type="button" aria-label="关闭我的邀请">{0}</button></header><div data-contact-own-invite hidden><label>我的邀请链接<input data-contact-invite readonly spellcheck="false"></label><div data-contact-invite-qr class="device-qr"></div></div><div class="contact-form-actions contact-invite-actions"><button data-contact-action="copy" type="button" class="primary" hidden>复制链接</button><button data-contact-action="revoke" type="button" hidden>撤销</button><button data-contact-action="rotate" type="button">新邀请</button></div><p class="contact-hint">每个邀请在24小时后到期，仅允许一位接收者接受。创建新邀请不会撤销已有邀请。</p><div class="contact-feedback"><p data-contact-invite-status role="status"></p></div></dialog>',
   ],
   'html.801287f32cb5': [
-    '<form data-contact-invite-form><label>Invitation link<input data-contact-received type="url" maxlength="512" required autocomplete="off" spellcheck="false" placeholder="Paste a 0xDMme link"></label><p class="contact-hint">The invitation allows a conversation request. The recipient must accept.</p><div class="contact-form-actions"><button type="submit" class="primary">Request conversation</button><button data-contact-action="scan" type="button">Scan QR</button><button data-contact-action="stop-camera" type="button" hidden>Stop camera</button></div><video data-contact-camera hidden muted playsinline></video></form>',
-    '<form data-contact-invite-form><label>邀请链接<input data-contact-received type="url" maxlength="512" required autocomplete="off" spellcheck="false" placeholder="粘贴 0xDMme 链接"></label><p class="contact-hint">邀请允许发起聊天请求。接收者仍需接受。</p><div class="contact-form-actions"><button type="submit" class="primary">申请聊天</button><button data-contact-action="scan" type="button">扫描二维码</button><button data-contact-action="stop-camera" type="button" hidden>关闭摄像头</button></div><video data-contact-camera hidden muted playsinline></video></form>',
+    '<form data-contact-invite-form><label>Invitation link<input data-contact-received type="url" maxlength="512" required autocomplete="off" spellcheck="false" placeholder="Paste a 0xDMme link"></label><p class="contact-hint">The sender has invited you to a private conversation. Accepting this invitation lets both of you message each other.</p><div class="contact-form-actions"><button type="submit" class="primary">Accept invitation</button><button data-contact-action="scan" type="button">Scan QR</button><button data-contact-action="stop-camera" type="button" hidden>Stop camera</button></div><video data-contact-camera hidden muted playsinline></video></form>',
+    '<form data-contact-invite-form><label>邀请链接<input data-contact-received type="url" maxlength="512" required autocomplete="off" spellcheck="false" placeholder="粘贴 0xDMme 链接"></label><p class="contact-hint">发送者已邀请你进行私密对话。接受邀请后，双方即可互发消息。</p><div class="contact-form-actions"><button type="submit" class="primary">接受邀请</button><button data-contact-action="scan" type="button">扫描二维码</button><button data-contact-action="stop-camera" type="button" hidden>关闭摄像头</button></div><video data-contact-camera hidden muted playsinline></video></form>',
   ],
   'html.5acc35953618': [
     '<summary>Sign in from another device</summary><p>On a connected device, open Profile → Connected devices and generate a code.</p><label>Linking code or link<textarea data-enrollment-code spellcheck="false" autocomplete="off" autocapitalize="none" placeholder="Paste code or link"></textarea></label><button type="button">Continue</button><p role="status"></p>',
@@ -6846,22 +6853,22 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Edited · ': ['Edited · ', '已编辑 · '],
   'html.bc850aca5a52': [
-    '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">Search messages</button></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul><button type="button" data-search-next hidden>Continue search</button>',
-    '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">搜索消息</button></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul><button type="button" data-search-next hidden>继续搜索</button>',
+    '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul>',
+    '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul>',
   ],
   'html.71689221bc60': [
     '<article class="card notifications-card"><h2>Push on this device</h2><p>The provider receives subscription details and timing, without text, wallet or contact name.</p><div class="settings-actions"><button data-push-enable type="button">Enable push on this device</button><button data-push-disable type="button">Disable push on this device</button></div><p class="settings-hint">iPhone/iPad: open from the home screen icon before enabling. Your browser will ask for permission.</p><div data-push-settings></div>\n<section class="settings-block"><h3>Sounds</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">Disable sounds</button><p data-sound-status role="status"></p></div></section>\n<details class="settings-help"><summary>How do alerts and sounds work?</summary><p>Notifications can show names, photos and message previews on the lock screen. Public posts and replies show public details; handle DMs do not send push notifications. Calls may show “Incoming voice call”, depending on the preference above. Push permission and lock screen display are controlled by the browser and system.</p><p>Sounds are on initially and the choice stays in this browser, including when switching accounts. The browser may require a tap to allow audio. Push volume and sound follow your system. Muted or archived conversations do not alert; offline or without a valid session, no new remote alert is shown.</p></details><p data-daily-status role="status"></p></article>',
     '<article class="card notifications-card"><h2>此设备的推送</h2><p>服务商会接收订阅信息和时间，不会接收文字、钱包信息或联系人姓名。</p><div class="settings-actions"><button data-push-enable type="button">在此设备上启用推送</button><button data-push-disable type="button">关闭此设备的推送</button></div><p class="settings-hint">iPhone/iPad：请先通过主屏幕图标打开，再启用。浏览器会请求权限。</p><div data-push-settings></div>\n<section class="settings-block"><h3>声音</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">关闭声音</button><p data-sound-status role="status"></p></div></section>\n<details class="settings-help"><summary>通知和声音如何运作？</summary><p>通知可能会在锁屏上显示姓名、照片和消息预览。公开帖子和回复显示公开详情；用户名私信不会发送推送通知。根据上方设置，通话可能显示“收到语音来电”。推送权限和锁屏显示由浏览器及系统控制。</p><p>声音默认开启，选项保留在此浏览器中，包括切换账户后。浏览器可能需要点击才能播放音频。推送音量和声音由系统控制。静音或归档对话不会通知；离线或没有有效会话时，不会出现新的远程通知。</p></details><p data-daily-status role="status"></p></article>',
   ],
   'html.d3072845e018': [
-    '<article class="card public-profile-card"><h2>Public profile</h2>\n<div data-public-create><p>Your handle, public activity and all followed communities are visible on the web. Your private wallet, name and photo are not included in this profile.</p><label>Public handle<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="your_handle"></label>\n<p>3–30 unaccented letters, numbers or _. Your handle is unique and fixed for the lifetime of your account.</p>\n<button type="button" class="primary" data-public-action="create">Create public profile</button></div>\n<div data-public-owned hidden></div>\n<section data-public-moderation aria-label="Rejected public files"></section>\n<div><button type="button" data-public-action="moderation-latest" hidden>Latest notices</button><button type="button" data-public-action="moderation-older" hidden>Previous notices</button></div>\n<p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">External media</button>\n<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>Try again</button></article>',
-    '<article class="card public-profile-card"><h2>公开个人资料</h2>\n<div data-public-create><p>你的用户名、公开动态以及所有已关注社区在网页上可见。此个人资料不包含私密钱包信息、姓名和图片。</p><label>公开用户名<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="your_handle"></label>\n<p>3–30 个不带重音符号的字母、数字或下划线。用户名唯一，在账户存续期间不可更改。</p>\n<button type="button" class="primary" data-public-action="create">创建公开个人资料</button></div>\n<div data-public-owned hidden></div>\n<section data-public-moderation aria-label="被拒绝的公开文件"></section>\n<div><button type="button" data-public-action="moderation-latest" hidden>最新通知</button><button type="button" data-public-action="moderation-older" hidden>先前通知</button></div>\n<p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">外部媒体</button>\n<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>重试</button></article>',
+    '<article class="card public-profile-card"><h2>Public profile</h2>\n<div data-public-create><p>Your handle, public activity and all followed communities are visible on the web. Your private wallet, name and photo are not included in this profile.</p><label>Public handle<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="your_handle"></label>\n<p>3–30 unaccented letters, numbers or _. Your handle is unique and fixed for the lifetime of your account.</p>\n<button type="button" class="primary" data-public-action="create">Create public profile</button></div>\n<div data-public-owned hidden></div>\n<section data-public-moderation aria-label="Rejected public files"></section>\n<div><button type="button" data-public-action="moderation-latest" hidden>Latest notices</button><button type="button" data-public-action="moderation-older" hidden>Previous notices</button></div>\n<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>Try again</button></article>',
+    '<article class="card public-profile-card"><h2>公开个人资料</h2>\n<div data-public-create><p>你的用户名、公开动态以及所有已关注社区在网页上可见。此个人资料不包含私密钱包信息、姓名和图片。</p><label>公开用户名<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="your_handle"></label>\n<p>3–30 个不带重音符号的字母、数字或下划线。用户名唯一，在账户存续期间不可更改。</p>\n<button type="button" class="primary" data-public-action="create">创建公开个人资料</button></div>\n<div data-public-owned hidden></div>\n<section data-public-moderation aria-label="被拒绝的公开文件"></section>\n<div><button type="button" data-public-action="moderation-latest" hidden>最新通知</button><button type="button" data-public-action="moderation-older" hidden>先前通知</button></div>\n<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>重试</button></article>',
   ],
   ' and {0} more {1}': [' and {0} more {1}', ' 以及另外 {0} 个{1}'],
   'Followed by ': ['Followed by ', '关注者 '],
   'html.b1c18c8a59fa': [
-    '<div class="profile-editor">\n<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="Change banner"><img alt="" hidden><span class="profile-editor-hint">Change banner</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="Remove banner" title="Remove banner" hidden>{0}</button></div>\n<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Change photo"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remove photo" title="Remove photo" hidden>{1}</button></div>\n<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>View my public profile</a></div></div>\n<label class="profile-editor-description"><span>Description</span><textarea data-public-description rows="3" placeholder="Tell people about yourself. Use @ to mention users and communities."></textarea><small data-description-count></small></label>\n<button type="button" class="primary" data-confirm-profile>Confirm changes</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>',
-    '<div class="profile-editor">\n<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="更换横幅"><img alt="" hidden><span class="profile-editor-hint">更换横幅</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="移除横幅" title="移除横幅" hidden>{0}</button></div>\n<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="更换图片"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="移除图片" title="移除图片" hidden>{1}</button></div>\n<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>查看我的公开个人资料</a></div></div>\n<label class="profile-editor-description"><span>简介</span><textarea data-public-description rows="3" placeholder="介绍一下自己。使用 @ 提及用户和社区。"></textarea><small data-description-count></small></label>\n<button type="button" class="primary" data-confirm-profile>确认更改</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>',
+    '<div class="profile-editor">\n<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="Change banner"><img alt="" hidden><span class="profile-editor-hint">Change banner</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="Remove banner" title="Remove banner" hidden>{0}</button></div>\n<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Change photo"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remove photo" title="Remove photo" hidden>{1}</button></div>\n<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>View my public profile</a></div></div>\n<label class="profile-editor-description"><span>Description</span><textarea data-public-description rows="3" placeholder="Tell people about yourself. Use @ to mention users and communities."></textarea><small data-description-count></small></label>\n<button type="button" class="primary" data-confirm-profile hidden>Confirm changes</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>',
+    '<div class="profile-editor">\n<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="更换横幅"><img alt="" hidden><span class="profile-editor-hint">更换横幅</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="移除横幅" title="移除横幅" hidden>{0}</button></div>\n<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="更换图片"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="移除图片" title="移除图片" hidden>{1}</button></div>\n<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>查看我的公开个人资料</a></div></div>\n<label class="profile-editor-description"><span>简介</span><textarea data-public-description rows="3" placeholder="介绍一下自己。使用 @ 提及用户和社区。"></textarea><small data-description-count></small></label>\n<button type="button" class="primary" data-confirm-profile hidden>确认更改</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>',
   ],
   'html.3b7e1f6a5e79': [
     '<form role="search" aria-label="Search posts, users and communities"><label class="public-search-field">{0}<input type="search" placeholder="Search" aria-label="Search posts, users and communities" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>',
@@ -9772,8 +9779,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     ],
   'View reply': ['View reply', '查看回复'],
   group: ['group', '群组'],
-  'Write a reply': ['Write a reply', '撰写回复'],
-  'Reply unavailable.': ['Reply unavailable.', '回复不可用。'],
   'Could not update the count.': [
     'Could not update the count.',
     '无法更新计数。',
@@ -10157,7 +10162,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Invalid media duration.': ['Invalid media duration.', '媒体时长无效。'],
   'Invalid media frame rate.': ['Invalid media frame rate.', '媒体帧率无效。'],
   'ranking.biggest': ['Biggest', '最大'],
-  'Create new invitation': ['Create new invitation', '创建新邀请'],
+  'New invitation': ['New invitation', '新邀请'],
   'People who know your wallet address can send you a chat invitation': [
     'People who know your wallet address can send you a chat invitation',
     '知道你钱包地址的人可以向你发送聊天邀请',
@@ -10189,4 +10194,165 @@ export const catalog: Record<string, readonly [string, string]> = {
       'Only people with an unused invitation can find your private account and request a chat. Each invitation expires after 24 hours and allows one request. New invitations are independent; you still choose whether to accept.',
       '只有持有未使用邀请的人才能找到你的私人账户并申请聊天。每个邀请在24小时后到期，仅可申请一次。新邀请彼此独立，你仍可选择是否接受。',
     ],
+  'Installed-app feasibility': [
+    'Installed-app feasibility',
+    '已安装应用的可行性验证',
+  ],
+  'Inspecting the runtime…': ['Inspecting the runtime…', '正在检查运行环境…'],
+  'This development build checks local encryption and storage using a synthetic fixture. It does not sign in, contact wallets or send data to a server.':
+    [
+      'This development build checks local encryption and storage using a synthetic fixture. It does not sign in, contact wallets or send data to a server.',
+      '此开发版本使用合成测试数据检查本地加密和存储。它不会登录、连接钱包或向服务器发送数据。',
+    ],
+  'The single fixture expires after 30 minutes. Clearing it does not access product account databases. A successful check is not acceptance of messaging, recovery, notifications or calls on this device.':
+    [
+      'The single fixture expires after 30 minutes. Clearing it does not access product account databases. A successful check is not acceptance of messaging, recovery, notifications or calls on this device.',
+      '此单一测试数据在30分钟后到期。清除它不会访问产品账户数据库。检查成功并不代表此设备上的消息、恢复、通知或通话功能已通过验收。',
+    ],
+  'Run local checks': ['Run local checks', '运行本地检查'],
+  'Clear test fixture': ['Clear test fixture', '清除测试数据'],
+  'Expire test fixture': ['Expire test fixture', '使测试数据到期'],
+  'Alter test ciphertext': ['Alter test ciphertext', '修改测试密文'],
+  'Ready. Use synthetic data only.': [
+    'Ready. Use synthetic data only.',
+    '已就绪。请仅使用合成数据。',
+  ],
+  'Native bridge: {0}.': ['Native bridge: {0}.', '原生桥接：{0}。'],
+  'Browser preview. This is not native device acceptance.': [
+    'Browser preview. This is not native device acceptance.',
+    '浏览器预览。这不代表原生设备已通过验收。',
+  ],
+  'Checking the local test fixture…': [
+    'Checking the local test fixture…',
+    '正在检查本地测试数据…',
+  ],
+  'Check stopped. No success was recorded.': [
+    'Check stopped. No success was recorded.',
+    '检查已停止。未记录成功结果。',
+  ],
+  'Check failed or expired. No success was recorded. Clear the synthetic fixture to start again.':
+    [
+      'Check failed or expired. No success was recorded. Clear the synthetic fixture to start again.',
+      '检查失败或已到期。未记录成功结果。请清除合成测试数据后重试。',
+    ],
+  'Stored fixture reopened and verified.': [
+    'Stored fixture reopened and verified.',
+    '已重新打开并验证存储的测试数据。',
+  ],
+  'Fixture created and verified. Restart the app, then run this check again.': [
+    'Fixture created and verified. Restart the app, then run this check again.',
+    '已创建并验证测试数据。请重启应用后再次运行检查。',
+  ],
+  'Web Locks, nonextractable device keys and Matrix WASM encryption passed. Service identity: {0}':
+    [
+      'Web Locks, nonextractable device keys and Matrix WASM encryption passed. Service identity: {0}',
+      'Web Locks、不可导出的设备密钥和 Matrix WASM 加密检查已通过。服务标识：{0}',
+    ],
+  'Synthetic fixture cleared. Product account data was not accessed.': [
+    'Synthetic fixture cleared. Product account data was not accessed.',
+    '合成测试数据已清除。未访问产品账户数据。',
+  ],
+  'Synthetic fixture marked expired. Run checks to verify rejection.': [
+    'Synthetic fixture marked expired. Run checks to verify rejection.',
+    '合成测试数据已标记为到期。请运行检查以验证其被拒绝。',
+  ],
+  'Synthetic ciphertext altered. Run checks to verify rejection.': [
+    'Synthetic ciphertext altered. Run checks to verify rejection.',
+    '合成密文已修改。请运行检查以验证其被拒绝。',
+  ],
+  'Community ownership requests': [
+    'Community ownership requests',
+    '社区所有权请求',
+  ],
+  'Requests from owners who want you to take over their community. Open a community to review the request.':
+    [
+      'Requests from owners who want you to take over their community. Open a community to review the request.',
+      '这些请求来自希望你接管其社区的所有者。请打开相应社区查看请求。',
+    ],
+  'No pending ownership requests.': [
+    'No pending ownership requests.',
+    '没有待处理的所有权请求。',
+  ],
+  'Ownership requests': ['Ownership requests', '所有权请求'],
+  'Return to typing': ['Return to typing', '返回输入'],
+  'Twemoji artwork · CC-BY-4.0 · Recents saved on this device': [
+    'Twemoji artwork · CC-BY-4.0 · Recents saved on this device',
+    'Twemoji 图案 · CC-BY-4.0 · 最近使用的表情仅保存在此设备上',
+  ],
+  'Accept invitation': ['Accept invitation', '接受邀请'],
+  'Invitation accepted. You can start the conversation.': [
+    'Invitation accepted. You can start the conversation.',
+    '邀请已接受。你可以开始对话。',
+  ],
+  'dm.private-info-warning': [
+    'Never share your seed phrases or any private information with anyone.',
+    '切勿与任何人分享你的助记词或任何私人信息。',
+  ],
+  'Hide safety notice': ['Hide safety notice', '隐藏安全提示'],
+  'contacts.invitation-accepted-save-failed': [
+    'Invitation accepted, but the contact could not be saved. Refresh contacts before trying again.',
+    '邀请已接受，但未能保存联系人。请先刷新联系人后再试。',
+  ],
+  'Your invitation lets one recipient accept a private conversation with you. Each invitation expires after 24 hours. New invitations are independent; wallet requests still require acceptance.':
+    [
+      'Your invitation lets one recipient accept a private conversation with you. Each invitation expires after 24 hours. New invitations are independent; wallet requests still require acceptance.',
+      '你的邀请允许一位接收者接受与你进行私密对话。每个邀请在24小时后到期。新邀请相互独立；钱包地址发起的请求仍需接受。',
+    ],
+  'People with your complete wallet address can request a chat that you must accept. Redeeming your invitation directly accepts the conversation. Your wallet is not published in a directory.':
+    [
+      'People with your complete wallet address can request a chat that you must accept. Redeeming your invitation directly accepts the conversation. Your wallet is not published in a directory.',
+      '知道你完整钱包地址的人可以发起需由你接受的聊天请求。兑换你的邀请即直接接受对话。你的钱包不会发布在目录中。',
+    ],
+  'More history is available. Scroll to continue searching.': [
+    'More history is available. Scroll to continue searching.',
+    '还有更多历史记录，滚动以继续搜索。',
+  ],
+
+  'Allow handle messages': ['Allow handle messages', '允许用户名私信'],
+
+  'Prevent handle messages': ['Prevent handle messages', '禁止用户名私信'],
+
+  'Block user and hide posts': [
+    'Block user and hide posts',
+    '屏蔽用户并隐藏帖子',
+  ],
+
+  'Mute conversation': ['Mute conversation', '静音对话'],
+
+  'Unmute conversation': ['Unmute conversation', '取消对话静音'],
+
+  'Select message for deletion': [
+    'Select message for deletion',
+    '选择要删除的消息',
+  ],
+
+  'Delete for both ({0})': ['Delete for both ({0})', '为双方删除（{0}）'],
+
+  'Messages are blocked, but the public profile could not be blocked. Try again.':
+    [
+      'Messages are blocked, but the public profile could not be blocked. Try again.',
+      '已禁止私信，但无法屏蔽公开个人资料。请重试。',
+    ],
+
+  'Select up to 64 messages at a time.': [
+    'Select up to 64 messages at a time.',
+    '一次最多选择64条消息。',
+  ],
+  'Return to latest messages': ['Return to latest messages', '返回最新消息'],
+
+  'Recent conversations': ['Recent conversations', '最近的对话'],
+
+  'Search handle conversations': [
+    'Search handle conversations',
+    '搜索用户名对话',
+  ],
+
+  'Search private conversations': [
+    'Search private conversations',
+    '搜索私人对话',
+  ],
+  'Could not open the selected message.': [
+    'Could not open the selected message.',
+    '无法打开所选消息。',
+  ],
 };

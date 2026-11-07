@@ -1,7 +1,11 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { UpvoteNotice } from '../../shared/public-upvotes/index.ts';
-import type { ReplyPreview } from '../../shared/community-posts/index.ts';
+import type {
+  ReplyPreview,
+  ReplyTarget,
+} from '../../shared/community-posts/index.ts';
 import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
+import type { FollowNotice } from '../../shared/follow-notices/index.ts';
 import type { ModerationActivity } from './moderation.ts';
 
 /**
@@ -13,6 +17,8 @@ export interface ActivitySources {
   upvotes?: () => Promise<readonly UpvoteNotice[]>;
   markUpvotesRead?: (ids: readonly string[]) => Promise<void>;
   mentions?: () => Promise<readonly MentionNotification[]>;
+  follows?: () => Promise<readonly FollowNotice[]>;
+  markFollowsRead?: (ids: readonly string[]) => Promise<void>;
   markMentionsRead?: (ids: readonly string[]) => Promise<void>;
   moderation?: () => Promise<readonly ModerationActivity[]>;
   markModerationRead?: (ids: readonly string[]) => Promise<void>;
@@ -38,6 +44,8 @@ export interface ActivitySources {
       kind?: 'post' | 'reply';
       /** Author and start of the reply, already filtered by public visibility. */
       preview: ReplyPreview | null;
+      /** The reader's own content this reply answered. */
+      target?: ReplyTarget;
     }[]
   >;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;
@@ -58,6 +66,7 @@ type Item<
 export interface Snapshot {
   upvotes: Loaded<UpvoteNotice>;
   mentions: Loaded<MentionNotification>;
+  follows: Loaded<FollowNotice>;
   moderation: Loaded<ModerationActivity>;
   requests: Loaded<Item<'requests'>>;
   invites: Loaded<Item<'groupInvites'>>;
@@ -70,6 +79,7 @@ export function empty(): Snapshot {
   return {
     upvotes: { items: [], problem: '' },
     mentions: { items: [], problem: '' },
+    follows: { items: [], problem: '' },
     moderation: { items: [], problem: '' },
     requests: { items: [], problem: '' },
     invites: { items: [], problem: '' },
@@ -120,6 +130,10 @@ export async function readActivitySnapshot(
     ),
     upvotes: await load(
       sources.upvotes ?? (() => Promise.resolve([])),
+      current,
+    ),
+    follows: await load(
+      sources.follows ?? (() => Promise.resolve([])),
       current,
     ),
   };

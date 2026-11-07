@@ -6,32 +6,29 @@ import {
 } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 import { pingNotice } from '../ping/index.ts';
-import { newestFirst, searchResultTime } from './search-results.ts';
-export interface SearchItem {
-  id: string;
-  peer: string;
-  sequence: number;
-  excerpt: string;
-  sentAt?: number;
-}
-export interface SearchPage {
-  items: SearchItem[];
-  next: string | null;
-}
+import { latestConversationMatches } from './search-results.ts';
+import { searchMessageRow } from './search-view.ts';
+export type { SearchItem, SearchPage } from './search-types.ts';
+import type { SearchItem, SearchPage } from './search-types.ts';
 export class ConversationSearch {
   private readonly dialog = document.createElement('dialog');
   private entries: readonly ConversationEntry[] = [];
+  private scope: 'private' | 'public' = 'private';
+  private additional = new Map<string, ConversationEntry>();
   private generation = 0;
   private next: string | null = null;
   private results: SearchItem[] = [];
   private query = '';
   private busy = false;
+  private timer: ReturnType<typeof setTimeout> | undefined;
   /** Set while the dialog closes to open a result, so its query and results stay. */
   private keepResults = false;
   private readonly search: (
     query: string,
     after: string | null,
   ) => Promise<SearchPage>;
+  private readonly publicSearch:
+    ((query: string, after: string | null) => Promise<SearchPage>) | undefined;
   private readonly openResult: (
     item: SearchItem,
     entry: ConversationEntry,
@@ -39,8 +36,10 @@ export class ConversationSearch {
   constructor(
     search: (query: string, after: string | null) => Promise<SearchPage>,
     openResult: (item: SearchItem, entry: ConversationEntry) => void,
+    publicSearch?: (query: string, after: string | null) => Promise<SearchPage>,
   ) {
     this.search = search;
+    this.publicSearch = publicSearch;
     this.openResult = openResult;
     this.dialog.className = 'conversation-search';
     this.dialog.setAttribute('aria-labelledby', 'conversation-search-title');
@@ -50,18 +49,21 @@ export class ConversationSearch {
       this.close(),
     );
     this.dialog.addEventListener('cancel', () => this.reset());
-    this.dialog.addEventListener('close', () => this.reset());
+    this.dialog.addEventListener('close', () => {
+      if (!this.dialog.open) this.reset();
+    });
     this.node<HTMLInputElement>('input').addEventListener('input', () => {
       this.generation++;
       this.clearResults();
       this.renderChats();
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => void this.find(false), 200);
     });
-    this.node('form').addEventListener('submit', (event) => {
-      event.preventDefault();
-      void this.find(false);
-    });
-    this.node('[data-search-next]').addEventListener('click', () => {
-      void this.find(true);
+    this.node('form').addEventListener('submit', (event) =>
+      event.preventDefault(),
+    );
+    this.dialog.addEventListener('scroll', () => {
+      if (this.next && this.nearEnd()) void this.find(true);
     });
   }
   private node<T extends HTMLElement>(selector: string): T {
@@ -73,7 +75,15 @@ export class ConversationSearch {
     this.entries = entries;
     if (this.dialog.open) this.renderChats();
   }
-  open(): void {
+  open(scope: 'private' | 'public' = 'private'): void {
+    if (scope !== this.scope) {
+      this.close();
+      this.scope = scope;
+    }
+    this.node('#conversation-search-title').textContent =
+      scope === 'public'
+        ? t('Search handle conversations')
+        : t('Search private conversations');
     this.renderChats();
     this.dialog.showModal();
     this.node<HTMLInputElement>('input').focus();
@@ -90,10 +100,12 @@ export class ConversationSearch {
   }
   reset(): void {
     this.generation++;
+    clearTimeout(this.timer);
     if (this.keepResults) {
       this.keepResults = false;
       return;
     }
+    this.additional.clear();
     this.node<HTMLInputElement>('input').value = '';
     clearDirectory(this.node('[data-search-chats]'));
     this.clearResults();
@@ -102,8 +114,7 @@ export class ConversationSearch {
     this.next = null;
     this.results = [];
     this.query = '';
-    this.node('[data-search-messages]').replaceChildren();
-    this.node('[data-search-next]').hidden = true;
+    clearDirectory(this.node('[data-search-messages]'));
     this.node('[data-search-notice]').textContent = t(
       'Type to find a conversation or search for words in messages.',
     );
@@ -112,13 +123,17 @@ export class ConversationSearch {
     const query = this.node<HTMLInputElement>('input').value;
     const host = this.node('[data-search-chats]');
     clearDirectory(host);
-    const matches = matchingConversations(this.entries, query);
+    if (!query.trim()) return;
+    const matches = matchingConversations(
+      this.scope === 'private' ? this.entries : [...this.additional.values()],
+      query,
+    );
     for (const entry of matches.slice(0, 50))
       host.append(
         conversationButton({
           ...entry,
           open: () => {
-            this.close();
+            this.hide();
             entry.open();
           },
         }),
@@ -126,34 +141,77 @@ export class ConversationSearch {
     if (!matches.length)
       host.textContent = t('No loaded conversations match the search.');
   }
+  private nearEnd(): boolean {
+    return (
+      this.dialog.scrollHeight -
+        this.dialog.scrollTop -
+        this.dialog.clientHeight <
+      160
+    );
+  }
   private async find(more: boolean): Promise<void> {
-    if (this.busy) return;
+    if (this.busy || !this.dialog.open) return;
     const query = this.node<HTMLInputElement>('input').value.trim();
     if (!query) return;
     if (!more || query !== this.query) this.clearResults();
     this.query = query;
     const generation = this.generation;
     this.busy = true;
-    this.node<HTMLButtonElement>('button[type="submit"]').disabled = true;
-    this.node('[data-search-next]').hidden = true;
     this.node('[data-search-notice]').textContent = t(
       'Searching on this device…',
     );
     try {
-      const page = await this.search(query, this.next);
-      if (generation !== this.generation || !this.dialog.open) return;
-      this.next = page.next;
-      this.renderMessages(page);
-      this.node('[data-search-next]').hidden = page.next === null;
-      this.node('[data-search-notice]').textContent =
-        page.next === null
-          ? t('Search completed in copies available on this device.')
-          : t('More history is available. Continue searching.');
+      await this.readPages(generation, query);
     } catch (error: unknown) {
+      if (generation === this.generation) this.next = null;
       this.failed(error, generation);
     } finally {
       this.busy = false;
-      this.node<HTMLButtonElement>('button[type="submit"]').disabled = false;
+      this.continueSearch(generation);
+    }
+  }
+  private async readPages(generation: number, query: string): Promise<void> {
+    for (let page = 0; page < 12; page++) {
+      const cursor = this.next;
+      const result = await this.sourcePage(query, cursor);
+      if (generation !== this.generation || !this.dialog.open) return;
+      if (result.next !== null && result.next === cursor)
+        throw new Error('Invalid search page.');
+      this.next = result.next;
+      this.acceptEntries(result);
+      this.renderMessages(result);
+      if (this.next === null) break;
+    }
+    this.node('[data-search-notice]').textContent =
+      this.next === null
+        ? t('Search completed in copies available on this device.')
+        : t('More history is available. Scroll to continue searching.');
+  }
+  private sourcePage(
+    query: string,
+    cursor: string | null,
+  ): Promise<SearchPage> {
+    const source = this.scope === 'private' ? this.search : this.publicSearch;
+    if (!source)
+      return Promise.reject(new Error('Handle search is unavailable.'));
+    return source(query, cursor);
+  }
+  private acceptEntries(result: SearchPage): void {
+    if (this.scope !== 'public') return;
+    for (const entry of result.entries ?? []) {
+      this.additional.set(entry.id, entry);
+      if (this.additional.size > 100)
+        this.additional.delete(this.additional.keys().next().value!);
+    }
+    if (result.entries?.length) this.renderChats();
+  }
+  private continueSearch(generation: number): void {
+    if (!this.dialog.open) return;
+    if (generation !== this.generation) {
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => void this.find(false), 200);
+    } else if (this.next && this.nearEnd()) {
+      this.timer = setTimeout(() => void this.find(true), 0);
     }
   }
   private failed(error: unknown, generation: number): void {
@@ -163,41 +221,31 @@ export class ConversationSearch {
         ? translatedError(error.message)
         : t('Could not search.');
   }
-  /** Each page joins the results already found; the list stays newest first. */
+  /** Keep the latest matching message per conversation across all pages. */
   private renderMessages(page: SearchPage): void {
     const host = this.node('[data-search-messages]');
-    this.results = newestFirst([...this.results, ...page.items]);
-    host.replaceChildren();
+    this.results = latestConversationMatches([...this.results, ...page.items]);
+    clearDirectory(host);
     for (const item of this.results) {
-      const row = document.createElement('li');
-      const heading = document.createElement('div');
-      heading.className = 'search-result-heading';
-      const title = document.createElement('strong');
-      title.textContent =
-        this.entries.find((entry) => entry.id === item.peer)?.title ??
-        t('Local history conversation');
-      heading.append(title, searchResultTime(item.sentAt));
-      const text = document.createElement('p');
-      text.textContent = item.excerpt;
-      row.append(heading, text);
-      this.appendOpen(row, item);
+      const entry =
+        this.scope === 'private'
+          ? this.entries.find((entry) => entry.id === item.peer)
+          : this.additional.get(item.peer);
+      const row = searchMessageRow({
+        item,
+        entry,
+        query: this.query,
+        open: () => {
+          if (!entry) return;
+          this.hide();
+          this.openResult(item, entry);
+        },
+      });
       host.append(row);
     }
     if (!host.children.length && page.next === null)
       host.replaceChildren(
         pingNotice('puzzled', t('No messages found.'), 'search-empty'),
       );
-  }
-  private appendOpen(row: HTMLElement, item: SearchItem): void {
-    const entry = this.entries.find((entry) => entry.id === item.peer);
-    if (!entry) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = t('Open conversation');
-    button.addEventListener('click', () => {
-      this.hide();
-      this.openResult(item, entry);
-    });
-    row.append(button);
   }
 }

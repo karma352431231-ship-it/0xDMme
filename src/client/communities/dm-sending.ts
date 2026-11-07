@@ -1,3 +1,4 @@
+import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
 import type { ChosenMedia } from './dm-composer.ts';
 
@@ -25,6 +26,7 @@ export class DmSending {
       media: ChosenMedia | null;
       pending: boolean;
       editing: Parameters<SocialDms['edit']>[1] | null;
+      replying?: string | null;
     },
   ): Promise<void> {
     const { text, media, pending, editing } = input;
@@ -35,13 +37,22 @@ export class DmSending {
         selected,
         media.selection,
         media.media,
-        text.trim(),
+        input.replying
+          ? encodeDailyText({
+              text: text.trim(),
+              reply: input.replying,
+              forwarded: false,
+            })
+          : text.trim(),
       );
       await this.controller.sendMedia(selected);
     } else {
       if (pending) await this.controller.sendMedia(selected);
       if (text.trim()) {
-        await this.controller.send(selected, text, this.messageId);
+        const payload = input.replying
+          ? encodeDailyText({ text, reply: input.replying, forwarded: false })
+          : text;
+        await this.controller.send(selected, payload, this.messageId);
         this.messageId = crypto.randomUUID();
       }
     }

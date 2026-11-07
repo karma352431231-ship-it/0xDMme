@@ -1,3 +1,7 @@
+import {
+  appExternalContent,
+  contentPolicy,
+} from '../../shared/content-policy/index.ts';
 import { appDocumentPath } from '../../shared/app-routes/index.ts';
 import { createServer } from 'node:http';
 import { createServer as createTlsServer } from 'node:https';
@@ -73,22 +77,7 @@ export async function loadWebAssets(
  * The app shell may reach KLIPY (09/10/2026) and opt-in YouTube players
  * (10/10/2026). Other responses keep the same-origin policy.
  */
-const appExternalContent = {
-  media: ' https://static.klipy.com',
-  connect: ' https://api.klipy.com',
-  frames: ' https://www.youtube-nocookie.com',
-};
-function contentPolicy(
-  scriptSources: string,
-  external: {
-    media: string;
-    connect: string;
-    frames: string;
-    images?: string;
-  } = { media: '', connect: '', frames: '' },
-): string {
-  return `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:${external.images ?? external.media}; media-src blob:${external.media}; font-src 'self'; connect-src 'self'${external.connect}; frame-src${external.frames || " 'none'"}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
-}
+
 function securityHeaders(
   response: ServerResponse,
   scriptSources = "'self'",

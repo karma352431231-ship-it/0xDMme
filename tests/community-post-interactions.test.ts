@@ -307,6 +307,20 @@ await test('profile activity shows title, content and then tag while preserving 
   );
 });
 
+await test('a profile entry leads with its community and omits the known author', (t) => {
+  fakeDocument(t);
+  const value = post();
+  const card = renderActivityEntry(
+    { post: value, community: { id: value.community, name: 'Community' } },
+    new AbortController().signal,
+  ) as unknown as CardNode;
+  assert.equal(card.querySelector('.community-post-author'), null);
+  assert.equal(
+    card.querySelector('.community-post-community')?.textContent,
+    'Community',
+  );
+});
+
 await test('bookmark preserves hidden state and revision, changes only confirmed state and cannot write after session change', async () => {
   const value = post(),
     stored = { saved: false, hidden: true, revision: 4 };

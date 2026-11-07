@@ -103,6 +103,10 @@ await test('origin and temporary access protect API and assets before admission'
     assert.equal(vaultEntry.status, 303);
     assert.equal(vaultEntry.headers.location, '/vault.html');
     assert.equal(
+      (await exchange(port, `/zk.html?access=${token}`, headers)).status,
+      403,
+    );
+    assert.equal(
       (await exchange(port, `//evil.invalid/?access=${token}`, headers)).status,
       403,
     );

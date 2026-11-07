@@ -1,5 +1,6 @@
 import { canonical, digest } from '../../shared/devices/index.ts';
 import type { VaultEntry, VaultSync } from '../vault-sync/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { accountSettings } from './record.ts';
 import type { AccountSettings } from './record.ts';
 
@@ -42,12 +43,16 @@ export class SettingsRecord {
     return heads;
   }
   /** `null` when the account never confirmed Initial settings. */
-  async load(accountId: string): Promise<AccountSettings | null> {
+  /** `work` lets a screen the person is waiting for go ahead of background sync. */
+  async load(
+    accountId: string,
+    work: VaultWorkOptions = {},
+  ): Promise<AccountSettings | null> {
     // `complete` describes the local checkpoint, which can be empty while
     // another reader is still pulling the account's records from the server.
     // Always synchronize before deciding that the initial setup is missing.
     for (let round = 0; round < refreshRounds; round++) {
-      await this.sync.refresh();
+      await this.sync.refresh(work);
       if (this.sync.complete) break;
     }
     if (!this.sync.complete)
@@ -64,19 +69,26 @@ export class SettingsRecord {
     }
   }
   /** Supersedes every current version, so concurrent devices converge. */
-  async save(accountId: string, value: AccountSettings): Promise<void> {
+  async save(
+    accountId: string,
+    value: AccountSettings,
+    work: VaultWorkOptions = {},
+  ): Promise<void> {
     const parents = (await this.heads(accountId)).map(
       (entry) => entry.commit.id,
     );
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity: await settingsEntity(accountId),
-        kind: 'settings',
-        parents,
-        label,
+    await this.sync.save(
+      {
+        change: {
+          version: 1,
+          entity: await settingsEntity(accountId),
+          kind: 'settings',
+          parents,
+          label,
+        },
+        value: JSON.stringify(accountSettings(value)),
       },
-      value: JSON.stringify(accountSettings(value)),
-    });
+      work,
+    );
   }
 }

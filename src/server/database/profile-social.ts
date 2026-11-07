@@ -21,6 +21,18 @@ import type { ContactAuthority } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { profileNotificationSetting } from './profile-notifications.ts';
 import { storePublicReport } from './public-reports.ts';
+import {
+  followNoticeOperation,
+  reconcileFollowNotice,
+} from './profile-follow-notices.ts';
+
+const readerOperations = new Set([
+  'notification-state',
+  'notification-set',
+  'mutual-followers',
+  'follow-notifications',
+  'follow-notifications-read',
+]);
 
 /** Public pages and private follow operations use stable public profile IDs. */
 interface ProfileSocialOptions {
@@ -130,22 +142,32 @@ export class ProfileSocialStore {
       return this.options.communities.withActor(authority, (context) =>
         storePublicReport(context, data, this.options.capacity),
       );
-    if (
-      ['notification-state', 'notification-set', 'mutual-followers'].includes(
-        operation,
-      )
-    )
-      return this.options.communities.withActor(authority, async (context) =>
-        operation === 'mutual-followers'
-          ? await readProfileMutuals({
-              client: context.client,
-              actor: context.actor.id,
-              profiles: this.options.profiles,
-              data,
-            })
-          : await profileNotificationSetting(context, operation, data),
-      );
+    if (readerOperations.has(operation))
+      return this.readerOperation(operation, authority, data);
     return this.followOperation(operation, authority, data);
+  }
+  /** Operations about the reader's own follows, bells and new followers. */
+  private readerOperation(
+    operation: string,
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
+    return this.options.communities.withActor(authority, async (context) => {
+      if (operation === 'mutual-followers')
+        return readProfileMutuals({
+          client: context.client,
+          actor: context.actor.id,
+          profiles: this.options.profiles,
+          data,
+        });
+      if (operation.startsWith('follow-notifications'))
+        return followNoticeOperation(context, {
+          operation,
+          data,
+          profiles: this.options.profiles,
+        });
+      return profileNotificationSetting(context, operation, data);
+    });
   }
   private async followOperation(
     operation: string,
@@ -183,11 +205,14 @@ export class ProfileSocialStore {
         );
       if (old.following === following) return old;
       const result = await context.client.query<ProfileFollow>(
-        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision) VALUES($1,$2,$3,1)
+        `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision,followed_at)
+        VALUES($1,$2,$3,1,CASE WHEN $3 THEN clock_timestamp() END)
         ON CONFLICT(follower,target) DO UPDATE SET following=$3,revision=hash_talk.public_profile_follows.revision+1,
+        followed_at=CASE WHEN $3 THEN clock_timestamp() END,
         notifications=false,notification_revision=hash_talk.public_profile_follows.notification_revision+CASE WHEN hash_talk.public_profile_follows.notifications THEN 1 ELSE 0 END RETURNING following,revision`,
         [actor, target, following],
       );
+      await reconcileFollowNotice(context.client, { actor, target, following });
       await assertContentCapacity(context.client, this.options.capacity);
       return result.rows[0]!;
     });

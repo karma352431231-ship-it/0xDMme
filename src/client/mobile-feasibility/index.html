@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="/probe.css" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <script type="module" src="/probe.js"></script>
+    <title>0xDMme</title>
+  </head>
+  <body>
+    <main data-build="native-feasibility-v1">
+      <img src="/icon.svg" width="56" height="56" alt="" />
+      <h1>0xDMme</h1>
+      <p>Installed-app feasibility</p>
+      <p id="platform">Inspecting the runtime…</p>
+      <p>
+        This development build checks local encryption and storage using a
+        synthetic fixture. It does not sign in, contact wallets or send data to
+        a server.
+      </p>
+      <p>
+        The single fixture expires after 30 minutes. Clearing it does not access
+        product account databases. A successful check is not acceptance of
+        messaging, recovery, notifications or calls on this device.
+      </p>
+      <div class="actions">
+        <button id="run" type="button">Run local checks</button>
+        <button id="clear" type="button">Clear test fixture</button>
+        <button id="expire" type="button">Expire test fixture</button>
+        <button id="corrupt" type="button">Alter test ciphertext</button>
+      </div>
+      <p id="result" role="status" aria-live="polite">
+        Ready. Use synthetic data only.
+      </p>
+    </main>
+  </body>
+</html>

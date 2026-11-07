@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { object } from '../../shared/account/index.ts';
 import { canonical, digest, eventHash } from '../../shared/devices/index.ts';
 import { groupEventHash, groupManager } from '../../shared/groups/index.ts';
@@ -66,7 +67,7 @@ export class GroupAdmissions {
         (await digest(String(saved['token']))) === link.tokenHash
       )
         return groupInvitationUrl(
-          location.origin,
+          applicationOrigin(),
           groupId,
           String(saved['token']),
         );
@@ -89,7 +90,7 @@ export class GroupAdmissions {
     link.signature = await c.authority.sign(groupLinkProof(link));
     await cache.put('invitation-link', { link, token });
     await c.api('group-link-publish', { link });
-    return groupInvitationUrl(location.origin, groupId, token);
+    return groupInvitationUrl(applicationOrigin(), groupId, token);
   }
   async revoke(groupId: string): Promise<void> {
     const c = this.c,

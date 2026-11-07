@@ -7,6 +7,7 @@ import type { AccountSnapshot } from './core.ts';
 
 type Wallets = ReturnType<typeof discoverWallets>;
 const listedBrands = ['MetaMask', 'Phantom', 'Backpack'];
+declare const INSTALLED_APP: boolean;
 const listedNetworks = [
   'MetaMask:evm',
   'MetaMask:solana',
@@ -66,6 +67,11 @@ export class WalletPicker {
     this.selected = null;
   }
   mount(container: HTMLElement): void {
+    const instructions = container.querySelector<HTMLElement>(
+      '[data-wallet-mobile-instructions]',
+    );
+    if (instructions && typeof INSTALLED_APP !== 'undefined' && INSTALLED_APP)
+      instructions.textContent = t('wallet.mobile-return-app');
     container
       .querySelectorAll<HTMLButtonElement>('[data-wallet]')
       .forEach((button) => this.bindWallet(button));

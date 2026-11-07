@@ -1,0 +1,24 @@
+{
+  "originHash" : "48662a35cec3760b1701b5953d0ca58c463eb9d8e5540f490d00a3dc08e87df5",
+  "pins" : [
+    {
+      "identity" : "capacitor-keyboard",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ionic-team/capacitor-keyboard.git",
+      "state" : {
+        "revision" : "235b3f6fcb08439bdcba8d9551bbd107bb7d9948",
+        "version" : "8.0.6"
+      }
+    },
+    {
+      "identity" : "capacitor-swift-pm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ionic-team/capacitor-swift-pm.git",
+      "state" : {
+        "revision" : "e9e932f7748d3b948bc47f5791c761ac5221ec6a",
+        "version" : "8.6.0"
+      }
+    }
+  ],
+  "version" : 3
+}

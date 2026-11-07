@@ -7,3 +7,7 @@ INVENTARIO_BLOCO_00.md
 # Preserve original, hash-pinned CLDR inputs.
 vendor/emoji/annotations-*.json
 vendor/emoji/annotationsDerived-*.json
+
+# Generated native projects and packaged resources.
+mobile/android/
+mobile/ios/

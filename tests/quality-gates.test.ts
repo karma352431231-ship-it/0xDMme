@@ -4,6 +4,7 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -69,7 +70,84 @@ const architectureCases: ReadonlyArray<{
   name: string;
   files: Readonly<Record<string, string>>;
   diagnostic: RegExp;
+  entries?: string[];
 }> = [
+  {
+    name: 'native action output cannot import product internals',
+    files: {
+      'tests/fixtures/native-product-output.ts':
+        "export { value } from '../../src/client/profile/index.ts';\n",
+      'src/client/profile/index.ts': 'export const value = 1;\n',
+    },
+    entries: ['tests/fixtures/native-product-output.ts'],
+    diagnostic: /native-direct-driver-observes-public-ui-only/,
+  },
+  {
+    name: 'native action output cannot import Node services',
+    files: {
+      'tests/fixtures/native-product-output.ts':
+        "export { readFile } from 'node:fs/promises';\n",
+    },
+    entries: ['tests/fixtures/native-product-output.ts'],
+    diagnostic: /client-cannot-import-node/,
+  },
+  {
+    name: 'native browser fixtures cannot import physical server admission',
+    files: {
+      'tests/fixtures/native-ios-direct-driver.ts':
+        "export { value } from './native-physical-admission.ts';\n",
+      'tests/fixtures/native-physical-admission.ts':
+        'export const value = 1;\n',
+    },
+    entries: ['tests/fixtures/native-ios-direct-driver.ts'],
+    diagnostic: /native-browser-fixtures-cannot-import-server-admission/,
+  },
+  {
+    name: 'direct native UI fixtures cannot import production internals',
+    files: {
+      'tests/fixtures/native-ios-direct-driver.ts':
+        "export { value } from '../../src/client/profile/index.ts';\n",
+      'src/client/profile/index.ts': 'export const value = 1;\n',
+    },
+    entries: ['tests/fixtures/native-ios-direct-driver.ts'],
+    diagnostic: /native-direct-driver-observes-public-ui-only/,
+  },
+  {
+    name: 'direct native browser fixtures cannot import Node APIs',
+    files: {
+      'tests/fixtures/native-ios-direct-driver.ts':
+        "export { readFile } from 'node:fs';\n",
+    },
+    entries: ['tests/fixtures/native-ios-direct-driver.ts'],
+    diagnostic: /client-cannot-import-node/,
+  },
+  {
+    name: 'domain modules cannot initialize the installed runtime',
+    files: {
+      'src/client/contacts/index.ts':
+        "export { startInstalledEntry } from '../installed-runtime/index.ts';\n",
+      'src/client/installed-runtime/index.ts':
+        'export function startInstalledEntry() {}\n',
+    },
+    diagnostic: /installed-runtime-only-at-entry-points/,
+  },
+  {
+    name: 'domain modules use the API transport instead of the native session implementation',
+    files: {
+      'src/client/contacts/index.ts':
+        "export { NativeApiTransport } from '../native-api/index.ts';\n",
+      'src/client/native-api/index.ts': 'export class NativeApiTransport {}\n',
+    },
+    diagnostic: /native-api-through-transport-only/,
+  },
+  {
+    name: 'domain modules cannot import the native SDK',
+    files: {
+      'src/client/contacts/index.ts':
+        "export { Capacitor } from '@capacitor/core';\n",
+    },
+    diagnostic: /native-sdk-only-in-native-entry/,
+  },
   {
     name: 'cliente não importa servidor',
     files: {
@@ -136,7 +214,7 @@ for (const scenario of architectureCases) {
     const directory = fixture(t, scenario.files);
     expectFailure(
       runGate(directory, 'dependency-cruiser/bin/dependency-cruiser.mjs', [
-        'src',
+        ...(scenario.entries ?? ['src']),
         '--config',
         '.dependency-cruiser.cjs',
       ]),
@@ -147,17 +225,34 @@ for (const scenario of architectureCases) {
 
 await test('public module interfaces remain allowed', (t) => {
   const directory = fixture(t, {
+    'tests/fixtures/native-ios-direct-driver.ts':
+      "export { value } from './native-product-dom.ts';\n",
+    'tests/fixtures/native-product-dom.ts': 'export const value = 1;\n',
     'src/server/messages/index.ts':
       "export { value } from '../vault/index.ts';\n",
     'src/server/vault/index.ts': "export { value } from './internal.ts';\n",
     'src/server/vault/internal.ts': 'export const value = 1;\n',
     'src/client/wallet-proof/index.ts':
       "export { Signature } from 'ethers/crypto';\nexport { verifyMessage } from 'ethers/hash';\nexport { getBytes } from 'ethers/utils';\n",
+    'src/client/mobile-feasibility/index.ts':
+      "export { Capacitor } from '@capacitor/core';\n",
+    'src/client/mobile-entry/index.ts':
+      "export { startInstalledEntry } from '../installed-runtime/index.ts';\n",
+    'src/client/recovery-return/mobile-entry.ts':
+      "export { startInstalledEntry } from '../installed-runtime/index.ts';\n",
+    'src/client/installed-runtime/index.ts':
+      "export { NativeApiTransport } from '../native-api/index.ts';\nexport function startInstalledEntry() {}\n",
+    'src/client/native-api/index.ts': 'export class NativeApiTransport {}\n',
   });
   const result = runGate(
     directory,
     'dependency-cruiser/bin/dependency-cruiser.mjs',
-    ['src', '--config', '.dependency-cruiser.cjs'],
+    [
+      'src',
+      'tests/fixtures/native-ios-direct-driver.ts',
+      '--config',
+      '.dependency-cruiser.cjs',
+    ],
   );
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
@@ -213,3 +308,86 @@ await test('incorrect formatting fails the check', (t) => {
     /Code style issues/,
   );
 });
+
+const licenseCases = [
+  {
+    name: 'permissive dependency',
+    license: 'MIT',
+    version: '1.0.0',
+    status: 0,
+  },
+  {
+    name: 'unreviewed GPL dependency',
+    license: 'GPL-3.0',
+    version: '0.7.5',
+    status: 1,
+  },
+  { name: 'missing license', version: '1.0.0', status: 1 },
+  {
+    name: 'reviewed native tooling license',
+    package: 'big-integer',
+    license: 'Unlicense',
+    version: '1.6.52',
+    status: 0,
+  },
+  {
+    name: 'unreviewed native tooling update',
+    package: 'big-integer',
+    license: 'Unlicense',
+    version: '1.6.53',
+    status: 1,
+  },
+  {
+    name: 'reviewed server push',
+    license: 'MPL-2.0',
+    version: '3.6.7',
+    status: 0,
+  },
+  {
+    name: 'unreviewed server push update',
+    license: 'MPL-2.0',
+    version: '3.6.8',
+    status: 1,
+  },
+];
+
+for (const scenario of licenseCases) {
+  await test(`license gate: ${scenario.name}`, (t) => {
+    const name =
+      scenario.package ??
+      (scenario.license === 'MPL-2.0' ? 'web-push' : 'snarkjs');
+    const directory = fixture(t, {
+      'src/tools/check-licenses.ts': readFileSync(
+        join(repository, 'src/tools/check-licenses.ts'),
+        'utf8',
+      ),
+      'package-lock.json': JSON.stringify({
+        packages: {
+          '': {},
+          [`node_modules/${name}`]: {
+            version: scenario.version,
+            license: scenario.license,
+          },
+        },
+      }),
+    });
+    const result = spawnSync(
+      process.execPath,
+      ['src/tools/check-licenses.ts'],
+      {
+        cwd: directory,
+        encoding: 'utf8',
+        timeout: 5000,
+        maxBuffer: 65_536,
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, scenario.status, result.stdout + result.stderr);
+    if (scenario.status === 1)
+      assert.match(
+        result.stderr,
+        new RegExp(`${name}@${scenario.version.replaceAll('.', '\\.')}`, 'u'),
+      );
+  });
+}

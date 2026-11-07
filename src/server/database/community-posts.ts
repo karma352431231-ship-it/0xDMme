@@ -33,8 +33,11 @@ import {
   postContent,
   postCursor,
   replyPreview,
+  contentHeadline,
+  postThumbnail,
 } from '../../shared/community-posts/index.ts';
 import type {
+  ReplyNotification,
   ReplyNotificationPage,
   CommunityPost,
   PostContent,
@@ -422,6 +425,47 @@ export class CommunityPostStore {
       })),
     };
   }
+  /**
+   * The reader's own post or reply that each direct reply answered, read in
+   * one bounded batch; replies by followed profiles elsewhere get none.
+   * Thumbnails (first public media) only for clients that ask for them.
+   */
+  private async withTargets(
+    client: Pick<pg.PoolClient, 'query'>,
+    page: ReplyNotificationPage,
+    options: { reader: string; thumbnails: boolean },
+  ): Promise<ReplyNotificationPage> {
+    const posts = new Map(
+      (
+        await this.readMany(
+          client,
+          page.items.map((item) => item.reply),
+        )
+      ).map((post) => [post.id, post]),
+    );
+    const parents = new Map(
+      (
+        await this.readMany(client, [
+          ...new Set(
+            page.items
+              .filter((item) => item.kind === 'reply')
+              .map((item) => posts.get(item.reply)?.parent)
+              .filter((id): id is string => typeof id === 'string'),
+          ),
+        ])
+      ).map((post) => [post.id, post]),
+    );
+    return {
+      ...page,
+      items: page.items.map((item) =>
+        targetedNotice(item, {
+          reply: posts.get(item.reply),
+          parent: parents.get(posts.get(item.reply)?.parent ?? ''),
+          ...options,
+        }),
+      ),
+    };
+  }
   upvoters(community: string, post: string, after: string | null) {
     return this.upvotes.voters(community, post, after);
   }
@@ -737,9 +781,18 @@ export class CommunityPostStore {
     if (operation === 'post-notifications')
       return this.communities.withActor(authority, async (context) => {
         const page = await replyNotifications(context, operation, data);
-        return 'items' in page
-          ? this.withPreviews(context.client, page, data['authors'] === true)
-          : page;
+        if (!('items' in page)) return page;
+        const previewed = await this.withPreviews(
+          context.client,
+          page,
+          data['authors'] === true,
+        );
+        return data['targets'] === true
+          ? this.withTargets(context.client, previewed, {
+              reader: context.actor.id,
+              thumbnails: data['thumbnails'] === true,
+            })
+          : previewed;
       });
     if (operation === 'post-notifications-read')
       return this.communities.withActor(authority, async (context) => {
@@ -835,4 +888,31 @@ export class CommunityPostStore {
     if (blocked.rowCount)
       throw new AccountError(404, 'Post unavailable for this profile.');
   }
+}
+
+/** One notice with its answered content and, when asked, thumbnails. */
+function targetedNotice(
+  item: ReplyNotification,
+  context: {
+    reply: CommunityPost | undefined;
+    parent: CommunityPost | undefined;
+    reader: string;
+    thumbnails: boolean;
+  },
+): ReplyNotification {
+  const { reply, parent, reader, thumbnails } = context;
+  const own = item.kind === 'reply' && parent?.author?.id === reader;
+  const target = own
+    ? {
+        target: {
+          ...contentHeadline(parent),
+          ...(thumbnails ? postThumbnail(parent) : {}),
+        },
+      }
+    : {};
+  const preview =
+    thumbnails && item.preview && reply
+      ? { preview: { ...item.preview, ...postThumbnail(reply) } }
+      : {};
+  return { ...item, ...target, ...preview };
 }

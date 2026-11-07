@@ -13,7 +13,18 @@ import type { DmPage } from './dm-history.ts';
 export class DmHistoryDepth {
   private readonly floors = new HistoryFloors();
   private requested = false;
+  private anchor: { peer: string; before: number } | null = null;
   private watch: { stop: AbortController; older: OlderHistory } | null = null;
+  focus(peer: string, sequence: number | null): void {
+    this.anchor = sequence === null ? null : { peer, before: sequence + 1 };
+    this.floors.update(peer, { floor: null, complete: false });
+  }
+  before(peer: string): number | null {
+    return this.anchor?.peer === peer ? this.anchor.before : null;
+  }
+  clearFocus(): void {
+    this.anchor = null;
+  }
   /** Watches one conversation frame until the next frame replaces it;
    * `load` reloads the conversation. */
   bind(input: {
@@ -70,6 +81,7 @@ export class DmHistoryDepth {
   }
   clear(): void {
     this.floors.clear();
+    this.anchor = null;
     this.requested = false;
   }
 }

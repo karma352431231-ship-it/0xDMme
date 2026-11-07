@@ -1,5 +1,6 @@
 import type { ConversationPreview } from '../conversation-preview/index.ts';
-import type { MenuIconName } from '../menu-icons/index.ts';
+import type { ConversationAction } from '../conversation-menu/index.ts';
+export type { ConversationAction } from '../conversation-menu/index.ts';
 
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
@@ -11,13 +12,6 @@ export interface DirectoryMenu {
 }
 export type ConversationFilter =
   'all' | 'unread' | 'favorites' | 'groups' | 'archived';
-export interface ConversationAction {
-  id: string;
-  label: string;
-  icon?: MenuIconName;
-  perform: () => void;
-  choices?: readonly ConversationAction[];
-}
 export interface ConversationEntry {
   id: string;
   title: string;
@@ -32,6 +26,7 @@ export interface ConversationEntry {
   searchText: string;
   selected: boolean;
   open: () => void;
+  reveal?: (id: string, sequence: number) => void;
   archived?: boolean;
   pinned?: boolean;
   favorite?: boolean;

@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -120,7 +121,7 @@ export class Representatives {
       const value: unknown = JSON.parse(await this.sync.open(entry.commit.id));
       this.guard(generation);
       if (entry.change.label === credentialLabel) {
-        cards.push(await verifyRepresentativeCard(value, location.origin));
+        cards.push(await verifyRepresentativeCard(value, applicationOrigin()));
         continue;
       }
       organizations.push(await this.readOwned(value));
@@ -138,8 +139,8 @@ export class Representatives {
     if (
       (await representativeHash(org)) !== registration.descriptorHash ||
       org.id !== registration.organizationId ||
-      org.origin !== location.origin ||
-      registration.origin !== location.origin ||
+      org.origin !== applicationOrigin() ||
+      registration.origin !== applicationOrigin() ||
       canonical(registration.issuer) !== canonical(org.issuer) ||
       canonical(org.issuer) !== canonical(this.identity())
     )
@@ -166,7 +167,7 @@ export class Representatives {
     const org = organization({
       version: 1,
       id: crypto.randomUUID(),
-      origin: location.origin,
+      origin: applicationOrigin(),
       name,
       issuer: this.identity(),
     });
@@ -232,7 +233,7 @@ export class Representatives {
       },
       acceptance: null,
     });
-    await verifyRepresentativeCard(card, location.origin);
+    await verifyRepresentativeCard(card, applicationOrigin());
     await this.save(
       { id: card.credential.id, label: credentialLabel, value: card },
       generation,
@@ -258,7 +259,7 @@ export class Representatives {
   }
   async check(input: RepresentativeCard): Promise<CheckedRepresentative> {
     const generation = this.generation,
-      card = await verifyRepresentativeCard(input, location.origin),
+      card = await verifyRepresentativeCard(input, applicationOrigin()),
       c = card.credential,
       hash = await representativeHash(c);
     this.guard(generation);
@@ -311,7 +312,7 @@ export class Representatives {
       r.id !== c.id ||
       r.organizationId !== c.organization.id ||
       r.credentialHash !== hash ||
-      r.origin !== location.origin
+      r.origin !== applicationOrigin()
     )
       throw new Error('Revocation does not match.');
     verifyWalletStatement(
@@ -337,7 +338,7 @@ export class Representatives {
       { signature, ...body } = claim;
     if (
       claim.organizationId !== card.credential.organization.id ||
-      claim.origin !== location.origin
+      claim.origin !== applicationOrigin()
     )
       throw new Error('Domain binding does not match.');
     verifyWalletStatement(
@@ -355,7 +356,7 @@ export class Representatives {
   }
   async accept(card: RepresentativeCard): Promise<void> {
     const generation = this.generation;
-    await verifyRepresentativeCard(card, location.origin);
+    await verifyRepresentativeCard(card, applicationOrigin());
     this.guard(generation);
     if (canonical(card.credential.subject) !== canonical(this.identity()))
       throw new Error('This authorization belongs to another account.');
@@ -374,7 +375,7 @@ export class Representatives {
       acceptance: {
         ...body,
         signature: await this.signed(
-          acceptanceStatement(body, location.origin),
+          acceptanceStatement(body, applicationOrigin()),
         ),
       },
     };
@@ -392,7 +393,7 @@ export class Representatives {
       organizationId: c.organization.id,
       id: c.id,
       credentialHash: await representativeHash(c),
-      origin: location.origin,
+      origin: applicationOrigin(),
     };
     this.guard(generation);
     await this.api('representative-revoke', {

@@ -87,3 +87,15 @@ Local PostgreSQL metrics: `npm run observe:database`, with the same private `.en
 [.gitignore](.gitignore) excludes private configuration, keys, local data directories, dependencies and generated output. [.env.example](.env.example) contains only the setup profile; future examples must contain only fictitious values.
 
 **Important:** never commit private keys, recovery secrets, credentials, conversation content or backups, even encrypted. `.gitignore` does not inspect file contents and does not protect files that are already tracked; review the diff before every commit.
+
+## Installed Android and iPhone builds
+
+The installed product reuses this checkout's current web client and shared feature
+code. Native entry points select protected session transport and service-origin
+handling. Web and mobile compile through the same frontend asset builder,
+including localization and styles. See the [mobile handoff](docs/MOBILE_APP_DECISIONS_AND_PLAN.md)
+and [manual acceptance checklist](docs/MOBILE_MANUAL_TEST_CHECKLIST.md).
+
+Build locally with `npm ci --ignore-scripts` and `npm run mobile:build`.
+Native installation and individual test results do not establish full platform
+parity, real-wallet acceptance or store-distribution readiness.

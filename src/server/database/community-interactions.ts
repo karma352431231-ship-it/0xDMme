@@ -131,8 +131,12 @@ export async function replyNotifications(
     );
     return { saved: true };
   }
-  keys(data, ['after', ...(Object.hasOwn(data, 'authors') ? ['authors'] : [])]);
-  if (Object.hasOwn(data, 'authors')) communityBoolean(data['authors']);
+  // Optional flags from newer clients; installed apps keep the older shape.
+  const flags = ['authors', 'targets', 'thumbnails'].filter((flag) =>
+    Object.hasOwn(data, flag),
+  );
+  keys(data, ['after', ...flags]);
+  for (const flag of flags) communityBoolean(data[flag]);
   const [time, id] = (postCursor(data['after']) ?? '').split('/');
   const rows = await context.client.query<{
     reply: string;

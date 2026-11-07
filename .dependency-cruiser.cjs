@@ -1,6 +1,54 @@
 module.exports = {
   forbidden: [
     {
+      name: 'native-browser-fixtures-cannot-import-server-admission',
+      severity: 'error',
+      from: {
+        path: '^tests/fixtures/native-(?:ios-direct-.*|product-.*|wallet)\\.ts$',
+      },
+      to: { path: '^tests/fixtures/native-physical-admission\\.ts$' },
+    },
+    {
+      name: 'native-direct-driver-observes-public-ui-only',
+      severity: 'error',
+      from: {
+        path: '^tests/fixtures/native-(?:ios-direct-.*|product-output)\\.ts$',
+      },
+      to: { path: '^src/' },
+    },
+    {
+      name: 'native-api-through-transport-only',
+      severity: 'error',
+      from: {
+        path: '^src/client/',
+        pathNot:
+          '^src/client/(?:native-api|api-transport|installed-runtime|mobile-feasibility)/',
+      },
+      to: { path: '^src/client/native-api/' },
+    },
+    {
+      name: 'installed-runtime-only-at-entry-points',
+      severity: 'error',
+      from: {
+        path: '^src/client/',
+        pathNot: [
+          '^src/client/installed-runtime/',
+          '^src/client/mobile-entry/index\\.ts$',
+          '^src/client/recovery-return/mobile-entry\\.ts$',
+        ],
+      },
+      to: { path: '^src/client/installed-runtime/' },
+    },
+    {
+      name: 'native-sdk-only-in-native-entry',
+      severity: 'error',
+      from: {
+        path: '^src/(client|shared)/',
+        pathNot: '^src/client/mobile-feasibility/',
+      },
+      to: { path: '(^|node_modules/)@capacitor/' },
+    },
+    {
       name: 'no-cycles',
       severity: 'error',
       from: {},
@@ -21,7 +69,9 @@ module.exports = {
     {
       name: 'client-cannot-import-node',
       severity: 'error',
-      from: { path: '^src/client/' },
+      from: {
+        path: '^(src/client/|tests/fixtures/native-(?:ios-direct-.*|product-output)\\.ts$)',
+      },
       to: { dependencyTypes: ['core'] },
     },
     {

@@ -630,8 +630,22 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
       eligibility: { balance: '100000' },
     }),
   );
+  const authorizationSignals: boolean[] = [];
+  let signalFailed = false;
+  const stopChanges = db.changes.subscribe({
+    notify: (change) => authorizationSignals.push(change.authorization),
+    failed: () => {
+      signalFailed = true;
+    },
+  });
+  t.after(stopChanges);
   await message(messages, owner, 'group-commit', { event: first });
+  // Creation adds a fresh group; invalidating the author's existing authority
+  // would cancel its own confirmed creation before the profile can be saved.
+  assert.deepEqual(authorizationSignals, [false]);
+  assert.equal(signalFailed, false);
   await message(publicMessages, owner, 'group-commit', { event: first });
+  assert.deepEqual(authorizationSignals, [false]);
   await assert.rejects(
     message(messages, outsider, 'group-current', { groupId: first.groupId }),
   );
@@ -673,11 +687,17 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
       { accountId: member.accountId, role: 'member', joined: 2 },
     ],
   });
+  authorizationSignals.length = 0;
   const commits = await Promise.allSettled([
     db.groups.commit(authority(member), { event: joined }),
     db.groups.commit(authority(member), { event: joined }),
   ]);
   assert.ok(commits.every((r) => r.status === 'fulfilled'));
+  // Membership changes still invalidate cached authority immediately, once
+  // for the committed transition even when the same signed event is retried.
+  assert.deepEqual(authorizationSignals, [true]);
+  assert.equal(signalFailed, false);
+  stopChanges();
   assert.equal((await db.groups.list(authority(member), null)).items.length, 1);
   const participants = [owner, member].sort((a, b) =>
     a.accountId.localeCompare(b.accountId),

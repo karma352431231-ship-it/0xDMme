@@ -18,6 +18,7 @@ export async function accountRankingLookup(
         period: RankingPeriod,
         after: string | null,
         order?: AccountRankingOrder,
+        tags?: boolean,
       ) => Promise<AccountRankingPage>)
     | undefined,
 ): Promise<AccountRankingPage> {
@@ -26,12 +27,16 @@ export async function accountRankingLookup(
   if (
     [...query.keys()].some(
       (key) =>
-        !['period', 'after', 'order'].includes(key) ||
+        !['period', 'after', 'order', 'tags'].includes(key) ||
         query.getAll(key).length !== 1,
     )
   )
     throw new AccountError(400, 'Invalid filters.');
   const order = accountRankingOrder(query.get('order') ?? 'trending');
+  // Growth tag inputs only for clients that ask; installed apps keep the shape.
+  const tags = query.get('tags');
+  if (tags !== null && tags !== '1')
+    throw new AccountError(400, 'Invalid filters.');
   if (order === 'following')
     throw new AccountError(403, 'Feed restricted to your own account.');
   return accountRankingPage(
@@ -39,6 +44,7 @@ export async function accountRankingLookup(
       rankingPeriod(query.get('period') ?? 'day'),
       query.get('after'),
       order,
+      tags === '1',
     ),
   );
 }

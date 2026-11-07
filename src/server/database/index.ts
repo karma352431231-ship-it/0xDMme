@@ -233,6 +233,8 @@ const migrations = [
   '101-engagement-domain-facts.sql',
   '102-engagement-operations.sql',
   '103-account-engagement-at-commit.sql',
+  '104-profile-follow-notices.sql',
+  '105-dated-profile-follows.sql',
 ];
 
 export interface MaintenanceSnapshot {

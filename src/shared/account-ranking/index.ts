@@ -22,6 +22,12 @@ export interface AccountRankingEntry {
   upvotes: number;
   shares: number;
   comments: number;
+  /**
+   * Growth tags (06/11/2026), sent only to clients that ask with tags: new
+   * followers in the period and when the public profile was created (null
+   * for profiles older than that record).
+   */
+  growth?: { newFollowers: number; createdAt: string | null };
 }
 export interface AccountRankingPage {
   items: AccountRankingEntry[];
@@ -51,6 +57,7 @@ export function accountRankingPage(value: unknown): AccountRankingPage {
         'upvotes',
         'shares',
         'comments',
+        ...(Object.hasOwn(row, 'growth') ? ['growth'] : []),
       ]);
       return {
         profile: publicProfile(row['profile']),
@@ -62,8 +69,21 @@ export function accountRankingPage(value: unknown): AccountRankingPage {
         upvotes: postCount(row['upvotes']),
         shares: postCount(row['shares']),
         comments: postCount(row['comments']),
+        ...(Object.hasOwn(row, 'growth')
+          ? { growth: accountGrowth(row['growth']) }
+          : {}),
       };
     }),
+  };
+}
+function accountGrowth(
+  value: unknown,
+): NonNullable<AccountRankingEntry['growth']> {
+  const data = object(value);
+  keys(data, ['newFollowers', 'createdAt']);
+  return {
+    newFollowers: postCount(data['newFollowers']),
+    createdAt: data['createdAt'] === null ? null : postTime(data['createdAt']),
   };
 }
 

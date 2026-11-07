@@ -1,4 +1,6 @@
 .public-picture-open {
+  /* Two fingers open the viewer instead of zooming the whole page. */
+  touch-action: pan-x pan-y;
   cursor: zoom-in;
 }
 #app-shell .community-public-media .public-picture-retry {

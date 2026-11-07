@@ -164,7 +164,7 @@ await test('local root advances only through verified migration; another device 
     Reflect.deleteProperty(globalThis, 'sessionStorage');
   });
   const head = await eventHash(migration);
-  t.mock.method(globalThis, 'fetch', () =>
+  const fetchMock = t.mock.method(globalThis, 'fetch', () =>
     Promise.resolve(
       Response.json({
         events: [migration],
@@ -181,4 +181,50 @@ await test('local root advances only through verified migration; another device 
   assert.deepEqual(controller.ring, ring);
   assert.equal(controller.trustedRoot, nextCheckpoint.trustedRoot);
   assert.deepEqual(await readCheckpoint(accountId), nextCheckpoint);
+  await t.test(
+    'verified device authority stays stable during a pending recheck and clears on failure',
+    async () => {
+      let began: () => void = () => {};
+      let resume: (response: Response) => void = () => {};
+      const waiting = new Promise<void>((resolve) => {
+        began = resolve;
+      });
+      const delayed = new Promise<Response>((resolve) => {
+        resume = resolve;
+      });
+      fetchMock.mock.mockImplementation(() => {
+        began();
+        return delayed;
+      });
+      const pending = controller.refresh();
+      try {
+        await waiting;
+        assert.equal(
+          controller.authorized,
+          true,
+          'A pending check must not look like a verified loss of authority and start duplicate wallet recovery.',
+        );
+      } finally {
+        resume(
+          Response.json({
+            events: [],
+            revision: 2,
+            head,
+            serverTime: new Date().toISOString(),
+          }),
+        );
+        await pending;
+      }
+      assert.equal(controller.authorized, true);
+      fetchMock.mock.mockImplementation(() =>
+        Promise.resolve(new Response(null, { status: 503 })),
+      );
+      await assert.rejects(controller.refresh());
+      assert.equal(
+        controller.authorized,
+        false,
+        'A failed check must still invalidate local authority.',
+      );
+    },
+  );
 });

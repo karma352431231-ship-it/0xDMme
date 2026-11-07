@@ -4,7 +4,6 @@ import {
   currentLanguage,
   translatedError,
 } from '../../shared/i18n/index.ts';
-import { renderMentions } from '../public-mentions/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import { mountMutualFollowers } from './mutuals.ts';
@@ -21,7 +20,8 @@ import { profileSummary } from '../../shared/profile-social/index.ts';
 import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import { feedPage } from '../../shared/community-discovery/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
-import { showPublicAvatar } from '../public-media/index.ts';
+import { profileBar, profileHeader } from './header.ts';
+import type { ProfileHeader } from './header.ts';
 import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
@@ -44,36 +44,24 @@ function link(host: HTMLElement, text: string, href: string) {
   host.append(node);
   return node;
 }
-function about(host: HTMLElement, summary: ProfileSummary): void {
-  const metrics = element('dl', '', 'public-profile-metrics');
-  const number = (count: number) => count.toLocaleString(currentLanguage());
-  for (const [value, label] of [
-    [number(summary.posts), t('Posts')],
-    [number(summary.replies), t('Replies')],
-    [number(summary.communities), t('Followed communities')],
-    [
-      summary.createdAt
-        ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
-            month: 'long',
-            year: 'numeric',
-          })
-        : t('Date not recorded'),
-      t('Public profile since'),
-    ],
-  ] as const) {
-    const item = element('div');
-    item.append(element('dd', value), element('dt', label));
-    metrics.append(item);
-  }
-  host.append(element('h2', t('About')), metrics);
-}
 
-/** Return to the exact feed position the profile was opened from. */
-function feedBackLink(href: string): HTMLAnchorElement {
-  const back = element('a', t('Back to feed'), 'feed-back-link');
-  back.href = href;
-  back.prepend(communityIcon('back'));
-  return back;
+type ActivityTab = 'posts' | 'replies' | 'shared';
+type ProfileTab = ActivityTab | 'communities';
+
+/** The numbers of a profile live on the tabs that list them. */
+function profileTabs(
+  summary: ProfileSummary,
+): { value: ProfileTab; label: string; count: number | null }[] {
+  return [
+    { value: 'posts', label: t('Posts'), count: summary.posts },
+    { value: 'replies', label: t('Replies'), count: summary.replies },
+    { value: 'shared', label: t('Shared'), count: null },
+    {
+      value: 'communities',
+      label: t('Communities'),
+      count: summary.communities,
+    },
+  ];
 }
 
 /** Activity reads omit cookies; explicit social actions use signed account access. */
@@ -88,14 +76,14 @@ export function showProfilePage(
 ): () => void {
   const lifetime = new AbortController();
   let contentAbort = new AbortController(),
-    tab = 'overview',
+    tab: ProfileTab = 'posts',
     generation = 0;
   const page = element('section', '', 'public-profile-page'),
     status = element('p', t('Loading public profile…'), 'community-feedback');
   status.setAttribute('role', 'status');
   // Stays above every redraw of the profile below it.
-  const lead = options.back ? [feedBackLink(options.back)] : [];
-  page.append(...lead, status);
+  const bar = profileBar(options.back ?? null);
+  page.append(bar.node, status);
   container.replaceChildren(page);
   async function read(path: string, signal = lifetime.signal) {
     const response = await fetchApi('public-profile/read', path, {
@@ -159,84 +147,43 @@ export function showProfilePage(
     base: string,
     block: PublicBlockState,
   ): void {
-    const header = element('header', '', 'public-profile-header'),
-      banner = element('div', '', 'public-profile-banner'),
-      identity = element('div', '', 'public-profile-identity'),
-      avatar = element('div', '@', 'public-profile-avatar');
-    if (summary.banner)
-      showPublicAvatar(banner, {
-        kind: 'profile-banner',
-        target: summary.profile.id,
-        reference: summary.banner,
-        signal: lifetime.signal,
-      });
-    if (summary.profile.avatar) {
-      avatar.textContent = '';
-      showPublicAvatar(avatar, {
-        kind: 'avatar',
-        target: summary.profile.id,
-        reference: summary.profile.avatar,
-        signal: lifetime.signal,
-      });
-    }
-    const title = element('div', '', 'public-profile-title'),
-      actions = element('div', '', 'public-profile-actions');
-    title.append(
-      element('h1', `@${summary.profile.handle}`),
-      element(
-        'p',
-        t('{0} followers', [
-          summary.followers.toLocaleString(currentLanguage()),
-        ]),
-      ),
-    );
-    identity.append(avatar, title, actions);
-    header.append(banner, identity);
-    if (summary.description) {
-      const description = element('p', '', 'public-profile-description');
-      renderMentions(description, summary.description);
-      header.append(description);
-    }
-    const layout = element('div', '', 'public-profile-layout'),
-      timeline = element('section', '', 'public-profile-timeline'),
-      sidebar = element('aside', '', 'public-profile-about'),
+    bar.show(summary.profile.handle);
+    const header = profileHeader(summary, lifetime.signal),
       tabs = element('nav', '', 'public-profile-tabs'),
       items = element('section', '', 'public-profile-activity community-scope'),
-      paging = element('div', '', 'post-toolbar');
+      paging = element('div', '', 'post-toolbar'),
+      communities = element('section', '', 'public-profile-communities');
+    let communitiesLoaded = false;
     tabs.setAttribute('aria-label', t('Public profile activity'));
-    for (const [value, label] of [
-      ['overview', t('Overview')],
-      ['posts', t('Posts')],
-      ['replies', t('Replies')],
-      ['shared', t('Shared')],
-    ] as const) {
+    for (const { value, label, count } of profileTabs(summary)) {
       const button = element('button', label);
       button.type = 'button';
       button.dataset['tab'] = value;
+      if (count !== null)
+        button.append(
+          ' ',
+          element(
+            'span',
+            count.toLocaleString(currentLanguage()),
+            'public-profile-tab-count',
+          ),
+        );
       button.addEventListener('click', () => {
-        tab = value;
-        if (block.blocked) {
-          contentAbort.abort();
-          timeline.replaceChildren(
-            element(
-              'p',
-              t(
-                'This user is blocked. Their posts and replies are hidden from you.',
-              ),
-            ),
-          );
-        } else void activity(null).catch(error);
+        select(value);
       });
       tabs.append(button);
     }
-    about(sidebar, summary);
-    const communities = element('section', '', 'public-profile-communities');
-    sidebar.append(communities);
-    timeline.append(tabs, items, paging);
-    layout.append(timeline, sidebar);
-    page.replaceChildren(...lead, header, status, layout);
+    page.replaceChildren(
+      bar.node,
+      header.node,
+      tabs,
+      status,
+      items,
+      paging,
+      communities,
+    );
     if (!block.blocked)
-      mountMutualFollowers(header, {
+      mountMutualFollowers(header.social, {
         target: summary.profile.id,
         controller: options.controller,
         signal: lifetime.signal,
@@ -244,49 +191,81 @@ export function showProfilePage(
     status.textContent = '';
     // Your own profile has no "Message"; editing sits in the round pencil.
     const own = options.controller?.profile?.profile.id === summary.profile.id;
-    if (!block.blocked && !own)
-      link(
-        actions,
+    if (!block.blocked && !own) {
+      const message = link(
+        header.actions,
         t('Message'),
         `#communities?view=dms&dm=${summary.profile.id}`,
-      ).className = 'profile-message';
-    void follow(actions, summary, block).catch(error);
-    profileCommunities(communities, {
-      total: summary.communities,
-      read: (after) =>
-        read(
-          `${base}/communities${after ? `?after=${encodeURIComponent(after)}` : ''}`,
-        ),
-      signal: lifetime.signal,
-      error,
-    });
-    void activity(null).catch(error);
-    async function activity(after: string | null): Promise<void> {
-      contentAbort.abort();
-      contentAbort = new AbortController();
-      const signal = AbortSignal.any([lifetime.signal, contentAbort.signal]),
-        old = ++generation;
-      status.textContent = t('Loading activity…');
-      const query = new URLSearchParams({ tab });
-      if (after) query.set('after', after);
-      const response = feedPage(
-        options.controller?.profile
-          ? await options.controller.perform('activity', {
-              target: summary.profile.id,
-              tab,
-              after,
-            })
-          : await read(`${base}/activity?${query}`, signal),
       );
-      if (signal.aborted || old !== generation) return;
+      message.className = 'profile-message';
+      message.prepend(communityIcon('comment'));
+    }
+    void follow(header, summary, block).catch(error);
+    select(tab);
+    function select(value: ProfileTab): void {
+      tab = value;
       tabs
         .querySelectorAll('button')
         .forEach((button) =>
           button.setAttribute(
             'aria-current',
-            String(button.dataset['tab'] === tab),
+            String(button.dataset['tab'] === value),
           ),
         );
+      contentAbort.abort();
+      generation++;
+      status.textContent = '';
+      paging.replaceChildren();
+      const showingCommunities = value === 'communities' && !block.blocked;
+      communities.hidden = !showingCommunities;
+      items.hidden = showingCommunities;
+      if (block.blocked) {
+        items.replaceChildren(
+          element(
+            'p',
+            t(
+              'This user is blocked. Their posts and replies are hidden from you.',
+            ),
+          ),
+        );
+        return;
+      }
+      if (value === 'communities') {
+        if (!communitiesLoaded)
+          profileCommunities(communities, {
+            read: (after) =>
+              read(
+                `${base}/communities${after ? `?after=${encodeURIComponent(after)}` : ''}`,
+              ),
+            signal: lifetime.signal,
+            error,
+          });
+        communitiesLoaded = true;
+        return;
+      }
+      void activity(null, value).catch(error);
+    }
+    async function activity(
+      after: string | null,
+      activityTab: ActivityTab,
+    ): Promise<void> {
+      contentAbort.abort();
+      contentAbort = new AbortController();
+      const signal = AbortSignal.any([lifetime.signal, contentAbort.signal]),
+        old = ++generation;
+      status.textContent = t('Loading activity…');
+      const query = new URLSearchParams({ tab: activityTab });
+      if (after) query.set('after', after);
+      const response = feedPage(
+        options.controller?.profile
+          ? await options.controller.perform('activity', {
+              target: summary.profile.id,
+              tab: activityTab,
+              after,
+            })
+          : await read(`${base}/activity?${query}`, signal),
+      );
+      if (signal.aborted || old !== generation) return;
       items.replaceChildren(
         ...response.items.map((entry) =>
           (options.renderEntry ?? renderActivityEntry)(entry, signal),
@@ -302,8 +281,11 @@ export function showProfilePage(
         );
       paging.replaceChildren();
       if (response.next)
-        control(paging, t('Next page'), () => activity(response.next));
-      if (after) control(paging, t('Back to start'), () => activity(null));
+        control(paging, t('Next page'), () =>
+          activity(response.next, activityTab),
+        );
+      if (after)
+        control(paging, t('Back to start'), () => activity(null, activityTab));
       status.textContent = '';
     }
   }
@@ -327,10 +309,11 @@ export function showProfilePage(
     return button;
   }
   async function follow(
-    host: HTMLElement,
+    header: ProfileHeader,
     summary: ProfileSummary,
     block: PublicBlockState,
   ): Promise<void> {
+    const host = header.actions;
     const controller = options.controller;
     if (!controller?.hasSession()) {
       publicProfileGuidanceButton(
@@ -351,7 +334,7 @@ export function showProfilePage(
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
-      const edit = link(host, '', editPublicProfileHash);
+      const edit = link(header.name, '', editPublicProfileHash);
       edit.className = 'profile-edit';
       edit.setAttribute('aria-label', t('Edit public profile'));
       edit.title = t('Edit public profile');
@@ -359,6 +342,7 @@ export function showProfilePage(
       return;
     }
     await profileSocialControls(host, summary, {
+      menuHost: bar.menu,
       controller,
       signal: lifetime.signal,
       error,

@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
+import { requestApi } from '../api-transport/index.ts';
 import {
   publicAvatar,
   publicPostMedia,
@@ -72,7 +73,7 @@ export async function publicPostMediaBlob(
 ): Promise<Blob> {
   const checked = publicPostMedia([media])[0]!;
   return withPublicRead(signal, async () => {
-    const response = await fetch(publicPostMediaPath(checked, thumbnail), {
+    const response = await requestApi(publicPostMediaPath(checked, thumbnail), {
       credentials: 'omit',
       redirect: 'error',
       cache: 'no-store',
@@ -142,7 +143,7 @@ export async function publicAvatarBlob(input: {
   const reference = publicAvatar(input.reference, input.kind, input.target);
   if (!reference) throw new Error('Public photo unavailable.');
   return withPublicRead(input.signal, async () => {
-    const response = await fetch(reference, {
+    const response = await requestApi(reference, {
       credentials: 'omit',
       redirect: 'error',
       cache: 'no-store',

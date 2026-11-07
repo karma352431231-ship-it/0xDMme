@@ -95,6 +95,18 @@
     justify-content: flex-end;
     margin: 0;
   }
+  /* The profile photo sits after the search, beside "⋯" (owner, 06/11/2026). */
+  #app-shell[data-page='comunidades'] .community-feed-filters > .public-search {
+    order: 1;
+  }
+  #app-shell[data-page='comunidades']
+    .community-feed-filters
+    .community-own-profile-shortcut {
+    order: 2;
+  }
+  #app-shell[data-page='comunidades'] .community-feed-filters > p {
+    order: 3;
+  }
   #app-shell[data-page='comunidades']
     :has(> .community-feed-filters)
     > .community-tools {

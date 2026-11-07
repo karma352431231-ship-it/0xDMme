@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import {
   enrollmentPayload,
@@ -24,7 +25,7 @@ export function startEnrollmentEntry(access: EnrollmentAccess): void {
     history.replaceState(null, '', '#settings');
     let code: string;
     try {
-      code = enrollmentPayload(readEnrollment(incoming, location.origin));
+      code = enrollmentPayload(readEnrollment(incoming, applicationOrigin()));
     } catch {
       window.alert(
         t('This linking link is invalid. Generate another QR code.'),
@@ -108,7 +109,7 @@ export function mountEnrollmentLogin(
       const code = panel.querySelector('textarea')!.value;
       showConfirmation(
         access,
-        enrollmentPayload(readEnrollment(code, location.origin)),
+        enrollmentPayload(readEnrollment(code, applicationOrigin())),
       );
     } catch {
       panel.querySelector('[role="status"]')!.textContent = t(

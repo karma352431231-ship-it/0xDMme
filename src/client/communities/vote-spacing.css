@@ -1,0 +1,62 @@
+/*
+ * The vote pill matches Reply and Share (05/11/2026): the same side margins
+ * and the same gap between the icon and the number. The pill itself has no
+ * padding (post-actions.css), so the arrow and the score carry it and keep the
+ * whole pill tappable. --vote-pad follows each layout's action padding.
+ */
+#app-shell[data-page] .post-votes {
+  --vote-pad: 12px;
+  gap: 0;
+}
+#app-shell[data-page] .post-votes [data-vote] {
+  min-width: 0;
+  padding: 0 3px 0 var(--vote-pad);
+  /* 16px icon + 3px + the score's 3px = the 6px icon gap of the other pills. */
+}
+#app-shell[data-page] .post-votes .post-score {
+  min-width: 0;
+  padding: 0 var(--vote-pad) 0 3px;
+}
+/* Replies use the post's vote pill too (owner, 06/11/2026): the same spacing
+   and, unlike the other reply buttons of post-focus.css that sit one step
+   smaller, the post's height, number size and arrow. */
+#app-shell .community-card.community-reply .post-actions .post-votes {
+  min-height: calc(var(--reply-action-height) + 1px);
+  padding: 0;
+}
+#app-shell
+  .community-card.community-reply
+  .post-actions
+  .post-votes
+  :is([data-vote], .post-score) {
+  min-width: 0;
+  min-height: calc(var(--reply-action-height) + 1px);
+  font-size: calc(var(--reply-action-font) + 0.5px);
+}
+#app-shell
+  .community-card.community-reply
+  .post-actions
+  .post-votes
+  [data-vote] {
+  padding: 0 3px 0 var(--vote-pad);
+}
+#app-shell
+  .community-card.community-reply
+  .post-actions
+  .post-votes
+  .post-score {
+  padding: 0 var(--vote-pad) 0 3px;
+}
+#app-shell .community-card.community-reply .post-actions .post-votes svg {
+  width: calc(var(--reply-action-icon) + 1px);
+  height: calc(var(--reply-action-icon) + 1px);
+}
+#app-shell .feed-panel .post-votes {
+  --vote-pad: 10px;
+}
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] .post-votes,
+  #app-shell .public-profile-activity .post-votes {
+    --vote-pad: 11px;
+  }
+}

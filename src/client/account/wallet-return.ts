@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import {
   AccountError,
@@ -188,7 +189,7 @@ export function createWalletReturn(options: {
     if (!prepared || !isCurrent(current)) return;
     const { ticket, expiresAt } = prepared;
     link = walletBrowserUrl({
-      origin: location.origin,
+      origin: applicationOrigin(),
       wallet,
       ticket,
       ecosystem: network,

@@ -27,6 +27,8 @@ interface ReturnNavigation {
   reset: () => Promise<void>;
   /** A profile opened from the feed: keep the page for an exact return. */
   keep: (bookmark: FeedBookmark) => void;
+  /** Feed, Ranking or Mine chosen: remember the feed position for coming back. */
+  visit: () => void;
 }
 function navigationLink(event: MouseEvent): HTMLAnchorElement | null {
   if (
@@ -255,25 +257,27 @@ export class FeedReturn {
   }
   private followLink(link: HTMLAnchorElement, options: ReturnNavigation): void {
     const params = linkRouteParams(link);
-    if (params.has('post') && options.container()?.contains(link)) {
-      const bookmark = options.bookmark();
-      if (bookmark) this.capture(bookmark);
+    const same = (link.getAttribute('href') ?? '') === appAddress();
+    if (
+      (params.has('post') || isCommunityDestination(params)) &&
+      options.container()?.contains(link)
+    ) {
+      this.followFromFeed(options);
       return;
     }
     if (isCommunityDestination(params)) return;
     this.clear();
-    if (
-      (link.getAttribute('href') ?? '') === appAddress() &&
-      options.bookmark()
-    )
-      void options.reset();
+    if (same && options.bookmark()) void options.reset();
+    else if (!same) options.visit();
   }
   /** Profiles reached from the feed return to it; other profile links keep the way back. */
   private followProfile(
     link: HTMLAnchorElement,
     options: ReturnNavigation,
   ): void {
-    if (!options.container()?.contains(link)) return;
+    if (options.container()?.contains(link)) this.followFromFeed(options);
+  }
+  private followFromFeed(options: ReturnNavigation): void {
     const bookmark = options.bookmark();
     if (!bookmark) return;
     this.capture(bookmark);

@@ -10,7 +10,7 @@ import { renderMentions } from '../public-mentions/index.ts';
 import type { Communities } from './controller.ts';
 import type { CommunityScreen } from './screen.ts';
 import { communityElement, communityButton } from './elements.ts';
-import { communityAbout, communityCreationDate } from './community-about.ts';
+import { communityCreationDate } from './community-about.ts';
 import { communityFollowerCount, mountKnownFollowers } from './followers.ts';
 import { classificationBadges } from './classification.ts';
 import { communityAvatar } from './presentation.ts';
@@ -69,7 +69,6 @@ export class CommunityDetailView {
         ? [communityElement('p', t('Archived'), 'community-hero-meta')]
         : []),
     );
-    title.append(heroStats(value));
     head.append(avatar, title);
     hero.append(banner, head);
     this.photos.avatar(avatar, value, screen.signal);
@@ -82,7 +81,8 @@ export class CommunityDetailView {
       renderMentions(description, value.description);
       hero.append(description);
     }
-    // Profiles in common sit below the description, never on the data line.
+    hero.append(heroStats(value));
+    // Profiles in common sit below the data line.
     if (state)
       mountKnownFollowers(hero, {
         id: value.id,
@@ -90,17 +90,17 @@ export class CommunityDetailView {
         controller: this.options.controller,
         signal: screen.signal,
       });
-    const about = communityAbout(value);
-    if (about) hero.append(about);
+    const actions = communityElement('div', '', 'community-hero-actions');
+    hero.append(actions);
     if (!state) {
       publicProfileGuidanceButton(
-        head,
+        actions,
         'follow-community',
         screen.signal,
       ).className = 'community-follow';
       return;
     }
-    this.participant(head, state);
+    this.participant(actions, state);
   }
   private communityFollowControl(card: HTMLElement, own: CommunityState): void {
     if (own.role !== 'owner') {

@@ -1,3 +1,4 @@
+import { requestApi } from '../api-transport/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 
 /** One random receipt per user action; bounded retries cannot duplicate it. */
@@ -10,7 +11,7 @@ export async function countShareClick(post: CommunityPost): Promise<boolean> {
   });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch('/api/communities/share-clicks', {
+      const response = await requestApi('/api/communities/share-clicks', {
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },

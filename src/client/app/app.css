@@ -57,6 +57,7 @@
 @import '../chat-ui/chat-desktop.css';
 @import '../communities/feed-panel.css';
 @import '../activity/activity-page.css';
+@import '../activity/activity-cards.css';
 @import './base.css';
 @import '../push-settings/push-preferences.css';
 @import '../contacts/directory.css';
@@ -96,5 +97,6 @@
 @import '../status/status-row-phone.css';
 @import '../chat-ui/chat-phone.css';
 @import '../activity/activity-phone.css';
+@import '../pull-refresh/pull-refresh.css';
 @import '../toast/toast.css';
 @import '../attachment-ui/media-picker.css';

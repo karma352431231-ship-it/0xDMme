@@ -1,3 +1,5 @@
+import { installedApplication } from '../application-origin/index.ts';
+import { startPullRefresh } from '../pull-refresh/index.ts';
 import {
   appAddress,
   navigateApp,
@@ -16,6 +18,7 @@ import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
 import { startScrollbarFade } from '../scrollbars/index.ts';
+import { startPhoneViewport } from '../phone-viewport/index.ts';
 import { startAccount } from '../account/index.ts';
 import {
   startDevices,
@@ -31,7 +34,11 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { bindContactShortcuts, startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
-import { startCommunities, startRankingSide } from '../communities/index.ts';
+import {
+  startCommunities,
+  startCommunitiesTab,
+  startRankingSide,
+} from '../communities/index.ts';
 import { startRightColumn } from './right-column.ts';
 import { startPublicProfile } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -47,7 +54,10 @@ import {
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
-import { startMobileConversation } from './mobile-conversation.ts';
+import {
+  canonicalizeMobilePublicConversation,
+  startMobileConversation,
+} from './mobile-conversation.ts';
 import { startConversationBadges } from './conversation-badges.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
@@ -69,6 +79,7 @@ startLanguage();
 keepPageOnStrayDrop();
 startTransientMenus();
 startScrollbarFade();
+startPhoneViewport();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;
@@ -134,6 +145,7 @@ const conversationBadge = conversationBadgeHost
 const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
   publicProfile: () => publicProfiles.exists(),
+  blockPublicUser: (peer) => publicProfiles.blockUser(peer),
   unreadChanged: (count) => conversationBadge('public', count),
   // Public DMs start from SessionBoot below; the feed uses the signing lane.
   coordinatedStartup: true,
@@ -203,6 +215,7 @@ const messages = startMessages(devices, vault.sync, {
   calls,
   playback,
   openConversation,
+  publicSearch: (query, after) => communities.searchDms(query, after),
   openContact: (contact: AddressBookEntry) => {
     contacts.showContact(contact, element('app-shell'));
   },
@@ -245,6 +258,8 @@ const activity = startActivity(
     moderation: () => publicProfiles.moderationNotifications(),
     mentions: () => publicProfiles.mentionNotifications(),
     markMentionsRead: (ids) => publicProfiles.markMentionsRead(ids),
+    follows: () => publicProfiles.followNotifications(),
+    markFollowsRead: (ids) => publicProfiles.markFollowsRead(ids),
     markModerationRead: (ids) => {
       publicProfiles.markModerationRead(ids);
       return Promise.resolve();
@@ -373,12 +388,13 @@ const panels = account.approvalPage
       publicChatOpened: () => rightColumn?.showChat(),
     });
 // Approval HTML is loaded online and does not install or activate a shell.
-const pwa = account.approvalPage
-  ? null
-  : startPwa({
-      waitForIdle: true,
-      blockedReason: interruptionReason,
-    });
+const pwa =
+  account.approvalPage || installedApplication()
+    ? null
+    : startPwa({
+        waitForIdle: true,
+        blockedReason: interruptionReason,
+      });
 
 function interruptionReason(): string | null {
   return updateBlockReason({
@@ -438,6 +454,7 @@ function route(): void {
     renderApprovalPage();
     return;
   }
+  canonicalizeMobilePublicConversation();
   canonicalizeRoute();
   const key = pageKey(appAddress());
   if (key === null) return;
@@ -471,7 +488,9 @@ function route(): void {
   document
     .querySelectorAll<HTMLAnchorElement>('nav a[data-route]')
     .forEach((link) => {
-      if (link.dataset['route'] === key)
+      // A public profile is part of the Communities area.
+      const area = key === 'publico' ? 'comunidades' : key;
+      if (link.dataset['route'] === area)
         link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
@@ -719,7 +738,9 @@ document
   .querySelectorAll('#open-search, [data-open-search]')
   .forEach((control) => {
     control.addEventListener('click', () => {
-      messages.openSearch();
+      messages.openSearch(
+        appShell?.dataset['contactScope'] === 'public' ? 'public' : 'private',
+      );
     });
   });
 // "/" opens the conversation search unless the person is typing somewhere.
@@ -736,7 +757,9 @@ document.addEventListener('keydown', (event) => {
   )
     return;
   event.preventDefault();
-  messages.openSearch();
+  messages.openSearch(
+    appShell?.dataset['contactScope'] === 'public' ? 'public' : 'private',
+  );
 });
 conversationContent.addEventListener('click', (event) => {
   if (
@@ -772,14 +795,37 @@ window.addEventListener('hashchange', () => {
   route();
   mobileConversation?.restore();
 });
+const communitiesTab = document.querySelector<HTMLAnchorElement>(
+  '.mobile-nav a[data-route=comunidades]',
+);
+if (communitiesTab && !account.approvalPage)
+  startCommunitiesTab({
+    link: communitiesTab,
+    feedReturn: () => communities.feedReturnTarget(),
+  });
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
 startEnrollmentEntry(devices);
 route();
+if (!account.approvalPage)
+  startPullRefresh({
+    enabled: () =>
+      currentPage !== '' && matchMedia('(max-width: 700px)').matches,
+    refresh: () => {
+      reloadPage();
+      return Promise.resolve();
+    },
+  });
 if (!account.approvalPage) startPublicTraffic(element('page-content'));
 mobileConversation?.restore();
 connection();
 
+/** Pull to refresh: mounts the current page again, from its top. */
+function reloadPage(): void {
+  navigationVisits.clear();
+  currentPage = '';
+  route();
+}
 function setPublicSession(session: AccountSession | null): void {
   publicProfiles.setSession(session);
   communities.setSession(session);

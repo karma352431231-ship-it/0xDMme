@@ -1,6 +1,6 @@
 import { watchRankingUpdates } from './ranking-live.ts';
 import { AccountRankingView, rankingPeriods } from './account-ranking.ts';
-import { discoveryMenu } from './discovery-controls.ts';
+import { discoveryMenu } from './discovery-menu.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
@@ -75,7 +75,7 @@ export function startRankingSide(options: {
     scopeChanged: (scope) => options.scopeChanged?.(scope),
     signedIn: options.signedIn,
     following: (period, after) =>
-      controller.request('discovery-accounts', { period, after }),
+      controller.request('discovery-accounts', { period, after, tags: true }),
   });
   options.shell.append(aside);
   const tick = () => {
@@ -436,7 +436,15 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
     notation: 'compact',
   }).format(row.community.followers);
   numbers!.replaceChildren(
-    el('strong', t('ranking.followers {0}', [followers])),
+    el(
+      'strong',
+      t(
+        row.community.followers === 1
+          ? 'ranking.follower {0}'
+          : 'ranking.followers {0}',
+        [followers],
+      ),
+    ),
     tab === 'following'
       ? el('small')
       : growthLabel({ ...row, title: 'ranking.growth-title' }),

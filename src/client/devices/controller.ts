@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
@@ -554,57 +555,84 @@ export class DeviceController {
   }
   private async synchronize(session: AccountSession): Promise<void> {
     this.assertSession(session);
-    this.ring = null;
-    this.directoryReadAt = null;
     const generation = this.generation;
-    const checkpoint = await readCheckpoint(session.accountId);
-    const { current, events, serverTime } = await fetchDirectory(
-      session,
-      checkpoint.events,
-    );
-    if (generation !== this.generation) throw new Error('Session changed.');
-    const trustedRoot = await this.reconciledRoot(checkpoint, current);
-    const persist =
-      trustedRoot === checkpoint.trustedRoot
-        ? saveCheckpoint
-        : advanceCheckpoint;
-    await persist(session.accountId, {
-      events,
-      trustedRoot,
-    });
-    this.assertSession(session);
-    this.current = current;
-    this.serverTime = serverTime;
-    this.events = events;
-    this.trustedRoot = trustedRoot;
+    try {
+      const checkpoint = await readCheckpoint(session.accountId);
+      const { current, events, serverTime } = await fetchDirectory(
+        session,
+        checkpoint.events,
+      );
+      if (generation !== this.generation) throw new Error('Session changed.');
+      const trustedRoot = await this.reconciledRoot(checkpoint, current);
+      const persist =
+        trustedRoot === checkpoint.trustedRoot
+          ? saveCheckpoint
+          : advanceCheckpoint;
+      await persist(session.accountId, { events, trustedRoot });
+      const ring = await this.directoryRing(session, current, trustedRoot);
+      const verified =
+        ring && current
+          ? { directory: await eventHash(current), events: events.length }
+          : null;
+      this.assertSession(session);
+      if (generation !== this.generation) throw new Error('Session changed.');
+      this.publishDirectory({
+        current,
+        events,
+        serverTime,
+        trustedRoot,
+        ring,
+        verified,
+      });
+    } catch (error: unknown) {
+      if (generation === this.generation) {
+        this.ring = null;
+        this.directoryReadAt = null;
+        this.verified = null;
+      }
+      throw error;
+    }
+  }
+  /** Publish one complete snapshot; pending reads retain the last verified view. */
+  private publishDirectory(input: {
+    current: DirectoryEvent | null;
+    events: DirectoryEvent[];
+    serverTime: string;
+    trustedRoot: string | null;
+    ring: Keyring | null;
+    verified: { directory: string; events: number } | null;
+  }): void {
+    this.current = input.current;
+    this.serverTime = input.serverTime;
+    this.events = input.events;
+    this.trustedRoot = input.trustedRoot;
+    this.ring = input.ring;
+    this.directoryReadAt = input.ring ? performance.now() : null;
+    this.verified = input.verified;
     if (
       this.receiptTarget &&
-      !current?.devices.some((device) => device.id === this.receiptTarget)
+      !input.current?.devices.some((device) => device.id === this.receiptTarget)
     ) {
       this.receipt = '';
       this.receiptTarget = null;
     }
-    await this.openDirectoryRing(session, current);
+    if (input.verified) this.signingLane.verifiedChanged();
   }
   /** Key ring only for a trusted directory that still lists this device. */
-  private async openDirectoryRing(
+  private async directoryRing(
     session: AccountSession,
     current: DirectoryEvent | null,
-  ): Promise<void> {
+    trustedRoot: string | null,
+  ): Promise<Keyring | null> {
     if (
-      current &&
-      this.identity &&
-      this.trustedRoot === (await digest(canonical(current.root)))
-    ) {
-      if (current.devices.some((device) => device.id === session.deviceId))
-        this.ring = await deviceSecrets(this.identity, current);
-    }
-    if (this.ring) this.directoryReadAt = performance.now();
-    this.verified =
-      this.ring && current
-        ? { directory: await eventHash(current), events: this.events.length }
-        : null;
-    if (this.verified) this.signingLane.verifiedChanged();
+      !current ||
+      !this.identity ||
+      trustedRoot !== (await digest(canonical(current.root)))
+    )
+      return null;
+    if (!current.devices.some((device) => device.id === session.deviceId))
+      return null;
+    return deviceSecrets(this.identity, current);
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
@@ -656,7 +684,7 @@ export class DeviceController {
       await this.run(async (session) => {
         await this.loadIdentity(session);
         await this.synchronize(session);
-        recoveryIdentity(proof.config, session, location.origin);
+        recoveryIdentity(proof.config, session, applicationOrigin());
         const previous = this.current;
         if (
           proof.count !== (previous ? 1 : 2) ||
@@ -720,12 +748,12 @@ export class DeviceController {
     const config =
       mode === 'recover'
         ? this.current?.root.wallet
-        : createWalletRecovery(session, location.origin);
+        : createWalletRecovery(session, applicationOrigin());
     if (!config)
       throw new Error(
         'This account still uses the old code. Recover or migrate through the legacy flow.',
       );
-    recoveryIdentity(config, session, location.origin);
+    recoveryIdentity(config, session, applicationOrigin());
     return config;
   }
   private validateWalletMode(

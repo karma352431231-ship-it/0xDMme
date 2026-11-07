@@ -48,7 +48,7 @@ export function authorizeMobile(
   response: ServerResponse,
   accessToken: string,
 ): boolean {
-  const entryPath = ['/', '/vault.html', '/zk.html'].find(
+  const entryPath = ['/', '/vault.html'].find(
     (path) => request.url === `${path}?access=${accessToken}`,
   );
   if (request.method === 'GET' && entryPath) {

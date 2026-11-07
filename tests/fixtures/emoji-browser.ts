@@ -84,5 +84,5 @@ actions.append(
 );
 root.querySelector('[data-reset]')?.addEventListener('click', () => {
   picker.reset();
-  status.textContent = 'Recentes limpos na troca de sessão.';
+  status.textContent = 'The panel closed. Device recents are preserved.';
 });

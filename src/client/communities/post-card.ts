@@ -19,7 +19,7 @@ import {
   communityElement as el,
   communityLink as link,
 } from './elements.ts';
-import { inlinePostReply } from './inline-post-reply.ts';
+import { postReply } from './post-reply.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
 import type { PostActions, PostTags } from './post-forms.ts';
 import { postActions } from './post-forms.ts';
@@ -225,7 +225,8 @@ export function createPostCards(
     );
   }
   function replyToggle(toolbar: HTMLElement, parent: CommunityPost): void {
-    const closeReply = inlinePostReply(
+    // The same full reply screen as in the feed opens over the post.
+    const closeReply = postReply(
       toolbar,
       parent,
       own?.canPost

@@ -4,14 +4,7 @@ import type { TestContext } from 'node:test';
 import { profileCommunities } from '../src/client/public-profile/communities-panel.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
-class ProfileNode extends CommunityNode {
-  get childElementCount(): number {
-    return this.children.length;
-  }
-  focus(): void {
-    this.dispatchEvent(new Event('focus'));
-  }
-}
+class ProfileNode extends CommunityNode {}
 function installDocument(context: TestContext): void {
   const document = Object.assign(communityDocument(), {
     createElement: (tag: string) => new ProfileNode(tag),
@@ -44,41 +37,33 @@ function fixture(count: number) {
 }
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-await test('one to three followed communities show names immediately without a toggle', async (context) => {
+const read = (f: ReturnType<typeof fixture>) => () =>
+  Promise.resolve({ items: f.items, next: null });
+const failed = (error: unknown) => {
+  throw error;
+};
+
+await test('the Communities tab names every followed community of the page', async (context) => {
   installDocument(context);
-  for (const count of [1, 2, 3]) {
-    const f = fixture(count);
-    profileCommunities(f.host as unknown as HTMLElement, {
-      total: count + 10,
-      read: () => Promise.resolve({ items: f.items, next: null }),
-      signal: f.signal,
-      error: (error) => {
-        throw error;
-      },
-    });
-    await turn();
-    const list = f.host.querySelector('.profile-communities-list')!;
-    assert.equal(list.hidden, false);
-    assert.equal(list.children.length, count);
-    for (const item of f.items) assert.ok(list.textContent.includes(item.name));
-    assert.equal(
-      f.host.querySelector('.profile-communities-compact')?.hidden,
-      true,
-    );
-    assert.equal(
-      f.host.querySelector('.profile-communities-footer')?.hidden,
-      true,
-    );
-  }
+  const f = fixture(7);
+  profileCommunities(f.host as unknown as HTMLElement, {
+    read: read(f),
+    signal: f.signal,
+    error: failed,
+  });
+  await turn();
+  const list = f.host.querySelector('.profile-communities-list')!;
+  assert.equal(list.children.length, 7);
+  for (const item of f.items) assert.ok(list.textContent.includes(item.name));
+  assert.equal(f.host.querySelector('.profile-communities-more')?.hidden, true);
 });
 
-await test('larger collections expand/collapse names and keep pagination without duplicate rows', async (context) => {
+await test('further pages append without duplicate rows', async (context) => {
   installDocument(context);
   const f = fixture(7);
   const next = crypto.randomUUID();
   const calls: (string | null)[] = [];
   profileCommunities(f.host as unknown as HTMLElement, {
-    total: 7,
     read: (after) => {
       calls.push(after);
       return Promise.resolve(
@@ -88,44 +73,29 @@ await test('larger collections expand/collapse names and keep pagination without
       );
     },
     signal: f.signal,
-    error: (error) => {
-      throw error;
-    },
+    error: failed,
   });
   await turn();
   const list = f.host.querySelector('.profile-communities-list')!;
-  const compact = f.host.querySelector('.profile-communities-compact')!;
-  const toggle = f.host.querySelector('.profile-communities-toggle')!;
-  assert.equal(list.hidden, true);
-  assert.equal(toggle.textContent, '+2');
-  toggle.click();
+  const more = f.host.querySelector('.profile-communities-more')!;
   assert.equal(list.children.length, 5);
-  assert.equal(list.hidden, false);
-  f.host.querySelector('.profile-communities-more')!.click();
+  assert.equal(more.hidden, false);
+  more.click();
   await turn();
   assert.equal(list.children.length, 7);
   assert.deepEqual(calls, [null, next]);
-  f.host.querySelector('.profile-communities-less')!.click();
-  assert.equal(compact.hidden, false);
-  toggle.click();
-  assert.equal(list.children.length, 7);
+  assert.equal(more.hidden, true);
 });
 
-await test('stale summary counts cannot hide an incomplete named community page', async (context) => {
+await test('a profile without communities says so', async (context) => {
   installDocument(context);
-  const f = fixture(1);
+  const f = fixture(0);
   profileCommunities(f.host as unknown as HTMLElement, {
-    total: 1,
-    read: () => Promise.resolve({ items: f.items, next: crypto.randomUUID() }),
+    read: read(f),
     signal: f.signal,
-    error: (error) => {
-      throw error;
-    },
+    error: failed,
   });
   await turn();
-  assert.equal(f.host.querySelector('.profile-communities-list')?.hidden, true);
-  assert.equal(
-    f.host.querySelector('.profile-communities-toggle')?.textContent,
-    'View names',
-  );
+  assert.equal(f.host.querySelector('.profile-communities-list'), null);
+  assert.ok(f.host.querySelector('.public-profile-empty'));
 });

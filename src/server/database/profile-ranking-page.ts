@@ -18,18 +18,22 @@ export interface ProfileRankingSelection {
   order?: AccountRankingOrder;
   actor?: string;
   client?: Reader;
+  /** Newer clients ask for the growth tags' inputs (06/11/2026). */
+  tags?: boolean;
 }
 interface Entry {
   profile_id: string;
   handle: string;
   rank: string;
   score: string;
+  created_at: string | null;
   metrics: {
     views: number;
     upvotes: number;
     shares: number;
     comments: number;
     previousScore: number;
+    newFollowers?: number;
   };
 }
 /** Filters select indexed generation entries; requests never recompute whole-directory totals. */
@@ -51,7 +55,7 @@ export async function readProfileRankingPage(
     `WITH head AS (SELECT id,cutoff,expires_at FROM hash_talk.community_ranking_generations
       WHERE published AND version=$2 AND metrics_version=$3 AND expires_at>clock_timestamp()
       AND ($1::uuid IS NULL OR id=$1) ORDER BY sequence DESC LIMIT 1), ranked AS (
-      SELECT e.profile_id,p.handle,e.score::text,e.metrics,${rank}::text AS rank FROM head g JOIN hash_talk.profile_ranking_entries e ON e.generation=g.id
+      SELECT e.profile_id,p.handle,e.score::text,e.metrics,p.created_at,${rank}::text AS rank FROM head g JOIN hash_talk.profile_ranking_entries e ON e.generation=g.id
       JOIN hash_talk.public_profiles p ON p.id=e.profile_id WHERE e.period=$4 AND ${condition} ${following}
       AND ($5::bigint IS NULL OR (${rank},e.profile_id)<($5,$6::uuid))
       ORDER BY ${rank} DESC,e.profile_id DESC LIMIT $7)
@@ -67,7 +71,9 @@ export async function readProfileRankingPage(
         : 'Ranking being prepared. Try again.',
     );
   const rows = head.entries.slice(0, communityPageSize);
-  const items = await project(input, rows);
+  const items = (await project(input, rows)).map((item, n) =>
+    input.tags ? { ...item, growth: growthInputs(rows[n]!) } : item,
+  );
   return {
     generation: head.id,
     cutoff: head.cutoff.toISOString(),
@@ -107,6 +113,12 @@ async function project(
   }));
 }
 
+function growthInputs(row: Entry) {
+  return {
+    newFollowers: row.metrics.newFollowers ?? 0,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+  };
+}
 function selection(input: {
   order?: AccountRankingOrder;
   actor?: string;

@@ -229,4 +229,66 @@ await test('profile being edited cannot be saved with an old key after observed 
       }
     },
   );
+  await t.test(
+    'a verified revocation clears cached authority before another vault operation',
+    async (t) => {
+      const previousStorage = Object.getOwnPropertyDescriptor(
+        globalThis,
+        'sessionStorage',
+      );
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: { getItem: () => null },
+      });
+      t.after(() => {
+        if (previousStorage)
+          Object.defineProperty(globalThis, 'sessionStorage', previousStorage);
+        else Reflect.deleteProperty(globalThis, 'sessionStorage');
+      });
+      records.set(`identity:${accountId}:${revoked.public.id}`, revoked);
+      records.set(`checkpoint:${accountId}`, {
+        events: [initial, linked],
+        trustedRoot: await digest(canonical(recovery.root)),
+      });
+      let latest = linked;
+      t.mock.method(
+        globalThis,
+        'fetch',
+        async (url: string, init: RequestInit) => {
+          assert.ok(
+            url.endsWith('/devices/read'),
+            'Revoked authority must not reach a mutation.',
+          );
+          const input = JSON.parse(init.body as string) as { after: number };
+          return Response.json({
+            events: input.after < latest.revision ? [current] : [],
+            revision: latest.revision,
+            head: await eventHash(latest),
+            serverTime: new Date().toISOString(),
+          });
+        },
+      );
+      const revokedSession = { ...session, deviceId: revoked.public.id };
+      const reader = new DeviceController();
+      reader.setSession(revokedSession);
+      await reader.refresh();
+      assert.equal(reader.authorized, true);
+      latest = current;
+      assert.equal(await reader.privateKey(revokedSession), null);
+      assert.equal(reader.authorized, false);
+      let mutationRan = false;
+      await assert.rejects(
+        reader.withVault(false, () => {
+          mutationRan = true;
+          return Promise.resolve();
+        }),
+        /Authorize or recover/,
+      );
+      assert.equal(
+        mutationRan,
+        false,
+        'A revoked device cannot run the vault operation.',
+      );
+    },
+  );
 });

@@ -1,0 +1,229 @@
+/*
+ * Activity option A (05/11/2026): one card per piece of the reader's content,
+ * its upvotes on one line and its replies beneath it. Same on web and phones.
+ */
+#app-shell .activity-list:has(> .activity-card) {
+  display: grid;
+  gap: 10px;
+  border: 0;
+  background: none;
+}
+#app-shell .activity-card {
+  display: grid;
+  gap: 0;
+  align-items: stretch;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+#app-shell .activity-card + .activity-card {
+  border-top: 1px solid var(--line);
+}
+#app-shell .activity-card[data-read='false'] {
+  border-color: var(--accent-text);
+}
+.activity-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.activity-card-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.activity-card[data-read='false'] .activity-card-time::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-text);
+  content: '';
+}
+#app-shell .activity-card .activity-card-title {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+/* A followed profile's post reads as the post itself, not a heading. */
+#app-shell .activity-card[data-kind='watched'] .activity-card-title {
+  font-weight: 400;
+}
+#app-shell .activity-card[data-kind='profile'] .activity-card-title {
+  font-size: 14.5px;
+  font-weight: 400;
+}
+.activity-card-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 14.5px;
+}
+.activity-card-line + .activity-card-line:has(.activity-card-reply) {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 0;
+}
+.activity-card[data-kind='watched'] .activity-card-line,
+.activity-card[data-kind='profile'] .activity-card-line {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: 0;
+}
+.activity-card-icon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.activity-card-icon.is-up {
+  stroke: var(--accent-text);
+}
+.activity-card-icon.is-follow {
+  stroke: var(--ok);
+}
+.activity-card-faces {
+  display: inline-flex;
+  flex: none;
+}
+#app-shell
+  .activity-card
+  :is(.activity-card-faces, .activity-card-line)
+  > .conversation-avatar {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.activity-card-faces > .conversation-avatar + .conversation-avatar {
+  margin-left: -7px;
+}
+#app-shell .activity-card .activity-card-reply {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.activity-card-reply b {
+  margin-right: 6px;
+  font-weight: 600;
+}
+#app-shell .activity-card .activity-card-more {
+  justify-self: start;
+  min-height: 32px;
+  margin: 4px 0 0 27px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+/* Read cards dim their words; avatars keep their colors. */
+#app-shell
+  .activity-card[data-read='true']
+  :is(.activity-card-title, .activity-card-line) {
+  color: var(--text-muted);
+}
+#app-shell .activity-card .activity-card-reply[data-read='true'] {
+  color: var(--text-muted);
+}
+
+/* The head (label and time) spans the card; the title shares a row with
+   the content's thumbnail only (05/11/2026). */
+.activity-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 3px;
+}
+#app-shell .activity-card-body > .activity-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+}
+.activity-card-thumb {
+  /* Owner, 06/11/2026: larger on wide screens, a little larger on phones. */
+  --thumb: 64px;
+  flex: 0 0 var(--thumb);
+  width: var(--thumb);
+  height: var(--thumb);
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.activity-card-thumb.is-small {
+  --thumb: 44px;
+  margin-left: auto;
+  border-radius: 6px;
+}
+.activity-card-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#app-shell .activity-card-line > .activity-card-reply {
+  flex: 1 1 auto;
+}
+
+/* Phones: no boxes; notices use the full width with a line between them. */
+@media (max-width: 700px) {
+  .activity-card-thumb {
+    --thumb: 60px;
+  }
+  .activity-card-thumb.is-small {
+    --thumb: 42px;
+  }
+  #app-shell .activity-list:has(> .activity-card) {
+    gap: 0;
+  }
+  #app-shell .activity-card,
+  #app-shell .activity-card + .activity-card {
+    padding: 14px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+  }
+  #app-shell .activity-card[data-read='false'] {
+    margin: 0 -12px;
+    padding-inline: 16px;
+    border-bottom-color: var(--line);
+    background: color-mix(in srgb, var(--accent-text) 7%, transparent);
+  }
+  #app-shell .activity-card .activity-card-line {
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: 0;
+  }
+}

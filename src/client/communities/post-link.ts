@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { appHref } from '../../shared/app-routes/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
@@ -13,7 +14,7 @@ export function postShareUrl(
   post: Pick<CommunityPost, 'id' | 'community'>,
 ): string {
   return (
-    location.origin +
+    applicationOrigin() +
     appHref(
       'communities',
       new URLSearchParams({ id: post.community, post: post.id }),

@@ -12,11 +12,17 @@ export function dmMessageMenu(
     picker: EmojiPicker;
     react?: (emoji: string) => Promise<void>;
     edit?: () => void;
+    reply?: () => void;
     editable?: boolean;
+    remove?: () => void;
     run: (work: () => Promise<void>) => Promise<void>;
   },
 ): () => void {
-  const menu = anchoredMessageMenu({ signal: input.signal });
+  const menu = anchoredMessageMenu({
+    signal: input.signal,
+    row,
+    ...(input.reply ? { reply: input.reply } : {}),
+  });
   const copy = document.createElement('button'),
     status = document.createElement('p');
   copy.type = 'button';
@@ -29,6 +35,13 @@ export function dmMessageMenu(
     });
   });
   menu.panel.append(withMenuIcon(copy, 'copy'));
+  if (input.reply) {
+    const reply = document.createElement('button');
+    reply.type = 'button';
+    reply.textContent = t('Reply');
+    reply.addEventListener('click', () => input.reply?.());
+    menu.panel.append(withMenuIcon(reply, 'reply'));
+  }
   if (input.edit && input.editable) {
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -37,6 +50,13 @@ export function dmMessageMenu(
       input.edit?.();
     });
     menu.panel.append(withMenuIcon(edit, 'edit'));
+  }
+  if (input.remove) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = t('Delete for both');
+    remove.addEventListener('click', () => input.remove?.());
+    menu.panel.append(withMenuIcon(remove, 'trash'));
   }
   if (input.react) {
     const reaction = document.createElement('button');

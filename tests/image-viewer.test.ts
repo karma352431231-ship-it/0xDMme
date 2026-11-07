@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { openImageViewer } from '../src/client/image-viewer/index.ts';
+import { settledZoom, zoomedFrom } from '../src/client/image-viewer/zoom.ts';
 
 class FakeElement {
   readonly children: FakeElement[] = [];
@@ -109,10 +110,71 @@ await test('tapping the image zooms in and out without closing', (t) => {
   const f = viewer(t);
   f.image.click();
   assert.equal(f.dialog.classes.has('zoomed'), true);
-  assert.equal(f.image.style['width'], '800px');
+  assert.match(f.image.style['transform'] ?? '', /scale\(2\.5\)/u);
   f.image.click();
   assert.equal(f.dialog.classes.has('zoomed'), false);
+  assert.equal(f.image.style['transform'], '');
   assert.equal(f.open(), true);
+});
+
+const framed = {
+  image: { width: 300, height: 200 },
+  frame: { x: 400, y: 800 },
+};
+await test('pinching keeps the image point under the fingers', () => {
+  const center = { x: 200, y: 400 };
+  const next = zoomedFrom(
+    {
+      state: { scale: 1, x: 0, y: 0 },
+      points: [
+        { x: 100, y: 300 },
+        { x: 200, y: 300 },
+      ],
+    },
+    [
+      { x: 50, y: 300 },
+      { x: 250, y: 300 },
+    ],
+    center,
+  );
+  assert.equal(next.scale, 2);
+  // The midpoint (150, 300) sits 50 left and 100 above the center before and after.
+  assert.equal(center.x + next.x + next.scale * -50, 150);
+  assert.equal(center.y + next.y + next.scale * -100, 300);
+});
+
+await test('zoom stays within its limits and the image edges on release', () => {
+  const huge = zoomedFrom(
+    {
+      state: { scale: 1, x: 0, y: 0 },
+      points: [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+      ],
+    },
+    [
+      { x: 0, y: 0 },
+      { x: 500, y: 0 },
+    ],
+    { x: 0, y: 0 },
+  );
+  assert.equal(huge.scale, 5);
+  assert.deepEqual(settledZoom({ scale: 1, x: 40, y: 40 }, framed), {
+    scale: 1,
+    x: 0,
+    y: 0,
+  });
+  assert.deepEqual(settledZoom({ scale: 0.8, x: 5, y: 5 }, framed), {
+    scale: 1,
+    x: 0,
+    y: 0,
+  });
+  // 600 wide in a 400 frame may move 100 each way; 400 tall in 800 may not move.
+  assert.deepEqual(settledZoom({ scale: 2, x: 999, y: 999 }, framed), {
+    scale: 2,
+    x: 100,
+    y: 0,
+  });
 });
 
 for (const where of ['frame', 'dialog', 'close'] as const)

@@ -202,7 +202,7 @@ export class GroupStore {
       const affected = changedMembers(previous, event);
       this.contacts.changed(client, affected, {
         category: 'group-messages',
-        authorization: true,
+        authorization: event.kind !== 'create',
       });
       this.contacts.changed(client, affected, { category: 'activity' });
       return { head: hash, status: 'saved' };

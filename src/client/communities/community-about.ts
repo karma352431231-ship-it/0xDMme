@@ -5,12 +5,8 @@ import { communityElement as el } from './elements.ts';
 export function communityAbout(value: Community): HTMLElement | null {
   const rules = /^nenhuma?$/iu.test(value.rules.trim()) ? '' : value.rules;
   if (!rules) return null;
-  const info = el('details', '', 'community-info');
-  info.append(
-    el('summary', t('About and community rules')),
-    el('h3', t('Community rules')),
-    el('p', rules, 'community-text'),
-  );
+  const info = el('section', '', 'community-info');
+  info.append(el('h3', t('Community rules')), el('p', rules, 'community-text'));
   return info;
 }
 

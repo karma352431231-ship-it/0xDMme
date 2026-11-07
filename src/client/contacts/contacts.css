@@ -115,8 +115,22 @@
 [data-contact-own-invite] > label {
   margin: 16px 0;
 }
-[data-contact-invites] > [data-contact-action='rotate'] {
-  margin-top: 12px;
+.contact-invite-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.contact-invite-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.contact-invite-actions button[hidden] {
+  display: none;
 }
 .contact-tabs {
   display: flex;
@@ -370,6 +384,11 @@
 .contact-dialog .contact-feedback {
   margin: 20px -24px -24px;
 }
+/* The band exists only for a problem or a next step. */
+.contact-dialog
+  .contact-feedback:not(:has(p:not(:empty), [data-contact-next-chat])) {
+  display: none;
+}
 .contact-dialog video {
   width: 100%;
   max-height: 240px;
@@ -458,18 +477,42 @@
   .contact-subtabs {
     padding-inline: 16px;
   }
+  /* The system bars take space on both ends, so the height leaves room for
+     them; otherwise the bottom margin pushes the top off the screen. */
   .contact-dialog,
   .contact-menu {
-    margin: auto 8px max(8px, env(safe-area-inset-bottom));
+    --dialog-top: max(8px, env(safe-area-inset-top));
+    --dialog-bottom: max(8px, env(safe-area-inset-bottom));
+    margin: auto 8px var(--dialog-bottom);
     width: calc(var(--viewport-width, 100vw) - 16px);
     max-width: calc(var(--viewport-width, 100vw) - 16px);
-    max-height: calc(var(--viewport-height, 100dvh) - 16px);
-    padding: 20px;
+    max-height: calc(
+      var(--viewport-height, 100dvh) - var(--dialog-top) - var(--dialog-bottom)
+    );
+    padding: 16px;
+    overscroll-behavior: contain;
   }
+  /* The three ways to add a contact share one row. */
   .contact-dialog .contact-subtabs {
+    flex-wrap: nowrap;
+    gap: 6px;
     padding-inline: 0;
   }
+  .contact-dialog .contact-subtabs button {
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 5px 10px;
+    border-radius: 16px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
   .contact-dialog .contact-feedback {
-    margin: 16px -20px -20px;
+    margin: 12px -16px -16px;
+  }
+  .contact-dialog .device-qr {
+    max-width: min(220px, 60vw);
+    margin-inline: auto;
   }
 }

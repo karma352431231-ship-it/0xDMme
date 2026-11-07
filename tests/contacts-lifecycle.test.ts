@@ -9,6 +9,7 @@ import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type { VaultAccess } from '../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import { invitationLink } from '../src/shared/contacts/index.ts';
+import { translatedError } from '../src/shared/i18n/index.ts';
 import type {
   AddressBookEntry,
   Invitation,
@@ -150,6 +151,7 @@ for (const withInvite of [false, true])
 
 await test('save and request by full address identify EVM/Solana without an ecosystem selector', async (t) => {
   browserEnvironment(t);
+  t.mock.method(Contacts.prototype, 'refresh', () => Promise.resolve());
   const access: VaultAccess = {
     withVault: () =>
       Promise.reject(new Error('Autoridade não usada nesta UI.')),
@@ -301,6 +303,54 @@ await test('foreground approved-contact loading retains queue priority and refus
     (error: unknown) => error === failure,
   );
   assert.equal(contacts.pages.size, 0);
+});
+
+await test('Create invitation works from the editor before Contacts ever opened', async (t) => {
+  browserEnvironment(t);
+  const access: VaultAccess = {
+    withVault: () =>
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
+    withLocalVault: () =>
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
+  };
+  const opener = (open = false) => ({
+    open,
+    showModal() {
+      this.open = true;
+    },
+    close() {
+      this.open = false;
+    },
+    addEventListener: () => undefined,
+    querySelector: () => null,
+  });
+  const editorDialog = opener(true),
+    invites = opener(),
+    status = { textContent: '' };
+  const create = Object.assign(new EventTarget(), {
+    getAttribute: () => 'create',
+    disabled: false,
+  });
+  const fields = new Map<string, unknown>([
+    ['[data-contact-editor]', editorDialog],
+    ['[data-contact-invites]', invites],
+    ['[data-contact-invite-status]', status],
+  ]);
+  const host = {
+    isConnected: true,
+    innerHTML: '',
+    querySelector: (selector: string) => fields.get(selector) ?? null,
+    querySelectorAll: (selector: string) =>
+      selector === '[data-contact-own-open]' ? [create] : [],
+  } as unknown as HTMLElement;
+  const contacts = startContacts(access, new VaultSync(access));
+  contacts.mountEditor(host);
+  create.dispatchEvent(new Event('click'));
+  assert.equal(editorDialog.open, false);
+  assert.equal(invites.open, true);
+  // Reaching the signed-out refusal proves the click started the creation.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(status.textContent, translatedError('Sign in first.'));
 });
 
 await test('sidebar add opens the editor over any view and reads saved contacts first', async (t) => {

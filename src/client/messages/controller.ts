@@ -390,6 +390,12 @@ export class Messages {
     this.pinsGeneration = -1;
     this.reader.select(peer);
   }
+  focusMessage(sequence: number | null): void {
+    this.reader.focusMessage(sequence);
+  }
+  get searchFocused(): boolean {
+    return this.reader.searchFocused;
+  }
   /** The next open or sync of the selected conversation reaches one page
    * further back, without hiding what is shown meanwhile. */
   requestOlder(): void {

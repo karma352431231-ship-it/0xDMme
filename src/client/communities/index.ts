@@ -12,6 +12,7 @@ export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
 export { startRankingSide } from './ranking-side.ts';
+export { startCommunitiesTab } from './communities-tab.ts';
 export type { RankingScope } from './ranking-side.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
@@ -38,6 +39,8 @@ import type { FeedBookmark } from './feed-return.ts';
 import { previewModeratedMedia } from './moderation-preview.ts';
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
+import { communityAbout } from './community-about.ts';
+import { communityPageTabs } from './community-page-tabs.ts';
 import type { FeedProfileFollows } from './feed-follow.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
@@ -59,6 +62,7 @@ export function startCommunities(
     profiles: FeedProfileFollows;
     publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
+    blockPublicUser?: (peer: string) => Promise<void>;
     /** When the app coordinates session warmups, a mounted feed still loads
      * on session change (its requests use the signing lane), while public DMs,
      * which share the exclusive account turn, wait for sessionReady(). */
@@ -66,7 +70,12 @@ export function startCommunities(
   },
 ) {
   const { profiles } = options;
-  const dms = startSocialDmUi(access, sync, privacy, options.unreadChanged);
+  const dms = startSocialDmUi(access, sync, privacy, {
+    ...(options.unreadChanged ? { unreadChanged: options.unreadChanged } : {}),
+    ...(options.blockPublicUser
+      ? { blockPublic: options.blockPublicUser }
+      : {}),
+  });
   const controller = new Communities(access);
   const participation = new PublicActionGate({
     session: () => session,
@@ -124,6 +133,7 @@ export function startCommunities(
     bookmark: () => discovery.bookmark(),
     reset: () => discovery.tabAgain(),
     keep: (bookmark) => discovery.keep(bookmark),
+    visit: () => discovery.visit(),
   });
   composer.bind();
   bindCommunityCreationEntry({
@@ -225,6 +235,11 @@ export function startCommunities(
         state.role !== 'participant'
           ? selected
           : null,
+      back: feedReturn.target(),
+      page:
+        current?.id === selected || current?.slug === selectedSlug
+          ? current
+          : null,
     });
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
@@ -255,6 +270,33 @@ export function startCommunities(
     });
   }
 
+  /**
+   * Rules, and for participants their sanctions, appeals and reports; owners
+   * and moderators manage from the isolated screen in the options menu.
+   */
+  function communityAboutPanel(
+    value: Community,
+    own: CommunityState | null,
+  ): HTMLElement | null {
+    const rules = communityAbout(value),
+      participant = own?.role === 'participant';
+    if (!rules && !participant) return null;
+    const panel = communityElement('section', '', 'community-about-panel');
+    if (rules) panel.append(rules);
+    if (participant) {
+      const management = communityElement(
+        'details',
+        '',
+        'community-management',
+      );
+      management.append(
+        communityElement('summary', t('Participation and reports')),
+      );
+      panel.append(management);
+      editor.governance(management, own);
+    }
+    return panel;
+  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
@@ -302,7 +344,8 @@ export function startCommunities(
     mounted.dataset['communityLayout'] = 'detail';
     detail.summary(screen()!, current, state);
     const postContainer = communityElement('section', '', 'community-posts');
-    mounted.append(postContainer);
+    const about = communityAboutPanel(current, state);
+    communityPageTabs(mounted, { posts: postContainer, about });
     posts.mount(postContainer, {
       community: current.id,
       identity: current,
@@ -310,20 +353,6 @@ export function startCommunities(
       post: selectedPost,
       tag: selectedTag,
     });
-    // Owners and moderators manage from the isolated screen (top-right link);
-    // participants keep their sanctions, appeals and reports here.
-    if (state?.role === 'participant') {
-      const management = communityElement(
-        'details',
-        '',
-        'community-management',
-      );
-      management.append(
-        communityElement('summary', t('Participation and reports')),
-      );
-      mounted.append(management);
-      editor.governance(management, state);
-    }
   }
   /** Isolated settings screen for owners and moderators. */
   function manageScreen(value: Community, own: CommunityState): void {
@@ -531,6 +560,8 @@ export function startCommunities(
       dmOwner = null;
     },
     dmEvent: (event: LiveEvent) => dms.event(event),
+    searchDms: (query: string, after: string | null) =>
+      dms.search(query, after),
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
     /** Bounded publication history and read acknowledgements for Activity. */

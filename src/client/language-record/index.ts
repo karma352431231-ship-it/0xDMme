@@ -3,6 +3,7 @@ import { canonical, digest } from '../../shared/devices/index.ts';
 import { isAppLanguage } from '../../shared/i18n/index.ts';
 import type { AppLanguage } from '../../shared/i18n/index.ts';
 import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 
 export type LanguageSync = Pick<
   VaultSync,
@@ -52,6 +53,7 @@ export class LanguageRecord {
     accountId: string,
     language: AppLanguage,
     current: () => void,
+    work: VaultWorkOptions = {},
   ): Promise<void> {
     if (!isAppLanguage(language))
       throw new Error('Invalid language preference.');
@@ -60,16 +62,19 @@ export class LanguageRecord {
     );
     const id = await entity(accountId);
     current();
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity: id,
-        kind: 'settings',
-        parents,
-        label: languageRecordLabel,
+    await this.sync.save(
+      {
+        change: {
+          version: 1,
+          entity: id,
+          kind: 'settings',
+          parents,
+          label: languageRecordLabel,
+        },
+        value: JSON.stringify({ version: 1, language }),
       },
-      value: JSON.stringify({ version: 1, language }),
-    });
+      work,
+    );
     current();
   }
 }

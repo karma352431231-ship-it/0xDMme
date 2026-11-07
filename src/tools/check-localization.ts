@@ -122,7 +122,10 @@ function inspect(file: string, source: string): void {
 
 function inspectHtml(file: string, source: string): void {
   // This is a literal-text lint, not an HTML transformer or input sanitizer.
-  const authored = source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, '');
+  const authored = source
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, '')
+    // Packaged HTML carries CSP as metadata; it is policy syntax, not UI text.
+    .replace(/<meta\s+http-equiv="Content-Security-Policy"[^>]*>/giu, '');
   const texts = [
     ...Array.from(authored.matchAll(/>([^<]+)</gu), (match) => match[1]!),
     ...Array.from(

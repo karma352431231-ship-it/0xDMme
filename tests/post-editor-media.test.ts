@@ -63,6 +63,7 @@ await test('selecting a GIF in post or reply changes only the draft without publ
   };
   const globals = {
     document,
+    matchMedia: () => ({ matches: false }),
     HTMLLabelElement: CommunityNode,
     HTMLTextAreaElement: CommunityNode,
     window: Object.assign(new EventTarget(), {

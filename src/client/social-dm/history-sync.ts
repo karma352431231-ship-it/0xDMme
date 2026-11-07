@@ -18,7 +18,7 @@ export interface DmHistorySnapshot {
   profile: string;
 }
 export interface DmHistoryCursor extends DmHistorySnapshot {
-  version: 3;
+  version: 4;
   after: number;
 }
 function snapshot(raw: unknown): DmHistorySnapshot {
@@ -55,7 +55,7 @@ function startingCursor(raw: unknown, current: DmHistorySnapshot): number {
   if (raw === null) return 0;
   const value = object(raw);
   if (
-    value['version'] !== 3 ||
+    value['version'] !== 4 ||
     !sameAuthority(
       snapshot({
         anchor: value['anchor'],
@@ -164,7 +164,7 @@ export class DmHistorySynchronization {
     progress: Progress,
     after: number,
   ): Promise<void> {
-    const next: DmHistoryCursor = { ...progress.snapshot, version: 3, after };
+    const next: DmHistoryCursor = { ...progress.snapshot, version: 4, after };
     if (!sameCursor(progress.held, next)) await ports.save(next);
     ports.guard();
     progress.held = next;

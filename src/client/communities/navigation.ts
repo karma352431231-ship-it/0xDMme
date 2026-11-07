@@ -12,6 +12,10 @@ export function communityNavigation(
     signedIn: boolean;
     /** Community whose settings the person may open (owner or moderator). */
     manage?: string | null;
+    /** The kept way back to the feed position, when this page was opened from it. */
+    back?: string | null;
+    /** The community on screen once known: names the bar and receives new posts. */
+    page?: { id: string; name: string } | null;
   },
 ): void {
   const active = options.selected ? 'communities' : options.view;
@@ -29,7 +33,11 @@ export function communityNavigation(
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Community access'));
   if (options.selected) {
-    const back = link(tools, t('Back to feed'), '#communities?view=feed');
+    const back = link(
+      tools,
+      t('Back to feed'),
+      options.back ?? '#communities?view=feed',
+    );
     back.classList.add('feed-back-link');
     iconLabel(back, 'back');
   }
@@ -38,9 +46,26 @@ export function communityNavigation(
   iconLabel(summary, 'more');
   menu.append(summary);
   menu.append(moreChoices(options));
+  if (options.page)
+    tools.append(el('span', options.page.name, 'community-page-title'));
   tools.append(menu);
-  tools.append(createCommunityButton());
+  tools.append(
+    options.page ? composeHereButton(options.page.id) : createCommunityButton(),
+  );
   container.append(tools);
+}
+
+/** Inside a community the "+" writes there at once; creating stays in the feed. */
+function composeHereButton(community: string): HTMLElement {
+  const holder = el('div', '', 'community-create-menu');
+  const button = el('button', '', 'community-create-fab');
+  button.type = 'button';
+  button.dataset['communityCompose'] = community;
+  button.setAttribute('aria-label', t('community.post-action'));
+  button.title = t('community.post-action');
+  iconLabel(button, 'plus');
+  holder.append(button);
+  return holder;
 }
 
 /**
@@ -70,7 +95,7 @@ function moreChoices(options: {
     ['saved', t('Saved'), 'bookmark'],
     ['hidden', t('Hidden'), 'hide'],
     ['replies', t('Replies to your content'), 'reply'],
-    ['invitations', t('Transfers'), 'transfer'],
+    ['invitations', t('Ownership requests'), 'transfer'],
   ] as const)
     iconLabel(link(choices, title, `#communities?view=${key}`), icon);
   return choices;

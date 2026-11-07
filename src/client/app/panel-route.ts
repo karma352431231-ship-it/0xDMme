@@ -129,11 +129,10 @@ export function samePanelTarget(
 export function standalonePanelHref(
   hash: string,
   wide: boolean,
-  split: boolean,
 ): string | null {
   const route = splitTarget(hash);
   if (!route || wide) return null;
-  if (route.dm) return split ? null : publicDmHref(route.dm);
+  if (route.dm) return null;
   if (route.layout === 'solo') return null;
   if (route.target.kind === 'profile')
     return appHref(
@@ -146,15 +145,4 @@ export function standalonePanelHref(
   return route.target.kind === 'feed'
     ? appHref('communities', route.target.params)
     : null;
-}
-
-function publicDmHref(dm: PublicChatTarget): string {
-  return appHref(
-    'communities',
-    new URLSearchParams({
-      view: 'dms',
-      ...(dm.id ? { dm: dm.id } : {}),
-      ...(dm.local ? { history: 'local' } : {}),
-    }),
-  );
 }

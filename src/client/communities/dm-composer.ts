@@ -182,6 +182,7 @@ export function startDmComposer(options: {
   function hasUnsent(): boolean {
     return (
       composition.target !== null ||
+      composition.replying !== null ||
       Boolean(view?.text.value.trim()) ||
       drafts.size > 0
     );
@@ -284,6 +285,7 @@ export function startDmComposer(options: {
   return {
     /** Binds a freshly built conversation; a refresh reuses the same view. */
     bind(next: DmView, peer: string): void {
+      emoji.close();
       view = next;
       bound = peer;
       composition.bind(next.form, next.text, sync);
@@ -335,6 +337,14 @@ export function startDmComposer(options: {
     get editing() {
       return composition.target;
     },
+    get replying() {
+      return composition.replying?.id ?? null;
+    },
+    reply(target: Parameters<DmComposition['reply']>[0]): void {
+      if (!writable || recording.active || chosen || pending) return;
+      composition.reply(target);
+      sync();
+    },
     edit(target: Parameters<DmComposition['choose']>[0]): void {
       if (!writable || busy || recording.active || chosen || pending) return;
       composition.choose(target);
@@ -344,6 +354,7 @@ export function startDmComposer(options: {
       composition.cancel();
     },
     leave(): void {
+      emoji.close();
       if (view && bound) drafts.keep(bound, composition.unsent());
       bound = null;
       composition.clear();

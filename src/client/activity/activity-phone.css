@@ -14,9 +14,8 @@
   #app-shell .activity-heading {
     justify-content: flex-end;
   }
+  /* Pulling the page down refreshes every tab on phones (06/11/2026). */
   #app-shell .activity-heading button {
-    min-height: 32px;
-    padding: 5px 12px;
-    font-size: 12.5px;
+    display: none;
   }
 }

@@ -6,6 +6,9 @@
   gap: 8px;
   margin: 0 0 16px;
 }
+.community-feed-filter-row {
+  display: contents;
+}
 .community-ranking-period {
   display: contents;
 }
