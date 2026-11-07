@@ -1,6 +1,7 @@
 # 0xDMme Source-Available License
 
-Version 1.0 — review draft dated 2026-11-01
+Version 1.0 — review draft dated 2026-11-01, updated 2026-11-07 with the owner's
+answers on the rights holder, scope, patents, governing law and ZK removal
 
 > NOT EFFECTIVE. This document is a proposed license, not a present grant or
 > replacement of any existing license. It applies to no repository file until
@@ -8,11 +9,28 @@ Version 1.0 — review draft dated 2026-11-01
 > Existing notices and third-party terms remain in force. This draft is not the
 > official application's end-user agreement or a legal opinion.
 
+## Adoption notice (proposed)
+
+- **Licensor:** karma352431231-ship-it, the pseudonymous author of 0xDMme,
+  identified by the GitHub account
+  [karma352431231-ship-it](https://github.com/karma352431231-ship-it).
+- **Permission requests and contact:** karma352431231@gmail.com.
+- **Covered Software:** every authored file in the 0xDMme repository, including
+  the web app, backend, native iOS and Android projects, build and deployment
+  tools, tests and documentation, in every release published under this License.
+- **Not covered:** third-party dependencies, vendored libraries, fonts, emoji
+  artwork, wallet marks and any other material under its own license. Those keep
+  their original terms, listed in `LICENSES.md`.
+- **Earlier releases:** copies distributed before adoption under GPL-3.0-only
+  remain licensed under GPL-3.0-only to the people who received them. This License
+  applies to releases published after adoption.
+
 ## 1. Definitions and scope
 
 **Licensor** means the person or legal entity identified as the rights holder in
-the adoption notice accompanying the Software. The adoption notice must provide
-the Licensor's legal identity and a working contact for permission requests.
+the adoption notice accompanying the Software. The adoption notice must identify
+the Licensor, by legal name or by a pseudonym tied to a verifiable account, and
+give a working contact for permission requests.
 
 **You** means the individual or legal entity exercising rights under this License.
 
@@ -154,9 +172,8 @@ commercial relicensing of a contribution. Contributions intended for incorporati
 into the official product require separately accepted contribution terms sufficient
 for its intended distribution. Merely publishing a fork is not such acceptance.
 
-No express patent license is included in this draft. Patent permissions and
-contribution terms must be reviewed before adoption; this clause does not purport
-to remove rights supplied by applicable law or separate agreements.
+This License grants no patent license. This sentence does not remove rights
+supplied by applicable law or separate agreements.
 
 ## 8. Termination and surviving recipients
 
@@ -178,29 +195,34 @@ or noninfringement. To that same extent, the Licensor is not liable for losses o
 damages arising from use, inability to use, or distribution of the Software.
 Nothing excludes liability or consumer rights that cannot lawfully be excluded.
 
-## 10. Adoption and legal review checklist
+## 10. Adoption status
 
-This section is drafting guidance and must be resolved and removed from the final
-license text before adoption. Until then, the entire document remains a draft.
+This section is drafting guidance and must be removed from the final license text
+before adoption. Until then, the entire document remains a draft.
 
-- Identify the legal rights holder and permission contact; do not use a fictional
-  entity or expose private operational information in a public notice.
-- Confirm exact covered paths/releases and authority over contributions. Review
-  prior distributions and grants rather than assuming a release label decides them.
-- Complete the ZK/dependency work and verify the entire distributed package.
-- Review the commercial-offering definition and its application without adding
-  unapproved restrictions or exceptions. The owner declined additional case-by-case
-  policy decisions. Review consistency of the internal-use and hosting provisions.
-- Review token definitions for precision, enforceability, and consistency with
-  permitted personal experiments and normal wallet use.
-- Review patent permissions, contribution terms, termination/cure, governing law,
-  jurisdiction, severability, and mandatory consumer protections. No exclusive
-  jurisdiction or legal identity has been invented for this draft.
-- Review official binary distribution, app-store agreements, hosting-platform
-  terms, and required end-user terms separately. This is not a ready-to-submit
-  Apple custom EULA or an authorization to launch an official token.
-- Update the project licensing record, source delivery, notices, main plan, and
-  applicable quality checks together when the final license is lawfully adopted.
+Resolved by the owner on 2026-11-07:
+
+- **Rights holder and contact:** the pseudonymous GitHub identity and the contact
+  address in the adoption notice above. No legal name is published.
+- **Scope:** every authored file in the repository, with third-party material
+  excluded as stated above.
+- **ZK removal:** approved in full. The Semaphore and `snarkjs` GPL dependency
+  chain, which was the reason for adopting GPL-3.0-only on 2026-09-30, is removed
+  on the branch `claude/zk-removal`; it still has to land in main.
+- **Patents:** no patent license is granted (section 7).
+- **Governing law and jurisdiction:** intentionally omitted. The License names no
+  governing law or court.
+- **Store documents:** the privacy policy and terms of use are separate private
+  drafts, kept outside the repository until they are published.
+
+Remaining before adoption:
+
+- Merge the ZK removal into main and confirm that the web bundle and both native
+  packages contain no GPL component.
+- Add this text as the repository `LICENSE`, replace the project license section of
+  `LICENSES.md`, and update the README and the source delivery notices together.
+- The commercial-offering and token definitions are unchanged from the 2026-11-01
+  draft. An external legal review is optional and has not happened.
 
 ## Draft provenance and review references
 
