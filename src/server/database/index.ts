@@ -236,6 +236,7 @@ const migrations = [
   '103-account-engagement-at-commit.sql',
   '104-profile-follow-notices.sql',
   '105-dated-profile-follows.sql',
+  '106-visitor-retention.sql',
 ];
 
 export interface MaintenanceSnapshot {

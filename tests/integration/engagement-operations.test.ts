@@ -287,7 +287,7 @@ await test('metric operations preserve history, export every snapshot and recove
     'cleanup commits in bounded batches even when snapshot capacity is exhausted',
     async () => {
       await pool.query(`INSERT INTO hash_talk.engagement_visitors(marker,seen_at)
-      SELECT encode(sha256(convert_to(gen_random_uuid()::text,'UTF8')),'hex'),clock_timestamp()-interval '8 days'
+      SELECT encode(sha256(convert_to(gen_random_uuid()::text,'UTF8')),'hex'),clock_timestamp()-interval '31 days'
       FROM generate_series(1,700)`);
       await pool.query(`INSERT INTO hash_talk.engagement_observations(id,expires_at)
       SELECT gen_random_uuid(),clock_timestamp()-interval '1 hour' FROM generate_series(1,700)`);
@@ -298,7 +298,7 @@ await test('metric operations preserve history, export every snapshot and recove
         Number(
           (
             await pool.query<{ count: string }>(
-              "SELECT count(*)::text FROM hash_talk.engagement_visitors WHERE seen_at<clock_timestamp()-interval '7 days'",
+              "SELECT count(*)::text FROM hash_talk.engagement_visitors WHERE seen_at<clock_timestamp()-interval '30 days'",
             )
           ).rows[0]!.count,
         );

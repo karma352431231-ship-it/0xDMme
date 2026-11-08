@@ -15,6 +15,7 @@ interface HealthState {
   expiredContributorReferences: string;
   pendingEntityErasures: string;
   technicalRetention: string;
+  visitorRetention: string;
   contributorsResetAt: Date | null;
 }
 interface StorageMeasurement {
@@ -93,11 +94,12 @@ export async function engagementHealth(pool: pg.Pool) {
          snapshot_at AS "snapshotAt",correction_revision::text AS "correctionRevision",
          maintenance_failures::text AS "maintenanceFailures",maintenance_failed_at AS "maintenanceFailedAt",
          pending_gap_from AS "pendingGapFrom",pending_gap_to AS "pendingGapTo",
-         (SELECT count(*)::text FROM hash_talk.engagement_visitors WHERE seen_at<=clock_timestamp()-hash_talk.engagement_technical_retention()) AS "expiredVisitorMarkers",
-         (SELECT min(seen_at)+hash_talk.engagement_technical_retention() FROM hash_talk.engagement_visitors) AS "oldestMarkerExpiry",
+         (SELECT count(*)::text FROM hash_talk.engagement_visitors WHERE seen_at<=clock_timestamp()-hash_talk.engagement_visitor_retention()) AS "expiredVisitorMarkers",
+         (SELECT min(seen_at)+hash_talk.engagement_visitor_retention() FROM hash_talk.engagement_visitors) AS "oldestMarkerExpiry",
          (SELECT count(*)::text FROM hash_talk.engagement_contributors WHERE published_at<=clock_timestamp()-interval '30 days') AS "expiredContributorReferences",
          (SELECT count(*)::text FROM hash_talk.engagement_erasure) AS "pendingEntityErasures",
          hash_talk.engagement_technical_retention()::text AS "technicalRetention",
+         hash_talk.engagement_visitor_retention()::text AS "visitorRetention",
          contributors_reset_at AS "contributorsResetAt"
        FROM hash_talk.engagement_state WHERE singleton`,
       )

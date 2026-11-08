@@ -28,12 +28,16 @@ interface ReportState {
   communityErased: Date | null;
   revision: string;
   contributorsReset: Date | null;
+  visitorsComplete: Date;
 }
 interface RawValue {
   dimension: string;
   metric: EngagementMetric;
   value: string;
 }
+
+/** Visitor markers keep only their latest visit, so distinct live windows must end now. */
+const liveVisitorPresets = new Set<unknown>(['last24h', 'last7d', 'last30d']);
 
 function request(
   input: unknown,
@@ -73,7 +77,7 @@ function request(
       timezone,
       ...interval,
     }),
-    liveVisitors: preset === 'last24h',
+    liveVisitors: liveVisitorPresets.has(preset),
   };
 }
 
@@ -249,7 +253,8 @@ async function visitors(
   if (!live) {
     const snapshot = await client.query<{ value: string }>(
       `SELECT value::text FROM hash_talk.engagement_snapshots WHERE metric='public_site_visitors_estimated'
-       AND scope='project' AND period='day' AND cutoff=$2 AND cutoff-interval '24 hours'=$1
+       AND scope='project' AND cutoff=$2 AND cutoff-CASE period WHEN 'day' THEN interval '24 hours'
+         WHEN 'week' THEN interval '7 days' ELSE interval '30 days' END=$1
        ORDER BY revision DESC LIMIT 1`,
       [query.from, query.to],
     );
@@ -360,7 +365,7 @@ export async function engagementReport(
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const state = (
       await client.query<ReportState>(
-        'SELECT date_trunc(\'milliseconds\',clock_timestamp())+interval \'1 millisecond\' AS cutoff,started_at AS started,heartbeat_at AS heartbeat,author_erased_at AS "authorErased",community_erased_at AS "communityErased",correction_revision::text AS revision,contributors_reset_at AS "contributorsReset" FROM hash_talk.engagement_state WHERE singleton',
+        'SELECT date_trunc(\'milliseconds\',clock_timestamp())+interval \'1 millisecond\' AS cutoff,started_at AS started,heartbeat_at AS heartbeat,author_erased_at AS "authorErased",community_erased_at AS "communityErased",correction_revision::text AS revision,contributors_reset_at AS "contributorsReset",visitors_complete_from AS "visitorsComplete" FROM hash_talk.engagement_state WHERE singleton',
       )
     ).rows[0];
     if (!state)
@@ -534,12 +539,14 @@ async function distinctMetric(
       return { rows: [], reason: 'deleted_community_history_not_retained' };
     return { rows: await activeCommunities(client, query), reason: null };
   }
+  if (liveVisitors && query.from < state.visitorsComplete.toISOString())
+    return { rows: [], reason: 'outside_retained_visitor_coverage' };
   const counts = await visitors(client, query, liveVisitors);
   return {
     rows: counts,
     reason: counts.length
       ? null
-      : 'use_live_last24h_or_an_exact_daily_snapshot_interval',
+      : 'use_a_live_rolling_preset_or_an_exact_snapshot_interval',
   };
 }
 

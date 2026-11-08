@@ -56,7 +56,7 @@ export class EngagementMaintenance {
         return;
       const before = await lockContentUsage(client);
       await client.query(`DELETE FROM hash_talk.engagement_visitors WHERE marker IN
-        (SELECT marker FROM hash_talk.engagement_visitors WHERE seen_at<=clock_timestamp()-hash_talk.engagement_technical_retention() ORDER BY seen_at,marker LIMIT 256)`);
+        (SELECT marker FROM hash_talk.engagement_visitors WHERE seen_at<=clock_timestamp()-hash_talk.engagement_visitor_retention() ORDER BY seen_at,marker LIMIT 256)`);
       await client.query(`DELETE FROM hash_talk.engagement_observations WHERE id IN
         (SELECT id FROM hash_talk.engagement_observations WHERE expires_at<=clock_timestamp() ORDER BY expires_at,id LIMIT 256)`);
       await client.query(`DELETE FROM hash_talk.engagement_contributors WHERE post IN
@@ -115,22 +115,32 @@ export class EngagementMaintenance {
       revision: string;
       generation: string;
       reset: Date | null;
+      visitors: Date;
     }>(
       `UPDATE hash_talk.engagement_state SET snapshot_at=clock_timestamp(),snapshot_generation=snapshot_generation+1
        WHERE singleton AND (snapshot_at IS NULL OR
          (snapshot_at AT TIME ZONE 'America/Fortaleza')::date<(clock_timestamp() AT TIME ZONE 'America/Fortaleza')::date)
-       RETURNING snapshot_at AS cutoff,started_at AS started,author_erased_at AS erased,correction_revision::text AS revision,snapshot_generation::text AS generation,contributors_reset_at AS reset`,
+       RETURNING snapshot_at AS cutoff,started_at AS started,author_erased_at AS erased,correction_revision::text AS revision,snapshot_generation::text AS generation,contributors_reset_at AS reset,visitors_complete_from AS visitors`,
     );
     const state = due.rows[0];
     if (!state) return;
+    // Rolling day, week and month windows; a window is complete only when
+    // the markers it needs were retained (visitors_complete_from).
     await client.query(
       `INSERT INTO hash_talk.engagement_snapshots(cutoff,period,metric,scope,entity,value,complete,revision,generation)
-       SELECT $1,'day','public_site_visitors_estimated','project','00000000-0000-0000-0000-000000000000',count(*),
-         $2::timestamptz<=$1::timestamptz-interval '24 hours' AND NOT EXISTS(
+       SELECT $1,w.period,'public_site_visitors_estimated','project','00000000-0000-0000-0000-000000000000',
+         (SELECT count(*) FROM hash_talk.engagement_visitors v WHERE v.seen_at>=$1::timestamptz-w.duration AND v.seen_at<$1),
+         greatest($2::timestamptz,$5::timestamptz)<=$1::timestamptz-w.duration AND NOT EXISTS(
            SELECT 1 FROM hash_talk.engagement_coverage WHERE reason='collection_failure'
-             AND ended_at>=$1::timestamptz-interval '24 hours' AND started_at<$1),$3,$4
-       FROM hash_talk.engagement_visitors WHERE seen_at>=$1::timestamptz-interval '24 hours' AND seen_at<$1`,
-      [state.cutoff, state.started, state.revision, state.generation],
+             AND ended_at>=$1::timestamptz-w.duration AND started_at<$1),$3,$4
+       FROM (VALUES ('day',interval '24 hours'),('week',interval '7 days'),('month',interval '30 days')) w(period,duration)`,
+      [
+        state.cutoff,
+        state.started,
+        state.revision,
+        state.generation,
+        state.visitors,
+      ],
     );
     await client.query(
       `WITH eligible AS (
@@ -160,7 +170,7 @@ export class EngagementMaintenance {
   async nextCollection(): Promise<number | null> {
     const result = await this.pool.query<{ due: Date }>(`SELECT least(
       coalesce(heartbeat_at,clock_timestamp())+interval '1 minute',
-      (SELECT min(seen_at)+hash_talk.engagement_technical_retention() FROM hash_talk.engagement_visitors),
+      (SELECT min(seen_at)+hash_talk.engagement_visitor_retention() FROM hash_talk.engagement_visitors),
       (SELECT min(expires_at) FROM hash_talk.engagement_observations),
       (SELECT min(published_at)+interval '30 days' FROM hash_talk.engagement_contributors),
       CASE WHEN EXISTS(SELECT 1 FROM hash_talk.engagement_erasure) THEN clock_timestamp() ELSE 'infinity'::timestamptz END

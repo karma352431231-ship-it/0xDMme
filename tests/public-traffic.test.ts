@@ -101,7 +101,7 @@ await test('private routes and personalized public-content lists never enter pub
   assert.equal(publicTrafficTarget('/communities/dms'), null);
 });
 
-await test('visitor marker has absolute seven-day expiry, repairs corruption and tolerates disabled storage', () => {
+await test('visitor marker lasts a year, is renewed by visits at most daily, repairs corruption and tolerates disabled storage', () => {
   const data = new Map<string, string>();
   let writes = 0;
   const storage = {
@@ -111,19 +111,31 @@ await test('visitor marker has absolute seven-day expiry, repairs corruption and
       data.set(key, value);
     },
   };
+  const day = 86_400_000;
   const time = Date.parse('2026-10-25T10:00:00Z');
   assert.equal(
     publicVisitorMarker(storage, time, () => 'a'.repeat(32)),
     'a'.repeat(32),
   );
   assert.equal(
-    publicVisitorMarker(storage, time + 6 * 86_400_000, () => 'b'.repeat(32)),
+    publicVisitorMarker(storage, time + day / 2, () => 'b'.repeat(32)),
     'a'.repeat(32),
   );
-  assert.equal(writes, 1);
+  assert.equal(writes, 1, 'a same-day visit does not rewrite storage');
   assert.equal(
-    publicVisitorMarker(storage, time + 7 * 86_400_000, () => 'c'.repeat(32)),
+    publicVisitorMarker(storage, time + 300 * day, () => 'b'.repeat(32)),
+    'a'.repeat(32),
+  );
+  assert.equal(writes, 2, 'a later visit renews the expiry');
+  assert.equal(
+    publicVisitorMarker(storage, time + 600 * day, () => 'b'.repeat(32)),
+    'a'.repeat(32),
+    'renewed 300 days in, the marker outlives its first year',
+  );
+  assert.equal(
+    publicVisitorMarker(storage, time + 966 * day, () => 'c'.repeat(32)),
     'c'.repeat(32),
+    'a year without visits replaces the marker',
   );
   storage.setItem('0xdmme:public-visitor:v1', '{broken');
   assert.equal(

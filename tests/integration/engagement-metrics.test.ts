@@ -356,15 +356,22 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         BigInt((await metric('public_site_visitors_estimated'))!) - previous,
         1n,
       );
-      const report = await db.engagementMetrics.report({
-        metrics: ['public_site_visitors_estimated'],
-        preset: 'last7d',
-      });
+      // Markers stay 30 days, so rolling week counts are live; a month
+      // window reaching before migration 106 kept only seven days.
       assert.equal(
-        report.rows[0]!.values.public_site_visitors_estimated!.value,
-        null,
+        await metric('public_site_visitors_estimated', { preset: 'last7d' }),
+        await metric('public_site_visitors_estimated'),
       );
-      assert.ok(report.rows[0]!.values.public_site_visitors_estimated!.reason);
+      const month = (
+        await db.engagementMetrics.report({
+          metrics: ['public_site_visitors_estimated'],
+          preset: 'last30d',
+        })
+      ).rows[0]!.values.public_site_visitors_estimated!;
+      assert.deepEqual(
+        [month.value, month.reason],
+        [null, 'outside_retained_visitor_coverage'],
+      );
       const columns = await inspector.query<{ column_name: string }>(
         "SELECT column_name FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='engagement_visitors'",
       );
@@ -761,7 +768,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         marker: expired,
       });
       await inspector.query(
-        "UPDATE hash_talk.engagement_visitors SET seen_at=clock_timestamp()-interval '49 hours' WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
+        "UPDATE hash_talk.engagement_visitors SET seen_at=clock_timestamp()-interval '8 days' WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
         [expired],
       );
       await db.engagementMetrics.collect();
@@ -775,7 +782,7 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         1,
       );
       await inspector.query(
-        "UPDATE hash_talk.engagement_visitors SET seen_at=clock_timestamp()-interval '8 days' WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
+        "UPDATE hash_talk.engagement_visitors SET seen_at=clock_timestamp()-interval '31 days' WHERE marker=encode(sha256(convert_to($1,'UTF8')),'hex')",
         [expired],
       );
       await db.engagementMetrics.collect();
@@ -796,10 +803,18 @@ await test('engagement metrics preserve transactional facts, privacy, deletion a
         ).rowCount,
       );
       const snapshots = await db.engagementMetrics.snapshotsPage();
+      const visitorWindows = snapshots.rows.filter(
+        (item) => item.metric === 'public_site_visitors_estimated',
+      );
+      assert.deepEqual(
+        new Set(visitorWindows.map((item) => item.period)),
+        new Set(['day', 'week', 'month']),
+      );
       assert.ok(
-        snapshots.rows.some(
-          (item) => item.metric === 'public_site_visitors_estimated',
+        visitorWindows.every(
+          (item) => item.period !== 'month' || !item.complete,
         ),
+        'a month window reaching before migration 106 is incomplete',
       );
     },
   );

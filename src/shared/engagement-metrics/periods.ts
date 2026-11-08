@@ -1,6 +1,7 @@
 export const engagementPresets = [
   'last24h',
   'last7d',
+  'last30d',
   'day',
   'week',
   'month',
@@ -63,6 +64,12 @@ function start(preset: EngagementPreset, current: Date): Date {
   return date;
 }
 
+/** Rolling presets end at the cutoff and measure fixed 24-hour days. */
+const rollingDays: Partial<Record<EngagementPreset, number>> = {
+  last24h: 1,
+  last7d: 7,
+  last30d: 30,
+};
 /** Calendar arithmetic uses local dates, never a fabricated fixed 24-hour day. */
 export function engagementInterval(input: {
   preset: EngagementPreset;
@@ -73,11 +80,10 @@ export function engagementInterval(input: {
   const cutoff = Date.parse(input.cutoff);
   if (input.preset === 'since-start')
     return { from: input.startedAt, to: input.cutoff };
-  if (input.preset === 'last24h' || input.preset === 'last7d')
+  const rolling = rollingDays[input.preset];
+  if (rolling)
     return {
-      from: new Date(
-        cutoff - (input.preset === 'last24h' ? day : 7 * day),
-      ).toISOString(),
+      from: new Date(cutoff - rolling * day).toISOString(),
       to: input.cutoff,
     };
   const date = start(input.preset, calendar(cutoff, input.timezone));

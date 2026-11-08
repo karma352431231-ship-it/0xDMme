@@ -1,25 +1,45 @@
-const lifetime = 7 * 86_400_000;
+const day = 86_400_000;
+/** One year, renewed by visits like common analytics markers (owner, 08/11/2026). */
+const lifetime = 365 * day;
 const key = '0xdmme:public-visitor:v1';
 
-/** Absolute expiry, independent of every account and per-post browser mark. */
+/**
+ * Random public-visitor marker, independent of every account, wallet, device
+ * key and per-post browser mark. A visit pushes its expiry to one year ahead,
+ * rewriting storage at most once a day.
+ */
 export function publicVisitorMarker(
   storage: Pick<Storage, 'getItem' | 'setItem'>,
   now: number,
   random: () => string = () => crypto.randomUUID().replaceAll('-', ''),
 ): string | null {
   try {
-    const saved = storage.getItem(key);
+    const saved = savedMarker(storage, now);
     if (saved) {
-      const parsed = stored(saved);
-      if (valid(parsed, now)) return parsed.value;
+      if (saved.expires < now + lifetime - day) save(storage, saved.value, now);
+      return saved.value;
     }
     const value = random();
-    storage.setItem(key, JSON.stringify({ value, expires: now + lifetime }));
+    save(storage, value, now);
     return value;
   } catch {
     // Page views remain observable; visitors cannot be deduplicated reliably.
     return null;
   }
+}
+
+function savedMarker(
+  storage: Pick<Storage, 'getItem'>,
+  now: number,
+): { value: string; expires: number } | null {
+  const saved = storage.getItem(key);
+  if (!saved) return null;
+  const parsed = stored(saved);
+  return valid(parsed, now) ? parsed : null;
+}
+
+function save(storage: Pick<Storage, 'setItem'>, value: string, now: number) {
+  storage.setItem(key, JSON.stringify({ value, expires: now + lifetime }));
 }
 
 function stored(value: string): unknown {
