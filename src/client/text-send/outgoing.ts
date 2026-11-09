@@ -216,6 +216,7 @@ function outgoingBubble(input: {
   article.setAttribute('aria-label', t('chat.outgoing-message'));
   if (content.reply) {
     const quote = document.createElement('small');
+    quote.className = 'chat-reply-quote';
     quote.textContent =
       input.quote === undefined
         ? t('Reply: original message is outside this page or unavailable.')

@@ -79,7 +79,7 @@ await test('synchronization hiding history preserves reading position on reopen'
 await test('readers at the bottom follow new messages; readers above keep their position', () => {
   const history = {
     hidden: false,
-    scrollTop: 750,
+    scrollTop: 799,
     scrollHeight: 1200,
     clientHeight: 400,
     childElementCount: 12,
@@ -89,11 +89,71 @@ await test('readers at the bottom follow new messages; readers above keep their 
   history.scrollHeight = 1500;
   follow();
   assert.equal(history.scrollTop, 1500);
-  history.scrollTop = 80;
+  history.scrollTop = 1090;
   const retain = historyPosition(element);
   history.scrollHeight = 1800;
   retain();
-  assert.equal(history.scrollTop, 80);
+  assert.equal(history.scrollTop, 1090, 'even a small deliberate scroll holds');
+});
+
+await test('the new-message button counts only incoming appends and clears on jump or manual return', () => {
+  const button = Object.assign(new EventTarget(), {
+    hidden: true,
+    textContent: '',
+    setAttribute() {},
+  });
+  let attached = 0;
+  const history = Object.assign(new EventTarget(), {
+    hidden: false,
+    scrollTop: 800,
+    scrollHeight: 1200,
+    clientHeight: 400,
+    childElementCount: 12,
+    ownerDocument: { createElement: () => button },
+    after: () => {
+      attached++;
+    },
+  });
+  const element = history as unknown as HTMLElement;
+  const message = (sequence: number, own = false) => ({ sequence, own });
+  const initial = [message(7), message(8, true)];
+  historyPosition(element, initial)();
+  history.scrollTop = 780;
+  const first = [...initial, message(9)];
+  const restore = historyPosition(element, first);
+  history.scrollHeight = 1250;
+  restore();
+  assert.equal(history.scrollTop, 780);
+  assert.equal(button.hidden, false);
+  assert.equal(button.textContent, '1 new message');
+
+  const next = [
+    message(1),
+    ...first,
+    message(10, true),
+    { ...message(11), relation: { id: 'old' } },
+    message(12),
+  ];
+  historyPosition(element, next)();
+  historyPosition(element, next)();
+  assert.equal(button.textContent, '2 new messages');
+  assert.equal(attached, 1);
+
+  history.scrollTop = history.scrollHeight - history.clientHeight;
+  history.dispatchEvent(new Event('scroll'));
+  assert.equal(button.hidden, true);
+  history.scrollTop -= 20;
+  const more = historyPosition(element, [...next, message(13)]);
+  history.scrollHeight += 40;
+  more();
+  assert.equal(button.textContent, '1 new message');
+  button.dispatchEvent(new Event('click'));
+  assert.equal(history.scrollTop, history.scrollHeight);
+  assert.equal(button.hidden, true);
+
+  resetHistoryPosition(element);
+  historyPosition(element, [message(100)])();
+  assert.equal(button.hidden, true);
 });
 
 await test('conversation change cannot reuse the old position before hiding history', () => {

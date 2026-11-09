@@ -76,7 +76,10 @@ export class DmHistory {
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): void {
-    const restore = historyPosition(current.history);
+    const restore = historyPosition(
+      current.history,
+      input.localMedia ? undefined : page.items,
+    );
     const pending = this.pending(page, input);
     const keep = new Set([
       ...page.items.map((item) => item.id),
@@ -112,6 +115,7 @@ export class DmHistory {
               remove: () => this.options.remove!(item),
             })),
     );
+    current.history.hidden = false;
     restore();
   }
   private pending(
@@ -170,7 +174,7 @@ export class DmHistory {
     if (replyId) {
       const original = page.items.find((row) => row.id === replyId);
       const quote = document.createElement('small');
-      quote.className = 'dm-reply-preview';
+      quote.className = 'chat-reply-quote';
       quote.textContent = original
         ? t('Replying to: {0}', [original.displayText.slice(0, 120)])
         : t('Reply: original message is outside this page or unavailable.');

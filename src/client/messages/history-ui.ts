@@ -159,11 +159,17 @@ export class MessageHistoryUi {
     }
     this.pending = null;
     const history = this.options.node('[data-message-history]');
-    if (!history) return;
-    const restoreScroll = historyPosition(history);
+    if (history) this.paint(history, update);
+  }
+  private paint(history: HTMLElement, update: HistoryUpdate): void {
+    const latest =
+      update === 'history' && !this.options.searchFocus?.active()
+        ? (this.views ?? undefined)
+        : undefined;
+    const restoreScroll = historyPosition(history, latest);
     this.renderContent(history, update);
     renderSearchReturn(history, this.options.searchFocus);
-    this.updateDeletion(history, rows);
+    this.updateDeletion(history, this.views);
     this.forwarding?.update();
     this.renderGate(history);
     this.renderPeer();
@@ -371,6 +377,7 @@ export class MessageHistoryUi {
   ): void {
     if (view.content.reply) {
       const reply = document.createElement('small');
+      reply.className = 'chat-reply-quote';
       const original = dailyViews(this.views ?? []).find(
         (row) => row.id === view.content.reply,
       );

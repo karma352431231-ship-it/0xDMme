@@ -447,6 +447,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '{0} MB used · {1} MB available out of {2} MB',
     '已使用 {0} MB · 总共 {2} MB，可用 {1} MB',
   ],
+  '{0} new message': ['{0} new message', '{0} 条新消息'],
+  '{0} new messages': ['{0} new messages', '{0} 条新消息'],
   '{0} unread messages': ['{0} unread messages', '{0} 条未读消息'],
   '{0} No audio was sent automatically.': [
     '{0} No audio was sent automatically.',

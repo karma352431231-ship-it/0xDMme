@@ -19,6 +19,13 @@
   color: inherit;
   background: transparent;
   text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.conversation-row:focus-visible {
+  outline-color: var(--text);
+}
+.conversation-row:focus:not(:focus-visible) {
+  outline: none;
 }
 .conversation-row:hover {
   background: var(--surface-2);

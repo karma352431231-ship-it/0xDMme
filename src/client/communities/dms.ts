@@ -20,7 +20,7 @@ import type {
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
-import { resetHistoryPosition } from '../chat-ui/index.ts';
+import { historyPosition, resetHistoryPosition } from '../chat-ui/index.ts';
 import { communityElement } from './elements.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
@@ -279,6 +279,7 @@ export function startSocialDmUi(
     history.clear();
     displayedPage = null;
     if (view) {
+      historyPosition(view.history);
       view.history.replaceChildren();
       view.history.hidden = true;
       clearDmChecks(view.history);
@@ -606,7 +607,6 @@ export function startSocialDmUi(
       selected,
       localMedia: !canWrite,
     });
-    current.history.hidden = false;
     depth.check();
     composer.update(composerState());
     return page;
@@ -891,7 +891,6 @@ export function startSocialDmUi(
           selected: id,
           localMedia: false,
         });
-        current.history.hidden = false;
         writable = true;
         composer.update(composerState());
       } else

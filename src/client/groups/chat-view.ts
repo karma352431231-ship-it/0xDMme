@@ -326,13 +326,18 @@ export class GroupChatView {
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
-    history.hidden = this.options.controller.historyPending;
     if (this.options.controller.historyPending) {
+      historyPosition(history);
+      history.hidden = true;
       this.messageActions.pause();
       return;
     }
     this.messageActions.resume(this.options.controller.views);
-    const restoreScroll = historyPosition(history);
+    const restoreScroll = historyPosition(
+      history,
+      this.options.controller.views,
+    );
+    history.hidden = false;
     const rows = this.options.controller.views.map((view, index, views) => ({
       id: view.id,
       sentAt: view.sentAt,
