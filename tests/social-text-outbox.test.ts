@@ -1,3 +1,9 @@
+import { ApiResponseError } from '../src/client/api-response/index.ts';
+import { createIdentity, aesKey } from '../src/client/device-keys/index.ts';
+import {
+  prepareEvent,
+  freshKeyring,
+} from '../src/client/device-operations/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -23,7 +29,7 @@ import {
   sealLocal,
 } from '../src/client/message-storage/index.ts';
 import type { VaultAccess } from '../src/client/vault-authority/index.ts';
-import { canonical, digest } from '../src/shared/devices/index.ts';
+import { canonical, digest, eventHash } from '../src/shared/devices/index.ts';
 
 await initAsync();
 function installStorage(t: TestContext): void {
@@ -89,14 +95,16 @@ async function fixture(t: TestContext) {
   const state = {
     loseResponse: false,
     rejectPublish: false,
+    beforePublish: null as ((packet: MessagePacket) => Promise<void>) | null,
   };
   const guard = (captured: number) => {
     if (captured !== generation) throw new Error('Session changed.');
   };
-  const publish = (input: Record<string, unknown>) => {
+  const publish = async (input: Record<string, unknown>) => {
+    const packet = input['packet'] as MessagePacket;
+    await state.beforePublish?.(packet);
     if (state.rejectPublish)
       return Promise.reject(new Error('Publication refused'));
-    const packet = input['packet'] as MessagePacket;
     packets.set(packet.id, packet);
     if (state.loseResponse) return Promise.reject(new Error('Response lost'));
     return Promise.resolve({ status: 'accepted' });
@@ -108,7 +116,9 @@ async function fixture(t: TestContext) {
         profile:
           input['peer'] === other.accountId ? other.accountId : peer.accountId,
         events: [
-          input['peer'] === other.accountId ? other.directory : peer.directory,
+          ...(input['peer'] === other.accountId
+            ? other.authority.events
+            : peer.authority.events),
         ],
         next: null,
         device: null,
@@ -288,10 +298,16 @@ await test('legacy public pending packets are adopted before new text without lo
   const restored = await queue.pendingTexts(value.peer);
   assert.deepEqual(
     restored.map((item) => item.id),
-    [value.id, next.id],
+    [value.id],
   );
-  assert.equal(await localGet(oldScope, name), null);
+  assert.ok(
+    await localGet(oldScope, name),
+    'The old binary can still find the original until confirmed.',
+  );
   const published: string[] = [];
+  await queue.sendPending({ published: (item) => published.push(item.id) });
+  assert.deepEqual(published, [value.id]);
+  assert.equal(await localGet(oldScope, name), null);
   await queue.sendPending({ published: (item) => published.push(item.id) });
   assert.deepEqual(published, [value.id, next.id]);
   assert.equal(f.packets.get(value.id)?.signature, packet.signature);
@@ -338,4 +354,137 @@ await test('a warm public burst reads peer metadata once and publishes sequentia
     'matrix-query',
     'publish',
   ]);
+});
+
+function publicationConflict(
+  message = 'Identity or devices changed. Encrypt again.',
+) {
+  return new ApiResponseError({
+    operation: 'messages/dm-publish',
+    status: 409,
+    failure: 'http',
+    message,
+    responseType: 'json',
+  });
+}
+async function advancePeer(peer: Awaited<ReturnType<typeof groupParticipant>>) {
+  const identity = await createIdentity(crypto.randomUUID(), 'DM device');
+  const ring = freshKeyring(peer.accountId, peer.ring);
+  const event = await prepareEvent({
+    accountId: peer.accountId,
+    previous: peer.authority.events.at(-1)!,
+    kind: 'recover',
+    signer: 'recovery',
+    signing: peer.recovery.signing,
+    root: peer.directory.root,
+    identities: [peer.identity.public, identity.public],
+    ring,
+    profile: null,
+  });
+  const authority = {
+    ...peer.authority,
+    directory: await eventHash(event),
+    epoch: ring.epoch,
+    events: [...peer.authority.events, event],
+    key: (epoch: number) => aesKey(ring.keys[epoch - 1]!),
+  };
+  return { event, recovery: await createRecoveryKey(authority) };
+}
+
+await test('a definite stale-recipient refusal refreshes its signed history and retries once with the same id', async (t) => {
+  const f = await fixture(t),
+    queue = f.create(),
+    value = draft(f.peer.accountId, 1);
+  const changed = await advancePeer(f.peer);
+  let attempts = 0;
+  f.state.beforePublish = () => {
+    if (++attempts !== 1) return Promise.resolve();
+    f.peer.authority.events.push(changed.event);
+    f.recovery[1] = changed.recovery;
+    return Promise.reject(publicationConflict());
+  };
+  await queue.queueText(value);
+  await queue.sendPending();
+  assert.equal(attempts, 2);
+  assert.equal(f.packets.size, 1);
+  assert.equal(f.packets.get(value.id)?.recipientRevision, 2);
+  assert.equal(f.operations.filter((op) => op === 'directory').length, 2);
+  assert.equal(f.operations.filter((op) => op === 'accepted').length, 0);
+});
+
+for (const reason of [
+  'Identity or devices changed. Encrypt again.',
+  'DM identifier already used.',
+]) {
+  await test(`a publication refusal without a newer signed recipient is not repeatedly retried: ${reason}`, async (t) => {
+    const f = await fixture(t),
+      queue = f.create(),
+      value = draft(f.peer.accountId, 1);
+    let attempts = 0;
+    f.state.beforePublish = () => {
+      attempts++;
+      return Promise.reject(publicationConflict(reason));
+    };
+    await queue.queueText(value);
+    await assert.rejects(queue.sendPending(), ApiResponseError);
+    assert.equal(attempts, 1);
+    assert.equal((await queue.pendingTexts(value.peer))[0]?.id, value.id);
+    assert.equal(f.packets.size, 0);
+  });
+}
+
+await test('more than sixteen legacy peers drain ahead of newly queued FIFO text across reloads', async (t) => {
+  const f = await fixture(t),
+    oldScope = `${f.owner.accountId}:${f.owner.deviceId}`;
+  const legacy: { id: string; peer: string }[] = [];
+  for (let index = 0; index < 17; index++) {
+    const peer = await groupParticipant({ deviceName: 'DM device' });
+    const id = crypto.randomUUID(),
+      text = 'Legacy synthetic draft ' + index;
+    const packet = await f.machine.encrypt({
+      authority: f.own.authority,
+      peerHistory: [peer.directory],
+      recovery: [f.recovery[0]!, await createRecoveryKey(peer.authority)],
+      id,
+      text,
+    });
+    const sealed = await sealLocal(
+      f.owner.authority,
+      id,
+      JSON.stringify({ packet, text, hash: await digest(canonical(packet)) }),
+    );
+    await localPut(
+      oldScope,
+      'dm-send:' + peer.accountId,
+      sealed,
+      sealed.bytes.length + 512,
+    );
+    f.packets.set(id, packet);
+    legacy.push({ id, peer: peer.accountId });
+  }
+  legacy.sort((a, b) => (a.peer < b.peer ? -1 : 1));
+  const fresh = [draft(f.peer.accountId, 0), draft(f.peer.accountId, 1)];
+  const queue = f.create();
+  for (const value of fresh) await queue.queueText(value);
+  const published: string[] = [];
+  const options = {
+    published: (item: { id: string }) => published.push(item.id),
+  };
+  assert.deepEqual(await queue.sendPending(options), { more: true });
+  assert.deepEqual(
+    published,
+    legacy.slice(0, 16).map((item) => item.id),
+  );
+  assert.deepEqual(await f.create().sendPending(options), { more: true });
+  assert.deepEqual(
+    published,
+    legacy.map((item) => item.id),
+  );
+  assert.deepEqual(await f.create().sendPending(options), { more: false });
+  assert.deepEqual(
+    published,
+    [...legacy, ...fresh].map((item) => item.id),
+  );
+  assert.equal(await localGet(oldScope, 'usage'), 0);
+  assert.equal(await localGet(f.scope, 'usage'), 0);
 });

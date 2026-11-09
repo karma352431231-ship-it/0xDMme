@@ -1,3 +1,4 @@
+import { ApiResponseError } from '../api-response/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { recoveryKey } from '../../shared/messages/index.ts';
@@ -48,7 +49,43 @@ export async function transmitSocialText(
     });
     await input.preserve(packet);
   }
-  await api('publish', { packet });
+  try {
+    await api('publish', { packet });
+  } catch (error: unknown) {
+    await retryChangedRecipient(context, { ...input, packet }, error);
+  }
+}
+
+/** Retry only a definite publication refusal caused by a newly signed peer
+ * directory, once. Unknown failures keep the retained packet for reconciliation. */
+async function retryChangedRecipient(
+  context: SocialContext,
+  input: TextTransmission & { packet: MessagePacket },
+  error: unknown,
+): Promise<void> {
+  if (
+    !(error instanceof ApiResponseError) ||
+    error.status !== 409 ||
+    error.reason !== 'Identity or devices changed. Encrypt again.'
+  )
+    throw error;
+  context.sendPeers.delete(input.peer);
+  const peer = await sendPeer(context, input.peer);
+  if (peer.directory.events.length === input.packet.recipientRevision)
+    throw error;
+  const packet = await context.machine.encrypt({
+    authority: context.authority,
+    peerHistory: peer.directory.events,
+    recovery: [
+      await ensureMessageRecovery(context.authority, context.api),
+      peer.recovery,
+    ],
+    id: input.id,
+    text: input.text,
+    ...(input.relation ? { relation: input.relation } : {}),
+  });
+  await input.preserve(packet);
+  await context.api('publish', { packet });
 }
 
 /** One authenticated burst pins each peer once; publication still checks the

@@ -12,6 +12,7 @@ import {
   outboxPage,
   removeOutbox,
   localPage,
+  localGet,
   localDelete,
   localPut,
   openLocal,
@@ -28,6 +29,7 @@ interface TextEntry {
   packet: MessagePacket | null;
   createdAt: number;
   outboxOrder?: string;
+  legacyName?: string;
 }
 export type PublicTextSendOptions = VaultWorkOptions & {
   published?: (draft: { id: string; peer: string }) => void;
@@ -72,7 +74,6 @@ export class SocialTextOutbox {
       !navigator.onLine,
       async (a) => {
         this.lifetime.guard(generation);
-        await this.adoptLegacy(a, generation);
         const value: TextEntry = {
           id: input.id,
           peer: input.peer,
@@ -108,9 +109,10 @@ export class SocialTextOutbox {
   private async adoptLegacy(
     a: VaultAuthority,
     generation: number,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const scope = `${a.session.accountId}:${a.session.deviceId}`;
     const page = await localPage<LocalCipher>(scope, 'dm-send:', null);
+    const names: string[] = [];
     for (const { name, value } of page.items) {
       const held = object(JSON.parse(await openLocal(a, value)) as unknown);
       const packet = socialPacket(held['packet']);
@@ -123,12 +125,49 @@ export class SocialTextOutbox {
         draft: await sealLocal(a, packet.id, held['text']),
         packet,
         createdAt: Date.now(),
+        legacyName: name,
       };
       this.lifetime.guard(generation);
       await this.enqueue(a, entry, generation);
-      this.lifetime.guard(generation);
-      await localDelete(scope, name);
+      names.push(`outbox:${packet.id}`);
     }
+    return names;
+  }
+  /** Older clients had no FIFO sequence. Drain their bounded ordered page
+   * before new FIFO entries; keep the original ciphertext until acceptance. */
+  private async pendingPage(a: VaultAuthority, generation: number) {
+    const legacy = await this.adoptLegacy(a, generation);
+    return outboxPage<TextEntry>(
+      this.scope(a),
+      legacy.length ? legacy : undefined,
+    );
+  }
+  private async forgetLegacy(
+    a: VaultAuthority,
+    entry: TextEntry,
+    generation: number,
+  ): Promise<void> {
+    if (!entry.legacyName) return;
+    if (entry.legacyName !== `dm-send:${entry.peer}`)
+      throw new Error('Invalid pending DM text.');
+    const scope = `${a.session.accountId}:${a.session.deviceId}`;
+    const old = await localGet<LocalCipher>(scope, entry.legacyName);
+    if (!old) return;
+    const held = object(JSON.parse(await openLocal(a, old)) as unknown);
+    this.lifetime.guard(generation);
+    if (socialPacket(held['packet']).id === entry.id)
+      await localDelete(scope, entry.legacyName);
+  }
+  private async hasMore(a: VaultAuthority): Promise<boolean> {
+    const legacy = await localPage<LocalCipher>(
+      `${a.session.accountId}:${a.session.deviceId}`,
+      'dm-send:',
+      null,
+    );
+    return (
+      legacy.items.length > 0 ||
+      (await outboxPage<TextEntry>(this.scope(a))).length > 0
+    );
   }
   async pendingTexts(
     peer: string,
@@ -139,8 +178,7 @@ export class SocialTextOutbox {
       !navigator.onLine,
       async (a) => {
         this.lifetime.guard(generation);
-        await this.adoptLegacy(a, generation);
-        const page = await outboxPage<TextEntry>(this.scope(a));
+        const page = await this.pendingPage(a, generation);
         this.lifetime.guard(generation);
         const result: TextDraft[] = [];
         for (const { value } of page) {
@@ -176,8 +214,7 @@ export class SocialTextOutbox {
       !navigator.onLine,
       async (a) => {
         this.lifetime.guard(generation);
-        await this.adoptLegacy(a, generation);
-        return outboxPage<TextEntry>(this.scope(a));
+        return this.pendingPage(a, generation);
       },
       options,
     );
@@ -202,9 +239,13 @@ export class SocialTextOutbox {
         this.lifetime.guard(generation);
         options.published?.({ id: value.id, peer: value.peer });
         await removeOutbox(scope, name);
+        this.lifetime.guard(generation);
+        await this.forgetLegacy(context.privateAuthority, value, generation);
       }
       this.lifetime.guard(generation);
-      return { more: (await outboxPage<TextEntry>(scope)).length > 0 };
+      const more = await this.hasMore(context.privateAuthority);
+      this.lifetime.guard(generation);
+      return { more };
     }, options);
   }
 }
