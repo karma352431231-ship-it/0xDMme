@@ -125,7 +125,7 @@ export class SocialMatrixStore {
     return result.rows[0]?.count ?? 0;
   }
   async query(authority: ContactAuthority, profiles: string[]) {
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       await this.allow(context, profiles);
       const rows = await context.client.query<{
         profile_id: string;
@@ -283,7 +283,7 @@ export class SocialMatrixStore {
       throw new AccountError(403, 'Cryptographic destination does not match.');
   }
   async inbox(authority: ContactAuthority) {
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       const device = await this.crypto.ownDevice(context);
       const rows = await context.client.query<{
         sequence: string;

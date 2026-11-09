@@ -22,16 +22,19 @@ export class SocialReadReceipts {
     const peer = uuid(data['peer']),
       read = messageIds(data['read']),
       own = messageIds(data['own']);
-    return this.social.withActor(authority, async (context) => {
+    const work = async (context: SocialContext) => {
       await this.social.requireConversation(context, peer);
       if (read.length) await this.share(context, peer, read);
       return this.own(context, own, [peer]);
-    });
+    };
+    return read.length
+      ? this.social.withActor(authority, work)
+      : this.social.withActorRead(authority, work);
   }
   async preview(authority: ContactAuthority, data: Record<string, unknown>) {
     keys(data, ['own']);
     const own = messageIds(data['own']);
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       const result = await context.client.query<{ recipient: string }>(
         "SELECT DISTINCT recipient FROM hash_talk.social_messages WHERE sender=$1 AND id=ANY($2::uuid[]) AND body IS NOT NULL AND body->>'kind'<>'deleted'",
         [context.actor.id, own],

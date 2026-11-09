@@ -32,7 +32,7 @@ export class SocialDmStore {
     this.profiles = input.profiles;
     this.capacity = input.capacity;
   }
-  /** All social effects share the existing short device/session admission transaction. */
+  /** Mutations exclude concurrent consent and device changes until commit. */
   async withActor<T>(
     authority: ContactAuthority,
     work: (context: SocialContext) => Promise<T>,
@@ -44,6 +44,37 @@ export class SocialDmStore {
       );
       return work({ client, actor, authority });
     });
+  }
+  /** Read-only social work shares admission without weakening session revocation. */
+  async withActorRead<T>(
+    authority: ContactAuthority,
+    work: (context: SocialContext) => Promise<T>,
+  ): Promise<T> {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      const actor = await this.profiles.identity(
+        client,
+        authority.session.accountId,
+      );
+      return work({ client, actor, authority });
+    });
+  }
+  /** Message publication locks both accounts; unrelated participant sets coexist. */
+  withConversationAuthority<T>(
+    authority: ContactAuthority,
+    peer: string,
+    work: (context: SocialContext) => Promise<T>,
+  ): Promise<T> {
+    return this.contacts.withMessageParticipants(
+      authority,
+      (client) => this.profiles.accountFor(client, peer),
+      async (client) => {
+        const actor = await this.profiles.identity(
+          client,
+          authority.session.accountId,
+        );
+        return work({ client, actor, authority });
+      },
+    );
   }
   /** Author deletions hold the original participants' locks in the same admission transaction. */
   withMessageMutation<T>(
@@ -205,7 +236,7 @@ export class SocialDmStore {
     authority: ContactAuthority,
     peer: string,
   ): Promise<SocialRelation | null> {
-    return this.withActor(authority, async (context) => {
+    return this.withActorRead(authority, async (context) => {
       const target = await this.target(context, peer),
         row = await this.relation(context, peer);
       if (row) return this.projection(context, row, target);
@@ -224,7 +255,7 @@ export class SocialDmStore {
     });
   }
   async list(authority: ContactAuthority, after: string | null) {
-    return this.withActor(authority, async (context) => {
+    return this.withActorRead(authority, async (context) => {
       const rows = await context.client.query<
         SocialRelationRow & { peer: string }
       >(

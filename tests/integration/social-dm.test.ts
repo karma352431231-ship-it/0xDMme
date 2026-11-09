@@ -419,6 +419,69 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
     },
   );
   await t.test(
+    'read-only public DM checks and publication coexist with shared admission',
+    async () => {
+      const own = await am.encrypt({
+        authority: a.authority,
+        peerHistory: b.authority.events,
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Shared admission fixture',
+      });
+      const hash = await digest(canonical(own));
+      const snapshot = await operate(bob, 'personal-snapshot', {});
+      await inspector.query('BEGIN');
+      await inspector.query(
+        "SELECT pg_advisory_xact_lock_shared(hashtext('hash-talk:contact-admission'))",
+      );
+      const checks = Promise.all([
+        operate(alice, 'list', { after: null }),
+        operate(alice, 'state', { peer: bp.id }),
+        operate(alice, 'profile', { peer: bp.id }),
+        operate(alice, 'directory', { peer: bp.id, after: 0 }),
+        operate(alice, 'secret-get', {}),
+        operate(alice, 'recovery-current', {}),
+        operate(alice, 'recovery-peer', { accountId: bp.id }),
+        operate(alice, 'matrix-query', {
+          sdk: { device_keys: { [`@${bp.id}:0xdmme.app`]: [] } },
+        }),
+        operate(alice, 'matrix-inbox', {}),
+        operate(alice, 'page', { peer: bp.id, before: null }),
+        operate(alice, 'message-status', {
+          peer: bp.id,
+          read: [],
+          own: [packet.id],
+        }),
+        operate(alice, 'preview-status', { own: [packet.id] }),
+        operate(alice, 'unread', { peers: [bp.id] }),
+        operate(bob, 'personal-page', { snapshot, after: 0 }),
+        operate(alice, 'accepted', {
+          id: packet.id,
+          hash: await digest(canonical(packet)),
+        }),
+      ]);
+      try {
+        await waitForBoundary(checks);
+        await waitForBoundary(operate(alice, 'publish', { packet: own }));
+        assert.equal(
+          await operate(alice, 'accepted', { id: own.id, hash }),
+          true,
+        );
+      } finally {
+        await inspector.query('ROLLBACK');
+        await checks;
+        await inspector.query(
+          'DELETE FROM hash_talk.social_receipts WHERE message_id=$1',
+          [own.id],
+        );
+        await inspector.query(
+          'DELETE FROM hash_talk.social_messages WHERE id=$1',
+          [own.id],
+        );
+      }
+    },
+  );
+  await t.test(
     'full personal vault rejects DM before acceptance and rolls back its write',
     async () => {
       const another = await am.encrypt({
@@ -926,7 +989,59 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
           [packet.id],
         )
       ).rows[0]!.hash;
-      await operate(bob, 'received', { items: [{ id: packet.id, hash }] });
+      const deliverySignals: unknown[] = [];
+      const stopDeliverySignals = db.changes.subscribe({
+        notify: (change) =>
+          deliverySignals.push({
+            accounts: change.accounts,
+            categories: change.categories,
+          }),
+        failed: () => assert.fail('Delivery signal failed'),
+      });
+      try {
+        await operate(alice, 'received', { items: [{ id: packet.id, hash }] });
+        assert.deepEqual(
+          deliverySignals,
+          [],
+          'Sender ACK is not recipient delivery.',
+        );
+        await assert.rejects(
+          operate(bob, 'received', {
+            items: [
+              { id: packet.id, hash },
+              { id: crypto.randomUUID(), hash },
+            ],
+          }),
+          { status: 410 },
+        );
+        assert.deepEqual(
+          deliverySignals,
+          [],
+          'Rolled-back receipts emit no hint.',
+        );
+        await assert.rejects(
+          operate(outsider, 'received', { items: [{ id: packet.id, hash }] }),
+          { status: 410 },
+        );
+        await Promise.all(
+          [0, 1].map(() =>
+            operate(bob, 'received', { items: [{ id: packet.id, hash }] }),
+          ),
+        );
+        await operate(bob, 'received', { items: [{ id: packet.id, hash }] });
+        assert.deepEqual(
+          deliverySignals,
+          [
+            {
+              accounts: [alice.login.session.accountId],
+              categories: ['handle-receipts'],
+            },
+          ],
+          'First actual recipient delivery wakes only the sender, with read sharing disabled.',
+        );
+      } finally {
+        stopDeliverySignals();
+      }
       const request = () =>
         operate(bob, 'message-status', {
           peer: ap.id,
@@ -1192,26 +1307,30 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
       // Exercise the production admission transaction used by publish and the real
       // snapshot/page readers. Packet crypto validity is covered above.
       const insert = (index: number) =>
-        db.socialDm.withActor(aliceAuthority, async (context) => {
-          const body = packets[index]!;
-          const row = await context.client.query<{ sequence: string }>(
-            'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6) RETURNING sequence::text',
-            [
-              body.id,
-              body.sender,
-              body.recipient,
-              await digest(canonical(body)),
-              JSON.stringify(body),
-              Buffer.byteLength(JSON.stringify(body)) + 512,
-            ],
-          );
-          const sequence = Number(row.rows[0]!.sequence);
-          if (index === 0) {
-            entered.resolve(sequence);
-            await release.promise;
-          }
-          return sequence;
-        });
+        db.socialDm.withConversationAuthority(
+          aliceAuthority,
+          bp.id,
+          async (context) => {
+            const body = packets[index]!;
+            const row = await context.client.query<{ sequence: string }>(
+              'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6) RETURNING sequence::text',
+              [
+                body.id,
+                body.sender,
+                body.recipient,
+                await digest(canonical(body)),
+                JSON.stringify(body),
+                Buffer.byteLength(JSON.stringify(body)) + 512,
+              ],
+            );
+            const sequence = Number(row.rows[0]!.sequence);
+            if (index === 0) {
+              entered.resolve(sequence);
+              await release.promise;
+            }
+            return sequence;
+          },
+        );
       const lower = insert(0);
       const firstSequence = await waitForBoundary(entered.promise);
       let snapshotSettled = false;
@@ -1226,13 +1345,13 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
             const deadline = Date.now() + 2500;
             while (Date.now() < deadline) {
               const waiting = await inspector.query<{ count: number }>(
-                "SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%contact-admission%'",
+                "SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%hash_talk.accounts%'",
               );
               if (waiting.rows[0]!.count >= 2) return;
               await new Promise<void>((resolve) => setTimeout(resolve, 2));
             }
             throw new Error(
-              'Concurrent readers did not reach the admission lock.',
+              'Concurrent readers did not reach the participant locks.',
             );
           })(),
         );

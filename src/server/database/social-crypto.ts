@@ -81,7 +81,7 @@ export class SocialCryptoStore {
     authority: ContactAuthority,
     input: { peer: string | null; after: number },
   ) {
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       const profile = input.peer ?? context.actor.id;
       await this.social.requireConversation(context, profile);
       const rows = await context.client.query<{ body: DirectoryEvent }>(
@@ -224,24 +224,32 @@ export class SocialCryptoStore {
     authority: ContactAuthority,
     input: { peer?: string; id?: string; key?: unknown },
   ) {
-    return this.social.withActor(authority, async (context) => {
-      const profile = input.peer ?? context.actor.id;
-      await this.social.requireConversation(context, profile);
-      if (input.id && profile !== context.actor.id)
-        throw new AccountError(
-          403,
-          'Historical recovery restricted to the owner.',
-        );
-      const current = await this.ready(context, profile);
-      if (input.key !== undefined) {
-        await this.registerRecovery(context, current, input.key);
-      }
-      const result = await context.client.query<{ body: RecoveryKey }>(
-        `SELECT body FROM hash_talk.social_recovery WHERE profile_id=$1 AND ${input.id ? 'id=$2' : 'epoch=$2'}`,
-        [profile, input.id ?? current.epoch],
+    const work = (context: SocialContext) =>
+      this.recoveryInContext(context, input);
+    return input.key === undefined
+      ? this.social.withActorRead(authority, work)
+      : this.social.withActor(authority, work);
+  }
+  private async recoveryInContext(
+    context: SocialContext,
+    input: { peer?: string; id?: string; key?: unknown },
+  ): Promise<RecoveryKey | null> {
+    const profile = input.peer ?? context.actor.id;
+    await this.social.requireConversation(context, profile);
+    if (input.id && profile !== context.actor.id)
+      throw new AccountError(
+        403,
+        'Historical recovery restricted to the owner.',
       );
-      return result.rows[0]?.body ?? null;
-    });
+    const current = await this.ready(context, profile);
+    if (input.key !== undefined) {
+      await this.registerRecovery(context, current, input.key);
+    }
+    const result = await context.client.query<{ body: RecoveryKey }>(
+      `SELECT body FROM hash_talk.social_recovery WHERE profile_id=$1 AND ${input.id ? 'id=$2' : 'epoch=$2'}`,
+      [profile, input.id ?? current.epoch],
+    );
+    return result.rows[0]?.body ?? null;
   }
   private async registerRecovery(
     context: SocialContext,
@@ -267,57 +275,62 @@ export class SocialCryptoStore {
   }
   async publish(authority: ContactAuthority, raw: unknown) {
     const packet = socialPacket(raw);
-    return this.social.withActor(authority, async (context) => {
-      await this.social.requireConversation(context, packet.recipient);
-      const sender = await this.ready(context),
-        recipient = await this.ready(context, packet.recipient),
-        device = await this.ownDevice(context);
-      if (
-        packet.sender !== context.actor.id ||
-        packet.deviceId !== device ||
-        packet.senderDirectory !== (await eventHash(sender)) ||
-        packet.recipientDirectory !== (await eventHash(recipient)) ||
-        packet.recipientRevision !== recipient.revision
-      )
-        throw new AccountError(
-          409,
-          'Identity or devices changed. Encrypt again.',
-        );
-      await verifyPacket(packet, sender);
-      await this.assertRecovery(context, packet, [sender, recipient]);
-      const hash = await digest(canonical(packet));
-      const existing = await context.client.query<{
-        hash: string;
-        sender: string;
-        body: unknown;
-      }>('SELECT hash,sender,body FROM hash_talk.social_messages WHERE id=$1', [
-        packet.id,
-      ]);
-      if (existing.rows[0]) {
+    return this.social.withConversationAuthority(
+      authority,
+      packet.recipient,
+      async (context) => {
+        await this.social.requireConversation(context, packet.recipient);
+        const sender = await this.ready(context),
+          recipient = await this.ready(context, packet.recipient),
+          device = await this.ownDevice(context);
         if (
-          existing.rows[0].hash !== hash ||
-          existing.rows[0].sender !== context.actor.id ||
-          !existing.rows[0].body
+          packet.sender !== context.actor.id ||
+          packet.deviceId !== device ||
+          packet.senderDirectory !== (await eventHash(sender)) ||
+          packet.recipientDirectory !== (await eventHash(recipient)) ||
+          packet.recipientRevision !== recipient.revision
         )
-          throw new AccountError(409, 'DM identifier already used.');
+          throw new AccountError(
+            409,
+            'Identity or devices changed. Encrypt again.',
+          );
+        await verifyPacket(packet, sender);
+        await this.assertRecovery(context, packet, [sender, recipient]);
+        const hash = await digest(canonical(packet));
+        const existing = await context.client.query<{
+          hash: string;
+          sender: string;
+          body: unknown;
+        }>(
+          'SELECT hash,sender,body FROM hash_talk.social_messages WHERE id=$1',
+          [packet.id],
+        );
+        if (existing.rows[0]) {
+          if (
+            existing.rows[0].hash !== hash ||
+            existing.rows[0].sender !== context.actor.id ||
+            !existing.rows[0].body
+          )
+            throw new AccountError(409, 'DM identifier already used.');
+          return { status: 'accepted', hash };
+        }
+        await admitSocialAction(context, packet);
+        await this.admitMedia(context, packet);
+        const body = JSON.stringify(packet),
+          charge = Buffer.byteLength(body) + 512;
+        await context.client.query(
+          'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6)',
+          [packet.id, packet.sender, packet.recipient, hash, body, charge],
+        );
+        await context.client.query(
+          'INSERT INTO hash_talk.social_receipts(message_id,profile_id,device_id,received) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING',
+          [packet.id, packet.sender, authority.session.deviceId],
+        );
+        await this.social.limits(context, [packet.sender, packet.recipient]);
+        await this.social.changed(context, [packet.sender, packet.recipient]);
         return { status: 'accepted', hash };
-      }
-      await admitSocialAction(context, packet);
-      await this.admitMedia(context, packet);
-      const body = JSON.stringify(packet),
-        charge = Buffer.byteLength(body) + 512;
-      await context.client.query(
-        'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6)',
-        [packet.id, packet.sender, packet.recipient, hash, body, charge],
-      );
-      await context.client.query(
-        'INSERT INTO hash_talk.social_receipts(message_id,profile_id,device_id,received) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING',
-        [packet.id, packet.sender, authority.session.deviceId],
-      );
-      await this.social.limits(context, [packet.sender, packet.recipient]);
-      await this.social.changed(context, [packet.sender, packet.recipient]);
-      return { status: 'accepted', hash };
-    });
+      },
+    );
   }
   private async admitMedia(
     context: SocialContext,
@@ -332,7 +345,7 @@ export class SocialCryptoStore {
     id: string,
     hash: string,
   ): Promise<boolean> {
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       const result = await context.client.query<{
         sender: string;
         hash: string;
@@ -385,7 +398,7 @@ export class SocialCryptoStore {
     authority: ContactAuthority,
     input: { peer: string; before: number | null },
   ) {
-    return this.social.withActor(authority, async (context) => {
+    return this.social.withActorRead(authority, async (context) => {
       await this.social.requireConversation(context, input.peer);
       const rows = await context.client.query<{
         sequence: string;

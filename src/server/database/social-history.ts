@@ -39,33 +39,38 @@ export class SocialHistoryStore {
     this.profiles = profiles;
   }
   async secret(a: ContactAuthority, raw?: unknown) {
-    return this.social.withActor(a, async (context) => {
-      if (raw !== undefined) {
-        const body = object(raw);
-        keys(body, ['id', 'epoch', 'hash', 'bytes', 'ciphertext']);
-        uuid(body['id']);
-        integer(body['epoch'], 128);
-        fingerprint(body['hash']);
-        const ciphertext = base64(body['ciphertext'], 2048);
-        if (
-          ciphertext.length < 29 ||
-          body['bytes'] !== ciphertext.length ||
-          (await bytesHash(ciphertext)) !== body['hash']
-        )
-          throw new AccountError(400, 'Invalid DM identity capsule.');
-        const text = JSON.stringify(body);
-        await context.client.query(
-          'INSERT INTO hash_talk.social_personal_secrets(profile_id,body,charge) VALUES($1,$2::jsonb,$3) ON CONFLICT DO NOTHING',
-          [context.actor.id, text, Buffer.byteLength(text) + 512],
-        );
-        await this.social.limits(context);
-      }
-      const rows = await context.client.query<{ body: unknown }>(
-        'SELECT body FROM hash_talk.social_personal_secrets WHERE profile_id=$1',
-        [context.actor.id],
+    if (raw === undefined)
+      return this.social.withActorRead(a, (context) =>
+        this.readSecret(context),
       );
-      return rows.rows[0]?.body ?? null;
+    return this.social.withActor(a, async (context) => {
+      const body = object(raw);
+      keys(body, ['id', 'epoch', 'hash', 'bytes', 'ciphertext']);
+      uuid(body['id']);
+      integer(body['epoch'], 128);
+      fingerprint(body['hash']);
+      const ciphertext = base64(body['ciphertext'], 2048);
+      if (
+        ciphertext.length < 29 ||
+        body['bytes'] !== ciphertext.length ||
+        (await bytesHash(ciphertext)) !== body['hash']
+      )
+        throw new AccountError(400, 'Invalid DM identity capsule.');
+      const text = JSON.stringify(body);
+      await context.client.query(
+        'INSERT INTO hash_talk.social_personal_secrets(profile_id,body,charge) VALUES($1,$2::jsonb,$3) ON CONFLICT DO NOTHING',
+        [context.actor.id, text, Buffer.byteLength(text) + 512],
+      );
+      await this.social.limits(context);
+      return this.readSecret(context);
     });
+  }
+  private async readSecret(context: SocialContext): Promise<unknown> {
+    const rows = await context.client.query<{ body: unknown }>(
+      'SELECT body FROM hash_talk.social_personal_secrets WHERE profile_id=$1',
+      [context.actor.id],
+    );
+    return rows.rows[0]?.body ?? null;
   }
   async snapshot(a: ContactAuthority): Promise<SocialSnapshot | null> {
     return this.social.withOptionalActorRead(a, async (context) => {
@@ -113,7 +118,7 @@ export class SocialHistoryStore {
       deletions?: boolean;
     },
   ) {
-    return this.social.withActor(a, async (context) => {
+    return this.social.withActorRead(a, async (context) => {
       await this.stable(context, input.snapshot);
       const rows = await context.client.query<{
         id: string;
@@ -201,7 +206,7 @@ export class SocialHistoryStore {
     a: ContactAuthority,
     input: { message: string; after: number },
   ) {
-    return this.social.withActor(a, async (context) => {
+    return this.social.withActorRead(a, async (context) => {
       const owned = await this.owned(context.client, a, input.message);
       const through = owned.body.senderRevision;
       const rows = await context.client.query<{ body: DirectoryEvent }>(
@@ -257,16 +262,30 @@ export class SocialHistoryStore {
     items: { id: string; hash: string }[],
   ): Promise<void> {
     await this.social.withActor(a, async (context) => {
+      const senders = new Set<string>();
       for (const item of items) {
         const row = await this.owned(context.client, a, item.id);
         if (row.hash !== item.hash)
           throw new AccountError(409, 'DM confirmation does not match.');
-        await context.client.query(
+        const prior = await context.client.query(
+          'SELECT 1 FROM hash_talk.social_receipts WHERE message_id=$1 AND profile_id=$2 AND received LIMIT 1',
+          [item.id, row.recipient],
+        );
+        const saved = await context.client.query(
           'INSERT INTO hash_talk.social_receipts(message_id,profile_id,device_id,received) VALUES($1,$2,$3,true) ON CONFLICT(message_id,profile_id,device_id) DO UPDATE SET received=true WHERE NOT hash_talk.social_receipts.received',
           [item.id, context.actor.id, a.session.deviceId],
         );
+        if (
+          saved.rowCount &&
+          !prior.rowCount &&
+          context.actor.id === row.recipient &&
+          row.body.kind !== 'deleted'
+        )
+          senders.add(row.sender);
       }
       await this.social.limits(context);
+      if (senders.size)
+        await this.social.changed(context, [...senders], 'handle-receipts');
     });
   }
   cleanupParticipants(

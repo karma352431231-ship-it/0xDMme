@@ -152,7 +152,7 @@ export class SocialDmService {
       },
       'dm-profile': (a, d) => {
         keys(d, ['peer']);
-        return db.socialDm.withActor(a, (c) =>
+        return db.socialDm.withActorRead(a, (c) =>
           db.socialDm.target(c, uuid(d['peer'])),
         );
       },

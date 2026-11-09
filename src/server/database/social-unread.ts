@@ -13,7 +13,7 @@ export async function socialUnread(input: {
   if (!Array.isArray(raw) || raw.length > 16)
     throw new AccountError(400, 'Invalid DM page.');
   const peers = [...new Set(raw.map(uuid))];
-  return input.social.withActor(input.authority, async (context) => {
+  return input.social.withActorRead(input.authority, async (context) => {
     const allowed = await input.social.deliveryBatch(context, peers);
     const result = await context.client.query<{
       peer: string;
