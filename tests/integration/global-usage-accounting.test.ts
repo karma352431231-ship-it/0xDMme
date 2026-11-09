@@ -427,7 +427,7 @@ await test('statement global accounting preserves populated history and avoids p
     },
   );
   await t.test(
-    'existing and new ranking sources retain statement accounting for all three write events',
+    'existing, ranking and view-once sources retain statement accounting for all three write events',
     async () => {
       const actual = (
         await writer.query<{
@@ -449,6 +449,7 @@ await test('statement global accounting preserves populated history and avoids p
             'community_post_engagement',
             'community_share_clicks',
             'profile_ranking_state',
+            'view_once_payloads',
           ].map((name) => ({ name, events: 28 })),
         ].sort((a, b) => a.name.localeCompare(b.name)),
       );
