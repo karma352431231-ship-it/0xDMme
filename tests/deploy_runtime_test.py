@@ -13,6 +13,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'infra/staging'))
 import deploy_runtime as runtime
+from deploy_review_fixtures import reviewed_runtime_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,7 +22,7 @@ class RuntimeTests(unittest.TestCase):
     def candidate(self, directory):
         root = Path(directory)
         (root/'dist').mkdir();(root/'node_modules').mkdir()
-        (root/'package-lock.json').write_bytes((ROOT/'package-lock.json').read_bytes())
+        (root/'package-lock.json').write_bytes(reviewed_runtime_lock())
         return root
 
     def archive(self, entries):

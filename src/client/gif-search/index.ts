@@ -1,3 +1,4 @@
+import { requestApi } from '../api-transport/index.ts';
 import {
   t,
   translatedError,
@@ -133,7 +134,7 @@ export class GifSearch {
     return page;
   }
   private apiKey(): Promise<string | null> {
-    this.key ??= fetch('/api/account/config', {
+    this.key ??= requestApi('/api/account/config', {
       credentials: 'same-origin',
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),

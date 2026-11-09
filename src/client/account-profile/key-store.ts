@@ -17,6 +17,7 @@ function keyTransaction(
   const transaction = database.transaction(
     'keys',
     candidate ? 'readwrite' : 'readonly',
+    { durability: 'strict' },
   );
   let result: CryptoKey | null = null;
   const store = transaction.objectStore('keys');

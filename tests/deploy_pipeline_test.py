@@ -22,6 +22,7 @@ import deploy_remote as remote
 import deploy_blocks45 as backups
 import deploy_runtime as runtime
 import deploy_reviewed_code as reviewed_code
+from deploy_review_fixtures import reviewed_runtime_lock
 
 
 def manifest():
@@ -287,10 +288,9 @@ print('restored')
             self.assertEqual(command.call_args.args[0], ['/usr/bin/node', '--version'])
 
     def reviewed_probe_locks(self):
-        # Reconstruct the previous lock from the current reviewed npm lock. The
-        # exact digest asserts no other change is hidden by this reconstruction;
-        # CI's shallow checkout does not need historical Git objects or fixtures.
-        current_lock = json.loads((deploy.ROOT / 'package-lock.json').read_bytes())
+        # Reconstruct only from the immutable reviewed fixture. Current mobile
+        # dependencies cannot redefine this historical deployment authorization.
+        current_lock = json.loads(reviewed_runtime_lock())
         # QR belongs to a later local feature, outside this historical exception.
         # Its removal reconstructs the old exact lock; pinned hashes still guard
         # against any other unreviewed change. This does not approve QR deploys.
@@ -887,7 +887,7 @@ class DailyDeploymentTests(AttachmentDeploymentTests):
     table_name = 'daily_controls'
 
     def test_only_exact_reviewed_sources_and_predecessor_allow_migration(self):
-        incoming_lock = json.loads((deploy.ROOT / 'package-lock.json').read_bytes())
+        incoming_lock = json.loads(reviewed_runtime_lock())
         old_lock = json.loads(json.dumps(incoming_lock))
         old_lock['packages']['']['dependencies'].pop('web-push')
         old_lock['packages']['']['devDependencies'].pop('@types/web-push')
@@ -906,7 +906,7 @@ class DailyDeploymentTests(AttachmentDeploymentTests):
         with tempfile.TemporaryDirectory() as directory:
             old, new = Path(directory) / 'old', Path(directory) / 'new'
             self.migrations(new)
-            package = json.loads((deploy.ROOT / 'package.json').read_bytes())
+            package = json.loads(reviewed_runtime_lock())['packages']['']
             old_package = json.loads(json.dumps(package))
             old_package['dependencies'].pop('web-push')
             old_package['devDependencies'].pop('@types/web-push')
@@ -914,7 +914,7 @@ class DailyDeploymentTests(AttachmentDeploymentTests):
                         'package-lock.json':old_bytes, '.nvmrc':b'24.14.0'}
             incoming = dict(previous, **{'src/main.ts':b'reviewed',
                 'package.json':json.dumps(package).encode(),
-                'package-lock.json':(deploy.ROOT / 'package-lock.json').read_bytes()})
+                'package-lock.json':reviewed_runtime_lock()})
             for path in (new / 'src/server/database/migrations').iterdir():
                 name = str(path.relative_to(new)); incoming[name] = path.read_bytes()
                 if not path.name.startswith('018'): previous[name] = path.read_bytes()

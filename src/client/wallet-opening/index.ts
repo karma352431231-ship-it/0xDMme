@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { currentLanguage } from '../../shared/i18n/index.ts';
 import {
@@ -181,7 +182,7 @@ export async function readLoginOpening(session: AccountSession) {
   keys(data, ['request', 'envelope']);
   const request = await openingRequest(data['request']);
   const transfer = request.transfer;
-  recoveryIdentity(transfer.config, session, location.origin);
+  recoveryIdentity(transfer.config, session, applicationOrigin());
   const identity = await storedOpeningReceiverIdentity(current.receiver);
   if (
     transfer.ticket !== current.ticket ||
@@ -238,7 +239,7 @@ export async function signLoginOpening(input: {
   if (
     transfer.ticket !== input.ticket ||
     transfer.wallet !== input.wallet.name ||
-    transfer.config.origin !== location.origin
+    transfer.config.origin !== applicationOrigin()
   )
     throw new Error('Opening request does not match.');
   input.current();

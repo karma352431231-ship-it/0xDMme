@@ -17,6 +17,13 @@ export default defineConfig(
       'build/**',
       'coverage/**',
       '.local/**',
+      // Capacitor copies compiled assets/bridge code here; sources stay checked.
+      'mobile/android/app/src/main/assets/**',
+      'mobile/android/app/build/**',
+      'mobile/android/capacitor-android/build/**',
+      'mobile/android/capacitor-cordova-android-plugins/**',
+      'mobile/ios/App/App/public/**',
+      'mobile/ios/capacitor-cordova-ios-plugins/**',
     ],
   },
   {

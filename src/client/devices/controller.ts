@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
@@ -559,14 +560,17 @@ export class DeviceController {
   }
   private async synchronize(session: AccountSession): Promise<void> {
     this.assertSession(session);
-    this.directoryReadAt = null;
     const generation = this.generation;
     try {
       await this.readDirectory(session, generation);
     } catch (error: unknown) {
-      // A failed read withdraws this session's authorization, never that of a
-      // replacement session completed while this operation awaited I/O.
-      if (generation === this.generation) this.ring = null;
+      // A failed read withdraws only this session's authority. A replacement
+      // session may have completed its own verification while this read waited.
+      if (generation === this.generation) {
+        this.ring = null;
+        this.directoryReadAt = null;
+        this.verified = null;
+      }
       throw error;
     }
   }
@@ -585,59 +589,77 @@ export class DeviceController {
       trustedRoot === checkpoint.trustedRoot
         ? saveCheckpoint
         : advanceCheckpoint;
-    await persist(session.accountId, {
-      events,
+    await persist(session.accountId, { events, trustedRoot });
+    const authority = await this.directoryAuthority(
+      session,
+      current,
       trustedRoot,
-    });
+    );
+    const verified =
+      authority.ring && current
+        ? { directory: await eventHash(current), events: events.length }
+        : null;
     this.assertSession(session);
-    this.current = current;
-    this.serverTime = serverTime;
-    this.events = events;
-    this.trustedRoot = trustedRoot;
+    if (generation !== this.generation) throw new Error('Session changed.');
+    this.publishDirectory({
+      current,
+      events,
+      serverTime,
+      trustedRoot,
+      ...authority,
+      verified,
+    });
+  }
+  /** Publish one complete snapshot; pending reads retain the last verified view. */
+  private publishDirectory(input: {
+    current: DirectoryEvent | null;
+    events: DirectoryEvent[];
+    serverTime: string;
+    trustedRoot: string | null;
+    ring: Keyring | null;
+    keysLost: boolean;
+    verified: { directory: string; events: number } | null;
+  }): void {
+    this.current = input.current;
+    this.serverTime = input.serverTime;
+    this.events = input.events;
+    this.trustedRoot = input.trustedRoot;
+    this.ring = input.ring;
+    this.keysLost = input.keysLost;
+    this.directoryReadAt = input.ring ? performance.now() : null;
+    this.verified = input.verified;
     if (
       this.receiptTarget &&
-      !current?.devices.some((device) => device.id === this.receiptTarget)
+      !input.current?.devices.some((device) => device.id === this.receiptTarget)
     ) {
       this.receipt = '';
       this.receiptTarget = null;
     }
-    await this.openDirectoryRing(session, current);
+    if (input.verified) this.signingLane.verifiedChanged();
   }
-  /** Replaces the ring only with the verified result, so a read in progress
-   * never looks like lost authorization to this tab's other callers. */
-  private async openDirectoryRing(
+  /** Derive authority against the pending root without publishing partial state. */
+  private async directoryAuthority(
     session: AccountSession,
     current: DirectoryEvent | null,
-  ): Promise<void> {
-    this.ring = await this.directoryRing(session, current);
-    if (this.ring) this.directoryReadAt = performance.now();
-    this.verified =
-      this.ring && current
-        ? { directory: await eventHash(current), events: this.events.length }
-        : null;
-    if (this.verified) this.signingLane.verifiedChanged();
-  }
-  private async directoryRing(
-    session: AccountSession,
-    current: DirectoryEvent | null,
-  ): Promise<Keyring | null> {
+    trustedRoot: string | null,
+  ): Promise<{ ring: Keyring | null; keysLost: boolean }> {
     const identity = this.identity;
     const listed = current?.devices.find(
       (device) => device.id === session.deviceId,
     );
     const rootTrusted =
       current !== null &&
-      this.trustedRoot === (await digest(canonical(current.root)));
+      trustedRoot === (await digest(canonical(current.root)));
     this.assertSession(session);
-    this.keysLost = deviceKeysLost({
+    const keysLost = deviceKeysLost({
       local: identity?.public,
       listed,
       rootTrusted,
-      rootPinned: this.trustedRoot !== null,
+      rootPinned: trustedRoot !== null,
     });
-    if (!current || !identity || !listed || !rootTrusted || this.keysLost)
-      return null;
-    return deviceSecrets(identity, current);
+    if (!current || !identity || !listed || !rootTrusted || keysLost)
+      return { ring: null, keysLost };
+    return { ring: await deviceSecrets(identity, current), keysLost };
   }
   private async reconciledRoot(
     checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
@@ -689,7 +711,7 @@ export class DeviceController {
       await this.run(async (session) => {
         await this.loadIdentity(session);
         await this.synchronize(session);
-        recoveryIdentity(proof.config, session, location.origin);
+        recoveryIdentity(proof.config, session, applicationOrigin());
         const previous = this.current;
         if (
           proof.count !== (previous ? 1 : 2) ||
@@ -773,12 +795,12 @@ export class DeviceController {
     const config =
       mode === 'recover'
         ? this.current?.root.wallet
-        : createWalletRecovery(session, location.origin);
+        : createWalletRecovery(session, applicationOrigin());
     if (!config)
       throw new Error(
         'This account still uses the old code. Recover or migrate through the legacy flow.',
       );
-    recoveryIdentity(config, session, location.origin);
+    recoveryIdentity(config, session, applicationOrigin());
     return config;
   }
   private validateWalletMode(

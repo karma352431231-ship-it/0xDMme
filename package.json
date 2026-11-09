@@ -13,17 +13,15 @@
     "probe:crypto": "node src/server/probe.ts",
     "probe:wallet-recovery": "node src/server/wallet-recovery-probe.ts",
     "probe:mobile": "node src/server/mobile-probe.ts",
-    "probe:zk:prepare": "node src/tools/prepare-zk.ts",
-    "probe:zk": "node src/tools/zk-probe.ts",
     "probe:measure": "node src/tools/measure-probes.ts",
     "diagnostic:chat": "node src/tools/build-chat-diagnostic.ts",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "boundaries": "depcruise src --config .dependency-cruiser.cjs",
+    "boundaries": "depcruise src tests/fixtures/native-wallet.ts tests/fixtures/native-ios-direct-driver.ts --config .dependency-cruiser.cjs",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "test": "node --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run i18n:check && npm run build && npm run build:evaluation && npm run build:collection && npm test && npm run test:deploy && npm run test:evaluation",
+    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run i18n:check && npm run build && npm run mobile:build && npm run build:evaluation && npm run build:collection && npm test && npm run test:deploy && npm run test:evaluation",
     "build:evaluation": "node src/tools/build-moderation-evaluation.ts",
     "build:collection": "node src/tools/build-moderation-collection.ts",
     "test:evaluation": "python3 -m unittest discover -s tests -p 'moderation*_test.py'",
@@ -43,14 +41,18 @@
     "dev:mobile": "npm run build && node --env-file=.local/web-test.env src/server/web-mobile.ts",
     "release:manifest": "node src/tools/release/create.ts",
     "release:verify": "node src/tools/release/verify.ts",
-    "release:build": "npm run build && npm run release:manifest"
+    "release:build": "npm run build && npm run release:manifest",
+    "mobile:build": "node src/tools/build-mobile.ts",
+    "mobile:feasibility:build": "node src/tools/build-mobile-feasibility.ts",
+    "mobile:sync": "npm run mobile:build && cap sync"
   },
   "devDependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/ios": "8.6.0",
     "@eslint/js": "10.0.1",
     "@matrix-org/matrix-sdk-crypto-wasm": "18.9.0",
-    "@semaphore-protocol/group": "4.14.3",
-    "@semaphore-protocol/identity": "4.14.3",
-    "@semaphore-protocol/proof": "4.14.3",
     "@types/node": "24.19.0",
     "@types/pg": "8.23.1",
     "@types/web-push": "3.6.4",
@@ -63,11 +65,7 @@
     "typescript-eslint": "8.71.0"
   },
   "overrides": {
-    "ws": "8.21.0",
-    "underscore": "1.13.8",
-    "circomkit": {
-      "circom_tester": "0.0.24"
-    }
+    "ws": "8.21.0"
   },
   "dependencies": {
     "@noble/curves": "1.9.7",

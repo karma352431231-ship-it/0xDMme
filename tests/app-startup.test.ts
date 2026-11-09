@@ -49,7 +49,10 @@ const bundle = await build({
       name: 'feature-controllers',
       setup(builder) {
         builder.onResolve({ filter: /^\.\.\/[^/]+\/index\.ts$/ }, ({ path }) =>
-          path === '../app-navigation/index.ts'
+          [
+            '../app-navigation/index.ts',
+            '../application-origin/index.ts',
+          ].includes(path)
             ? undefined
             : {
                 path: path.split('/')[1] ?? '',

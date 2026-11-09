@@ -1,3 +1,4 @@
+import { installedApplication } from '../application-origin/index.ts';
 import { startPullRefresh } from '../pull-refresh/index.ts';
 import {
   appAddress,
@@ -388,12 +389,13 @@ const panels = account.approvalPage
       publicChatOpened: () => rightColumn?.showChat(),
     });
 // Approval HTML is loaded online and does not install or activate a shell.
-const pwa = account.approvalPage
-  ? null
-  : startPwa({
-      waitForIdle: true,
-      blockedReason: interruptionReason,
-    });
+const pwa =
+  account.approvalPage || installedApplication()
+    ? null
+    : startPwa({
+        waitForIdle: true,
+        blockedReason: interruptionReason,
+      });
 
 function interruptionReason(): string | null {
   return updateBlockReason({

@@ -2,17 +2,14 @@ import { createServer } from 'node:http';
 import { createServer as createSecureServer } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import ts from 'typescript';
-import { build } from 'esbuild';
 import {
   isOperation,
   isRole,
   maxBodyBytes,
 } from '../../shared/crypto-probe/index.ts';
 import { ProbeRelay } from '../crypto-probe/index.ts';
-import { readArtifact } from '../zk-artifacts/index.ts';
 import {
   allowedProbeOrigin,
   authorizeMobile,
@@ -29,7 +26,6 @@ const assets = new Map([
   ['/client.html', ['src/client/crypto-probe/client.html', 'text/html']],
   ['/probe.css', ['src/client/crypto-probe/probe.css', 'text/css']],
   ['/vault.html', ['src/client/vault-probe/vault.html', 'text/html']],
-  ['/zk.html', ['src/client/zk-probe/zk.html', 'text/html']],
   ...[
     'src/client/probe.ts',
     'src/client/crypto-probe/index.ts',
@@ -39,7 +35,6 @@ const assets = new Map([
     'src/client/vault.ts',
     'src/client/vault-probe/index.ts',
     'src/shared/vault-probe/index.ts',
-    'src/client/zk.ts',
     'src/client/language/start.ts',
     'src/client/language/index.ts',
     'src/shared/i18n/index.ts',
@@ -58,45 +53,6 @@ const assets = new Map([
     ],
   ]),
 ] as [string, [string, string]][]);
-let workerBundle: Promise<Uint8Array> | undefined;
-
-async function zkAsset(
-  path: string,
-  response: ServerResponse,
-): Promise<boolean> {
-  if (path === '/zk-worker.js') {
-    workerBundle ??= build({
-      entryPoints: [fileURLToPath(new URL('src/client/zk-worker.ts', root))],
-      bundle: true,
-      platform: 'browser',
-      format: 'esm',
-      target: 'es2023',
-      write: false,
-      logLevel: 'silent',
-      legalComments: 'inline',
-    }).then((result) => {
-      const output = result.outputFiles[0];
-      if (!output) throw new Error('ZK bundle missing.');
-      return output.contents;
-    });
-    const content = await workerBundle;
-    response.writeHead(200, { 'Content-Type': 'text/javascript' });
-    response.end(content);
-    return true;
-  }
-  if (path !== '/zk/semaphore-4.wasm' && path !== '/zk/semaphore-4.zkey')
-    return false;
-  const name =
-    path === '/zk/semaphore-4.wasm' ? 'semaphore-4.wasm' : 'semaphore-4.zkey';
-  const bytes = await readArtifact(name);
-  response.writeHead(200, {
-    'Content-Type': name.endsWith('.wasm')
-      ? 'application/wasm'
-      : 'application/octet-stream',
-  });
-  response.end(bytes);
-  return true;
-}
 function postRoute(request: IncomingMessage) {
   const parts = (request.url ?? '').split('/');
   const [, api, role, operation] = parts;
@@ -197,7 +153,6 @@ export function startProbe(port = 45101, mobile?: MobileListener) {
       response.end(relay.inspect());
       return true;
     }
-    if (await zkAsset(path, response)) return true;
     return asset(path, response);
   }
 

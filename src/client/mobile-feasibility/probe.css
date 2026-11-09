@@ -1,0 +1,29 @@
+:root {
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+  color-scheme: light dark;
+}
+body {
+  margin: 0;
+  padding: max(1.5rem, env(safe-area-inset-top))
+    max(1.5rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom))
+    max(1.5rem, env(safe-area-inset-left));
+}
+main {
+  max-width: 44rem;
+  margin: auto;
+}
+.actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+button {
+  font: inherit;
+  padding: 0.65rem 1rem;
+}
+#result {
+  overflow-wrap: anywhere;
+  min-height: 5rem;
+}

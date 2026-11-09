@@ -124,7 +124,11 @@ function transaction<T>(
         database.close();
         return;
       }
-      active = database.transaction('records', 'readwrite');
+      // Identity keys and pinned roots must request persistent completion before
+      // an authorization can be published. Browser defaults may be relaxed.
+      active = database.transaction('records', 'readwrite', {
+        durability: 'strict',
+      });
       const store = active.objectStore('records');
       const read = store.get(key);
       read.onsuccess = () => {

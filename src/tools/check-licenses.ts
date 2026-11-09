@@ -20,17 +20,9 @@ const permissive = new Set([
   '(MIT OR Apache-2.0)',
 ]);
 // Reviewed exact versions. Any new copyleft dependency needs an explicit review.
-const reviewedGpl = new Set([
-  '@iden3/bigarray@0.0.2',
-  '@iden3/binfileutils@0.0.12',
-  'circom_tester@0.0.24',
-  'fastfile@0.0.20',
-  'ffjavascript@0.3.0',
-  'ffjavascript@0.3.1',
-  'r1csfile@0.0.48',
-  'snarkjs@0.7.5',
-  'wasmbuilder@0.0.16',
-  'wasmcurves@0.2.2',
+const reviewedUnlicense = new Set([
+  'big-integer@1.6.52',
+  'stream-buffers@2.2.0',
 ]);
 
 const lock = JSON.parse(
@@ -60,7 +52,8 @@ for (const [path, entry] of Object.entries(lock.packages)) {
       (license === 'MPL-2.0' &&
         name === 'web-push' &&
         entry.version === '3.6.7') ||
-      (license === 'GPL-3.0' && reviewedGpl.has(`${name}@${entry.version}`)));
+      (license === 'Unlicense' &&
+        reviewedUnlicense.has(`${name}@${entry.version}`)));
   if (!approved)
     throw new Error(
       `Dependency requires a license review: ${name}@${entry.version}`,

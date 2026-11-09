@@ -16,7 +16,7 @@ Private data, keys, backups, inventories and private configuration are never par
 
 **Emoji panel (2026-10-03).** Twemoji 17.0.3 artwork by Twitter, Inc. and contributors under **CC-BY-4.0**; the Emoji 18.0 catalog and CLDR 48.2.3 names/keywords under **Unicode-3.0**. Attribution and original licenses are preserved; the artwork is not relicensed as GPL. Only graphics and data are used, without the MIT Twemoji parser or a new npm dependency. See [provenance, originals and rebuilding](vendor/emoji/README.md); the full package is public on the app's own origin and linked from the footer. The authored derivation scripts and the `src/client/emoji/` module are GPL-3.0-only. Packaging keeps the original SVGs; the frontend uses blob images without a CDN or external analysis.
 
-**Messaging engine (2026-10-03).** The frontend incorporates Matrix Crypto WASM 18.9.0, selected and reviewed during the cryptography proof, for Olm/Megolm and recoverable read-key files. Semaphore stays in the isolated lab. The build delivers the incorporated JavaScript, notices and the preferred Rust sources of the exact tag with the 323 registry files pinned by `Cargo.lock`; the larger sources are separate downloads on the same origin, as described in the [provenance record](vendor/matrix-crypto-18.9.0/README.md) and the [rebuild instructions](docs/FRONTEND_SOURCES.md). Third-party original licenses remain in the delivered files. Local integration does not authorize activation or migration on the server, and does not change the repository's visibility.
+**Messaging engine (2026-10-03).** The frontend incorporates Matrix Crypto WASM 18.9.0, selected and reviewed during the cryptography proof, for Olm/Megolm and recoverable read-key files. The unused Semaphore/ZK lab and its dependencies were removed under the owner's 2026-11-01 decision; messaging cryptography is unchanged. The build delivers the incorporated JavaScript, notices and the preferred Rust sources of the exact tag with the 323 registry files pinned by `Cargo.lock`; the larger sources are separate downloads on the same origin, as described in the [provenance record](vendor/matrix-crypto-18.9.0/README.md) and the [rebuild instructions](docs/FRONTEND_SOURCES.md). Third-party original licenses remain in the delivered files. Local integration does not authorize activation or migration on the server, and does not change the repository's visibility.
 
 **Web Push (2026-10-03).** `web-push@3.6.7` (MPL-2.0) is server-only; `http_ece@1.2.0` (MIT) provides the transport encryption and `@types/web-push@3.6.4` (MIT) the types. Delivered versions/licenses and the lockfile were examined; the license checker carries a specific MPL exception. There is no commercial account or contracted relay. Preserve notices and provide the sources of the MPL files according to their obligations when distributing copies or modifications; the backend is not relicensed as a consequence. These packages do not enter the public bundle. Publication required a specific review of the runtime closure and original packages; that review does not authorize network changes or new dependencies.
 
@@ -37,3 +37,21 @@ Private data, keys, backups, inventories and private configuration are never par
 **Interface fonts.** Figtree and Sora under the SIL Open Font License 1.1, served from the app's origin. See [vendor/fonts/README.md](vendor/fonts/README.md).
 
 The library files in `vendor/` keep their original licenses.
+
+## Installed-app integration
+
+The owner approved removing the unused ZK lab and using Capacitor 8.6.0 in the
+mobile task. The current web-source catch-up retains those decisions. Capacitor
+core, CLI, Android and iOS packages use MIT. The reviewed exact-version tooling
+exceptions `big-integer@1.6.52` and `stream-buffers@2.2.0` use the Unlicense.
+Existing authored-code GPL grants and third-party source/notice obligations remain
+in force. The custom license draft is not adopted, and no store-distribution
+compatibility or legal acceptance is claimed by this engineering update.
+
+The local iPhone UI correction uses Ionic's official Capacitor Keyboard 8.0.6
+(Swift Package Manager, exact version), under MIT. It removes the native form
+accessory toolbar; keyboard resizing remains owned by our native viewport.
+Its MIT notice and the Apache-2.0 license for its derived native keyboard source
+are preserved in `mobile/ios/licenses/CAPACITOR_KEYBOARD_MIT.txt` and packaged
+inside the installed app as `native-keyboard-license.txt`.
+No keyboard plugin code is bundled into the browser or VPS runtime.

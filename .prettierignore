@@ -7,3 +7,11 @@ INVENTARIO_BLOCO_00.md
 # Preserve original, hash-pinned CLDR inputs.
 vendor/emoji/annotations-*.json
 vendor/emoji/annotationsDerived-*.json
+
+# Generated native assets and plugin copies; authored native metadata stays checked.
+mobile/android/app/src/main/assets/
+mobile/android/app/build/
+mobile/android/capacitor-android/build/
+mobile/android/capacitor-cordova-android-plugins/
+mobile/ios/App/App/public/
+mobile/ios/capacitor-cordova-ios-plugins/

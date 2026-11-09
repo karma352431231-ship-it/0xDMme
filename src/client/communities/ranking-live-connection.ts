@@ -1,3 +1,4 @@
+import { requestApi } from '../api-transport/index.ts';
 import { WakeupFrames } from '../message-live/index.ts';
 /** Public stream: no cookies, signed payloads, cache or cross-origin redirect. */
 export class RankingConnection {
@@ -36,7 +37,7 @@ export class RankingConnection {
       watchdog = setTimeout(() => controller.abort(), 45000);
     };
     try {
-      const response = await fetch('/api/communities/ranking-events', {
+      const response = await requestApi('/api/communities/ranking-events', {
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',

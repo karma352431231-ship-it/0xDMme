@@ -10203,6 +10203,72 @@ export const catalog: Record<string, readonly [string, string]> = {
       'Only people with an unused invitation can find your private account and request a chat. Each invitation expires after 24 hours and allows one request. New invitations are independent; you still choose whether to accept.',
       '只有持有未使用邀请的人才能找到你的私人账户并申请聊天。每个邀请在24小时后到期，仅可申请一次。新邀请彼此独立，你仍可选择是否接受。',
     ],
+  'Installed-app feasibility': [
+    'Installed-app feasibility',
+    '已安装应用的可行性验证',
+  ],
+  'Inspecting the runtime…': ['Inspecting the runtime…', '正在检查运行环境…'],
+  'This development build checks local encryption and storage using a synthetic fixture. It does not sign in, contact wallets or send data to a server.':
+    [
+      'This development build checks local encryption and storage using a synthetic fixture. It does not sign in, contact wallets or send data to a server.',
+      '此开发版本使用合成测试数据检查本地加密和存储。它不会登录、连接钱包或向服务器发送数据。',
+    ],
+  'The single fixture expires after 30 minutes. Clearing it does not access product account databases. A successful check is not acceptance of messaging, recovery, notifications or calls on this device.':
+    [
+      'The single fixture expires after 30 minutes. Clearing it does not access product account databases. A successful check is not acceptance of messaging, recovery, notifications or calls on this device.',
+      '此单一测试数据在30分钟后到期。清除它不会访问产品账户数据库。检查成功并不代表此设备上的消息、恢复、通知或通话功能已通过验收。',
+    ],
+  'Run local checks': ['Run local checks', '运行本地检查'],
+  'Clear test fixture': ['Clear test fixture', '清除测试数据'],
+  'Expire test fixture': ['Expire test fixture', '使测试数据到期'],
+  'Alter test ciphertext': ['Alter test ciphertext', '修改测试密文'],
+  'Ready. Use synthetic data only.': [
+    'Ready. Use synthetic data only.',
+    '已就绪。请仅使用合成数据。',
+  ],
+  'Native bridge: {0}.': ['Native bridge: {0}.', '原生桥接：{0}。'],
+  'Browser preview. This is not native device acceptance.': [
+    'Browser preview. This is not native device acceptance.',
+    '浏览器预览。这不代表原生设备已通过验收。',
+  ],
+  'Checking the local test fixture…': [
+    'Checking the local test fixture…',
+    '正在检查本地测试数据…',
+  ],
+  'Check stopped. No success was recorded.': [
+    'Check stopped. No success was recorded.',
+    '检查已停止。未记录成功结果。',
+  ],
+  'Check failed or expired. No success was recorded. Clear the synthetic fixture to start again.':
+    [
+      'Check failed or expired. No success was recorded. Clear the synthetic fixture to start again.',
+      '检查失败或已到期。未记录成功结果。请清除合成测试数据后重试。',
+    ],
+  'Stored fixture reopened and verified.': [
+    'Stored fixture reopened and verified.',
+    '已重新打开并验证存储的测试数据。',
+  ],
+  'Fixture created and verified. Restart the app, then run this check again.': [
+    'Fixture created and verified. Restart the app, then run this check again.',
+    '已创建并验证测试数据。请重启应用后再次运行检查。',
+  ],
+  'Web Locks, nonextractable device keys and Matrix WASM encryption passed. Service identity: {0}':
+    [
+      'Web Locks, nonextractable device keys and Matrix WASM encryption passed. Service identity: {0}',
+      'Web Locks、不可导出的设备密钥和 Matrix WASM 加密检查已通过。服务标识：{0}',
+    ],
+  'Synthetic fixture cleared. Product account data was not accessed.': [
+    'Synthetic fixture cleared. Product account data was not accessed.',
+    '合成测试数据已清除。未访问产品账户数据。',
+  ],
+  'Synthetic fixture marked expired. Run checks to verify rejection.': [
+    'Synthetic fixture marked expired. Run checks to verify rejection.',
+    '合成测试数据已标记为到期。请运行检查以验证其被拒绝。',
+  ],
+  'Synthetic ciphertext altered. Run checks to verify rejection.': [
+    'Synthetic ciphertext altered. Run checks to verify rejection.',
+    '合成密文已修改。请运行检查以验证其被拒绝。',
+  ],
   'Community ownership requests': [
     'Community ownership requests',
     '社区所有权请求',

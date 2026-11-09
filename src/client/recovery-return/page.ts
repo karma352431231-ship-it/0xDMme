@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { startLanguage } from '../language/index.ts';
 import { keys, object, boundedText } from '../../shared/account/index.ts';
@@ -43,7 +44,7 @@ async function verifyDestination(
 ): Promise<void> {
   if (
     transfer.ticket !== entry.ticket ||
-    transfer.config.origin !== location.origin ||
+    transfer.config.origin !== applicationOrigin() ||
     (await digest(canonical(transfer))) !== entry.commitment
   )
     throw new Error('Destination changed.');

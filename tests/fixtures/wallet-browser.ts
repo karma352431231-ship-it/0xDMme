@@ -39,7 +39,16 @@ const provider = {
   },
 };
 Object.assign(window, { ethereum: provider });
-const solanaKey = crypto.getRandomValues(new Uint8Array(32));
+// Stable synthetic identities let reload/process-restart tests verify the same
+// account. This derivation is test-only, never a product recovery mechanism.
+const solanaKey = new Uint8Array(
+  await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(
+      `0xDMme synthetic Solana:${SYNTHETIC_FIXTURE_SEED}`,
+    ),
+  ),
+);
 const solanaAddress = base58.encode(ed25519.getPublicKey(solanaKey));
 const solanaProvider = {
   isPhantom: true,

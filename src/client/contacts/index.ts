@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -91,7 +92,7 @@ export function startContacts(
     invitePeer: Peer | null = null;
   const invitations = new PrivateContactInvitations({
     owner: () => contacts.session?.accountId ?? null,
-    origin: location.origin,
+    origin: applicationOrigin(),
     issue: (hash) => contacts.issueInvitation(hash),
     revoke: (hash) => contacts.revokeInvitation(hash),
   });
@@ -588,7 +589,7 @@ export function startContacts(
   }
   async function inspectInvite(): Promise<void> {
     const link = value('[data-contact-received]');
-    if (link) received = readInvitation(link, location.origin);
+    if (link) received = readInvitation(link, applicationOrigin());
     if (!received) throw new Error('Enter a valid invitation.');
     invitePeer = await contacts.invite(received);
     const target = node('[data-contact-invite-peer]');
@@ -739,12 +740,12 @@ export function startContacts(
   function showReceivedInvite(): void {
     if (!received) return;
     const input = node<HTMLInputElement>('[data-contact-received]');
-    if (input) input.value = invitationLink(location.origin, received);
+    if (input) input.value = invitationLink(applicationOrigin(), received);
     openEditor('invite');
   }
   function readIncomingInvite(): void {
     try {
-      const invite = incomingInvitation(location.hash, location.origin);
+      const invite = incomingInvitation(location.hash, applicationOrigin());
       if (!invite) return;
       received = invite;
     } catch {

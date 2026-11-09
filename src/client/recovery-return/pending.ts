@@ -1,3 +1,4 @@
+import { applicationOrigin } from '../application-origin/index.ts';
 import { boundedText, keys, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, digest, fingerprint } from '../../shared/devices/index.ts';
@@ -98,7 +99,7 @@ async function parseFlow(
   const revision = data['revision'];
   validatePlan(mode, revoked, revision);
   const config = walletRecovery(data['config']);
-  recoveryIdentity(config, session, location.origin);
+  recoveryIdentity(config, session, applicationOrigin());
   const pending = await parsePending(data['pending'], receiver);
   if (
     canonical(config) !== canonical(pending.transfer.config) ||

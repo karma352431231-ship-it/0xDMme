@@ -50,7 +50,6 @@ If you use nvm, run `nvm use` in this folder first. Check `node --version` and `
 
 ```bash
 npm ci --ignore-scripts
-npm run probe:zk:prepare
 npm run check
 npm run build
 ```
@@ -61,7 +60,7 @@ After preparing the dedicated database and configuring `.env` from `.env.example
 
 CI in `.github/workflows/check.yml` repeats the checks and runs the integration tests against a temporary PostgreSQL 16 on Ubuntu, without deployment or real credentials.
 
-For the cryptography lab, run `npm run probe:crypto` and open `http://127.0.0.1:45101/`; vault and ZK probes are also available. The lab is temporary and uses only fictitious data. `probe:zk:prepare` downloads pinned public artifacts before private use, with no CDN during the probe; `npm run probe:measure` keeps measurements in ignored local records. For an iPhone on the same private network, the optional `npm run probe:mobile` profile uses HTTPS and temporary access; it needs configuration and certificates in `.local/` and explicit trust of the test certificate on the device. The default profile stays on loopback.
+For the cryptography lab, run `npm run probe:crypto` and open `http://127.0.0.1:45101/`; the vault probe is also available. The lab is temporary and uses only fictitious data. `npm run probe:measure` keeps measurements in ignored local records. For an iPhone on the same private network, the optional `npm run probe:mobile` profile uses HTTPS and temporary access; it needs configuration and certificates in `.local/` and explicit trust of the test certificate on the device. The default profile stays on loopback.
 
 Local PostgreSQL metrics: `npm run observe:database`, with the same private `.env` as the app. An aggregated snapshot replaces the previous one only in `.local/metrics/database.json`.
 
@@ -87,3 +86,15 @@ Local PostgreSQL metrics: `npm run observe:database`, with the same private `.en
 [.gitignore](.gitignore) excludes private configuration, keys, local data directories, dependencies and generated output. [.env.example](.env.example) contains only the setup profile; future examples must contain only fictitious values.
 
 **Important:** never commit private keys, recovery secrets, credentials, conversation content or backups, even encrypted. `.gitignore` does not inspect file contents and does not protect files that are already tracked; review the diff before every commit.
+
+## Installed Android and iPhone builds
+
+The installed product reuses this checkout's current web client and shared feature
+code. Native entry points select protected session transport and service-origin
+handling. Web and mobile compile through the same frontend asset builder,
+including localization and styles. See the [mobile handoff](docs/MOBILE_APP_DECISIONS_AND_PLAN.md)
+and [manual acceptance checklist](docs/MOBILE_MANUAL_TEST_CHECKLIST.md).
+
+Build locally with `npm ci --ignore-scripts` and `npm run mobile:build`.
+Native installation and individual test results do not establish full platform
+parity, real-wallet acceptance or store-distribution readiness.
