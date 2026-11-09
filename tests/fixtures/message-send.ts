@@ -148,8 +148,11 @@ export async function sendFixture() {
       state.beforeAuthority?.(++state.authorityReads);
       return work(state.authority);
     },
-    withLocalVault: () =>
-      Promise.reject(new Error('Offline is outside this sender fixture.')),
+    withLocalVault: (locator, work) => {
+      assert.equal(locator.accountId, sender.accountId);
+      assert.equal(locator.deviceId, sender.deviceId);
+      return work({ ...state.authority, offline: true });
+    },
   };
   const sync = {
     complete: true,
