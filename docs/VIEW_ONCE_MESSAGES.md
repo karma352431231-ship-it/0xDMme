@@ -1,0 +1,43 @@
+# View-once messages
+
+The private and handle DM composers provide a persistent ① toggle beside the
+paperclip. Text occupies the full first row; media actions and send/record sit
+below. The paperclip opens a compact three-action menu. A fading explanation
+appears on the first activation in each installation/browser.
+
+Text and image bodies open once in the installed Android/iOS app. The web
+client shows only their placeholder. Native Android windows use `FLAG_SECURE`;
+iOS renders sensitive pixels through the public protected AVFoundation layer.
+Closing, backgrounding or leaving the conversation erases the native view.
+Supported images use the platform's native decoders; animated images currently
+show their first frame. Groups do not offer this mode.
+
+Other files show their filename, extension/MIME and size in B/KB/MB/GB. Clicking
+requests one download in browser or app. They never render inline. The saved
+copy belongs to the recipient and can remain after the chat delivery is used.
+A caption accompanying a downloadable file is queued atomically as a separate
+mobile-only text message.
+
+## Delivery boundary
+
+The signed Megolm packet contains only a hash and encrypted metadata. Its
+normal recovery archives, local history and backups do not contain the body or
+content key. A separate AES-GCM payload binds message ID, scope, actors and
+policy; its random key is encrypted to the recipient's existing recovery key.
+Upload retries retain stable ciphertext and resume in bounded chunks.
+
+The server authenticates the current private session and consent, verifies the
+published parent and atomically grants the recipient one delivery. Consumption
+clears both ciphertext and wrapped key, leaving a small tombstone. Concurrent
+opens cannot both receive it. Download and display failures after this grant
+cannot retrieve it a second time.
+
+For mobile-only content, stock browsers cannot supply the forbidden `Sec-`
+header; the guarded native HTTP owner supplies it only while a protected native
+view is active. This is an official-client restriction, not device attestation:
+a modified client, compromised device or external camera is outside it.
+
+Migration 107 adds the payload table, quota/global accounting, and parent-delete
+cleanup. Unpublished uploads expire after 24 hours. The deployment transition
+pins the complete reviewed source trees and preserves all earlier data and
+migration checksums through the existing backup/restore executor.

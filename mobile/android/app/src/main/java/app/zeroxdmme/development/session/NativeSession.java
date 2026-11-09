@@ -25,6 +25,8 @@ import org.json.JSONObject;
  * The channel authorizes documents; exchanges own sockets and streaming bodies.
  */
 final class NativeSession {
+    private volatile boolean protectedView;
+    void protectView(boolean active) { protectedView = active; }
     interface Reply {
         void value(Object value);
         void failure();
@@ -142,7 +144,7 @@ final class NativeSession {
                 if (closed.get() || entries.size() >= 8 || entries.containsKey(request.id) || cancelled.containsKey(request.id) || bodyBytes + bytes > 16_800_000) throw NativePolicy.failure();
                 NativeCookies.Ticket ticket = jar.reserve(request.credentials ? request.path : "");
                 phase = "request-construction";
-                NativeExchange exchange = new NativeExchange(request, client, destination, request.credentials ? jar.header() : "");
+                NativeExchange exchange = new NativeExchange(request, client, destination, request.credentials ? jar.header() : "", protectedView);
                 entry = new Entry(request, exchange, ticket, answer);
                 entries.put(request.id, entry);
                 bodyBytes += bytes;

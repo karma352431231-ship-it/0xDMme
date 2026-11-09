@@ -46,6 +46,7 @@ export class MessageService {
   private readonly statuses: StatusService | null;
   private readonly social: SocialDmService;
   private readonly representatives: RepresentativeService | null;
+  private readonly viewOnce: Database['viewOnce'] | undefined;
   constructor(
     db: Pick<
       Database,
@@ -69,7 +70,8 @@ export class MessageService {
       | 'socialMedia'
       | 'statuses'
       | 'statusMedia'
-    >,
+    > &
+      Partial<Pick<Database, 'viewOnce'>>,
     devices: DeviceStore,
     objects?: ObjectStore,
     services: {
@@ -78,6 +80,7 @@ export class MessageService {
     } = {},
   ) {
     this.db = db;
+    this.viewOnce = db.viewOnce;
     this.representatives = services.representatives ?? null;
     this.notifications = services.notifications ?? null;
     this.objects = objects ?? null;
@@ -167,6 +170,7 @@ export class MessageService {
     await collectPersonalBackups(this.db.backups, this.objects);
   }
   async cleanAttachments(): Promise<void> {
+    await this.viewOnce?.clean();
     await this.cleanPersonal();
     await this.attachments?.clean();
     await this.social.clean();
@@ -244,17 +248,30 @@ export class MessageService {
     operation: string,
     session: AccountSession,
     input: unknown,
+    capabilities: { installed?: boolean } = {},
   ): Promise<unknown> {
+    const viewOnce = operation.startsWith('view-once-')
+      ? this.viewOnce
+      : undefined;
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
-    if (!action) throw new AccountError(404, 'Message operation unavailable.');
+    if (!action && !viewOnce)
+      throw new AccountError(404, 'Message operation unavailable.');
     const { proof, current } = await this.authenticate(
       operation,
       session,
       input,
     );
     this.authority.checkDeletionRevision(operation, proof, current.revision);
+    if (viewOnce)
+      return viewOnce.operate(
+        { session, directory: proof.directory },
+        operation,
+        proof.payload,
+        capabilities.installed === true,
+      );
+    if (!action) throw new AccountError(404, 'Message operation unavailable.');
     const result = await action(
       { session, directory: proof.directory },
       proof.payload,

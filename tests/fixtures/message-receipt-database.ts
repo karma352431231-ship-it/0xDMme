@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readdir } from 'node:fs/promises';
 import type { TestContext } from 'node:test';
 import pg from 'pg';
 import { Database, ContentAllocator } from '../../src/server/database/index.ts';
@@ -14,7 +15,7 @@ import { historicalMigrations } from './historical-migrations.ts';
 /** Fresh app schema and synthetic identities; no legacy-data import or backfill rehearsal. */
 export async function messageReceiptFixture(
   t: TestContext,
-  options: { through?: 96 } = {},
+  options: { through?: 96 | 106 } = {},
 ) {
   const url = new URL(readWebConfiguration(process.env).databaseUrl),
     name = 'hash_talk_test_receipts_' + crypto.randomUUID().replaceAll('-', '');
@@ -52,13 +53,29 @@ export async function messageReceiptFixture(
     await admin.end();
   });
   await Promise.all([writer.connect(), reader.connect(), inspector.connect()]);
-  if (options.through === 96) {
+  if (options.through) {
     await groupQuotaPredecessor(inspector, 93);
     await historicalMigrations(inspector, [
       '094-single-use-contact-invitations.sql',
       '095-public-post-search.sql',
       '096-message-sync-fences.sql',
     ]);
+    if (options.through === 106)
+      await historicalMigrations(
+        inspector,
+        (
+          await readdir(
+            new URL('../../src/server/database/migrations/', import.meta.url),
+          )
+        )
+          .filter(
+            (name) =>
+              /^\d{3}.*\.sql$/u.test(name) &&
+              Number(name.slice(0, 3)) >= 97 &&
+              Number(name.slice(0, 3)) <= 106,
+          )
+          .sort(),
+      );
   } else await db.migrate();
   return {
     url: url.href,

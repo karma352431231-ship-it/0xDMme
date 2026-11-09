@@ -44,7 +44,16 @@ export interface RoomKeyArchive {
   ephemeral: string;
   mac: string;
 }
+export interface ViewOnceReference {
+  hash: string;
+}
+export function viewOnceReference(input: unknown): ViewOnceReference {
+  const data = object(input);
+  keys(data, ['hash']);
+  return { hash: fingerprint(data['hash']) };
+}
 export interface MessagePacket {
+  viewOnce?: ViewOnceReference;
   socialMedia?: 'photo' | 'gif' | 'voice';
   relation?: MessageRelation;
   kind: 'text' | 'profile' | 'attachment';
@@ -105,6 +114,7 @@ export function messageBody(
 export function messagePacket(input: unknown): MessagePacket {
   const data = object(input);
   keys(data, [
+    ...viewOnceKeys(data),
     ...socialMediaKeys(data),
     ...relationKeys(data),
     ...(Object.hasOwn(data, 'attachments') ? ['attachments'] : []),
@@ -146,6 +156,7 @@ export function messagePacket(input: unknown): MessagePacket {
     throw new AccountError(400, 'Invalid package signature.');
   return {
     version: 1,
+    ...packetViewOnce(data),
     ...declaredMedia,
     ...optionalRelation(data['relation']),
     ...(refs ? { attachments: refs } : {}),
@@ -163,6 +174,22 @@ export function messagePacket(input: unknown): MessagePacket {
     archives,
     signature: data['signature'] as string,
   };
+}
+function viewOnceKeys(data: Record<string, unknown>): string[] {
+  return Object.hasOwn(data, 'viewOnce') ? ['viewOnce'] : [];
+}
+function packetViewOnce(data: Record<string, unknown>): {
+  viewOnce?: ViewOnceReference;
+} {
+  if (!Object.hasOwn(data, 'viewOnce')) return {};
+  if (
+    Object.hasOwn(data, 'viewOnce') &&
+    (data['kind'] !== 'text' ||
+      data['relation'] !== undefined ||
+      data['socialMedia'] !== undefined)
+  )
+    throw new AccountError(400, 'Invalid view-once message.');
+  return { viewOnce: viewOnceReference(data['viewOnce']) };
 }
 export function messageKind(value: unknown): MessagePacket['kind'] {
   if (value !== 'text' && value !== 'profile' && value !== 'attachment')

@@ -22,8 +22,8 @@ enum NativePolicy {
             try NativePolicy.keys(value, ["call", "document", "operation", "request"])
             call = try NativePolicy.id(value["call"])
             document = try NativePolicy.id(value["document"])
-            operation = try NativePolicy.text(value["operation"], 6)
-            guard ["hello", "open", "read", "cancel"].contains(operation),
+            operation = try NativePolicy.text(value["operation"], 16)
+            guard ["hello", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close"].contains(operation),
                   let body = value["request"] as? [String: Any] else { throw NativeFailure.unavailable }
             request = body
         }

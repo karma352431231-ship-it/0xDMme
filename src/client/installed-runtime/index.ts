@@ -1,6 +1,7 @@
 import { installNativeApiTransport } from '../api-transport/index.ts';
 import { NativeApiTransport } from '../native-api/index.ts';
 import { InstalledSessionChannel } from './channel.ts';
+import { installProtectedDisplay } from '../view-once-ui/index.ts';
 
 /** Installed entry owns initialization/disposal before any domain module loads. */
 export async function startInstalledEntry(
@@ -20,6 +21,23 @@ export async function startInstalledEntry(
     await channel.ready();
     transport = new NativeApiTransport(channel);
     installNativeApiTransport(transport);
+    const viewChannel = channel;
+    installProtectedDisplay({
+      ...(location.protocol === 'https:'
+        ? {
+            download: (input: {
+              id: string;
+              name: string;
+              bytes: Uint8Array<ArrayBuffer>;
+            }) => viewChannel.downloadFile(input),
+          }
+        : {}),
+      begin: (input) => viewChannel.viewBegin(input),
+      append: (input) => viewChannel.viewAppend(input),
+      show: (input) => viewChannel.viewShow(input),
+      active: (input) => viewChannel.viewActive(input),
+      close: (input) => viewChannel.viewClose(input),
+    });
     window.addEventListener(
       'pagehide',
       () => void close().catch(() => channel?.close()),

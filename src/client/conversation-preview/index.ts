@@ -1,3 +1,4 @@
+import { decodeDailyText } from '../../shared/daily/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { animatedAttachmentContent } from '../../shared/attachments/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
@@ -33,7 +34,12 @@ function previewText(input: {
   text: string;
   displayText: string;
 }): string {
-  if (input.kind === 'text') return input.displayText;
+  if (input.kind === 'text') {
+    const once = decodeDailyText(input.text).viewOnce;
+    return once
+      ? t(once.policy === 'file' ? 'View-once file' : 'View-once message')
+      : input.displayText;
+  }
   const media = animatedAttachmentContent(JSON.parse(input.text) as unknown);
   const label = media.voice
     ? t('preview.audio')

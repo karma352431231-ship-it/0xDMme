@@ -7,6 +7,8 @@ import type { MessageService } from '../messages/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import { readAccountBody } from './http-body.ts';
 const messageBodyBudgets = new Map<string, number>([
+  ['view-once-part', 280000],
+  ['view-once-create', 8192],
   // Thirty-two signed ID/hash receipts exceed the default 4 KiB envelope.
   ['backup-ack', 8192],
   ['dm-attachment-part', 360000],
@@ -99,6 +101,8 @@ export class AccountMessageHttp {
         });
         return true;
       }
+      if (request.url.endsWith('/view-once-open'))
+        response.setHeader('Cache-Control', 'no-store');
       sendAccountJson(
         response,
         200,
@@ -106,6 +110,7 @@ export class AccountMessageHttp {
           request.url.slice('/api/account/messages/'.length),
           await this.options.service.session(sessionToken),
           input,
+          { installed: request.headers['sec-0xdmme-installed-view'] === '1' },
         ),
       );
       return true;

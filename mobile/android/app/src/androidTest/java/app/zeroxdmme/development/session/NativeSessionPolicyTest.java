@@ -101,6 +101,21 @@ public class NativeSessionPolicyTest {
         }
     }
 
+    @Test public void protectedDisplayCannotBeClaimedThroughJavascriptHttpHeaders() throws Exception {
+        for (String header : Arrays.asList("sec-0xdmme-installed-view", "Sec-0xdmme-Installed-View")) {
+            JSONObject value = request("{}").put("path", "/api/account/messages/view-once-open");
+            value.getJSONObject("headers").put(header, "1");
+            assertThrows(Exception.class, () -> new NativePolicy.Request(value));
+        }
+        for (String operation : Arrays.asList("view-begin", "view-append", "view-show", "view-active", "view-close", "file-begin", "file-append", "file-save", "file-close")) {
+            JSONObject value = new JSONObject().put("call", UUID.randomUUID().toString())
+                .put("document", UUID.randomUUID().toString()).put("operation", operation).put("request", new JSONObject());
+            assertEquals(operation, new NativePolicy.Message(value.toString()).operation);
+        }
+        assertThrows(Exception.class, () -> NativePolicy.integer(new JSONObject().put("bytes", 1.5), "bytes", 0, 10));
+        assertThrows(Exception.class, () -> NativePolicy.integer(new JSONObject().put("bytes", true), "bytes", 0, 10));
+    }
+
     @Test public void persistsOnlyPrivateCookiesAndPreventsOlderResponseResurrection() throws Exception {
         String namespace = "synthetic-" + UUID.randomUUID();
         NativeCookies jar = new NativeCookies(store(namespace));

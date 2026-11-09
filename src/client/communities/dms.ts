@@ -176,9 +176,23 @@ export function startSocialDmUi(
     },
     queueFull: () => texts.full,
     changed: () => refreshes.resumeRefresh(),
-    submit: async ({ text, media, pending }) => {
+    submit: async ({ text, media, pending, viewOnce }) => {
       const selected = peer;
       if (!selected) return;
+      if (viewOnce) {
+        if (pending || composer.editing)
+          throw new Error(
+            'Finish the pending media or edit before sending a view-once message.',
+          );
+        await controller.composeViewOnce(
+          selected,
+          text,
+          media?.selection ?? null,
+        );
+        await texts.restore(selected).catch(() => undefined);
+        texts.retry();
+        return;
+      }
       await sending.send(selected, {
         text,
         media,

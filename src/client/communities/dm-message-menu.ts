@@ -7,6 +7,7 @@ import { withMenuIcon } from '../menu-icons/index.ts';
 export function dmMessageMenu(
   row: HTMLElement,
   input: {
+    viewOnce?: boolean;
     text: string;
     signal: AbortSignal;
     picker: EmojiPicker;
@@ -34,7 +35,7 @@ export function dmMessageMenu(
         status.textContent = t('Could not copy the text.');
     });
   });
-  menu.panel.append(withMenuIcon(copy, 'copy'));
+  if (!input.viewOnce) menu.panel.append(withMenuIcon(copy, 'copy'));
   if (input.reply) {
     const reply = document.createElement('button');
     reply.type = 'button';
@@ -42,7 +43,7 @@ export function dmMessageMenu(
     reply.addEventListener('click', () => input.reply?.());
     menu.panel.append(withMenuIcon(reply, 'reply'));
   }
-  if (input.edit && input.editable) {
+  if (input.edit && input.editable && !input.viewOnce) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.textContent = t('Edit');

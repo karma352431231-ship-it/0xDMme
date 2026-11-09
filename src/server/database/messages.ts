@@ -1,5 +1,6 @@
 import type { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageOpening } from './message-opening.ts';
+import { attachViewOncePayload } from './view-once.ts';
 import { deleteMessageCopies } from './message-deletion.ts';
 import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import type { MessageAllocations } from './message-allocations.ts';
@@ -147,6 +148,7 @@ export class MessageStore {
           return { status: 'accepted', hash };
         }
         await this.assertRelation(client, packet);
+        await attachViewOncePayload(client, packet, 'private');
         const events = await this.currentDirectories(client, packet);
         await this.assertRecoverable(client, packet, events);
         const removedFor = await removedAudience(client, packet);
@@ -714,7 +716,9 @@ function assertActionOwner(
     throw new AccountError(403, 'Change not allowed.');
   if (
     packet.relation?.type === 'edit' &&
-    (original.sender !== packet.sender || original.kind !== 'text')
+    (original.sender !== packet.sender ||
+      original.kind !== 'text' ||
+      original.viewOnce)
   )
     throw new AccountError(403, 'Only the author can edit text.');
 }

@@ -8,6 +8,7 @@ import {
   bindRecordGesture,
   showRecording,
   updateChatComposer,
+  viewOnceEnabled,
 } from '../chat-ui/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
@@ -28,7 +29,10 @@ interface ComposerAvailability {
 }
 interface ComposerOptions {
   playback: VoicePlayback;
-  controller: Pick<Messages, 'compose' | 'composeAction' | 'composeAttachment'>;
+  controller: Pick<
+    Messages,
+    'compose' | 'composeAction' | 'composeAttachment' | 'composeViewOnce'
+  >;
   availability: () => ComposerAvailability;
   signal: () => AbortSignal;
   externalMedia?: ExternalMediaConsent;
@@ -96,6 +100,7 @@ export class MessageComposer {
     return (
       !this.voice.active &&
       !this.attachments.selected &&
+      !viewOnceEnabled(this.node('[data-message-form]')) &&
       this.composing?.mode !== 'edit'
     );
   }
@@ -234,21 +239,10 @@ export class MessageComposer {
   }
   private async saveComposition(peer: string, text: string): Promise<void> {
     const { controller } = this.options;
-    if (this.composing?.mode === 'edit') {
-      if (this.attachments.selected)
-        throw new Error(
-          'Editing changes text only; remove the selected attachment.',
-        );
-      await controller.composeAction(
-        this.composing.view,
-        'edit',
-        encodeDailyText({
-          text,
-          reply: decodeDailyText(this.composing.view.text).reply,
-          forwarded: decodeDailyText(this.composing.view.text).forwarded,
-        }),
-      );
-    } else if (this.attachments.selected)
+    if (viewOnceEnabled(this.node('[data-message-form]')))
+      return this.saveOnce(peer, text);
+    if (this.composing?.mode === 'edit') await this.saveEdit(text);
+    else if (this.attachments.selected)
       await controller.composeAttachment(
         peer,
         this.attachments.selected,
@@ -268,6 +262,33 @@ export class MessageComposer {
         }),
       );
   }
+  private async saveOnce(peer: string, text: string): Promise<void> {
+    if (this.composing?.mode === 'edit')
+      throw new Error('Cancel editing before sending a view-once message.');
+    await this.options.controller.composeViewOnce(
+      peer,
+      text,
+      this.attachments.selected,
+    );
+  }
+  private async saveEdit(text: string): Promise<void> {
+    const { controller } = this.options;
+    if (this.composing?.mode !== 'edit')
+      throw new Error('Choose a message to edit.');
+    if (this.attachments.selected)
+      throw new Error(
+        'Editing changes text only; remove the selected attachment.',
+      );
+    await controller.composeAction(
+      this.composing.view,
+      'edit',
+      encodeDailyText({
+        text,
+        reply: decodeDailyText(this.composing.view.text).reply,
+        forwarded: decodeDailyText(this.composing.view.text).forwarded,
+      }),
+    );
+  }
   async saveGif(
     peer: string | null,
     localOnly: boolean,
@@ -276,6 +297,10 @@ export class MessageComposer {
     if (!peer || localOnly)
       throw new Error('Choose an authorized contact to send the GIF.');
     if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
+    if (viewOnceEnabled(this.node('[data-message-form]'))) {
+      await this.options.controller.composeViewOnce(peer, url, null);
+      return;
+    }
     await this.options.controller.compose(
       peer,
       encodeDailyText({ text: url, reply: null, forwarded: false }),

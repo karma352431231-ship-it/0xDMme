@@ -14,6 +14,7 @@ import {
   wipe,
 } from './selection-queue.ts';
 import type { MediaView } from './media.ts';
+import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 export { attachmentBatchLimit } from './selection-queue.ts';
 
 export class AttachmentUi {
@@ -169,16 +170,22 @@ export class AttachmentUi {
     );
   }
   private prepare(file: File): Promise<AttachmentSelection | null> {
-    return prepareAttachment(file, false, this.maximum).catch(
-      (error: unknown) => {
-        showToast(
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Invalid file.'),
-        );
-        return null;
-      },
-    );
+    const once =
+      this.host?.querySelector<HTMLElement>('.chat-composer')?.dataset[
+        'viewOnce'
+      ] === 'true';
+    return (
+      once
+        ? prepareViewOnceSelection(file, this.maximum)
+        : prepareAttachment(file, false, this.maximum)
+    ).catch((error: unknown) => {
+      showToast(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Invalid file.'),
+      );
+      return null;
+    });
   }
   private preview(
     host: HTMLElement,

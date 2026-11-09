@@ -14,13 +14,15 @@ import type { SocialDms } from '../social-dm/index.ts';
 import { dmBubble } from './dm-chat.ts';
 import type { DmView } from './dm-chat.ts';
 import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
+import { renderViewOnce } from '../view-once-ui/index.ts';
 
 export type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
 export type DmItem = DmPage['items'][number];
 interface HistoryOptions {
   playback: VoicePlayback;
   privacy: ExternalMediaConsent;
-  controller: Pick<SocialDms, 'media'>;
+  controller: Pick<SocialDms, 'media'> &
+    Partial<Pick<SocialDms, 'openViewOnce'>>;
   run: (work: () => Promise<void>) => Promise<void>;
   react: (item: DmItem, emoji: string) => Promise<void>;
   edit: (item: DmItem) => void;
@@ -202,6 +204,8 @@ export class DmHistory {
     if (held?.key === key) return held.row;
     held?.stop();
     held?.row.remove();
+    const lifetime = new AbortController();
+    const signal = AbortSignal.any([this.abort.signal, lifetime.signal]);
     const handle = item.peer.handle,
       bubble = dmBubble(
         { ...item, text: item.displayText },
@@ -209,12 +213,32 @@ export class DmHistory {
           own: item.sender === page.self,
           handle,
           privacy: this.options.privacy,
-          signal: this.abort.signal,
+          signal,
         },
       );
     this.renderReply(bubble.row, item, page);
     this.renderAttachment(bubble.row, item, { ...input, localMedia });
+    const metadata = messageViewOnce(item);
+    if (metadata) {
+      bubble.row.querySelector('p')?.remove();
+      renderViewOnce({
+        host: bubble.row,
+        id: item.id,
+        own: item.own,
+        metadata,
+        signal,
+        current: () => bubble.row.isConnected && !signal.aborted,
+        open: () =>
+          this.options.controller.openViewOnce?.(
+            input.selected,
+            item.id,
+            metadata,
+            signal,
+          ) ?? Promise.reject(new Error('View-once message unavailable.')),
+      });
+    }
     const stopMenu = dmMessageMenu(bubble.row, {
+      viewOnce: !!metadata,
       text:
         item.kind === 'text'
           ? item.displayText
@@ -222,7 +246,7 @@ export class DmHistory {
               socialAttachment(JSON.parse(item.text) as unknown, item.media!)
                 .caption,
             ).text,
-      signal: this.abort.signal,
+      signal,
       picker: this.emoji,
       run: this.options.run,
       ...this.messageCapabilities(item, {
@@ -240,6 +264,7 @@ export class DmHistory {
       key,
       row: bubble.row,
       stop: () => {
+        lifetime.abort();
         stopMenu();
         bubble.stop();
       },
@@ -295,4 +320,8 @@ export class DmHistory {
   private editable(item: DmItem): boolean {
     return item.own && item.kind === 'text';
   }
+}
+
+function messageViewOnce(item: DmItem) {
+  return item.kind === 'text' ? decodeDailyText(item.text).viewOnce : undefined;
 }

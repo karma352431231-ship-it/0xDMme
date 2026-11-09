@@ -25,6 +25,7 @@ const storageNames = [
   'openLocal',
   'localStoreKey',
   'enqueueOutbox',
+  'enqueueOutboxBatch',
   'outboxPage',
   'removeOutbox',
 ];

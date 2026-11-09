@@ -23,6 +23,7 @@ import type { SocialMediaStore } from './social-media.ts';
 import type { SocialContext, SocialDmStore } from './social-dm.ts';
 
 import { admitSocialAction } from './social-actions.ts';
+import { attachViewOncePayload } from './view-once.ts';
 
 export class SocialCryptoStore {
   private readonly social: SocialDmStore;
@@ -315,6 +316,7 @@ export class SocialCryptoStore {
           return { status: 'accepted', hash };
         }
         await admitSocialAction(context, packet);
+        await attachViewOncePayload(context.client, packet, 'public');
         await this.admitMedia(context, packet);
         const body = JSON.stringify(packet),
           charge = Buffer.byteLength(body) + 512;

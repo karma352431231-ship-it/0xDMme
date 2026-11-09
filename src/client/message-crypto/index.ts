@@ -4,7 +4,7 @@ export { GroupSendBatch } from './group-batch.ts';
 import type { GroupSendBatch } from './group-batch.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
-import { optionalRelation } from '../../shared/daily/index.ts';
+import { optionalRelation, decodeDailyText } from '../../shared/daily/index.ts';
 import {
   assertGroupPacketPeriod,
   groupPacket,
@@ -136,6 +136,18 @@ function checkAttachmentPacket(packet: MessagePacket, text: string): void {
     ) !== canonical(packet.attachments)
   )
     throw new Error('Attachments differ from the authenticated message.');
+}
+function checkViewOncePacket(packet: MessagePacket, text: string): void {
+  if (packet.kind === 'profile') return;
+  const value =
+    packet.kind === 'attachment'
+      ? attachmentContent(JSON.parse(text) as unknown).caption
+      : text;
+  const reference = decodeDailyText(value).viewOnce;
+  if (reference?.hash !== packet.viewOnce?.hash)
+    throw new Error(
+      'View-once content differs from its authenticated reference.',
+    );
 }
 function roomContent(input: {
   text: string;
@@ -384,6 +396,7 @@ export class MessageCrypto {
     }
   }
   async encrypt(input: {
+    viewOnce?: MessagePacket['viewOnce'];
     socialMedia?: MessagePacket['socialMedia'];
     authority: VaultAuthority;
     peerHistory: DirectoryEvent[];
@@ -502,6 +515,7 @@ export class MessageCrypto {
     );
     const packet: MessagePacket = messagePacket({
       version: 1,
+      ...declaredViewOnce(input.viewOnce),
       ...declaredMedia(input.socialMedia),
       kind: input.kind ?? 'text',
       ...optionalRelation(input.relation),
@@ -989,6 +1003,7 @@ export class MessageCrypto {
         )
           throw new Error('Content does not match the authenticated message.');
         checkAttachmentPacket(packet, payload['body']);
+        checkViewOncePacket(packet, payload['body']);
         return {
           text: payload['body'],
           ...messagePresentation(identity['presentation']),
@@ -1046,4 +1061,10 @@ function historyAccount(history: DirectoryEvent[]): string {
   const current = history.at(-1);
   if (!current) throw new Error('Member directory missing.');
   return current.accountId;
+}
+
+function declaredViewOnce(reference: MessagePacket['viewOnce']): {
+  viewOnce?: NonNullable<MessagePacket['viewOnce']>;
+} {
+  return reference ? { viewOnce: reference } : {};
 }

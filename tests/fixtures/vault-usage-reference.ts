@@ -50,5 +50,13 @@ export async function referenceVaultUsage(
   );
   const bytes = Number(result.rows[0]?.bytes);
   if (!Number.isSafeInteger(bytes)) throw new Error('Quota unavailable.');
-  return bytes;
+  const available = await client.query<{ present: boolean }>(
+    "SELECT to_regclass('hash_talk.view_once_payloads') IS NOT NULL AS present",
+  );
+  if (!available.rows[0]?.present) return bytes;
+  const extra = await client.query<{ bytes: string }>(
+    `SELECT coalesce(sum(CASE WHEN sender=$1 THEN sender_charge ELSE recipient_charge END),0)::text AS bytes FROM hash_talk.view_once_payloads WHERE sender=$1 OR recipient=$1`,
+    [accountId],
+  );
+  return bytes + Number(extra.rows[0]?.bytes ?? 0);
 }

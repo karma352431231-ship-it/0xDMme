@@ -24,6 +24,8 @@ import { retrySnapshotRead } from './snapshot-retry.ts';
 import { MessageOutbox } from './outbox.ts';
 import { sealProfileChunks } from './profile-chunks.ts';
 import { t } from '../../shared/i18n/index.ts';
+import { decryptViewOnce } from '../view-once/index.ts';
+import type { ViewOnceMetadata } from '../view-once/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readDirectoryPreviews } from './directory-previews.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
@@ -535,6 +537,55 @@ export class Messages {
     caption: string,
   ): Promise<void> {
     return this.outbox.composeAttachment(peer, selection, caption);
+  }
+  composeViewOnce(
+    peer: string,
+    text: string,
+    selection: AttachmentSelection | null,
+  ): Promise<void> {
+    return this.outbox.composeViewOnce(peer, text, selection);
+  }
+  openViewOnce(
+    peer: string,
+    id: string,
+    metadata: ViewOnceMetadata,
+    signal: AbortSignal,
+  ) {
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+    };
+    return this.access.withVault(
+      false,
+      async (a) => {
+        guard();
+        const input = { scope: 'private', peer, id, hash: metadata.hash };
+        const api = (operation: string, payload: Record<string, unknown>) =>
+          messageApi(a, operation, payload, { guard, signal });
+        const status = object(await api('view-once-status', input));
+        if (status['consumed'])
+          throw new AccountError(
+            410,
+            'This view-once message was already opened.',
+          );
+        const key = recoveryKey(
+          await api('recovery-key', { id: status['keyId'] }),
+        );
+        const content = await decryptViewOnce({
+          authority: a,
+          recovery: key,
+          id,
+          scope: 'private',
+          peer,
+          metadata,
+          response: await api('view-once-open', input),
+        });
+        guard();
+        return content;
+      },
+      { priority: 'interactive' },
+    );
   }
   async composeAction(
     view: MessageView,

@@ -1,10 +1,12 @@
 import Foundation
 import WebKit
+import UIKit
 
 /** Main-thread owner of frame/document authorization and bounded wire replies. */
 final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
     private weak var view: WKWebView?
     private let session: NativeSession
+    private let protectedView: NativeViewOnce
     private let parser = DispatchQueue(label: "app.zeroxdmme.native-wire")
     private var generation: UInt64 = 0
     private var document: String?
@@ -14,8 +16,9 @@ final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
     private var characters = 0
     private var calls: Set<String> = []
 
-    init(_ view: WKWebView, session: NativeSession) {
+    init(_ view: WKWebView, session: NativeSession, presenter: UIViewController? = nil) {
         self.view = view; self.session = session
+        self.protectedView = NativeViewOnce(presenter: presenter, protectedState: session.protectView)
         super.init()
         view.configuration.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "zeroXSession")
     }
@@ -96,6 +99,9 @@ final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
             case "open": self.session.open(message.request, reply: answer)
             case "read": self.session.read(message.request, reply: answer)
             case "cancel": self.session.cancel(message.request, reply: answer)
+            case "view-begin", "view-append", "view-show", "view-active", "view-close":
+                do { answer(.success(try self.protectedView.dispatch(message.operation, message.request))) }
+                catch { answer(.failure(error)) }
             default: answer(.failure(NativeFailure.unavailable))
             }
         }
@@ -104,6 +110,7 @@ final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
     private func release(_ size: Int) { pending -= 1; characters -= size }
 
     func navigationStarted() {
+        protectedView.close()
         generation += 1; document = nil; committed = false; calls.removeAll()
         session.cancelDocument()
     }
@@ -112,6 +119,7 @@ final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
 
     func close() {
         if closed { return }
+        protectedView.close()
         closed = true; generation += 1; document = nil; calls.removeAll()
         view?.configuration.userContentController.removeScriptMessageHandler(forName: "zeroXSession", contentWorld: .page)
         session.close()

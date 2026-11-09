@@ -38,6 +38,9 @@ final class NativeExchange {
     private boolean live;
 
     NativeExchange(NativePolicy.Request policy, OkHttpClient client, HttpUrl destination, String cookies) throws Exception {
+        this(policy, client, destination, cookies, false);
+    }
+    NativeExchange(NativePolicy.Request policy, OkHttpClient client, HttpUrl destination, String cookies, boolean protectedView) throws Exception {
         this.policy = policy;
         HttpUrl url = destination.resolve(policy.path);
         if (url == null || !url.isHttps() || !url.host().equals(destination.host()) || url.port() != destination.port()) throw NativePolicy.failure();
@@ -45,6 +48,8 @@ final class NativeExchange {
             .header("Origin", NativePolicy.SERVICE)
             .header("Accept-Encoding", "identity");
         for (Map.Entry<String, String> header : policy.headers.entrySet()) request.header(header.getKey(), header.getValue());
+        if (protectedView && policy.path.equals("/api/account/messages/view-once-open"))
+            request.header("Sec-0xdmme-Installed-View", "1");
         if (!cookies.isEmpty()) request.header("Cookie", cookies);
         RequestBody body = policy.method.equals("POST")
             ? RequestBody.create(policy.body == null ? new byte[0] : policy.body,

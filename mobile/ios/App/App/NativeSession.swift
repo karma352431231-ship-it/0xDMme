@@ -29,6 +29,7 @@ final class NativeSession: NSObject, URLSessionDataDelegate {
     private var completed: [String: UInt64] = [:]
     private var bodyBytes = 0
     private var closed = false
+    private var protectedView = false
     private var session: URLSession!
 
     init(_ configuration: NativeConnectionConfiguration) {
@@ -61,6 +62,8 @@ final class NativeSession: NSObject, URLSessionDataDelegate {
         }
     }
 
+    func protectView(_ active: Bool) { queue.sync { protectedView = active } }
+
     func ready(_ reply: @escaping Reply) {
         queue.async { [self] in
             if closed || initializationFailed { reply(.failure(NativeFailure.unavailable)) }
@@ -86,6 +89,9 @@ final class NativeSession: NSObject, URLSessionDataDelegate {
                 request.httpShouldHandleCookies = false
                 request.setValue(NativePolicy.service, forHTTPHeaderField: "Origin")
                 request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+                if protectedView && policy.path == "/api/account/messages/view-once-open" {
+                    request.setValue("1", forHTTPHeaderField: "Sec-0xdmme-Installed-View")
+                }
                 #if DEBUG && MOBILE_SYNTHETIC_TEST
                 if let token = configuration.testAdmission {
                     request.setValue(token, forHTTPHeaderField: "x-0xdmme-synthetic-admission")

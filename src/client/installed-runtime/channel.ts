@@ -101,6 +101,58 @@ export class InstalledSessionChannel implements NativeSessionBridge {
     if (value !== null) throw unavailable();
   }
 
+  async viewBegin(request: {
+    id: string;
+    mime: string;
+    bytes: number;
+  }): Promise<void> {
+    if ((await this.call('view-begin', request)) !== true) throw unavailable();
+  }
+  async viewAppend(request: {
+    id: string;
+    offset: number;
+    bytes: string;
+  }): Promise<void> {
+    if ((await this.call('view-append', request)) !== true) throw unavailable();
+  }
+  async viewShow(request: { id: string; text: string }): Promise<void> {
+    if ((await this.call('view-show', request)) !== true) throw unavailable();
+  }
+  async viewActive(request: { id: string }): Promise<boolean> {
+    const value = await this.call('view-active', request);
+    if (typeof value !== 'boolean') throw unavailable();
+    return value;
+  }
+  async viewClose(request: { id: string }): Promise<void> {
+    if ((await this.call('view-close', request)) !== true) throw unavailable();
+  }
+  async downloadFile(input: {
+    id: string;
+    name: string;
+    bytes: Uint8Array<ArrayBuffer>;
+  }): Promise<void> {
+    const { id, name, bytes } = input;
+    try {
+      if (
+        (await this.call('file-begin', { id, name, bytes: bytes.length })) !==
+        true
+      )
+        throw unavailable();
+      for (let offset = 0; offset < bytes.length; offset += 64 * 1024)
+        if (
+          (await this.call('file-append', {
+            id,
+            offset,
+            bytes: encode(bytes.subarray(offset, offset + 64 * 1024)),
+          })) !== true
+        )
+          throw unavailable();
+      if ((await this.call('file-save', { id })) !== true) throw unavailable();
+    } catch (error: unknown) {
+      await this.call('file-close', { id }).catch(() => undefined);
+      throw error;
+    }
+  }
   private call(
     operation: string,
     request: object,

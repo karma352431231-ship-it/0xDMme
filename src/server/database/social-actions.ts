@@ -56,6 +56,8 @@ function editableByAuthor(
 ): boolean {
   return (
     action.relation!.type !== 'edit' ||
-    (action.sender === target.sender && target.kind === 'text')
+    (action.sender === target.sender &&
+      target.kind === 'text' &&
+      !target.viewOnce)
   );
 }

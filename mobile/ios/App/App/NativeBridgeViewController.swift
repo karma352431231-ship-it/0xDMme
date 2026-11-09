@@ -27,7 +27,7 @@ final class NativeBridgeViewController: CAPBridgeViewController {
         precondition(bridge?.plugin(withName: "Keyboard") != nil, "The native keyboard plugin did not load.")
         do {
             let owner = NativeSession(try NativeConnectionFactory.configuration())
-            let channel = NativeSessionChannel(webView, session: owner)
+            let channel = NativeSessionChannel(webView, session: owner, presenter: self)
             sessionChannel = channel
             let files = NativeFileExport(webView, presenter: self)
             fileExport = files

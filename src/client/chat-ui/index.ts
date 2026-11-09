@@ -7,6 +7,9 @@ import { sendOnEnter } from './enter.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
 import { pingChipMarkup, pingMarkup } from '../ping/index.ts';
 import { menuIconMarkup } from '../menu-icons/index.ts';
+import { bindComposerMenu } from './composer-menu.ts';
+import { bindViewOnceMode } from './view-once-mode.ts';
+export { viewOnceEnabled } from './view-once-mode.ts';
 
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
@@ -16,6 +19,10 @@ const icons = {
   emoji:
     '<circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0M8 9h.01M16 9h.01"/>',
   clip: '<path d="m8 12 7-7a3 3 0 0 1 4 4L9 19a5 5 0 0 1-7-7L12 2m-6 12 9-9"/>',
+  image:
+    '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m4 17 5-5 4 4 4-6 4 6"/>',
+  file: '<path d="M13 3H5v18h14V9zM13 3v6h6"/>',
+  once: '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="m10 9 2-1v8m-2 0h4"/>',
   mic: '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
   send: '<path d="m3 3 18 9-18 9 3-9zM6 12h15"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
@@ -77,6 +84,10 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     chatIcon('send'),
     // Private and group chats accept 10 MB files; `@` DMs keep 3 MB (16/10/2026).
     t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
+    chatIcon('image'),
+    chatIcon('file'),
+    chatIcon('once'),
+    scope === 'group' ? 'hidden' : '',
   ]);
 }
 
@@ -120,7 +131,7 @@ export function updateChatComposer(
   if (text) text.disabled = input.recording;
   form
     .querySelectorAll<HTMLButtonElement>(
-      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji]',
+      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji], [data-attachment-kind], [data-view-once]',
     )
     .forEach((button) => {
       button.disabled = state.disabled;
@@ -145,17 +156,8 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
       const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
       if (send && !send.hidden && !send.disabled) send.click();
     });
-  form
-    .querySelectorAll<HTMLButtonElement>('[data-chat-attachment]')
-    .forEach((button) => {
-      button.addEventListener('click', () => {
-        const file = form.querySelector<HTMLInputElement>(
-          '[data-attachment-file]',
-        );
-        if (!file || file.disabled) return;
-        file.click();
-      });
-    });
+  bindComposerMenu(form);
+  bindViewOnceMode(form, changed);
 }
 
 /** Send and emoji controls retain focus until their click operation owns the handoff: on touch keyboards that
@@ -166,6 +168,8 @@ function keepComposerFocus(
   text: HTMLTextAreaElement | null,
 ): void {
   const controls = [
+    form.querySelector<HTMLButtonElement>('[data-chat-attachment]'),
+    form.querySelector<HTMLButtonElement>('[data-view-once]'),
     form.querySelector<HTMLButtonElement>('[data-compose-send]'),
     form.querySelector<HTMLButtonElement>(
       '[data-message-emoji], [data-group-emoji], [data-public-emoji]',

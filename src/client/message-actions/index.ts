@@ -38,7 +38,12 @@ export function messageActions<T extends DailyRow>(
         'reply',
       ),
     );
-  if (!c.view.archived && c.view.own && c.view.kind === 'text')
+  if (
+    !c.view.archived &&
+    c.view.own &&
+    c.view.kind === 'text' &&
+    !c.view.content.viewOnce
+  )
     menu.append(
       withMenuIcon(
         c.action(t('Edit'), () => {
@@ -94,7 +99,11 @@ function appendForward<T extends DailyRow>(
   menu: HTMLElement,
   c: MessageActionOptions<T>,
 ): void {
-  if (c.peers.length && ['text', 'attachment'].includes(c.view.kind))
+  if (
+    c.peers.length &&
+    ['text', 'attachment'].includes(c.view.kind) &&
+    !c.view.content.viewOnce
+  )
     menu.append(
       withMenuIcon(
         c.action(t('Forward'), () => {

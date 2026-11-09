@@ -38,6 +38,7 @@ const exportsByAdapter = {
     'sealLocal',
     'openLocal',
     'enqueueOutbox',
+    'enqueueOutboxBatch',
     'outboxPage',
     'removeOutbox',
   ],
@@ -186,6 +187,10 @@ export async function sendFixture() {
       return Promise.resolve();
     },
     localPage: () => Promise.resolve({ items: page(), next: null }),
+    enqueueOutboxBatch: () =>
+      Promise.reject(
+        new Error('View-once admission uses the real storage suite.'),
+      ),
     enqueueOutbox: (input: { id: string; value: Draft }) => {
       records.set(`outbox:${input.id}`, input.value);
       return Promise.resolve();

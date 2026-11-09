@@ -40,6 +40,7 @@
 		B36000000000000000000001 = {isa = PBXBuildFile; fileRef = B36000000000000000000002; };
 		B37000000000000000000001 /* NativeViewportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37000000000000000000002; };
 		B38000000000000000000001 /* NativeViewportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38000000000000000000002; };
+		B39000000000000000000001 /* NativeViewOnce.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +81,7 @@
 		B36000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFileExportTests.swift; sourceTree = "<group>"; };
 		B37000000000000000000002 /* NativeViewportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeViewportView.swift; sourceTree = "<group>"; };
 		B38000000000000000000002 /* NativeViewportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeViewportTests.swift; sourceTree = "<group>"; };
+		B39000000000000000000002 /* NativeViewOnce.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeViewOnce.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +127,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				B39000000000000000000002 /* NativeViewOnce.swift */,
 				B35000000000000000000002 /* NativeFileExport.swift */,
 				B35000000000000000000004 /* NativeFileExportStorage.swift */,
 				B33000000000000000000002 /* NativeSyntheticEndpoint.swift */,
@@ -261,6 +264,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B39000000000000000000001 /* NativeViewOnce.swift in Sources */,
 				B35000000000000000000001 /* NativeFileExport.swift in Sources */,
 				B35000000000000000000003 /* NativeFileExportStorage.swift in Sources */,
 				B33000000000000000000001 /* NativeSyntheticEndpoint.swift in Sources */,

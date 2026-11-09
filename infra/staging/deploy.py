@@ -212,13 +212,13 @@ def executor_code(config):
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
-                'follow_dates', 'visitor_retention']):
+                'follow_dates', 'visitor_retention', 'view_once']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
-                                                 'follow_notices', 'follow_dates', 'visitor_retention']):
+                                                 'follow_notices', 'follow_dates', 'visitor_retention', 'view_once']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -234,10 +234,12 @@ def executor_code(config):
         names.append('deploy_account_engagement')
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
-    if config.get('follow_dates') is True or config.get('visitor_retention') is True:
+    if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
+    if config.get('view_once') is True:
+        names.append('deploy_view_once')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -341,6 +343,8 @@ def main():
                         help='Apply the approved 104→105 dated follows.')
     parser.add_argument('--visitor-retention', action='store_true',
                         help='Apply the approved 105→106 visitor retention.')
+    parser.add_argument('--view-once', action='store_true',
+                        help='Apply the reviewed 106→107 single-delivery payload transition.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -351,8 +355,11 @@ def main():
         # 08/11/2026; every other transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
-                               'follow_notices', 'follow_dates', 'visitor_retention']):
+                               'follow_notices', 'follow_dates', 'visitor_retention', 'view_once']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
+    if args.view_once and any(vars(args)[name] for name in vars(args)
+                                if name not in ['view_once', 'check', 'activate']):
+        parser.error('View-once messages require their separate --check or --activate release.')
     if args.bootstrap_check and profile is None:
         parser.error('First-install inspection requires an explicit private target profile.')
     if args.engagement and any(vars(args)[name] for name in vars(args)
@@ -414,6 +421,8 @@ def main():
         config['follow_dates'] = True
     if args.visitor_retention:
         config['visitor_retention'] = True
+    if args.view_once:
+        config['view_once'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:

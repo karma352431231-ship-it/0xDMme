@@ -359,6 +359,39 @@
   color: var(--text);
   font-weight: 600;
 }
+.chat-panel .chat-view-once {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  max-width: 100%;
+  padding: 6px 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  font: inherit;
+}
+.chat-view-once > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.chat-view-once strong {
+  overflow-wrap: anywhere;
+  font-size: var(--fs-body);
+}
+.chat-view-once small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+.chat-view-once-icon {
+  flex: none;
+  font-size: 28px;
+  color: var(--accent-text);
+}
 .chat-message .message-meta {
   display: flex;
   justify-content: flex-end;
@@ -494,6 +527,7 @@
   }
 }
 .chat-panel .chat-composer {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
@@ -508,6 +542,32 @@
   display: flex;
   gap: 10px;
   align-items: flex-end;
+}
+/* Text keeps the full width; the action row stays reachable on narrow phones. */
+.compose-two-line {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+.compose-two-line .compose-input {
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+.compose-two-line .compose-input textarea {
+  padding-inline: 10px;
+}
+.compose-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.compose-spacer {
+  flex: 1;
 }
 .compose-input {
   display: flex;
@@ -538,6 +598,102 @@
 }
 .chat-panel .compose-input textarea:focus {
   outline: none;
+}
+.compose-attachment {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-self: center;
+}
+.chat-panel .compose-attachment-menu {
+  position: absolute;
+  z-index: 5;
+  inset-inline-end: 0;
+  inset-block-end: calc(100% + 8px);
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 4px;
+  width: max-content;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+.chat-panel .compose-attachment-menu[hidden] {
+  display: none;
+}
+.chat-panel .compose-attachment-menu > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 2px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  background: transparent;
+  font-size: var(--fs-caption);
+}
+.chat-panel .compose-attachment-menu > button:hover {
+  background: var(--surface-3);
+}
+.chat-panel .compose-attachment-menu svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chat-panel .compose-view-once[aria-pressed='true'] {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+.compose-view-once-hint {
+  position: absolute;
+  z-index: 6;
+  inset-inline: 12px;
+  inset-block-end: calc(100% + 10px);
+  max-width: 265px;
+  margin-inline: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-small);
+  box-shadow: 0 4px 12px var(--shadow);
+  pointer-events: none;
+  animation: compose-hint-in 220ms ease both;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+.compose-view-once-hint[data-closing='true'] {
+  opacity: 0;
+  transform: translateY(5px);
+}
+@keyframes compose-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compose-view-once-hint {
+    animation: none;
+    transition: none;
+  }
 }
 .chat-panel .compose-primary {
   flex-basis: 48px;

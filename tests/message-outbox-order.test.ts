@@ -6,6 +6,7 @@ import { recordDatabase } from './fixtures/record-database.ts';
 import { deferred } from './fixtures/deferred.ts';
 import {
   enqueueOutbox,
+  enqueueOutboxBatch,
   outboxPage,
   removeOutbox,
   localGet,
@@ -244,4 +245,36 @@ await test('private text admission seals locally without online authority and ca
     await localGet(session.accountId, `outbox:${discarded.id}`),
     null,
   );
+});
+
+await test('a view-once text/file pair is admitted atomically, preserves FIFO on retry and cannot consume only half the quota', async (t) => {
+  installStorage(t);
+  const scope = crypto.randomUUID();
+  const entries = ['text', 'file'].map((id) => ({
+    id,
+    value: { id },
+    size: 512,
+  }));
+  await localPut(scope, 'pressure', null, vaultQuota - 800);
+  await assert.rejects(
+    enqueueOutboxBatch({ scope, entries, current: () => true }),
+  );
+  assert.deepEqual(await outboxPage(scope), []);
+  await localDelete(scope, 'pressure');
+  await enqueueOutboxBatch({ scope, entries, current: () => true });
+  const used = await localGet(scope, 'usage');
+  await enqueueOutboxBatch({ scope, entries, current: () => true });
+  assert.equal(await localGet(scope, 'usage'), used);
+  assert.deepEqual(
+    (await outboxPage<{ id: string }>(scope)).map((x) => x.value.id),
+    ['text', 'file'],
+  );
+  await assert.rejects(
+    enqueueOutboxBatch({
+      scope,
+      entries: entries.map((x) => ({ ...x, id: x.id + 'cancelled' })),
+      current: () => false,
+    }),
+  );
+  assert.equal((await outboxPage(scope)).length, 2);
 });

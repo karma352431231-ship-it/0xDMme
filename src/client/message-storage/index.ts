@@ -11,7 +11,12 @@ export interface LocalCipher {
 }
 import { transaction } from './store.ts';
 import type { RecordRow } from './store.ts';
-export { enqueueOutbox, outboxPage, removeOutbox } from './outbox.ts';
+export {
+  enqueueOutbox,
+  enqueueOutboxBatch,
+  outboxPage,
+  removeOutbox,
+} from './outbox.ts';
 export async function localGet<T>(
   scope: string,
   name: string,

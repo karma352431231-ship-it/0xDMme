@@ -41,9 +41,17 @@ import { receivedState } from './controller.ts';
 import type { Messages, MessageView } from './controller.ts';
 import { outgoingTextRows } from './outgoing-text.ts';
 import type { OutgoingText } from './outgoing-text.ts';
+import { renderViewOnce } from '../view-once-ui/index.ts';
+import type { ViewOnceMetadata } from '../view-once/index.ts';
+import type { ViewOnceContent } from '../../shared/view-once/index.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
 interface HistoryPresentation {
+  openViewOnce?: (
+    view: MessageView,
+    metadata: ViewOnceMetadata,
+    signal: AbortSignal,
+  ) => Promise<ViewOnceContent>;
   node: <T extends HTMLElement>(selector: string) => T | null;
   context: () => {
     selected: ConversationPeer | null;
@@ -460,7 +468,21 @@ export class MessageHistoryUi {
   }): void {
     const { article, text, view, signal } = input;
     const { session, peers } = this.options.context();
-    if (view.kind === 'attachment') {
+    if (view.content.viewOnce) {
+      const metadata = view.content.viewOnce;
+      text.hidden = true;
+      renderViewOnce({
+        host: article,
+        id: view.id,
+        own: view.own,
+        metadata,
+        signal,
+        current: () => article.isConnected && !signal.aborted,
+        open: () =>
+          this.options.openViewOnce?.(view, metadata, signal) ??
+          Promise.reject(new Error('View-once message unavailable.')),
+      });
+    } else if (view.kind === 'attachment') {
       this.options.attachments.render({
         article,
         view,

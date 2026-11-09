@@ -24,7 +24,13 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
+    @Override protected void onActivityResult(int request, int result, android.content.Intent data) {
+        if (session != null && session.fileResult(request, result, data)) return;
+        super.onActivityResult(request, result, data);
+    }
+
     @Override public void onStop() {
+        if (session != null) session.suspend();
         if (media != null) media.suspend();
         super.onStop();
     }

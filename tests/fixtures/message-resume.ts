@@ -46,6 +46,7 @@ const adapters: Record<string, string[]> = {
     'sealLocal',
     'openLocal',
     'enqueueOutbox',
+    'enqueueOutboxBatch',
     'outboxPage',
     'removeOutbox',
   ],
@@ -213,6 +214,7 @@ export function resumeFixture(incremental = false) {
     sealLocal: (_a: unknown, name: string, text: string) =>
       Promise.resolve({ id: name, text, bytes: new Uint8Array(text.length) }),
     enqueueOutbox: unused,
+    enqueueOutboxBatch: unused,
     outboxPage: (_scope: string, names: readonly string[]) =>
       Promise.resolve(
         names

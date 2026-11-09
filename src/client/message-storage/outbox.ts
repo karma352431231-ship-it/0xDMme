@@ -25,43 +25,64 @@ export function enqueueOutbox(input: {
   size: number;
   current: () => boolean;
 }): Promise<void> {
-  const { scope, id, value, size, current } = input;
-  if (!Number.isSafeInteger(size) || size < 0)
+  return enqueueOutboxBatch({
+    scope: input.scope,
+    entries: [input],
+    current: input.current,
+  });
+}
+export function enqueueOutboxBatch(input: {
+  scope: string;
+  entries: readonly { id: string; value: object; size: number }[];
+  current: () => boolean;
+}): Promise<void> {
+  const { scope, entries, current } = input;
+  if (
+    !entries.length ||
+    entries.length > 16 ||
+    new Set(entries.map((entry) => entry.id)).size !== entries.length ||
+    entries.some(({ size }) => !Number.isSafeInteger(size) || size < 0)
+  )
     throw new Error('Invalid local budget.');
   return transaction(scope, (store, done) => {
-    const old = store.get([scope, `outbox:${id}`]),
+    const old = entries.map(({ id }) => store.get([scope, `outbox:${id}`])),
       usage = store.get([scope, 'usage']),
       sequence = store.get([scope, 'outbox-sequence']);
     let reads = 0;
     const update = () => {
-      if (++reads !== 3) return;
+      if (++reads !== entries.length + 2) return;
       if (!current()) {
         store.transaction.abort();
         return;
       }
-      if (row(old)) {
+      const added = entries.filter((_, position) => !row(old[position]!));
+      if (!added.length) {
         done(undefined);
         return;
       }
-      const next = Number(row(sequence)?.value ?? 0) + 1,
-        used = Number(row(usage)?.value ?? 0) + size + indexBytes;
-      if (!validBudget(next, used)) {
+      let next = Number(row(sequence)?.value ?? 0);
+      const used =
+        Number(row(usage)?.value ?? 0) +
+        added.reduce((total, entry) => total + entry.size + indexBytes, 0);
+      if (!validBudget(next + added.length, used)) {
         store.transaction.abort();
         return;
       }
-      const order = `${prefix}${String(next).padStart(16, '0')}:${id}`;
-      store.put({
-        scope,
-        name: `outbox:${id}`,
-        value: { ...value, outboxOrder: order },
-        size,
-      });
-      store.put({ scope, name: order, value: id, size: indexBytes });
+      for (const { id, value, size } of added) {
+        const order = `${prefix}${String(++next).padStart(16, '0')}:${id}`;
+        store.put({
+          scope,
+          name: `outbox:${id}`,
+          value: { ...value, outboxOrder: order },
+          size,
+        });
+        store.put({ scope, name: order, value: id, size: indexBytes });
+      }
       store.put({ scope, name: 'outbox-sequence', value: next, size: 0 });
       store.put({ scope, name: 'usage', value: used, size: 0 });
       done(undefined);
     };
-    old.onsuccess = update;
+    for (const request of old) request.onsuccess = update;
     usage.onsuccess = update;
     sequence.onsuccess = update;
   });

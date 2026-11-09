@@ -163,9 +163,59 @@ export interface DailyText {
   text: string;
   reply: string | null;
   forwarded: boolean;
+  viewOnce?: {
+    hash: string;
+    policy: 'mobile' | 'file';
+    file?: { name: string; mime: string; bytes: number };
+  };
+}
+function viewOnceTextMetadata(
+  input: unknown,
+): NonNullable<DailyText['viewOnce']> {
+  const value = object(input);
+  keys(value, [
+    'hash',
+    'policy',
+    ...(Object.hasOwn(value, 'file') ? ['file'] : []),
+  ]);
+  const hash = fingerprint(value['hash']);
+  if (value['policy'] !== 'mobile' && value['policy'] !== 'file')
+    throw new Error('Invalid view-once display.');
+  const policy = value['policy'];
+  if (!Object.hasOwn(value, 'file')) {
+    if (policy !== 'mobile')
+      throw new Error('View-once file metadata missing.');
+    return { hash, policy };
+  }
+  return { hash, policy, file: viewOnceFileMetadata(value['file']) };
+}
+function viewOnceFileMetadata(
+  input: unknown,
+): NonNullable<NonNullable<DailyText['viewOnce']>['file']> {
+  const file = object(input);
+  keys(file, ['name', 'mime', 'bytes']);
+  if (
+    typeof file['name'] !== 'string' ||
+    !file['name'] ||
+    file['name'].length > 255 ||
+    /[\p{Cc}]/u.test(file['name']) ||
+    typeof file['mime'] !== 'string' ||
+    file['mime'].length > 128
+  )
+    throw new Error('Invalid view-once file metadata.');
+  const bytes = integer(file['bytes'], 10_000_000);
+  if (!bytes) throw new Error('Invalid view-once file metadata.');
+  return { name: file['name'], mime: file['mime'], bytes };
+}
+function assertSeparatedContent(
+  value: Pick<DailyText, 'text' | 'forwarded' | 'viewOnce'>,
+): void {
+  if (value.viewOnce && (value.text !== '' || value.forwarded))
+    throw new Error('View-once content must be separate from history.');
 }
 const prefix = '\u001e0xdmme:1:';
 export function encodeDailyText(value: DailyText): string {
+  assertSeparatedContent(value);
   if (new TextEncoder().encode(value.text).length > 16000)
     throw new Error('Write up to 16 KB of text.');
   return (
@@ -174,6 +224,9 @@ export function encodeDailyText(value: DailyText): string {
       text: value.text,
       reply: value.reply === null ? null : uuid(value.reply),
       forwarded: value.forwarded,
+      ...(value.viewOnce
+        ? { viewOnce: viewOnceTextMetadata(value.viewOnce) }
+        : {}),
     })
   );
 }
@@ -181,17 +234,31 @@ export function decodeDailyText(value: string): DailyText {
   if (!value.startsWith(prefix))
     return { text: value, reply: null, forwarded: false };
   const d = object(JSON.parse(value.slice(prefix.length)) as unknown);
-  keys(d, ['text', 'reply', 'forwarded']);
+  keys(d, [
+    'text',
+    'reply',
+    'forwarded',
+    ...(Object.hasOwn(d, 'viewOnce') ? ['viewOnce'] : []),
+  ]);
   if (
     typeof d['text'] !== 'string' ||
     typeof d['forwarded'] !== 'boolean' ||
     new TextEncoder().encode(d['text']).length > 16000
   )
     throw new Error('Invalid daily content.');
+  const viewOnce = Object.hasOwn(d, 'viewOnce')
+    ? viewOnceTextMetadata(d['viewOnce'])
+    : undefined;
+  assertSeparatedContent({
+    text: d['text'],
+    forwarded: d['forwarded'],
+    ...(viewOnce ? { viewOnce } : {}),
+  });
   return {
     text: d['text'],
     reply: d['reply'] === null ? null : uuid(d['reply']),
     forwarded: d['forwarded'],
+    ...(viewOnce ? { viewOnce } : {}),
   };
 }
 

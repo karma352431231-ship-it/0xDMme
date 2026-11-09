@@ -32,6 +32,7 @@ import {
   sealLocal,
   openLocal,
   enqueueOutbox,
+  enqueueOutboxBatch,
   outboxPage,
   removeOutbox,
 } from '../message-storage/index.ts';
@@ -43,6 +44,16 @@ import type { ProfileCard } from '../message-profile/index.ts';
 import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { sealProfileChunks } from './profile-chunks.ts';
+import {
+  makeViewOnceContents,
+  sealViewOnceDraft,
+  openViewOnceDraft,
+  prepareViewOnce,
+  viewOnceDescriptor,
+  uploadViewOnce,
+} from '../view-once/index.ts';
+import type { PreparedViewOnce } from '../view-once/index.ts';
+import { t } from '../../shared/i18n/index.ts';
 
 interface SendAuthority {
   session: () => Readonly<AccountSession> | null;
@@ -62,6 +73,8 @@ interface SendAuthority {
   ) => Promise<{ own: RecoveryKey; machine: MessageCrypto }>;
 }
 interface OutboxEntry {
+  viewOnce?: boolean;
+  viewOncePayload?: PreparedViewOnce;
   outboxOrder?: string;
   createdAt?: number;
   relation?: MessageRelation;
@@ -71,6 +84,16 @@ interface OutboxEntry {
   kind: MessagePacket['kind'];
   packet: MessagePacket | null;
   transferStarted?: boolean;
+}
+interface SendContext {
+  a: VaultAuthority;
+  api: (op: string, d: Record<string, unknown>) => Promise<unknown>;
+  own: RecoveryKey;
+  machine: MessageCrypto;
+  generation: number;
+  name: string;
+  value: OutboxEntry;
+  history: import('../../shared/devices/index.ts').DirectoryEvent[];
 }
 /** Owns encrypted outgoing records from admission through transfer, retry,
  * reconciliation and removal. Session/identity verification and SDK opening
@@ -188,6 +211,47 @@ export class MessageOutbox {
       }
     });
   }
+  async composeViewOnce(
+    peer: string,
+    text: string,
+    selection: AttachmentSelection | null,
+  ): Promise<void> {
+    const session = this.authority.session();
+    if (!session) throw new WorkInterruption('session');
+    const generation = this.authority.current();
+    const contents = makeViewOnceContents(text, selection, chatFileLimit);
+    await this.access.withLocalVault(session, async (a) => {
+      this.authority.guard(generation);
+      const entries = await Promise.all(
+        contents.map(async (content) => {
+          const value: OutboxEntry = {
+            id: crypto.randomUUID(),
+            peer,
+            kind: 'text',
+            packet: null,
+            draft: await sealViewOnceDraft(a, content),
+            viewOnce: true,
+            createdAt: Date.now(),
+          };
+          return { id: value.id, value, size: this.entrySize(value) };
+        }),
+      );
+      await enqueueOutboxBatch({
+        scope: session.accountId,
+        entries,
+        current: () => generation === this.authority.current(),
+      });
+    });
+  }
+  private entrySize(value: OutboxEntry): number {
+    return (
+      value.draft.reduce((total, part) => total + part.bytes.length + 128, 0) +
+      (value.viewOncePayload?.bytes.length ?? 0) +
+      JSON.stringify(value.viewOncePayload?.header ?? null).length +
+      new TextEncoder().encode(JSON.stringify(value.packet)).length +
+      512
+    );
+  }
   private async sealDraft(
     a: VaultAuthority,
     id: string,
@@ -303,17 +367,8 @@ export class MessageOutbox {
       options,
     );
   }
-  private async sendOne(context: {
-    a: VaultAuthority;
-    api: (op: string, d: Record<string, unknown>) => Promise<unknown>;
-    own: RecoveryKey;
-    machine: MessageCrypto;
-    generation: number;
-    name: string;
-    value: OutboxEntry;
-    history: import('../../shared/devices/index.ts').DirectoryEvent[];
-  }): Promise<void> {
-    const { a, api, own, machine, generation, name, value } = context;
+  private async sendOne(context: SendContext): Promise<void> {
+    const { a, api, generation, name, value } = context;
     if (await this.alreadyAccepted(api, value)) {
       this.notifyPublished(value, generation);
       await removeOutbox(a.session.accountId, name);
@@ -329,40 +384,57 @@ export class MessageOutbox {
       value.packet.senderDirectory !== a.directory ||
       value.packet.recipientRevision !== last.revision
     ) {
-      const raw = await api('recovery-peer', { accountId: value.peer });
-      if (raw === null)
-        throw new Error(
-          'Your contact must open the app to prepare recovery before the first message.',
-        );
-      const peer = recoveryKey(raw),
-        event = history[peer.authorityRevision - 1];
-      if (!event) throw new Error('Contact recovery does not match.');
-      await verifyRecoveryKey(peer, event);
-      value.packet = await machine.encrypt({
-        authority: a,
-        peerHistory: history,
-        recovery: [own, peer],
-        id: value.id,
-        text: (
-          await Promise.all(value.draft.map((chunk) => openLocal(a, chunk)))
-        ).join(''),
-        kind: value.kind,
-        ...(value.relation ? { relation: value.relation } : {}),
-      });
-      await localPut(
-        a.session.accountId,
-        name,
-        value,
-        value.draft.reduce((total, chunk) => total + chunk.bytes.length, 0) +
-          new TextEncoder().encode(JSON.stringify(value.packet)).length +
-          512,
-      );
+      value.packet = await this.preparePacket(context);
+      await localPut(a.session.accountId, name, value, this.entrySize(value));
     }
     await this.transferOutbox(a, api, value);
     await this.publishOutbox(api, value);
     this.notifyPublished(value, generation);
     await this.retainOutbox(a, value);
     await removeOutbox(a.session.accountId, name);
+  }
+  private async preparePacket(context: SendContext): Promise<MessagePacket> {
+    const { a, api, own, machine, value, history } = context;
+    const raw = await api('recovery-peer', { accountId: value.peer });
+    if (raw === null)
+      throw new Error(
+        'Your contact must open the app to prepare recovery before the first message.',
+      );
+    const peer = recoveryKey(raw),
+      event = history[peer.authorityRevision - 1];
+    if (!event) throw new Error('Contact recovery does not match.');
+    await verifyRecoveryKey(peer, event);
+    let text: string;
+    let reference: MessagePacket['viewOnce'];
+    if (value.viewOnce) {
+      const content = await openViewOnceDraft(a, value.draft);
+      value.viewOncePayload ??= await prepareViewOnce({
+        id: value.id,
+        scope: 'private',
+        sender: a.session.accountId,
+        recipient: peer,
+        content,
+      });
+      const descriptor = await viewOnceDescriptor(
+        value.viewOncePayload,
+        content,
+      );
+      text = descriptor.text;
+      reference = descriptor.reference;
+    } else
+      text = (
+        await Promise.all(value.draft.map((chunk) => openLocal(a, chunk)))
+      ).join('');
+    return machine.encrypt({
+      authority: a,
+      peerHistory: history,
+      recovery: [own, peer],
+      id: value.id,
+      text,
+      ...(reference ? { viewOnce: reference } : {}),
+      kind: value.kind,
+      ...(value.relation ? { relation: value.relation } : {}),
+    });
   }
   private notifyPublished(value: OutboxEntry, generation: number): void {
     if (
@@ -384,6 +456,16 @@ export class MessageOutbox {
     api: (op: string, d: Record<string, unknown>) => Promise<unknown>,
     value: OutboxEntry,
   ): Promise<void> {
+    if (value.viewOncePayload) {
+      value.transferStarted = true;
+      await localPut(
+        a.session.accountId,
+        `outbox:${value.id}`,
+        value,
+        this.entrySize(value),
+      );
+      await uploadViewOnce(value.viewOncePayload, api);
+    }
     if (value.kind === 'attachment') {
       value.transferStarted = true;
       await localPut(
@@ -454,6 +536,7 @@ export class MessageOutbox {
           "Reconnect to cancel this attachment's remote reservation.",
         );
       const accepted = await this.discardRemote(a, row, generation);
+      await this.cancelViewOnceUpload(a, row, generation, accepted);
       if (row.kind === 'attachment') {
         if (!a.offline && !accepted)
           await messageApi(a, 'attachment-cancel', { message: id }, () =>
@@ -463,6 +546,32 @@ export class MessageOutbox {
       }
       await removeOutbox(a.session.accountId, `outbox:${id}`);
     });
+  }
+  private async cancelViewOnceUpload(
+    a: VaultAuthority,
+    row: OutboxEntry,
+    generation: number,
+    accepted: boolean,
+  ): Promise<void> {
+    if (row.viewOncePayload && row.transferStarted && !accepted) {
+      if (a.offline)
+        throw new Error('Reconnect to cancel the pending view-once upload.');
+      const descriptor = await viewOnceDescriptor(
+        row.viewOncePayload,
+        await openViewOnceDraft(a, row.draft),
+      );
+      await messageApi(
+        a,
+        'view-once-cancel',
+        {
+          scope: 'private',
+          peer: row.peer,
+          id: row.id,
+          hash: descriptor.reference.hash,
+        },
+        () => this.authority.guard(generation),
+      );
+    }
   }
   private async discardRemote(
     a: VaultAuthority,
@@ -508,7 +617,9 @@ export class MessageOutbox {
       for (const { value } of page) {
         if (value.peer !== peer || value.kind !== 'text' || value.relation)
           continue;
-        const text = await openLocal(a, value.draft[0]!);
+        const text = value.viewOnce
+          ? t('View-once message')
+          : await openLocal(a, value.draft[0]!);
         this.authority.guard(generation);
         drafts.push({
           id: value.id,

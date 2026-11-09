@@ -24,6 +24,8 @@ import org.json.JSONObject;
 public final class NativeSessionChannel extends WebViewListener {
     private final WebView view;
     private final NativeSession session;
+    private final NativeViewOnce viewOnce;
+    private final NativeFileExport files;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor parser = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
         new ArrayBlockingQueue<>(24), work -> {
@@ -47,6 +49,8 @@ public final class NativeSessionChannel extends WebViewListener {
     NativeSessionChannel(WebView view, NativeSession session) {
         this.view = view;
         this.session = session;
+        this.viewOnce = new NativeViewOnce(view, session::protectView);
+        this.files = new NativeFileExport(view);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             close();
             return;
@@ -117,6 +121,19 @@ public final class NativeSessionChannel extends WebViewListener {
                 case "open": session.open(message.request, reply); break;
                 case "read": session.read(message.request, reply); break;
                 case "cancel": session.cancel(message.request, reply); break;
+                case "view-begin":
+                case "view-append":
+                case "view-show":
+                case "view-active":
+                case "view-close":
+                    reply.value(viewOnce.dispatch(message.operation, message.request));
+                    break;
+                case "file-begin":
+                case "file-append":
+                case "file-save":
+                case "file-close":
+                    reply.value(files.dispatch(message.operation, message.request));
+                    break;
                 default: reply.failure();
             }
         } catch (Exception invalid) { reply.failure(); }
@@ -150,6 +167,8 @@ public final class NativeSessionChannel extends WebViewListener {
     private void release(int size) { pending--; characters -= size; }
 
     @Override public void onPageStarted(WebView webView) {
+        viewOnce.close();
+        files.close();
         generation++;
         committed = false;
         document = null;
@@ -176,9 +195,14 @@ public final class NativeSessionChannel extends WebViewListener {
     public void close() {
         if (closed) return;
         closed = true;
+        viewOnce.close();
+        files.close();
         generation++;
         calls.clear();
         session.close();
         parser.shutdownNow();
     }
+    public boolean fileResult(int request, int status, android.content.Intent data) { return files.result(request, status, data); }
+
+    public void suspend() { viewOnce.close(); }
 }

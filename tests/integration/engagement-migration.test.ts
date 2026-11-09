@@ -144,7 +144,7 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
   assert.equal(
     (await client.query('SELECT version FROM hash_talk.schema_migrations'))
       .rowCount,
-    106,
+    107,
   );
   assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));
   await client.query('BEGIN');

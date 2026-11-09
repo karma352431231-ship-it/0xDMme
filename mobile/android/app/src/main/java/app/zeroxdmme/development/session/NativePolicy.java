@@ -61,8 +61,8 @@ final class NativePolicy {
             if (message.length() != 4) throw failure();
             call = identifier(message, "call");
             document = identifier(message, "document");
-            operation = text(message, "operation", 6);
-            if (!Arrays.asList("hello", "open", "read", "cancel").contains(operation)) throw failure();
+            operation = text(message, "operation", 16);
+            if (!Arrays.asList("hello", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close", "file-begin", "file-append", "file-save", "file-close").contains(operation)) throw failure();
             request = record(message, "request");
         }
     }
@@ -107,6 +107,14 @@ final class NativePolicy {
         Iterator<String> fields = value.keys();
         while (fields.hasNext())
             if (!Arrays.asList(allowed).contains(fields.next())) throw failure();
+    }
+
+    static int integer(JSONObject input, String key, int minimum, int maximum) throws Exception {
+        Object raw = input.opt(key);
+        if (!(raw instanceof Integer) && !(raw instanceof Long)) throw failure();
+        long value = ((Number) raw).longValue();
+        if (value < minimum || value > maximum) throw failure();
+        return (int) value;
     }
 
     static int readBytes(JSONObject input) throws Exception {

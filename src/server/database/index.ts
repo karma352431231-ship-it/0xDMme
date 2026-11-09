@@ -104,6 +104,7 @@ import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
 import { MessageRecoveryStore } from './message-recovery.ts';
 import { MessageStore } from './messages.ts';
+import { ViewOnceStore } from './view-once.ts';
 import { MatrixStore } from './matrix.ts';
 import { GroupStore } from './groups.ts';
 import { GroupMessageStore } from './group-messages.ts';
@@ -237,6 +238,7 @@ const migrations = [
   '104-profile-follow-notices.sql',
   '105-dated-profile-follows.sql',
   '106-visitor-retention.sql',
+  '107-view-once-messages.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -290,6 +292,7 @@ export class Database {
   readonly admission: DatabaseAdmission;
   readonly messageRecovery: MessageRecoveryStore;
   readonly messages: MessageStore;
+  readonly viewOnce: ViewOnceStore;
   readonly matrix: MatrixStore;
   readonly attachments: AttachmentStore;
   readonly backups: BackupStore;
@@ -406,6 +409,12 @@ export class Database {
     );
     this.socialCrypto.setMedia(this.socialMedia);
     this.socialMatrix = new SocialMatrixStore(this.socialDm, this.socialCrypto);
+    this.viewOnce = new ViewOnceStore(
+      this.contacts,
+      this.socialDm,
+      this.publicProfiles,
+      contentCapacity,
+    );
     this.communityMedia = new CommunityMediaStore(
       this.pool,
       this.communities,

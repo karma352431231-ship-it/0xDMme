@@ -1,4 +1,7 @@
 import { SocialTextOutbox } from './text-outbox.ts';
+import { decryptViewOnce } from '../view-once/index.ts';
+import type { ViewOnceMetadata } from '../view-once/index.ts';
+import { messageApi as privateMessageApi } from '../message-api/index.ts';
 import type { PublicTextSendOptions } from './text-outbox.ts';
 import { transmitSocialText } from './text-transmission.ts';
 import type { TextDraft } from '../text-send/index.ts';
@@ -121,6 +124,57 @@ export function dmMediaScope(account: string): string {
   return `dm-media:${account}`;
 }
 export class SocialDms {
+  composeViewOnce(
+    peer: string,
+    text: string,
+    selection: AttachmentSelection | null,
+  ): Promise<void> {
+    return this.texts.queueViewOnce(peer, text, selection);
+  }
+  openViewOnce(
+    peer: string,
+    id: string,
+    metadata: ViewOnceMetadata,
+    signal: AbortSignal,
+  ) {
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+    };
+    return this.withCrypto(
+      async (context) => {
+        guard();
+        const input = { scope: 'public', peer, id, hash: metadata.hash };
+        const api = (operation: string, payload: Record<string, unknown>) =>
+          privateMessageApi(context.privateAuthority, operation, payload, {
+            guard,
+            signal,
+          });
+        const status = object(await api('view-once-status', input));
+        if (status['consumed'])
+          throw new AccountError(
+            410,
+            'This view-once message was already opened.',
+          );
+        const key = recoveryKey(
+          await context.api('recovery-key', { id: status['keyId'] }),
+        );
+        const content = await decryptViewOnce({
+          authority: context.authority,
+          recovery: key,
+          id,
+          scope: 'public',
+          peer,
+          metadata,
+          response: await api('view-once-open', input),
+        });
+        guard();
+        return content;
+      },
+      { priority: 'interactive' },
+    );
+  }
   private readonly access: VaultAccess;
   private readonly sync: VaultSync;
   private generation = 0;
