@@ -125,6 +125,7 @@ export class SocialDms {
   private readonly sync: VaultSync;
   private generation = 0;
   private readonly history = new DmHistorySynchronization();
+  private confirmedHistory: DmHistorySnapshot | null = null;
   private session: AccountSession | null = null;
   private readonly removals = new RemovalIndex();
   private machine: MessageCrypto | null = null;
@@ -139,6 +140,7 @@ export class SocialDms {
       lifetime: {
         current: () => this.generation,
         guard: (generation) => this.guard(generation),
+        locator: () => this.localLocator(),
       },
       crypto: (work, options) => this.cryptoTurn(work, options, false),
     });
@@ -156,6 +158,7 @@ export class SocialDms {
     this.secretReady = null;
     this.audiences.clear();
     this.history.reset();
+    this.confirmedHistory = null;
     this.close();
   }
   cancel(): void {
@@ -163,6 +166,7 @@ export class SocialDms {
     this.secretReady = null;
     this.audiences.clear();
     this.history.reset();
+    this.confirmedHistory = null;
     this.close();
   }
   close(): void {
@@ -172,6 +176,23 @@ export class SocialDms {
   private guard(generation: number): void {
     if (generation !== this.generation || !this.session)
       throw new WorkInterruption('session');
+  }
+  private localLocator(): { accountId: string; deviceId: string } {
+    if (!this.session) throw new WorkInterruption('session');
+    const { accountId, deviceId } = this.session;
+    return { accountId, deviceId };
+  }
+  private localWork<T>(
+    generation: number,
+    work: (a: VaultAuthority) => Promise<T>,
+  ): Promise<T> {
+    this.guard(generation);
+    return this.access.withLocalVault(this.localLocator(), async (a) => {
+      this.guard(generation);
+      const result = await work(a);
+      this.guard(generation);
+      return result;
+    });
   }
   private privateApi(authority: VaultAuthority, generation: number): SocialApi {
     if (
@@ -434,11 +455,8 @@ export class SocialDms {
   queueText(draft: TextDraft): Promise<void> {
     return this.texts.queueText(draft);
   }
-  pendingTexts(
-    peer: string,
-    options: VaultWorkOptions = {},
-  ): Promise<TextDraft[]> {
-    return this.texts.pendingTexts(peer, options);
+  pendingTexts(peer: string): Promise<TextDraft[]> {
+    return this.texts.pendingTexts(peer);
   }
   async sendPending(
     options: PublicTextSendOptions = {},
@@ -888,50 +906,46 @@ export class SocialDms {
         guard: () => this.guard(generation),
         page: (snapshot, after) => this.historyPage(snapshot, after, options),
         cursor: () =>
-          this.access.withVault(
-            false,
-            async (a) => {
-              const held = await localGet<LocalCipher>(
-                `${a.session.accountId}:${a.session.deviceId}`,
-                'dm-sync-state',
-              );
-              return held
-                ? (JSON.parse(await openLocal(a, held)) as unknown)
-                : null;
-            },
-            options,
-          ),
+          this.localWork(generation, async (a) => {
+            const held = await localGet<LocalCipher>(
+              `${a.session.accountId}:${a.session.deviceId}`,
+              'dm-sync-state',
+            );
+            return held
+              ? (JSON.parse(await openLocal(a, held)) as unknown)
+              : null;
+          }),
         save: (cursor) =>
-          this.access.withVault(
-            false,
-            async (a) => {
-              this.guard(generation);
-              const row = await sealLocal(
-                a,
-                crypto.randomUUID(),
-                JSON.stringify(cursor),
-              );
-              this.guard(generation);
-              await localPut(
-                `${a.session.accountId}:${a.session.deviceId}`,
-                'dm-sync-state',
-                row,
-                row.bytes.length + 512,
-              );
-            },
-            options,
-          ),
+          this.localWork(generation, async (a) => {
+            const row = await sealLocal(
+              a,
+              crypto.randomUUID(),
+              JSON.stringify(cursor),
+            );
+            this.guard(generation);
+            await localPut(
+              `${a.session.accountId}:${a.session.deviceId}`,
+              'dm-sync-state',
+              row,
+              row.bytes.length + 512,
+            );
+          }),
       });
     }
     this.guard(generation);
+    this.confirmedHistory = snapshot;
     return snapshot;
   }
   async directoryPreviews(
     peers: readonly string[],
+    options: { afterReceive?: boolean } = {},
   ): Promise<Map<string, ConversationPreview>> {
     if (!peers.length) return new Map();
     const generation = this.generation;
-    const snapshot = navigator.onLine ? await this.synchronizeHistory() : null;
+    const snapshot = navigator.onLine
+      ? ((options.afterReceive ? this.confirmedHistory : null) ??
+        (await this.synchronizeHistory()))
+      : null;
     return this.access.withVault(true, async (a) => {
       await this.removals.load(a, () => this.guard(generation));
       const previews = await readDmDirectoryPreviews({
@@ -1181,20 +1195,14 @@ export class SocialDms {
       await localDelete(scope, `dm-media-draft:${peer}`);
     });
   }
-  async mediaDraft(
-    peer: string,
-    options: VaultWorkOptions = {},
-  ): Promise<boolean> {
-    return this.access.withVault(
-      false,
-      async (a) =>
-        Boolean(
-          await localGet(
-            `${a.session.accountId}:${a.session.deviceId}`,
-            `dm-media-draft:${peer}`,
-          ),
+  async mediaDraft(peer: string): Promise<boolean> {
+    return this.localWork(this.generation, async (a) =>
+      Boolean(
+        await localGet(
+          `${a.session.accountId}:${a.session.deviceId}`,
+          `dm-media-draft:${peer}`,
         ),
-      options,
+      ),
     );
   }
   async media(

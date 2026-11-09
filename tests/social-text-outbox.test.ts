@@ -143,13 +143,26 @@ async function fixture(t: TestContext) {
     sendPeers: new Map(),
   };
   const access: VaultAccess = {
-    withVault: (_offline, work) => work(owner.authority),
-    withLocalVault: (_locator, work) => work(owner.authority),
+    withVault: () => Promise.reject(new Error('Unexpected online vault turn')),
+    withLocalVault: (locator, work) => {
+      assert.deepEqual(locator, {
+        accountId: owner.accountId,
+        deviceId: owner.deviceId,
+      });
+      return work(owner.authority);
+    },
   };
   const create = () =>
     new SocialTextOutbox({
       access,
-      lifetime: { current: () => generation, guard },
+      lifetime: {
+        current: () => generation,
+        guard,
+        locator: () => ({
+          accountId: owner.accountId,
+          deviceId: owner.deviceId,
+        }),
+      },
       crypto: (work) => {
         turns++;
         return work({

@@ -66,6 +66,7 @@ await test('public badge reads coalesce live hints across pages and discard a la
     concurrency = 0,
     maximum = 0;
   const updates = new DmUnreadUpdates({
+    receives: () => true,
     page: (after) => {
       pages.push(after);
       return Promise.resolve({ peers: ['peer'], next: after ? null : 'next' });

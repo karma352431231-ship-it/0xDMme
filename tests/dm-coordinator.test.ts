@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { dmCoordinatorFixture } from './fixtures/dm-coordinator.ts';
 import type { SocialDms } from '../src/client/social-dm/index.ts';
 import type { AttachmentSelection } from '../src/client/attachments/index.ts';
+import type { SocialRelation } from '../src/shared/social-dm/index.ts';
+import { deferred } from './fixtures/deferred.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 await test('DM initializes once per session and the latest navigation waits for the previous one', async (t) => {
@@ -292,6 +294,107 @@ function message(
     ownReaction: '',
   };
 }
+
+function accountRelation(): SocialRelation {
+  return {
+    peer: { id: crypto.randomUUID(), handle: 'synthetic', avatar: null },
+    requester: crypto.randomUUID(),
+    state: 'approved',
+    revision: 1,
+    blocked: false,
+    blockRevision: 0,
+    canSend: true,
+  };
+}
+
+for (const waitFor of ['media', 'settings'] as const)
+  await test(`visible verified handle rows paint while ${waitFor} work is held`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = dmCoordinatorFixture(t);
+    f.ui.mount(f.host, 'A');
+    await turn();
+    const current = f.views.at(-1)!;
+    const settings = deferred<void>();
+    if (waitFor === 'media') f.holdMedia('A');
+    else f.data.settingsWait = settings.promise;
+    const baseline = {
+      calls: f.calls.length,
+      settings: f.data.settingsLoads.length,
+    };
+
+    for (const n of [1, 2]) {
+      f.data.items = [
+        ...f.data.items,
+        { ...message(`incoming-${n}`, n), own: false },
+      ];
+      f.emit('handle-messages');
+      t.mock.timers.tick(150);
+      await turn();
+      assert.equal(f.views.at(-1), current);
+      assert.equal(current.history.hidden, false);
+      assert.deepEqual(
+        current.history
+          .querySelectorAll('[data-message]')
+          .map((row) => row.dataset['message']),
+        Array.from({ length: n }, (_, index) => `incoming-${index + 1}`),
+      );
+    }
+    assert.equal(
+      f.calls.slice(baseline.calls).filter((call) => call === 'read:A').length,
+      2,
+    );
+    if (waitFor === 'media') {
+      assert.equal(
+        f.calls.slice(baseline.calls).filter((call) => call === 'media:A')
+          .length,
+        1,
+      );
+      f.releaseMedia();
+    } else {
+      assert.equal(f.data.settingsLoads.length, baseline.settings + 1);
+      f.data.settingsWait = null;
+      settings.resolve();
+    }
+    await turn();
+  });
+
+await test('both public wakeup listeners share one selected receipt and the account only projects', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.data.accountItems = [accountRelation()];
+  f.ui.ready();
+  await turn();
+  assert.equal(f.data.accountReceives, 0);
+  const before = f.calls.filter((call) => call === 'read:A').length;
+  f.data.items = [{ ...message('received'), own: false }];
+  f.ui.event('handle-messages');
+  f.emit('handle-messages');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'read:A').length, before + 1);
+  assert.equal(f.data.accountReceives, 0);
+  assert.equal(f.data.unreadProjections, 1);
+});
+
+await test('leaving a handle chat before its queued refresh hands receipt to the account inbox', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.data.accountItems = [accountRelation()];
+  f.ui.ready();
+  const before = f.calls.filter((call) => call === 'read:A').length;
+  f.ui.event('handle-messages');
+  f.emit('handle-messages');
+  f.ui.leave();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'read:A').length, before);
+  assert.equal(f.data.accountReceives, 1);
+  assert.equal(f.data.unreadProjections, 1);
+});
 
 await test('DM refresh retains unchanged rows and disposes changed or departed content', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });

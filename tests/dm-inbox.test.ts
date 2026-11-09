@@ -143,6 +143,47 @@ await test('an empty handle directory never initializes an alias or receives non
   assert.equal(receipts, 0);
 });
 
+await test('an account listing cedes receipt when a selected chat takes ownership', async (t) => {
+  onlineBrowser(t);
+  const held =
+      deferred<
+        Awaited<ReturnType<Parameters<typeof createDmInbox>[0]['list']>>
+      >(),
+    page = { items: [relation()], next: null };
+  let receives = true,
+    lists = 0,
+    receipts = 0,
+    projections = 0;
+  const inbox = createDmInbox(
+    {
+      list: () => (++lists === 1 ? held.promise : Promise.resolve(page)),
+      receive: () => {
+        receipts++;
+        return Promise.resolve();
+      },
+      unread: () => {
+        projections++;
+        return Promise.resolve(1);
+      },
+    },
+    () => {},
+    (peers) => Promise.resolve([...peers]),
+    () => receives,
+  );
+  inbox.reset(true);
+  inbox.start();
+  assert.equal(lists, 1);
+  receives = false;
+  held.resolve(page);
+  await turn();
+  assert.equal(receipts, 0);
+  assert.equal(projections, 0);
+  inbox.project();
+  await turn();
+  assert.equal(receipts, 0);
+  assert.equal(projections, 1);
+});
+
 await test('returning to a visible app resumes handle receipt without entering a DM view and logout removes wakeups', async (t) => {
   const browserDocument = onlineBrowser(t);
   browserDocument.visibilityState = 'hidden';

@@ -19,7 +19,7 @@ export async function readVisibleDm(input: {
   };
   work?: VaultWorkOptions;
   usable: () => boolean;
-  changed: () => void;
+  changed?: () => void;
 }): Promise<void> {
   if (!input.usable()) return;
   await refreshDmChecks({
@@ -36,5 +36,5 @@ export async function readVisibleDm(input: {
     Math.max(...received.map((item) => item.sequence)),
     input.work,
   );
-  if (input.usable()) input.changed();
+  if (input.usable()) input.changed?.();
 }

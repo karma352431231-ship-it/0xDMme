@@ -4,6 +4,7 @@ import type { MessagePacket } from '../../shared/messages/index.ts';
 import type {
   VaultAccess,
   VaultAuthority,
+  VaultLocator,
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
 import type { TextDraft } from '../text-send/index.ts';
@@ -46,6 +47,7 @@ export class SocialTextOutbox {
   private readonly lifetime: {
     current: () => number;
     guard: (generation: number) => void;
+    locator: () => VaultLocator;
   };
   private readonly crypto: CryptoTurn;
   private sending: Promise<{ more: boolean }> | null = null;
@@ -61,6 +63,16 @@ export class SocialTextOutbox {
   private scope(a: VaultAuthority): string {
     return `dm-text:${a.session.accountId}:${a.session.deviceId}`;
   }
+  private local<T>(
+    generation: number,
+    work: (a: VaultAuthority) => Promise<T>,
+  ): Promise<T> {
+    this.lifetime.guard(generation);
+    return this.access.withLocalVault(this.lifetime.locator(), (a) => {
+      this.lifetime.guard(generation);
+      return work(a);
+    });
+  }
   async queueText(input: TextDraft): Promise<void> {
     if (
       !input.text.trim() ||
@@ -70,21 +82,16 @@ export class SocialTextOutbox {
     uuid(input.id);
     uuid(input.peer);
     const generation = this.lifetime.current();
-    await this.access.withVault(
-      !navigator.onLine,
-      async (a) => {
-        this.lifetime.guard(generation);
-        const value: TextEntry = {
-          id: input.id,
-          peer: input.peer,
-          draft: await sealLocal(a, input.id, input.text),
-          packet: null,
-          createdAt: input.createdAt ?? Date.now(),
-        };
-        await this.enqueue(a, value, generation);
-      },
-      { priority: 'interactive' },
-    );
+    await this.local(generation, async (a) => {
+      const value: TextEntry = {
+        id: input.id,
+        peer: input.peer,
+        draft: await sealLocal(a, input.id, input.text),
+        packet: null,
+        createdAt: input.createdAt ?? Date.now(),
+      };
+      await this.enqueue(a, value, generation);
+    });
   }
   private enqueue(
     a: VaultAuthority,
@@ -169,34 +176,26 @@ export class SocialTextOutbox {
       (await outboxPage<TextEntry>(this.scope(a))).length > 0
     );
   }
-  async pendingTexts(
-    peer: string,
-    options: VaultWorkOptions = {},
-  ): Promise<TextDraft[]> {
+  async pendingTexts(peer: string): Promise<TextDraft[]> {
     const generation = this.lifetime.current();
-    return this.access.withVault(
-      !navigator.onLine,
-      async (a) => {
+    return this.local(generation, async (a) => {
+      const page = await this.pendingPage(a, generation);
+      this.lifetime.guard(generation);
+      const result: TextDraft[] = [];
+      for (const { value } of page) {
+        if (value.peer !== peer) continue;
+        const text = await openLocal(a, value.draft);
         this.lifetime.guard(generation);
-        const page = await this.pendingPage(a, generation);
-        this.lifetime.guard(generation);
-        const result: TextDraft[] = [];
-        for (const { value } of page) {
-          if (value.peer !== peer) continue;
-          const text = await openLocal(a, value.draft);
-          this.lifetime.guard(generation);
-          result.push({
-            id: value.id,
-            peer: value.peer,
-            text,
-            createdAt: value.createdAt,
-            ...(value.outboxOrder ? { order: value.outboxOrder } : {}),
-          });
-        }
-        return result;
-      },
-      options,
-    );
+        result.push({
+          id: value.id,
+          peer: value.peer,
+          text,
+          createdAt: value.createdAt,
+          ...(value.outboxOrder ? { order: value.outboxOrder } : {}),
+        });
+      }
+      return result;
+    });
   }
   sendPending(options: PublicTextSendOptions = {}): Promise<{ more: boolean }> {
     if (this.sending) return this.sending;
@@ -210,13 +209,8 @@ export class SocialTextOutbox {
     options: PublicTextSendOptions,
   ): Promise<{ more: boolean }> {
     const generation = this.lifetime.current();
-    const pending = await this.access.withVault(
-      !navigator.onLine,
-      async (a) => {
-        this.lifetime.guard(generation);
-        return this.pendingPage(a, generation);
-      },
-      options,
+    const pending = await this.local(generation, (a) =>
+      this.pendingPage(a, generation),
     );
     this.lifetime.guard(generation);
     if (!pending.length) return { more: false };

@@ -34,6 +34,7 @@ import type { DmView } from './dm-chat.ts';
 import { openDmConversation, dmConversationWork } from './dm-opening.ts';
 import { startDmComposer } from './dm-composer.ts';
 import { DmWork } from './dm-work.ts';
+import { DmFollowup } from './dm-followup.ts';
 import {
   DmDirectory,
   dmDirectoryRow as directoryRow,
@@ -94,6 +95,7 @@ export function startSocialDmUi(
     controller,
     controlsOptions.unreadChanged ?? (() => {}),
     (peers) => controls.audible(peers),
+    () => !foregroundReceives(),
   );
   const publicDirectory = new DmDirectory({
     list: async (after) => {
@@ -115,7 +117,7 @@ export function startSocialDmUi(
       return page;
     },
     actions: (relation) => controls.actions(relation),
-    previews: (peers) => controller.directoryPreviews(peers),
+    previews: (peers, options) => controller.directoryPreviews(peers, options),
   });
   const playback = new VoicePlayback();
   const history = new DmHistory({
@@ -193,6 +195,7 @@ export function startSocialDmUi(
   });
   const projections = new DmProjections();
   const workQueue = new DmWork();
+  const followup = new DmFollowup();
   const refreshes = new DmRefresh({
     access,
     state: () => ({
@@ -210,9 +213,7 @@ export function startSocialDmUi(
       closeGate();
     },
     forget: () => projections.clear(),
-    receipts: () => {
-      void run(refreshReceipts);
-    },
+    receipts: scheduleReceiptRefresh,
     clearDirectory: () => publicDirectory.clear(),
   });
   let container: HTMLElement | null = null,
@@ -269,10 +270,12 @@ export function startSocialDmUi(
   }
   function closeGate(): void {
     projections.clear();
+    followup.clear();
     refreshes.clearContinuation();
     verification++;
     controller.cancel();
     writable = false;
+    mediaReady = false;
     history.clear();
     displayedPage = null;
     if (view) {
@@ -285,29 +288,48 @@ export function startSocialDmUi(
     composer.update(composerState());
   }
   let writable = false,
-    pendingMedia = false;
+    pendingMedia = false,
+    mediaReady = false;
   function focusSearchResult(id: string | null): void {
     depth.clearFocus();
     if (id && pendingReveal?.peer === id)
       depth.focus(id, pendingReveal.sequence);
   }
   function composerState() {
-    return { writable, pending: pendingMedia, busy };
+    return { writable: writable && mediaReady, pending: pendingMedia, busy };
+  }
+  function foregroundReceives(): boolean {
+    return (
+      !!container?.isConnected &&
+      !!peer &&
+      (writable || !view) &&
+      !localOnly &&
+      navigator.onLine &&
+      document.visibilityState === 'visible'
+    );
   }
   function currentVerification(old: number, expected: number): boolean {
     return old === generation && expected === verification;
   }
+  function visibleHistory(history: HTMLElement): boolean {
+    return (
+      document.visibilityState === 'visible' &&
+      history.isConnected &&
+      history.getClientRects().length > 0
+    );
+  }
   async function reload(): Promise<void> {
+    if (peer && container) {
+      await conversation({ refreshDirectory: publicDirectory.available });
+      return;
+    }
     unread.request();
     if (!container) {
       await publicDirectory.refresh();
       return;
     }
-    if (peer) await conversation();
-    else {
-      cursor = null;
-      await list();
-    }
+    cursor = null;
+    await list();
     if (publicDirectory.available) await publicDirectory.refresh();
   }
   async function list(): Promise<void> {
@@ -454,7 +476,6 @@ export function startSocialDmUi(
       };
     }
     const value = await openDmConversation(controller, selected, usable, work);
-    await controls.load([selected]);
     return {
       offline,
       value,
@@ -462,7 +483,9 @@ export function startSocialDmUi(
       profile: value?.peer ?? (await identity(selected, work)),
     };
   }
-  async function conversation(): Promise<void> {
+  async function conversation(
+    input: { refreshDirectory?: boolean } = {},
+  ): Promise<void> {
     const selected = peer;
     if (!selected || !container) return;
     const old = generation,
@@ -473,22 +496,16 @@ export function startSocialDmUi(
         () => old === generation && expected === verification,
         work,
       );
-    if (old !== generation || expected !== verification || !container) return;
+    if (!currentVerification(old, expected) || !container) return;
     const current = frame(selected);
     current.gate.textContent = '';
     paintHeader(current, data);
-    options(current, selected, data.profile, data.value);
-    const gate = dmComposerGate({
-      value: data.value,
-      local: data.offline,
-    });
-    current.request.hidden = gate === null;
-    current.request.textContent = gate ?? '';
-    writable = !data.offline && gate === null;
+    updateConversationGate(current, data);
     const page = await messages(current, selected, old, {
       cached: data.page,
       work,
     });
+    if (!page || !currentVerification(old, expected)) return;
     projections.remember(
       { ...data, page },
       {
@@ -496,6 +513,15 @@ export function startSocialDmUi(
         live: refreshes.current,
       },
     );
+    scheduleFollowup({
+      current,
+      selected,
+      page,
+      data,
+      refreshDirectory: input.refreshDirectory === true,
+      currentView: () =>
+        currentVerification(old, expected) && displayedPage === page,
+    });
     renderSearchReturn(current.history, {
       active: () => depth.before(selected) !== null,
       latest: () => {
@@ -503,20 +529,42 @@ export function startSocialDmUi(
         void run(conversation);
       },
     });
-    if (pendingReveal?.peer === selected) {
-      const target = pendingReveal;
-      pendingReveal = null;
-      await revealMessage(target.id, {
-        row: (id) =>
-          [
-            ...current.history.querySelectorAll<HTMLElement>(
-              'article[data-message]',
-            ),
-          ].find((row) => row.dataset['message'] === id) ?? null,
-        older: { available: () => false, load: () => Promise.resolve(false) },
-        valid: () => peer === selected && currentVerification(old, expected),
-      });
-    }
+    await revealPending(current, selected, () =>
+      currentVerification(old, expected),
+    );
+  }
+  function updateConversationGate(
+    current: DmView,
+    data: Pick<
+      Awaited<ReturnType<typeof loadConversation>>,
+      'value' | 'offline'
+    >,
+  ): void {
+    const gate = dmComposerGate({ value: data.value, local: data.offline });
+    current.request.hidden = gate === null;
+    current.request.textContent = gate ?? '';
+    writable = !data.offline && gate === null;
+    if (!writable) mediaReady = false;
+    composer.update(composerState());
+  }
+  async function revealPending(
+    current: DmView,
+    selected: string,
+    usable: () => boolean,
+  ): Promise<void> {
+    const target = pendingReveal;
+    if (target?.peer !== selected) return;
+    pendingReveal = null;
+    await revealMessage(target.id, {
+      row: (id) =>
+        [
+          ...current.history.querySelectorAll<HTMLElement>(
+            'article[data-message]',
+          ),
+        ].find((row) => row.dataset['message'] === id) ?? null,
+      older: { available: () => false, load: () => Promise.resolve(false) },
+      valid: () => peer === selected && usable(),
+    });
   }
   function paintHeader(
     current: DmView,
@@ -551,12 +599,6 @@ export function startSocialDmUi(
           : await controller.cached(selected, null, input.work)),
       (before) => controller.cached(selected, before, input.work),
     );
-    const mediaPending = canWrite
-      ? await controller.mediaDraft(selected, input.work)
-      : false;
-    if (old !== generation || expected !== verification) return;
-    pendingMedia = mediaPending;
-    if (canWrite) await texts.restore(selected);
     if (old !== generation || expected !== verification) return;
     displayedPage = page;
     texts.observed(page.items);
@@ -567,24 +609,84 @@ export function startSocialDmUi(
     current.history.hidden = false;
     depth.check();
     composer.update(composerState());
-    const usable = () =>
-      old === generation &&
-      expected === verification &&
-      writable &&
-      document.visibilityState === 'visible' &&
-      current.history.isConnected &&
-      current.history.getClientRects().length > 0;
-    if (canWrite)
-      await readVisibleDm({
-        history: current.history,
-        controller,
-        peer: selected,
-        page,
-        work: input.work,
-        usable,
-        changed: () => unread.request(),
-      });
     return page;
+  }
+  function scheduleFollowup(input: {
+    current: DmView;
+    selected: string;
+    page: DmPage;
+    data: Awaited<ReturnType<typeof loadConversation>>;
+    refreshDirectory: boolean;
+    currentView: () => boolean;
+  }): void {
+    queueFollowup(() => enrichConversation(input), input.currentView);
+  }
+  function queueFollowup(
+    work: () => Promise<void>,
+    currentView: () => boolean,
+    replace = true,
+  ): void {
+    const account = session;
+    followup.request(async () => {
+      try {
+        if (currentView()) await work();
+      } catch (error: unknown) {
+        const current = currentView();
+        const failure = dmFailure(error, {
+          sameSession: sameSession(account, session),
+          current,
+        });
+        if (failure === 'deny') {
+          closeGate();
+          if (!current) refreshes.requestContinuation();
+        }
+        if (current && (failure === 'deny' || failure === 'fail')) {
+          status(
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('DM unavailable.'),
+          );
+        }
+      }
+    }, replace);
+  }
+  async function enrichConversation(
+    input: Parameters<typeof scheduleFollowup>[0],
+  ): Promise<void> {
+    const { current, selected, data, currentView } = input;
+    if (!currentView()) return;
+    const received = writable;
+    if (received) {
+      const media = await controller.mediaDraft(selected);
+      if (!currentView()) return;
+      pendingMedia = media;
+      mediaReady = true;
+      composer.update(composerState());
+      await texts.restore(selected);
+      if (!currentView()) return;
+      drawOutgoing();
+    }
+    if (!data.offline) await controls.load([selected]);
+    if (!currentView()) return;
+    options(current, selected, data.profile, data.value);
+    if (received) await followupReads(input);
+    else unread.request();
+    if (currentView() && input.refreshDirectory)
+      await publicDirectory.refresh({ afterReceive: received });
+  }
+  async function followupReads(
+    input: Parameters<typeof scheduleFollowup>[0],
+  ): Promise<void> {
+    const usable = () =>
+      input.currentView() && writable && visibleHistory(input.current.history);
+    await readVisibleDm({
+      history: input.current.history,
+      controller,
+      peer: input.selected,
+      page: input.page,
+      usable,
+    });
+    if (usable()) unread.project();
   }
   function drawOutgoing(): void {
     if (!view || !peer || !writable || !displayedPage) return;
@@ -593,22 +695,39 @@ export function startSocialDmUi(
       localMedia: false,
     });
   }
+  function scheduleReceiptRefresh(): void {
+    const old = generation,
+      expected = verification,
+      page = displayedPage;
+    if (!view || !writable || !page) return;
+    queueFollowup(
+      refreshReceipts,
+      () =>
+        currentVerification(old, expected) &&
+        displayedPage === page &&
+        !!view &&
+        visibleHistory(view.history),
+      false,
+    );
+  }
   async function refreshReceipts(): Promise<void> {
     if (!view || !peer || !writable || !displayedPage) return;
     const current = view,
       selected = peer,
       old = generation,
-      expected = verification;
+      expected = verification,
+      page = displayedPage;
     await refreshDmChecks({
       history: current.history,
       controller,
       peer: selected,
-      items: displayedPage.items,
-      work: dmConversationWork(),
+      items: page.items,
       usable: () =>
         currentVerification(old, expected) &&
         view === current &&
         peer === selected &&
+        displayedPage === page &&
+        visibleHistory(current.history) &&
         writable,
     });
   }
@@ -670,6 +789,7 @@ export function startSocialDmUi(
   }
   function clearView(): void {
     workQueue.reset();
+    followup.clear();
     refreshes.clear();
     if (view) clearDmChecks(view.history);
     history.reset();
@@ -682,11 +802,14 @@ export function startSocialDmUi(
     viewKey = '';
     writable = false;
     pendingMedia = false;
+    mediaReady = false;
     sending.reset();
   }
   function leave(): void {
+    const owned = foregroundReceives();
     clearView();
     refreshes.leave();
+    if (owned) unread.request();
   }
   // Once per session, and again when a public profile is created, so others
   // can write to it before its owner ever opens handle messages.
@@ -729,6 +852,10 @@ export function startSocialDmUi(
       if (event === 'call' || signal === 'handle-receipts') return;
       if (['authorization', 'revoked', 'ended', 'invalidated'].includes(event))
         unread.invalidate();
+      if (signal === 'handle-messages' && foregroundReceives()) {
+        refreshes.requestContent();
+        return;
+      }
       unread.request();
     },
     mount(node: HTMLElement, id: string | null, local = false): void {
@@ -789,6 +916,7 @@ export function startSocialDmUi(
       publicDirectory.clear();
       projections.clear();
       depth.clear();
+      unread.reset(value !== null);
       leave();
       composer.forgetDrafts();
       texts.reset();
@@ -798,7 +926,6 @@ export function startSocialDmUi(
       pendingReveal = null;
       controller.setSession(value);
       controls.setSession(value);
-      unread.reset(value !== null);
       node?.replaceChildren();
     },
     canActivate: () =>

@@ -115,18 +115,12 @@ export class DmTextSending {
     const generation = this.generation;
     if (this.restoring) await this.restoring;
     if (generation !== this.generation) return;
-    const task = this.options.controller
-      .pendingTexts(peer, {
-        priority: 'interactive',
-      })
-      .then((drafts) => {
-        if (generation !== this.generation) return;
-        const recovered = drafts.filter(
-          (draft) => !this.outgoing.has(draft.id),
-        );
-        this.outgoing.restore(recovered);
-        if (recovered.length) this.queue.retry();
-      });
+    const task = this.options.controller.pendingTexts(peer).then((drafts) => {
+      if (generation !== this.generation) return;
+      const recovered = drafts.filter((draft) => !this.outgoing.has(draft.id));
+      this.outgoing.restore(recovered);
+      if (recovered.length) this.queue.retry();
+    });
     this.restoring = task;
     try {
       await task;

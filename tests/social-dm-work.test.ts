@@ -69,7 +69,7 @@ const bundle = await build({
 });
 
 for (const interactive of [false, true])
-  await test(`handle history keeps its requested priority through signed snapshots, cursor persistence and local projection: interactive=${interactive}`, async () => {
+  await test(`handle history preserves signed snapshot priority and never spends a network turn on the local cursor: interactive=${interactive}`, async () => {
     const session = {
       accountId: crypto.randomUUID(),
       deviceId: crypto.randomUUID(),
@@ -87,6 +87,7 @@ for (const interactive of [false, true])
       priority: VaultWorkOptions['priority'];
     }[] = [];
     const requests: string[] = [],
+      local: string[] = [],
       stored = new Map<string, unknown>();
     const authority: VaultAuthority = {
       session,
@@ -102,7 +103,12 @@ for (const interactive of [false, true])
         boundaries.push({ offline, priority: options?.priority });
         return work({ ...authority, offline });
       },
-      withLocalVault: (_locator, work) => work({ ...authority, offline: true }),
+      withLocalVault: (locator, work) => {
+        assert.equal(locator.accountId, session.accountId);
+        assert.equal(locator.deviceId, session.deviceId);
+        local.push('local');
+        return work({ ...authority, offline: true });
+      },
     };
     const empty = () => Promise.resolve([]);
     const fixture: Record<string, unknown> = {
@@ -154,14 +160,21 @@ for (const interactive of [false, true])
     ]);
     assert.equal(
       boundaries.length,
-      5,
-      'Two signed reads, local cursor read/write and projection keep separate authority boundaries',
+      3,
+      'Two signed snapshots and offline projection only',
     );
+    assert.equal(local.length, 2, 'Cursor read and write use local authority');
     for (const boundary of boundaries)
       assert.equal(boundary.priority, interactive ? 'interactive' : undefined);
     assert.equal(boundaries.at(-1)?.offline, true);
     const previous = boundaries.length;
-    await controller.directoryPreviews([profile]);
+    const previewRequests = requests.length;
+    await controller.directoryPreviews([profile], { afterReceive: true });
+    assert.deepEqual(
+      requests.slice(previewRequests),
+      ['/api/account/messages/dm-personal-snapshot'],
+      'Preview reuses the confirmed receipt but rechecks its live authority',
+    );
     assert.ok(
       boundaries
         .slice(previous)
@@ -174,4 +187,12 @@ for (const interactive of [false, true])
       '/api/account/messages/dm-personal-snapshot',
       '/api/account/messages/dm-personal-snapshot',
     ]);
+    controller.cancel();
+    const afterCancel = requests.length;
+    await controller.directoryPreviews([profile], { afterReceive: true });
+    assert.equal(
+      requests.length - afterCancel,
+      3,
+      'Cancelled verification cannot be reused',
+    );
   });

@@ -1,20 +1,21 @@
 import { DmContinuations } from './dm-continuation.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
+type UnreadWork = 'receive' | 'project';
 /** Directory notification reads share the existing account wakeups. */
 export class DmUnreadUpdates {
   private readonly continuation = new DmContinuations({
-    available: () =>
-      this.active &&
-      this.enabled &&
-      !this.running &&
-      document.visibilityState === 'visible' &&
-      navigator.onLine,
-    run: () => this.request(),
+    available: () => !this.running && this.available(),
+    run: () => {
+      const retry = this.retry;
+      this.retry = null;
+      if (retry) this.request(retry);
+    },
   });
   private generation = 0;
   private active = false;
   private enabled = false;
-  private pending = false;
+  private pending: UnreadWork | null = null;
+  private retry: UnreadWork | null = null;
   private running = false;
   private readonly ports: {
     page: (
@@ -22,6 +23,7 @@ export class DmUnreadUpdates {
     ) => Promise<{ peers: string[]; next: string | null }>;
     count: (peers: string[]) => Promise<number>;
     prepare?: () => Promise<void>;
+    receives: () => boolean;
     changed: (count: number) => void;
   };
   constructor(ports: DmUnreadUpdates['ports']) {
@@ -32,7 +34,8 @@ export class DmUnreadUpdates {
     this.generation++;
     this.active = active;
     this.enabled = false;
-    this.pending = false;
+    this.pending = null;
+    this.retry = null;
     this.ports.changed(0);
   }
   start(): void {
@@ -43,56 +46,76 @@ export class DmUnreadUpdates {
   invalidate(): void {
     this.continuation.clear();
     this.generation++;
-    this.pending = false;
+    this.pending = null;
+    this.retry = null;
     this.ports.changed(0);
   }
-  request(): void {
-    if (
-      !this.active ||
-      !this.enabled ||
-      document.visibilityState !== 'visible' ||
-      !navigator.onLine
-    )
-      return;
-    this.pending = true;
+  request(update: UnreadWork = 'receive'): void {
+    const receives = this.ports.receives();
+    if (!this.available() || (update === 'receive' && !receives)) return;
+    if (this.pending !== 'receive' || !receives) this.pending = update;
     if (!this.running) void this.refresh();
   }
+  private available(): boolean {
+    return (
+      this.active &&
+      this.enabled &&
+      document.visibilityState === 'visible' &&
+      navigator.onLine
+    );
+  }
   private async refresh(): Promise<void> {
+    const generation = this.generation,
+      work = this.pending;
+    this.pending = null;
+    if (!work || !this.current(generation, work)) return;
     this.running = true;
-    const generation = this.generation;
-    this.pending = false;
     try {
-      const count = await this.read(generation);
-      if (generation === this.generation) {
+      const count = await this.read(generation, work);
+      if (count !== null && this.current(generation, work)) {
         this.continuation.clear();
+        this.retry = null;
         this.ports.changed(count);
       }
     } catch (error: unknown) {
-      if (generation === this.generation && expectedInterruption(error)) {
+      if (!this.current(generation, work)) return;
+      if (expectedInterruption(error)) {
+        this.retry = work;
         this.continuation.request();
       } else {
         // Unknown authority must not retain another session's notification state.
-        if (generation === this.generation) this.ports.changed(0);
+        this.ports.changed(0);
       }
     } finally {
       this.running = false;
-      if (this.pending) this.request();
+      const pending = this.pending;
+      this.pending = null;
+      if (pending) this.request(pending);
       this.continuation.resume();
     }
   }
-  private async read(generation: number): Promise<number> {
+  private current(generation: number, work: UnreadWork): boolean {
+    return (
+      generation === this.generation &&
+      (work === 'project' || this.ports.receives())
+    );
+  }
+  private async read(
+    generation: number,
+    work: UnreadWork,
+  ): Promise<number | null> {
     let after: string | null = null,
       total = 0,
-      prepared = false;
+      prepared = work === 'project';
     for (let page = 0; page < 64; page++) {
       const result = await this.ports.page(after);
-      if (generation !== this.generation) return 0;
+      if (!this.current(generation, work)) return null;
       const counted = await this.countReceivedPage({
         peers: result.peers,
-        generation,
+        current: () => this.current(generation, work),
         prepared,
       });
-      if (!counted) return 0;
+      if (!counted) return null;
       prepared = counted.prepared;
       total += counted.count;
       if (!result.next || total >= 100) return Math.min(100, total);
@@ -104,15 +127,15 @@ export class DmUnreadUpdates {
   /** Receive once for the account before projecting paginated notifications. */
   private async countReceivedPage(input: {
     peers: string[];
-    generation: number;
+    current: () => boolean;
     prepared: boolean;
   }): Promise<{ count: number; prepared: boolean } | null> {
     if (!input.prepared && input.peers.length) {
       await this.ports.prepare?.();
-      if (input.generation !== this.generation) return null;
+      if (!input.current()) return null;
     }
     const count = await this.ports.count(input.peers);
-    return input.generation === this.generation
+    return input.current()
       ? { count, prepared: input.prepared || input.peers.length > 0 }
       : null;
   }

@@ -150,6 +150,9 @@ export class DmRefresh {
   requestContinuation(): void {
     this.continuations.request();
   }
+  requestContent(): void {
+    this.refreshes.request();
+  }
   clearContinuation(): void {
     this.continuations.clear();
   }

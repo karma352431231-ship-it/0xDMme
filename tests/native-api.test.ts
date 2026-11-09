@@ -205,13 +205,17 @@ for (const path of [
 }
 
 await test('the installed client opens its signed live request and receives the first handle hint', async (t) => {
-  const installed = Object.getOwnPropertyDescriptor(globalThis, 'INSTALLED_APP');
+  const installed = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'INSTALLED_APP',
+  );
   Object.defineProperty(globalThis, 'INSTALLED_APP', {
     configurable: true,
     value: true,
   });
   t.after(() => {
-    if (installed) Object.defineProperty(globalThis, 'INSTALLED_APP', installed);
+    if (installed)
+      Object.defineProperty(globalThis, 'INSTALLED_APP', installed);
     else Reflect.deleteProperty(globalThis, 'INSTALLED_APP');
   });
   const { bridge, transport } = fixture(t);
@@ -258,7 +262,9 @@ await test('the installed client opens its signed live request and receives the 
   const parser = new WakeupFrames();
   const reader = response.body!.getReader();
   assert.deepEqual(parser.accept((await reader.read()).value!), ['ready']);
-  assert.deepEqual(parser.accept((await reader.read()).value!), ['handle-messages']);
+  assert.deepEqual(parser.accept((await reader.read()).value!), [
+    'handle-messages',
+  ]);
   await reader.cancel();
   reader.releaseLock();
 });
@@ -274,7 +280,10 @@ await test('the native call wake opt-in is limited to a single value on the sign
     [live, 'POST', '1, 1'],
   ] as const)
     await assert.rejects(
-      transport.fetch(path, { method, headers: { 'X-0xdmme-Call-Wake': value } }),
+      transport.fetch(path, {
+        method,
+        headers: { 'X-0xdmme-Call-Wake': value },
+      }),
       failure,
     );
   assert.equal(bridge.opened.length, 0);

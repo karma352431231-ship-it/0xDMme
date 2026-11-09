@@ -33,6 +33,7 @@ export class DmDirectory {
     actions?: (relation: SocialRelation) => ConversationAction[];
     previews: (
       peers: readonly string[],
+      options?: { afterReceive?: boolean },
     ) => Promise<Map<string, ConversationPreview>>;
   };
   constructor(source: DmDirectory['source']) {
@@ -68,7 +69,7 @@ export class DmDirectory {
     if (this.available)
       this.host?.replaceChildren(el('p', t('Opening conversation…')));
   }
-  async refresh(): Promise<void> {
+  async refresh(options?: { afterReceive?: boolean }): Promise<void> {
     if (!this.available || !this.host) return;
     const generation = ++this.generation,
       host = this.host;
@@ -79,6 +80,7 @@ export class DmDirectory {
       this.pageControls(host, page.next ?? null);
       const previews = await this.source.previews(
         page.items.map((row) => row.peer.id),
+        options,
       );
       if (!this.current(generation)) return;
       paintDmDirectoryPreviews(host, previews);

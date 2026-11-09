@@ -17,6 +17,7 @@ import { dmComposerGate } from '../../src/client/communities/dm-chat.ts';
 import type { startDmComposer } from '../../src/client/communities/dm-composer.ts';
 import type { AttachmentSelection } from '../../src/client/attachments/index.ts';
 import type { TextDraft } from '../../src/client/text-send/index.ts';
+import type { SocialRelation } from '../../src/shared/social-dm/index.ts';
 
 const entry = 'src/client/communities/dms.ts';
 // Real coordinator, queue, lifecycle and wakeup coalescing; IO and DOM are adapters.
@@ -200,6 +201,11 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     savedTexts: [] as TextDraft[],
     sendWait: null as Promise<void> | null,
     saveWait: null as Promise<void> | null,
+    settingsWait: null as Promise<void> | null,
+    settingsLoads: [] as string[],
+    accountItems: [] as SocialRelation[],
+    accountReceives: 0,
+    unreadProjections: 0,
     checks: 0,
     mediaPending: false,
     sendFailure: null as Error | null,
@@ -254,7 +260,9 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     calls.push('list');
     return holdList
       ? listing.promise
-      : Promise.resolve(Response.json({ items: [], next: null }));
+      : Promise.resolve(
+          Response.json({ items: data.accountItems, next: null }),
+        );
   });
   const views: {
     history: DmNode;
@@ -287,7 +295,10 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
   const fixture = {
     DmControls: class {
       setSession = noop;
-      load = asyncNoop;
+      load = (peers: string[]) => {
+        data.settingsLoads.push(...peers);
+        return data.settingsWait ?? Promise.resolve();
+      };
       actions = () => [];
       audible = (peers: string[]) => Promise.resolve(peers);
     },
@@ -311,6 +322,14 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
           return Promise.resolve('self');
         },
         publishDevices: asyncNoop,
+        receive: () => {
+          data.accountReceives++;
+          return Promise.resolve();
+        },
+        unread: () => {
+          data.unreadProjections++;
+          return Promise.resolve(0);
+        },
         state: (peer: string, options: VaultWorkOptions = {}) => {
           priorities.push({ operation: 'state', priority: options.priority });
           calls.push('state:' + peer);

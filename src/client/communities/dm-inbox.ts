@@ -17,7 +17,7 @@ class DmInbox {
     if (!this.lifecycle) {
       this.lifecycle = new AbortController();
       const options = { signal: this.lifecycle.signal },
-        resume = () => this.updates.request();
+        resume = () => this.request();
       document.addEventListener('visibilitychange', resume, options);
       document.addEventListener('resume', resume, options);
       window.addEventListener('online', resume, options);
@@ -31,6 +31,9 @@ class DmInbox {
   request(): void {
     this.updates.request();
   }
+  project(): void {
+    this.updates.request('project');
+  }
 }
 
 /** The account inbox receives authenticated history without mounting a DM.
@@ -40,6 +43,7 @@ export function createDmInbox(
   changed: (count: number) => void,
   audible: (peers: readonly string[]) => Promise<string[]> = (peers) =>
     Promise.resolve([...peers]),
+  receives: () => boolean = () => true,
 ): DmInbox {
   return new DmInbox(
     new DmUnreadUpdates({
@@ -53,6 +57,7 @@ export function createDmInbox(
         return visible.length ? controller.unread(visible) : 0;
       },
       changed,
+      receives,
     }),
   );
 }
