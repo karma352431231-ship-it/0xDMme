@@ -37,6 +37,7 @@ import {
 } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
 import type { TextDraft } from '../text-send/index.ts';
+import { WorkInterruption } from '../synchronization-work/index.ts';
 import { encodeProfileCard, profileCard } from '../message-profile/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
@@ -125,29 +126,30 @@ export class MessageOutbox {
   /** Local ciphertext admission only; SDK selection/publication stay exclusive. */
   async queueText(input: TextDraft): Promise<void> {
     const generation = this.authority.current();
-    await this.access.withVault(
-      !navigator.onLine,
-      async (a) => {
-        this.authority.guard(generation);
-        const draft = [await sealLocal(a, input.id, input.text)];
-        this.authority.guard(generation);
-        await enqueueOutbox({
-          scope: a.session.accountId,
+    const session = this.authority.session();
+    if (!session) throw new WorkInterruption('session');
+    const { accountId, deviceId } = session;
+    // Admission only needs the verified local keyring. Publication still
+    // opens fresh online authority and verifies the intended recipient.
+    await this.access.withLocalVault({ accountId, deviceId }, async (a) => {
+      this.authority.guard(generation);
+      const draft = [await sealLocal(a, input.id, input.text)];
+      this.authority.guard(generation);
+      await enqueueOutbox({
+        scope: accountId,
+        id: input.id,
+        value: {
           id: input.id,
-          value: {
-            id: input.id,
-            peer: input.peer,
-            draft,
-            kind: 'text',
-            packet: null,
-            createdAt: input.createdAt ?? Date.now(),
-          },
-          size: draft[0]!.bytes.length + 512,
-          current: () => generation === this.authority.current(),
-        });
-      },
-      { priority: 'interactive' },
-    );
+          peer: input.peer,
+          draft,
+          kind: 'text',
+          packet: null,
+          createdAt: input.createdAt ?? Date.now(),
+        },
+        size: draft[0]!.bytes.length + 512,
+        current: () => generation === this.authority.current(),
+      });
+    });
   }
   async composeAttachment(
     peer: string,

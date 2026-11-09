@@ -32,12 +32,17 @@ export class HistoryPreparation {
     this.remaining.add(kind);
   }
   /** Demanded kinds go first; otherwise partial pages alternate areas. */
-  next(demanded: ReadonlySet<HistoryKind> = new Set()): PreparationTurn | null {
+  next(
+    demanded: ReadonlySet<HistoryKind> = new Set(),
+    eligible: (kind: HistoryKind) => boolean = () => true,
+  ): PreparationTurn | null {
+    const ready = (kind: HistoryKind) =>
+      this.remaining.has(kind) && eligible(kind);
     const kind =
-      [...demanded].find((candidate) => this.remaining.has(candidate)) ??
-      (this.remaining.has(this.preferred)
+      [...demanded].find(ready) ??
+      (ready(this.preferred)
         ? this.preferred
-        : this.remaining.values().next().value);
+        : [...this.remaining].find(ready));
     return kind ? { kind, version: this.versions[kind] } : null;
   }
   complete(turn: PreparationTurn, more: boolean): void {

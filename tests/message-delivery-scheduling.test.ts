@@ -6,6 +6,7 @@ import { MessageLiveUpdates } from '../src/client/messages/live-updates.ts';
 import type { HistoryKind } from '../src/client/messages/preparation.ts';
 import { MessageSynchronization } from '../src/client/messages/synchronization.ts';
 import { TextSendQueue } from '../src/client/text-send/index.ts';
+import { AccountError } from '../src/shared/account/index.ts';
 
 /* Delivery redesign regressions. These assemble the real live routing,
  * synchronization scheduler and text queue the way `messages/index.ts` wires
@@ -48,6 +49,7 @@ async function assembled(
   const failures: unknown[] = [];
   let origin = 0;
   let behind = false;
+  let groupFailure: Error | null = null;
   const record = (operation: Operation) =>
     log.push({ operation, at: Date.now() - origin });
   const state = {
@@ -94,6 +96,11 @@ async function assembled(
     },
     preloadGroups: () => {
       record('group-receive');
+      if (groupFailure) {
+        const error = groupFailure;
+        groupFailure = null;
+        return Promise.reject(error);
+      }
       return Promise.resolve(false);
     },
     // Counters, sound and read receipts after a page; slow when requested.
@@ -178,6 +185,9 @@ async function assembled(
     sync,
     text,
     failures,
+    failNextGroup: (error: Error) => {
+      groupFailure = error;
+    },
     /** Times recorded afterwards are relative to the latest event. */
     emit: (event: LiveEvent) => {
       origin = Date.now();
@@ -327,6 +337,38 @@ await test('live receipt asks for interactive authority priority; speculative pr
   f.emit('private-messages');
   await f.advance(500);
   assert.deepEqual(f.priorities, [undefined, 'interactive']);
+});
+
+await test('an open private chat starts live receipt before the group warm-up timer', async (t) => {
+  const f = await assembled(t, 'direct');
+  f.sync.requestInbox('groups');
+  f.emit('private-messages');
+  await f.advance(promptReceiptMs);
+  assert.equal(f.count('account-receive'), 1);
+  assert.equal(f.count('group-receive'), 0);
+  assert.equal(f.priorities.at(-1), 'interactive');
+});
+
+await test('group rate-limit backoff delays only group receipt, while authorization denial pauses both', async (t) => {
+  const f = await assembled(t, 'direct');
+  f.failNextGroup(new AccountError(429, 'Group request limited.'));
+  f.sync.requestInbox('groups');
+  await f.advance(1100);
+  assert.equal(f.count('group-receive'), 1);
+  f.emit('private-messages');
+  await f.advance(promptReceiptMs);
+  assert.equal(f.count('account-receive'), 1);
+  assert.equal(f.count('group-receive'), 1);
+
+  f.sync.reset();
+  f.failNextGroup(new AccountError(403, 'Device authorization changed.'));
+  f.sync.requestInbox('groups');
+  await f.advance(2100);
+  assert.equal(f.count('group-receive'), 2);
+  const privateBefore = f.count('account-receive');
+  f.emit('private-messages');
+  await f.advance(promptReceiptMs);
+  assert.equal(f.count('account-receive'), privateBefore);
 });
 
 await test('a tab whose receipt another tab applied reads its open window once and goes idle', async (t) => {

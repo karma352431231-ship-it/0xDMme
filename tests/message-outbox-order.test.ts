@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
+import { MessageOutbox } from '../src/client/messages/outbox.ts';
 import { recordDatabase } from './fixtures/record-database.ts';
+import { deferred } from './fixtures/deferred.ts';
 import {
   enqueueOutbox,
   outboxPage,
@@ -13,10 +16,14 @@ import {
 } from '../src/client/message-storage/index.ts';
 import { aesKey, newSecret } from '../src/client/device-keys/index.ts';
 import { vaultQuota } from '../src/shared/vault/index.ts';
-import type { VaultAuthority } from '../src/client/vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultAuthority,
+} from '../src/client/vault-authority/index.ts';
+import type { AccountSession } from '../src/shared/account/index.ts';
 import type { LocalCipher } from '../src/client/message-storage/index.ts';
 
-await test('encrypted outbox commits FIFO order atomically, survives reopening, retries without replacing packets and removes its quota/index together', async (t) => {
+function installStorage(t: TestContext): void {
   const db = recordDatabase();
   const previous = ['indexedDB', 'IDBKeyRange'].map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
@@ -35,6 +42,10 @@ await test('encrypted outbox commits FIFO order atomically, survives reopening, 
       else Reflect.deleteProperty(globalThis, key);
     }
   });
+}
+
+await test('encrypted outbox commits FIFO order atomically, survives reopening, retries without replacing packets and removes its quota/index together', async (t) => {
+  installStorage(t);
   const secret = newSecret(),
     scope = crypto.randomUUID(),
     ids = [
@@ -151,4 +162,86 @@ await test('encrypted outbox commits FIFO order atomically, survives reopening, 
   assert.equal(await localGet(oldTab, 'usage'), 640);
   await removeOutbox(oldTab, 'outbox:still-pending');
   assert.equal(await localGet(oldTab, 'usage'), 0);
+});
+
+await test('private text admission seals locally without online authority and cannot save after session replacement', async (t) => {
+  installStorage(t);
+  const session = {
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'synthetic',
+  } as AccountSession;
+  const secret = newSecret();
+  const keyStarted = deferred<void>();
+  const releaseKey = deferred<void>();
+  let holdKey = false;
+  let generation = 0;
+  const local: VaultAuthority = {
+    session: { ...session, csrf: '' },
+    offline: true,
+    directory: 'a'.repeat(64),
+    epoch: 1,
+    events: [],
+    key: async () => {
+      if (holdKey) {
+        keyStarted.resolve();
+        await releaseKey.promise;
+      }
+      return aesKey(secret);
+    },
+    sign: () => Promise.reject(new Error('Admission must not sign.')),
+  };
+  const access: VaultAccess = {
+    withVault: () => Promise.reject(new Error('Online authority unavailable.')),
+    withLocalVault: (locator, work) => {
+      assert.deepEqual(locator, {
+        accountId: session.accountId,
+        deviceId: session.deviceId,
+      });
+      return work(local);
+    },
+  };
+  const outbox = new MessageOutbox({
+    access,
+    authority: {
+      session: () => session,
+      current: () => generation,
+      guard: (expected) => {
+        if (expected !== generation) throw new Error('Session changed.');
+      },
+      pinsLoaded: () => false,
+      loadPins: () =>
+        Promise.reject(new Error('No pin reads during admission.')),
+      savePins: () =>
+        Promise.reject(new Error('No pin writes during admission.')),
+      history: () =>
+        Promise.reject(new Error('No peer reads during admission.')),
+      encryption: () => Promise.reject(new Error('No SDK during admission.')),
+    },
+    published: () => assert.fail('Admission cannot publish.'),
+  });
+  const draft = {
+    id: crypto.randomUUID(),
+    peer: crypto.randomUUID(),
+    text: 'Local synthetic draft',
+  };
+  await outbox.queueText(draft);
+  const [saved] = await outboxPage<{ draft: LocalCipher[]; peer: string }>(
+    session.accountId,
+  );
+  assert.equal(saved?.value.peer, draft.peer);
+  assert.equal(await openLocal(local, saved.value.draft[0]!), draft.text);
+  assert.ok(!JSON.stringify(saved).includes(draft.text));
+
+  holdKey = true;
+  const discarded = { ...draft, id: crypto.randomUUID() };
+  const pending = outbox.queueText(discarded);
+  await keyStarted.promise;
+  generation++;
+  releaseKey.resolve();
+  await assert.rejects(pending, /Session changed/u);
+  assert.equal(
+    await localGet(session.accountId, `outbox:${discarded.id}`),
+    null,
+  );
 });
