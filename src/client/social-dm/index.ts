@@ -1,3 +1,9 @@
+import { SocialTextOutbox } from './text-outbox.ts';
+import type { PublicTextSendOptions } from './text-outbox.ts';
+import { transmitSocialText } from './text-transmission.ts';
+import type { TextDraft } from '../text-send/index.ts';
+import type { SocialContext } from './crypto-context.ts';
+export type { SocialContext } from './crypto-context.ts';
 import {
   rememberDmDeletion,
   filterDeletedDmRoots,
@@ -38,7 +44,7 @@ import { canonical, digest } from '../../shared/devices/index.ts';
 import { newSecret } from '../device-keys/index.ts';
 import { exclusive } from '../device-storage/index.ts';
 import { messageApi } from '../message-api/index.ts';
-import { MessageCrypto } from '../message-crypto/index.ts';
+import { MessageCrypto, PrivateAudiences } from '../message-crypto/index.ts';
 import {
   ensureMessageRecovery,
   openRecoveryKey,
@@ -102,12 +108,6 @@ import {
 } from './authority.ts';
 import type { SocialApi, SocialDirectoryPage } from './authority.ts';
 
-export interface SocialContext {
-  authority: VaultAuthority;
-  privateAuthority: VaultAuthority;
-  api: SocialApi;
-  machine: MessageCrypto;
-}
 /** The server's readiness rule: a directory exists and lists only active devices. */
 export function devicesCurrent(directory: SocialDirectoryPage): boolean {
   const current = directory.events.at(-1);
@@ -127,9 +127,20 @@ export class SocialDms {
   private session: AccountSession | null = null;
   private readonly removals = new RemovalIndex();
   private machine: MessageCrypto | null = null;
+  private readonly audiences = new PrivateAudiences();
+  private readonly texts: SocialTextOutbox;
+  private secretReady: { profile: string; secret: string } | null = null;
   constructor(access: VaultAccess, sync: VaultSync) {
     this.access = access;
     this.sync = sync;
+    this.texts = new SocialTextOutbox({
+      access,
+      lifetime: {
+        current: () => this.generation,
+        guard: (generation) => this.guard(generation),
+      },
+      crypto: (work, options) => this.cryptoTurn(work, options, false),
+    });
   }
   setSession(session: AccountSession | null): void {
     if (
@@ -141,11 +152,15 @@ export class SocialDms {
     this.generation++;
     this.session = session;
     this.removals.reset();
+    this.secretReady = null;
+    this.audiences.clear();
     this.history.reset();
     this.close();
   }
   cancel(): void {
     this.generation++;
+    this.secretReady = null;
+    this.audiences.clear();
     this.history.reset();
     this.close();
   }
@@ -338,50 +353,75 @@ export class SocialDms {
     await localPut(scope, name, row, row.bytes.length + 512);
     return alias;
   }
-  async withCrypto<T>(
-    work: (input: {
-      authority: VaultAuthority;
-      privateAuthority: VaultAuthority;
-      api: SocialApi;
-      machine: MessageCrypto;
-    }) => Promise<T>,
+  withCrypto<T>(
+    work: (input: SocialContext) => Promise<T>,
     options: VaultWorkOptions = {},
   ): Promise<T> {
-    const generation = this.generation;
-    this.guard(generation);
-    await prepareMessageRuntime();
-    this.guard(generation);
+    return this.cryptoTurn(work, options, true);
+  }
+  private async prepareSecret(
+    generation: number,
+    options: VaultWorkOptions,
+  ): Promise<{ profile: string; secret: string }> {
+    if (this.secretReady) return this.secretReady;
     const directory = await readSocialDirectory(
       (op, data) => this.request(op, data, options),
       null,
     );
     const secret = await this.secret(directory, generation, options);
     this.guard(generation);
+    this.secretReady = { profile: directory.profile, secret };
+    return this.secretReady;
+  }
+  private async cryptoTurn<T>(
+    work: (input: SocialContext) => Promise<T>,
+    options: VaultWorkOptions,
+    receiveInbox: boolean,
+  ): Promise<T> {
+    const generation = this.generation;
+    this.guard(generation);
+    await prepareMessageRuntime();
+    this.guard(generation);
+    const prepared = await this.prepareSecret(generation, options);
     return this.access.withVault(
       false,
       (privateAuthority) =>
-        exclusive(`dm:${directory.profile}`, async () => {
+        exclusive(`dm:${prepared.profile}`, async () => {
           const api = this.privateApi(privateAuthority, generation);
           const current = await readSocialDirectory(api, null);
+          if (current.profile !== prepared.profile) {
+            this.secretReady = null;
+            this.audiences.clear();
+            throw new Error('DM identity changed during the operation.');
+          }
           const authority = await socialAuthority({
             privateAuthority,
             directory: current,
-            secret,
+            secret: prepared.secret,
             api,
             alias: await this.alias(privateAuthority, current),
           });
           this.guard(generation);
           this.close();
-          const machine = await openMessageMachine(authority, (op, data) =>
-            api(op, data),
+          const machine = await openMessageMachine(
+            authority,
+            (op, data) => api(op, data),
+            this.audiences,
           );
           try {
             this.guard(generation);
             this.machine = machine;
             await ensureMessageRecovery(authority, api);
             await machine.prepare(authority);
-            await receiveSocialInbox(api, machine);
-            return await work({ authority, privateAuthority, api, machine });
+            if (receiveInbox) await receiveSocialInbox(api, machine);
+            return await work({
+              authority,
+              privateAuthority,
+              api,
+              machine,
+              senderHistories: new Map(),
+              sendPeers: new Map(),
+            });
           } finally {
             machine.close();
             if (this.machine === machine) this.machine = null;
@@ -389,6 +429,18 @@ export class SocialDms {
         }),
       options,
     );
+  }
+  queueText(draft: TextDraft): Promise<void> {
+    return this.texts.queueText(draft);
+  }
+  pendingTexts(
+    peer: string,
+    options: VaultWorkOptions = {},
+  ): Promise<TextDraft[]> {
+    return this.texts.pendingTexts(peer, options);
+  }
+  sendPending(options: PublicTextSendOptions = {}): Promise<{ more: boolean }> {
+    return this.texts.sendPending(options);
   }
   async send(
     peer: string,
@@ -401,73 +453,46 @@ export class SocialDms {
     const name = relation
       ? `${relation.type === 'edit' ? 'dm-edit' : 'dm-react'}:${peer}:${relation.id}`
       : `dm-send:${peer}`;
-    await this.withCrypto(
-      async (input) => {
-        const { authority, privateAuthority, api } = input;
+    await this.cryptoTurn(
+      async (context) => {
+        const { authority, privateAuthority } = context;
         const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`;
         const hash = await digest(
-            canonical(
-              relation
-                ? [authority.session.accountId, peer, text, relation]
-                : [authority.session.accountId, peer, text],
-            ),
+          canonical(
+            relation
+              ? [authority.session.accountId, peer, text, relation]
+              : [authority.session.accountId, peer, text],
           ),
-          old = await localGet<LocalCipher>(scope, name);
-        let packet;
-        if (old) {
-          const held = object(
-            JSON.parse(await openLocal(privateAuthority, old)) as unknown,
+        );
+        const old = await localGet<LocalCipher>(scope, name);
+        const held = old
+          ? object(
+              JSON.parse(await openLocal(privateAuthority, old)) as unknown,
+            )
+          : null;
+        if (held && held['hash'] !== hash)
+          throw new Error(
+            'A send is pending with different text. Resume the original text before sending a change.',
           );
-          if (held['hash'] !== hash)
-            throw new Error(
-              'A send is pending with different text. Resume the original text before sending a change.',
-            );
-          packet = socialPacket(held['packet']);
-        } else {
-          packet = await this.encrypt({
-            ...input,
-            peer,
-            text,
-            id,
-            ...(relation ? { relation } : {}),
-          });
-          const row = await sealLocal(
-            privateAuthority,
-            crypto.randomUUID(),
-            JSON.stringify({ hash, packet, text }),
-          );
-          await localPut(scope, name, row, row.bytes.length + 512);
-        }
-        if (
-          !(await api('accepted', {
-            id: packet.id,
-            hash: await digest(canonical(packet)),
-          }))
-        ) {
-          const recipient = await readSocialDirectory(api, peer);
-          if (
-            packet.senderRevision !== authority.events.length ||
-            packet.recipientRevision !== recipient.events.length
-          ) {
-            packet = await this.encrypt({
-              ...input,
-              peer,
-              text,
-              id: packet.id,
-              ...(relation ? { relation } : {}),
-            });
-            const renewed = await sealLocal(
+        await transmitSocialText(context, {
+          id: held ? socialPacket(held['packet']).id : id,
+          peer,
+          text,
+          packet: held ? socialPacket(held['packet']) : null,
+          ...(relation ? { relation } : {}),
+          preserve: async (packet) => {
+            const row = await sealLocal(
               privateAuthority,
               crypto.randomUUID(),
               JSON.stringify({ hash, packet, text }),
             );
-            await localPut(scope, name, renewed, renewed.bytes.length + 512);
-          }
-          await api('publish', { packet });
-        }
+            await localPut(scope, name, row, row.bytes.length + 512);
+          },
+        });
         await localDelete(scope, name);
       },
       { priority: 'interactive' },
+      false,
     );
   }
   async remove(
@@ -504,32 +529,6 @@ export class SocialDms {
       },
       { priority: 'interactive' },
     );
-  }
-  private async encrypt(input: {
-    authority: VaultAuthority;
-    api: SocialApi;
-    machine: MessageCrypto;
-    peer: string;
-    text: string;
-    id: string;
-    relation?: MessageRelation;
-  }) {
-    const { authority, api, machine, peer, id, text } = input;
-    const peerDirectory = await readSocialDirectory(api, peer),
-      own = await ensureMessageRecovery(authority, api),
-      raw = await api('recovery-peer', { accountId: peer });
-    if (raw === null)
-      throw new Error(
-        'The recipient must open Handle messages in this app to prepare E2EE recovery.',
-      );
-    return machine.encrypt({
-      authority,
-      peerHistory: peerDirectory.events,
-      recovery: [own, recoveryKey(raw)],
-      id,
-      text,
-      ...(input.relation ? { relation: input.relation } : {}),
-    });
   }
   async pending(
     peer: string,
@@ -710,32 +709,53 @@ export class SocialDms {
       key.free();
     }
   }
-  private async senderHistory(
+  private senderHistory(
     context: SocialContext,
     packet: Pick<
       ReturnType<typeof socialPacket>,
       'id' | 'sender' | 'senderRevision'
     >,
   ) {
-    let events = context.authority.events;
-    if (packet.sender !== context.authority.session.accountId) {
-      events = [];
-      for (let page = 0; page < 16; page++) {
-        const row = object(
-          await context.api('message-history', {
-            message: packet.id,
-            after: events.length,
-          }),
-        );
-        if (!Array.isArray(row['events']) || row['events'].length > 8)
-          throw new Error('Invalid DM identity history.');
-        events.push(...row['events'].map(socialDirectory));
-        if (events.length === row['through']) break;
-        if (!row['events'].length || page === 15)
-          throw new Error('DM identity history incomplete.');
-      }
-      await pinSocialHistory(packet.sender, events);
+    if (packet.sender === context.authority.session.accountId)
+      return Promise.resolve(context.authority.events);
+    const identity = `${packet.sender}:${packet.senderRevision}`;
+    const held = context.senderHistories.get(identity);
+    return held
+      ? Promise.resolve(held)
+      : this.readSenderHistory(context, packet);
+  }
+  private async readSenderHistory(
+    context: SocialContext,
+    packet: Pick<
+      ReturnType<typeof socialPacket>,
+      'id' | 'sender' | 'senderRevision'
+    >,
+  ) {
+    const identity = `${packet.sender}:${packet.senderRevision}`;
+    const events = [];
+
+    for (let page = 0; page < 16; page++) {
+      const row = object(
+        await context.api('message-history', {
+          message: packet.id,
+          after: events.length,
+        }),
+      );
+      if (!Array.isArray(row['events']) || row['events'].length > 8)
+        throw new Error('Invalid DM identity history.');
+      events.push(...row['events'].map(socialDirectory));
+      if (events.length === row['through']) break;
+      if (!row['events'].length || page === 15)
+        throw new Error('DM identity history incomplete.');
     }
+    if (events.length !== packet.senderRevision)
+      throw new Error('Historical DM authority does not match the message.');
+    await pinSocialHistory(packet.sender, events);
+    context.senderHistories.set(identity, events);
+    while (context.senderHistories.size > 32)
+      context.senderHistories.delete(
+        context.senderHistories.keys().next().value!,
+      );
     return events;
   }
   async react(
