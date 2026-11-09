@@ -518,7 +518,7 @@ export function startCommunityDiscovery(
     },
     bookmark,
     refresh,
-    /** The active Feed/Discover tab again: the pill when deep in the feed, else a reload. */
+    /** The active Feed/Discover tab again: check for new posts when deep, else reload. */
     tabAgain: () => (feedRefresh?.tabAgain() ? Promise.resolve() : run(reload)),
     canActivate: () => !busy && !hasOpenFeedReply(mounted),
   };

@@ -9,12 +9,11 @@ export type PeekNewAuthors = (signal: AbortSignal) => Promise<PublicProfile[]>;
 
 const peekInterval = 45_000;
 const nearTop = 120;
-const hideAfterScroll = 400;
 
 /**
  * X-style "↑ posted" pill (16/10/2026), replacing "Reload from the beginning".
- * It appears once the reader has gone deep into the feed and then returns to
- * the top, taps the active Feed/Discover tab, or when newer posts exist.
+ * Scrolling back to the top or tapping the active tab checks for new posts.
+ * The pill appears only after that check confirms posts newer than the feed.
  * Pressing it scrolls up and reloads only the feed, never the whole page.
  */
 export class FeedRefresh {
@@ -27,8 +26,8 @@ export class FeedRefresh {
   private readonly faces: HTMLElement;
   private readonly label: HTMLElement;
   private deep = false;
-  private shownAt: number | null = null;
-  private withPosts = false;
+  private atTop = true;
+  private checkGeneration = 0;
   private peeking = false;
   private queued = false;
   private releases: (() => void)[] = [];
@@ -77,14 +76,15 @@ export class FeedRefresh {
 
   /**
    * The active Feed/Discover tab was pressed again. Deep in the feed it scrolls
-   * up and offers the pill; near the top the caller reloads directly.
+   * up and checks for new posts; near the top the caller reloads directly.
    */
   tabAgain(): boolean {
     const scroller = feedScroller(this.container);
+    if (!this.peek) return false;
     if (!this.deep && scroller.scrollTop < scroller.clientHeight / 2)
       return false;
     scroller.scrollTo({ top: 0, behavior: 'smooth' });
-    this.show(0);
+    void this.lookForPosts(true);
     return true;
   }
 
@@ -102,33 +102,21 @@ export class FeedRefresh {
     const scroller = feedScroller(this.container),
       top = scroller.scrollTop;
     if (top > scroller.clientHeight * 1.5) this.deep = true;
-    if (this.deep && top < nearTop && this.bar.hidden) this.show(top);
-    if (
-      !this.withPosts &&
-      this.shownAt !== null &&
-      top > this.shownAt + hideAfterScroll
-    )
-      this.hide();
-  }
-
-  private show(top: number): void {
-    this.shownAt = top;
-    if (!this.withPosts) this.label.textContent = t('feed.refresh');
-    this.pill.setAttribute('aria-label', t('feed.refresh-label'));
-    this.bar.hidden = false;
-    void this.lookForPosts(true);
+    const returnedToTop = this.deep && top < nearTop && !this.atTop;
+    this.atTop = top < nearTop;
+    if (returnedToTop) void this.lookForPosts(true);
   }
 
   private hide(): void {
     this.bar.hidden = true;
-    this.shownAt = null;
-    this.withPosts = false;
     this.releaseFaces();
   }
 
   private async activate(): Promise<void> {
+    this.checkGeneration++;
     this.hide();
     this.deep = false;
+    this.atTop = true;
     feedScroller(this.container).scrollTo({ top: 0, behavior: 'smooth' });
     await this.refresh();
   }
@@ -138,11 +126,15 @@ export class FeedRefresh {
     const peek = this.peek;
     if (!peek || !this.mayPeek(now)) return;
     this.peeking = true;
+    const generation = this.checkGeneration;
     try {
       const authors = await peek(this.signal);
-      if (authors.length && !this.signal.aborted) this.showPosts(authors);
+      if (this.signal.aborted || generation !== this.checkGeneration) return;
+      if (authors.length) this.showPosts(authors);
+      else this.hide();
     } catch {
-      // A failed check keeps the plain refresh pill; the next interval retries.
+      // A failed check cannot confirm new posts; the next interval retries.
+      if (generation === this.checkGeneration) this.hide();
     } finally {
       this.peeking = false;
     }
@@ -165,13 +157,9 @@ export class FeedRefresh {
         return face;
       }),
     );
-    this.withPosts = true;
     this.label.textContent = t('feed.posted');
     this.pill.setAttribute('aria-label', t('feed.posted-label'));
-    if (this.bar.hidden) {
-      this.shownAt = feedScroller(this.container).scrollTop;
-      this.bar.hidden = false;
-    }
+    this.bar.hidden = false;
   }
 
   private releaseFaces(): void {
