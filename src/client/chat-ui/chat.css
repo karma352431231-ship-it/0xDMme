@@ -270,8 +270,10 @@
 .chat-panel .chat-new-messages {
   position: absolute;
   z-index: 2;
-  inset-inline-start: clamp(12px, 4vw, 28px);
+  inset-inline: 0;
   inset-block-end: 10px;
+  inline-size: fit-content;
+  margin-inline: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -531,10 +533,11 @@
   font-size: var(--fs-input);
   line-height: 20px;
 }
-.chat-panel .compose-input textarea:focus-visible {
-  outline-offset: 0;
-  outline-width: 2px;
-  border-radius: 8px;
+.compose-input:has(textarea:focus) {
+  border-color: var(--line-strong);
+}
+.chat-panel .compose-input textarea:focus {
+  outline: none;
 }
 .chat-panel .compose-primary {
   flex-basis: 48px;
