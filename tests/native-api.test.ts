@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { NativeApiTransport } from '../src/client/native-api/index.ts';
 import { WakeupFrames } from '../src/client/message-live/index.ts';
+import { LiveRequest } from '../src/client/message-live/request.ts';
+import { installNativeApiTransport } from '../src/client/api-transport/index.ts';
+import type { VaultAccess } from '../src/client/vault-authority/index.ts';
 import {
   chunk,
   deferred,
@@ -200,6 +203,82 @@ for (const path of [
     reader.releaseLock();
   });
 }
+
+await test('the installed client opens its signed live request and receives the first handle hint', async (t) => {
+  const installed = Object.getOwnPropertyDescriptor(globalThis, 'INSTALLED_APP');
+  Object.defineProperty(globalThis, 'INSTALLED_APP', {
+    configurable: true,
+    value: true,
+  });
+  t.after(() => {
+    if (installed) Object.defineProperty(globalThis, 'INSTALLED_APP', installed);
+    else Reflect.deleteProperty(globalThis, 'INSTALLED_APP');
+  });
+  const { bridge, transport } = fixture(t);
+  installNativeApiTransport(transport);
+  bridge.head = {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+  };
+  bridge.chunks = [
+    chunk('event: ready\ndata: {}\n\n'),
+    chunk('event: handle-messages\ndata: {}\n\n'),
+  ];
+  const session = {
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'a'.repeat(64),
+  };
+  const access: VaultAccess = {
+    withVault: (_offline, work) =>
+      work({
+        session,
+        directory: 'b'.repeat(64),
+        offline: false,
+        epoch: 1,
+        events: [],
+        key: () => Promise.reject(new Error('Unused')),
+        sign: () => Promise.resolve('synthetic-signature'),
+      }),
+    withLocalVault: () => Promise.reject(new Error('Unused')),
+  };
+  const controller = new AbortController();
+  const response = await new LiveRequest().open({
+    access,
+    session,
+    signal: controller.signal,
+    current: () => true,
+  });
+  assert.equal(bridge.opened.length, 1);
+  const request = bridge.opened[0]!;
+  assert.equal(request.path, '/api/account/messages/live');
+  assert.equal(request.method, 'POST');
+  assert.equal(request.headers['x-0xdmme-call-wake'], '1');
+  assert.equal(request.headers['x-hash-talk-csrf'], session.csrf);
+  const parser = new WakeupFrames();
+  const reader = response.body!.getReader();
+  assert.deepEqual(parser.accept((await reader.read()).value!), ['ready']);
+  assert.deepEqual(parser.accept((await reader.read()).value!), ['handle-messages']);
+  await reader.cancel();
+  reader.releaseLock();
+});
+
+await test('the native call wake opt-in is limited to a single value on the signed stream route', async (t) => {
+  const { bridge, transport } = fixture(t);
+  const live = '/api/account/messages/live';
+  for (const [path, method, value] of [
+    ['/api/communities/ranking-events', 'POST', '1'],
+    [live + '?other=1', 'POST', '1'],
+    [live, 'GET', '1'],
+    [live, 'POST', '0'],
+    [live, 'POST', '1, 1'],
+  ] as const)
+    await assert.rejects(
+      transport.fetch(path, { method, headers: { 'X-0xdmme-Call-Wake': value } }),
+      failure,
+    );
+  assert.equal(bridge.opened.length, 0);
+});
 
 await test('stream failure never manufactures EOF success or accepts noncanonical/oversized chunks', async (t) => {
   for (const value of [

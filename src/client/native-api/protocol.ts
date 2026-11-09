@@ -46,6 +46,7 @@ const requestHeaders = new Map<string, RegExp>([
   ['content-type', /^application\/json(?:;\s*charset=utf-8)?$/iu],
   ['x-hash-talk-csrf', /^[a-f0-9]{64}$/u],
   ['x-0xdmme-attachment-id', /^[a-f0-9-]{36}$/u],
+  ['x-0xdmme-call-wake', /^1$/u],
   ['x-0xdmme-vault-id', /^[a-f0-9-]{36}$/u],
 ]);
 
@@ -100,6 +101,11 @@ export function nativeRequest(
 ): NativeApiRequest {
   const policy = requestPolicy(input);
   const headers = outgoingHeaders(input.headers);
+  if (
+    headers['x-0xdmme-call-wake'] !== undefined &&
+    (policy.method !== 'POST' || path !== '/api/account/messages/live')
+  )
+    throw nativeFailure();
   const body = bodyOf(input);
   if (
     body !== undefined &&

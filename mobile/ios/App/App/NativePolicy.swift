@@ -50,6 +50,8 @@ enum NativePolicy {
                   let raw = value["headers"] as? [String: Any], raw.count <= 5 else { throw NativeFailure.unavailable }
             credentials = policy == "same-origin"
             headers = try NativePolicy.headers(raw)
+            guard headers["x-0xdmme-call-wake"] == nil ||
+                (method == "POST" && path == "/api/account/messages/live") else { throw NativeFailure.unavailable }
             if let raw = value["bodyBase64"] {
                 let text = try NativePolicy.text(raw, 11_200_000)
                 guard method == "POST", headers["content-type"] != nil, let decoded = Data(base64Encoded: text),
@@ -105,6 +107,7 @@ enum NativePolicy {
             case "accept": valid = value == "text/event-stream"
             case "content-type": valid = matches(value, "(?i)^application/json(;\\s*charset=utf-8)?$")
             case "x-hash-talk-csrf": valid = matches(value, "^[a-f0-9]{64}$")
+            case "x-0xdmme-call-wake": valid = value == "1"
             case "x-0xdmme-attachment-id", "x-0xdmme-vault-id": valid = matches(value, "^[a-f0-9-]{36}$")
             default: valid = false
             }

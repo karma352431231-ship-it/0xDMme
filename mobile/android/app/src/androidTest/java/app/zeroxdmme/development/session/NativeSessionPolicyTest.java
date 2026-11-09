@@ -81,6 +81,26 @@ public class NativeSessionPolicyTest {
         assertThrows(Exception.class, () -> NativePolicy.parse("{} unexpected"));
     }
 
+    @Test public void admitsCallWakeOnlyForExactLivePost() throws Exception {
+        String live = "/api/account/messages/live";
+        JSONObject valid = request("{}").put("path", live);
+        valid.getJSONObject("headers").put("x-0xdmme-call-wake", "1");
+        NativePolicy.Request stream = new NativePolicy.Request(valid);
+        assertTrue(stream.live());
+        assertEquals("1", stream.headers.get("x-0xdmme-call-wake"));
+        valid.remove("bodyBase64"); // Method rejection must come from the header scope.
+        for (String[] input : new String[][] {
+            {"/api/communities/ranking-events", "POST", "1"},
+            {live + "?other=1", "POST", "1"}, {live, "GET", "1"},
+            {live, "POST", "0"}, {live, "POST", "1, 1"}
+        }) {
+            JSONObject changed = new JSONObject(valid.toString())
+                .put("path", input[0]).put("method", input[1]);
+            changed.getJSONObject("headers").put("x-0xdmme-call-wake", input[2]);
+            assertThrows(Exception.class, () -> new NativePolicy.Request(changed));
+        }
+    }
+
     @Test public void persistsOnlyPrivateCookiesAndPreventsOlderResponseResurrection() throws Exception {
         String namespace = "synthetic-" + UUID.randomUUID();
         NativeCookies jar = new NativeCookies(store(namespace));

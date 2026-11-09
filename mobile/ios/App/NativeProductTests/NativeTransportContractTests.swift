@@ -62,6 +62,30 @@ final class NativeTransportContractTests: XCTestCase {
         XCTAssertThrowsError(try NativePolicy.Message(invalid))
     }
 
+    func testCallWakeIsLimitedToTheExactLivePost() throws {
+        let live = "/api/account/messages/live"
+        var valid = request()
+        valid["path"] = live
+        var headers = try XCTUnwrap(valid["headers"] as? [String: String])
+        headers["x-0xdmme-call-wake"] = "1"
+        valid["headers"] = headers
+        let stream = try NativePolicy.Request(valid)
+        XCTAssertTrue(stream.live)
+        XCTAssertEqual(stream.headers["x-0xdmme-call-wake"], "1")
+        for (path, method, value) in [
+            ("/api/communities/ranking-events", "POST", "1"),
+            (live + "?other=1", "POST", "1"), (live, "GET", "1"),
+            (live, "POST", "0"), (live, "POST", "1, 1")
+        ] {
+            var changed = valid
+            changed["path"] = path
+            changed["method"] = method
+            headers["x-0xdmme-call-wake"] = value
+            changed["headers"] = headers
+            XCTAssertThrowsError(try NativePolicy.Request(changed))
+        }
+    }
+
     private func response(status: Int = 200, headers: [String: String] = [:]) throws -> NativeResponse {
         let url = try XCTUnwrap(URL(string: "https://0xdmme.app/api/account/messages/page"))
         let http = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers))

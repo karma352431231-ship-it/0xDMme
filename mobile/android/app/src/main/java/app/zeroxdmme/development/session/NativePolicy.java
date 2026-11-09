@@ -37,6 +37,8 @@ final class NativePolicy {
             if (!Arrays.asList("same-origin", "omit").contains(policy)) throw failure();
             credentials = policy.equals("same-origin");
             headers = headers(record(input, "headers"));
+            if (headers.containsKey("x-0xdmme-call-wake")
+                && (!method.equals("POST") || !path.equals("/api/account/messages/live"))) throw failure();
             body = input.has("bodyBase64") ? body(text(input, "bodyBase64", 11_200_000)) : null;
             if (body != null && (!method.equals("POST") || !headers.containsKey("content-type"))) throw failure();
         }
@@ -148,6 +150,7 @@ final class NativePolicy {
             case "accept": return value.equals("text/event-stream");
             case "content-type": return value.matches("(?i)application/json(;\\s*charset=utf-8)?");
             case "x-hash-talk-csrf": return value.matches("[a-f0-9]{64}");
+            case "x-0xdmme-call-wake": return value.equals("1");
             case "x-0xdmme-attachment-id":
             case "x-0xdmme-vault-id": return value.matches("[a-f0-9-]{36}");
             default: return false;
