@@ -56,6 +56,20 @@ await test('own outgoing content is bounded, survives empty verified pages and c
   assert.deepEqual(outgoing.forPeer('peer'), []);
 });
 
+await test('saved admission releases an exceeded display budget while preserving unsaved drafts', () => {
+  const outgoing = new OutgoingTexts({ maximumBytes: 5 });
+  const first = { id: 'first', peer: 'peer', text: 'First' };
+  const second = { id: 'second', peer: 'peer', text: 'Next' };
+  outgoing.update(first, 'admitted');
+  outgoing.update(second, 'admitted');
+  assert.equal(outgoing.forPeer('peer').length, 2);
+  outgoing.update(first, 'saved');
+  assert.deepEqual(
+    outgoing.forPeer('peer').map((row) => row.id),
+    ['second'],
+  );
+});
+
 await test('repeated pending projections share one authorized restore', async () => {
   const outgoing = new OutgoingTexts(),
     held = deferred<TextDraft[]>();
@@ -93,4 +107,27 @@ await test('a restore completed after invalidation cannot repopulate a replaced 
   held.resolve([{ id: 'old', peer: 'peer', text: 'Old plaintext' }]);
   assert.equal(await restoring, false);
   assert.deepEqual(outgoing.forPeer('peer'), []);
+});
+
+await test('shared pending presentation preserves the public text limit and evicts saved rows by byte budget', () => {
+  const outgoing = new OutgoingTexts({
+    maximumTextBytes: 3_000_000,
+    maximumBytes: 6_000_000,
+  });
+  outgoing.restore([
+    { id: 'one', peer: 'public', text: 'a'.repeat(3_000_000) },
+    { id: 'two', peer: 'public', text: 'b'.repeat(3_000_000) },
+    { id: 'three', peer: 'public', text: 'c'.repeat(3_000_000) },
+  ]);
+  assert.deepEqual(
+    outgoing.forPeer('public').map((draft) => draft.id),
+    ['two', 'three'],
+  );
+  assert.equal(
+    outgoing.has('one'),
+    true,
+    'Offscreen durable drafts remain known without retaining plaintext.',
+  );
+  outgoing.reset();
+  assert.equal(outgoing.has('one'), false);
 });

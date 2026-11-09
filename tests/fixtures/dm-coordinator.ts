@@ -16,6 +16,7 @@ import type { AccountSession } from '../../src/shared/account/index.ts';
 import { dmComposerGate } from '../../src/client/communities/dm-chat.ts';
 import type { startDmComposer } from '../../src/client/communities/dm-composer.ts';
 import type { AttachmentSelection } from '../../src/client/attachments/index.ts';
+import type { TextDraft } from '../../src/client/text-send/index.ts';
 
 const entry = 'src/client/communities/dms.ts';
 // Real coordinator, queue, lifecycle and wakeup coalescing; IO and DOM are adapters.
@@ -23,7 +24,7 @@ const adapted: Record<string, string[]> = {
   '../social-dm/index.ts': ['SocialDms'],
   '../voice-playback/index.ts': ['VoicePlayback'],
   '../attachment-ui/index.ts': ['AttachmentUi'],
-  '../emoji/index.ts': ['EmojiPicker'],
+  '../emoji/index.ts': ['EmojiPicker', 'emojiText'],
   './dm-composer.ts': ['startDmComposer'],
   './dm-controls.ts': ['DmControls'],
   '../message-selection/index.ts': ['MessageDeletionSelection'],
@@ -62,7 +63,7 @@ const composerAdapters: Record<string, string[]> = {
 };
 const bundle = await build({
   stdin: {
-    contents: `export { startSocialDmUi } from './${entry}'; export { startDmComposer } from './src/client/communities/dm-composer.ts'; export { WorkInterruption } from './src/client/synchronization-work/index.ts';`,
+    contents: `export { startSocialDmUi } from './${entry}'; export { startDmComposer } from './src/client/communities/dm-composer.ts'; export { WorkInterruption } from './src/client/synchronization-work/index.ts'; export { AccountError } from './src/shared/account/index.ts';`,
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -79,7 +80,8 @@ const bundle = await build({
           if (
             (importer.endsWith('/' + entry) ||
               importer.endsWith('/client/communities/dm-history.ts') ||
-              importer.endsWith('/client/communities/dm-window.ts')) &&
+              importer.endsWith('/client/communities/dm-window.ts') ||
+              importer.endsWith('/client/text-send/outgoing.ts')) &&
             adapted[path]
           )
             return { path, namespace: 'fixture' };
@@ -194,6 +196,11 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       load: () => Promise<boolean>;
     } | null,
     pending: null as { id: string; text: string } | null,
+    textDrafts: [] as TextDraft[],
+    savedTexts: [] as TextDraft[],
+    sendWait: null as Promise<void> | null,
+    saveWait: null as Promise<void> | null,
+    checks: 0,
     mediaPending: false,
     sendFailure: null as Error | null,
     blocked: false,
@@ -303,6 +310,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
           calls.push('initialize');
           return Promise.resolve('self');
         },
+        publishDevices: asyncNoop,
         state: (peer: string, options: VaultWorkOptions = {}) => {
           priorities.push({ operation: 'state', priority: options.priority });
           calls.push('state:' + peer);
@@ -340,6 +348,36 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
                     .slice(-16),
                 },
           );
+        },
+        queueText: async (draft: TextDraft) => {
+          const generation = cancellations;
+          if (data.saveWait) await data.saveWait;
+          if (generation !== cancellations)
+            throw new context.WorkInterruption('session');
+          const held = { ...draft };
+          data.textDrafts.push(held);
+          data.savedTexts.push(held);
+        },
+        pendingTexts: (peer: string) =>
+          Promise.resolve(
+            data.textDrafts.filter((draft) => draft.peer === peer),
+          ),
+        sendPending: async (
+          options: {
+            published?: (draft: { id: string; peer: string }) => void;
+          } = {},
+        ) => {
+          const generation = cancellations;
+          for (const draft of data.textDrafts.slice(0, 16)) {
+            data.sends.push(draft);
+            if (data.sendWait) await data.sendWait;
+            if (generation !== cancellations)
+              throw new context.WorkInterruption('session');
+            if (data.sendFailure) throw data.sendFailure;
+            data.textDrafts.shift();
+            options.published?.(draft);
+          }
+          return { more: data.textDrafts.length > 0 };
         },
         pending: () => Promise.resolve(data.pending),
         send: (peer: string, text: string, id: string) => {
@@ -493,7 +531,13 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     dmComposerGate,
     dmStateLabel: () => '',
     clearDmChecks: noop,
-    refreshDmChecks: asyncNoop,
+    refreshDmChecks: () => {
+      data.checks++;
+      return Promise.resolve();
+    },
+    emojiText: (node: DmNode, text: string) => {
+      node.textContent = text;
+    },
     historyPosition: () => noop,
     resetHistoryPosition: noop,
     renderSearchReturn: noop,
@@ -570,6 +614,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     startSocialDmUi: typeof startSocialDmUi;
     startDmComposer: typeof startDmComposer;
     WorkInterruption: typeof import('../../src/client/synchronization-work/index.ts').WorkInterruption;
+    AccountError: typeof import('../../src/shared/account/index.ts').AccountError;
   };
   const ui = context.startSocialDmUi(
     {} as Parameters<typeof startSocialDmUi>[0],
@@ -608,6 +653,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       return cancellations;
     },
     continuation: () => new context.WorkInterruption('continuation'),
+    denial: () => new context.AccountError(403, 'DM unavailable.'),
     failRead: (error: Error) => {
       readFailure = error;
     },

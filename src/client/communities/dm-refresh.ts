@@ -17,6 +17,7 @@ interface RefreshOptions {
     composing: boolean;
   }>;
   reload: () => void;
+  receipts: () => void;
   invalidate: () => void;
   forget: () => void;
   clearDirectory: () => void;
@@ -54,7 +55,9 @@ export class DmRefresh {
           ].includes(event)
         )
           options.invalidate();
-        this.refreshes.request();
+        this.refreshes.request(
+          signal === 'handle-receipts' ? 'probe' : 'refresh',
+        );
       },
       changed: () => {
         const current = this.live.current;
@@ -73,7 +76,8 @@ export class DmRefresh {
     });
     this.refreshes = new LiveUpdates({
       available: () => this.available(),
-      run: options.reload,
+      run: (update) =>
+        update === 'probe' ? options.receipts() : options.reload(),
     });
   }
   get current(): boolean {

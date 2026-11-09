@@ -33,6 +33,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { dmMessageStates } from './read-receipts.ts';
 import {
+  AccountError,
   base64,
   encode,
   keys,
@@ -439,8 +440,28 @@ export class SocialDms {
   ): Promise<TextDraft[]> {
     return this.texts.pendingTexts(peer, options);
   }
-  sendPending(options: PublicTextSendOptions = {}): Promise<{ more: boolean }> {
-    return this.texts.sendPending(options);
+  async sendPending(
+    options: PublicTextSendOptions = {},
+  ): Promise<{ more: boolean }> {
+    const generation = this.generation;
+    try {
+      return await this.texts.sendPending(options);
+    } catch (error: unknown) {
+      if (!(error instanceof AccountError) || error.status !== 410) throw error;
+      this.guard(generation);
+      // A lost acceptance may have been personally removed. Only signed
+      // removal receipts can retire its durable retry; 410 alone cannot.
+      await this.access.withVault(
+        false,
+        async (a) => {
+          this.guard(generation);
+          await this.removals.load(a, () => this.guard(generation));
+        },
+        options,
+      );
+      this.guard(generation);
+      return this.texts.sendPending(options);
+    }
   }
   async send(
     peer: string,

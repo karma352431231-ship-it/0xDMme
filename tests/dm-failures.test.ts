@@ -26,7 +26,7 @@ await test('public navigation preserves explicit continuation but never hides tr
     }),
     'fail',
   );
-  for (const status of [401, 403, 409]) {
+  for (const status of [401, 403, 409, 423]) {
     const error = new AccountError(status, 'DM unavailable.');
     assert.equal(
       dmFailure(error, { sameSession: true, current: false }),

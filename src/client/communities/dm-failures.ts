@@ -7,7 +7,10 @@ export function dmFailure(
   state: { sameSession: boolean; current: boolean },
 ): 'ignore' | 'continue' | 'deny' | 'fail' {
   if (!state.sameSession) return 'ignore';
-  if (error instanceof AccountError && [401, 403, 409].includes(error.status))
+  if (
+    error instanceof AccountError &&
+    [401, 403, 409, 423].includes(error.status)
+  )
     return 'deny';
   if (!state.current) return 'ignore';
   return expectedInterruption(error) ? 'continue' : 'fail';

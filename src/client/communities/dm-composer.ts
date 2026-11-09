@@ -40,6 +40,8 @@ export function startDmComposer(options: {
     media: ChosenMedia | null;
     pending: boolean;
   }) => Promise<void>;
+  queueText?: (text: string, reply: string | null) => void;
+  queueFull?: () => boolean;
   discardPending: () => Promise<void>;
   changed: () => void;
 }) {
@@ -82,6 +84,7 @@ export function startDmComposer(options: {
       blocked: busy || !writable,
       recording: recording.active,
       attachment: chosen !== null || pending,
+      textSendBlocked: canQueueText() ? options.queueFull?.() : undefined,
     });
     syncMediaControls();
     for (const selector of ['[data-voice-stop]', '[data-voice-cancel]']) {
@@ -160,6 +163,25 @@ export function startDmComposer(options: {
     image.src = previewUrl;
     image.alt = t('Selected image preview');
     area.replaceChildren(image);
+  }
+  function canQueueText(): boolean {
+    return Boolean(
+      options.queueText &&
+      writable &&
+      !recording.active &&
+      !chosen &&
+      !pending &&
+      !composition.target,
+    );
+  }
+  function queueText(): boolean {
+    if (!view || !canQueueText() || !view.text.value.trim()) return false;
+    if (options.queueFull?.()) return true;
+    options.queueText!(view.text.value, composition.replying?.id ?? null);
+    view.text.value = composition.finish();
+    view.text.dispatchEvent(new Event('input'));
+    view.text.focus({ preventScroll: true });
+    return true;
   }
   async function send(): Promise<void> {
     if (!view || !writable) return;
@@ -272,9 +294,20 @@ export function startDmComposer(options: {
           mountGifPane(host, gifs, (url) => {
             close();
             // A GIF is its KLIPY link, sent as the usual E2EE text.
-            void options.run(() =>
-              options.submit({ text: url, media: null, pending: false }),
-            );
+            if (options.queueText && canQueueText()) {
+              try {
+                options.queueText(url, composition.replying?.id ?? null);
+              } catch (error: unknown) {
+                showToast(
+                  error instanceof Error
+                    ? translatedError(error.message)
+                    : t('DM unavailable.'),
+                );
+              }
+            } else
+              void options.run(() =>
+                options.submit({ text: url, media: null, pending: false }),
+              );
           });
         },
       }).catch(() => {
@@ -294,7 +327,15 @@ export function startDmComposer(options: {
       bindChatComposer(next.form, sync);
       next.form.addEventListener('submit', (event) => {
         event.preventDefault();
-        void options.run(send);
+        try {
+          if (!queueText()) void options.run(send);
+        } catch (error: unknown) {
+          showToast(
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Could not complete the operation.'),
+          );
+        }
       });
       bindMedia(next);
       bindVoice();

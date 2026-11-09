@@ -221,3 +221,51 @@ await test('admission is bounded and typing defers background reads for one quie
   held.resolve();
   await turn();
 });
+
+await test('public text limits preserve large messages while bounding total unsaved memory', async (t) => {
+  const held = deferred<void>();
+  const queue = new TextSendQueue({
+    maximumTextBytes: 3_000_000,
+    maximumQueuedBytes: 8 * 1024 * 1024,
+    save: () => held.promise,
+    available: () => false,
+    transmit: () => Promise.resolve({ ok: true, more: false }),
+    changed: () => {},
+    failed: () => assert.fail('Unexpected save failure'),
+  });
+  t.after(() => queue.reset());
+  queue.enqueue({
+    id: 'large-one',
+    peer: 'public',
+    text: 'a'.repeat(3_000_000),
+  });
+  queue.enqueue({
+    id: 'large-two',
+    peer: 'public',
+    text: 'b'.repeat(3_000_000),
+  });
+  assert.throws(() =>
+    queue.enqueue({
+      id: 'over-budget',
+      peer: 'public',
+      text: 'c'.repeat(3_000_000),
+    }),
+  );
+  assert.throws(() =>
+    queue.enqueue({
+      id: 'over-message',
+      peer: 'public',
+      text: 'd'.repeat(3_000_001),
+    }),
+  );
+  held.resolve();
+  await turn();
+  assert.equal(queue.unsaved, false);
+  queue.enqueue({
+    id: 'after-save',
+    peer: 'public',
+    text: 'e'.repeat(3_000_000),
+  });
+  await turn();
+  assert.equal(queue.unsaved, false);
+});

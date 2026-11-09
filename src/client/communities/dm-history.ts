@@ -4,6 +4,8 @@ import { decodeDailyText } from '../../shared/daily/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker } from '../emoji/index.ts';
+import { outgoingTextRows } from '../text-send/index.ts';
+import type { OutgoingText } from '../text-send/index.ts';
 import { historyPosition } from '../chat-ui/index.ts';
 import { dayHeading, withDayHeadings } from '../message-presentation/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -24,6 +26,8 @@ interface HistoryOptions {
   edit: (item: DmItem) => void;
   reply?: (item: DmItem) => void;
   remove?: (item: DmItem) => Promise<void>;
+  outgoing?: (peer: string) => readonly OutgoingText[];
+  retryOutgoing?: () => void;
 }
 /** Owns one displayed message page, row reuse and media/menu disposal.
  * Authority, verified reading and conversation selection remain with their existing owners. */
@@ -73,7 +77,11 @@ export class DmHistory {
     input: { selected: string; localMedia: boolean },
   ): void {
     const restore = historyPosition(current.history);
-    const keep = new Set(page.items.map((item) => item.id));
+    const pending = this.pending(page, input);
+    const keep = new Set([
+      ...page.items.map((item) => item.id),
+      ...pending.map((item) => item.id),
+    ]);
     for (const [id, held] of this.rows)
       if (!keep.has(id)) {
         held.stop();
@@ -89,15 +97,9 @@ export class DmHistory {
         ? this.messageRow(entry.item, page, input)
         : this.heading(entry.day ?? ''),
     );
-    const shown = new Set<Element>(wanted);
-    for (const child of [...current.history.children])
-      if (!shown.has(child)) child.remove();
-    let cursorNode = current.history.firstChild;
-    for (const row of wanted) {
-      if (row === cursorNode) cursorNode = row.nextSibling;
-      else current.history.insertBefore(row, cursorNode);
-    }
-    if (!page.items.length) current.gate.textContent = t('No messages yet.');
+    for (const draft of pending) wanted.push(this.pendingRow(draft));
+    this.reconcile(current.history, wanted);
+    this.emptyState(current.gate, wanted.length === 0);
     this.deletion.update(
       current.history,
       input.localMedia
@@ -111,6 +113,44 @@ export class DmHistory {
             })),
     );
     restore();
+  }
+  private pending(
+    page: DmPage,
+    input: { selected: string; localMedia: boolean },
+  ) {
+    return outgoingTextRows({
+      drafts: input.localMedia
+        ? []
+        : (this.options.outgoing?.(input.selected) ?? []),
+      shown: new Set(page.items.map((item) => item.id)),
+      quote: (id) => page.items.find((item) => item.id === id)?.displayText,
+      retry: this.options.retryOutgoing ?? (() => {}),
+    });
+  }
+  private reconcile(history: HTMLElement, wanted: HTMLElement[]): void {
+    const shown = new Set<Element>(wanted);
+    for (const child of [...history.children])
+      if (!shown.has(child)) child.remove();
+    let cursor = history.firstChild;
+    for (const row of wanted) {
+      if (row === cursor) cursor = row.nextSibling;
+      else history.insertBefore(row, cursor);
+    }
+  }
+  private emptyState(gate: HTMLElement, empty: boolean): void {
+    if (empty) gate.textContent = t('No messages yet.');
+    else if (gate.textContent === t('No messages yet.')) gate.textContent = '';
+  }
+  private pendingRow(
+    draft: ReturnType<typeof outgoingTextRows>[number],
+  ): HTMLElement {
+    const held = this.rows.get(draft.id);
+    if (held?.key === draft.key) return held.row;
+    held?.stop();
+    held?.row.remove();
+    const row = draft.render();
+    this.rows.set(draft.id, { key: draft.key, row, stop: () => {} });
+    return row;
   }
   /** One heading element per day label, reused across refreshes. */
   private heading(label: string): HTMLElement {

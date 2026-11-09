@@ -1,15 +1,13 @@
-export interface TextDraft {
-  id: string;
-  peer: string;
-  text: string;
-  createdAt?: number;
-  order?: string;
-}
+import type { TextDraft } from './draft.ts';
+export type { TextDraft } from './draft.ts';
+export { OutgoingTexts, outgoingTextRows } from './outgoing.ts';
+export type { OutgoingText } from './outgoing.ts';
 
 /** Local input admission is independent of the SDK owner. Only a confirmed
  * encrypted save requests transmission; failed saves retain their original ID. */
 export class TextSendQueue {
   private drafts: TextDraft[] = [];
+  private queuedBytes = 0;
   private generation = 0;
   private saving = false;
   private sending = false;
@@ -19,6 +17,8 @@ export class TextSendQueue {
   private version = 0;
   private quiet: ReturnType<typeof setTimeout> | null = null;
   private readonly options: {
+    maximumTextBytes?: number;
+    maximumQueuedBytes?: number;
     save: (draft: TextDraft) => Promise<void>;
     transmit: () => Promise<{ ok: boolean; more: boolean }>;
     available: () => boolean;
@@ -47,10 +47,17 @@ export class TextSendQueue {
     return this.drafts.length >= 32;
   }
   enqueue(draft: TextDraft): void {
-    if (this.full || new TextEncoder().encode(draft.text).length > 131072)
+    const bytes = new TextEncoder().encode(draft.text).length;
+    if (
+      this.full ||
+      bytes > (this.options.maximumTextBytes ?? 131072) ||
+      this.queuedBytes + bytes >
+        (this.options.maximumQueuedBytes ?? 32 * 131072)
+    )
       throw new Error('Wait for conversations to update, then try again.');
     const captured = { ...draft, createdAt: draft.createdAt ?? Date.now() };
     this.drafts.push(captured);
+    this.queuedBytes += bytes;
     this.options.draftChanged?.(captured, 'admitted');
     this.deferBackground();
     this.sendFailed = false;
@@ -76,6 +83,7 @@ export class TextSendQueue {
     if (this.quiet !== null) clearTimeout(this.quiet);
     this.quiet = null;
     this.drafts = [];
+    this.queuedBytes = 0;
     this.dirty = false;
     this.saveFailed = false;
     this.sendFailed = false;
@@ -99,6 +107,7 @@ export class TextSendQueue {
       if (current !== this.generation) return;
       this.options.draftChanged?.(draft, 'saved');
       this.drafts.shift();
+      this.queuedBytes -= new TextEncoder().encode(draft.text).length;
       this.dirty = true;
       this.version++;
     } catch (error: unknown) {

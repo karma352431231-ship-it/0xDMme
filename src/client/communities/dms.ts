@@ -6,7 +6,7 @@ import { dmFailure } from './dm-failures.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { DmProjections } from './dm-projections.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { clearDmChecks } from './dm-checks.ts';
+import { clearDmChecks, refreshDmChecks } from './dm-checks.ts';
 import { readVisibleDm } from './dm-read.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
@@ -49,6 +49,8 @@ import { DmHistory } from './dm-history.ts';
 import { DmHistoryDepth } from './dm-window.ts';
 import { DmRefresh } from './dm-refresh.ts';
 import { DmSending } from './dm-sending.ts';
+import { DmTextSending } from './dm-text-sending.ts';
+import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DmPage, DmItem } from './dm-history.ts';
 
 export function startSocialDmUi(
@@ -124,6 +126,8 @@ export function startSocialDmUi(
     react,
     edit: (item) => composer.edit(item),
     reply: (item) => composer.reply(item),
+    outgoing: (selected) => texts.forPeer(selected),
+    retryOutgoing: () => texts.retry(),
     remove: async (item) => {
       const selected = peer;
       if (!selected || !writable || !item.own)
@@ -134,10 +138,41 @@ export function startSocialDmUi(
     },
   });
   const sending = new DmSending(controller);
+  const texts = new DmTextSending({
+    controller,
+    available: () =>
+      Boolean(session) &&
+      navigator.onLine &&
+      document.visibilityState === 'visible',
+    changed: () => {
+      drawOutgoing();
+      composer.update(composerState());
+      refreshes.resume();
+    },
+    failed: (error) => {
+      if (dmFailure(error, { sameSession: true, current: true }) === 'deny') {
+        closeGate();
+        refreshes.requestContinuation();
+      }
+      status(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('DM unavailable.'),
+      );
+    },
+  });
   const composer = startDmComposer({
     playback,
     privacy,
     run,
+    queueText: (text, reply) => {
+      if (!peer || !writable || localOnly) throw new Error('DM unavailable.');
+      texts.enqueue(
+        peer,
+        reply ? encodeDailyText({ text, reply, forwarded: false }) : text,
+      );
+    },
+    queueFull: () => texts.full,
     changed: () => refreshes.resumeRefresh(),
     submit: async ({ text, media, pending }) => {
       const selected = peer;
@@ -164,7 +199,7 @@ export function startSocialDmUi(
       signedIn: !!session,
       mounted: !!container,
       directory: publicDirectory.available,
-      busy,
+      busy: busy || texts.transmitting,
       composing: composer.active,
     }),
     reload: () => {
@@ -175,6 +210,9 @@ export function startSocialDmUi(
       closeGate();
     },
     forget: () => projections.clear(),
+    receipts: () => {
+      void run(refreshReceipts);
+    },
     clearDirectory: () => publicDirectory.clear(),
   });
   let container: HTMLElement | null = null,
@@ -187,6 +225,7 @@ export function startSocialDmUi(
     peer: string | null = null,
     cursor: string | null = null;
   const depth = new DmHistoryDepth();
+  let displayedPage: DmPage | null = null;
   let ownProfile: string | null = null;
   let localOnly = false;
   function status(message: string): void {
@@ -223,6 +262,7 @@ export function startSocialDmUi(
       } finally {
         busy = false;
         if (old === generation) composer.update(composerState());
+        texts.resume();
         refreshes.resume();
       }
     });
@@ -234,6 +274,7 @@ export function startSocialDmUi(
     controller.cancel();
     writable = false;
     history.clear();
+    displayedPage = null;
     if (view) {
       view.history.replaceChildren();
       view.history.hidden = true;
@@ -510,19 +551,19 @@ export function startSocialDmUi(
           : await controller.cached(selected, null, input.work)),
       (before) => controller.cached(selected, before, input.work),
     );
-    const draft = canWrite
-      ? await controller.pending(selected, input.work)
-      : null;
     const mediaPending = canWrite
       ? await controller.mediaDraft(selected, input.work)
       : false;
     if (old !== generation || expected !== verification) return;
     pendingMedia = mediaPending;
-    if (draft) {
-      sending.restore(draft.id);
-      composer.restoreDraft(draft.text);
-    }
-    history.render(current, page, { selected, localMedia: !canWrite });
+    if (canWrite) await texts.restore(selected);
+    if (old !== generation || expected !== verification) return;
+    displayedPage = page;
+    texts.observed(page.items);
+    history.render(current, page, {
+      selected,
+      localMedia: !canWrite,
+    });
     current.history.hidden = false;
     depth.check();
     composer.update(composerState());
@@ -544,6 +585,32 @@ export function startSocialDmUi(
         changed: () => unread.request(),
       });
     return page;
+  }
+  function drawOutgoing(): void {
+    if (!view || !peer || !writable || !displayedPage) return;
+    history.render(view, displayedPage, {
+      selected: peer,
+      localMedia: false,
+    });
+  }
+  async function refreshReceipts(): Promise<void> {
+    if (!view || !peer || !writable || !displayedPage) return;
+    const current = view,
+      selected = peer,
+      old = generation,
+      expected = verification;
+    await refreshDmChecks({
+      history: current.history,
+      controller,
+      peer: selected,
+      items: displayedPage.items,
+      work: dmConversationWork(),
+      usable: () =>
+        currentVerification(old, expected) &&
+        view === current &&
+        peer === selected &&
+        writable,
+    });
   }
   function options(
     current: DmView,
@@ -606,6 +673,7 @@ export function startSocialDmUi(
     refreshes.clear();
     if (view) clearDmChecks(view.history);
     history.reset();
+    displayedPage = null;
     composer.leave();
     playback.close();
     generation++;
@@ -623,7 +691,8 @@ export function startSocialDmUi(
   // Once per session, and again when a public profile is created, so others
   // can write to it before its owner ever opens handle messages.
   let devicesChecked: AccountSession | null = null,
-    watchingCreation = false;
+    watchingCreation = false,
+    textsReady = false;
   function publishDevices(): void {
     if (!session || !navigator.onLine || devicesChecked === session) return;
     devicesChecked = session;
@@ -646,6 +715,10 @@ export function startSocialDmUi(
       unread.start();
       watchProfileCreation();
       publishDevices();
+      if (session && !textsReady) {
+        textsReady = true;
+        texts.retry();
+      }
     },
     event(signal: LiveEvent): void {
       const event = scopedLiveEvent(signal, [
@@ -653,7 +726,7 @@ export function startSocialDmUi(
         'handle-receipts',
       ]);
       if (!event) return;
-      if (event === 'call') return;
+      if (event === 'call' || signal === 'handle-receipts') return;
       if (['authorization', 'revoked', 'ended', 'invalidated'].includes(event))
         unread.invalidate();
       unread.request();
@@ -686,6 +759,7 @@ export function startSocialDmUi(
         const current = frame(id);
         paintHeader(current, restored);
         options(current, id, restored.profile, restored.value);
+        displayedPage = restored.page;
         history.render(current, restored.page, {
           selected: id,
           localMedia: false,
@@ -717,6 +791,8 @@ export function startSocialDmUi(
       depth.clear();
       leave();
       composer.forgetDrafts();
+      texts.reset();
+      textsReady = false;
       session = value;
       ownProfile = null;
       pendingReveal = null;
@@ -725,7 +801,12 @@ export function startSocialDmUi(
       unread.reset(value !== null);
       node?.replaceChildren();
     },
-    canActivate: () => !busy && !composer.active && !composer.unsent,
+    canActivate: () =>
+      !busy &&
+      !texts.pending &&
+      !texts.unsaved &&
+      !composer.active &&
+      !composer.unsent,
     /** Public identity only, independently live in the contact directory. */
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
       if (!session) {

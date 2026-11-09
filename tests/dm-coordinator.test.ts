@@ -357,7 +357,7 @@ await test('local DM history is read-only and never fetches the live conversatio
   assert.equal(f.data.sends.length, 0);
 });
 
-await test('failed DM text sends preserve the draft and retry ID until acceptance', async (t) => {
+await test('failed queued DM text stays retryable with the same ID and does not block the composer', async (t) => {
   const f = dmCoordinatorFixture(t, true);
   f.ui.mount(f.host, 'A');
   await turn();
@@ -365,22 +365,225 @@ await test('failed DM text sends preserve the draft and retry ID until acceptanc
   f.data.sendFailure = new Error('Transport unavailable');
   current.text.value = 'Retry this text';
   current.form.dispatchEvent(new Event('submit'));
+  assert.equal(current.text.value, '');
   await turn();
-  assert.equal(current.text.value, 'Retry this text');
+  const failed = current.history.querySelector('.message-send-failed');
+  assert.ok(failed);
   f.data.sendFailure = null;
-  f.ui.mount(f.host, 'A');
-  await turn();
-  const next = f.views.at(-1)!;
-  assert.equal(next.text.value, 'Retry this text');
-  next.form.dispatchEvent(new Event('submit'));
+  failed.click();
   await turn();
   assert.equal(f.data.sends.length, 2);
   assert.equal(f.data.sends[0]!.id, f.data.sends[1]!.id);
-  assert.equal(next.text.value, '');
-  next.text.value = 'A second message';
-  next.form.dispatchEvent(new Event('submit'));
+  assert.equal(current.history.querySelector('.message-send-failed'), null);
+  current.text.value = 'A second message';
+  current.form.dispatchEvent(new Event('submit'));
   await turn();
   assert.notEqual(f.data.sends[1]!.id, f.data.sends[2]!.id);
+});
+
+await test('public texts clear immediately, retain FIFO IDs and need no foreground readback after acceptance', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  let release: () => void = () => {};
+  f.data.sendWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const calls = f.calls.length;
+  for (const text of ['One', 'Two', 'Three']) {
+    current.text.value = text;
+    current.form.dispatchEvent(new Event('submit'));
+    assert.equal(current.text.value, '');
+  }
+  await turn();
+  assert.deepEqual(
+    f.data.savedTexts.map((draft) => draft.text),
+    ['One', 'Two', 'Three'],
+  );
+  assert.equal(
+    current.history.querySelectorAll('[data-outgoing-text]').length,
+    3,
+  );
+  f.hold();
+  release();
+  await turn();
+  assert.deepEqual(
+    f.data.sends.map((draft) => draft.text),
+    ['One', 'Two', 'Three'],
+  );
+  assert.equal(new Set(f.data.sends.map((draft) => draft.id)).size, 3);
+  assert.deepEqual(f.calls.slice(calls), []);
+  assert.equal(current.history.querySelector('.message-send-failed'), null);
+  f.release('A');
+});
+
+await test('public queued text keeps its captured peer when navigation changes before acceptance', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  let release: () => void = () => {};
+  f.data.sendWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  current.text.value = 'For A';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  f.ui.mount(f.host, 'B');
+  await turn();
+  release();
+  await turn();
+  assert.equal(f.data.sends[0]?.peer, 'A');
+  assert.equal(
+    f.views.at(-1)!.history.querySelector('[data-outgoing-text]'),
+    null,
+  );
+});
+
+await test('account readiness drains recovered public texts across peers without opening a conversation', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  const drafts = Array.from({ length: 18 }, (_, n) => ({
+    id: crypto.randomUUID(),
+    peer: n % 2 ? 'A' : 'B',
+    text: `Recovered ${n}`,
+  }));
+  f.data.textDrafts.push(...drafts);
+  f.ui.ready();
+  await turn();
+  assert.deepEqual(f.data.sends, drafts);
+  assert.deepEqual(f.data.textDrafts, []);
+  assert.equal(f.views.length, 0);
+  f.ui.ready();
+  await turn();
+  assert.equal(f.data.sends.length, 18);
+});
+
+await test('late public text acceptance after logout cannot repopulate the view', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  let release: () => void = () => {};
+  f.data.sendWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  current.text.value = 'Old session';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  f.ui.setSession(null);
+  release();
+  await turn();
+  assert.equal(f.host.textContent, '');
+});
+
+await test('suspending a queued public text resumes its original ID on return without a false session failure', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  let release: () => void = () => {};
+  f.data.sendWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const current = f.views.at(-1)!;
+  current.text.value = 'Continue on return';
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  f.visibility('hidden');
+  f.window.dispatchEvent(new Event('pagehide'));
+  release();
+  await turn();
+  assert.equal(f.data.sends.length, 1);
+  assert.equal(f.data.textDrafts.length, 1);
+  assert.doesNotMatch(f.host.textContent ?? '', /Session changed/u);
+  f.data.sendWait = null;
+  f.visibility('visible');
+  await turn();
+  assert.equal(f.data.sends.length, 2);
+  assert.equal(f.data.sends[0]!.id, f.data.sends[1]!.id);
+  assert.equal(f.data.textDrafts.length, 0);
+  assert.doesNotMatch(f.host.textContent ?? '', /Session changed/u);
+});
+
+await test('view suspension during local admission renews the save turn without losing the typed original', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  let release: () => void = () => {};
+  f.data.saveWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const current = f.views.at(-1)!;
+  current.text.value = 'Save across suspension';
+  current.form.dispatchEvent(new Event('submit'));
+  const id = current.history.querySelector('[data-outgoing-text]')!.dataset[
+    'message'
+  ];
+  f.visibility('hidden');
+  f.window.dispatchEvent(new Event('pagehide'));
+  release();
+  await turn();
+  assert.equal(f.data.savedTexts.length, 1);
+  assert.equal(f.data.savedTexts[0]!.id, id);
+  assert.equal(f.data.savedTexts[0]!.text, 'Save across suspension');
+  assert.equal(f.data.sends.length, 0);
+  assert.doesNotMatch(f.host.textContent ?? '', /Session changed/u);
+  f.visibility('visible');
+  await turn();
+  assert.equal(f.data.sends[0]?.id, id);
+});
+
+await test('a queued denial for a departed peer revalidates the current chat without retrying the failed send', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  let release: () => void = () => {};
+  f.data.sendWait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const first = f.views.at(-1)!;
+  first.text.value = 'For A';
+  first.form.dispatchEvent(new Event('submit'));
+  await turn();
+  f.ui.mount(f.host, 'B');
+  await turn();
+  f.data.sendFailure = f.denial();
+  release();
+  await turn();
+  assert.equal(f.views.at(-1)!.history.hidden, true);
+  t.mock.timers.tick(1000);
+  await turn();
+  const current = f.views.at(-1)!;
+  assert.equal(current.title.textContent, 'B');
+  assert.equal(current.history.hidden, false);
+  assert.equal(f.calls.filter((call) => call === 'read:B').length, 2);
+  assert.equal(f.data.sends.length, 1);
+  assert.equal(f.data.textDrafts[0]?.id, f.data.sends[0]?.id);
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.equal(f.data.sends.length, 1);
+});
+
+await test('public receipt hints update only checks while content hints still read the conversation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  current.text.value = 'Keep typing';
+  const calls = f.calls.length;
+  f.emit('handle-receipts');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(f.calls.slice(calls), []);
+  assert.equal(f.data.checks, 1);
+  assert.equal(current.text.value, 'Keep typing');
+  f.emit('handle-receipts');
+  f.emit('handle-messages');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(calls).includes('read:A'));
 });
 
 await test('DM live hints wait for recording and preserve the typed draft and frame', async (t) => {
