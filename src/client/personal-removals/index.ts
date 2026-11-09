@@ -1,4 +1,4 @@
-import { object } from '../../shared/account/index.ts';
+import { object, uuid } from '../../shared/account/index.ts';
 import { personalRemoval, verifyRemoval } from '../../shared/backups/index.ts';
 import type {
   BackupTarget,
@@ -8,7 +8,15 @@ import type { VaultAuthority } from '../vault-authority/index.ts';
 import { forgetCachedBlock } from '../vault-storage/index.ts';
 import { forgetDmRecord } from '../local-history/index.ts';
 import { forgetAttachment } from '../attachments/index.ts';
-import { localDelete, localPage, localPut } from '../message-storage/index.ts';
+import {
+  localDelete,
+  localGet,
+  localPage,
+  localPut,
+  openLocal,
+  removeOutbox,
+} from '../message-storage/index.ts';
+import type { LocalCipher } from '../message-storage/index.ts';
 import { messageApi } from '../message-api/index.ts';
 export class RemovalIndex {
   private readonly rows = new Map<string, PersonalRemoval>();
@@ -82,7 +90,7 @@ export class RemovalIndex {
   }
   private async accept(a: VaultAuthority, row: PersonalRemoval): Promise<void> {
     await verifyRemoval(a.session.accountId, row, a.events);
-    await purgeRemoved(a.session.accountId, row);
+    await purgeRemoved(a, row);
     this.rows.set(`${row.kind}:${row.id}`, row);
   }
 }
@@ -122,10 +130,15 @@ export async function cleanPersonal(
   return { used, released };
 }
 
-async function purgeRemoved(account: string, row: BackupTarget): Promise<void> {
+async function purgeRemoved(
+  a: VaultAuthority,
+  row: BackupTarget,
+): Promise<void> {
+  const account = a.session.accountId;
   if (row.kind === 'dm-message') {
     await forgetDmRecord(account, row.id);
     await forgetAttachment(`dm-media:${account}`, row.id);
+    await purgeDmOutbox(a, row.id);
     return;
   }
   if (row.kind === 'vault') {
@@ -135,6 +148,37 @@ async function purgeRemoved(account: string, row: BackupTarget): Promise<void> {
   for (const prefix of ['cache', 'profile', 'outbox', 'search'])
     await localDelete(account, `${prefix}:${row.id}`);
   await forgetAttachment(account, row.id);
+}
+
+/** A verified personal deletion also retires its durable retry/FIFO metadata. */
+async function purgeDmOutbox(a: VaultAuthority, id: string): Promise<void> {
+  const deviceScope = `${a.session.accountId}:${a.session.deviceId}`;
+  const textScope = `dm-text:${deviceScope}`;
+  const name = `outbox:${id}`;
+  const entry = await localGet<{ legacyName?: unknown }>(textScope, name);
+  if (typeof entry?.legacyName === 'string')
+    await purgeLegacyDmDraft(a, {
+      scope: deviceScope,
+      name: entry.legacyName,
+      id,
+    });
+  await removeOutbox(textScope, name);
+}
+
+/** A retained legacy draft can share a peer key with a newer message. Only the
+ * authenticated capsule's original packet ID permits removing that old key. */
+async function purgeLegacyDmDraft(
+  a: VaultAuthority,
+  input: { scope: string; name: string; id: string },
+): Promise<void> {
+  if (!input.name.startsWith('dm-send:'))
+    throw new Error('Invalid retained DM draft key.');
+  uuid(input.name.slice('dm-send:'.length));
+  const cipher = await localGet<LocalCipher>(input.scope, input.name);
+  if (!cipher) return;
+  const held = object(JSON.parse(await openLocal(a, cipher)) as unknown);
+  const packet = object(held['packet']);
+  if (packet['id'] === input.id) await localDelete(input.scope, input.name);
 }
 
 async function saveReceipts(
@@ -165,6 +209,6 @@ async function saveReceipts(
       row,
       JSON.stringify(row).length + 128,
     );
-    await purgeRemoved(a.session.accountId, row);
+    await purgeRemoved(a, row);
   }
 }
