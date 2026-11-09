@@ -21,7 +21,8 @@ import deploy_archive as release_archive
 import deploy_artifacts as artifacts
 from deploy_archive import digest, valid_release_branch
 from deploy_artifacts import receipt, verified_code_failure
-from deploy_reviewed_code import database_code_reviewed, database_files, reviewed_lockfile_change
+from deploy_reviewed_code import (database_code_reviewed, database_files,
+                                  reviewed_lockfile_change, reviewed_mobile_tooling)
 
 import deploy_sources as public_sources
 import deploy_runtime as runtime
@@ -287,6 +288,7 @@ def wait_ready(files=None):
 
 def compatibility(candidate, live):
     daily = digest(live / 'package-lock.json') == runtime.BEFORE_LOCK and digest(candidate / 'package-lock.json') == runtime.REVIEWED_LOCK
+    mobile_tooling = reviewed_mobile_tooling(candidate, live)
     if daily:
         daily_review(candidate, live)
     # Startup calls migrate(); guard both SQL and the code that executes it.
@@ -302,12 +304,14 @@ def compatibility(candidate, live):
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
         elif digest(before) != digest(after):
-            if name != 'package-lock.json' or not (daily or reviewed_lockfile_change(before, after)):
+            if name != 'package-lock.json' or not (daily or mobile_tooling or reviewed_lockfile_change(before, after)):
                 raise RuntimeError('Runtime dependency/Node change requires separate review.')
     previous = json.loads((live / 'package.json').read_text())
     incoming = json.loads((candidate / 'package.json').read_text())
     for key in ['dependencies', 'overrides', 'engines', 'type']:
-        if previous.get(key) != incoming.get(key) and not (daily and key == 'dependencies'):
+        reviewed = ((daily and key == 'dependencies') or
+                    (mobile_tooling and key == 'overrides'))
+        if previous.get(key) != incoming.get(key) and not reviewed:
             raise RuntimeError('Runtime contract changed; separate review required.')
     constraint = incoming.get('engines', {}).get('node', '')
     approved = re.fullmatch(r'>=(\d+)\.(\d+)\.(\d+) <(\d+)', constraint)

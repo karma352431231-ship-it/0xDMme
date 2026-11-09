@@ -28,6 +28,24 @@ PHANTOM_PROBE_LOCKFILES = frozenset([
     'fac024d2596d80a4450f9ad46cc212e6b51e536f02062f630fd8c8c1adcc0be5',
 ])
 
+# Installed-app tooling changed the development lock and removed probe-only
+# overrides. The release keeps all 52 runtime lock entries byte-for-byte equal.
+MOBILE_TOOLING_PACKAGES = frozenset({
+    ('5273e4c87b2eadb0b545982c2401d54fb1e0fe3e116d28794c46b91daca07647',
+     'a94082f173b3d553c15ea1c8b0db29452b7b79c41615c30478f0a924a12937db'),
+    ('9ac5ac1bc308069462b1b055305653dd04b24270a0bce9b66627ee686d247150',
+     '30939a5bb38c0b5f4a3c03f10a48e556c6b9d669c17e25332d18ab5ad657b8f5'),
+})
+
+# Exact public DM publication and receipt changes plus the already merged
+# group-create hint. The current live tree and every SQL migration are pinned.
+PUBLIC_DM_SEND_BEFORE = '2523556c90c7076d5f7675914e6fe61a6632feba'
+PUBLIC_DM_SEND_REVIEWED = '9235abab15f9d418ee8e3f2674d202b8bf454172'
+PUBLIC_DM_SEND_MODULES = frozenset({
+    'groups.ts', 'social-crypto.ts', 'social-dm.ts', 'social-history.ts',
+    'social-matrix.ts', 'social-read-receipts.ts', 'social-unread.ts',
+})
+
 # Routine UI release: two reviewed read projections, with the entire database
 # tree pinned on both sides. No SQL or migration executor change is permitted.
 COMMUNITY_FEED_BEFORE = '194bbd2988a622265aaf06650549691743d23c7b'
@@ -329,12 +347,22 @@ MOBILE_CHAT_DELETION_MODULES = frozenset({
 def reviewed_lockfile_change(before, after):
     if frozenset([digest(before), digest(after)]) != PHANTOM_PROBE_LOCKFILES:
         return False
-    # Recheck the runtime closure even for the exact reviewed hash pair.
-    def runtime_entries(path):
-        packages = json.loads(path.read_text())['packages']
-        return {name: value for name, value in packages.items()
-                if name and value.get('dev') is not True}
     return runtime_entries(before) == runtime_entries(after)
+
+
+def runtime_entries(path):
+    packages = json.loads(path.read_text())['packages']
+    return {name: value for name, value in packages.items()
+            if name and value.get('dev') is not True}
+
+
+def reviewed_mobile_tooling(candidate, live):
+    roots = (candidate, live)
+    packages = frozenset((digest(root / 'package.json'), digest(root / 'package-lock.json'))
+                         for root in roots)
+    return packages == MOBILE_TOOLING_PACKAGES and (
+        runtime_entries(candidate / 'package-lock.json') ==
+        runtime_entries(live / 'package-lock.json'))
 
 
 def database_files(root):
@@ -348,6 +376,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        (PUBLIC_DM_SEND_MODULES, PUBLIC_DM_SEND_BEFORE, PUBLIC_DM_SEND_REVIEWED),
         (set(MOBILE_CHAT_DELETION_MODULES), MOBILE_CHAT_DELETION_BEFORE,
          MOBILE_CHAT_DELETION_REVIEWED),
         (set(CONTACT_INVITE_ACCEPTANCE_MODULES), CONTACT_INVITE_ACCEPTANCE_BEFORE,
