@@ -8,7 +8,7 @@ import deploy_remote as base
 import deploy_follow_dates as previous
 
 BEFORE = 'e900531457787c06b5ae40d4e2214808ba6c4de4'
-REVIEWED = '0000000000000000000000000000000000000000'
+REVIEWED = '9942a19c70f749ab1b9fde9222063ff7543e4b5b'
 TABLES = previous.TABLES
 NEW_TABLES = ('view_once_payloads',)
 COUNTER_CHECKS = previous.COUNTER_CHECKS.replace('tgrelid)=97', 'tgrelid)=98')
