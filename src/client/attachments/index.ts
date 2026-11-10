@@ -179,8 +179,10 @@ async function uploadParts(input: {
   let completed = input.ref.parts.filter((_, index) =>
     input.received.includes(index),
   ).length;
-  await transferParts(input.ref.parts.length, async (index) => {
-    if (input.received.includes(index)) return;
+  // The server holds one write lease for the entire attachment, including
+  // object IO between begin/finish. Concurrent parts of this ref would get 409.
+  for (let index = 0; index < input.ref.parts.length; index++) {
+    if (input.received.includes(index)) continue;
     const bytes = await storedPart(
       input.account,
       name(input.message, input.ref.id, index),
@@ -204,9 +206,9 @@ async function uploadParts(input: {
         detail: { done: ++completed, total: input.ref.parts.length },
       }),
     );
-  });
+  }
 }
-/** Independent encrypted parts may travel together. Stop admission on failure
+/** Independent encrypted reads may travel together. Stop admission on failure
  * and settle every in-flight request before releasing the caller's authority. */
 async function transferParts(
   count: number,

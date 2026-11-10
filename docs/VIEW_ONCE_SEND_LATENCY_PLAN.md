@@ -2,7 +2,7 @@
 
 ## Decision for the implementing agent
 
-Start with the view-once part uploader. The captured send spent 5.15 seconds uploading 23 parts one at a time. The ordinary attachment uploader already overlapped requests. A second opportunity is local preparation: four long tasks occupied the browser's main thread for 3.26 seconds before the first view-once part started. Investigate the first-check rendering path separately because the manual marker includes human reaction time.
+Start with the view-once part uploader. The captured send spent 5.15 seconds uploading 23 parts one at a time. The ordinary attachment uploader overlapped requests, but the later 409 capture below established that its server write lease does not support this safely. A second opportunity is local preparation: four long tasks occupied the browser's main thread for 3.26 seconds before the first view-once part started. Investigate the first-check rendering path separately because the manual marker includes human reaction time.
 
 These are proposed changes. First locate the source revision matching the captured browser bundle, `app-f41f0d01ada79755.js`. The meter was built from `9797000c`. Its revision identifies the measuring tool only. Search the matching app source for `view-once-create`, `view-once-part`, `attachment-part` and the handler that reconciles an accepted send.
 
@@ -30,7 +30,7 @@ The upload row measures the wall-clock span across all parts. The ordinary uploa
 
 ## Implementation sequence
 
-1. **Test bounded upload concurrency.** Inspect the client uploader and server write transaction together. Verify that parts can arrive out of order, that retries of the same index and ciphertext preserve integrity and quota accounting, and that publication requires a complete upload. If those contracts hold, try two concurrent part uploads inside the existing uploader. Reuse the ordinary uploader's scheduling logic only where the contracts match. Preserve ciphertext and part ordering in the completed object. On failure, stop scheduling new parts, settle or cancel in-flight work, and preserve the existing cleanup and retry rules. If the protocol requires sequential writes, measure the per-part server and network cost before proposing a protocol change.
+1. **Test bounded upload concurrency.** Inspect the client uploader and server write transaction together. Verify that parts can arrive out of order, that retries of the same index and ciphertext preserve integrity and quota accounting, and that publication requires a complete upload. If those contracts hold, try two concurrent part uploads inside the existing uploader. The ordinary uploader's two-lane scheduler is now restricted to downloads after the 409 correction below; do not reuse it for writes without a verified server contract. Preserve ciphertext and part ordering in the completed object. On failure, stop scheduling new parts, settle or cancel in-flight work, and preserve the existing cleanup and retry rules. If the protocol requires sequential writes, measure the per-part server and network cost before proposing a protocol change.
 2. **Attribute the main-thread work.** The four long tasks lasted 401, 900, 1,719 and 240 ms. Add local duration marks around existing media reads, conversions, encryption and serialization wherever the matching source performs them. Include the preparation that runs before the send click if file selection triggers work. Keep the marks in the existing diagnostic path and emit fixed stage names and durations only. If a full-file copy dominates, remove the redundant conversion. If a CPU-bound transform dominates, evaluate moving that operation to a worker using transferable buffers where ownership allows. Keep keys and plaintext on the client and preserve the existing cryptographic format. Remeasure after each change.
 3. **Measure the first check and release the UI at the correct point.** Record separate local events when the client receives authoritative acceptance and when the first accepted check appears on the sender's message. The foreground operation ended about 3 seconds after publication in both sends. The trace shows follow-up synchronization during that interval, but cannot establish which operation gated the check. If the UI waits on unrelated sync and publish success already satisfies the app's acceptance contract, reconcile the pending message at acceptance. Keep receipt, backup and delivery work running under its existing lifecycle. A failed or ambiguous publication must retain its existing pending or failure state.
 
@@ -149,3 +149,36 @@ state in its observer, byte reads/hash slots/cancellation in the IO owner and
 bounded summaries in the comparison owner. The application, server and
 database are unchanged in this correction. Real-browser timing and the
 instrumented app's publication remain separate pending work.
+
+## Ordinary upload 409 correction — 10 November 2026
+
+A subsequent 40-second browser capture, with zero dropped events, recorded two
+HTTP 409 responses to ordinary attachment-part writes. JSON parsing succeeded.
+Five part requests across the initial attempt and resumption produced three
+successful responses and two conflicts, with no finish or publication for the
+image within the capture. This supersedes the assumption that observing
+overlapping ordinary requests established safe parallel upload support.
+
+The matching client submitted two parts of one reference concurrently, while
+AttachmentStore.begin grants one writer for the entire attachment and returns
+409 while that writer is active. The lease spans object IO and finish across
+separate short transactions. The client uploader now waits for each part's
+storage confirmation before admitting the next write. Failure exits the upload
+without finishing; resumption uses the existing received list and exact saved
+ciphertext. Download concurrency remains two, with the existing bounded
+settlement and offset-based assembly. No server, schema, crypto format, quota
+rule, dependency or automatic mutation retry changes are needed.
+
+The new public-client regressions reproduce Attachment busy with the old
+uploader against a single-writer server adapter. They also exercise a response
+lost after a stored part, skipping that part on retry, full ciphertext equality,
+no premature finish, and concurrent downloads with original-offset assembly.
+The real SDK encryption, hashes and local storage operations remain in these
+tests; the network lease is an adapter, not a live database acceptance test.
+
+Validation: all 18 targeted transfer, attachment and private send regressions
+passed after the fix. Targeted lint, full type checking, dependency boundaries,
+formatting, and web/installed-product builds passed. Structural review confirms
+that upload sequencing remains in its existing owner, with no new state,
+dependencies or server lease changes. Browser acceptance on the deployed build
+is pending integration and publication.
