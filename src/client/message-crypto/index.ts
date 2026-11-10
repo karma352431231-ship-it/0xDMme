@@ -141,7 +141,10 @@ function checkViewOncePacket(packet: MessagePacket, text: string): void {
   if (packet.kind === 'profile') return;
   const value =
     packet.kind === 'attachment'
-      ? attachmentContent(JSON.parse(text) as unknown).caption
+      ? (packet.socialMedia
+          ? socialAttachment(JSON.parse(text) as unknown, packet.socialMedia)
+          : attachmentContent(JSON.parse(text) as unknown)
+        ).caption
       : text;
   const reference = decodeDailyText(value).viewOnce;
   if (reference?.hash !== packet.viewOnce?.hash)

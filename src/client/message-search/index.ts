@@ -36,7 +36,7 @@ export async function indexSearch(
 ): Promise<void> {
   for (const row of dailyViews(rows)) {
     if (row.kind === 'profile') continue;
-    if (row.state === messageStates.suspended) {
+    if (row.state === messageStates.suspended || row.content.viewOnce) {
       await localDelete(a.session.accountId, `search:${row.id}`);
       continue;
     }
@@ -68,6 +68,10 @@ async function indexRow(
   row: DailyView<SearchRow>,
 ): Promise<void> {
   const text = searchableText(row);
+  if (!text.trim()) {
+    await localDelete(a.session.accountId, `search:${row.id}`);
+    return;
+  }
   const previous = await localGet<SearchRecord>(
     a.session.accountId,
     `search:${row.id}`,

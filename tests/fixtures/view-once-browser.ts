@@ -16,12 +16,15 @@ function check(pass: unknown, message: string): void {
 }
 async function main(): Promise<void> {
   localStorage.removeItem('0xdmme:view-once-intro:v1');
+  const shell = document.createElement('section');
+  shell.id = 'app-shell';
+  document.body.prepend(shell);
   const host = document.createElement('article');
   host.className = 'card chat-panel';
   host.style.cssText =
     'position:relative;width:calc(100vw - 32px);max-width:700px;margin:16px;padding-top:120px';
   host.innerHTML = chatComposer('message');
-  document.body.prepend(host);
+  shell.append(host);
   const form = host.querySelector<HTMLElement>('[data-message-form]')!;
   bindChatComposer(form, () => {});
   const clip = form.querySelector<HTMLButtonElement>('[data-chat-attachment]')!;
@@ -54,6 +57,24 @@ async function main(): Promise<void> {
     'Typing has no blue focus outline',
   );
   const inputBounds = textarea.getBoundingClientRect();
+  const row = form
+    .querySelector<HTMLElement>('.compose-two-line')!
+    .getBoundingClientRect();
+  const tools = form
+    .querySelector<HTMLElement>('.compose-tools')!
+    .getBoundingClientRect();
+  check(
+    inputBounds.width >= row.width - 32,
+    'Composer input fills the chat width inside the real app shell',
+  );
+  check(tools.width >= row.width - 16, 'Action row fills the chat width');
+  check(
+    form
+      .querySelector<HTMLElement>('[data-voice-record]')!
+      .getBoundingClientRect().right >=
+      row.right - 16,
+    'Primary action stays at the right edge',
+  );
   check(
     inputBounds.width >= 100 &&
       once.getBoundingClientRect().right <= innerWidth,
@@ -63,6 +84,12 @@ async function main(): Promise<void> {
   const history = document.createElement('div');
   history.className = 'chat-history';
   host.prepend(history);
+  history.tabIndex = 0;
+  history.focus();
+  check(
+    getComputedStyle(history).outlineStyle === 'none',
+    'Focusing chat history creates no selection outline',
+  );
   const lifetime = new AbortController();
   renderViewOnce({
     host: history,

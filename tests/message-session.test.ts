@@ -16,6 +16,7 @@ import { matrixUser } from '../src/shared/messages/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
 import { messageTransport } from './fixtures/message-transport.ts';
 import { object } from '../src/shared/account/index.ts';
+import { sealFile } from '../src/client/attachment-crypto/index.ts';
 
 await initAsync();
 await test('sending completes the SDK tracked query before establishing sessions and preserves real recovery', async (t) => {
@@ -91,7 +92,46 @@ await test('sending completes the SDK tracked query before establishing sessions
       key.free();
     }
   }
-  assert.equal(checked, 2);
+  const gif = await sealFile(
+    Uint8Array.from(
+      Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64'),
+    ),
+  );
+  const text = JSON.stringify({
+    version: 1,
+    name: 'synthetic.gif',
+    type: 'image/gif',
+    caption: '',
+    image: true,
+    file: gif.file,
+    thumbnail: null,
+  });
+  const packet = await machine.encrypt({
+    authority: sender.authority,
+    peerHistory: [peer.directory],
+    recovery,
+    id: crypto.randomUUID(),
+    text,
+    kind: 'attachment',
+    socialMedia: 'gif',
+  });
+  const key = await openRecoveryKey(recovery[1]!, peer.authority);
+  try {
+    const archive = packet.archives.find((a) => a.accountId === peer.accountId);
+    assert.ok(archive);
+    assert.equal(
+      await reader.decrypt({
+        packet,
+        senderEvent: sender.directory,
+        exported: openRoomKey(key, archive),
+      }),
+      text,
+      'The view-once check must preserve ordinary public GIF attachments with an empty caption',
+    );
+  } finally {
+    key.free();
+  }
+  assert.equal(checked, 3);
 });
 
 await test("prepare serves only own-account queries; another user's queue requires context before dispatch", async (t) => {

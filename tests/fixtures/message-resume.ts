@@ -98,7 +98,12 @@ const bundle = await build({
 const source = bundle.outputFiles[0]?.text ?? '';
 if (!source) throw new Error('Fixture de retomada ausente.');
 
-export function resumeFixture(incremental = false) {
+export function resumeFixture(
+  incremental = false,
+  options: {
+    indexSearch?: typeof import('../../src/client/message-search/index.ts').indexSearch;
+  } = {},
+) {
   const session: AccountSession = {
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),
@@ -226,7 +231,7 @@ export function resumeFixture(incremental = false) {
       data.beforeLocalOpen?.();
       return Promise.resolve(cipher.text);
     },
-    indexSearch: () => Promise.resolve(),
+    indexSearch: options.indexSearch ?? (() => Promise.resolve()),
     searchMessages: unused,
     localLocator: () =>
       Promise.resolve({
@@ -505,12 +510,13 @@ export function resumeFixture(incremental = false) {
     text: string,
     from = peer,
     relation?: MessageItem['relation'],
+    own = false,
   ) => {
     const item: MessageItem = {
       id: crypto.randomUUID(),
       kind: 'text',
-      sender: from,
-      recipient: session.accountId,
+      sender: own ? session.accountId : from,
+      recipient: own ? from : session.accountId,
       ...(relation ? { relation } : {}),
       sequence: data.items.length + 1,
       hash: 'c'.repeat(64),
