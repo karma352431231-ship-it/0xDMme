@@ -36,9 +36,7 @@ function previewText(input: {
 }): string {
   if (input.kind === 'text') {
     const once = decodeDailyText(input.text).viewOnce;
-    return once
-      ? t(once.policy === 'file' ? 'View-once file' : 'View-once message')
-      : input.displayText;
+    return once ? t('View-once message') : input.displayText;
   }
   const media = animatedAttachmentContent(JSON.parse(input.text) as unknown);
   const label = media.voice

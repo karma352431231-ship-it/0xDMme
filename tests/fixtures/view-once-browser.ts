@@ -78,6 +78,35 @@ async function main(): Promise<void> {
   });
   history.querySelector<HTMLButtonElement>('button')!.click();
   check(opens === 0, 'Browser never requests protected text/image content');
+  await checkFileDownload(history, lifetime.signal);
+  await checkCancelledFile(history);
+  check(formatViewOnceBytes(1000) === '1 KB', 'Size units are storage units');
+  await new Promise<void>((resolve) => setTimeout(resolve, 4700));
+  check(
+    !form.querySelector('.compose-view-once-hint'),
+    'Ghost popup disappears softly',
+  );
+  once.click();
+  once.click();
+  check(
+    !form.querySelector('.compose-view-once-hint'),
+    'Subsequent clicks do not repeat the popup',
+  );
+  result.dataset['result'] = 'passed';
+  result.textContent =
+    'PASS: compact menu, mobile-only open, download-only files, size, first-click hint and responsive composer';
+}
+function includesAll(element: Element | null, values: string[]): boolean {
+  return values.every((value) => (element?.textContent ?? '').includes(value));
+}
+function includesAny(element: Element | null, values: string[]): boolean {
+  return values.some((value) => (element?.textContent ?? '').includes(value));
+}
+async function checkFileDownload(
+  history: HTMLElement,
+  signal: AbortSignal,
+): Promise<void> {
+  let opens = 0;
   const file = document.createElement('div');
   history.append(file);
   const name = 'report.pdf';
@@ -88,9 +117,8 @@ async function main(): Promise<void> {
     metadata: {
       hash: 'b'.repeat(64),
       policy: 'file',
-      file: { name, mime: 'application/pdf', bytes: 1_500_000 },
     },
-    signal: lifetime.signal,
+    signal,
     current: () => true,
     open: () => {
       opens++;
@@ -99,20 +127,18 @@ async function main(): Promise<void> {
         file: {
           name,
           mime: 'application/pdf',
-          data: btoa('synthetic download only'),
+          data: btoa('X'.repeat(1_500_000)),
         },
       });
     },
   });
   check(
-    file.textContent?.includes('1.5 MB') &&
-      file.textContent.includes('PDF') &&
-      file.textContent.includes(name),
-    'File card shows name, format and size',
+    !includesAny(file, [name, 'PDF', 'MB']),
+    'Filename, format and size are hidden before open',
   );
   check(
     !file.querySelector('iframe,img,object,video,a'),
-    'File card never previews or links to the body',
+    'No file body is previewed',
   );
   let downloads = 0;
   const original = Object.getOwnPropertyDescriptor(
@@ -130,9 +156,30 @@ async function main(): Promise<void> {
     const button = file.querySelector<HTMLButtonElement>('button')!;
     button.click();
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    const details = document.querySelector<HTMLDialogElement>(
+      '.view-once-file-dialog',
+    )!;
     check(
-      opens === 1 && downloads === 1 && button.disabled,
-      'A file downloads once',
+      opens === 1 && downloads === 0 && button.disabled && details?.open,
+      'Opening reveals metadata without starting a download',
+    );
+    check(
+      includesAll(details, [name, 'PDF', '1.5 MB']),
+      'Details appear only inside the opened delivery',
+    );
+    check(
+      !details.querySelector('iframe,img,object,video,a'),
+      'Opened files have no inline preview',
+    );
+    details
+      .querySelector<HTMLButtonElement>('[data-view-once-download]')!
+      .click();
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    check(
+      downloads === 1 &&
+        !details.isConnected &&
+        !file.textContent?.includes(name),
+      'Explicit download closes and erases metadata',
     );
     button.click();
     check(opens === 1, 'The consumed file cannot start another download');
@@ -141,21 +188,50 @@ async function main(): Promise<void> {
       Object.defineProperty(HTMLAnchorElement.prototype, 'click', original);
     else Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
   }
-  check(formatViewOnceBytes(1000) === '1 KB', 'Size units are storage units');
-  await new Promise<void>((resolve) => setTimeout(resolve, 4700));
+}
+async function checkCancelledFile(history: HTMLElement): Promise<void> {
+  const cancelled = document.createElement('div');
+  history.append(cancelled);
+  const cancelLifetime = new AbortController();
+  renderViewOnce({
+    host: cancelled,
+    id: crypto.randomUUID(),
+    own: false,
+    metadata: {
+      hash: 'c'.repeat(64),
+      policy: 'file',
+      file: { name: 'legacy-secret.zip', mime: 'application/zip', bytes: 3 },
+    },
+    signal: cancelLifetime.signal,
+    current: () => !cancelLifetime.signal.aborted,
+    open: () =>
+      Promise.resolve({
+        text: '',
+        file: {
+          name: 'legacy-secret.zip',
+          mime: 'application/zip',
+          data: btoa('zip'),
+        },
+      }),
+  });
   check(
-    !form.querySelector('.compose-view-once-hint'),
-    'Ghost popup disappears softly',
+    !cancelled.textContent?.includes('legacy-secret.zip'),
+    'Legacy cards also hide previously delivered metadata',
   );
-  once.click();
-  once.click();
+  cancelled.querySelector<HTMLButtonElement>('button')!.click();
+  await new Promise<void>((resolve) => setTimeout(resolve, 20));
   check(
-    !form.querySelector('.compose-view-once-hint'),
-    'Subsequent clicks do not repeat the popup',
+    document
+      .querySelector('.view-once-file-dialog')
+      ?.textContent?.includes('legacy-secret.zip'),
+    'Legacy details open normally',
   );
-  result.dataset['result'] = 'passed';
-  result.textContent =
-    'PASS: compact menu, mobile-only open, download-only files, size, first-click hint and responsive composer';
+  cancelLifetime.abort();
+  await new Promise<void>((resolve) => setTimeout(resolve, 20));
+  check(
+    !document.querySelector('.view-once-file-dialog'),
+    'Leaving the chat erases opened file metadata',
+  );
 }
 void main().catch((error: unknown) => {
   result.dataset['result'] = 'failed';

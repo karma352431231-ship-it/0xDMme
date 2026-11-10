@@ -182,11 +182,9 @@ function viewOnceTextMetadata(
   if (value['policy'] !== 'mobile' && value['policy'] !== 'file')
     throw new Error('Invalid view-once display.');
   const policy = value['policy'];
-  if (!Object.hasOwn(value, 'file')) {
-    if (policy !== 'mobile')
-      throw new Error('View-once file metadata missing.');
-    return { hash, policy };
-  }
+  // Detailed metadata for new downloads is delivered only on explicit open.
+  // Keep accepting the encrypted metadata sent by earlier clients.
+  if (!Object.hasOwn(value, 'file')) return { hash, policy };
   return { hash, policy, file: viewOnceFileMetadata(value['file']) };
 }
 function viewOnceFileMetadata(

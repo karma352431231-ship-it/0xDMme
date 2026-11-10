@@ -1234,3 +1234,33 @@
   color: var(--accent-text);
   background: var(--accent-soft);
 }
+
+.view-once-file-dialog {
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.view-once-file-dialog h2 {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+.view-once-file-dialog p {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+.view-once-file-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.view-once-file-dialog::backdrop {
+  background: var(--overlay);
+}

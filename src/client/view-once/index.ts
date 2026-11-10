@@ -201,7 +201,7 @@ export async function viewOnceDescriptor(
   const metadata: ViewOnceMetadata = {
     hash: await digest(viewOnceHeaderBody(prepared.header)),
     policy: prepared.header.policy,
-    ...(content.file
+    ...(content.file && prepared.header.policy === 'mobile'
       ? {
           file: {
             name: content.file.name,
@@ -268,14 +268,19 @@ function assertDeliveryContent(
     throw new Error('View-once display policy differs.');
   if (input.metadata.policy === 'file' && content.text !== '')
     throw new Error('Download-only files cannot contain a message preview.');
-  const file = input.metadata.file;
+  assertFileMetadata(content.file, input.metadata.file);
+}
+function assertFileMetadata(
+  contentFile: ViewOnceContent['file'],
+  file: ViewOnceMetadata['file'],
+): void {
   if (
-    Boolean(file) !== Boolean(content.file) ||
+    (file && !contentFile) ||
     (file &&
-      content.file &&
-      (file.name !== content.file.name ||
-        file.mime !== content.file.mime ||
-        file.bytes !== base64(content.file.data, 10_000_000).length))
+      contentFile &&
+      (file.name !== contentFile.name ||
+        file.mime !== contentFile.mime ||
+        file.bytes !== base64(contentFile.data, 10_000_000).length))
   )
     throw new Error('View-once file metadata differs.');
 }

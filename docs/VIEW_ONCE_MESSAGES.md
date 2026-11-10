@@ -12,8 +12,11 @@ Closing, backgrounding or leaving the conversation erases the native view.
 Supported images use the platform's native decoders; animated images currently
 show their first frame. Groups do not offer this mode.
 
-Other files show their filename, extension/MIME and size in B/KB/MB/GB. Clicking
-requests one download in browser or app. They never render inline. The saved
+Other files initially show a generic view-once placeholder. Opening consumes
+the delivery and reveals only filename, extension/MIME and size in B/KB/MB/GB.
+The recipient can then choose one download in browser or app. Closing erases
+the details, and files never render inline. New download metadata is inside the
+single-delivery payload, outside ordinary history and recovery archives. The saved
 copy belongs to the recipient and can remain after the chat delivery is used.
 A caption accompanying a downloadable file is queued atomically as a separate
 mobile-only text message.

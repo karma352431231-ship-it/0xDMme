@@ -10391,4 +10391,5 @@ export const catalog: Record<string, readonly [string, string]> = {
     'View-once message unavailable.',
     '阅后即焚消息不可用。',
   ],
+  'Open once': ['Open once', '查看一次'],
 };

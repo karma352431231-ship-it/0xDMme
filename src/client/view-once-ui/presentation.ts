@@ -102,32 +102,18 @@ export function renderViewOnce(input: ViewOnceRow): void {
   icon.setAttribute('aria-hidden', 'true');
   const info = document.createElement('span');
   const title = document.createElement('strong');
-  title.textContent = file
-    ? (metadata.file?.name ?? t('View-once file'))
-    : t(metadata.file ? 'View-once image' : 'View-once message');
+  title.textContent = t('View-once message');
   info.append(title);
-  if (file && metadata.file) {
-    const details = document.createElement('small');
-    const format = metadata.file.name.split('.').at(-1)?.toUpperCase() ?? '';
-    details.textContent = [
-      format,
-      metadata.file.mime,
-      formatViewOnceBytes(metadata.file.bytes),
-    ]
-      .filter(Boolean)
-      .join(' · ');
-    info.append(details);
-  }
   const state = document.createElement('small');
   const update = () => {
     button.disabled = input.own || consumed.has(id);
     state.textContent = consumed.has(id)
-      ? t(file ? 'Downloaded' : 'Opened')
+      ? t('Opened')
       : t(
           input.own
             ? 'Sent once'
             : file
-              ? 'Download once'
+              ? 'Open once'
               : 'Open once in the mobile app',
         );
   };
@@ -185,7 +171,7 @@ async function openViewOnce(
     content = await input.open();
     opened();
     if (!input.current() || input.signal.aborted) return;
-    if (file) await download(id, content);
+    if (file) await showFileDetails(id, content, input.signal);
     else await showProtected(id, content, input.signal);
   } finally {
     input.signal.removeEventListener('abort', cancel);
@@ -204,4 +190,91 @@ function eraseContent(content: ViewOnceContent | null): void {
   if (!content) return;
   content.text = '';
   if (content.file) content.file.data = '';
+}
+
+/** Metadata exists on screen only while this consumed delivery is open. */
+function showFileDetails(
+  id: string,
+  content: ViewOnceContent,
+  signal: AbortSignal,
+): Promise<void> {
+  const file = content.file;
+  if (!file) throw new Error('View-once file metadata missing.');
+  const dialog = document.createElement('dialog');
+  dialog.className = 'view-once-file-dialog';
+  dialog.setAttribute('aria-label', t('View-once file'));
+  const title = document.createElement('h2');
+  title.textContent = file.name;
+  const details = document.createElement('p');
+  const extension = file.name.includes('.')
+    ? file.name.split('.').at(-1)!.toUpperCase()
+    : '';
+  details.textContent = [
+    extension,
+    file.mime,
+    formatViewOnceBytes(base64(file.data, 10_000_000).length),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.textContent = t('Download once');
+  save.dataset['viewOnceDownload'] = '';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = t('Close');
+  const actions = document.createElement('div');
+  actions.append(close, save);
+  dialog.append(title, details, actions);
+  return new Promise<void>((resolve, reject) => {
+    let ended = false;
+    const cleanup = () => {
+      if (ended) return;
+      ended = true;
+      signal.removeEventListener('abort', stop);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', stop);
+      dialog.remove();
+      dialog.replaceChildren();
+    };
+    const stop = () => {
+      cleanup();
+      resolve();
+    };
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') stop();
+    };
+    close.addEventListener('click', stop);
+    dialog.addEventListener('cancel', stop);
+    dialog.addEventListener('close', stop);
+    save.addEventListener('click', () => {
+      if (ended || save.disabled) return;
+      save.disabled = true;
+      void download(id, content)
+        .catch((error: unknown) => {
+          if (!ended)
+            showToast(
+              error instanceof Error
+                ? translatedError(error.message)
+                : t('View-once message unavailable.'),
+            );
+        })
+        .finally(stop);
+    });
+    signal.addEventListener('abort', stop, { once: true });
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', stop, { once: true });
+    try {
+      signal.throwIfAborted();
+      document.body.append(dialog);
+      dialog.showModal();
+    } catch (error: unknown) {
+      cleanup();
+      reject(
+        error instanceof Error
+          ? error
+          : new Error('View-once message unavailable.'),
+      );
+    }
+  });
 }

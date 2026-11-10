@@ -57,6 +57,12 @@ await test('single-use content stays outside history and cannot be decrypted wit
     assert.equal(daily.text, '');
     assert.ok(daily.viewOnce);
     assert.equal(daily.viewOnce.hash, descriptor.reference.hash);
+    if (prepared.header.policy === 'file') {
+      assert.equal(daily.viewOnce.file, undefined);
+      assert.equal(descriptor.text.includes('report.pdf'), false);
+      assert.equal(descriptor.text.includes('application/pdf'), false);
+    }
+
     assert.equal(JSON.stringify(prepared.header).includes('Secret'), false);
     const input = {
       id,
@@ -68,6 +74,27 @@ await test('single-use content stays outside history and cannot be decrypted wit
       response: { header: prepared.header, bytes: encode(prepared.bytes) },
     };
     assert.deepEqual(await decryptViewOnce(input), content);
+    if (prepared.header.policy === 'file' && content.file) {
+      const legacy = {
+        name: content.file.name,
+        mime: content.file.mime,
+        bytes: Buffer.from(content.file.data, 'base64').length,
+      };
+      assert.deepEqual(
+        await decryptViewOnce({
+          ...input,
+          metadata: { ...input.metadata, file: legacy },
+        }),
+        content,
+      );
+      await assert.rejects(
+        decryptViewOnce({
+          ...input,
+          metadata: { ...input.metadata, file: { ...legacy, bytes: 1 } },
+        }),
+      );
+    }
+
     await assert.rejects(decryptViewOnce({ ...input, scope: 'public' }));
     await assert.rejects(
       decryptViewOnce({ ...input, peer: crypto.randomUUID() }),
