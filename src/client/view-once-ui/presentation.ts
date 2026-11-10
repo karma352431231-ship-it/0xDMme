@@ -7,7 +7,11 @@ import { protectedDisplay } from './display.ts';
 import type { DailyText } from '../../shared/daily/index.ts';
 type ViewOnceMetadata = NonNullable<DailyText['viewOnce']>;
 
-const consumed = new Set<string>();
+const receiptKey = '0xdmme:view-once-receipts:v1';
+const receiptLimit = 1024;
+const consumed = readReceipts();
+const opening = new Set<string>();
+const stateChanges = new EventTarget();
 export function formatViewOnceBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   const unit = Math.min(Math.floor(Math.log10(Math.max(bytes, 1)) / 3), 3);
@@ -20,9 +24,34 @@ export function formatViewOnceBytes(bytes: number): string {
   );
 }
 
-function markConsumed(id: string): void {
-  consumed.add(id);
-  if (consumed.size > 1024) consumed.delete(consumed.values().next().value!);
+function readReceipts(): Set<string> {
+  try {
+    const stored = globalThis.localStorage?.getItem(receiptKey);
+    if (!stored || stored.length > receiptLimit * 68) return new Set();
+    const values: unknown = JSON.parse(stored);
+    if (!Array.isArray(values)) return new Set();
+    return new Set(
+      values
+        .filter(
+          (value): value is string =>
+            typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value),
+        )
+        .slice(-receiptLimit),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function markConsumed(hash: string): void {
+  consumed.add(hash);
+  if (consumed.size > receiptLimit)
+    consumed.delete(consumed.values().next().value!);
+  try {
+    globalThis.localStorage?.setItem(receiptKey, JSON.stringify([...consumed]));
+  } catch {
+    // A restricted browser still shows the receipt for the active session.
+  }
 }
 async function download(id: string, content: ViewOnceContent): Promise<void> {
   const file = content.file;
@@ -93,50 +122,53 @@ interface ViewOnceRow {
 export function renderViewOnce(input: ViewOnceRow): void {
   const { host, metadata, id } = input;
   const file = metadata.policy === 'file';
+  const key = id + ':' + metadata.hash;
+  host.classList.add('chat-message-view-once');
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'chat-view-once';
   const icon = document.createElement('span');
   icon.className = 'chat-view-once-icon';
-  icon.textContent = '①';
   icon.setAttribute('aria-hidden', 'true');
-  const info = document.createElement('span');
-  const title = document.createElement('strong');
-  title.textContent = t('View-once message');
-  info.append(title);
-  const state = document.createElement('small');
-  const update = () => {
-    button.disabled = input.own || consumed.has(id);
-    state.textContent = consumed.has(id)
-      ? t('Opened')
-      : t(
-          input.own
-            ? 'Sent once'
-            : file
-              ? 'Open once'
-              : 'Open once in the mobile app',
-        );
+  const label = document.createElement('span');
+  const labels = {
+    sent: 'Sent as view-once',
+    viewed: 'Message already viewed',
+    new: file || protectedDisplay() ? 'View once' : 'Open in mobile app',
   };
-  info.append(state);
-  button.append(icon, info);
+  const update = () => {
+    const viewed = !input.own && consumed.has(metadata.hash);
+    const state = input.own ? 'sent' : viewed ? 'viewed' : 'new';
+    button.disabled = input.own || viewed || opening.has(key);
+    button.dataset['state'] = state;
+    icon.textContent = viewed ? '✓' : '1';
+    label.textContent = t(labels[state]);
+  };
+  button.append(icon, label);
   update();
+  stateChanges.addEventListener(key, update, { signal: input.signal });
   button.addEventListener('click', () => {
-    if (!input.current()) return;
+    if (button.disabled || !input.current()) return;
     if (!file && !protectedDisplay()) {
       showToast(t('Open this view-once message in the mobile app.'));
       return;
     }
-    button.disabled = true;
-    void openViewOnce(input, () => {
-      markConsumed(id);
-      update();
-    })
+    opening.add(key);
+    stateChanges.dispatchEvent(new Event(key));
+    void openViewOnce(input, () => markConsumed(metadata.hash))
       .catch((error: unknown) => {
         const status =
           typeof error === 'object' && error !== null && 'status' in error
             ? error.status
             : null;
-        if (status === 410) markConsumed(id);
+        if (
+          status === 410 &&
+          error instanceof Error &&
+          error.message === 'This view-once message was already opened.'
+        ) {
+          markConsumed(metadata.hash);
+          return;
+        }
         if (input.current())
           showToast(
             error instanceof Error
@@ -144,7 +176,10 @@ export function renderViewOnce(input: ViewOnceRow): void {
               : t('View-once message unavailable.'),
           );
       })
-      .finally(update);
+      .finally(() => {
+        opening.delete(key);
+        stateChanges.dispatchEvent(new Event(key));
+      });
   });
   host.append(button);
 }
@@ -169,7 +204,6 @@ async function openViewOnce(
       });
     input.signal.throwIfAborted();
     content = await input.open();
-    opened();
     if (!input.current() || input.signal.aborted) return;
     if (file) await showFileDetails(id, content, input.signal);
     else await showProtected(id, content, input.signal);
@@ -177,6 +211,7 @@ async function openViewOnce(
     input.signal.removeEventListener('abort', cancel);
     eraseContent(content);
     await display?.close({ id }).catch(() => undefined);
+    if (content) opened();
   }
 }
 

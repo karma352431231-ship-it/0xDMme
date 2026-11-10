@@ -14,6 +14,7 @@ import { dailyViews } from '../daily-text/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { GifSearch, gifMessageUrl, mountGifPane } from '../gif-search/index.ts';
+import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import type { MessageView, Messages } from './controller.ts';
@@ -298,7 +299,16 @@ export class MessageComposer {
       throw new Error('Choose an authorized contact to send the GIF.');
     if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
     if (viewOnceEnabled(this.node('[data-message-form]'))) {
-      await this.options.controller.composeViewOnce(peer, url, null);
+      const signal = this.options.signal();
+      const file = await this.gifs.viewOnceClip(url, chatFileLimit);
+      const selection = await prepareViewOnceSelection(file, chatFileLimit);
+      try {
+        signal.throwIfAborted();
+        if (this.options.availability().peer === peer)
+          await this.options.controller.composeViewOnce(peer, '', selection);
+      } finally {
+        selection.bytes.fill(0);
+      }
       return;
     }
     await this.options.controller.compose(

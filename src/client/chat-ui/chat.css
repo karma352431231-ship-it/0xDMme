@@ -376,35 +376,49 @@
 .chat-panel .chat-view-once {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 52px;
+  gap: 7px;
+  min-height: 32px;
   max-width: 100%;
-  padding: 6px 0;
+  padding: 0;
   margin: 0;
   border: 0;
   background: transparent;
   color: var(--text);
   text-align: start;
-  font: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.3;
+  opacity: 1;
 }
 .chat-view-once > span:last-child {
-  display: grid;
   min-width: 0;
-  gap: 3px;
-}
-.chat-view-once strong {
-  overflow-wrap: anywhere;
-  font-size: var(--fs-body);
-}
-.chat-view-once small {
-  color: var(--text-muted);
-  font-size: var(--fs-caption);
   overflow-wrap: anywhere;
 }
 .chat-view-once-icon {
+  display: grid;
+  place-items: center;
   flex: none;
-  font-size: 28px;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
   color: var(--accent-text);
+}
+.chat-panel .chat-view-once[data-state='viewed'] {
+  color: var(--text-muted);
+}
+.chat-view-once[data-state='viewed'] .chat-view-once-icon {
+  border-style: dashed;
+  color: inherit;
+}
+#app-shell .chat-message.chat-message-view-once,
+.chat-message.chat-message-view-once {
+  padding-block: 4px 5px;
+}
+#app-shell .chat-message-view-once .message-meta,
+.chat-message-view-once .message-meta {
+  margin-top: 0;
 }
 .chat-message .message-meta {
   display: flex;

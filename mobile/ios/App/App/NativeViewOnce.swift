@@ -49,6 +49,8 @@ final class NativeViewOnce: NSObject {
         let bytes = try NativePolicy.integer(input["bytes"], minimum: 0, maximum: 10_000_000)
         if mime == "text/plain" {
             guard bytes == 0 else { throw NativeFailure.unavailable }
+        } else if mime == "video/mp4" || mime == "video/quicktime" {
+            guard bytes > 0 else { throw NativeFailure.unavailable }
         } else {
             guard bytes > 0, let type = UTType(mimeType: mime), type.conforms(to: .image),
                   (CGImageSourceCopyTypeIdentifiers() as! [String]).contains(type.identifier)
@@ -83,6 +85,7 @@ private final class NativeViewOnceController: UIViewController {
     private var data = Data()
     private var text = ""
     private var image: UIImage?
+    private var motion: NativeViewOnceMotion?
     private var shown = false
     private var page = 0
     private var ranges: [CFRange] = []
@@ -91,6 +94,8 @@ private final class NativeViewOnceController: UIViewController {
     private let surface = UIView()
     private let layer = AVSampleBufferDisplayLayer()
     private let loading = UIActivityIndicatorView(style: .medium)
+    private let playbackNotice = UILabel()
+    private let play = UIButton(type: .system)
     private let previous = UIButton(type: .system)
     private let nextButton = UIButton(type: .system)
     private let pageLabel = UILabel()
@@ -118,6 +123,11 @@ private final class NativeViewOnceController: UIViewController {
         loading.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(loading)
         loading.startAnimating()
+        playbackNotice.text = "Could not play this media."
+        playbackNotice.textColor = .white
+        playbackNotice.isHidden = true
+        playbackNotice.translatesAutoresizingMaskIntoConstraints = false
+        surface.addSubview(playbackNotice)
 
         let header = UIView()
         let close = UIButton(type: .system)
@@ -126,6 +136,10 @@ private final class NativeViewOnceController: UIViewController {
         close.layer.cornerRadius = 24
         close.accessibilityLabel = "Close view-once message"
         close.addTarget(self, action: #selector(closePressed), for: .touchUpInside)
+        play.backgroundColor = ViewOnceBackdrop.base
+        play.layer.cornerRadius = 24
+        play.isHidden = true
+        play.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
         let badge = UIImageView(image: UIImage(systemName: "1.circle"))
         badge.tintColor = ViewOnceBackdrop.accent
         let title = UILabel()
@@ -135,7 +149,7 @@ private final class NativeViewOnceController: UIViewController {
         let heading = UIStackView(arrangedSubviews: [badge, title])
         heading.alignment = .center
         heading.spacing = 7
-        for element in [close, heading] {
+        for element in [close, heading, play] {
             element.translatesAutoresizingMaskIntoConstraints = false
             header.addSubview(element)
         }
@@ -155,7 +169,7 @@ private final class NativeViewOnceController: UIViewController {
             footer.addSubview(element)
         }
         updateFooter(count: 1)
-        for control in [close, previous, nextButton] { control.tintColor = ViewOnceBackdrop.ink }
+        for control in [close, play, previous, nextButton] { control.tintColor = ViewOnceBackdrop.ink }
         for element in [header, surface, footer] {
             element.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(element)
@@ -169,6 +183,9 @@ private final class NativeViewOnceController: UIViewController {
             close.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             close.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 12),
             close.widthAnchor.constraint(equalToConstant: 48), close.heightAnchor.constraint(equalToConstant: 48),
+            play.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            play.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -12),
+            play.widthAnchor.constraint(equalToConstant: 48), play.heightAnchor.constraint(equalToConstant: 48),
             heading.centerXAnchor.constraint(equalTo: header.centerXAnchor),
             heading.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             heading.leadingAnchor.constraint(greaterThanOrEqualTo: close.trailingAnchor, constant: 4),
@@ -179,6 +196,8 @@ private final class NativeViewOnceController: UIViewController {
             surface.bottomAnchor.constraint(equalTo: footer.topAnchor),
             loading.centerXAnchor.constraint(equalTo: surface.centerXAnchor),
             loading.centerYAnchor.constraint(equalTo: surface.centerYAnchor),
+            playbackNotice.centerXAnchor.constraint(equalTo: surface.centerXAnchor),
+            playbackNotice.centerYAnchor.constraint(equalTo: surface.centerYAnchor),
             footer.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
             footer.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
             footer.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
@@ -214,34 +233,68 @@ private final class NativeViewOnceController: UIViewController {
         guard Set(input.keys) == ["id", "text"], !shown, data.count == expected else { throw NativeFailure.unavailable }
         text = try NativePolicy.text(input["text"], 16000)
         guard text.utf8.count <= 16000 else { throw NativeFailure.unavailable }
-        if mime != "text/plain" {
-            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                  let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+        if mime == "video/mp4" || mime == "video/quicktime" {
+            motion = NativeViewOnceMotion(video: data, mime: mime)
+        } else if mime != "text/plain" {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+                throw NativeFailure.unavailable
+            }
+            if (mime == "image/gif" || mime == "image/webp"), CGImageSourceGetCount(source) > 1 {
+                motion = try NativeViewOnceMotion(image: source, bytes: data)
+            } else {
+                guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                     kCGImageSourceCreateThumbnailFromImageAlways: true,
                     kCGImageSourceCreateThumbnailWithTransform: true,
                     kCGImageSourceThumbnailMaxPixelSize: 3072
-                  ] as CFDictionary) else { throw NativeFailure.unavailable }
-            image = UIImage(cgImage: cg)
+                ] as CFDictionary) else { throw NativeFailure.unavailable }
+                image = UIImage(cgImage: cg)
+            }
         }
-        data.resetBytes(in: data.startIndex..<data.endIndex)
-        data.removeAll(keepingCapacity: false)
+        if motion == nil { data.resetBytes(in: data.startIndex..<data.endIndex) }
+        data = Data() // The motion owner clears its buffer when the viewer closes.
+        if let motion {
+            surface.layer.insertSublayer(motion.container, above: layer)
+            motion.resized = { [weak self] in self?.resizeMedia() }
+            motion.playback = { [weak self] playing in self?.updatePlayback(playing) }
+            motion.failure = { [weak self] in self?.showPlaybackError() }
+        }
         shown = true
         view.layoutIfNeeded()
         try paginate()
         try render()
         loading.stopAnimating()
+        motion?.start()
     }
+    private var hasMedia: Bool { image != nil || motion != nil }
+
+    private func resizeMedia() {
+        do { try paginate(); try render() } catch { showPlaybackError() }
+    }
+
+    private func updatePlayback(_ playing: Bool) {
+        play.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
+        play.accessibilityLabel = playing ? "Pause video" : "Play video"
+        play.isHidden = false
+    }
+
+    private func showPlaybackError() {
+        erase()
+        playbackNotice.isHidden = false
+        surface.accessibilityLabel = playbackNotice.text
+        updateFooter(count: 1)
+    }
+
     private var attributed: NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineSpacing = 3
         return NSAttributedString(string: text, attributes: [
-            .font: UIFont.systemFont(ofSize: image == nil ? 22 : 16),
-            .foregroundColor: image == nil ? ViewOnceBackdrop.ink : ViewOnceBackdrop.muted,
+            .font: UIFont.systemFont(ofSize: hasMedia ? 16 : 22),
+            .foregroundColor: UIColor.white,
             .paragraphStyle: paragraph
         ])
     }
-    private var textWidth: CGFloat { min(laidOut.width - 32, image == nil ? 360 : 540) }
+    private var textWidth: CGFloat { min(laidOut.width - 32, hasMedia ? 540 : 360) }
     private var contentHeight: CGFloat { laidOut.height - 24 }
     private var captionGap: CGFloat { text.isEmpty ? 0 : 10 }
 
@@ -257,10 +310,10 @@ private final class NativeViewOnceController: UIViewController {
         let setter = CTFramesetterCreateWithAttributedString(message)
         ranges.removeAll()
         var location = 0
-        if let image {
+        if let mediaSize = image?.size ?? motion?.size {
             let height = contentHeight * (text.isEmpty ? 1 : 0.72)
-            let scale = min(min(laidOut.width - 32, 680) / image.size.width, height / image.size.height)
-            photoSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let scale = min(min(laidOut.width - 32, 680) / mediaSize.width, height / mediaSize.height)
+            photoSize = CGSize(width: mediaSize.width * scale, height: mediaSize.height * scale)
             let captionHeight = contentHeight - photoSize.height - captionGap
             let visible = captionHeight > 0 && message.length > 0
                 ? CTFrameGetVisibleStringRange(textFrame(setter, CFRange(location: 0, length: 0), height: captionHeight))
@@ -289,18 +342,19 @@ private final class NativeViewOnceController: UIViewController {
     private func drawPage(_ context: CGContext) {
         let offset = surface.convert(CGPoint.zero, to: view)
         ViewOnceBackdrop.paint(context, in: view.bounds.offsetBy(dx: -offset.x, dy: -offset.y))
-        let photo = page == 0 ? image : nil
-        let height = photo == nil ? 0 : photoSize.height
+        let mediaVisible = page == 0 && hasMedia
+        let height = mediaVisible ? photoSize.height : 0
         let range = ranges[page]
-        let gap = photo != nil && range.length > 0 ? captionGap : 0
+        let gap = mediaVisible && range.length > 0 ? captionGap : 0
         let available = contentHeight - height - gap
         let frame = range.length > 0
             ? textFrame(CTFramesetterCreateWithAttributedString(attributed), range, height: available)
             : nil
         let textHeight = frame.map { usedHeight($0, height: available) } ?? 0
         let top = (laidOut.height - height - gap - textHeight) / 2
-        if let photo {
-            let rect = CGRect(x: (laidOut.width - photoSize.width) / 2, y: top, width: photoSize.width, height: height)
+        let rect = CGRect(x: (laidOut.width - photoSize.width) / 2, y: top, width: photoSize.width, height: height)
+        motion?.position(mediaVisible ? rect : nil)
+        if let photo = image, mediaVisible {
             context.saveGState()
             context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: 14).cgPath)
             context.clip()
@@ -315,7 +369,10 @@ private final class NativeViewOnceController: UIViewController {
             context.restoreGState()
         }
         let caption = (text as NSString).substring(with: NSRange(location: range.location, length: range.length))
-        surface.accessibilityLabel = photo == nil ? caption : (caption.isEmpty ? "View-once image" : "View-once image. " + caption)
+        if mediaVisible {
+            let label = motion?.isVideo == true ? "View-once video" : "View-once image"
+            surface.accessibilityLabel = caption.isEmpty ? label : label + ". " + caption
+        } else { surface.accessibilityLabel = caption }
     }
 
     private func updateFooter(count: Int) {
@@ -345,37 +402,21 @@ private final class NativeViewOnceController: UIViewController {
             drawPage(context.cgContext)
         }
         guard let cg = rendered.cgImage else { throw NativeFailure.unavailable }
-        var buffer: CVPixelBuffer?
-        guard CVPixelBufferCreate(kCFAllocatorDefault, cg.width, cg.height, kCVPixelFormatType_32ARGB,
-            [kCVPixelBufferCGImageCompatibilityKey: true, kCVPixelBufferCGBitmapContextCompatibilityKey: true] as CFDictionary,
-            &buffer) == kCVReturnSuccess, let buffer else { throw NativeFailure.unavailable }
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        guard let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: cg.width,
-            height: cg.height, bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
-        else { throw NativeFailure.unavailable }
-        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
-        var description: CMVideoFormatDescription?
-        guard CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
-            imageBuffer: buffer, formatDescriptionOut: &description) == noErr, let description
-        else { throw NativeFailure.unavailable }
-        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .zero, decodeTimeStamp: .invalid)
-        var sample: CMSampleBuffer?
-        guard CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: buffer,
-            formatDescription: description, sampleTiming: &timing, sampleBufferOut: &sample) == noErr,
-            let sample else { throw NativeFailure.unavailable }
-        if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true) as? [NSMutableDictionary] {
-            attachments.first?[kCMSampleAttachmentKey_DisplayImmediately] = true
-        }
+        let sample = try viewOnceSample(viewOncePixels(cg))
         layer.flushAndRemoveImage()
         layer.enqueue(sample)
         updateFooter(count: ranges.count)
     }
     @objc private func closePressed() { finished?() }
+    @objc private func togglePlayback() { motion?.toggle() }
     @objc private func previousPage() { page = max(0, page-1); do { try render() } catch { finished?() } }
     @objc private func nextPage() { guard nextButton.isEnabled else { return }; page += 1; do { try render() } catch { finished?() } }
     func erase() {
+        motion?.erase()
+        motion = nil
+        play.isHidden = true
+        loading.stopAnimating()
+        playbackNotice.isHidden = true
         data.resetBytes(in: data.startIndex..<data.endIndex)
         data.removeAll(keepingCapacity: false)
         text = ""; image = nil; ranges.removeAll(); shown = false

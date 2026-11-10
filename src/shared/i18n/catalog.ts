@@ -10378,6 +10378,23 @@ export const catalog: Record<string, readonly [string, string]> = {
   Downloaded: ['Downloaded', '已下载'],
   Opened: ['Opened', '已查看'],
   'Sent once': ['Sent once', '已发送（仅限一次）'],
+  'Sent as view-once': ['Sent as view-once', '已发送阅后即焚消息'],
+  'Message already viewed': ['Message already viewed', '消息已查看'],
+  'Open in mobile app': ['Open in mobile app', '在手机应用中打开'],
+  Media: ['Media', '媒体'],
+  Image: ['Image', '图片'],
+  'Use an MP4 or MOV video for view once.': [
+    'Use an MP4 or MOV video for view once.',
+    '阅后即焚视频请使用 MP4 或 MOV 格式。',
+  ],
+  'File exceeds this conversation’s limit.': [
+    'File exceeds this conversation’s limit.',
+    '文件超过此对话的大小限制。',
+  ],
+  'Text, photos, GIFs and videos open once in the app. Files download once.': [
+    'Text, photos, GIFs and videos open once in the app. Files download once.',
+    '文字、照片、GIF 和视频仅可在应用中查看一次。文件仅可下载一次。',
+  ],
   'Download once': ['Download once', '下载一次'],
   'Open once in the mobile app': [
     'Open once in the mobile app',

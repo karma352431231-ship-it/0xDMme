@@ -24,7 +24,7 @@ function view(b: Uint8Array): DataView {
 function startsBytes(bytes: Uint8Array, prefix: number[], offset = 0): boolean {
   return prefix.every((value, index) => bytes[offset + index] === value);
 }
-function videoSignature(bytes: Uint8Array): boolean {
+export function videoSignature(bytes: Uint8Array): boolean {
   const head = text(bytes, 0, 16);
   return (
     (head.slice(4, 8) === 'ftyp' &&

@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -25,7 +26,10 @@ final class NativeViewOnceLayout extends LinearLayout {
     private final GradientDrawable backdrop = new GradientDrawable();
     private final ScrollView scroll;
     private final LinearLayout body;
-    private ImageView photo;
+    private View media;
+    private int mediaWidth;
+    private int mediaHeight;
+    private final ImageButton playback;
     private boolean hasCaption;
 
     NativeViewOnceLayout(Context context, Runnable close) {
@@ -64,6 +68,13 @@ final class NativeViewOnceLayout extends LinearLayout {
         FrameLayout.LayoutParams backSize = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.START | Gravity.CENTER_VERTICAL);
         backSize.setMarginStart(dp(12));
         header.addView(back, backSize);
+        playback = new ImageButton(context);
+        playback.setColorFilter(INK);
+        playback.setBackground(rounded(BACKGROUND, 24));
+        playback.setVisibility(GONE);
+        FrameLayout.LayoutParams playbackSize = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END | Gravity.CENTER_VERTICAL);
+        playbackSize.setMarginEnd(dp(12));
+        header.addView(playback, playbackSize);
 
         scroll = new ScrollView(context);
         scroll.setFillViewport(true);
@@ -75,7 +86,7 @@ final class NativeViewOnceLayout extends LinearLayout {
         body.setPadding(0, dp(12), 0, dp(12));
         scroll.addView(body, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         addView(scroll, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1));
-        scroll.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> sizePhoto());
+        scroll.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> sizeMedia());
         body.addView(label("Loading…", 16, MUTED));
 
         LinearLayout footer = new LinearLayout(context);
@@ -98,51 +109,78 @@ final class NativeViewOnceLayout extends LinearLayout {
     }
 
     void show(Bitmap bitmap, String text) {
+        if (bitmap == null) {
+            showMedia(null, 0, 0, text);
+            return;
+        }
+        ImageView photo = new ImageView(getContext());
+        photo.setContentDescription("View-once image");
+        photo.setImageBitmap(bitmap);
+        photo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        showMedia(photo, bitmap.getWidth(), bitmap.getHeight(), text);
+    }
+
+    void showMedia(View view, int width, int height, String text) {
         erase();
-        if (bitmap != null) {
-            photo = new ImageView(getContext());
+        if (view != null) {
+            media = view;
             hasCaption = !text.isEmpty();
-            photo.setContentDescription("View-once image");
-            photo.setImageBitmap(bitmap);
-            photo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            photo.setBackground(rounded(BACKGROUND, 14));
-            photo.setClipToOutline(true);
-            body.addView(photo, new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
-            // Keep tall photos inside the viewport while long captions can scroll.
-            sizePhoto();
+            view.setBackground(rounded(BACKGROUND, 14));
+            view.setClipToOutline(true);
+            body.addView(view, new LinearLayout.LayoutParams(dp(120), dp(80)));
+            setMediaSize(width, height);
         }
         if (!text.isEmpty()) {
-            TextView message = label(text, bitmap == null ? 22 : 16, bitmap == null ? INK : MUTED);
-            message.setMaxWidth(dp(bitmap == null ? 360 : 540));
+            TextView message = label(text, view == null ? 22 : 16, Color.WHITE);
+            message.setMaxWidth(dp(view == null ? 360 : 540));
             message.setLineSpacing(dp(3), 1);
             message.setTextIsSelectable(false);
             message.setLongClickable(false);
             LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-            if (bitmap != null) size.topMargin = dp(10);
+            if (view != null) size.topMargin = dp(10);
             body.addView(message, size);
         }
     }
 
+    void showPlayback(Runnable toggle) {
+        playback.setOnClickListener(button -> toggle.run());
+        playback.setVisibility(VISIBLE);
+        updatePlayback(false);
+        playback.setEnabled(false);
+    }
+
+    void updatePlayback(boolean playing) {
+        playback.setEnabled(true);
+        playback.setImageResource(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
+        playback.setContentDescription(playing ? "Pause video" : "Play video");
+    }
+
     void erase() {
-        if (photo != null) photo.setImageDrawable(null);
-        photo = null;
+        if (media instanceof ImageView photo) photo.setImageDrawable(null);
+        media = null;
         hasCaption = false;
+        playback.setOnClickListener(null);
+        playback.setVisibility(GONE);
         body.removeAllViews();
     }
 
-    private void sizePhoto() {
-        if (photo == null) return;
-        int imageWidth = photo.getDrawable().getIntrinsicWidth();
-        int imageHeight = photo.getDrawable().getIntrinsicHeight();
+    void setMediaSize(int width, int height) {
+        mediaWidth = width;
+        mediaHeight = height;
+        sizeMedia();
+    }
+
+    private void sizeMedia() {
+        if (media == null || mediaWidth <= 0 || mediaHeight <= 0) return;
         int width = scroll.getWidth() - scroll.getPaddingLeft() - scroll.getPaddingRight();
         int height = scroll.getHeight() - dp(24);
         if (width <= 0 || height <= 0) return;
-        float scale = Math.min(Math.min(width, dp(680)) / (float) imageWidth,
-            height * (hasCaption ? 0.72f : 1f) / imageHeight);
-        int fitWidth = Math.max(1, Math.round(imageWidth * scale));
-        int fitHeight = Math.max(1, Math.round(imageHeight * scale));
-        if (photo.getLayoutParams().width != fitWidth || photo.getLayoutParams().height != fitHeight)
-            photo.setLayoutParams(new LinearLayout.LayoutParams(fitWidth, fitHeight));
+        float scale = Math.min(Math.min(width, dp(680)) / (float) mediaWidth,
+            height * (hasCaption ? 0.72f : 1f) / mediaHeight);
+        int fitWidth = Math.max(1, Math.round(mediaWidth * scale));
+        int fitHeight = Math.max(1, Math.round(mediaHeight * scale));
+        if (media.getLayoutParams().width != fitWidth || media.getLayoutParams().height != fitHeight)
+            media.setLayoutParams(new LinearLayout.LayoutParams(fitWidth, fitHeight));
     }
 
     private TextView label(String value, int size, int color) {

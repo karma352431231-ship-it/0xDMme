@@ -102,6 +102,44 @@ export class GifSearch {
   available(): Promise<boolean> {
     return this.apiKey().then((key) => key !== null);
   }
+  /** A view-once delivery carries the media itself, so viewing makes no CDN request. */
+  async viewOnceClip(url: string, maximum: number): Promise<File> {
+    const clip = gifMessageUrl(url);
+    if (!clip?.endsWith('.mp4')) throw new Error('Invalid GIF.');
+    const active = this.context();
+    if (!(await this.consent())) throw new Error('GIF permission withdrawn.');
+    const response = await fetch(clip, {
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      redirect: 'error',
+      cache: 'no-store',
+      signal: AbortSignal.any([active, AbortSignal.timeout(8000)]),
+    });
+    if (!response.ok || !response.body)
+      throw new Error('GIF search is currently unavailable.');
+    const reader = response.body.getReader();
+    const bytes = new Uint8Array(maximum);
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (size + value.length > maximum)
+          throw new Error('File exceeds this conversation’s limit.');
+        bytes.set(value, size);
+        size += value.length;
+      }
+      active.throwIfAborted();
+      if (!(await this.consent())) throw new Error('GIF permission withdrawn.');
+      return new File([bytes.subarray(0, size)], 'gif.mp4', {
+        type: 'video/mp4',
+      });
+    } finally {
+      bytes.fill(0);
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+  }
   async page(input: { query: string; page: number }): Promise<GifPage> {
     const active = this.context();
     if (!(await this.consent()))

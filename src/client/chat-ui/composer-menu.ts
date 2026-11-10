@@ -1,3 +1,6 @@
+import { t } from '../../shared/i18n/index.ts';
+import { viewOnceEnabled } from './view-once-mode.ts';
+
 const started = new WeakSet<Document>();
 const mounted = new WeakSet<HTMLElement>();
 
@@ -48,6 +51,8 @@ export function bindComposerMenu(form: HTMLElement): void {
   start(form.ownerDocument);
   anchor.addEventListener('click', () => {
     menu.hidden = !menu.hidden;
+    const media = menu.querySelector('[data-attachment-kind="image"] span');
+    if (media) media.textContent = t(viewOnceEnabled(form) ? 'Media' : 'Image');
     anchor.setAttribute('aria-expanded', String(!menu.hidden));
   });
   menu.addEventListener('click', () => close(host));
@@ -60,7 +65,11 @@ export function bindComposerMenu(form: HTMLElement): void {
       );
       if (!file || file.disabled) return;
       file.accept =
-        button.dataset['attachmentKind'] === 'image' ? 'image/*' : '';
+        button.dataset['attachmentKind'] === 'image'
+          ? viewOnceEnabled(form)
+            ? 'image/*,video/mp4,video/quicktime,.mp4,.mov,.m4v'
+            : 'image/*'
+          : '';
       file.click();
     });
 }

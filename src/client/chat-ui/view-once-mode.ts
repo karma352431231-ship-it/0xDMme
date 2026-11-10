@@ -39,7 +39,7 @@ export function bindViewOnceMode(form: HTMLElement, changed: () => void): void {
       hint.className = 'compose-view-once-hint';
       hint.setAttribute('role', 'status');
       hint.textContent = t(
-        'Text and images open once in the app. Files download once.',
+        'Text, photos, GIFs and videos open once in the app. Files download once.',
       );
       form.append(hint);
       setTimeout(() => {

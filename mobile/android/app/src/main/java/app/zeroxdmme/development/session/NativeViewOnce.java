@@ -7,16 +7,20 @@ import android.content.ContextWrapper;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.ImageDecoder;
+import android.graphics.drawable.Animatable;
 import android.os.Build;
 import android.util.Base64;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebView;
+import android.widget.ImageView;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import org.json.JSONObject;
@@ -29,6 +33,9 @@ final class NativeViewOnce {
     private Activity activity;
     private NativeViewOnceLayout content;
     private Bitmap bitmap;
+    private Animatable animation;
+    private NativeViewOnceGif legacyGif;
+    private NativeViewOnceVideo video;
     private byte[] bytes;
     private String id;
     private String mime;
@@ -73,9 +80,13 @@ final class NativeViewOnce {
         return result;
     }
     private boolean supported(String type) {
+        if (isVideo(type)) return true;
         if (Arrays.asList("text/plain", "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp").contains(type)) return true;
         if (Arrays.asList("image/heic", "image/heif").contains(type)) return Build.VERSION.SDK_INT >= 28;
         return type.equals("image/avif") && Build.VERSION.SDK_INT >= 31;
+    }
+    private static boolean isVideo(String type) {
+        return type.equals("video/mp4") || type.equals("video/quicktime");
     }
     private boolean begin(JSONObject input) throws Exception {
         NativePolicy.exact(input, "id", "mime", "bytes");
@@ -93,6 +104,7 @@ final class NativeViewOnce {
         Dialog screen = new Dialog(owner, android.R.style.Theme_Material_NoActionBar);
         dialog = screen;
         content = new NativeViewOnceLayout(owner, this::close);
+        if (isVideo(type)) video = new NativeViewOnceVideo(content);
         screen.setContentView(content);
         screen.setOnDismissListener(ignored -> { if (dialog == screen) dispose(); });
         Window window = screen.getWindow();
@@ -132,30 +144,80 @@ final class NativeViewOnce {
         NativePolicy.exact(input, "id", "text");
         String value = NativePolicy.text(input, "text", 16000);
         if (value.getBytes(StandardCharsets.UTF_8).length > 16000 || offset != bytes.length) throw NativePolicy.failure();
-        if (!mime.equals("text/plain")) {
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw NativePolicy.failure();
-            int sample = 1;
-            while ((long) bounds.outWidth * bounds.outHeight / sample / sample > 8_000_000) sample *= 2;
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inSampleSize = sample;
-            bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
-            if (bitmap == null || bitmap.getAllocationByteCount() > 64 * 1024 * 1024) throw NativePolicy.failure();
+        if (video != null) {
+            content.showMedia(video, 16, 9, value);
+            content.showPlayback(video::toggle);
+            video.load(bytes);
+            bytes = null; // The player wipes the source on close.
+        } else if (mime.equals("image/gif") || (mime.equals("image/webp") && Build.VERSION.SDK_INT >= 28)) {
+            showAnimated(value);
+        } else {
+            if (!mime.equals("text/plain")) bitmap = stillImage();
+            content.show(bitmap, value);
+            Arrays.fill(bytes, (byte) 0);
         }
-        content.show(bitmap, value);
-        Arrays.fill(bytes, (byte) 0);
         shown = true;
         return true;
     }
+
+    private BitmapFactory.Options imageBounds() throws Exception {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw NativePolicy.failure();
+        return bounds;
+    }
+
+    private Bitmap stillImage() throws Exception {
+        BitmapFactory.Options bounds = imageBounds();
+        int sample = 1;
+        while ((long) bounds.outWidth * bounds.outHeight / sample / sample > 8_000_000) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        Bitmap result = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+        if (result == null) throw NativePolicy.failure();
+        if (result.getAllocationByteCount() > 64 * 1024 * 1024) {
+            result.recycle();
+            throw NativePolicy.failure();
+        }
+        return result;
+    }
+
+    private void showAnimated(String caption) throws Exception {
+        BitmapFactory.Options bounds = imageBounds();
+        if ((long) bounds.outWidth * bounds.outHeight > 8_000_000) throw NativePolicy.failure();
+        if (Build.VERSION.SDK_INT < 28) {
+            legacyGif = new NativeViewOnceGif(activity, bytes);
+            content.showMedia(legacyGif, legacyGif.width(), legacyGif.height(), caption);
+            return;
+        }
+        var source = ImageDecoder.createSource(ByteBuffer.wrap(bytes));
+        var drawable = ImageDecoder.decodeDrawable(source, (decoder, info, input) -> {
+            int longest = Math.max(info.getSize().getWidth(), info.getSize().getHeight());
+            if (longest > 2048) decoder.setTargetSampleSize((longest + 2047) / 2048);
+        });
+        ImageView image = new ImageView(activity);
+        image.setContentDescription("View-once image");
+        image.setImageDrawable(drawable);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        content.showMedia(image, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), caption);
+        if (drawable instanceof Animatable moving) {
+            animation = moving;
+            moving.start();
+        }
+    }
+
     private void dispose() {
         protectedState.accept(false);
-        if (bytes != null) Arrays.fill(bytes, (byte) 0);
+        if (video != null) video.close();
+        if (animation != null) animation.stop();
+        if (legacyGif != null) legacyGif.close();
         if (content != null) content.erase();
+        if (bytes != null) Arrays.fill(bytes, (byte) 0);
         if (bitmap != null) bitmap.recycle();
         if (activity != null && !wasSecure) activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
         dialog = null; content = null; bitmap = null; bytes = null; activity = null; id = null; mime = null;
+        video = null; animation = null; legacyGif = null;
         offset = 0; shown = false;
     }
     void close() {

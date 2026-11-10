@@ -21,7 +21,10 @@ import {
   openRecoveryKey,
   openRoomKey,
 } from '../message-recovery/index.ts';
-import { originalImageType } from '../attachment-images/index.ts';
+import {
+  originalImageType,
+  videoSignature,
+} from '../attachment-images/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { openLocal, sealLocal } from '../message-storage/index.ts';
@@ -39,6 +42,38 @@ export type ViewOnceMetadata = NonNullable<DailyText['viewOnce']>;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
+function videoType(bytes: Uint8Array): string | null {
+  if (bytes.length < 16) return null;
+  const box = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const size = box.getUint32(0);
+  if (size < 16 || size > bytes.length || box.getUint32(4) !== 0x66747970)
+    return null;
+  const brand = String.fromCharCode(...bytes.subarray(8, 12));
+  if (brand === 'qt  ') return 'video/quicktime';
+  return /^(?:iso[m2-9]|mp4[12]|avc1|dash|M4V |MSNV)$/u.test(brand)
+    ? 'video/mp4'
+    : null;
+}
+
+export function viewOnceSelectionMime(
+  bytes: Uint8Array,
+  name: string,
+  declared: string,
+): string {
+  const gif = /^GIF8[79]a$/u.test(String.fromCharCode(...bytes.subarray(0, 6)));
+  const type = gif
+    ? 'image/gif'
+    : (originalImageType(bytes) ?? videoType(bytes));
+  if (type) return type;
+  if (
+    declared.startsWith('video/') ||
+    videoSignature(bytes) ||
+    /\.(?:mp4|mov|m4v|webm|mkv|avi|mpeg|mpg|ogv|flv|3gp|ts)$/iu.test(name)
+  )
+    throw new Error('Use an MP4 or MOV video for view once.');
+  return declared || 'application/octet-stream';
+}
+
 export function makeViewOnceContents(
   text: string,
   file: AttachmentSelection | null,
@@ -52,9 +87,7 @@ export function makeViewOnceContents(
       ? {
           file: {
             name: file.name,
-            mime:
-              originalImageType(file.bytes) ??
-              (file.type || 'application/octet-stream'),
+            mime: viewOnceSelectionMime(file.bytes, file.name, file.type),
             data: encode(file.bytes),
           },
         }
@@ -65,12 +98,21 @@ export function makeViewOnceContents(
   return [content];
 }
 
-function policy(content: ViewOnceContent): ViewOnceHeader['policy'] {
+function policy(
+  content: ViewOnceContent,
+  legacyFile = false,
+): ViewOnceHeader['policy'] {
   if (!content.file) return 'mobile';
   const bytes = base64(content.file.data, 10_000_000);
-  return content.file.mime.startsWith('image/') || originalImageType(bytes)
-    ? 'mobile'
-    : 'file';
+  try {
+    return content.file.mime.startsWith('image/') ||
+      originalImageType(bytes) ||
+      (!legacyFile && videoType(bytes) === content.file.mime)
+      ? 'mobile'
+      : 'file';
+  } finally {
+    bytes.fill(0);
+  }
 }
 function associatedData(
   header: Pick<
@@ -264,7 +306,10 @@ function assertDeliveryContent(
   content: ViewOnceContent,
   input: ViewOnceDelivery,
 ): void {
-  if (policy(content) !== input.metadata.policy)
+  // Older clients sent video under the authenticated download-only policy.
+  if (
+    policy(content, input.metadata.policy === 'file') !== input.metadata.policy
+  )
     throw new Error('View-once display policy differs.');
   if (input.metadata.policy === 'file' && content.text !== '')
     throw new Error('Download-only files cannot contain a message preview.');

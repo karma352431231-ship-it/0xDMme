@@ -350,6 +350,28 @@ export function startDmComposer(options: {
         pane: (host, close) => {
           mountGifPane(host, gifs, (url) => {
             close();
+            if (viewOnceEnabled(current.form)) {
+              const recipient = bound;
+              void options.run(async () => {
+                const file = await gifs.viewOnceClip(url, 3_000_000);
+                const selection = await prepareViewOnceSelection(
+                  file,
+                  3_000_000,
+                );
+                try {
+                  if (view === current && writable && bound === recipient)
+                    await options.submit({
+                      text: '',
+                      media: { selection, media: 'gif', viewOnceOnly: true },
+                      pending: false,
+                      viewOnce: true,
+                    });
+                } finally {
+                  selection.bytes.fill(0);
+                }
+              });
+              return;
+            }
             // A GIF is its KLIPY link, sent as the usual E2EE text.
             if (options.queueText && canQueueText()) {
               try {

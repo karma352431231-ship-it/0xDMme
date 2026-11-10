@@ -1,7 +1,7 @@
 /** One policy for public web headers and packaged native HTML. */
 export const appExternalContent = {
   media: ' https://static.klipy.com',
-  connect: ' https://api.klipy.com',
+  connect: ' https://api.klipy.com https://static.klipy.com/ii/',
   frames: ' https://www.youtube-nocookie.com',
 };
 export function contentPolicy(
