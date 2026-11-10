@@ -1,5 +1,5 @@
 import { safeFilename } from '../../shared/attachments/index.ts';
-import { viewOnceSelectionMime } from '../view-once/index.ts';
+import { viewOnceSelectionMime } from '../view-once-media/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 export { installProtectedDisplay } from './display.ts';
 export type { ProtectedDisplay } from './display.ts';

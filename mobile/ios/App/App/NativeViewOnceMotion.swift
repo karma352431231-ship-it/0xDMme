@@ -12,7 +12,8 @@ private final class ViewOnceVideoBytes: NSObject, AVAssetResourceLoaderDelegate 
     init(_ bytes: Data, mime: String) {
         data = bytes
         type = mime == "video/quicktime" ? .quickTimeMovie : .mpeg4Movie
-        url = URL(string: "view-once://local/video." + (mime == "video/quicktime" ? "mov" : "mp4"))!
+        let ext = mime == "video/quicktime" ? "mov" : "mp4"
+        url = URL(string: "view-once://local/\(UUID().uuidString).\(ext)")!
     }
 
     func resourceLoader(_ resourceLoader: AVAssetResourceLoader,

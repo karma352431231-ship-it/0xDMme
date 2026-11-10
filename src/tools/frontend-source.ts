@@ -8,6 +8,7 @@ const maximumSourceFiles = 2048;
 const authored = [
   'src/client/view-once',
   'src/client/view-once-ui',
+  'src/client/view-once-media',
   'src/shared/view-once',
   'src/client/mobile-entry',
   'src/client/installed-runtime',

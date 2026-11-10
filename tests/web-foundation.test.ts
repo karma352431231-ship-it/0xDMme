@@ -586,6 +586,7 @@ await test('server rejects origin violations, mutations, traversal and private d
     [
       'https://api.klipy.com',
       'https://static.klipy.com',
+      'https://static.klipy.com/ii/',
       'https://www.youtube-nocookie.com',
     ],
   );

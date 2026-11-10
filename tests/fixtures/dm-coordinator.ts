@@ -618,6 +618,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     Error,
     Blob,
     Event,
+    EventTarget,
     URL: {
       createObjectURL: () => 'blob:synthetic',
       revokeObjectURL: (url: string) => data.revokedUrls.push(url),
