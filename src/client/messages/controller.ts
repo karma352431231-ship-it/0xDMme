@@ -72,6 +72,7 @@ import type {
   VaultAuthority,
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
+import { withSigner } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import {
   createRecoveryKey,
@@ -545,7 +546,7 @@ export class Messages {
   ): Promise<void> {
     return this.outbox.composeViewOnce(peer, text, selection);
   }
-  openViewOnce(
+  async openViewOnce(
     peer: string,
     id: string,
     metadata: ViewOnceMetadata,
@@ -556,30 +557,37 @@ export class Messages {
       this.guard(generation);
       signal.throwIfAborted();
     };
+    // Download ciphertext with signing authority only. A slow transfer must
+    // not retain the account's key/SDK turn and starve incoming messages.
+    const delivery = await withSigner(this.access, async (a) => {
+      guard();
+      const input = { scope: 'private', peer, id, hash: metadata.hash };
+      const api = (operation: string, payload: Record<string, unknown>) =>
+        messageApi(a, operation, payload, { guard, signal });
+      const status = object(await api('view-once-status', input));
+      if (status['consumed'])
+        throw new AccountError(
+          410,
+          'This view-once message was already opened.',
+        );
+      const key = recoveryKey(
+        await api('recovery-key', { id: status['keyId'] }),
+      );
+      return { key, response: await api('view-once-open', input) };
+    });
+    guard();
     return this.access.withVault(
       false,
       async (a) => {
         guard();
-        const input = { scope: 'private', peer, id, hash: metadata.hash };
-        const api = (operation: string, payload: Record<string, unknown>) =>
-          messageApi(a, operation, payload, { guard, signal });
-        const status = object(await api('view-once-status', input));
-        if (status['consumed'])
-          throw new AccountError(
-            410,
-            'This view-once message was already opened.',
-          );
-        const key = recoveryKey(
-          await api('recovery-key', { id: status['keyId'] }),
-        );
         const content = await decryptViewOnce({
           authority: a,
-          recovery: key,
+          recovery: delivery.key,
           id,
           scope: 'private',
           peer,
           metadata,
-          response: await api('view-once-open', input),
+          response: delivery.response,
         });
         guard();
         return content;

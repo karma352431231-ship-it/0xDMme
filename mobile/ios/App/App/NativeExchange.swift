@@ -61,14 +61,18 @@ final class NativeExchange {
     private func deliver() {
         guard let (maximum, reply) = reader else { return }
         let remaining = buffer.count - offset
-        if remaining > 0 {
+        let complete = ended || (response?.expected.map { total == $0 } ?? false)
+        // Coalesce finite responses inside the native owner. Returning each
+        // small URLSession fragment makes large media pay a bridge round trip
+        // per fragment. Streaming events retain their immediate delivery.
+        if remaining > 0 && (response?.live == true || remaining >= maximum || complete) {
             let count = min(remaining, maximum)
             let bytes = buffer.subdata(in: offset..<(offset + count))
             offset += count
             if offset == buffer.count { buffer.removeAll(keepingCapacity: false); offset = 0 }
             reader = nil
-            reply(.success(["done": false, "data": bytes.base64EncodedString()]))
-        } else if ended {
+            reply(.success(["done": complete && count == remaining, "data": bytes.base64EncodedString()]))
+        } else if complete && remaining == 0 {
             reader = nil
             reply(.success(["done": true, "data": ""]))
         } else if suspended {

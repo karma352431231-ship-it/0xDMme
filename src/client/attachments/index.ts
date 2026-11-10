@@ -171,8 +171,11 @@ async function uploadParts(input: {
   received: unknown[];
   api: AttachmentApi;
 }): Promise<void> {
-  for (let index = 0; index < input.ref.parts.length; index++) {
-    if (input.received.includes(index)) continue;
+  let completed = input.ref.parts.filter((_, index) =>
+    input.received.includes(index),
+  ).length;
+  await transferParts(input.ref.parts.length, async (index) => {
+    if (input.received.includes(index)) return;
     const bytes = await storedPart(
       input.account,
       name(input.message, input.ref.id, index),
@@ -193,10 +196,34 @@ async function uploadParts(input: {
       throw new Error('Part storage not confirmed.');
     window.dispatchEvent(
       new CustomEvent('0xdmme-attachment-progress', {
-        detail: { done: index + 1, total: input.ref.parts.length },
+        detail: { done: ++completed, total: input.ref.parts.length },
       }),
     );
-  }
+  });
+}
+/** Independent encrypted parts may travel together. Stop admission on failure
+ * and settle every in-flight request before releasing the caller's authority. */
+async function transferParts(
+  count: number,
+  work: (index: number) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  let failed = false;
+  let failure: unknown;
+  await Promise.all(
+    Array.from({ length: Math.min(2, count) }, async () => {
+      while (!failed && next < count) {
+        const index = next++;
+        try {
+          await work(index);
+        } catch (error: unknown) {
+          if (!failed) failure = error;
+          failed = true;
+        }
+      }
+    }),
+  );
+  if (failed) throw failure;
 }
 async function storedPart(
   account: string,
@@ -279,10 +306,10 @@ export async function downloadSealedAttachment(
   input: DownloadInput,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const bytes = new Uint8Array(input.file.ref.bytes);
-  for (let index = 0; index < input.file.ref.parts.length; index++) {
+  await transferParts(input.file.ref.parts.length, async (index) => {
     input.guard();
     bytes.set(await fetchPart(input, index), index * partLimit);
-  }
+  });
   input.guard();
   return bytes;
 }

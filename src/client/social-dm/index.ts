@@ -103,7 +103,9 @@ import type {
   VaultAccess,
   VaultAuthority,
   VaultWorkOptions,
+  SigningAuthority,
 } from '../vault-authority/index.ts';
+import { withSigner } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import {
   readSocialDirectory,
@@ -131,7 +133,7 @@ export class SocialDms {
   ): Promise<void> {
     return this.texts.queueViewOnce(peer, text, selection);
   }
-  openViewOnce(
+  async openViewOnce(
     peer: string,
     id: string,
     metadata: ViewOnceMetadata,
@@ -142,32 +144,38 @@ export class SocialDms {
       this.guard(generation);
       signal.throwIfAborted();
     };
-    return this.withCrypto(
+    const delivery = await withSigner(this.access, async (a) => {
+      guard();
+      const dmApi = this.privateApi(a, generation);
+      const input = { scope: 'public', peer, id, hash: metadata.hash };
+      const api = (operation: string, payload: Record<string, unknown>) =>
+        privateMessageApi(a, operation, payload, {
+          guard,
+          signal,
+        });
+      const status = object(await api('view-once-status', input));
+      if (status['consumed'])
+        throw new AccountError(
+          410,
+          'This view-once message was already opened.',
+        );
+      const key = recoveryKey(
+        await dmApi('recovery-key', { id: status['keyId'] }),
+      );
+      return { key, response: await api('view-once-open', input) };
+    });
+    guard();
+    return this.identityTurn(
       async (context) => {
         guard();
-        const input = { scope: 'public', peer, id, hash: metadata.hash };
-        const api = (operation: string, payload: Record<string, unknown>) =>
-          privateMessageApi(context.privateAuthority, operation, payload, {
-            guard,
-            signal,
-          });
-        const status = object(await api('view-once-status', input));
-        if (status['consumed'])
-          throw new AccountError(
-            410,
-            'This view-once message was already opened.',
-          );
-        const key = recoveryKey(
-          await context.api('recovery-key', { id: status['keyId'] }),
-        );
         const content = await decryptViewOnce({
           authority: context.authority,
-          recovery: key,
+          recovery: delivery.key,
           id,
           scope: 'public',
           peer,
           metadata,
-          response: await api('view-once-open', input),
+          response: delivery.response,
         });
         guard();
         return content;
@@ -248,7 +256,10 @@ export class SocialDms {
       return result;
     });
   }
-  private privateApi(authority: VaultAuthority, generation: number): SocialApi {
+  private privateApi(
+    authority: SigningAuthority,
+    generation: number,
+  ): SocialApi {
     if (
       authority.session.accountId !== this.session?.accountId ||
       authority.session.deviceId !== this.session.deviceId
@@ -455,6 +466,40 @@ export class SocialDms {
     receiveInbox: boolean,
   ): Promise<T> {
     const generation = this.generation;
+    return this.identityTurn(async (context) => {
+      const { authority, api } = context;
+      this.close();
+      const machine = await openMessageMachine(
+        authority,
+        (op, data) => api(op, data),
+        this.audiences,
+      );
+      try {
+        this.guard(generation);
+        this.machine = machine;
+        await ensureMessageRecovery(authority, api);
+        await machine.prepare(authority);
+        if (receiveInbox) await receiveSocialInbox(api, machine);
+        return await work({
+          ...context,
+          machine,
+          senderHistories: new Map(),
+          sendPeers: new Map(),
+        });
+      } finally {
+        machine.close();
+        if (this.machine === machine) this.machine = null;
+      }
+    }, options);
+  }
+  /** View-once uses a recovery key, without opening or syncing the Olm store. */
+  private async identityTurn<T>(
+    work: (
+      input: Pick<SocialContext, 'authority' | 'privateAuthority' | 'api'>,
+    ) => Promise<T>,
+    options: VaultWorkOptions,
+  ): Promise<T> {
+    const generation = this.generation;
     this.guard(generation);
     await prepareMessageRuntime();
     this.guard(generation);
@@ -478,30 +523,7 @@ export class SocialDms {
             alias: await this.alias(privateAuthority, current),
           });
           this.guard(generation);
-          this.close();
-          const machine = await openMessageMachine(
-            authority,
-            (op, data) => api(op, data),
-            this.audiences,
-          );
-          try {
-            this.guard(generation);
-            this.machine = machine;
-            await ensureMessageRecovery(authority, api);
-            await machine.prepare(authority);
-            if (receiveInbox) await receiveSocialInbox(api, machine);
-            return await work({
-              authority,
-              privateAuthority,
-              api,
-              machine,
-              senderHistories: new Map(),
-              sendPeers: new Map(),
-            });
-          } finally {
-            machine.close();
-            if (this.machine === machine) this.machine = null;
-          }
+          return work({ authority, privateAuthority, api });
         }),
       options,
     );

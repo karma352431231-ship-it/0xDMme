@@ -2,15 +2,22 @@ import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { messageBody } from '../../shared/messages/index.ts';
-import type { VaultAuthority } from '../vault-authority/index.ts';
+import type {
+  SigningAuthority,
+  VaultAuthority,
+} from '../vault-authority/index.ts';
 async function requestMessage(
-  authority: VaultAuthority,
+  authority: SigningAuthority,
   operation: string,
   payload: Record<string, unknown>,
   control: (() => void) | { guard: () => void; signal: AbortSignal },
 ): Promise<unknown> {
   const guard = typeof control === 'function' ? control : control.guard;
-  const timeout = AbortSignal.timeout(15000);
+  // This one-shot response can contain the complete encrypted 10 MB file.
+  // Native transport still bounds headers and stalled reads independently.
+  const timeout = AbortSignal.timeout(
+    operation === 'view-once-open' ? 60000 : 15000,
+  );
   const signal =
     typeof control === 'function'
       ? timeout
@@ -31,7 +38,7 @@ async function requestMessage(
   return data;
 }
 export function messageApi(
-  authority: VaultAuthority,
+  authority: SigningAuthority,
   operation: string,
   payload: Record<string, unknown>,
   control: (() => void) | { guard: () => void; signal: AbortSignal },
@@ -40,10 +47,7 @@ export function messageApi(
     requestMessage(authority, operation, payload, control),
   );
 }
-export type SigningAuthority = Pick<
-  VaultAuthority,
-  'session' | 'directory' | 'sign'
->;
+export type { SigningAuthority } from '../vault-authority/index.ts';
 export async function prepareMessageRequest(
   authority: SigningAuthority,
   operation: string,

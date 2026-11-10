@@ -89,15 +89,23 @@ final class NativeExchange {
             InputStream source = stream;
             if (closed.get() || source == null) throw NativePolicy.failure();
             byte[] bytes = new byte[maximum];
-            int count = source.read(bytes);
-            if (closed.get() || count == 0) throw NativePolicy.failure();
-            if (count == -1) {
-                if (expected >= 0 && total != expected) throw NativePolicy.failure();
-                return new JSONObject().put("done", true).put("data", "");
+            int count = 0;
+            boolean done = expected >= 0 && total == expected;
+            // A socket read often returns only 4 KiB. Fill the bounded bridge
+            // chunk for finite bodies instead of crossing the WebView for every
+            // network fragment. Live events must still be delivered immediately.
+            while (!done && count < maximum) {
+                int received = source.read(bytes, count, maximum - count);
+                if (closed.get() || received == 0) throw NativePolicy.failure();
+                if (received == -1) { done = true; break; }
+                count += received;
+                if (expected >= 0 && total + count == expected) done = true;
+                if (live) break;
             }
             total = Math.addExact(total, count);
-            if ((!live && total > NativePolicy.RESPONSE_BYTES) || (expected >= 0 && total > expected)) throw NativePolicy.failure();
-            return new JSONObject().put("done", false)
+            if ((!live && total > NativePolicy.RESPONSE_BYTES) ||
+                (expected >= 0 && (total > expected || (done && total != expected)))) throw NativePolicy.failure();
+            return new JSONObject().put("done", done)
                 .put("data", Base64.encodeToString(Arrays.copyOf(bytes, count), Base64.NO_WRAP));
           }
         } finally {
