@@ -31,9 +31,11 @@ const bundle = await build({
 const source = bundle.outputFiles[0]?.text;
 if (!source) throw new Error('Build de teste ausente.');
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
-/** Waits a bounded number of turns for work whose turn count is not contractual. */
-async function until(condition: () => boolean, turns = 200): Promise<void> {
-  for (let turn = 0; turn < turns && !condition(); turn++) await tick();
+/** Crypto and I/O can outlive hundreds of empty event-loop turns on CI. */
+async function until(condition: () => boolean): Promise<void> {
+  const deadline = performance.now() + 2000;
+  while (!condition() && performance.now() < deadline)
+    await new Promise<void>((resolve) => setTimeout(resolve, 1));
 }
 
 function deferred<T>() {
