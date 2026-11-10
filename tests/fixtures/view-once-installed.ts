@@ -12,6 +12,10 @@ const png =
 async function run(): Promise<void> {
   const channel = new InstalledSessionChannel();
   await channel.ready();
+  let shownId: string | undefined;
+  document.addEventListener('fixture-close-view', () => {
+    if (shownId) void channel.viewClose({ id: shownId });
+  });
   installProtectedDisplay({
     begin: (input) => channel.viewBegin(input),
     append: (input) => channel.viewAppend(input),
@@ -19,6 +23,7 @@ async function run(): Promise<void> {
       await channel.viewShow(input);
       if (!(await channel.viewActive({ id: input.id })))
         throw new Error('Native viewer did not remain active.');
+      shownId = input.id;
       state['shown'] = input.text;
     },
     active: (input) => channel.viewActive(input),

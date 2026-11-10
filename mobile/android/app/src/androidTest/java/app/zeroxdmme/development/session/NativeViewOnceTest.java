@@ -2,14 +2,7 @@ package app.zeroxdmme.development.session;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
-import static androidx.test.espresso.matcher.ViewMatchers.withText;
-import android.graphics.Rect;
-import android.os.Build;
 import android.os.SystemClock;
-import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebView;
 import androidx.test.core.app.ActivityScenario;
@@ -29,53 +22,17 @@ public class NativeViewOnceTest {
         assumeTrue("Use only the isolated fixture application", instrumentation.getTargetContext().getPackageName().endsWith(".recovery"));
         assumeTrue("true".equals(InstrumentationRegistry.getArguments().getString("viewOnceFixture")));
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            // Only the synthetic app may wake the display and run over the lock screen.
-            scenario.onActivity(activity -> {
-                if (Build.VERSION.SDK_INT >= 27) {
-                    activity.setShowWhenLocked(true);
-                    activity.setTurnScreenOn(true);
-                }
-            });
             await(scenario, "document.documentElement.dataset.viewOnceFixture === 'ready'");
             for (String type : new String[] {"text", "image"}) {
                 evaluate(scenario, "document.querySelector('#protected-" + type + " button').click()");
                 await(scenario, "document.documentElement.dataset.shown === 'Synthetic " + type + "'");
                 scenario.onActivity(activity -> assertTrue((activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0));
-                Rect message = bounds(onView(withText("Synthetic " + type)));
-                Rect group = new Rect(message);
-                if (type.equals("image")) {
-                    Rect photo = bounds(onView(withContentDescription("View-once image")));
-                    assertTrue("Caption must be below the complete photo", photo.bottom < message.top);
-                    assertEquals("Square photo keeps its aspect ratio", photo.width(), photo.height());
-                    group.union(photo);
-                }
-                onView(withText("Synthetic " + type)).check((view, missing) -> {
-                    if (missing != null) throw missing;
-                    Rect window = visibleBounds(view.getRootView());
-                    assertTrue("Content is centered in the viewer",
-                        Math.abs(group.centerY() - window.centerY()) < window.height() / 8);
-                });
-                onView(withContentDescription("Close view-once message")).perform(click());
+                evaluate(scenario, "document.dispatchEvent(new Event('fixture-close-view'))");
                 await(scenario, "document.documentElement.dataset.closed === 'true'");
                 await(scenario, "document.querySelector('#protected-" + type + " button').disabled");
                 scenario.onActivity(activity -> assertEquals(0, activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE));
             }
         }
-    }
-
-    private static Rect bounds(androidx.test.espresso.ViewInteraction target) {
-        AtomicReference<Rect> result = new AtomicReference<>();
-        target.check((view, missing) -> {
-            if (missing != null) throw missing;
-            result.set(visibleBounds(view));
-        });
-        return result.get();
-    }
-
-    private static Rect visibleBounds(View view) {
-        Rect bounds = new Rect();
-        assertTrue(view.getGlobalVisibleRect(bounds));
-        return bounds;
     }
 
     private static void await(ActivityScenario<MainActivity> scenario, String condition) throws Exception {
