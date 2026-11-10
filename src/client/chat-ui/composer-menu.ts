@@ -52,7 +52,12 @@ export function bindComposerMenu(form: HTMLElement): void {
   anchor.addEventListener('click', () => {
     menu.hidden = !menu.hidden;
     const media = menu.querySelector('[data-attachment-kind="image"] span');
-    if (media) media.textContent = t(viewOnceEnabled(form) ? 'Media' : 'Image');
+    if (media)
+      media.textContent = t(
+        viewOnceEnabled(form) || !form.hasAttribute('data-public-compose')
+          ? 'Media'
+          : 'Image',
+      );
     anchor.setAttribute('aria-expanded', String(!menu.hidden));
   });
   menu.addEventListener('click', () => close(host));
@@ -66,7 +71,7 @@ export function bindComposerMenu(form: HTMLElement): void {
       if (!file || file.disabled) return;
       file.accept =
         button.dataset['attachmentKind'] === 'image'
-          ? viewOnceEnabled(form)
+          ? viewOnceEnabled(form) || !form.hasAttribute('data-public-compose')
             ? 'image/*,video/mp4,video/quicktime,.mp4,.mov,.m4v'
             : 'image/*'
           : '';

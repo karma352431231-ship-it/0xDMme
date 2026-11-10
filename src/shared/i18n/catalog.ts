@@ -10387,6 +10387,11 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Use an MP4 or MOV video for view once.',
     '阅后即焚视频请使用 MP4 或 MOV 格式。',
   ],
+  'Use an MP4 or MOV video.': [
+    'Use an MP4 or MOV video.',
+    '请使用 MP4 或 MOV 视频。',
+  ],
+  'Play video': ['Play video', '播放视频'],
   'File exceeds this conversation’s limit.': [
     'File exceeds this conversation’s limit.',
     '文件超过此对话的大小限制。',

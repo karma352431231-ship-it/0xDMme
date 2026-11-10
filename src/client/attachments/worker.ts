@@ -4,7 +4,13 @@ import {
   preparePhoto,
   prepareOriginal,
 } from '../attachment-images/index.ts';
-import { thumbnailLimit } from '../../shared/attachments/index.ts';
+import {
+  thumbnailLimit,
+  chatFileLimit,
+  fileLimit,
+  fileLimitMessage,
+  oversizedFileMessage,
+} from '../../shared/attachments/index.ts';
 import type { PrivateFile } from '../../shared/attachments/index.ts';
 interface Scope {
   addEventListener(
@@ -25,6 +31,13 @@ type Request =
     }
   | { operation: 'original'; file: File; maximum: number };
 const scope = globalThis as unknown as Scope;
+const actionableErrors = new Set([
+  'Use an MP4 or MOV video.',
+  ...[fileLimit, chatFileLimit].flatMap((maximum) => [
+    fileLimitMessage(maximum),
+    oversizedFileMessage(maximum),
+  ]),
+]);
 async function run(data: Request): Promise<unknown> {
   if (data.operation === 'photo') return preparePhoto(data.file);
   if (data.operation === 'seal') return sealFile(data.bytes, data.maximum);
@@ -42,13 +55,15 @@ async function run(data: Request): Promise<unknown> {
 scope.addEventListener('message', (event) => {
   void run(event.data)
     .then((result) => scope.postMessage({ result }, []))
-    .catch(() => {
+    .catch((error: unknown) => {
       scope.postMessage(
         {
           // Translate at the UI boundary. Loading the complete UI catalog in
           // every short-lived decoder/crypto worker wastes mobile memory.
           error:
-            'Could not process the attachment. Check its format, size, pixels and browser support.',
+            error instanceof Error && actionableErrors.has(error.message)
+              ? error.message
+              : 'Could not process the attachment. Check its format, size, pixels and browser support.',
         },
         [],
       );

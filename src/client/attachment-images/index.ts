@@ -44,6 +44,18 @@ export function videoSignature(bytes: Uint8Array): boolean {
     startsBytes(bytes, [26, 69, 223, 163])
   );
 }
+export function originalVideoType(bytes: Uint8Array): string | null {
+  if (bytes.length < 16) return null;
+  const box = view(bytes);
+  const size = box.getUint32(0);
+  if (size < 16 || size > bytes.length || box.getUint32(4) !== 0x66747970)
+    return null;
+  const brand = text(bytes, 8, 4);
+  if (brand === 'qt  ') return 'video/quicktime';
+  return /^(?:iso[m2-9]|mp4[12]|avc1|dash|M4V |MSNV)$/u.test(brand)
+    ? 'video/mp4'
+    : null;
+}
 /** Canvas encoders may generate EXIF/ICC/text chunks. Remove ancillary metadata
  * from the newly encoded image, then verify the output's allowlist. Originals never use this path. */
 export function stripEncodedMetadata(
@@ -108,11 +120,12 @@ export function assertFileAllowed(
   if (!bytes.length || bytes.length > maximum)
     throw new Error(fileLimitMessage(maximum));
   if (
-    type.startsWith('video/') ||
-    /\.(?:mp4|mov|m4v|webm|mkv|avi|mpeg|mpg|ogv|flv)$/iu.test(name) ||
-    videoSignature(bytes)
+    !originalVideoType(bytes) &&
+    (type.startsWith('video/') ||
+      /\.(?:mp4|mov|m4v|webm|mkv|avi|mpeg|mpg|ogv|flv)$/iu.test(name) ||
+      videoSignature(bytes))
   )
-    throw new Error('Video upload is not available yet.');
+    throw new Error('Use an MP4 or MOV video.');
 }
 export interface PreparedPhoto {
   bytes: Uint8Array<ArrayBuffer>;
@@ -138,7 +151,10 @@ export async function prepareOriginal(file: File, maximum = fileLimit) {
     return {
       bytes,
       name: safeFilename(file.name),
-      type: imageType ?? (file.type || 'application/octet-stream'),
+      type:
+        imageType ??
+        originalVideoType(bytes) ??
+        (file.type || 'application/octet-stream'),
       image: imageType !== null,
       thumbnail: null,
     };

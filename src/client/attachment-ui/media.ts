@@ -3,7 +3,10 @@ import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import type { VoiceMetadata } from '../../shared/voice/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
-import { originalImageType } from '../attachment-images/index.ts';
+import {
+  originalImageType,
+  originalVideoType,
+} from '../attachment-images/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 
 export interface MediaView {
@@ -32,8 +35,21 @@ function imageCandidate(content: AttachmentContent): boolean {
   );
 }
 function displayType(bytes: Uint8Array, content: AttachmentContent): string {
+  if (!imageCandidate(content))
+    return originalVideoType(bytes) ?? 'application/octet-stream';
   if (content.image && content.type === 'image/gif') return 'image/gif';
   return originalImageType(bytes) ?? 'application/octet-stream';
+}
+function showVideo(preview: HTMLElement, url: string, name: string): void {
+  const video = document.createElement('video');
+  video.className = 'chat-video';
+  video.controls = true;
+  video.playsInline = true;
+  video.preload = 'metadata';
+  video.src = url;
+  video.setAttribute('aria-label', name);
+  preview.replaceChildren(video);
+  void video.play().catch(() => undefined);
 }
 const defaultSaveNotice = t(
   'The saved copy is outside the vault and bilateral deletion. Only open files from sources you trust.',
@@ -169,6 +185,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     return;
   }
   const image = imageCandidate(content),
+    video = content.type === 'video/mp4' || content.type === 'video/quicktime',
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
@@ -176,7 +193,11 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
-  button.textContent = image ? t('Load image') : t('Download original file');
+  button.textContent = image
+    ? t('Load image')
+    : video
+      ? t('Play video')
+      : t('Download original file');
   input.article.append(...(image ? [preview, info] : [info, preview]), button);
   button.hidden = image;
   let pending = false;
@@ -185,13 +206,16 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     const bytes = await input.load(input.view, false);
     try {
       if (!input.current()) return;
-      const type = image
-          ? displayType(bytes, content)
-          : 'application/octet-stream',
+      const type = displayType(bytes, content),
         url = URL.createObjectURL(new Blob([bytes], { type }));
       input.retain(url);
       button.hidden = true;
-      if (type !== 'application/octet-stream') {
+      if (video && type.startsWith('video/')) {
+        showVideo(preview, url, content.name);
+        offerSave(input, url, content.name);
+        return;
+      }
+      if (image && type !== 'application/octet-stream') {
         showImage(preview, url, {
           name: content.name,
           saveNotice: input.saveNotice ?? defaultSaveNotice,

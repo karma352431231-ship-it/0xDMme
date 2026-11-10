@@ -15,6 +15,7 @@ import {
 } from './selection-queue.ts';
 import type { MediaView } from './media.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
+import { viewOnceEnabled } from '../chat-ui/index.ts';
 export { attachmentBatchLimit } from './selection-queue.ts';
 
 export class AttachmentUi {
@@ -41,6 +42,7 @@ export class AttachmentUi {
   private queue: Promise<void> = Promise.resolve();
   private queued = 0;
   private host: HTMLElement | null = null;
+  private composer: HTMLElement | null = null;
   private ring: HTMLElement | null = null;
   /** The next selection to send; senders stage it, then call sent(). */
   get selected(): AttachmentSelection | null {
@@ -109,6 +111,7 @@ export class AttachmentUi {
     const input = host.querySelector<HTMLInputElement>(
       '[data-attachment-file]',
     );
+    this.composer = input?.closest<HTMLElement>('.chat-composer') ?? null;
     if (input) {
       input.multiple = true;
       // Dropping files anywhere on the conversation works like the clip.
@@ -170,10 +173,7 @@ export class AttachmentUi {
     );
   }
   private prepare(file: File): Promise<AttachmentSelection | null> {
-    const once =
-      this.host?.querySelector<HTMLElement>('.chat-composer')?.dataset[
-        'viewOnce'
-      ] === 'true';
+    const once = viewOnceEnabled(this.composer);
     return (
       once
         ? prepareViewOnceSelection(file, this.maximum)
