@@ -372,3 +372,25 @@ send batch. A device can publish Matrix keys without changing its signed
 directory, so cross-batch trust reuse needs a version that covers Matrix
 registrations. The content hint to the sender's own account still causes one
 (now cheaper) read per batch.
+
+## Per-send comparison capture — 10 November 2026
+
+Report schema 2 adds five comparison slots independent of detailed timeline
+eviction. Build with `npm run diagnostic:chat`; install the console meter before
+file selection. Choose text, ordinary image, view-once image, ordinary video
+and view-once video one at a time, using **Start case before selecting file**
+and **Mark delay** after each send. Reuse the identical file/caption within each
+ordinary/view-once pair. Start a fresh capture after five cases.
+
+Each summary retains stage durations, submit, server acceptance, first accepted
+DOM check, manual marker, publication-response time and upload wall time/part
+counts/peak in-flight requests. Detail drops, comparison overflow, request-map
+overflow, missing stages and incomplete sends remain explicit. Only the app's
+acceptance event proves acceptance; a successful HTTP response does not. The
+check marker excludes decorative checks before acceptance and is not a physical
+paint timestamp. Cases must run sequentially in one tab for network attribution.
+The app acknowledges send-stage coverage separately from older reuse coverage.
+An old build has browser-only measurements with missing internal stages.
+
+See [the latency plan](VIEW_ONCE_SEND_LATENCY_PLAN.md) for the matching baseline,
+the sequential upload constraint and the remaining measurement/release gates.

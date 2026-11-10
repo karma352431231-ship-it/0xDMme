@@ -1,3 +1,4 @@
+import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
 import {
   attachmentContent,
@@ -45,19 +46,23 @@ export async function prepareAttachment(
   maximum = fileLimit,
 ): Promise<AttachmentSelection> {
   if (photo) {
-    const prepared = await attachmentWork<PreparedPhoto>({
-      operation: 'photo',
-      file,
-    });
+    const prepared = await measureSend('attachment-prepare', () =>
+      attachmentWork<PreparedPhoto>({
+        operation: 'photo',
+        file,
+      }),
+    );
     return { ...prepared, image: true };
   }
   if (!file.size || file.size > maximum)
     throw new Error(oversizedFileMessage(maximum));
-  return attachmentWork<AttachmentSelection>({
-    operation: 'original',
-    file,
-    maximum,
-  });
+  return measureSend('attachment-prepare', () =>
+    attachmentWork<AttachmentSelection>({
+      operation: 'original',
+      file,
+      maximum,
+    }),
+  );
 }
 function name(message: string, id: string, index: number): string {
   return `attachment:${message}:${id}:${index}`;

@@ -1,3 +1,7 @@
+import {
+  measureSend,
+  measureSendSync,
+} from '../chat-sync-diagnostics/index.ts';
 import { safeFilename } from '../../shared/attachments/index.ts';
 import { viewOnceSelectionMime } from '../view-once-media/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
@@ -10,9 +14,13 @@ export async function prepareViewOnceSelection(
 ): Promise<AttachmentSelection> {
   if (!file.size || file.size > maximum)
     throw new Error('File exceeds this conversation’s limit.');
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = new Uint8Array(
+    await measureSend('selection-read', () => file.arrayBuffer()),
+  );
   try {
-    const mime = viewOnceSelectionMime(bytes, file.name, file.type);
+    const mime = measureSendSync('selection-validate', () =>
+      viewOnceSelectionMime(bytes, file.name, file.type),
+    );
     return {
       name: safeFilename(file.name),
       type: mime,

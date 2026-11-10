@@ -1,3 +1,4 @@
+import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -148,6 +149,7 @@ export class MessageOutbox {
   }
   /** Local ciphertext admission only; SDK selection/publication stay exclusive. */
   async queueText(input: TextDraft): Promise<void> {
+    traceSend('submit', input.id);
     const generation = this.authority.current();
     const session = this.authority.session();
     if (!session) throw new WorkInterruption('session');
@@ -183,14 +185,20 @@ export class MessageOutbox {
     await this.access.withVault(!navigator.onLine, async (a) => {
       this.authority.guard(generation);
       const id = crypto.randomUUID();
+      traceSend('submit', id);
       try {
-        const content = await stageAttachment({
-          account: a.session.accountId,
+        const content = await measureSend(
+          'attachment-stage',
+          () =>
+            stageAttachment({
+              account: a.session.accountId,
+              id,
+              selection,
+              caption,
+              maximum: chatFileLimit,
+            }),
           id,
-          selection,
-          caption,
-          maximum: chatFileLimit,
-        });
+        );
         this.authority.guard(generation);
         const draft = [await sealLocal(a, id, JSON.stringify(content))];
         await localPut(
@@ -224,12 +232,18 @@ export class MessageOutbox {
       this.authority.guard(generation);
       const entries = await Promise.all(
         contents.map(async (content) => {
+          const id = crypto.randomUUID();
+          traceSend('submit', id);
           const value: OutboxEntry = {
-            id: crypto.randomUUID(),
+            id,
             peer,
             kind: 'text',
             packet: null,
-            draft: await sealViewOnceDraft(a, content),
+            draft: await measureSend(
+              'draft-seal',
+              () => sealViewOnceDraft(a, content),
+              id,
+            ),
             viewOnce: true,
             createdAt: Date.now(),
           };
@@ -407,17 +421,27 @@ export class MessageOutbox {
     let text: string;
     let reference: MessagePacket['viewOnce'];
     if (value.viewOnce) {
-      const content = await openViewOnceDraft(a, value.draft);
-      value.viewOncePayload ??= await prepareViewOnce({
-        id: value.id,
-        scope: 'private',
-        sender: a.session.accountId,
-        recipient: peer,
-        content,
-      });
-      const descriptor = await viewOnceDescriptor(
-        value.viewOncePayload,
-        content,
+      const content = await measureSend(
+        'draft-open',
+        () => openViewOnceDraft(a, value.draft),
+        value.id,
+      );
+      value.viewOncePayload ??= await measureSend(
+        'payload-prepare',
+        () =>
+          prepareViewOnce({
+            id: value.id,
+            scope: 'private',
+            sender: a.session.accountId,
+            recipient: peer,
+            content,
+          }),
+        value.id,
+      );
+      const descriptor = await measureSend(
+        'descriptor',
+        () => viewOnceDescriptor(value.viewOncePayload!, content),
+        value.id,
       );
       text = descriptor.text;
       reference = descriptor.reference;
@@ -437,6 +461,8 @@ export class MessageOutbox {
     });
   }
   private notifyPublished(value: OutboxEntry, generation: number): void {
+    if (value.kind !== 'profile' && !value.relation)
+      traceSend('accepted', value.id);
     if (
       generation === this.authority.current() &&
       value.kind === 'text' &&
@@ -464,7 +490,11 @@ export class MessageOutbox {
         value,
         this.entrySize(value),
       );
-      await uploadViewOnce(value.viewOncePayload, api);
+      await measureSend(
+        'upload',
+        () => uploadViewOnce(value.viewOncePayload!, api),
+        value.id,
+      );
     }
     if (value.kind === 'attachment') {
       value.transferStarted = true;

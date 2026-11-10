@@ -1,12 +1,7 @@
-export interface TraceEvent {
-  ms: number;
-  kind: string;
-  [field: string]: string | number | boolean | readonly string[];
-}
-export type RecordEvent = (
-  kind: string,
-  data?: Omit<TraceEvent, 'ms' | 'kind'>,
-) => void;
+import { ComparisonSends } from './sends.ts';
+import type { SendCase } from './sends.ts';
+import type { TraceEvent, RecordEvent } from './events.ts';
+export type { TraceEvent, RecordEvent } from './events.ts';
 
 /** Only callers with fixed labels and numerical measurements belong here.
  * No payloads, errors, identity, DOM text or arbitrary user annotations. */
@@ -15,14 +10,23 @@ export class Recording {
   private readonly events: TraceEvent[] = [];
   private dropped = 0;
   private ended: number | null = null;
+  private readonly sends = new ComparisonSends();
   readonly record: RecordEvent = (kind, data = {}) => {
     if (this.ended !== null) return;
     if (this.events.length === 1500) {
       this.events.shift();
       this.dropped++;
     }
-    this.events.push({ ...data, ms: this.elapsed(), kind });
+    const event = { ...data, ms: this.elapsed(), kind };
+    this.sends.observe(event);
+    this.events.push(event);
   };
+  beginSend(label: SendCase): number | null {
+    if (this.ended !== null) return null;
+    const slot = this.sends.begin(label, this.elapsed());
+    this.record('send-case', { label, slot: slot ?? 0 });
+    return slot;
+  }
   elapsed(): number {
     return Math.round((this.ended ?? performance.now()) - this.started);
   }
@@ -32,7 +36,7 @@ export class Recording {
   }
   report() {
     return {
-      schema: 1,
+      schema: 2,
       active: this.ended === null,
       elapsedMs: this.elapsed(),
       droppedEvents: this.dropped,
@@ -52,6 +56,7 @@ export class Recording {
           'own-text-steps-by-per-capture-message-slot; recipient-hint-and-first-shown-rows; no-cross-tab-or-device-correlation',
       },
       events: this.events.map((event) => ({ ...event })),
+      comparison: this.sends.report(),
     };
   }
 }

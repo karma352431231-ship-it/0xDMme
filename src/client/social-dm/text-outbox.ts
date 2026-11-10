@@ -1,3 +1,4 @@
+import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { socialPacket } from '../../shared/social-dm/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
@@ -90,6 +91,7 @@ export class SocialTextOutbox {
     });
   }
   async queueText(input: TextDraft): Promise<void> {
+    traceSend('submit', input.id);
     if (
       !input.text.trim() ||
       new TextEncoder().encode(input.text).length > 3_000_000
@@ -120,12 +122,18 @@ export class SocialTextOutbox {
     await this.local(generation, async (a) => {
       const entries = await Promise.all(
         contents.map(async (content) => {
+          const id = crypto.randomUUID();
+          traceSend('submit', id);
           const value: TextEntry = {
-            id: crypto.randomUUID(),
+            id,
             peer,
             viewOnce: true,
             packet: null,
-            draft: await sealViewOnceDraft(a, content),
+            draft: await measureSend(
+              'draft-seal',
+              () => sealViewOnceDraft(a, content),
+              id,
+            ),
             createdAt: Date.now(),
           };
           return { id: value.id, value, size: this.size(value) };
@@ -286,9 +294,11 @@ export class SocialTextOutbox {
             this.lifetime.guard(generation),
           );
         if (value.viewOnce) {
-          const content = await openViewOnceDraft(
-            context.privateAuthority,
-            this.chunks(value),
+          const content = await measureSend(
+            'draft-open',
+            () =>
+              openViewOnceDraft(context.privateAuthority, this.chunks(value)),
+            value.id,
           );
           if (!value.viewOncePayload) {
             const peer = await sendPeer(context, value.peer);
@@ -297,17 +307,23 @@ export class SocialTextOutbox {
               peer.directory.events,
               value.peer,
             );
-            value.viewOncePayload = await prepareViewOnce({
-              id: value.id,
-              scope: 'public',
-              sender: context.authority.session.accountId,
-              recipient: peer.recovery,
-              content,
-            });
+            value.viewOncePayload = await measureSend(
+              'payload-prepare',
+              () =>
+                prepareViewOnce({
+                  id: value.id,
+                  scope: 'public',
+                  sender: context.authority.session.accountId,
+                  recipient: peer.recovery,
+                  content,
+                }),
+              value.id,
+            );
           }
-          const descriptor = await viewOnceDescriptor(
-            value.viewOncePayload,
-            content,
+          const descriptor = await measureSend(
+            'descriptor',
+            () => viewOnceDescriptor(value.viewOncePayload!, content),
+            value.id,
           );
           text = descriptor.text;
           reference = descriptor.reference;
@@ -320,7 +336,11 @@ export class SocialTextOutbox {
           ...(value.viewOncePayload
             ? {
                 beforePublish: () =>
-                  uploadViewOnce(value.viewOncePayload!, viewOnceApi),
+                  measureSend(
+                    'upload',
+                    () => uploadViewOnce(value.viewOncePayload!, viewOnceApi),
+                    value.id,
+                  ),
               }
             : {}),
           packet: value.packet,
@@ -331,6 +351,7 @@ export class SocialTextOutbox {
           },
         });
         this.lifetime.guard(generation);
+        traceSend('accepted', value.id);
         options.published?.({ id: value.id, peer: value.peer });
         await removeOutbox(scope, name);
         this.lifetime.guard(generation);

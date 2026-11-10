@@ -6,6 +6,7 @@ import { AccountError } from '../../shared/account/index.ts';
 import type {
   ChatSyncDecision,
   ChatSyncTrace,
+  SendStage,
 } from '../../shared/chat-sync-diagnostics/index.ts';
 
 let deadline = 0,
@@ -17,8 +18,18 @@ const conversations = new Map<string, number>();
 let messages = new Map<string, number>(),
   nextMessage = 0;
 const installed = new WeakSet<Window>();
+let capture = 0,
+  nextSend = 0;
+const sends = new Map<
+  string,
+  { slot: number; rendered: boolean; accepted: boolean }
+>();
+const sendOwner = {};
 
 function stop(): void {
+  capture++;
+  sends.clear();
+  nextSend = 0;
   deadline = 0;
   clearTimeout(timer);
   conversations.clear();
@@ -46,6 +57,7 @@ export function installChatSyncDiagnostics(host: Window): void {
       reason: 'capture-started',
       source: 0,
       conversation: 0,
+      sendTimings: true,
     });
   });
 }
@@ -90,6 +102,119 @@ export function chatSyncActive(): boolean {
     performance.now() < deadline
   );
 }
+
+/** Message identities stay inside this tab and expire with the capture. */
+export function traceSend(
+  stage: SendStage,
+  id?: string,
+  fields: Pick<ChatSyncDecision, 'sendPhase' | 'sendMs' | 'sendSuccess'> = {},
+): void {
+  if (!chatSyncActive()) return;
+  const message = id === undefined ? undefined : sendMessage(id, stage);
+  if (message === null) return;
+  traceChatSync(sendOwner, null, {
+    event: 'send',
+    reason: 'settled',
+    sendStage: stage,
+    sendPhase: 'point',
+    ...fields,
+    ...(message === undefined ? {} : { message }),
+  });
+}
+
+function sendMessage(id: string, stage: SendStage): number | null {
+  let send = sends.get(id);
+  if (stage === 'check-render' && (!send || send.rendered)) return null;
+  send ??= { slot: ++nextSend, rendered: false, accepted: false };
+  if (stage === 'check-render') send.rendered = true;
+  if (stage === 'accepted') send.accepted = true;
+  sends.delete(id);
+  sends.set(id, send);
+  if (sends.size > 256) sends.delete(sends.keys().next().value!);
+  return send.slot;
+}
+
+/** Duration marks preserve results and failures, and never cross captures. */
+export function measureSend<T>(
+  stage: SendStage,
+  work: () => Promise<T>,
+  id?: string,
+): Promise<T> {
+  if (!chatSyncActive()) return work();
+  const generation = capture,
+    started = performance.now();
+  traceSend(stage, id, { sendPhase: 'start' });
+  const finish = (success: boolean) => {
+    if (generation === capture)
+      traceSend(stage, id, {
+        sendPhase: 'end',
+        sendSuccess: success,
+        sendMs: Math.max(0, Math.round(performance.now() - started)),
+      });
+  };
+  try {
+    return work().then(
+      (value) => {
+        finish(true);
+        return value;
+      },
+      (error: unknown) => {
+        finish(false);
+        throw error;
+      },
+    );
+  } catch (error: unknown) {
+    finish(false);
+    throw error;
+  }
+}
+
+export function measureSendSync<T>(
+  stage: SendStage,
+  work: () => T,
+  id?: string,
+): T {
+  if (!chatSyncActive()) return work();
+  const generation = capture,
+    started = performance.now();
+  traceSend(stage, id, { sendPhase: 'start' });
+  let success = false;
+  try {
+    const value = work();
+    success = true;
+    return value;
+  } finally {
+    if (generation === capture)
+      traceSend(stage, id, {
+        sendPhase: 'end',
+        sendSuccess: success,
+        sendMs: Math.max(0, Math.round(performance.now() - started)),
+      });
+  }
+}
+
+/** Observe a check only after authoritative acceptance for this capture's
+ * own message. Decorative pending checks cannot satisfy it. No paint claim. */
+export function traceSendChecks(history: HTMLElement): void {
+  if (!chatSyncActive() || !sendHistoryVisible(history)) return;
+  for (const row of history.querySelectorAll<HTMLElement>(
+    'article[data-message]',
+  )) {
+    const id = row.dataset['message'];
+    if (id && sends.get(id)?.accepted && row.querySelector('.message-checks'))
+      traceSend('check-render', id);
+  }
+}
+
+function sendHistoryVisible(history: HTMLElement): boolean {
+  return (
+    history.isConnected &&
+    !history.closest('[hidden]') &&
+    document.visibilityState === 'visible' &&
+    history.getClientRects().length > 0
+  );
+}
+
 /** One step of an own group message, or a received row shown. The message ID
  * maps to a small number valid for this capture only and is never published. */
 export function traceGroupMessage(

@@ -1,3 +1,4 @@
+import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
 import { renderSearchReturn } from '../chat-ui/index.ts';
 import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { MessageForwardSelection } from './forward-selection.ts';
@@ -180,6 +181,7 @@ export class MessageHistoryUi {
     this.updateDeletion(history, this.views);
     this.forwarding?.update();
     this.renderGate(history);
+    traceSendChecks(history);
     this.renderPeer();
     restoreScroll();
     this.watchOlder(history)?.check();

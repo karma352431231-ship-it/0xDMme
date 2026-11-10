@@ -6,6 +6,8 @@ import { observePage, observeLag } from './page.ts';
 import { observeSubmissions } from './submissions.ts';
 import { observeSyncTriggers } from './triggers.ts';
 import { observeReuseDecisions } from './reuse.ts';
+import { sendCases } from './sends.ts';
+import type { SendCase } from './sends.ts';
 
 interface DiagnosticWindow extends Window {
   __0xdmmeLag?: ReturnType<typeof start>;
@@ -21,6 +23,28 @@ function start() {
     'position:fixed;top:8px;right:8px;z-index:2147483647;padding:12px;border:1px solid GrayText;background:Canvas;color:CanvasText;font:13px system-ui;max-width:260px;box-shadow:0 2px 8px GrayText;';
   const label = document.createElement('div');
   label.textContent = '0xDMme · local meter active (up to 10 min)';
+  const cases = document.createElement('select');
+  cases.setAttribute('aria-label', 'Comparison send case');
+  for (const value of sendCases) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value.replaceAll('-', ' ');
+    cases.append(option);
+  }
+  const begin = document.createElement('button');
+  begin.type = 'button';
+  begin.textContent = 'Start case before selecting file';
+  const caseStatus = document.createElement('div');
+  caseStatus.textContent = 'Choose one case per send; up to five.';
+  const beginCase = (value: SendCase) => {
+    const slot = recording.beginSend(value);
+    caseStatus.textContent =
+      slot === null
+        ? 'Five-case limit reached; start a new capture.'
+        : `Case ${slot}: ${value}. Send once, then Mark delay.`;
+    return slot;
+  };
+  begin.onclick = () => beginCase(cases.value as SendCase);
   const marker = document.createElement('button');
   marker.type = 'button';
   marker.textContent = 'Mark delay';
@@ -28,7 +52,7 @@ function start() {
   const done = document.createElement('button');
   done.type = 'button';
   done.textContent = 'Stop and download report';
-  panel.append(label, marker, done);
+  panel.append(label, cases, begin, caseStatus, marker, done);
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
 
@@ -40,6 +64,7 @@ function start() {
       recording.stop();
       label.textContent = 'Capture ended · local report only';
       marker.disabled = true;
+      cases.disabled = begin.disabled = true;
       done.textContent = 'Download report';
     }
     return recording.report();
@@ -63,10 +88,10 @@ function start() {
     stopHooks.push(observePage(recording.record));
     stopHooks.push(observeSyncTriggers(recording.record));
     stopHooks.push(
-      observeReuseDecisions(recording.record, (available) => {
-        if (!available)
+      observeReuseDecisions(recording.record, (available, sendTimings) => {
+        if (!available || !sendTimings)
           label.textContent =
-            'Meter active · update the app to capture internal reuse decisions';
+            'Meter active · internal send timings unavailable on this app build';
       }),
     );
     stopHooks.push(observeSubmissions(recording.record));
@@ -88,6 +113,7 @@ function start() {
     stop,
     download,
     mark: () => recording.record('manual-marker'),
+    beginCase,
     remove: () => {
       stop();
       panel.remove();

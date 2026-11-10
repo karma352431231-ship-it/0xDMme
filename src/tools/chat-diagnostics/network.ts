@@ -2,6 +2,11 @@ import { callerPositions, failureCategory } from './recording.ts';
 import type { RecordEvent } from './recording.ts';
 
 const operations = new Set([
+  'attachment-reserve',
+  'attachment-part',
+  'attachment-finish',
+  'view-once-create',
+  'view-once-part',
   'snapshot',
   'confirm',
   'delivery',

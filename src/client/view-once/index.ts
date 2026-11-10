@@ -1,3 +1,7 @@
+import {
+  measureSend,
+  measureSendSync,
+} from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { bytesHash } from '../../shared/vault/index.ts';
@@ -50,18 +54,20 @@ export function makeViewOnceContents(
 ): ViewOnceContent[] {
   if (file && file.bytes.length > maximum)
     throw new Error('File exceeds this conversation’s limit.');
-  const content = viewOnceContent({
-    text,
-    ...(file
-      ? {
-          file: {
-            name: file.name,
-            mime: viewOnceSelectionMime(file.bytes, file.name, file.type),
-            data: encode(file.bytes),
-          },
-        }
-      : {}),
-  });
+  const content = measureSendSync('content-encode', () =>
+    viewOnceContent({
+      text,
+      ...(file
+        ? {
+            file: {
+              name: file.name,
+              mime: viewOnceSelectionMime(file.bytes, file.name, file.type),
+              data: encode(file.bytes),
+            },
+          }
+        : {}),
+    }),
+  );
   if (policy(content) === 'file' && text.trim())
     return [viewOnceContent({ text }), { ...content, text: '' }];
   return [content];
@@ -170,20 +176,29 @@ export async function prepareViewOnce(input: {
   };
   const rawKey = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plain = encoder.encode(JSON.stringify(content));
+  const plain = measureSendSync(
+    'payload-serialize',
+    () => encoder.encode(JSON.stringify(content)),
+    input.id,
+  );
   try {
     const key = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, [
       'encrypt',
     ]);
     const bytes = new Uint8Array(
-      await crypto.subtle.encrypt(
-        {
-          name: 'AES-GCM',
-          iv,
-          additionalData: associatedData(identity),
-        },
-        key,
-        plain,
+      await measureSend(
+        'payload-encrypt',
+        () =>
+          crypto.subtle.encrypt(
+            {
+              name: 'AES-GCM',
+              iv,
+              additionalData: associatedData(identity),
+            },
+            key,
+            plain,
+          ),
+        input.id,
       ),
     );
     if (bytes.length > viewOnceCipherBytes)
