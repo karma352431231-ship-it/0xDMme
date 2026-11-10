@@ -7,7 +7,7 @@ import { base64 } from '../../src/shared/account/index.ts';
 
 const state = document.documentElement.dataset;
 const png =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGf0AAAAASUVORK5CYII=';
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwzn4FRAwQCgAqEgZh/qKZDQAAAABJRU5ErkJggg==';
 
 async function run(): Promise<void> {
   const channel = new InstalledSessionChannel();
