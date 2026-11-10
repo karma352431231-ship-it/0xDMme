@@ -71,7 +71,8 @@ jobs:
       - run: npm ci --ignore-scripts
       # The runtime integration uses local synthetic media only. No executable is bundled/deployed.
       - name: Install synthetic media test runtime
-        timeout-minutes: 3
+        # apt's post-install checks reached three minutes on a cold runner.
+        timeout-minutes: 5
         run: |
           # Azure's mirror stalled package downloads; use the image's official Ubuntu fallbacks.
           printf 'https://archive.ubuntu.com/ubuntu/\tpriority:1\nhttps://security.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
