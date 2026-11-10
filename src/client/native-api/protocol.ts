@@ -1,4 +1,4 @@
-export const chunkBytes = 32 * 1024;
+export const chunkBytes = 128 * 1024;
 export const responseBytes = 256 * 1024 * 1024;
 const requestBytes = 8_400_000;
 const origin = 'https://0xdmme.app';

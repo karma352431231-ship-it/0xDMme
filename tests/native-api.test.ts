@@ -296,7 +296,7 @@ await test('stream failure never manufactures EOF success or accepts noncanonica
     { done: false, data: 'not base64' },
     { done: 'true', data: '' },
     { done: true, data: '', cookie: 'synthetic' },
-    { done: true, data: Buffer.alloc(32 * 1024 + 1).toString('base64') },
+    { done: true, data: Buffer.alloc(128 * 1024 + 1).toString('base64') },
   ]) {
     const { bridge, transport } = fixture(t);
     bridge.chunks = [value];

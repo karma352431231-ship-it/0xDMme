@@ -29,7 +29,7 @@ function unavailable(): TypeError {
 function channelReply(
   input: unknown,
 ): { call: string; value: unknown } | { call: string; error: true } {
-  if (typeof input !== 'string' || input.length > 48_000) throw unavailable();
+  if (typeof input !== 'string' || input.length > 192_000) throw unavailable();
   const reply = object(JSON.parse(input) as unknown);
   const call = uuid(reply['call']);
   if (Object.hasOwn(reply, 'error')) {

@@ -156,7 +156,7 @@ public final class NativeSessionChannel extends WebViewListener {
                         if (failed) result.put("error", true);
                         else result.put("value", value == null ? JSONObject.NULL : value);
                         String wire = result.toString();
-                        if (wire.length() > 48_000) { close(); return; }
+                        if (wire.length() > 192_000) { close(); return; }
                         proxy.postMessage(wire);
                     } catch (Exception unavailable) { close(); }
                 });

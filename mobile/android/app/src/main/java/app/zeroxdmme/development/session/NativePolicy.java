@@ -15,7 +15,7 @@ import org.json.JSONTokener;
 final class NativePolicy {
     static final int REQUEST_BYTES = 8_400_000;
     static final long RESPONSE_BYTES = 256L * 1024 * 1024;
-    static final int CHUNK_BYTES = 32 * 1024;
+    static final int CHUNK_BYTES = 128 * 1024;
     static final int WIRE_CHARACTERS = 11_210_000;
     static final String SERVICE = "https://0xdmme.app";
 

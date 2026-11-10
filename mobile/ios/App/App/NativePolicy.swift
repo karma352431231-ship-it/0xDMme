@@ -8,7 +8,7 @@ enum NativePolicy {
     static let service = "https://0xdmme.app"
     static let requestBytes = 8_400_000
     static let responseBytes = 256 * 1024 * 1024
-    static let chunkBytes = 32 * 1024
+    static let chunkBytes = 128 * 1024
 
     struct Message {
         let call: String

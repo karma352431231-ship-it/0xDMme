@@ -2,7 +2,7 @@ import Foundation
 
 /** Serial-queue confined streaming body and URLSession task. No cookie access.
  * A suspended task retains at most 256 KiB of delivered application data; burst
- * overflow fails explicitly. Reads demand at most 32 KiB (live streams 4 KiB).
+ * overflow fails explicitly. Reads demand at most 128 KiB (live streams 4 KiB).
  */
 final class NativeExchange {
     typealias Reply = (Result<Any, Error>) -> Void

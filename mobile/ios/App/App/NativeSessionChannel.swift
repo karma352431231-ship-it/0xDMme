@@ -77,7 +77,7 @@ final class NativeSessionChannel: NSObject, WKScriptMessageHandlerWithReply {
                     case .failure: value = ["call": message.call, "error": true]
                     }
                     let bytes = try JSONSerialization.data(withJSONObject: value)
-                    guard let text = String(data: bytes, encoding: .utf8), text.utf16.count <= 48_000 else { throw NativeFailure.unavailable }
+                    guard let text = String(data: bytes, encoding: .utf8), text.utf16.count <= 192_000 else { throw NativeFailure.unavailable }
                     reply(text, nil)
                 } catch { reply(nil, "The app connection is unavailable."); self.close() }
             }
