@@ -73,7 +73,9 @@ final class NativeViewOnceMotion: NSObject {
     let isVideo: Bool
     var resized: (() -> Void)?
     var playback: ((Bool) -> Void)?
+    var progress: ((Double, Double) -> Void)?
     var failure: (() -> Void)?
+    private var lastProgress = 0.0
 
     init(image: CGImageSource, bytes: Data) throws {
         let count = CGImageSourceGetCount(image)
@@ -187,15 +189,46 @@ final class NativeViewOnceMotion: NSObject {
             player.pause()
             playback?(false)
         } else {
-            if finished { player.seek(to: .zero) }
+            if finished { seek(to: 0); return }
             finished = false
             player.play()
             playback?(true)
         }
     }
 
+    func skip(_ seconds: Double) {
+        guard let player else { return }
+        seek(to: player.currentTime().seconds + seconds)
+    }
+
+    func seek(to seconds: Double) {
+        guard let player, let item = player.currentItem else { return }
+        let duration = item.duration.seconds
+        guard seconds.isFinite, duration.isFinite, duration > 0 else { return }
+        let target = max(0, min(seconds, max(0, duration - 0.01)))
+        let resume = player.rate > 0 || finished
+        finished = false
+        frames.flushAndRemoveImage()
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero,
+            toleranceAfter: .zero) { [weak self] complete in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, complete, self.player === player else { return }
+                self.frames.flushAndRemoveImage()
+                if resume { player.play() }
+                self.playback?(resume)
+                self.progress?(target, duration)
+            }
+        }
+    }
+
     @objc private func tick(_ link: CADisplayLink) {
         player?.isMuted = UIScreen.main.isCaptured
+        if let player, link.timestamp - lastProgress >= 0.25 {
+            let duration = player.currentItem?.duration.seconds ?? 0
+            let position = player.currentTime().seconds
+            if duration.isFinite, duration > 0, position.isFinite { progress?(position, duration) }
+            lastProgress = link.timestamp
+        }
         guard !container.isHidden, frames.isReadyForMoreMediaData else { return }
         do {
             if let imageSource {
@@ -209,7 +242,8 @@ final class NativeViewOnceMotion: NSObject {
                 imageIndex = (index + 1) % CGImageSourceGetCount(imageSource)
                 nextFrame = link.timestamp + frameDelay(imageSource, index)
             } else if let output {
-                let time = output.itemTime(forHostTime: link.targetTimestamp)
+                let time = player?.rate == 0 ? (player?.currentTime() ?? .invalid)
+                    : output.itemTime(forHostTime: link.targetTimestamp)
                 if time.isNumeric, output.hasNewPixelBuffer(forItemTime: time),
                    let pixels = output.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: nil) {
                     frames.enqueue(try viewOnceSample(pixels, at: time))
@@ -249,7 +283,7 @@ final class NativeViewOnceMotion: NSObject {
         imageBytes.removeAll(keepingCapacity: false)
         frames.flushAndRemoveImage()
         container.removeFromSuperlayer()
-        failure = nil; resized = nil; playback = nil
+        failure = nil; resized = nil; playback = nil; progress = nil
     }
 }
 

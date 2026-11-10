@@ -16,9 +16,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import app.zeroxdmme.development.R;
+import java.util.function.Consumer;
 
 /** Full-screen chrome and scrollable content, hosted only in the secure dialog. */
-final class NativeViewOnceLayout extends LinearLayout {
+final class NativeViewOnceLayout extends FrameLayout {
     private static final int BACKGROUND = 0xff0e121a;
     private static final int GLOW = 0xff243354;
     private static final int INK = 0xfff0f4ff;
@@ -30,19 +31,27 @@ final class NativeViewOnceLayout extends LinearLayout {
     private View media;
     private int mediaWidth;
     private int mediaHeight;
-    private final ImageButton playback;
+    private final LinearLayout column;
+    private final FrameLayout header;
+    private final LinearLayout footer;
+    private final NativeViewOnceControls controls;
+    private TextView caption;
     private boolean hasCaption;
+    private boolean fullscreen;
+    private Consumer<Boolean> fullscreenChanged = active -> {};
 
     NativeViewOnceLayout(Context context, Runnable close) {
         super(context);
-        setOrientation(VERTICAL);
+        column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        addView(column, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         backdrop.setColors(new int[] {GLOW, BACKGROUND});
         backdrop.setGradientType(GradientDrawable.RADIAL_GRADIENT);
         backdrop.setGradientCenter(0.5f, 0.39f);
         setBackground(backdrop);
 
-        FrameLayout header = new FrameLayout(context);
-        addView(header, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(56)));
+        header = new FrameLayout(context);
+        column.addView(header, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(56)));
         LinearLayout title = new LinearLayout(context);
         title.setGravity(Gravity.CENTER);
         TextView badge = label("1", 11, ACCENT);
@@ -69,28 +78,20 @@ final class NativeViewOnceLayout extends LinearLayout {
         FrameLayout.LayoutParams backSize = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.START | Gravity.CENTER_VERTICAL);
         backSize.setMarginStart(dp(12));
         header.addView(back, backSize);
-        playback = new ImageButton(context);
-        playback.setColorFilter(INK);
-        playback.setBackground(rounded(BACKGROUND, 24));
-        playback.setVisibility(GONE);
-        FrameLayout.LayoutParams playbackSize = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END | Gravity.CENTER_VERTICAL);
-        playbackSize.setMarginEnd(dp(12));
-        header.addView(playback, playbackSize);
-
         scroll = new ScrollView(context);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
         scroll.setPadding(dp(16), 0, dp(16), 0);
         body = new LinearLayout(context);
-        body.setOrientation(VERTICAL);
+        body.setOrientation(LinearLayout.VERTICAL);
         body.setGravity(Gravity.CENTER);
         body.setPadding(0, dp(12), 0, dp(12));
         scroll.addView(body, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-        addView(scroll, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1));
+        column.addView(scroll, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1));
         scroll.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> sizeMedia());
         body.addView(label("Loading…", 16, MUTED));
 
-        LinearLayout footer = new LinearLayout(context);
+        footer = new LinearLayout(context);
         footer.setGravity(Gravity.CENTER);
         ImageView lock = new ImageView(context);
         lock.setImageResource(R.drawable.view_once_lock);
@@ -101,7 +102,10 @@ final class NativeViewOnceLayout extends LinearLayout {
         LinearLayout.LayoutParams hintSize = new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         hintSize.setMarginStart(dp(6));
         footer.addView(hint, hintSize);
-        addView(footer, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(48)));
+        column.addView(footer, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(48)));
+        controls = new NativeViewOnceControls(context, this::toggleFullscreen);
+        controls.setVisibility(GONE);
+        addView(controls, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(84), Gravity.BOTTOM));
     }
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
@@ -126,6 +130,9 @@ final class NativeViewOnceLayout extends LinearLayout {
         if (view != null) {
             media = view;
             hasCaption = !text.isEmpty();
+            boolean video = view instanceof SurfaceView;
+            scroll.setPadding(video ? 0 : dp(16), 0, video ? 0 : dp(16), 0);
+            body.setPadding(0, video ? 0 : dp(12), 0, video ? 0 : dp(12));
             // A SurfaceView punches a transparent hole for the secure video
             // surface. Drawing an opaque View background covers that hole.
             if (!(view instanceof SurfaceView)) {
@@ -137,6 +144,7 @@ final class NativeViewOnceLayout extends LinearLayout {
         }
         if (!text.isEmpty()) {
             TextView message = label(text, view == null ? 22 : 16, Color.WHITE);
+            caption = message;
             message.setMaxWidth(dp(view == null ? 360 : 540));
             message.setLineSpacing(dp(3), 1);
             message.setTextIsSelectable(false);
@@ -147,25 +155,48 @@ final class NativeViewOnceLayout extends LinearLayout {
         }
     }
 
-    void showPlayback(Runnable toggle) {
-        playback.setOnClickListener(button -> toggle.run());
-        playback.setVisibility(VISIBLE);
-        updatePlayback(false);
-        playback.setEnabled(false);
+    void showPlayback(NativeViewOnceVideo video) {
+        controls.bind(video);
+        controls.setVisibility(VISIBLE);
+        column.setPadding(0, 0, 0, dp(84));
+        video.setOnClickListener(view -> toggleFullscreen());
     }
 
     void updatePlayback(boolean playing) {
-        playback.setEnabled(true);
-        playback.setImageResource(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
-        playback.setContentDescription(playing ? "Pause video" : "Play video");
+        controls.playing(playing);
+    }
+
+    void updateTimeline(int position, int duration) { controls.update(position, duration); }
+
+    void onFullscreen(Consumer<Boolean> changed) { fullscreenChanged = changed; }
+
+    private void toggleFullscreen() {
+        fullscreen = !fullscreen;
+        header.setVisibility(fullscreen ? GONE : VISIBLE);
+        footer.setVisibility(fullscreen ? GONE : VISIBLE);
+        column.setPadding(0, 0, 0, fullscreen ? 0 : dp(84));
+        if (caption != null) caption.setVisibility(fullscreen ? GONE : VISIBLE);
+        controls.fullscreen(fullscreen);
+        setBackground(fullscreen ? new android.graphics.drawable.ColorDrawable(Color.BLACK) : backdrop);
+        fullscreenChanged.accept(fullscreen);
+        sizeMedia();
+    }
+
+    boolean exitFullscreen() {
+        if (!fullscreen) return false;
+        toggleFullscreen();
+        return true;
     }
 
     void erase() {
         if (media instanceof ImageView photo) photo.setImageDrawable(null);
         media = null;
         hasCaption = false;
-        playback.setOnClickListener(null);
-        playback.setVisibility(GONE);
+        exitFullscreen();
+        controls.clear();
+        controls.setVisibility(GONE);
+        column.setPadding(0, 0, 0, 0);
+        caption = null;
         body.removeAllViews();
     }
 
@@ -178,10 +209,11 @@ final class NativeViewOnceLayout extends LinearLayout {
     private void sizeMedia() {
         if (media == null || mediaWidth <= 0 || mediaHeight <= 0) return;
         int width = scroll.getWidth() - scroll.getPaddingLeft() - scroll.getPaddingRight();
-        int height = scroll.getHeight() - dp(24);
+        boolean video = media instanceof SurfaceView;
+        int height = scroll.getHeight() - (video ? 0 : dp(24));
         if (width <= 0 || height <= 0) return;
-        float scale = Math.min(Math.min(width, dp(680)) / (float) mediaWidth,
-            height * (hasCaption ? 0.72f : 1f) / mediaHeight);
+        float scale = Math.min((video ? width : Math.min(width, dp(680))) / (float) mediaWidth,
+            height * (hasCaption && !fullscreen ? 0.72f : 1f) / mediaHeight);
         int fitWidth = Math.max(1, Math.round(mediaWidth * scale));
         int fitHeight = Math.max(1, Math.round(mediaHeight * scale));
         if (media.getLayoutParams().width != fitWidth || media.getLayoutParams().height != fitHeight)

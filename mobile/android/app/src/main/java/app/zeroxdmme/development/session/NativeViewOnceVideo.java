@@ -4,6 +4,8 @@ import android.media.AudioAttributes;
 import android.media.MediaDataSource;
 import android.media.MediaPlayer;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import java.util.Arrays;
@@ -18,6 +20,18 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
     private boolean surfaceReady;
     private boolean ended;
     private boolean resume = true;
+    private int duration;
+    private int pendingPosition;
+    private final Handler clock = new Handler(Looper.getMainLooper());
+    private final Runnable progress = new Runnable() {
+        @Override public void run() {
+            if (!ready || player == null) return;
+            try {
+                layout.updateTimeline(ended ? duration : player.getCurrentPosition(), duration);
+                clock.postDelayed(this, 250);
+            } catch (IllegalStateException unavailable) { fail(); }
+        }
+    };
 
     NativeViewOnceVideo(NativeViewOnceLayout layout) {
         super(layout.getContext());
@@ -54,9 +68,12 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
                     return;
                 }
                 ready = true;
+                duration = Math.max(0, value.getDuration());
                 layout.setMediaSize(value.getVideoWidth(), value.getVideoHeight());
+                if (pendingPosition > 0) value.seekTo(pendingPosition);
                 if (surfaceReady && resume) value.start();
                 layout.updatePlayback(surfaceReady && resume);
+                clock.post(progress);
             });
             next.setOnVideoSizeChangedListener((value, width, height) -> {
                 if (player == value && width > 0 && height > 0) layout.setMediaSize(width, height);
@@ -65,6 +82,7 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
                 if (player != value) return;
                 ended = true;
                 layout.updatePlayback(false);
+                layout.updateTimeline(duration, duration);
             });
             next.setOnErrorListener((value, what, extra) -> {
                 if (player == value) fail();
@@ -85,11 +103,7 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
             if (ended) {
                 // Some MediaDataSource implementations cannot seek after EOS.
                 // Start a new decoder over the same viewer-owned memory.
-                releasePlayer();
-                source = new VideoBytes(bytes);
-                ended = false;
-                resume = true;
-                prepare();
+                restart(0, true);
                 return;
             }
             ended = false;
@@ -97,6 +111,31 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
             player.start();
         }
         layout.updatePlayback(player.isPlaying());
+    }
+
+    void skip(int milliseconds) {
+        if (!ready || player == null) return;
+        seek((ended ? duration : player.getCurrentPosition()) + milliseconds);
+    }
+
+    void seek(int milliseconds) {
+        if (!ready || player == null || duration <= 0) return;
+        int target = Math.max(0, Math.min(milliseconds, duration - 1));
+        if (ended) restart(target, true);
+        else {
+            pendingPosition = target;
+            player.seekTo(target);
+            layout.updateTimeline(target, duration);
+        }
+    }
+
+    private void restart(int position, boolean playing) {
+        releasePlayer();
+        source = new VideoBytes(bytes);
+        pendingPosition = position;
+        ended = false;
+        resume = playing;
+        prepare();
     }
 
     @Override public void surfaceCreated(SurfaceHolder holder) {
@@ -129,6 +168,7 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
     }
 
     private void releasePlayer() {
+        clock.removeCallbacks(progress);
         MediaPlayer old = player;
         player = null;
         ready = false;

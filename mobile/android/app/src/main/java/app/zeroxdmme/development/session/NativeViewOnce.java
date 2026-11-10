@@ -106,6 +106,9 @@ final class NativeViewOnce {
         content = new NativeViewOnceLayout(owner, this::close);
         if (isVideo(type)) video = new NativeViewOnceVideo(content);
         screen.setContentView(content);
+        screen.setOnKeyListener((ignored, key, event) ->
+            key == android.view.KeyEvent.KEYCODE_BACK &&
+            event.getAction() == android.view.KeyEvent.ACTION_UP && content.exitFullscreen());
         screen.setOnDismissListener(ignored -> { if (dialog == screen) dispose(); });
         Window window = screen.getWindow();
         if (window == null) { close(); throw NativePolicy.failure(); }
@@ -115,6 +118,12 @@ final class NativeViewOnce {
         window.setNavigationBarColor(Color.TRANSPARENT);
         WindowCompat.getInsetsController(window, content).setAppearanceLightStatusBars(false);
         WindowCompat.getInsetsController(window, content).setAppearanceLightNavigationBars(false);
+        content.onFullscreen(active -> {
+            var insets = WindowCompat.getInsetsController(window, content);
+            insets.setSystemBarsBehavior(androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            if (active) insets.hide(WindowInsetsCompat.Type.systemBars());
+            else insets.show(WindowInsetsCompat.Type.systemBars());
+        });
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
             var insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
@@ -146,7 +155,7 @@ final class NativeViewOnce {
         if (value.getBytes(StandardCharsets.UTF_8).length > 16000 || offset != bytes.length) throw NativePolicy.failure();
         if (video != null) {
             content.showMedia(video, 16, 9, value);
-            content.showPlayback(video::toggle);
+            content.showPlayback(video);
             video.load(bytes);
             bytes = null; // The player wipes the source on close.
         } else if (mime.equals("image/gif") || (mime.equals("image/webp") && Build.VERSION.SDK_INT >= 28)) {
