@@ -7,6 +7,9 @@ import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 class Control {
   disabled = false;
   hidden = false;
+  files: FileList | null = null;
+  readonly attributes = new Map<string, string>();
+  readonly tiles: Control[] = [];
   readonly controls = new Map<string, Control>();
   readonly selector: string;
   private readonly parent: Control | null;
@@ -27,6 +30,12 @@ class Control {
     return this.matches(selector)
       ? this
       : (this.parent?.closest(selector) ?? null);
+  }
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
+  }
+  querySelectorAll(selector: string): Control[] {
+    return selector === '.attachment-tile' ? this.tiles : [];
   }
   querySelector(selector: string): Control | null {
     return this.controls.get(selector) ?? null;
@@ -80,11 +89,16 @@ function fixture(t: TestContext) {
       const form = new Control(selector),
         text = new Control('textarea', form),
         send = new Control('[data-compose-send]', form);
+      const file = new Control('[data-attachment-file]', form),
+        clear = new Control('[data-attachment-clear]', form);
+      clear.hidden = true;
+      form.controls.set('[data-attachment-file]', file);
+      form.controls.set('[data-attachment-clear]', clear);
       form.controls.set('textarea', text);
       form.controls.set('[data-compose-send]', send);
       forms.set(selector, form);
       notify();
-      return { form, text, send };
+      return { form, text, send, file, clear };
     },
     emit(
       type: string,
@@ -171,5 +185,64 @@ await test('send tracing ignores unrelated keys, Shift/IME and non-chat submits 
   assert.doesNotMatch(
     JSON.stringify(stopped),
     /private-key|unrelated-private-form/u,
+  );
+});
+
+await test('normal typing and file choice automatically classify sends and deduplicate Enter/click/submit', async (t) => {
+  const f = fixture(t);
+  const { form, text, send, file, clear } = f.form('[data-message-form]');
+  f.emit('keydown', text, { key: 'Enter' });
+  f.emit('click', send);
+  f.emit('submit', form);
+  assert.equal(f.capture.report().comparison.sends.length, 1);
+  assert.equal(f.capture.report().comparison.sends[0]?.label, 'text');
+  f.capture.record('manual-marker');
+  await Promise.resolve();
+  const selected = new File([new Uint8Array(42)], 'synthetic-video', {
+    type: 'video/mp4',
+  });
+  Object.defineProperty(selected, 'name', {
+    get: () => {
+      throw new Error('Filename must stay unread.');
+    },
+  });
+  file.files = { length: 1, item: () => selected } as unknown as FileList;
+  form.attributes.set('data-view-once', 'true');
+  f.emit('change', file);
+  assert.equal(
+    f.capture.report().comparison.sends.length,
+    1,
+    'Selection alone is not a send.',
+  );
+  clear.hidden = false;
+  f.emit('click', send);
+  f.emit('submit', form);
+  const summary = f.capture.report().comparison.sends[1]!;
+  assert.equal(summary.label, 'view-once-video');
+  assert.equal(summary.fileBytes, 42);
+  assert.equal(summary.fileCount, 1);
+  assert.equal(f.capture.report().comparison.sends.length, 2);
+  f.capture.record('manual-marker');
+  await Promise.resolve();
+  f.emit('click', clear);
+  clear.hidden = true;
+  form.attributes.set('data-view-once', 'false');
+  await Promise.resolve();
+  f.emit('submit', form);
+  assert.equal(f.capture.report().comparison.sends[2]?.label, 'text');
+});
+
+await test('a preexisting attachment is explicit unknown and blocked sends allocate no summary', (t) => {
+  const f = fixture(t),
+    { form, send, clear } = f.form('[data-message-form]');
+  send.disabled = true;
+  f.emit('click', send);
+  assert.equal(f.capture.report().comparison.sends.length, 0);
+  send.disabled = false;
+  clear.hidden = false;
+  f.emit('submit', form);
+  assert.equal(
+    f.capture.report().comparison.sends[0]?.label,
+    'ordinary-unknown',
   );
 });

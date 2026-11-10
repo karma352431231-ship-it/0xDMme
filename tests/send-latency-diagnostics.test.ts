@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
-import { sendCases } from '../src/tools/chat-diagnostics/sends.ts';
+import type { MediaKind } from '../src/tools/chat-diagnostics/composition.ts';
 import {
   installChatSyncDiagnostics,
   measureSend,
@@ -47,15 +47,51 @@ function bridge(t: TestContext) {
   return host;
 }
 
+function submit(
+  recording: Recording,
+  gesture: number,
+  mediaKind: MediaKind = 'text',
+  viewOnce = false,
+): void {
+  recording.record('send-action', {
+    scope: 'private',
+    composer: 1,
+    gesture,
+    cause: 'button',
+    sendDisabled: false,
+    sendHidden: false,
+    formHidden: false,
+    mediaKind,
+    viewOnce,
+    selection: mediaKind === 'text' ? 0 : gesture,
+    fileCount: mediaKind === 'text' ? 0 : 1,
+    fileBytes: mediaKind === 'text' ? 0 : 100,
+  });
+}
+
 await test('all five summaries survive busy background traffic and distinguish acceptance, check and perception', (t) => {
   const f = fixture(t),
     r = f.recording;
   r.record('reuse-coverage', { sendTimings: true });
-  for (const [index, label] of sendCases.entries()) {
+  const cases = [
+    { kind: 'text', once: false },
+    { kind: 'image', once: false },
+    { kind: 'image', once: true },
+    { kind: 'video', once: false },
+    { kind: 'video', once: true },
+  ] satisfies { kind: MediaKind; once: boolean }[];
+  for (const [index, entry] of cases.entries()) {
     const start = index * 1000;
     f.at(start);
-    r.beginSend(label);
+    if (entry.kind !== 'text')
+      r.record('attachment-selection', {
+        composer: 1,
+        selection: index + 1,
+        mediaKind: entry.kind,
+        viewOnce: entry.once,
+      });
     f.at(start + 10);
+    submit(r, index + 1, entry.kind, entry.once);
     r.record('reuse-send', {
       message: index + 1,
       sendStage: 'submit',
@@ -74,7 +110,7 @@ await test('all five summaries survive busy background traffic and distinguish a
       sendMs: 5,
       sendSuccess: true,
     });
-    if (label !== 'text') {
+    if (entry.kind !== 'text') {
       for (const part of [1, 2]) {
         f.at(start + 20);
         r.record('request-start', {
@@ -113,8 +149,8 @@ await test('all five summaries survive busy background traffic and distinguish a
     assert.equal(send.complete, true);
     const timing = send.stages['draft-seal'];
     assert.ok(timing);
-    assert.equal(timing.firstStartMs, send.selectedMs + 10);
-    assert.equal(timing.lastEndMs, send.selectedMs + 15);
+    assert.equal(timing.firstStartMs, send.submitMs);
+    assert.equal(timing.lastEndMs, send.submitMs! + 5);
     assert.equal(timing.durationMs, 5);
     assert.equal(send.clickToAcceptanceMs, 120);
     assert.equal(send.clickToCheckMs, 160);
@@ -129,20 +165,20 @@ await test('all five summaries survive busy background traffic and distinguish a
       assert.equal(send.upload.completedParts, 2);
     }
   }
-  assert.equal(r.beginSend('text'), null);
+  submit(r, 6);
   assert.equal(r.report().comparison.overflow, 1);
   report.comparison.sends[0]!.stages['draft-seal']!.count = 99;
   assert.equal(r.report().comparison.sends[0]!.stages['draft-seal']!.count, 1);
   r.stop();
   const stopped = r.report();
   r.record('late');
-  assert.equal(r.beginSend('text'), null);
+  submit(r, 7);
   assert.deepEqual(r.report(), stopped);
 });
 
 await test('HTTP success never becomes acceptance; interrupted uploads and old-app stages are explicit', (t) => {
   const { recording: r } = fixture(t);
-  r.beginSend('view-once-video');
+  submit(r, 1, 'video', true);
   r.record('request-start', {
     id: 'publication',
     category: 'messages/publish',
@@ -204,7 +240,7 @@ await test('fixed network upload categories exclude query values and foreign req
 await test('an early perception marker cannot hide overlapping sends or unfinished preparation', (t) => {
   const { recording: r } = fixture(t);
   r.record('reuse-coverage', { sendTimings: true });
-  r.beginSend('text');
+  submit(r, 1);
   r.record('reuse-send', {
     message: 1,
     sendStage: 'submit',
@@ -216,12 +252,48 @@ await test('an early perception marker cannot hide overlapping sends or unfinish
     sendPhase: 'start',
   });
   r.record('manual-marker');
-  r.beginSend('ordinary-image');
+  submit(r, 2, 'image');
   const [first, second] = r.report().comparison.sends;
   assert.equal(first?.ambiguous, true);
   assert.equal(second?.ambiguous, true);
   assert.ok(first?.missingStages.includes('in-flight-stage'));
   assert.equal(first?.complete, false);
+});
+
+await test('late signature results refine the matching send after another file is selected', (t) => {
+  const { recording: r } = fixture(t);
+  r.record('attachment-selection', {
+    composer: 1,
+    selection: 1,
+    mediaKind: 'video',
+    viewOnce: false,
+  });
+  submit(r, 1, 'video');
+  r.record('manual-marker');
+  r.record('attachment-selection', {
+    composer: 1,
+    selection: 2,
+    mediaKind: 'video',
+    viewOnce: true,
+  });
+  submit(r, 2, 'video', true);
+  r.record('attachment-inspected', {
+    composer: 1,
+    selection: 1,
+    mediaKind: 'image',
+    fileBytes: 100,
+    fileCount: 1,
+    fileSlots: ['file-1'],
+    signatureFiles: 1,
+    inspectedFiles: 1,
+    inspectionPending: false,
+    mimeMismatch: true,
+  });
+  const report = r.report().comparison;
+  assert.equal(report.sends[0]?.label, 'ordinary-image');
+  assert.equal(report.sends[0]?.mimeMismatch, true);
+  assert.deepEqual(report.sends[0]?.fileSlots, ['file-1']);
+  assert.equal(report.sends[1]?.label, 'view-once-video');
 });
 
 await test('the opt-in bridge preserves failures, isolates captures and marks the accepted DOM check exactly once', async (t) => {
@@ -231,7 +303,7 @@ await test('the opt-in bridge preserves failures, isolates captures and marks th
   const f = fixture(t),
     r = f.recording;
   stop = observeReuseDecisions(r.record);
-  r.beginSend('text');
+  submit(r, 1);
   const id = 'private-message-id';
   traceSend('submit', id);
   let laidOut = false;

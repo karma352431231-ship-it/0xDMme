@@ -377,10 +377,18 @@ registrations. The content hint to the sender's own account still causes one
 
 Report schema 2 adds five comparison slots independent of detailed timeline
 eviction. Build with `npm run diagnostic:chat`; install the console meter before
-file selection. Choose text, ordinary image, view-once image, ordinary video
-and view-once video one at a time, using **Start case before selecting file**
-and **Mark delay** after each send. Reuse the identical file/caption within each
-ordinary/view-once pair. Start a fresh capture after five cases.
+file selection. Send text, images and videos normally, with the desired ① state,
+and press **Mark delay** when each message appears sent. The panel has no case
+selector or start-case button. Use **Stop and download report** when done and
+start a fresh capture after five sends.
+
+Categories and exact input sizes are automatic. Local signature inspection
+refines the browser's MIME category, while private full-file SHA-256 comparison
+assigns anonymous file slots to identical input bytes. The report contains only
+those slots, categories, numeric timings and flags; no names, contents or hashes.
+Unknown formats, failed inspection and selections made before installation are
+explicit. Reads are serial and bounded, and stop aborts inspection. Run sends
+one at a time; the report flags overlap instead of claiming exact attribution.
 
 Each summary retains stage durations, submit, server acceptance, first accepted
 DOM check, manual marker, publication-response time and upload wall time/part

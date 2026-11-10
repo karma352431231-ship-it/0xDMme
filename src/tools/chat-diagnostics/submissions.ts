@@ -1,4 +1,5 @@
 import type { RecordEvent } from './recording.ts';
+import { CompositionMetadata } from './composition.ts';
 
 const scopes = [
   ['private', '[data-message-form]'],
@@ -19,12 +20,36 @@ function sendState(form: Element | null) {
   };
 }
 
-/** Observe only Enter intent, actual click/submit events and fixed control
- * states. Never read input values, message DOM, identities or arbitrary keys. */
+/** Observe gestures and fixed controls; only file MIME categories and sizes
+ * enter metadata. Never read input values, content, filenames or identities. */
 export function observeSubmissions(record: RecordEvent): () => void {
   const abort = new AbortController(),
     signal = abort.signal,
-    previous = new Map<string, string>();
+    previous = new Map<string, string>(),
+    metadata = new CompositionMetadata();
+  let gesture: Gesture | undefined,
+    sequence = 0;
+  let gestureTimer: ReturnType<typeof setTimeout> | undefined;
+  const gestureFor = (form: Element, cause: string) => {
+    if (gesture?.form === form && followsGesture(gesture, cause)) {
+      gesture.clicked ||= cause === 'button';
+      gesture.submitted ||= cause === 'submit';
+      return gesture.id;
+    }
+    const current: Gesture = {
+      form,
+      id: ++sequence,
+      cause,
+      clicked: cause === 'button',
+      submitted: cause === 'submit',
+    };
+    gesture = current;
+    clearTimeout(gestureTimer);
+    gestureTimer = setTimeout(() => {
+      gesture = undefined;
+    }, 0);
+    return current.id;
+  };
   const changed = () => {
     for (const [scope, selector] of scopes) {
       const form = document.querySelector(selector),
@@ -36,14 +61,31 @@ export function observeSubmissions(record: RecordEvent): () => void {
     }
   };
   const action = (target: EventTarget | null, cause: string) => {
-    if (!(target instanceof Element)) return;
-    for (const [scope, selector] of scopes) {
-      const form = target.closest(selector);
-      if (!form) continue;
-      changed();
-      record('send-action', { scope, cause, ...sendState(form) });
+    const context = compositionForm(target);
+    if (!context) return;
+    const { form, scope } = context;
+    changed();
+    record('send-action', {
+      scope,
+      cause,
+      gesture: gestureFor(form, cause),
+      ...sendState(form),
+      ...metadata.read(form),
+    });
+  };
+  const clearSelection = (target: EventTarget | null) => {
+    if (
+      !(target instanceof Element) ||
+      !target.closest('[data-attachment-clear]')
+    )
       return;
-    }
+    const context = compositionForm(target);
+    if (!context) return;
+    metadata.clear(context.form);
+    record('attachment-cleared', {
+      scope: context.scope,
+      ...metadata.read(context.form),
+    });
   };
   document.addEventListener(
     'keydown',
@@ -55,8 +97,24 @@ export function observeSubmissions(record: RecordEvent): () => void {
     { signal, capture: true },
   );
   document.addEventListener(
+    'change',
+    (event) => {
+      if (
+        !(event.target instanceof Element) ||
+        !event.target.matches('[data-attachment-file]')
+      )
+        return;
+      const input = event.target as HTMLInputElement;
+      const context = compositionForm(input);
+      if (!context || !input.files?.length) return;
+      metadata.select({ ...context, files: input.files }, record);
+    },
+    { signal, capture: true },
+  );
+  document.addEventListener(
     'click',
     (event) => {
+      clearSelection(event.target);
       if (
         event.target instanceof Element &&
         event.target.closest('[data-compose-send]')
@@ -85,5 +143,29 @@ export function observeSubmissions(record: RecordEvent): () => void {
     abort.abort();
     observer.disconnect();
     previous.clear();
+    gesture = undefined;
+    clearTimeout(gestureTimer);
+    metadata.stop();
   };
+}
+
+function compositionForm(target: EventTarget | null) {
+  if (!(target instanceof Element)) return null;
+  for (const [scope, selector] of scopes) {
+    const form = target.closest(selector);
+    if (form) return { scope, form };
+  }
+  return null;
+}
+
+interface Gesture {
+  form: Element;
+  id: number;
+  cause: string;
+  clicked: boolean;
+  submitted: boolean;
+}
+function followsGesture(gesture: Gesture, cause: string): boolean {
+  if (cause === 'submit') return !gesture.submitted;
+  return cause === 'button' && gesture.cause === 'enter' && !gesture.clicked;
 }

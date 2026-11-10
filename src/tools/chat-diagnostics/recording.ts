@@ -1,5 +1,4 @@
 import { ComparisonSends } from './sends.ts';
-import type { SendCase } from './sends.ts';
 import type { TraceEvent, RecordEvent } from './events.ts';
 export type { TraceEvent, RecordEvent } from './events.ts';
 
@@ -21,12 +20,6 @@ export class Recording {
     this.sends.observe(event);
     this.events.push(event);
   };
-  beginSend(label: SendCase): number | null {
-    if (this.ended !== null) return null;
-    const slot = this.sends.begin(label, this.elapsed());
-    this.record('send-case', { label, slot: slot ?? 0 });
-    return slot;
-  }
   elapsed(): number {
     return Math.round((this.ended ?? performance.now()) - this.started);
   }

@@ -1,14 +1,10 @@
+import { mediaKinds } from './composition.ts';
+import type { MediaKind } from './composition.ts';
 import { sendStages } from '../../shared/chat-sync-diagnostics/index.ts';
 import type { TraceEvent } from './events.ts';
 
-export const sendCases = [
-  'text',
-  'ordinary-image',
-  'view-once-image',
-  'ordinary-video',
-  'view-once-video',
-] as const;
-export type SendCase = (typeof sendCases)[number];
+type SendCase =
+  'text' | 'unknown' | `view-once-${MediaKind}` | `ordinary-${MediaKind}`;
 type StageTiming = {
   count: number;
   durationMs: number;
@@ -20,6 +16,20 @@ type StageTiming = {
 interface SendSummary {
   slot: number;
   label: SendCase;
+  composer: number;
+  scope: string;
+  selection: number;
+  mediaKind: MediaKind;
+  viewOnce: boolean | null;
+  fileCount: number;
+  fileBytes: number;
+  fileSlots: readonly string[];
+  inspectedFiles: number;
+  signatureFiles: number;
+  inspectionPending: boolean;
+  inspectionUnavailable: boolean;
+  mimeMismatch: boolean;
+  inspectionMs: number;
   selectedMs: number;
   submitMs: number | null;
   acceptedMs: number | null;
@@ -62,48 +72,73 @@ export class ComparisonSends {
   private readonly sends: SendSummary[] = [];
   private readonly requests = new Map<string, RequestTiming>();
   private active: SendSummary | undefined;
+  private pending: SendSummary | undefined;
+  private gesture: { id: number; composer: number } | undefined;
   private overflow = 0;
   private requestOverflow = 0;
   private internal = false;
-  begin(label: SendCase, ms: number): number | null {
-    if (!sendCases.includes(label))
-      throw new Error('Choose a fixed send case.');
+  private prepare(event: TraceEvent): void {
+    if (!this.pending || this.pending.composer !== event['composer'])
+      this.pending = newSummary(event.ms);
+    applyComposition(this.pending, event);
+  }
+  private begin(event: TraceEvent): SendSummary | undefined {
     if (this.sends.length === 5) {
       this.overflow++;
-      return null;
+      this.pending = this.active = undefined;
+      return undefined;
     }
     const ambiguous = this.active
       ? unfinished(this.active, this.internal)
       : false;
     if (this.active) this.active.ambiguous ||= ambiguous;
-    const send: SendSummary = {
-      slot: this.sends.length + 1,
-      label,
-      selectedMs: ms,
-      submitMs: null,
-      acceptedMs: null,
-      checkRenderMs: null,
-      manualMarkerMs: null,
-      publishResponseMs: null,
-      message: null,
-      ambiguous,
-      longestTaskMs: 0,
-      stages: {},
-      upload: {
-        firstPartMs: null,
-        lastPartMs: null,
-        startedParts: 0,
-        completedParts: 0,
-        failedParts: 0,
-        inFlight: 0,
-        peakInFlight: 0,
-      },
-    };
+    const send =
+      this.pending && this.pending.composer === event['composer']
+        ? this.pending
+        : newSummary(event.ms);
+    applyComposition(send, event);
+    this.pending = undefined;
+    send.slot = this.sends.length + 1;
+    send.ambiguous = ambiguous;
+    send.submitMs = event.ms;
     this.sends.push(send);
     this.active = send;
-    return send.slot;
+    return send;
+  }
+  private submitted(event: TraceEvent): void {
+    if (!eligibleAction(event)) return;
+    const id = event['gesture'],
+      composer = event['composer'];
+    if (typeof id !== 'number' || typeof composer !== 'number') return;
+    if (this.gesture?.id === id && this.gesture.composer === composer) return;
+    this.gesture = { id, composer };
+    this.begin(event);
+  }
+  private inspected(event: TraceEvent): void {
+    const matches = (send: SendSummary) =>
+      send.selection > 0 && send.selection === event['selection'];
+    if (this.pending && matches(this.pending)) applyFiles(this.pending, event);
+    for (const send of this.sends) if (matches(send)) applyFiles(send, event);
+  }
+  private automatic(event: TraceEvent): void {
+    switch (event.kind) {
+      case 'attachment-selection':
+        this.prepare(event);
+        break;
+      case 'attachment-inspected':
+        this.inspected(event);
+        break;
+      case 'attachment-cleared':
+        if (this.pending?.composer === event['composer'])
+          this.pending = undefined;
+        break;
+      case 'send-action':
+        this.submitted(event);
+        break;
+    }
   }
   observe(event: TraceEvent): void {
+    this.automatic(event);
     if (event.kind === 'reuse-coverage')
       this.internal = event['sendTimings'] === true;
     if (event.kind === 'reuse-send') this.stage(event);
@@ -112,13 +147,12 @@ export class ComparisonSends {
     this.presentation(event);
   }
   private presentation(event: TraceEvent): void {
-    const send = this.active;
+    const send = this.pending ?? this.active;
     if (!send) return;
     if (event.kind === 'long-task' && typeof event['durationMs'] === 'number')
       send.longestTaskMs = Math.max(send.longestTaskMs, event['durationMs']);
-    if (event.kind === 'manual-marker') send.manualMarkerMs ??= event.ms;
-    if (event.kind === 'send-action' && event['sendDisabled'] === false)
-      send.submitMs ??= event.ms;
+    if (event.kind === 'manual-marker' && this.active)
+      this.active.manualMarkerMs ??= event.ms;
   }
   private stage(event: TraceEvent): void {
     const send = this.forMessage(event);
@@ -157,10 +191,12 @@ export class ComparisonSends {
 
   private forMessage(event: TraceEvent): SendSummary | undefined {
     const message = event['message'];
-    if (typeof message !== 'number') return this.active;
+    if (typeof message !== 'number') return this.pending ?? this.active;
     const known = this.sends.find((send) => send.message === message);
     if (known) return known;
     if (event['sendStage'] !== 'submit') return undefined;
+    if (!this.active && this.sends.length < 5)
+      this.begin({ ...event, composer: 0 });
     if (!this.active) return undefined;
     if (this.active.message !== null) {
       this.active.ambiguous = true;
@@ -240,6 +276,15 @@ export class ComparisonSends {
       overflow: this.overflow,
       requestOverflow: this.requestOverflow,
       internalStagesAvailable: this.internal,
+      detection: 'automatic-file-selection-and-send-gestures',
+      fileIdentity: 'per-capture-SHA256-mapping; hashes-never-exported',
+      inspectionLimits: {
+        fileBytes: 16_000_000,
+        queued: 16,
+        inFlight: 1,
+        readMs: 5000,
+        fileSlots: 128,
+      },
       networkAttribution:
         'one-send-at-a-time-in-this-tab; HTTP-success-is-not-acceptance',
       checkMeaning:
@@ -248,6 +293,7 @@ export class ComparisonSends {
         const missing = missingStages(send);
         return {
           ...send,
+          fileSlots: [...send.fileSlots],
           stages: structuredClone(send.stages),
           upload: {
             ...send.upload,
@@ -282,9 +328,10 @@ function missingStages(send: SendSummary): string[] {
     'manualMarkerMs',
   ] as const)
     if (send[key] === null) missing.push(key);
-  if (send.label !== 'text' && send.upload.completedParts === 0)
+  if (send.mediaKind !== 'text' && send.upload.completedParts === 0)
     missing.push('upload');
   if (send.upload.inFlight) missing.push('in-flight-parts');
+  if (send.inspectionPending) missing.push('file-inspection');
   if (Object.values(send.stages).some((stage) => stage.inFlight))
     missing.push('in-flight-stage');
   return missing;
@@ -299,4 +346,95 @@ function unfinished(send: SendSummary, internal: boolean): boolean {
     ? send.acceptedMs === null
     : send.publishResponseMs === null;
   return pending || send.manualMarkerMs === null || send.upload.inFlight > 0;
+}
+
+function newSummary(ms: number): SendSummary {
+  return {
+    slot: 0,
+    label: 'unknown',
+    composer: 0,
+    scope: 'unknown',
+    selection: 0,
+    mediaKind: 'unknown',
+    viewOnce: null,
+    fileCount: -1,
+    fileBytes: -1,
+    fileSlots: [],
+    inspectedFiles: 0,
+    signatureFiles: 0,
+    inspectionPending: false,
+    inspectionUnavailable: false,
+    mimeMismatch: false,
+    inspectionMs: 0,
+    selectedMs: ms,
+    submitMs: null,
+    acceptedMs: null,
+    checkRenderMs: null,
+    manualMarkerMs: null,
+    publishResponseMs: null,
+    message: null,
+    ambiguous: false,
+    longestTaskMs: 0,
+    stages: {},
+    upload: {
+      firstPartMs: null,
+      lastPartMs: null,
+      startedParts: 0,
+      completedParts: 0,
+      failedParts: 0,
+      inFlight: 0,
+      peakInFlight: 0,
+    },
+  };
+}
+function eligibleAction(event: TraceEvent): boolean {
+  return (
+    event['sendDisabled'] === false &&
+    event['sendHidden'] !== true &&
+    event['formHidden'] !== true &&
+    ['enter', 'button', 'submit'].includes(String(event['cause']))
+  );
+}
+function applyComposition(send: SendSummary, event: TraceEvent): void {
+  send.composer = typeof event['composer'] === 'number' ? event['composer'] : 0;
+  send.selection =
+    typeof event['selection'] === 'number' ? event['selection'] : 0;
+  send.scope = ['private', 'handle', 'group'].includes(String(event['scope']))
+    ? String(event['scope'])
+    : 'unknown';
+  send.viewOnce =
+    typeof event['viewOnce'] === 'boolean' ? event['viewOnce'] : null;
+  applyFiles(send, event);
+}
+function applyFiles(send: SendSummary, event: TraceEvent): void {
+  send.mediaKind =
+    mediaKinds.find((kind) => kind === event['mediaKind']) ?? 'unknown';
+  for (const key of [
+    'fileCount',
+    'fileBytes',
+    'inspectedFiles',
+    'signatureFiles',
+    'inspectionMs',
+  ] as const)
+    if (typeof event[key] === 'number') send[key] = event[key];
+  for (const key of [
+    'inspectionPending',
+    'inspectionUnavailable',
+    'mimeMismatch',
+  ] as const)
+    if (typeof event[key] === 'boolean') send[key] = event[key];
+  const slots = event['fileSlots'];
+  if (Array.isArray(slots))
+    send.fileSlots = slots
+      .filter(
+        (slot: unknown): slot is string =>
+          typeof slot === 'string' && /^file-[0-9]{1,3}$/u.test(slot),
+      )
+      .slice(0, 16);
+  send.label = caseLabel(send.mediaKind, send.viewOnce);
+}
+function caseLabel(kind: MediaKind, once: boolean | null): SendCase {
+  if (once === null) return 'unknown';
+  if (kind === 'text' && !once) return 'text';
+  return once ? `view-once-${kind}` : `ordinary-${kind}`;
 }

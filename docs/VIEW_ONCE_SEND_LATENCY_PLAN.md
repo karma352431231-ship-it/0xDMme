@@ -24,7 +24,7 @@ The upload row measures the wall-clock span across all parts. The ordinary uploa
 ## Fix the console meter before collecting the baseline
 
 - **Preserve the timings for each send.** In the console recorder (`src/tools/chat-diagnostics/recording.ts` in the meter revision), background traffic can evict the click and the manual marker from the 1,500-event buffer. Keep the detailed timeline bounded. Maintain a separate bounded summary for the five comparison sends, using anonymous slots local to the capture. Retain stage times, upload wall time, part count and peak in-flight parts. Report detail drops, summary overflow and missing stages explicitly.
-- **Identify the case.** Let the operator select a fixed case label before file selection: text, ordinary image, view-once image, ordinary video or view-once video. Keep **Mark delay** as an end-of-send perception marker. Use fixed operation names for attachment reserve, part, finish, view-once create and view-once part when categorizing requests. Exclude filenames, bodies, message text and durable identifiers.
+- **Identify the case.** Identify each send automatically from the composer controls, selected files and local file inspection. Do not require the operator to choose a case or start each test. Keep **Mark delay** as an end-of-send perception marker. Use fixed operation names for attachment reserve, part, finish, view-once create and view-once part when categorizing requests. Exclude filenames, bodies, message text and durable identifiers.
 - **Get internal timestamps from the app.** The upload and publication owners should emit timings through the existing opt-in diagnostic bridge. The sender UI should emit the first accepted-check render for the same anonymous send slot. Record preparation, submit, publication acceptance, check render and manual marker separately. If the installed app lacks a stage, flag it as unavailable. The operator can still capture browser-visible timings.
 - **Verify the recorder under the observed failure.** Interleave five sends with more than 1,500 background events. Check that all five summaries still distinguish acceptance, first check and manual marker, that overlapping parts count once in wall time, and that an interrupted send is reported as incomplete. Use the same revised meter and diagnostic hooks on both sides of the performance comparison.
 
@@ -60,10 +60,12 @@ latency. Any protocol proposal needs that attribution and its own contract tests
 
 The revised console meter uses report schema 2. It retains five independently
 bounded comparison summaries alongside the existing 1,500-event timeline.
-Use the private chat for the five comparison cases. Select a fixed case and press **Start case before selecting file**, then send
-once and press **Mark delay**. Start the next case only after marking the
-previous one. Use a fresh capture after five cases. Network timings belong to
-the selected case under this one-send-at-a-time procedure; HTTP success alone
+Use the private chat for the five comparison cases. Send normally and press
+**Mark delay** when each message appears sent. The meter creates summaries
+on send gestures and associates earlier file preparation automatically; the
+operator does not choose a category or press a start-case control. Use a fresh
+capture after five sends. Network timings still require one send at a time.
+HTTP success alone
 is never reported as authoritative publication acceptance. Multiple message
 slots in one case, overlapping cases, incomplete parts and overflow are explicit.
 
@@ -109,3 +111,41 @@ use these same hooks and meter on both sides of that comparison.
 Physical matched captures, server/network attribution, a reviewed upload
 protocol proposal if needed, and any evidence-supported first-check or CPU
 optimization remain pending. No before/after latency reduction is claimed.
+
+## Automatic detection — owner correction on 10 November 2026
+
+The owner rejected selecting a category before each test and explicitly allowed
+local inspection of synthetic test files for the best automatic accuracy. This
+supersedes the first implementation's manual case selector. The panel now has
+only **Mark delay** and **Stop and download report**. Normal text submission,
+file-input changes (including the existing drop path) and the composer's actual
+view-once state identify the case. Enter, its generated button click and the
+form submit share one gesture, so a message creates one summary. File selection
+alone does not consume a comparison slot. Abandoned selections and clear-all
+are handled without asking the operator to restart a case.
+
+The local inspector reads files serially, detects supported format families from
+signatures and compares their complete bytes with SHA-256. Hashes remain in a
+bounded in-memory map and only anonymous per-capture file slots enter the report.
+This identifies the exact same file across normal/view-once tests, even with an
+empty or misleading MIME type. The report distinguishes signature detection,
+MIME-only fallback, MIME mismatch, pending/unavailable inspection and unknown or
+mixed selections. It records input byte sizes, not filenames or file contents.
+A format signature is not proof that a decoder accepts the entire file.
+
+Inspection permits at most 16 queued jobs, one active read, 16 MB per file and
+five seconds per read, with at most 128 file fingerprints per capture. Stop
+aborts the active read, rejects queued work and clears fingerprints. No file or
+report is uploaded. Inspection duration is reported separately; its IO/CPU can
+overlap the app's work, so it must not be subtracted blindly from send time.
+The browser-only automatic workflow works on the currently published app;
+internal acceptance/check timestamps still require the instrumented app build.
+
+Automatic capture validation passed 26 distinct targeted tests across the
+submission, file-inspection, per-send, existing network and reuse diagnostics.
+Targeted lint, repository type checking, dependency boundaries, formatting and
+the console bundle build passed. Structural review kept scalar composition
+state in its observer, byte reads/hash slots/cancellation in the IO owner and
+bounded summaries in the comparison owner. The application, server and
+database are unchanged in this correction. Real-browser timing and the
+instrumented app's publication remain separate pending work.
