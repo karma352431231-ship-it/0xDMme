@@ -13,11 +13,9 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.WebView;
-import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.function.Consumer;
@@ -29,7 +27,7 @@ final class NativeViewOnce {
     private final Consumer<Boolean> protectedState;
     private Dialog dialog;
     private Activity activity;
-    private LinearLayout content;
+    private NativeViewOnceLayout content;
     private Bitmap bitmap;
     private byte[] bytes;
     private String id;
@@ -94,28 +92,25 @@ final class NativeViewOnce {
         id = requested; mime = type; bytes = new byte[count]; offset = 0; shown = false;
         Dialog screen = new Dialog(owner, android.R.style.Theme_Material_NoActionBar);
         dialog = screen;
-        LinearLayout layout = new LinearLayout(owner);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundColor(Color.BLACK);
-        Button close = new Button(owner);
-        close.setText("Close");
-        close.setContentDescription("Close view-once message");
-        close.setOnClickListener(view -> screen.dismiss());
-        layout.addView(close, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        ScrollView scroll = new ScrollView(owner);
-        content = new LinearLayout(owner);
-        content.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(content);
-        layout.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-        TextView loading = text("Loading…");
-        content.addView(loading);
-        screen.setContentView(layout);
+        content = new NativeViewOnceLayout(owner, this::close);
+        screen.setContentView(content);
         screen.setOnDismissListener(ignored -> { if (dialog == screen) dispose(); });
         Window window = screen.getWindow();
         if (window == null) { close(); throw NativePolicy.failure(); }
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        WindowCompat.getInsetsController(window, content).setAppearanceLightStatusBars(false);
+        WindowCompat.getInsetsController(window, content).setAppearanceLightNavigationBars(false);
+        ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
+            var insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
         screen.show();
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        ViewCompat.requestApplyInsets(content);
         protectedState.accept(true);
         return true;
     }
@@ -133,21 +128,10 @@ final class NativeViewOnce {
             return true;
         } finally { Arrays.fill(chunk, (byte) 0); }
     }
-    private TextView text(String value) {
-        TextView label = new TextView(activity);
-        label.setText(value);
-        label.setTextColor(Color.WHITE);
-        label.setTextSize(18);
-        label.setPadding(20, 20, 20, 20);
-        label.setTextIsSelectable(false);
-        label.setLongClickable(false);
-        return label;
-    }
     private boolean show(JSONObject input) throws Exception {
         NativePolicy.exact(input, "id", "text");
         String value = NativePolicy.text(input, "text", 16000);
         if (value.getBytes(StandardCharsets.UTF_8).length > 16000 || offset != bytes.length) throw NativePolicy.failure();
-        content.removeAllViews();
         if (!mime.equals("text/plain")) {
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
@@ -159,13 +143,8 @@ final class NativeViewOnce {
             options.inSampleSize = sample;
             bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
             if (bitmap == null || bitmap.getAllocationByteCount() > 64 * 1024 * 1024) throw NativePolicy.failure();
-            ImageView image = new ImageView(activity);
-            image.setImageBitmap(bitmap);
-            image.setAdjustViewBounds(true);
-            image.setContentDescription("View-once image");
-            content.addView(image, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
-        if (!value.isEmpty()) content.addView(text(value));
+        content.show(bitmap, value);
         Arrays.fill(bytes, (byte) 0);
         shown = true;
         return true;
@@ -173,7 +152,7 @@ final class NativeViewOnce {
     private void dispose() {
         protectedState.accept(false);
         if (bytes != null) Arrays.fill(bytes, (byte) 0);
-        if (content != null) content.removeAllViews();
+        if (content != null) content.erase();
         if (bitmap != null) bitmap.recycle();
         if (activity != null && !wasSecure) activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
         dialog = null; content = null; bitmap = null; bytes = null; activity = null; id = null; mime = null;
