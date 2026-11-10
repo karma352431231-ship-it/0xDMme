@@ -184,7 +184,9 @@ function protectedContentSize(metadata: ViewOnceMetadata): {
   mime: string;
   bytes: number;
 } {
-  return metadata.file ?? { mime: 'text/plain', bytes: 0 };
+  return metadata.file
+    ? { mime: metadata.file.mime, bytes: metadata.file.bytes }
+    : { mime: 'text/plain', bytes: 0 };
 }
 function eraseContent(content: ViewOnceContent | null): void {
   if (!content) return;

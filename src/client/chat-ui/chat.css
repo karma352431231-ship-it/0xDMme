@@ -264,7 +264,15 @@
 .chat-history:focus:not(:focus-visible) {
   outline: none;
 }
-#app-shell :is(.chat-panel, .chat-conversation, .chat-history):focus {
+#app-shell[data-page='conversas'] #page-content:focus,
+#app-shell
+  :is(
+    .conversation-content,
+    .chat-panel,
+    .chat-conversation,
+    .chat-thread,
+    .chat-history
+  ):focus {
   outline: none;
 }
 #app-shell .chat-panel :is(button, summary):focus-visible {
@@ -549,38 +557,36 @@
   gap: 10px;
   align-items: flex-end;
 }
-/* Text keeps the full width; the action row stays reachable on narrow phones. */
-#app-shell .compose-row.compose-two-line,
-.compose-two-line {
-  flex-direction: column;
-  align-items: stretch;
+/* Text, attachment, view-once and send controls share one row at every width. */
+#app-shell .compose-row.compose-inline,
+.compose-inline {
+  flex-direction: row;
+  align-items: center;
   gap: 2px;
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--surface);
 }
-#app-shell .compose-two-line .compose-input,
-.compose-two-line .compose-input {
-  flex: 0 0 auto;
-  width: 100%;
+#app-shell .compose-inline .compose-input,
+.compose-inline .compose-input {
+  flex: 1 1 0;
+  width: auto;
   border: 0;
   border-radius: 12px;
   background: transparent;
 }
-.compose-two-line .compose-input textarea {
+.compose-inline .compose-input textarea {
   padding-inline: 10px;
 }
-#app-shell .compose-two-line .compose-tools,
+#app-shell .compose-inline .compose-tools,
 .compose-tools {
   display: flex;
   align-items: center;
   gap: 2px;
-  align-self: stretch;
-  width: 100%;
-}
-.compose-spacer {
-  flex: 1;
+  flex: 0 0 auto;
+  align-self: center;
+  width: auto;
 }
 .compose-input {
   display: flex;

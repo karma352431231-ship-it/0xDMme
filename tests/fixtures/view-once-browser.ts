@@ -1,6 +1,7 @@
 import {
   chatComposer,
   bindChatComposer,
+  updateChatComposer,
 } from '../../src/client/chat-ui/index.ts';
 import {
   renderViewOnce,
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
   check(!menu.hidden, 'Paperclip menu opens');
   const bounds = menu.getBoundingClientRect();
   check(bounds.width <= 164 && bounds.height <= 64, 'Menu stays compact');
+  check(bounds.left >= 0 && bounds.right <= innerWidth, 'Menu fits the screen');
   check(
     menu.querySelectorAll('button').length === 3,
     'Emoji/image/file actions are present',
@@ -58,16 +60,22 @@ async function main(): Promise<void> {
   );
   const inputBounds = textarea.getBoundingClientRect();
   const row = form
-    .querySelector<HTMLElement>('.compose-two-line')!
+    .querySelector<HTMLElement>('.compose-inline')!
     .getBoundingClientRect();
   const tools = form
     .querySelector<HTMLElement>('.compose-tools')!
     .getBoundingClientRect();
   check(
-    inputBounds.width >= row.width - 32,
-    'Composer input fills the chat width inside the real app shell',
+    inputBounds.width >= 80,
+    'Message field keeps usable width on narrow phones',
   );
-  check(tools.width >= row.width - 16, 'Action row fills the chat width');
+  check(
+    Math.abs(
+      inputBounds.top + inputBounds.height / 2 - tools.top - tools.height / 2,
+    ) <= 3,
+    'Text and actions stay on the same horizontal row',
+  );
+  check(row.height <= 64, 'Composer stays one compact row');
   check(
     form
       .querySelector<HTMLElement>('[data-voice-record]')!
@@ -76,9 +84,27 @@ async function main(): Promise<void> {
     'Primary action stays at the right edge',
   );
   check(
-    inputBounds.width >= 100 &&
-      once.getBoundingClientRect().right <= innerWidth,
+    inputBounds.width >= 80 && once.getBoundingClientRect().right <= innerWidth,
     'Composer fits the viewport',
+  );
+  textarea.value = 'Synthetic message';
+  updateChatComposer(form, {
+    blocked: false,
+    recording: false,
+    attachment: false,
+  });
+  const send = form.querySelector<HTMLButtonElement>('[data-compose-send]')!;
+  const sendBounds = send.getBoundingClientRect();
+  check(
+    !send.hidden &&
+      sendBounds.right <= row.right &&
+      Math.abs(
+        sendBounds.top +
+          sendBounds.height / 2 -
+          inputBounds.top -
+          inputBounds.height / 2,
+      ) <= 3,
+    'Send replaces the microphone in the same row',
   );
   let opens = 0;
   const history = document.createElement('div');
