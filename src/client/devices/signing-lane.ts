@@ -24,10 +24,11 @@ const firstVerificationMs = 8000;
  * storage — runs outside the exclusive account turn. Each operation still
  * reads the device directory from the server first and proceeds only if it
  * equals the state the last exclusive turn verified, with no new events;
- * otherwise it runs in an exclusive turn, which verifies and stores the new
- * directory. Work arriving before any verification waits up to eight seconds
- * for the first one, then also falls back to an exclusive turn. The server also checks
- * the session, the signed directory and this device on every request. */
+ * otherwise an exclusive turn verifies and stores the new directory before
+ * signing work resumes outside it. Work arriving before any verification waits
+ * up to eight seconds for the first one, then requests exclusive verification.
+ * The server also checks the session, the signed directory and this device
+ * on every request. */
 export class SigningLane {
   private active = 0;
   private readonly waiting: (() => void)[] = [];
@@ -48,18 +49,26 @@ export class SigningLane {
   async run<T>(work: (authority: SigningAuthority) => Promise<T>): Promise<T> {
     await this.admit();
     try {
-      const signer = await this.fresh();
-      if (signer)
-        return await work({
-          session: signer.session,
-          directory: signer.directory,
-          sign: signer.sign,
-        });
+      const verified = await this.fresh();
+      // A changed directory is verified exclusively. Only public signing
+      // capability leaves this callback; no keyring, secret opener or SDK.
+      const signer = verified
+        ? {
+            session: verified.session,
+            directory: verified.directory,
+            sign: verified.sign,
+          }
+        : await this.options.exclusive((authority) =>
+            Promise.resolve({
+              session: authority.session,
+              directory: authority.directory,
+              sign: authority.sign,
+            }),
+          );
+      return await work(signer);
     } finally {
       this.release();
     }
-    // The exclusive turn has its own queue; this lane's slot is already free.
-    return this.options.exclusive(work);
   }
   /** An exclusive turn verified the directory; release waiting startup work. */
   verifiedChanged(): void {

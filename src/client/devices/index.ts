@@ -15,6 +15,7 @@ import { keepDeviceStorage } from '../device-storage/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
 import type {
+  SigningAuthority,
   VaultAuthority,
   VaultLocator,
   VaultWorkOptions,
@@ -337,6 +338,8 @@ export function startDevices(options: {
   });
   window.addEventListener('pageshow', resume);
   return {
+    withSigner: <T>(work: (a: SigningAuthority) => Promise<T>) =>
+      controller.withSigner(work),
     withLocalVault: <T>(
       locator: VaultLocator,
       work: (a: VaultAuthority) => Promise<T>,

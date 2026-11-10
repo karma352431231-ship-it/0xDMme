@@ -13,6 +13,7 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
     private final NativeViewOnceLayout layout;
     private MediaPlayer player;
     private VideoBytes source;
+    private byte[] bytes;
     private boolean ready;
     private boolean surfaceReady;
     private boolean ended;
@@ -27,6 +28,7 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
     }
 
     void load(byte[] bytes) {
+        this.bytes = bytes;
         source = new VideoBytes(bytes);
         prepare();
     }
@@ -80,7 +82,16 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
             player.pause();
             resume = false;
         } else {
-            if (ended) player.seekTo(0);
+            if (ended) {
+                // Some MediaDataSource implementations cannot seek after EOS.
+                // Start a new decoder over the same viewer-owned memory.
+                releasePlayer();
+                source = new VideoBytes(bytes);
+                ended = false;
+                resume = true;
+                prepare();
+                return;
+            }
             ended = false;
             resume = true;
             player.start();
@@ -112,6 +123,12 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
     }
 
     void close() {
+        releasePlayer();
+        if (bytes != null) Arrays.fill(bytes, (byte) 0);
+        bytes = null;
+    }
+
+    private void releasePlayer() {
         MediaPlayer old = player;
         player = null;
         ready = false;
@@ -136,7 +153,8 @@ final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Cal
         @Override public synchronized long getSize() { return data == null ? 0 : data.length; }
 
         @Override public synchronized void close() {
-            if (data != null) Arrays.fill(data, (byte) 0);
+            // Decoder disposal must not erase a still-open viewer's source.
+            // The viewer owner wipes the bytes when the view closes.
             data = null;
         }
     }

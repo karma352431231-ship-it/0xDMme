@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.FrameLayout;
@@ -125,8 +126,12 @@ final class NativeViewOnceLayout extends LinearLayout {
         if (view != null) {
             media = view;
             hasCaption = !text.isEmpty();
-            view.setBackground(rounded(BACKGROUND, 14));
-            view.setClipToOutline(true);
+            // A SurfaceView punches a transparent hole for the secure video
+            // surface. Drawing an opaque View background covers that hole.
+            if (!(view instanceof SurfaceView)) {
+                view.setBackground(rounded(BACKGROUND, 14));
+                view.setClipToOutline(true);
+            }
             body.addView(view, new LinearLayout.LayoutParams(dp(120), dp(80)));
             setMediaSize(width, height);
         }
