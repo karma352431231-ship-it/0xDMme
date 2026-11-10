@@ -56,7 +56,8 @@ final class NativeViewOnce: NSObject {
                   (CGImageSourceCopyTypeIdentifiers() as! [String]).contains(type.identifier)
             else { throw NativeFailure.unavailable }
         }
-        let controller = NativeViewOnceController(id: id, mime: mime, bytes: bytes)
+        let controller = NativeViewOnceController(id: id, mime: mime, bytes: bytes,
+            orientation: presenter.view.window?.windowScene?.interfaceOrientation ?? .portrait)
         controller.finished = { [weak self, weak controller] in
             guard let self, self.screen === controller else { return }
             self.close()
@@ -100,23 +101,31 @@ private final class NativeViewOnceController: UIViewController {
     private let controls = ViewOncePlaybackControls()
     private var headerHeight: NSLayoutConstraint!
     private var footerHeight: NSLayoutConstraint!
-    private var controlsHeight: NSLayoutConstraint!
     private var normalBottom: NSLayoutConstraint!
     private var expandedBottom: NSLayoutConstraint!
     private var fullscreen = false
+    private let previousOrientation: UIInterfaceOrientation
     private let previous = UIButton(type: .system)
     private let nextButton = UIButton(type: .system)
     private let pageLabel = UILabel()
     var finished: (() -> Void)?
 
-    init(id: String, mime: String, bytes: Int) {
+    init(id: String, mime: String, bytes: Int, orientation: UIInterfaceOrientation) {
         identifier = id; self.mime = mime; expected = bytes
+        previousOrientation = orientation
         super.init(nibName: nil, bundle: nil)
         data.reserveCapacity(bytes)
     }
     required init?(coder: NSCoder) { return nil }
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
     override var prefersStatusBarHidden: Bool { fullscreen }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        if fullscreen { return (motion?.size.width ?? 16) >= (motion?.size.height ?? 9) ? .landscape : .portrait }
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : .allButUpsideDown
+    }
+    override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
+        fullscreen && (motion?.size.width ?? 16) >= (motion?.size.height ?? 9) ? .landscapeRight : previousOrientation
+    }
     override func loadView() { view = ViewOnceBackdrop(frame: .zero) }
 
     override func viewDidLoad() {
@@ -176,17 +185,16 @@ private final class NativeViewOnceController: UIViewController {
         controls.isHidden = true
         controls.toggle = { [weak self] in self?.motion?.toggle() }
         controls.seek = { [weak self] seconds in self?.motion?.seek(to: seconds) }
-        controls.skip = { [weak self] seconds in self?.motion?.skip(seconds) }
         controls.expand = { [weak self] in self?.toggleFullscreen() }
-        surface.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleFullscreen)))
-        for element in [header, surface, footer, controls] {
+        surface.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleControls)))
+        for element in [header, surface, footer] {
             element.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(element)
         }
+        view.addSubview(controls)
         let safe = view.safeAreaLayoutGuide
         headerHeight = header.heightAnchor.constraint(equalToConstant: 56)
         footerHeight = footer.heightAnchor.constraint(equalToConstant: 48)
-        controlsHeight = controls.heightAnchor.constraint(equalToConstant: 0)
         normalBottom = surface.bottomAnchor.constraint(equalTo: footer.topAnchor)
         expandedBottom = surface.bottomAnchor.constraint(equalTo: safe.bottomAnchor)
         NSLayoutConstraint.activate([
@@ -211,12 +219,8 @@ private final class NativeViewOnceController: UIViewController {
             playbackNotice.centerYAnchor.constraint(equalTo: surface.centerYAnchor),
             footer.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
             footer.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
-            footer.bottomAnchor.constraint(equalTo: controls.topAnchor),
+            footer.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
             footerHeight,
-            controls.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
-            controls.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
-            controls.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
-            controlsHeight,
             pageLabel.centerXAnchor.constraint(equalTo: footer.centerXAnchor),
             pageLabel.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
             previous.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 12),
@@ -274,7 +278,6 @@ private final class NativeViewOnceController: UIViewController {
             motion.progress = { [weak self] position, duration in self?.controls.update(position, duration) }
             motion.failure = { [weak self] in self?.showPlaybackError() }
             controls.isHidden = !motion.isVideo
-            controlsHeight.constant = motion.isVideo ? 84 : 0
         }
         shown = true
         view.layoutIfNeeded()
@@ -305,8 +308,33 @@ private final class NativeViewOnceController: UIViewController {
         controls.fullscreen(fullscreen)
         motion?.container.cornerRadius = fullscreen ? 0 : 14
         setNeedsStatusBarAppearanceUpdate()
+        rotateVideo()
         view.layoutIfNeeded()
         resizeMedia()
+    }
+
+    @objc private func toggleControls() {
+        guard motion?.isVideo == true else { return }
+        controls.isHidden.toggle()
+    }
+
+    private func rotateVideo() {
+        if #available(iOS 16.0, *) {
+            setNeedsUpdateOfSupportedInterfaceOrientations()
+            let requested: UIInterfaceOrientationMask
+            if fullscreen { requested = supportedInterfaceOrientations }
+            else {
+                switch previousOrientation {
+                case .landscapeLeft: requested = .landscapeLeft
+                case .landscapeRight: requested = .landscapeRight
+                case .portraitUpsideDown: requested = .portraitUpsideDown
+                default: requested = .portrait
+                }
+            }
+            if let scene = view.window?.windowScene {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: requested))
+            } else { UIViewController.attemptRotationToDeviceOrientation() }
+        } else { UIViewController.attemptRotationToDeviceOrientation() }
     }
 
     private func showPlaybackError() {
@@ -387,6 +415,11 @@ private final class NativeViewOnceController: UIViewController {
         let top = (laidOut.height - height - gap - textHeight) / 2
         let rect = CGRect(x: (laidOut.width - photoSize.width) / 2, y: top, width: photoSize.width, height: height)
         motion?.position(mediaVisible ? rect : nil)
+        if motion?.isVideo == true && mediaVisible {
+            let bounds = surface.convert(rect, to: view)
+            let height = min(CGFloat(64), bounds.height)
+            controls.frame = CGRect(x: bounds.minX, y: bounds.maxY - height, width: bounds.width, height: height)
+        }
         if let photo = image, mediaVisible {
             context.saveGState()
             context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: 14).cgPath)
@@ -444,6 +477,7 @@ private final class NativeViewOnceController: UIViewController {
     @objc private func previousPage() { page = max(0, page-1); do { try render() } catch { finished?() } }
     @objc private func nextPage() { guard nextButton.isEnabled else { return }; page += 1; do { try render() } catch { finished?() } }
     func erase() {
+        if fullscreen { fullscreen = false; rotateVideo() }
         motion?.erase()
         motion = nil
         controls.isHidden = true
@@ -465,16 +499,18 @@ private final class ViewOncePlaybackControls: UIView {
     private var scrubbing = false
     var toggle: (() -> Void)?
     var seek: ((Double) -> Void)?
-    var skip: ((Double) -> Void)?
     var expand: (() -> Void)?
 
     override init(frame: CGRect = .zero) {
         super.init(frame: frame)
-        backgroundColor = ViewOnceBackdrop.base.withAlphaComponent(0.9)
+        backgroundColor = UIColor.black.withAlphaComponent(0.6)
         clipsToBounds = true
         timeline.minimumValue = 0
         timeline.maximumValue = 1
         timeline.isEnabled = false
+        timeline.minimumTrackTintColor = .white
+        timeline.maximumTrackTintColor = UIColor.white.withAlphaComponent(0.3)
+        timeline.thumbTintColor = .white
         timeline.accessibilityLabel = "Video position"
         timeline.addTarget(self, action: #selector(startScrubbing), for: .touchDown)
         timeline.addTarget(self, action: #selector(scrub), for: .valueChanged)
@@ -483,12 +519,10 @@ private final class ViewOncePlaybackControls: UIView {
         time.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         time.textColor = .white
         time.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let back = button("gobackward.10", "Back 10 seconds", #selector(backward))
-        let forward = button("goforward.10", "Forward 10 seconds", #selector(forward))
         configure(play, "play.fill", "Play video", #selector(playPressed))
         play.isEnabled = false
         configure(expandButton, "arrow.up.left.and.arrow.down.right", "Full screen", #selector(expandPressed))
-        let row = UIStackView(arrangedSubviews: [time, back, play, forward, expandButton])
+        let row = UIStackView(arrangedSubviews: [play, time, expandButton])
         row.alignment = .center
         for element in [timeline, row] {
             element.translatesAutoresizingMaskIntoConstraints = false
@@ -497,21 +531,16 @@ private final class ViewOncePlaybackControls: UIView {
         NSLayoutConstraint.activate([
             timeline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             timeline.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            timeline.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            timeline.heightAnchor.constraint(equalToConstant: 32),
+            timeline.topAnchor.constraint(equalTo: row.bottomAnchor),
+            timeline.heightAnchor.constraint(equalToConstant: 20),
             row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            row.topAnchor.constraint(equalTo: timeline.bottomAnchor),
+            row.topAnchor.constraint(equalTo: topAnchor),
             row.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
     required init?(coder: NSCoder) { return nil }
 
-    private func button(_ image: String, _ label: String, _ action: Selector) -> UIButton {
-        let control = UIButton(type: .system)
-        configure(control, image, label, action)
-        return control
-    }
     private func configure(_ control: UIButton, _ image: String, _ label: String, _ action: Selector) {
         control.setImage(UIImage(systemName: image), for: .normal)
         control.tintColor = .white
@@ -542,8 +571,6 @@ private final class ViewOncePlaybackControls: UIView {
         time.text = Self.format(Double(timeline.value)) + " / " + Self.format(Double(timeline.maximumValue))
     }
     @objc private func finishScrubbing() { scrubbing = false; seek?(Double(timeline.value)) }
-    @objc private func backward() { skip?(-10) }
-    @objc private func forward() { skip?(10) }
     @objc private func playPressed() { toggle?() }
     @objc private func expandPressed() { expand?() }
     private static func format(_ seconds: Double) -> String {

@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
-import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.FrameLayout;
@@ -34,7 +33,8 @@ final class NativeViewOnceLayout extends FrameLayout {
     private final LinearLayout column;
     private final FrameLayout header;
     private final LinearLayout footer;
-    private final NativeViewOnceControls controls;
+    private View fullscreenVideo;
+    private Runnable leaveFullscreen;
     private TextView caption;
     private boolean hasCaption;
     private boolean fullscreen;
@@ -103,9 +103,6 @@ final class NativeViewOnceLayout extends FrameLayout {
         hintSize.setMarginStart(dp(6));
         footer.addView(hint, hintSize);
         column.addView(footer, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(48)));
-        controls = new NativeViewOnceControls(context, this::toggleFullscreen);
-        controls.setVisibility(GONE);
-        addView(controls, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(84), Gravity.BOTTOM));
     }
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
@@ -130,12 +127,10 @@ final class NativeViewOnceLayout extends FrameLayout {
         if (view != null) {
             media = view;
             hasCaption = !text.isEmpty();
-            boolean video = view instanceof SurfaceView;
+            boolean video = view instanceof NativeViewOnceVideo;
             scroll.setPadding(video ? 0 : dp(16), 0, video ? 0 : dp(16), 0);
             body.setPadding(0, video ? 0 : dp(12), 0, video ? 0 : dp(12));
-            // A SurfaceView punches a transparent hole for the secure video
-            // surface. Drawing an opaque View background covers that hole.
-            if (!(view instanceof SurfaceView)) {
+            if (!video) {
                 view.setBackground(rounded(BACKGROUND, 14));
                 view.setClipToOutline(true);
             }
@@ -155,36 +150,40 @@ final class NativeViewOnceLayout extends FrameLayout {
         }
     }
 
-    void showPlayback(NativeViewOnceVideo video) {
-        controls.bind(video);
-        controls.setVisibility(VISIBLE);
-        column.setPadding(0, 0, 0, dp(84));
-        video.setOnClickListener(view -> toggleFullscreen());
-    }
-
-    void updatePlayback(boolean playing) {
-        controls.playing(playing);
-    }
-
-    void updateTimeline(int position, int duration) { controls.update(position, duration); }
-
     void onFullscreen(Consumer<Boolean> changed) { fullscreenChanged = changed; }
 
-    private void toggleFullscreen() {
-        fullscreen = !fullscreen;
-        header.setVisibility(fullscreen ? GONE : VISIBLE);
-        footer.setVisibility(fullscreen ? GONE : VISIBLE);
-        column.setPadding(0, 0, 0, fullscreen ? 0 : dp(84));
-        if (caption != null) caption.setVisibility(fullscreen ? GONE : VISIBLE);
-        controls.fullscreen(fullscreen);
-        setBackground(fullscreen ? new android.graphics.drawable.ColorDrawable(Color.BLACK) : backdrop);
-        fullscreenChanged.accept(fullscreen);
+    boolean prefersLandscape() { return mediaWidth >= mediaHeight; }
+
+    void showVideoFullscreen(View video, Runnable exit) {
+        fullscreenVideo = video;
+        leaveFullscreen = exit;
+        fullscreen = true;
+        header.setVisibility(GONE);
+        footer.setVisibility(GONE);
+        if (caption != null) caption.setVisibility(GONE);
+        setBackgroundColor(Color.BLACK);
+        addView(video, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        fullscreenChanged.accept(true);
+    }
+
+    void hideVideoFullscreen(View video) {
+        if (fullscreenVideo != video) return;
+        removeView(video);
+        fullscreenVideo = null;
+        leaveFullscreen = null;
+        fullscreen = false;
+        header.setVisibility(VISIBLE);
+        footer.setVisibility(VISIBLE);
+        if (caption != null) caption.setVisibility(VISIBLE);
+        setBackground(backdrop);
+        fullscreenChanged.accept(false);
         sizeMedia();
     }
 
     boolean exitFullscreen() {
-        if (!fullscreen) return false;
-        toggleFullscreen();
+        Runnable exit = leaveFullscreen;
+        if (exit == null) return false;
+        exit.run();
         return true;
     }
 
@@ -193,9 +192,6 @@ final class NativeViewOnceLayout extends FrameLayout {
         media = null;
         hasCaption = false;
         exitFullscreen();
-        controls.clear();
-        controls.setVisibility(GONE);
-        column.setPadding(0, 0, 0, 0);
         caption = null;
         body.removeAllViews();
     }
@@ -209,7 +205,7 @@ final class NativeViewOnceLayout extends FrameLayout {
     private void sizeMedia() {
         if (media == null || mediaWidth <= 0 || mediaHeight <= 0) return;
         int width = scroll.getWidth() - scroll.getPaddingLeft() - scroll.getPaddingRight();
-        boolean video = media instanceof SurfaceView;
+        boolean video = media instanceof NativeViewOnceVideo;
         int height = scroll.getHeight() - (video ? 0 : dp(24));
         if (width <= 0 || height <= 0) return;
         float scale = Math.min((video ? width : Math.min(width, dp(680))) / (float) mediaWidth,

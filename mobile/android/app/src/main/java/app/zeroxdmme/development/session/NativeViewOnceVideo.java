@@ -1,201 +1,160 @@
 package app.zeroxdmme.development.session;
 
+import android.content.Context;
+import android.graphics.Color;
 import android.media.AudioAttributes;
-import android.media.MediaDataSource;
-import android.media.MediaPlayer;
+import android.media.AudioManager;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.util.Base64;
+import android.view.View;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import androidx.webkit.WebMessageCompat;
+import androidx.webkit.WebViewCompat;
+import java.io.ByteArrayInputStream;
+import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
+import org.json.JSONObject;
 
-/** Memory-backed playback in the dialog's secure surface. */
-final class NativeViewOnceVideo extends SurfaceView implements SurfaceHolder.Callback {
+/** The feed's HTML video controls, isolated inside the secure native dialog.
+ * All media is a memory-only data URL. This WebView has no account bridge,
+ * storage, file access, navigation or network access. */
+final class NativeViewOnceVideo extends FrameLayout {
     private final NativeViewOnceLayout layout;
-    private MediaPlayer player;
-    private VideoBytes source;
-    private byte[] bytes;
-    private boolean ready;
-    private boolean surfaceReady;
-    private boolean ended;
-    private boolean resume = true;
-    private int duration;
-    private int pendingPosition;
-    private final Handler clock = new Handler(Looper.getMainLooper());
-    private final Runnable progress = new Runnable() {
-        @Override public void run() {
-            if (!ready || player == null) return;
-            try {
-                layout.updateTimeline(ended ? duration : player.getCurrentPosition(), duration);
-                clock.postDelayed(this, 250);
-            } catch (IllegalStateException unavailable) { fail(); }
-        }
-    };
+    private final WebView player;
+    private View fullscreenView;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private AudioManager audio;
+    private int capturePolicy;
+    private boolean closed;
 
     NativeViewOnceVideo(NativeViewOnceLayout layout) {
         super(layout.getContext());
         this.layout = layout;
-        setSecure(true);
-        setContentDescription("View-once video");
-        getHolder().addCallback(this);
-    }
-
-    void load(byte[] bytes) {
-        this.bytes = bytes;
-        source = new VideoBytes(bytes);
-        prepare();
-    }
-
-    private void prepare() {
-        if (player != null || source == null || !surfaceReady) return;
-        MediaPlayer next = new MediaPlayer();
-        player = next;
-        try {
-            AudioAttributes.Builder audio = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE);
-            if (Build.VERSION.SDK_INT >= 29)
-                audio.setAllowedCapturePolicy(AudioAttributes.ALLOW_CAPTURE_BY_NONE);
-            next.setAudioAttributes(audio.build());
-            next.setDataSource(source);
-            next.setDisplay(getHolder());
-            next.setOnPreparedListener(value -> {
-                if (player != value) return;
-                if (value.getVideoWidth() <= 0 || value.getVideoHeight() <= 0 ||
-                    (long) value.getVideoWidth() * value.getVideoHeight() > 8_400_000) {
-                    fail();
-                    return;
-                }
-                ready = true;
-                duration = Math.max(0, value.getDuration());
-                layout.setMediaSize(value.getVideoWidth(), value.getVideoHeight());
-                if (pendingPosition > 0) value.seekTo(pendingPosition);
-                if (surfaceReady && resume) value.start();
-                layout.updatePlayback(surfaceReady && resume);
-                clock.post(progress);
-            });
-            next.setOnVideoSizeChangedListener((value, width, height) -> {
-                if (player == value && width > 0 && height > 0) layout.setMediaSize(width, height);
-            });
-            next.setOnCompletionListener(value -> {
-                if (player != value) return;
-                ended = true;
-                layout.updatePlayback(false);
-                layout.updateTimeline(duration, duration);
-            });
-            next.setOnErrorListener((value, what, extra) -> {
-                if (player == value) fail();
-                return true;
-            });
-            next.prepareAsync();
-        } catch (Exception unavailable) {
-            fail();
-        }
-    }
-
-    void toggle() {
-        if (!ready || !surfaceReady || player == null) return;
-        if (player.isPlaying()) {
-            player.pause();
-            resume = false;
-        } else {
-            if (ended) {
-                // Some MediaDataSource implementations cannot seek after EOS.
-                // Start a new decoder over the same viewer-owned memory.
-                restart(0, true);
-                return;
+        setBackgroundColor(Color.BLACK);
+        player = new WebView(getContext());
+        player.setBackgroundColor(Color.BLACK);
+        WebSettings settings = player.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setBlockNetworkLoads(true);
+        settings.setDomStorageEnabled(false);
+        settings.setDatabaseEnabled(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setSupportZoom(false);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        player.setOnLongClickListener(view -> true);
+        player.setLongClickable(false);
+        player.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return !request.getUrl().toString().equals("about:blank");
             }
-            ended = false;
-            resume = true;
-            player.start();
-        }
-        layout.updatePlayback(player.isPlaying());
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                String scheme = request.getUrl().getScheme();
+                if ("data".equals(scheme) || "blob".equals(scheme)) return null;
+                return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
+            }
+        });
+        player.setWebChromeClient(new WebChromeClient() {
+            @Override public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (closed || fullscreenView != null) { callback.onCustomViewHidden(); return; }
+                fullscreenView = view;
+                fullscreenCallback = callback;
+                player.setVisibility(INVISIBLE);
+                layout.showVideoFullscreen(view, NativeViewOnceVideo.this::exitFullscreen);
+            }
+            @Override public void onHideCustomView() { exitFullscreen(); }
+        });
+        WebViewCompat.addWebMessageListener(player, "ZeroXVideoMetadata",
+            Collections.singleton("https://view-once.invalid"), (view, message, origin, mainFrame, reply) -> {
+                if (closed || !mainFrame || !origin.toString().equals("https://view-once.invalid")) return;
+                try {
+                    String value = message.getType() == WebMessageCompat.TYPE_STRING ? message.getData() : null;
+                    if (value == null || value.length() > 128) throw NativePolicy.failure();
+                    JSONObject metadata = new JSONObject(value);
+                    int width = metadata.getInt("width"), height = metadata.getInt("height");
+                    if (metadata.length() != 2 || width <= 0 || height <= 0 ||
+                        (long) width * height > 8_400_000) throw NativePolicy.failure();
+                    layout.setMediaSize(width, height);
+                } catch (Exception invalid) { fail(); }
+            });
+        addView(player, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
 
-    void skip(int milliseconds) {
-        if (!ready || player == null) return;
-        seek((ended ? duration : player.getCurrentPosition()) + milliseconds);
+    void load(byte[] bytes, String mime) {
+        try {
+            if (closed || bytes.length == 0 || bytes.length > 10_000_000 ||
+                !(mime.equals("video/mp4") || mime.equals("video/quicktime"))) throw NativePolicy.failure();
+            if (Build.VERSION.SDK_INT >= 29) {
+                audio = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+                capturePolicy = audio.getAllowedCapturePolicy();
+                audio.setAllowedCapturePolicy(AudioAttributes.ALLOW_CAPTURE_BY_NONE);
+            }
+            byte[] random = new byte[18];
+            new SecureRandom().nextBytes(random);
+            String nonce = Base64.encodeToString(random, Base64.NO_WRAP);
+            String html = DOCUMENT.replace("__NONCE__", nonce).replace("__MIME__", mime)
+                .replace("__DATA__", Base64.encodeToString(bytes, Base64.NO_WRAP));
+            player.loadDataWithBaseURL("https://view-once.invalid/", html, "text/html", "UTF-8", null);
+        } catch (Exception unavailable) { fail(); }
+        finally { Arrays.fill(bytes, (byte) 0); }
     }
 
-    void seek(int milliseconds) {
-        if (!ready || player == null || duration <= 0) return;
-        int target = Math.max(0, Math.min(milliseconds, duration - 1));
-        if (ended) restart(target, true);
-        else {
-            pendingPosition = target;
-            player.seekTo(target);
-            layout.updateTimeline(target, duration);
-        }
+    private void exitFullscreen() {
+        View view = fullscreenView;
+        WebChromeClient.CustomViewCallback callback = fullscreenCallback;
+        fullscreenView = null;
+        fullscreenCallback = null;
+        if (view != null) layout.hideVideoFullscreen(view);
+        if (!closed) player.setVisibility(VISIBLE);
+        if (callback != null) callback.onCustomViewHidden();
     }
 
-    private void restart(int position, boolean playing) {
-        releasePlayer();
-        source = new VideoBytes(bytes);
-        pendingPosition = position;
-        ended = false;
-        resume = playing;
-        prepare();
-    }
-
-    @Override public void surfaceCreated(SurfaceHolder holder) {
-        surfaceReady = true;
-        if (player == null) prepare();
-        else {
-            player.setDisplay(holder);
-            if (ready && resume && !ended) player.start();
-        }
-    }
-
-    @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-    @Override public void surfaceDestroyed(SurfaceHolder holder) {
-        surfaceReady = false;
-        if (player == null) return;
-        if (ready && player.isPlaying()) player.pause();
-        player.setDisplay(null);
-    }
-
-    private void fail() {
-        close();
-        layout.show(null, "Could not play this video.");
-    }
+    private void fail() { close(); layout.show(null, "Could not play this video."); }
 
     void close() {
-        releasePlayer();
-        if (bytes != null) Arrays.fill(bytes, (byte) 0);
-        bytes = null;
+        if (closed) return;
+        closed = true;
+        exitFullscreen();
+        player.stopLoading();
+        player.loadUrl("about:blank");
+        player.onPause();
+        removeAllViews();
+        player.destroy();
+        if (Build.VERSION.SDK_INT >= 29 && audio != null) audio.setAllowedCapturePolicy(capturePolicy);
+        audio = null;
     }
 
-    private void releasePlayer() {
-        clock.removeCallbacks(progress);
-        MediaPlayer old = player;
-        player = null;
-        ready = false;
-        if (old != null) old.release();
-        if (source != null) source.close();
-        source = null;
-    }
-
-    private static final class VideoBytes extends MediaDataSource {
-        private byte[] data;
-
-        VideoBytes(byte[] data) { this.data = data; }
-
-        @Override public synchronized int readAt(long position, byte[] target, int offset, int count) {
-            if (count == 0) return 0;
-            if (data == null || position < 0 || position >= data.length) return -1;
-            int amount = Math.min(count, data.length - (int) position);
-            System.arraycopy(data, (int) position, target, offset, amount);
-            return amount;
-        }
-
-        @Override public synchronized long getSize() { return data == null ? 0 : data.length; }
-
-        @Override public synchronized void close() {
-            // Decoder disposal must not erase a still-open viewer's source.
-            // The viewer owner wipes the bytes when the view closes.
-            data = null;
-        }
-    }
+    private static final String DOCUMENT = """
+        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src data: blob:; style-src 'nonce-__NONCE__'; script-src 'nonce-__NONCE__'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+        <style nonce="__NONCE__">
+        html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;color-scheme:dark}
+        video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+        button{position:absolute;top:10px;right:10px;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:999px;background:#0009;color:#fff}
+        svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        </style></head><body>
+        <video controls playsinline preload="auto" controlslist="nodownload noremoteplayback" disablepictureinpicture src="data:__MIME__;base64,__DATA__"></video>
+        <button type="button" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+        <script nonce="__NONCE__">
+        const video=document.querySelector('video');
+        video.addEventListener('loadedmetadata',()=>{
+          ZeroXVideoMetadata.postMessage(JSON.stringify({width:video.videoWidth,height:video.videoHeight}));
+          video.play().catch(()=>{});
+        });
+        video.addEventListener('error',()=>ZeroXVideoMetadata.postMessage('{}'));
+        document.addEventListener('contextmenu',event=>event.preventDefault());
+        document.querySelector('button').addEventListener('click',()=>{
+          if(document.fullscreenElement)document.exitFullscreen();
+          else video.requestFullscreen().catch(()=>{});
+        });
+        </script></body></html>
+        """;
 }

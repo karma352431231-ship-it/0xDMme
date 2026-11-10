@@ -76,6 +76,7 @@ final class NativeViewOnceMotion: NSObject {
     var progress: ((Double, Double) -> Void)?
     var failure: (() -> Void)?
     private var lastProgress = 0.0
+    private var metadataDuration = 0.0
 
     init(image: CGImageSource, bytes: Data) throws {
         let count = CGImageSourceGetCount(image)
@@ -130,7 +131,8 @@ final class NativeViewOnceMotion: NSObject {
         clock = timer
         if let videoSource {
             let video = AVURLAsset(url: videoSource.url, options: [
-                AVURLAssetReferenceRestrictionsKey: AVAssetReferenceRestrictions.forbidAll.rawValue
+                AVURLAssetReferenceRestrictionsKey: AVAssetReferenceRestrictions.forbidAll.rawValue,
+                AVURLAssetPreferPreciseDurationAndTimingKey: true
             ])
             video.resourceLoader.setDelegate(videoSource, queue: .main)
             asset = video
@@ -145,6 +147,13 @@ final class NativeViewOnceMotion: NSObject {
             }
             let naturalSize = try await track.load(.naturalSize)
             let rotation = try await track.load(.preferredTransform)
+            let duration = try await video.load(.duration)
+            if duration.seconds.isFinite && duration.seconds > 0 { metadataDuration = duration.seconds }
+            else {
+                let range = try await track.load(.timeRange)
+                let end = CMTimeRangeGetEnd(range).seconds
+                if end.isFinite && end > 0 { metadataDuration = end }
+            }
             try Task.checkCancellation()
             let box = CGRect(origin: .zero, size: naturalSize).applying(rotation)
             guard box.width.isFinite, box.height.isFinite, box.width > 0, box.height > 0,
@@ -178,6 +187,7 @@ final class NativeViewOnceMotion: NSObject {
             }
             player.play()
             playback?(true)
+            progress?(0, videoDuration)
         } catch {
             if !Task.isCancelled { failure?() }
         }
@@ -202,8 +212,8 @@ final class NativeViewOnceMotion: NSObject {
     }
 
     func seek(to seconds: Double) {
-        guard let player, let item = player.currentItem else { return }
-        let duration = item.duration.seconds
+        guard let player else { return }
+        let duration = videoDuration
         guard seconds.isFinite, duration.isFinite, duration > 0 else { return }
         let target = max(0, min(seconds, max(0, duration - 0.01)))
         let resume = player.rate > 0 || finished
@@ -221,10 +231,20 @@ final class NativeViewOnceMotion: NSObject {
         }
     }
 
+    private var videoDuration: Double {
+        let reported = player?.currentItem?.duration.seconds ?? 0
+        if reported.isFinite && reported > 0 { return reported }
+        if metadataDuration > 0 { return metadataDuration }
+        return player?.currentItem?.seekableTimeRanges.compactMap { value in
+            let end = CMTimeRangeGetEnd(value.timeRangeValue).seconds
+            return end.isFinite && end > 0 ? end : nil
+        }.max() ?? 0
+    }
+
     @objc private func tick(_ link: CADisplayLink) {
         player?.isMuted = UIScreen.main.isCaptured
         if let player, link.timestamp - lastProgress >= 0.25 {
-            let duration = player.currentItem?.duration.seconds ?? 0
+            let duration = videoDuration
             let position = player.currentTime().seconds
             if duration.isFinite, duration > 0, position.isFinite { progress?(position, duration) }
             lastProgress = link.timestamp

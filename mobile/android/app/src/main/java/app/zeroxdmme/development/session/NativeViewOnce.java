@@ -42,6 +42,7 @@ final class NativeViewOnce {
     private int offset;
     private boolean shown;
     private boolean wasSecure;
+    private int previousOrientation;
 
     NativeViewOnce(WebView source, Consumer<Boolean> protectedState) {
         this.source = source;
@@ -98,6 +99,7 @@ final class NativeViewOnce {
         Activity owner = activity();
         if (owner.isFinishing() || owner.isDestroyed()) throw NativePolicy.failure();
         activity = owner;
+        previousOrientation = owner.getRequestedOrientation();
         wasSecure = (owner.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_SECURE) != 0;
         owner.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         id = requested; mime = type; bytes = new byte[count]; offset = 0; shown = false;
@@ -108,7 +110,7 @@ final class NativeViewOnce {
         screen.setContentView(content);
         screen.setOnKeyListener((ignored, key, event) ->
             key == android.view.KeyEvent.KEYCODE_BACK &&
-            event.getAction() == android.view.KeyEvent.ACTION_UP && content.exitFullscreen());
+            event.getAction() == android.view.KeyEvent.ACTION_UP && content != null && content.exitFullscreen());
         screen.setOnDismissListener(ignored -> { if (dialog == screen) dispose(); });
         Window window = screen.getWindow();
         if (window == null) { close(); throw NativePolicy.failure(); }
@@ -119,6 +121,10 @@ final class NativeViewOnce {
         WindowCompat.getInsetsController(window, content).setAppearanceLightStatusBars(false);
         WindowCompat.getInsetsController(window, content).setAppearanceLightNavigationBars(false);
         content.onFullscreen(active -> {
+            owner.setRequestedOrientation(active
+                ? (content.prefersLandscape() ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
+                : previousOrientation);
             var insets = WindowCompat.getInsetsController(window, content);
             insets.setSystemBarsBehavior(androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             if (active) insets.hide(WindowInsetsCompat.Type.systemBars());
@@ -155,9 +161,8 @@ final class NativeViewOnce {
         if (value.getBytes(StandardCharsets.UTF_8).length > 16000 || offset != bytes.length) throw NativePolicy.failure();
         if (video != null) {
             content.showMedia(video, 16, 9, value);
-            content.showPlayback(video);
-            video.load(bytes);
-            bytes = null; // The player wipes the source on close.
+            video.load(bytes, mime);
+            bytes = null; // The isolated player already cleared the input buffer.
         } else if (mime.equals("image/gif") || (mime.equals("image/webp") && Build.VERSION.SDK_INT >= 28)) {
             showAnimated(value);
         } else {
@@ -225,6 +230,7 @@ final class NativeViewOnce {
         if (bytes != null) Arrays.fill(bytes, (byte) 0);
         if (bitmap != null) bitmap.recycle();
         if (activity != null && !wasSecure) activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        if (activity != null) activity.setRequestedOrientation(previousOrientation);
         dialog = null; content = null; bitmap = null; bytes = null; activity = null; id = null; mime = null;
         video = null; animation = null; legacyGif = null;
         offset = 0; shown = false;
