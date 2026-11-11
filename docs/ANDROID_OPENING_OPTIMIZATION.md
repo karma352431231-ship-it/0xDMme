@@ -130,16 +130,19 @@ comparison, so the measured startup improvement is still open.
 
 ## Android chat video playback
 
-Regular video attachments in private conversations, groups and public DMs mount
-with the feed's shared inline player. The authenticated attachment loader
-supplies the video when the bubble approaches the viewport. Chat playback
-prepares the initial video frame while paused so the default WebView poster
-does not cover the preview. Feed posts continue to use the first-frame poster
-produced during public media preparation. The native control bar provides
-fullscreen on web and in the installed apps. The chat bubble has no permanent
-save link or warning below playable video. The named original is offered as a
-fallback if the video cannot be played. Source URLs remain in the existing
-bounded offscreen media budget and are revoked on row disposal.
+Regular video attachments in private conversations, groups and public DMs
+share the feed's source loader and viewport lifecycle. They use an edge-to-edge
+chat bubble with a paused first frame, a centered play action and the actual
+message timestamp and delivery state over the lower-right corner. Tapping the
+video reveals the chat control bar and temporarily hides the metadata. Two
+seconds without interaction restore the metadata. Fullscreen is available in
+the lower bar, and iPhone can hand fullscreen playback to its native player.
+
+The authenticated attachment loader supplies the video when the bubble
+approaches the viewport. The original file remains available from the control
+bar or a fallback link on playback failure. Source URLs stay in the bounded
+offscreen media budget and are revoked on row disposal. Feed posts use their
+prepared first-frame posters and standard browser controls.
 
 The Android MediaPlayer renders MP4 in the secure view-once window. Protected
 QuickTime playback uses the existing isolated WebView for compatibility and

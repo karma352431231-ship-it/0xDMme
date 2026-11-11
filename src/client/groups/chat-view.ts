@@ -5,6 +5,7 @@ import { GroupMessageActions } from './message-actions.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
+import { placeVideoMessageMeta } from '../chat-video/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
@@ -438,7 +439,7 @@ export class GroupChatView {
     const state = document.createElement('small');
     state.className = 'message-meta';
     state.append(...parts);
-    article.append(state);
+    placeVideoMessageMeta(article, state);
   }
   private renderExternal(
     article: HTMLElement,

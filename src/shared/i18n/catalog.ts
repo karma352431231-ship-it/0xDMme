@@ -10391,6 +10391,13 @@ export const catalog: Record<string, readonly [string, string]> = {
     '请使用 MP4 或 MOV 视频。',
   ],
   'Play video': ['Play video', '播放视频'],
+  'Pause video': ['Pause video', '暂停视频'],
+  'Video controls': ['Video controls', '视频控件'],
+  'Video position': ['Video position', '视频进度'],
+  'Mute video': ['Mute video', '将视频静音'],
+  'Unmute video': ['Unmute video', '取消视频静音'],
+  'Full screen': ['Full screen', '全屏'],
+  'Exit full screen': ['Exit full screen', '退出全屏'],
   'File exceeds this conversation’s limit.': [
     'File exceeds this conversation’s limit.',
     '文件超过此对话的大小限制。',

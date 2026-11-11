@@ -11,6 +11,7 @@ import type { VoicePlayback } from '../voice-playback/index.ts';
 import { startLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { mountInlineVideo } from '../inline-video/index.ts';
+import { chatVideoStage } from '../chat-video/index.ts';
 
 export interface MediaView {
   archived?: boolean;
@@ -238,12 +239,15 @@ function renderVideo<V extends MediaView>(
   if (caption) {
     const text = document.createElement('p');
     text.textContent = caption;
+    text.className = 'chat-video-caption';
     input.article.append(text);
   }
   let fallback: HTMLAnchorElement | undefined;
   mountInlineVideo(slot, {
     signal: input.signal,
     label: content.name,
+    stage: (video) =>
+      chatVideoStage({ video, signal: input.signal, filename: content.name }),
     play: () => input.playback.pause(),
     downloadFallback: (url) => {
       fallback?.remove();

@@ -18,6 +18,10 @@ class MediaNode {
   hidden = false;
   disabled = false;
   isConnected = true;
+  readonly dataset: Record<string, string> = {};
+  get ownerDocument(): Document {
+    return document;
+  }
   constructor(tag: string) {
     this.tag = tag;
   }
@@ -38,11 +42,16 @@ class MediaNode {
   controls = false;
   paused = true;
   seeking = false;
+  readyState = 0;
   currentTime = 0;
   load(): void {}
   pause(): void {}
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
+  }
+  toggleAttribute(name: string, active: boolean): void {
+    if (active) this.attributes.set(name, '');
+    else this.attributes.delete(name);
   }
   removeAttribute(name: string): void {
     this.attributes.delete(name);
@@ -135,8 +144,9 @@ function viewerSaveLink(body: MediaNode): MediaNode | undefined {
   return bar?.children.find((node) => node.tag === 'a');
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-await test('a video attachment shows its opening frame without playback, extra controls or save text', async (t) => {
+await test('chat video keeps its preview and hides the lower controls after two seconds without interaction', async (t) => {
   const { ui, blobs, revoked } = environment(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const observer = Object.getOwnPropertyDescriptor(
     globalThis,
     'IntersectionObserver',
@@ -193,15 +203,19 @@ await test('a video attachment shows its opening frame without playback, extra c
     run: (work) => work(),
   });
   const figure = row.children[0]!;
-  const [video, , retry] = figure.children;
-  assert.equal(video?.tag, 'video');
-  assert.equal(video.controls, true);
+  const stage = figure.children[0]!;
+  const retry = figure.children[2]!;
+  const video = stage.children[0]!;
+  const surface = stage.children[1]!;
+  const toolbar = stage.children[4]!;
+  assert.equal(video.tag, 'video');
+  assert.equal(video.controls, false);
   assert.equal(video.attributes.has('playsinline'), true);
   assert.deepEqual(
     figure.children.map((node) => node.tag),
-    ['video', 'span', 'button'],
+    ['div', 'span', 'button'],
   );
-  assert.equal(retry?.hidden, true);
+  assert.equal(retry.hidden, true);
   assert.equal(loads, 0);
   visibility([{ isIntersecting: true }]);
   await flush();
@@ -213,10 +227,22 @@ await test('a video attachment shows its opening frame without playback, extra c
     get: () => 0,
     set: (time: number) => seeks.push(time),
   });
-  video.listeners.get('loadedmetadata')?.();
+  video.listeners.get('loadedmetadata')!();
   assert.deepEqual(seeks, [0]);
   assert.equal(video.paused, true);
-  assert.equal(blobs[0]?.type, 'video/mp4');
+  assert.equal(toolbar.hidden, true);
+  surface.click();
+  assert.equal(toolbar.hidden, false);
+  assert.equal(stage.dataset['controlsVisible'], 'true');
+  t.mock.timers.tick(1999);
+  assert.equal(toolbar.hidden, false);
+  toolbar.listeners.get('click')!();
+  t.mock.timers.tick(1999);
+  assert.equal(toolbar.hidden, false);
+  t.mock.timers.tick(1);
+  assert.equal(toolbar.hidden, true);
+  assert.equal(stage.dataset['controlsVisible'], undefined);
+  assert.equal(blobs[0]!.type, 'video/mp4');
   assert.ok(bytes.every((byte) => byte === 0));
   visibility([{ isIntersecting: false }]);
   visibility([{ isIntersecting: true }]);

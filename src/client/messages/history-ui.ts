@@ -1,4 +1,5 @@
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
+import { placeVideoMessageMeta } from '../chat-video/index.ts';
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
 import {
   submittedMediaRows,
@@ -489,9 +490,9 @@ export class MessageHistoryUi {
       });
     const detail = this.messageState(view);
     this.renderAnnotations(view, article);
+    article.append(text);
+    placeVideoMessageMeta(article, detail);
     article.append(
-      text,
-      detail,
       messageActions({
         action,
         picker,

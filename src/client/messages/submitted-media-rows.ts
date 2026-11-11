@@ -1,4 +1,5 @@
 import type { SubmittedMedia } from './attachment-submissions.ts';
+import { placeVideoMessageMeta } from '../chat-video/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { AttachmentUi } from '../attachment-ui/index.ts';
 import { messageTime } from '../message-presentation/index.ts';
@@ -55,7 +56,7 @@ function bubble(
       : t('upload.processing');
     article.append(label);
   }
-  article.append(metadata(draft, input.retry));
+  placeVideoMessageMeta(article, metadata(draft, input.retry));
   return article;
 }
 /** Keep the preview and its abort/resource lifetime stable during progress. */

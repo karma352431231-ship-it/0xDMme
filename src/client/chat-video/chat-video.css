@@ -1,0 +1,148 @@
+/* Media itself is the bubble. Its corners and metadata belong to the frame. */
+#app-shell .chat-message:has(> .chat-attachment-video) {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+#app-shell .chat-message > figure.chat-attachment-video {
+  width: min(420px, 76vw, calc(var(--shorts-height) * var(--video-ratio)));
+  max-width: 100%;
+  border-radius: inherit;
+}
+.chat-video-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: var(--video-ratio);
+  border-radius: inherit;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--media-backdrop);
+  color: var(--media-control-ink);
+}
+#app-shell .chat-video-stage > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  object-fit: contain;
+  border: 0;
+  border-radius: inherit;
+}
+.chat-video-stage::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 42px;
+  background: linear-gradient(transparent, var(--media-control-bg));
+  pointer-events: none;
+  content: '';
+}
+#app-shell .chat-video-stage > button.chat-video-surface {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.chat-video-stage svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#app-shell .chat-video-surface svg {
+  width: 52px;
+  height: 52px;
+  padding: 12px;
+  border-radius: 50%;
+  background: var(--media-control-bg);
+}
+.chat-video-surface[data-playing] svg,
+.chat-video-stage[data-controls-visible] .chat-video-surface svg {
+  visibility: hidden;
+}
+.chat-video-meta,
+.chat-video-duration {
+  position: absolute;
+  inset-block-end: 8px;
+  z-index: 1;
+  color: var(--media-control-ink);
+  font-size: var(--fs-caption);
+}
+.chat-video-meta {
+  inset-inline-end: 9px;
+}
+.chat-video-duration {
+  inset-inline-start: 9px;
+  pointer-events: none;
+}
+#app-shell .chat-video-stage .chat-video-meta > .message-meta,
+#app-shell .chat-video-stage .chat-video-meta > .message-meta time {
+  margin: 0;
+  opacity: 1;
+  color: inherit;
+}
+.chat-video-stage[data-controls-visible]
+  > :is(.chat-video-meta, .chat-video-duration),
+.chat-video-stage:fullscreen > .chat-video-meta {
+  visibility: hidden;
+}
+.chat-video-toolbar {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  padding: 0 6px 6px;
+  background: var(--media-control-bg);
+}
+.chat-video-toolbar[hidden] {
+  display: none;
+}
+#app-shell .chat-video-stage .chat-video-toolbar > button {
+  display: grid;
+  grid-row: 1;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+#app-shell .chat-video-toolbar > input[type='range'] {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--media-control-ink);
+  touch-action: none;
+}
+#app-shell .chat-video-stage:fullscreen {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+#app-shell .chat-message > p.chat-video-caption {
+  padding: 4px 8px;
+}

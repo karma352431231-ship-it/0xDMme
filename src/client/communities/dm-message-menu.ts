@@ -1,4 +1,5 @@
 import { messageReactions } from '../message-presentation/index.ts';
+import { placeVideoMessageMeta } from '../chat-video/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
@@ -84,8 +85,8 @@ export function dmReactionChips(
     run: (work: () => Promise<void>) => Promise<void>;
   },
 ): void {
-  const meta = row.querySelector('.message-meta');
-  if (meta) row.append(meta);
+  const meta = row.querySelector<HTMLElement>('.message-meta');
+  if (meta) placeVideoMessageMeta(row, meta);
   if (!input.reactions.length) return;
   row.append(
     messageReactions({

@@ -7,6 +7,7 @@ import { sourceTar } from './source-tar.ts';
 const maximumSourceFiles = 2048;
 const authored = [
   'src/client/inline-video',
+  'src/client/chat-video',
   'src/client/media-retention',
   'src/shared/base64',
   'src/client/view-once-media-buffer',

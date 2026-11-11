@@ -17,10 +17,11 @@ interface InlineVideoOptions {
   label?: string;
   poster?: { bytes: number; load: (signal: AbortSignal) => Promise<Blob> };
   downloadFallback?: (url: string | null) => void;
+  stage?: (video: HTMLVideoElement) => HTMLElement;
   play?: () => void;
 }
 
-/** The feed and chat share the same inline player, controls and viewport lifecycle. */
+/** The feed and chat share source loading and viewport lifecycle. */
 export function mountInlineVideo(
   slot: HTMLElement,
   options: InlineVideoOptions,
@@ -45,7 +46,7 @@ export function mountInlineVideo(
   retry.type = 'button';
   retry.textContent = t('Try loading video');
   retry.hidden = true;
-  slot.append(video, caption, retry);
+  slot.append(options.stage?.(video) ?? video, caption, retry);
   let visible = false,
     stopped = false,
     current: AbortController | null = null,
@@ -151,7 +152,8 @@ export function mountInlineVideo(
   });
   const observer = new IntersectionObserver(
     (entries) => {
-      visible = entries.some((entry) => entry.isIntersecting);
+      visible =
+        entries.some((entry) => entry.isIntersecting) || isFullscreen(video);
       retained?.visibility(visible);
       if (visible) void load();
       else {
@@ -173,6 +175,15 @@ export function mountInlineVideo(
   options.signal.addEventListener('abort', cleanup, { once: true });
   if (options.signal.aborted) cleanup();
   return cleanup;
+}
+
+function isFullscreen(
+  video: HTMLVideoElement & { webkitDisplayingFullscreen?: boolean },
+): boolean {
+  return !!(
+    video.ownerDocument?.fullscreenElement?.contains(video) ||
+    video.webkitDisplayingFullscreen
+  );
 }
 
 function setRatio(slot: HTMLElement, size: VideoSize): void {
