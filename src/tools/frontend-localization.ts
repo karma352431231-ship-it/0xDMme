@@ -11,7 +11,8 @@ export function localizationPlugin(url?: string, emojiUrl?: string): Plugin {
           : undefined,
       );
       builder.onResolve({ filter: /^\.\/data\.ts$/ }, (input) =>
-        emojiUrl && input.importer.endsWith('/src/client/emoji/panel.ts')
+        emojiUrl &&
+        input.importer.endsWith('/src/client/emoji/catalog-source.ts')
           ? { path: emojiUrl, external: true }
           : undefined,
       );

@@ -71,25 +71,26 @@ export class MessageDirectory {
     trace: LoadTrace | undefined,
   ): Promise<number> {
     const current = this.generation;
-    await timedLoad(trace, 'agenda', () =>
-      this.sources.agenda.load(more, work),
-    );
-    this.guard(current);
     if (!more) {
       this.archivedAfter = null;
       this.archivedMore = true;
       if (online) this.remoteMore = true;
     }
-    const page = await timedLoad(trace, 'permissions', () =>
-      this.approvedPage(more, online, work),
-    );
+    const results = await Promise.allSettled([
+      timedLoad(trace, 'agenda', () => this.sources.agenda.load(more, work)),
+      timedLoad(trace, 'permissions', () =>
+        this.approvedPage(more, online, work),
+      ),
+      timedLoad(trace, 'archive', () =>
+        this.archivedMore
+          ? this.sources.archivedPeers(this.archivedAfter, work)
+          : Promise.resolve({ items: [] as Peer[], next: null }),
+      ),
+    ]);
     this.guard(current);
-    const local = this.archivedMore
-      ? await timedLoad(trace, 'archive', () =>
-          this.sources.archivedPeers(this.archivedAfter, work),
-        )
-      : { items: [], next: null };
-    this.guard(current);
+    directoryResult(results[0]);
+    const page = directoryResult(results[1]),
+      local = directoryResult(results[2]);
     const peers = this.combine(page.items, local.items, more || !online);
     await timedLoad(trace, 'identities', () =>
       this.sources.agenda.prepare(peers),
@@ -124,4 +125,12 @@ export class MessageDirectory {
     for (const peer of approved) combined.set(peer.accountId, peer);
     return [...combined.values()];
   }
+}
+
+function directoryResult<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === 'rejected') {
+    const error: unknown = result.reason;
+    throw error;
+  }
+  return result.value;
 }

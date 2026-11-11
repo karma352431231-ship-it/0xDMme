@@ -151,3 +151,29 @@ await test('a session switch between prepared data and publication rejects the o
   assert.deepEqual(f.directory.peers, []);
   assert.equal(f.publications(), 0);
 });
+
+await test('independent directory reads queue together but a failed permission read cannot publish peers', async () => {
+  const f = fixture(),
+    agenda = deferred<void>(),
+    queued = deferred<void>();
+  let settled = false;
+  f.sources.agenda.load = () => agenda.promise;
+  f.sources.contacts.list = () =>
+    Promise.reject(new Error('Permission revoked.'));
+  f.sources.archivedPeers = () => {
+    queued.resolve();
+    return Promise.resolve({ items: [peer('1')], next: null });
+  };
+  const rejected = assert.rejects(
+    f.directory.refresh().finally(() => {
+      settled = true;
+    }),
+    /Permission revoked/,
+  );
+  await queued.promise;
+  assert.equal(settled, false);
+  agenda.resolve();
+  await rejected;
+  assert.equal(f.publications(), 0);
+  assert.deepEqual(f.directory.peers, []);
+});

@@ -57,9 +57,26 @@ post-decoder evidence would change the bridge contract prematurely.
 The installed bundle includes its app modules; deferred app execution does not
 mean independently downloaded chunks. A pre-entry delay therefore includes
 loading/parsing the packaged script as well as WebView/document initialization.
-There is no evidence yet isolating a safe bundle/startup change. The new codec
-also serves account, vault and history byte conversion, with the same canonical
-contracts; compare the relevant startup frames in the next capture.
+The emoji catalog was a static ESM dependency and built all search indexes
+before installed entry. It now imports and indexes on the first emoji render
+or opened picker. Ordinary text is immediate; a failed decoration import leaves
+Unicode visible. A weakly owned render token prevents a delayed import from
+painting a replaced or detached host. The catalog is no longer module-preloaded.
+
+Directory sources now submit their independent, bounded reads together. The
+existing authority queue still serializes SDK access and may admit already
+queued followers under its unchanged session/revision/time limits. Publication
+waits for all sources, preparation and the final generation guard; one failure
+rejects the operation after every sibling settles. Contacts keeps its complete
+verified vault gate before queuing permission and agenda reads together.
+
+Each verified vault operation owns at most 32 epoch-key import promises. Repeated
+local decryptions reuse the same non-exportable AES key only within that
+operation. Session checks run before and after import, and disposal rejects late
+calls and clears the cache. No authority result survives into the next operation.
+Cached history copies open in pairs, retaining their existing receipt/hash and
+snapshot checks. Missing SDK reads stay serialized; final confirmation still
+gates publication, and a failed local verification drains its pair and aborts.
 
 `messages/startup.ts` already publishes contacts after the current vault and
 before opening identity pins. Pin completion remains required before histories
@@ -72,6 +89,15 @@ Contacts already has separate screen/data operations and Android milestones.
 An absent Contacts milestone in a capture containing only Conversations does
 not prove failed instrumentation. Explicitly open Contacts and wait for either
 a verified list or a verified empty state; Settings is a separate route.
+
+The startup candidate passes lint, strict types, dependency boundaries,
+formatting, both asset builds and 1,943 main-suite tests (one existing skip).
+New regressions cover paired-read budgets, draining failures before publication,
+session invalidation during key import, key-cache disposal and stale emoji hosts.
+The structural review keeps key lifetime in the authority operation, contact
+source ordering in its refresh operation, and optional catalog loading in emoji
+presentation. No permission, identity-pin, revision or final-confirmation gate
+was removed. Matched physical startup acceptance is recorded separately.
 
 ## Verification and remaining physical acceptance
 
@@ -95,4 +121,11 @@ counts, longest task, gesture-to-frame and final-append-to-video-frame. Keep raw
 reports local. Actual end-to-end improvement and peak heap measurements remain
 physical acceptance, not inferred from the isolated benchmark. The previous
 1.25-second player interval must be reported separately if it persists; native
-player preparation was not changed without that follow-up evidence.
+player preparation is evaluated separately from startup and transfer work.
+
+The explicitly enabled `NativeStartupBenchmarkTest` visits Conversations and
+Contacts and exports only fixed timing/row/byte counters from the existing
+diagnostic protocol. Run each trial in a new instrumented process for matched
+baseline/candidate comparisons. It does not open histories, consume protected
+media or export account identifiers. Instrumentation adds launch overhead, so
+these runs must not be compared directly with an ordinary launcher capture.

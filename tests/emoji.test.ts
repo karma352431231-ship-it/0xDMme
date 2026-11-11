@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
-import { EmojiCatalog, insertEmoji } from '../src/client/emoji/index.ts';
+import {
+  EmojiCatalog,
+  insertEmoji,
+  emojiText,
+} from '../src/client/emoji/index.ts';
+import { EmojiArtwork } from '../src/client/emoji/artwork.ts';
+import { loadEmojiCatalog } from '../src/client/emoji/catalog-source.ts';
 import { validReaction } from '../src/shared/daily/index.ts';
 import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 
@@ -15,6 +21,29 @@ const defaults = {
   offset: 0,
   recent: [],
 };
+
+await test('deferred artwork leaves Unicode immediately visible and cannot repaint a replaced or detached text host', async (t) => {
+  const painted: string[] = [];
+  t.mock.method(
+    EmojiArtwork.prototype,
+    'text',
+    (_host: HTMLElement, text: string) => {
+      painted.push(text);
+    },
+  );
+  const replaced = { textContent: '', isConnected: true } as HTMLElement;
+  emojiText(replaced, '😀');
+  assert.equal(replaced.textContent, '😀');
+  emojiText(replaced, 'Current plain text');
+  const detached = { textContent: '', isConnected: false } as HTMLElement;
+  emojiText(detached, '🇧🇷');
+  const current = { textContent: '', isConnected: true } as HTMLElement;
+  emojiText(current, '1️⃣');
+  emojiText(current, '👍🏽');
+  await loadEmojiCatalog();
+  assert.equal(replaced.textContent, 'Current plain text');
+  assert.deepEqual(painted, ['👍🏽']);
+});
 
 await test('complete catalog preserves valid Unicode variants and art with pinned provenance', () => {
   assert.equal(catalog.rows.length, 3963);

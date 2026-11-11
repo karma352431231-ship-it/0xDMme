@@ -10,10 +10,21 @@ export async function readMessageWindow<T extends { id: string }>(input: {
 }): Promise<T[]> {
   const views = new Map<string, T>(),
     missing: MessageItem[] = [];
-  for (const item of input.items) {
-    const cached = await input.cached(item);
-    if (cached) views.set(item.id, cached);
-    else missing.push(item);
+  // Cached reads only decrypt and verify local copies; SDK/missing work stays serialized.
+  for (let offset = 0; offset < input.items.length; offset += 2) {
+    const page = input.items.slice(offset, offset + 2);
+    const cached = await Promise.allSettled(
+      page.map((item) => input.cached(item)),
+    );
+    for (const [index, result] of cached.entries()) {
+      if (result.status === 'rejected') {
+        const error: unknown = result.reason;
+        throw error;
+      }
+      const item = page[index]!;
+      if (result.value) views.set(item.id, result.value);
+      else missing.push(item);
+    }
   }
   if (missing.length)
     for (const [id, view] of await input.missing(missing)) views.set(id, view);

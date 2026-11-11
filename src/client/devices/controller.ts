@@ -1,3 +1,4 @@
+import { AuthorityKeys } from './authority-keys.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -483,18 +484,21 @@ export class DeviceController {
       const ring = this.ring;
       const signing = this.identity.signing;
       const wrapping = this.identity.wrapping;
+      const keys = new AuthorityKeys(
+        (epoch) => {
+          const secret = ring.keys[epoch - 1];
+          if (!secret) throw new Error('Key epoch unavailable.');
+          return secret;
+        },
+        () => this.assertSession(session),
+      );
       const authority: VaultAuthority = {
         session,
         offline,
         directory: await eventHash(this.current),
         epoch: ring.epoch,
         events: [...this.events],
-        key: async (epoch) => {
-          this.assertSession(session);
-          const secret = ring.keys[epoch - 1];
-          if (!secret) throw new Error('Key epoch unavailable.');
-          return aesKey(secret);
-        },
+        key: (epoch) => keys.key(epoch),
         sign: this.signingAuthority(session, signing),
         openSecret: async (envelope, context) => {
           this.assertSession(session);
@@ -503,9 +507,13 @@ export class DeviceController {
           return value;
         },
       };
-      const result = await work(authority);
-      this.assertSession(session);
-      return result;
+      try {
+        const result = await work(authority);
+        this.assertSession(session);
+        return result;
+      } finally {
+        keys.dispose();
+      }
     }, options);
   }
   async withLocalVault<T>(

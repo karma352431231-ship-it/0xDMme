@@ -1,14 +1,27 @@
-import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import { t } from '../../shared/i18n/index.ts';
 import { validReaction } from '../../shared/daily/index.ts';
-import { EmojiCatalog, emojiCategories, emojiPageSize } from './catalog.ts';
+import { emojiCategories, emojiPageSize } from './catalog.ts';
 import type { EmojiRow } from './catalog.ts';
 import { EmojiArtwork } from './artwork.ts';
-import { emojiCatalogs } from './data.ts';
+import { emojiCatalog, loadEmojiCatalog } from './catalog-source.ts';
 import { recentEmojis } from './recents.ts';
-const catalog = new EmojiCatalog(emojiCatalogs[currentLanguage()]);
 const artwork = new EmojiArtwork();
+const textRenders = new WeakMap<HTMLElement, object>();
 export function emojiText(host: HTMLElement, text: string): void {
-  artwork.text(host, text, catalog);
+  const render = {};
+  textRenders.set(host, render);
+  host.textContent = text;
+  if (!/(?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]|\u20e3)/u.test(text))
+    return;
+  void loadEmojiCatalog().then(
+    (catalog) => {
+      if (host.isConnected && textRenders.get(host) === render)
+        artwork.text(host, text, catalog);
+    },
+    () => {
+      // Unicode remains visible when optional artwork cannot be loaded.
+    },
+  );
 }
 function element<T extends HTMLElement>(
   host: HTMLElement,
@@ -154,6 +167,7 @@ export class EmojiPanel {
         grid.scrollTop = 0;
       }
       const searching = query.value.trim() !== '';
+      const catalog = emojiCatalog();
       const result = catalog.search({
         query: query.value,
         category: searching ? 'all' : category,
@@ -199,6 +213,17 @@ export class EmojiPanel {
       if (emoji && validReaction(emoji)) this.select(emoji);
     });
     render(true);
+    void loadEmojiCatalog().then(
+      () => {
+        if (dialog.isConnected) render(true);
+      },
+      () => {
+        if (dialog.isConnected)
+          element(dialog, '[data-result]').textContent = t(
+            "Artwork unavailable. You can still choose emoji using this device's appearance.",
+          );
+      },
+    );
   }
   private renderRecent(
     dialog: HTMLElement,
@@ -212,7 +237,7 @@ export class EmojiPanel {
     row.replaceChildren();
     this.appendGlyphs(
       row,
-      catalog.search({
+      emojiCatalog().search({
         query: '',
         category: 'recent',
         tone,
@@ -227,7 +252,7 @@ export class EmojiPanel {
       button.type = 'button';
       button.title = row[1];
       button.setAttribute('aria-label', row[1]);
-      button.append(artwork.glyph(row[0], catalog));
+      button.append(artwork.glyph(row[0], emojiCatalog()));
       button.addEventListener('click', () => this.select(row[0]));
       host.append(button);
     }

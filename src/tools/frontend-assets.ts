@@ -176,7 +176,7 @@ export async function frontendAssets(
     .replace('{{SOURCES}}', sources)
     .replace('{{EMOJI_SOURCES}}', `/${emojiAsset}`)
     .replace('{{I18N_CATALOG}}', catalogUrl)
-    .replace('{{EMOJI_CATALOG}}', emojiCatalogUrl)
+    .replace('<link rel="modulepreload" href="{{EMOJI_CATALOG}}" />', '')
     .replace('{{STYLE}}', style);
   asset('index.html', Buffer.from(html));
   asset(

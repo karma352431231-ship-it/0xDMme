@@ -49,6 +49,7 @@ await test('complete native product package is local, bounded and matches its bu
   assert.doesNotMatch(html, /(?:src|href)=["'](?:https?:|\/\/)/u);
   assert.doesNotMatch(html, /Installed-app feasibility|probe\.js/u);
   assert.match(html, /app-shell/u);
+  assert.doesNotMatch(html, /modulepreload[^>]*emoji-catalog/u);
 });
 
 await test('native shell cannot enable live reload, wildcard navigation or shared HTTP patching', () => {
@@ -88,9 +89,10 @@ await test('web and mobile share the current localized UI assets', async () => {
       /^app-.*\.js$/u.test(name),
     );
     assert.ok(app);
+    const script = await readFile(new URL(app, directory), 'utf8');
     assert.ok(
-      (await readFile(new URL(app, directory), 'utf8')).includes(emojiCatalog),
-      'The packaged app must load the real shared emoji catalog.',
+      script.includes(`import("/${emojiCatalog}")`),
+      'The real emoji catalog must load on demand rather than gate entry.',
     );
   }
 

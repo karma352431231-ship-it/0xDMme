@@ -1,3 +1,4 @@
+import { refreshContactSources } from './refresh.ts';
 import { ContactsScreenDiagnostics } from './diagnostics.ts';
 import {
   loadingPresentation,
@@ -294,15 +295,12 @@ export function startContacts(
   }
   async function refresh(): Promise<void> {
     return loading.run(async (trace) => {
-      const deadline = Date.now() + 60_000;
-      do {
-        if (Date.now() >= deadline)
-          throw new Error('Synchronization interrupted. Try again.');
-        await timedLoad(trace, 'vault', () => sync.refresh());
-      } while (!sync.complete);
-      if (sync.pending) await timedLoad(trace, 'vault', () => sync.retry());
-      await timedLoad(trace, 'permissions', () => contacts.snapshot());
-      await timedLoad(trace, 'agenda', () => directory.load());
+      const rows = await refreshContactSources({
+        sync,
+        contacts,
+        directory,
+        trace,
+      });
       discovery.value = contacts.state.mode;
       status = sync.complete
         ? t('Contacts updated.')
@@ -311,7 +309,7 @@ export function startContacts(
           );
       if (received && node('[data-contact-invite-form]')) await inspectInvite();
       noticeAccepted();
-      return directory.entries.length;
+      return rows;
     });
   }
   /** The request sent from here was accepted: say so and offer the chat. */
