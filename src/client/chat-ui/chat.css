@@ -284,15 +284,17 @@
 .chat-panel .chat-new-messages {
   position: absolute;
   z-index: 2;
-  inset-inline: 0;
+  left: max(12px, env(safe-area-inset-left));
   inset-block-end: 10px;
   inline-size: fit-content;
-  margin-inline: auto;
+  max-inline-size: calc(100% - 24px);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 44px;
-  padding: 6px 14px;
+  min-width: 44px;
+  padding: 6px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--surface-2);
@@ -303,6 +305,9 @@
 }
 .chat-new-messages::after {
   content: '↓';
+  flex: none;
+  font-size: 20px;
+  line-height: 1;
   color: var(--accent-text);
 }
 .chat-thread:has(.chat-history[hidden]) .chat-new-messages,

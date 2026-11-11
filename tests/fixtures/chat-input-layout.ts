@@ -7,6 +7,7 @@ import {
   directChat,
   historyPosition,
   watchHistoryPosition,
+  renderSearchReturn,
 } from '../../src/client/chat-ui/index.ts';
 import { dmConversationView } from '../../src/client/communities/dm-chat.ts';
 import { EmojiPicker } from '../../src/client/emoji/index.ts';
@@ -86,6 +87,19 @@ function append(): void {
   history.append(row);
   restore();
 }
-Object.assign(window, { inputFixture: { mount, append } });
+Object.assign(window, {
+  inputFixture: {
+    mount,
+    append,
+    anchor: () =>
+      renderSearchReturn(history, {
+        active: () => true,
+        latest: () => {
+          renderSearchReturn(history);
+          append();
+        },
+      }),
+  },
+});
 mount('private');
 document.body.dataset['layoutReady'] = 'true';

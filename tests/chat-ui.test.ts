@@ -6,7 +6,21 @@ import {
   resetHistoryPosition,
   sendOnEnter,
   updateMessageStates,
+  watchHistoryPosition,
 } from '../src/client/chat-ui/index.ts';
+
+function historyFixture<T extends object>(geometry: T) {
+  const button = Object.assign(new EventTarget(), {
+    hidden: true,
+    textContent: '',
+    setAttribute() {},
+    getAttribute: () => null,
+  });
+  return Object.assign(new EventTarget(), geometry, {
+    ownerDocument: { createElement: () => button },
+    after() {},
+  });
+}
 
 await test('synchronization blocks sending even with text or an attachment ready', () => {
   for (const content of [
@@ -56,13 +70,13 @@ await test('active recording cannot send; ready preview allows sending without a
 
 await test('synchronization hiding history preserves reading position on reopen', () => {
   // Only the scroll geometry is needed; no browser/crypto emulation.
-  const history = {
+  const history = historyFixture({
     hidden: false,
     scrollTop: 140,
     scrollHeight: 1200,
     clientHeight: 400,
     childElementCount: 12,
-  };
+  });
   const element = history as unknown as HTMLElement;
   historyPosition(element);
   history.hidden = true;
@@ -77,13 +91,13 @@ await test('synchronization hiding history preserves reading position on reopen'
 });
 
 await test('readers at the bottom follow new messages; readers above keep their position', () => {
-  const history = {
+  const history = historyFixture({
     hidden: false,
     scrollTop: 799,
     scrollHeight: 1200,
     clientHeight: 400,
     childElementCount: 12,
-  };
+  });
   const element = history as unknown as HTMLElement;
   const follow = historyPosition(element);
   history.scrollHeight = 1500;
@@ -96,11 +110,12 @@ await test('readers at the bottom follow new messages; readers above keep their 
   assert.equal(history.scrollTop, 1090, 'even a small deliberate scroll holds');
 });
 
-await test('the new-message button counts only incoming appends and clears on jump or manual return', () => {
+await test('the new-message button counts only incoming appends and clears on jump or manual return', (t) => {
   const button = Object.assign(new EventTarget(), {
     hidden: true,
     textContent: '',
     setAttribute() {},
+    getAttribute: () => null,
   });
   let attached = 0;
   const history = Object.assign(new EventTarget(), {
@@ -115,6 +130,9 @@ await test('the new-message button counts only incoming appends and clears on ju
     },
   });
   const element = history as unknown as HTMLElement;
+  const lifetime = new AbortController();
+  t.after(() => lifetime.abort());
+  watchHistoryPosition(element, lifetime.signal);
   const message = (sequence: number, own = false) => ({ sequence, own });
   const initial = [message(7), message(8, true)];
   historyPosition(element, initial)();
@@ -157,13 +175,13 @@ await test('the new-message button counts only incoming appends and clears on ju
 });
 
 await test('conversation change cannot reuse the old position before hiding history', () => {
-  const history = {
+  const history = historyFixture({
     hidden: false,
     scrollTop: 140,
     scrollHeight: 1200,
     clientHeight: 400,
     childElementCount: 12,
-  };
+  });
   const element = history as unknown as HTMLElement;
   resetHistoryPosition(element);
   historyPosition(element);

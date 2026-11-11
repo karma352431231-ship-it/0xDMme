@@ -134,3 +134,20 @@ Verification covers resize/render ordering, reading-position preservation and
 observer disposal, plus assembled Chrome/WebKit fixtures using the real templates
 and styles with synthetic messages. Browser geometry checks do not replace
 physical Android/iPhone keyboard acceptance.
+
+## Return to latest shortcut — 2026-11-11
+
+The owner requested a downward-arrow shortcut whenever a reader scrolls above
+the latest messages, even without new arrivals. The shared history-position
+owner reuses its existing new-message control for private, private-group and
+public-handle chats on phones and browsers. It sits at the lower left of the
+message area, above the composer, and hides at the latest messages. Existing
+incoming-message counts remain visible when applicable. Pointer activation
+preserves composer focus; keyboard activation returns focus to the history.
+
+Search presentation supplies its existing reader-owned return operation while
+an anchored window is active, so this shortcut returns to the actual latest
+window rather than merely its oldest search page's bottom. Scrolling does not
+fetch pages or change a reader's window. Scroll listeners and resize observation
+share the displayed history's existing abort lifetime. No persistence, transport,
+retention or dependency changes are introduced.

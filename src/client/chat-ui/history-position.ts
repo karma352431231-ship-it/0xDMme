@@ -20,6 +20,7 @@ interface HistoryState {
   latest: number | null;
   arrivals: number;
   button?: HTMLButtonElement;
+  returnToLatest?: () => void;
   layout?: HistoryLayout;
 }
 interface HistoryLayout {
@@ -66,11 +67,13 @@ export function historyPosition(
   const position = state.position;
   return () => {
     if (rows) observeArrivals(state, rows, position.follow);
-    if (!visible(history)) return;
+    if (!visible(history)) {
+      updateShortcut(history, state);
+      return;
+    }
     restorePosition(history, position);
     state.position = capture(history);
-    if (atBottom(history)) clearArrivals(state);
-    if (state.arrivals) showArrivals(history, state);
+    updateShortcut(history, state);
   };
 }
 
@@ -83,7 +86,7 @@ export function watchHistoryPosition(
   const state = historyState(history);
   if (state.layout?.signal === signal) return;
   state.layout?.stop();
-  if (signal.aborted || typeof ResizeObserver === 'undefined') return;
+  if (signal.aborted) return;
   const abort = new AbortController();
   const layout: HistoryLayout = {
     width: history.clientWidth,
@@ -94,14 +97,16 @@ export function watchHistoryPosition(
   state.layout = layout;
   if (!state.resetPending && visible(history))
     state.position = capture(history);
-  const observer = new ResizeObserver(() => {
+  const resized = () => {
     if (abort.signal.aborted || !visible(history)) return;
     layout.width = history.clientWidth;
     layout.height = history.clientHeight;
     restorePosition(history, state.position);
     state.position = capture(history);
-    if (atBottom(history)) clearArrivals(state);
-  });
+    updateShortcut(history, state);
+  };
+  const observer =
+    typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resized);
   history.addEventListener('scroll', () => rememberPosition(history, state), {
     passive: true,
     signal: abort.signal,
@@ -113,24 +118,31 @@ export function watchHistoryPosition(
   abort.signal.addEventListener(
     'abort',
     () => {
-      observer.disconnect();
-      if (state.layout === layout) delete state.layout;
+      observer?.disconnect();
+      if (state.layout === layout) {
+        delete state.layout;
+        delete state.returnToLatest;
+        if (state.button) state.button.hidden = true;
+      }
     },
     { once: true },
   );
-  observer.observe(history);
+  observer?.observe(history);
+  updateShortcut(history, state);
 }
 
 function rememberPosition(history: HTMLElement, state: HistoryState): void {
   // Native scroll events can precede ResizeObserver after a keyboard resize.
   // Keep the intent captured before that resize, rather than the new geometry.
-  if (!visible(history) || !sameLayout(history, state)) return;
+  if (state.resetPending || !visible(history) || !sameLayout(history, state))
+    return;
   state.position = capture(history);
-  if (atBottom(history)) clearArrivals(state);
+  updateShortcut(history, state);
 }
 function sameLayout(history: HTMLElement, state: HistoryState): boolean {
   return (
     !state.layout ||
+    typeof ResizeObserver === 'undefined' ||
     (state.layout.width === history.clientWidth &&
       state.layout.height === history.clientHeight)
   );
@@ -208,15 +220,37 @@ function clearArrivals(state: HistoryState): void {
   state.arrivals = 0;
   if (state.button) state.button.hidden = true;
 }
-function showArrivals(history: HTMLElement, state: HistoryState): void {
-  const button = (state.button ??= arrivalButton(history, state));
-  button.textContent = t(
-    state.arrivals === 1 ? '{0} new message' : '{0} new messages',
-    [state.arrivals],
-  );
-  button.hidden = false;
+/** Search presentation supplies its reader's operation, rather than exposing
+ * anchors or fetching historical/latest pages from the scroll owner. */
+export function setHistoryWindowReturn(
+  history: HTMLElement,
+  latest: (() => void) | undefined,
+): void {
+  const state = historyState(history);
+  if (latest) state.returnToLatest = latest;
+  else delete state.returnToLatest;
+  updateShortcut(history, state);
 }
-function arrivalButton(
+function updateShortcut(history: HTMLElement, state: HistoryState): void {
+  if (!visible(history) || (atBottom(history) && !state.returnToLatest)) {
+    if (visible(history)) clearArrivals(state);
+    else if (state.button) state.button.hidden = true;
+    return;
+  }
+  const button = (state.button ??= shortcutButton(history, state));
+  paintShortcut(button, state.arrivals);
+}
+function paintShortcut(button: HTMLButtonElement, arrivals: number): void {
+  const count = arrivals
+    ? t(arrivals === 1 ? '{0} new message' : '{0} new messages', [arrivals])
+    : '';
+  if (button.textContent !== count) button.textContent = count;
+  const label = count ? `${button.title} · ${count}` : button.title;
+  if (button.getAttribute('aria-label') !== label)
+    button.setAttribute('aria-label', label);
+  if (button.hidden) button.hidden = false;
+}
+function shortcutButton(
   history: HTMLElement,
   state: HistoryState,
 ): HTMLButtonElement {
@@ -225,18 +259,22 @@ function arrivalButton(
   button.className = 'chat-new-messages';
   button.title = t('Return to latest messages');
   button.setAttribute('aria-live', 'polite');
+  // Pointer activation must not blur the draft and dismiss the phone keyboard.
+  // Keyboard activation still moves focus to the history after the jump.
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button === 0) event.preventDefault();
+  });
   button.addEventListener('click', (event) => {
-    history.scrollTop = history.scrollHeight;
-    clearArrivals(state);
+    if (state.returnToLatest) {
+      resetHistoryPosition(history);
+      state.returnToLatest();
+    } else {
+      history.scrollTop = history.scrollHeight;
+      state.position = capture(history);
+      clearArrivals(state);
+    }
     if (event.detail === 0) history.focus({ preventScroll: true });
   });
-  history.addEventListener(
-    'scroll',
-    () => {
-      if (visible(history) && atBottom(history)) clearArrivals(state);
-    },
-    { passive: true },
-  );
   history.after(button);
   return button;
 }
