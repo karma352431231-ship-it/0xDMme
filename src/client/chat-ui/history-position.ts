@@ -261,7 +261,7 @@ function shortcutButton(
   button.setAttribute('aria-live', 'polite');
   // Pointer activation must not blur the draft and dismiss the phone keyboard.
   // Keyboard activation still moves focus to the history after the jump.
-  button.addEventListener('pointerdown', (event) => {
+  button.addEventListener('mousedown', (event) => {
     if (event.button === 0) event.preventDefault();
   });
   button.addEventListener('click', (event) => {
