@@ -1,4 +1,7 @@
-import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
+import {
+  chatSyncActive,
+  traceSendChecks,
+} from '../chat-sync-diagnostics/index.ts';
 import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
@@ -16,6 +19,7 @@ import { dmBubble } from './dm-chat.ts';
 import type { DmView } from './dm-chat.ts';
 import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
 import { renderViewOnce } from '../view-once-ui/index.ts';
+import { observeDmRows } from './dm-delivery.ts';
 
 export type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
 export type DmItem = DmPage['items'][number];
@@ -79,6 +83,8 @@ export class DmHistory {
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): void {
+    const previous =
+      !input.localMedia && chatSyncActive() ? new Set(this.rows.keys()) : null;
     watchHistoryPosition(current.history, this.abort.signal);
     const restore = historyPosition(
       current.history,
@@ -122,6 +128,14 @@ export class DmHistory {
     current.history.hidden = false;
     if (!input.localMedia) traceSendChecks(current.history);
     restore();
+    if (previous)
+      observeDmRows({
+        history: current.history,
+        messages: page.items,
+        row: (id) => this.rows.get(id)?.row,
+        signal: this.abort.signal,
+        previous,
+      });
   }
   private pending(
     page: DmPage,

@@ -13,6 +13,7 @@ export const loadKinds = [
   'directory-startup',
   'conversation-previews',
   'history',
+  'handle-history',
   'text',
   'image',
   'video',

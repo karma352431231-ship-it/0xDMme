@@ -1,4 +1,5 @@
 import { OutgoingTexts, TextSendQueue } from '../text-send/index.ts';
+import { traceHandleDelivery } from '../chat-sync-diagnostics/index.ts';
 import type { OutgoingText, TextDraft } from '../text-send/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
 import {
@@ -81,7 +82,9 @@ export class DmTextSending {
     });
   }
   enqueue(peer: string, text: string): void {
-    this.queue.enqueue({ id: crypto.randomUUID(), peer, text });
+    const id = crypto.randomUUID();
+    this.queue.enqueue({ id, peer, text });
+    traceHandleDelivery(id, 'submit');
   }
   private async save(draft: TextDraft): Promise<void> {
     const generation = this.generation;

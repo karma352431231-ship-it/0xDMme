@@ -55,7 +55,11 @@ interface SendSummary {
     peakInFlight: number;
   };
 }
-const partOperations = new Set(['attachment-part', 'view-once-part']);
+const partOperations = new Set([
+  'attachment-part',
+  'view-once-part',
+  'dm-attachment-part',
+]);
 const pointFields = {
   submit: 'submitMs',
   accepted: 'acceptedMs',
@@ -68,6 +72,8 @@ const sendOperations = new Set([
   ...partOperations,
   'attachment-reserve',
   'attachment-finish',
+  'dm-attachment-reserve',
+  'dm-attachment-finish',
   'view-once-create',
   'publish',
   'dm-publish',
@@ -90,6 +96,7 @@ export class ComparisonSends {
   private overflow = 0;
   private requestOverflow = 0;
   private internal = false;
+  private handleTimings = false;
   private prepare(event: TraceEvent): void {
     if (!this.pending || this.pending.composer !== event['composer'])
       this.pending = newSummary(event.ms);
@@ -152,8 +159,10 @@ export class ComparisonSends {
   }
   observe(event: TraceEvent): void {
     this.automatic(event);
-    if (event.kind === 'reuse-coverage')
+    if (event.kind === 'reuse-coverage') {
       this.internal = event['sendTimings'] === true;
+      this.handleTimings = event['handleTimings'] === true;
+    }
     if (event.kind === 'reuse-send') this.stage(event);
     if (event.kind === 'request-start') this.startRequest(event);
     this.finishRequest(event);
@@ -300,7 +309,10 @@ export class ComparisonSends {
       checkMeaning:
         'accepted-own-check-in-visible-DOM; not-physical-paint-or-recipient-receipt',
       sends: this.sends.map((send) => {
-        const missing = missingStages(send);
+        const missing = missingStages(
+          send,
+          this.handleTimings && send.scope === 'handle',
+        );
         return {
           ...send,
           fileSlots: [...send.fileSlots],
@@ -338,15 +350,15 @@ export class ComparisonSends {
 function difference(end: number | null, start: number | null): number | null {
   return end === null || start === null ? null : end - start;
 }
-function missingStages(send: SendSummary): string[] {
+function missingStages(
+  send: SendSummary,
+  hasAutomaticMarker: boolean,
+): string[] {
   const missing = [];
-  for (const key of [
-    'submitMs',
-    'acceptedMs',
-    'checkRenderMs',
-    'manualMarkerMs',
-  ] as const)
+  for (const key of ['submitMs', 'acceptedMs', 'checkRenderMs'] as const)
     if (send[key] === null) missing.push(key);
+  if (send.manualMarkerMs === null && !hasAutomaticMarker)
+    missing.push('manualMarkerMs');
   if (send.mediaKind !== 'text' && send.upload.completedParts === 0)
     missing.push('upload');
   if (send.upload.inFlight) missing.push('in-flight-parts');

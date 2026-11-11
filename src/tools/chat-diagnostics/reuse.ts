@@ -8,12 +8,17 @@ import type { RecordEvent } from './recording.ts';
 /** New app builds acknowledge internal coverage; old builds remain explicit. */
 export function observeReuseDecisions(
   record: RecordEvent,
-  coverage?: (available: boolean, sendTimings: boolean) => void,
+  coverage?: (
+    available: boolean,
+    sendTimings: boolean,
+    handleTimings: boolean,
+  ) => void,
 ): () => void {
   const abort = new AbortController();
   let early = false;
   let ready = false,
-    sendTimings = false;
+    sendTimings = false,
+    handleTimings = false;
   window.addEventListener(
     chatSyncEvent,
     (event) => {
@@ -23,6 +28,7 @@ export function observeReuseDecisions(
       if (trace.event === 'ready') {
         ready = true;
         early = trace.earlyTimings === true;
+        handleTimings = trace.handleTimings === true;
       }
       if (trace.event === 'ready') sendTimings = trace.sendTimings === true;
       const { event: kind, ...data } = trace;
@@ -42,13 +48,14 @@ export function observeReuseDecisions(
   record('reuse-coverage', {
     available: ready,
     sendTimings,
+    handleTimings,
     version: 1,
     history: early
       ? 'diagnostic-launch-and-current-document'
       : 'since-installation-only',
     conversationSlots: 'stable-within-capture-up-to-128-recent-contacts',
   });
-  coverage?.(ready, sendTimings);
+  coverage?.(ready, sendTimings, handleTimings);
   return () => {
     abort.abort();
     window.dispatchEvent(new CustomEvent(chatSyncControl, { detail: 'stop' }));

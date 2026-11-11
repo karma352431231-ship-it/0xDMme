@@ -1,3 +1,4 @@
+import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import { ApiResponseError } from '../api-response/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -34,27 +35,40 @@ export async function transmitSocialText(
     }))
   )
     return;
-  const peer = await sendPeer(context, input.peer);
+  const peer = await measureSend(
+    'recipient-verify',
+    () => sendPeer(context, input.peer),
+    input.id,
+  );
   if (
     !packet ||
     packet.senderDirectory !== authority.directory ||
     packet.recipientRevision !== peer.directory.events.length
   ) {
     const own = await ensureMessageRecovery(authority, api);
-    packet = await machine.encrypt({
-      authority,
-      peerHistory: peer.directory.events,
-      recovery: [own, peer.recovery],
-      id: input.id,
-      text: input.text,
-      ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
-      ...(input.relation ? { relation: input.relation } : {}),
-    });
-    await input.preserve(packet);
+    packet = await measureSend(
+      'message-encrypt',
+      () =>
+        machine.encrypt({
+          authority,
+          peerHistory: peer.directory.events,
+          recovery: [own, peer.recovery],
+          id: input.id,
+          text: input.text,
+          ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
+          ...(input.relation ? { relation: input.relation } : {}),
+        }),
+      input.id,
+    );
+    await measureSend('packet-save', () => input.preserve(packet!), input.id);
   }
   await input.beforePublish?.();
   try {
-    await api('publish', { packet });
+    await measureSend(
+      'server-publish',
+      () => api('publish', { packet }),
+      input.id,
+    );
   } catch (error: unknown) {
     await retryChangedRecipient(context, { ...input, packet }, error);
   }
@@ -74,7 +88,11 @@ async function retryChangedRecipient(
   )
     throw error;
   context.sendPeers.delete(input.peer);
-  const peer = await sendPeer(context, input.peer);
+  const peer = await measureSend(
+    'recipient-verify',
+    () => sendPeer(context, input.peer),
+    input.id,
+  );
   if (peer.directory.events.length === input.packet.recipientRevision)
     throw error;
   const packet = await context.machine.encrypt({
@@ -90,7 +108,11 @@ async function retryChangedRecipient(
     ...(input.relation ? { relation: input.relation } : {}),
   });
   await input.preserve(packet);
-  await context.api('publish', { packet });
+  await measureSend(
+    'server-publish',
+    () => context.api('publish', { packet }),
+    input.id,
+  );
 }
 
 /** One authenticated burst pins each peer once; publication still checks the

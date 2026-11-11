@@ -4,6 +4,8 @@ import { copyLoadDiagnostic } from './load.ts';
 import type { LoadDiagnosticFields } from './load.ts';
 import type { SendDiagnosticFields } from './send.ts';
 import type { WorkDiagnosticFields } from './work.ts';
+import { copyHandleDiagnostic } from './handle.ts';
+import type { HandleDiagnosticFields } from './handle.ts';
 export const chatSyncControl = '0xdmme-chat-sync-diagnostic-control';
 export const chatSyncEvent = '0xdmme-chat-sync-diagnostic-event';
 export const chatSyncEvents = [
@@ -21,6 +23,8 @@ export const chatSyncEvents = [
   'work',
   'group-send',
   'group-receive',
+  'handle-delivery',
+  'handle-refresh',
   'send',
   'load',
   'native-request',
@@ -46,6 +50,10 @@ export const chatSyncReasons = [
   'probe-failed',
   'live-disconnected',
   'live-hint',
+  'fallback-poll',
+  'refresh-start',
+  'refresh-wait',
+  'continuation',
   'confirmed',
   'eligible',
   'missing',
@@ -77,7 +85,11 @@ const failures = [
   'failed',
 ] as const;
 export interface ChatSyncDecision
-  extends WorkDiagnosticFields, SendDiagnosticFields, LoadDiagnosticFields {
+  extends
+    WorkDiagnosticFields,
+    SendDiagnosticFields,
+    LoadDiagnosticFields,
+    HandleDiagnosticFields {
   event: (typeof chatSyncEvents)[number];
   reason: ChatSyncReason;
   windows?: number;
@@ -132,6 +144,7 @@ export function readChatSyncTrace(value: unknown): ChatSyncTrace | null {
   copyWorkDiagnostic(input, result);
   copySendDiagnostic(input, result);
   copyLoadDiagnostic(input, result);
+  copyHandleDiagnostic(input, result);
   if (failures.some((failure) => failure === input['failure']))
     result['failure'] = input['failure'];
   if (Array.isArray(input['callers']))

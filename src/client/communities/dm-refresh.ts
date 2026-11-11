@@ -6,6 +6,11 @@ import {
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { DmContinuations } from './dm-continuation.ts';
 import { bindDmLifecycle } from './dm-lifecycle.ts';
+import {
+  chatSyncActive,
+  traceChatSync,
+} from '../chat-sync-diagnostics/index.ts';
+import type { ChatSyncReason } from '../../shared/chat-sync-diagnostics/index.ts';
 
 interface RefreshOptions {
   access: VaultAccess;
@@ -33,6 +38,7 @@ export class DmRefresh {
   private streamCurrent = false;
   private fallback: ReturnType<typeof setInterval> | null = null;
   private stopLifecycle: (() => void) | null = null;
+  private lastWait = '';
   constructor(options: RefreshOptions) {
     this.options = options;
     this.live = new LiveMessages({
@@ -55,15 +61,15 @@ export class DmRefresh {
           ].includes(event)
         )
           options.invalidate();
-        this.refreshes.request(
-          signal === 'handle-receipts' ? 'probe' : 'refresh',
-        );
+        if (signal === 'handle-receipts') this.refreshes.request('probe');
+        else if (signal === 'handle-messages') this.requestRead('live-hint');
+        else this.refreshes.request();
       },
       changed: () => {
         const current = this.live.current;
         if (this.streamCurrent && !current) {
           options.invalidate();
-          this.refreshes.request();
+          this.requestRead('live-disconnected');
         }
         this.streamCurrent = current;
         this.refreshes.resume();
@@ -72,12 +78,20 @@ export class DmRefresh {
     this.continuations = new DmContinuations({
       available: () =>
         options.state().signedIn && this.available() && navigator.onLine,
-      run: options.reload,
+      run: () => {
+        this.traceRead('continuation');
+        options.reload();
+      },
     });
     this.refreshes = new LiveUpdates({
       available: () => this.available(),
-      run: (update) =>
-        update === 'probe' ? options.receipts() : options.reload(),
+      run: (update) => {
+        if (update === 'probe') options.receipts();
+        else {
+          this.traceRead('refresh-start');
+          options.reload();
+        }
+      },
     });
   }
   get current(): boolean {
@@ -124,7 +138,7 @@ export class DmRefresh {
         document.visibilityState !== 'visible'
       )
         return;
-      this.refreshes.request();
+      this.requestRead('fallback-poll');
     }, 30000);
   }
   private closeIdleDirectory(): boolean {
@@ -151,16 +165,39 @@ export class DmRefresh {
     this.continuations.request();
   }
   requestContent(): void {
+    this.requestRead('live-hint');
+  }
+  private requestRead(reason: ChatSyncReason): void {
+    this.lastWait = '';
+    this.traceRead(reason);
     this.refreshes.request();
+  }
+  private traceRead(reason: ChatSyncReason): void {
+    if (!chatSyncActive()) return;
+    const state = this.options.state();
+    const fields = {
+      connected: this.live.connected,
+      busy: state.busy,
+      handleVisible: document.visibilityState === 'visible',
+      handleComposing: state.composing,
+      handleConnecting: this.live.connecting,
+    };
+    if (reason === 'refresh-wait') {
+      const key = JSON.stringify(fields);
+      if (key === this.lastWait) return;
+      this.lastWait = key;
+    }
+    traceChatSync(this, null, { event: 'handle-refresh', reason, ...fields });
   }
   clearContinuation(): void {
     this.continuations.clear();
   }
   resume(): void {
-    this.refreshes.resume();
+    this.resumeRefresh();
     this.continuations.resume();
   }
   resumeRefresh(): void {
+    if (this.refreshes.waiting) this.traceRead('refresh-wait');
     this.refreshes.resume();
   }
   clear(): void {

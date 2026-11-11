@@ -1,6 +1,7 @@
 import { ComparisonSends } from './sends.ts';
 import { ComparisonLoads } from './loads.ts';
 import { NativeRequestSummaries } from './native-requests.ts';
+import { ComparisonHandleDelivery } from './handle-delivery.ts';
 import type { TraceEvent, RecordEvent } from './events.ts';
 export type { TraceEvent, RecordEvent } from './events.ts';
 
@@ -14,6 +15,7 @@ export class Recording {
   private readonly sends = new ComparisonSends();
   private readonly loads = new ComparisonLoads();
   private readonly nativeRequests = new NativeRequestSummaries();
+  private readonly handles = new ComparisonHandleDelivery();
   readonly record: RecordEvent = (kind, data = {}) => {
     if (this.ended !== null) return;
     if (this.events.length === 1500) {
@@ -26,6 +28,7 @@ export class Recording {
     this.sends.observe(event);
     this.loads.observe(event);
     this.nativeRequests.observe(event);
+    this.handles.observe(event);
     this.events.push(event);
   };
   elapsed(): number {
@@ -40,6 +43,7 @@ export class Recording {
       schema: 2,
       active: this.ended === null,
       elapsedMs: this.elapsed(),
+      startedAtUnixMs: Math.round(performance.timeOrigin + this.started),
       droppedEvents: this.dropped,
       limits: { events: 1500, durationMs: 600_000 },
       coverage: {
@@ -60,6 +64,7 @@ export class Recording {
       comparison: this.sends.report(),
       loading: this.loads.report(),
       nativeRequests: this.nativeRequests.report(),
+      handleDelivery: this.handles.report(),
     };
   }
 }

@@ -1,4 +1,8 @@
-import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
+import {
+  traceSend,
+  measureSend,
+  traceHandleDelivery,
+} from '../chat-sync-diagnostics/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { socialPacket } from '../../shared/social-dm/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
@@ -92,6 +96,7 @@ export class SocialTextOutbox {
   }
   async queueText(input: TextDraft): Promise<void> {
     traceSend('submit', input.id);
+    traceHandleDelivery(input.id, 'submit');
     if (
       !input.text.trim() ||
       new TextEncoder().encode(input.text).length > 3_000_000
@@ -104,11 +109,19 @@ export class SocialTextOutbox {
       const value: TextEntry = {
         id: input.id,
         peer: input.peer,
-        draft: await sealLocal(a, input.id, input.text),
+        draft: await measureSend(
+          'draft-seal',
+          () => sealLocal(a, input.id, input.text),
+          input.id,
+        ),
         packet: null,
         createdAt: input.createdAt ?? Date.now(),
       };
-      await this.enqueue(a, value, generation);
+      await measureSend(
+        'draft-save',
+        () => this.enqueue(a, value, generation),
+        input.id,
+      );
     });
   }
   async queueViewOnce(
@@ -329,7 +342,12 @@ export class SocialTextOutbox {
           );
           text = descriptor.text;
           reference = descriptor.reference;
-        } else text = await this.text(context.privateAuthority, value);
+        } else
+          text = await measureSend(
+            'draft-open',
+            () => this.text(context.privateAuthority, value),
+            value.id,
+          );
         await transmitSocialText(context, {
           id: value.id,
           peer: value.peer,
@@ -354,6 +372,7 @@ export class SocialTextOutbox {
         });
         this.lifetime.guard(generation);
         traceSend('accepted', value.id);
+        traceHandleDelivery(value.id, 'accepted');
         options.published?.({ id: value.id, peer: value.peer });
         await removeOutbox(scope, name);
         this.lifetime.guard(generation);

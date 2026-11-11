@@ -51,6 +51,12 @@ import { DmHistoryDepth } from './dm-window.ts';
 import { DmRefresh } from './dm-refresh.ts';
 import { DmSending } from './dm-sending.ts';
 import { DmTextSending } from './dm-text-sending.ts';
+import {
+  startLoad,
+  timedLoad,
+  timedLoadSync,
+} from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DmPage, DmItem } from './dm-history.ts';
 
@@ -335,7 +341,17 @@ export function startSocialDmUi(
   }
   async function reload(): Promise<void> {
     if (peer && container) {
-      await conversation({ refreshDirectory: publicDirectory.available });
+      const trace = startLoad('handle-history', peer);
+      try {
+        await conversation({
+          refreshDirectory: publicDirectory.available,
+          trace,
+        });
+        trace?.point('cancelled', { loadOutcome: 'cancelled' });
+      } catch (error: unknown) {
+        trace?.point('failed', { loadOutcome: 'failed' });
+        throw error;
+      }
       return;
     }
     unread.request();
@@ -499,17 +515,19 @@ export function startSocialDmUi(
     };
   }
   async function conversation(
-    input: { refreshDirectory?: boolean } = {},
+    input: { refreshDirectory?: boolean; trace?: LoadTrace | undefined } = {},
   ): Promise<void> {
     const selected = peer;
     if (!selected || !container) return;
     const old = generation,
       expected = verification,
       work = dmConversationWork(),
-      data = await loadConversation(
-        selected,
-        () => old === generation && expected === verification,
-        work,
+      data = await timedLoad(input.trace, 'permissions', () =>
+        loadConversation(
+          selected,
+          () => old === generation && expected === verification,
+          work,
+        ),
       );
     if (!currentVerification(old, expected) || !container) return;
     const current = frame(selected);
@@ -519,6 +537,7 @@ export function startSocialDmUi(
     const page = await messages(current, selected, old, {
       cached: data.page,
       work,
+      trace: input.trace,
     });
     if (!page || !currentVerification(old, expected)) return;
     projections.remember(
@@ -602,24 +621,36 @@ export function startSocialDmUi(
     current: DmView,
     selected: string,
     old: number,
-    input: { cached: DmPage | null; work: VaultWorkOptions },
+    input: {
+      cached: DmPage | null;
+      work: VaultWorkOptions;
+      trace?: LoadTrace | undefined;
+    },
   ): Promise<DmPage | undefined> {
     const expected = verification,
       canWrite = writable;
-    const page = await depth.window(
-      selected,
-      input.cached ??
-        (canWrite
-          ? await controller.read(selected, null, input.work)
-          : await controller.cached(selected, null, input.work)),
-      (before) => controller.cached(selected, before, input.work),
+    const page = await timedLoad(input.trace, 'verified', async () =>
+      depth.window(
+        selected,
+        input.cached ??
+          (canWrite
+            ? await controller.read(selected, null, input.work)
+            : await controller.cached(selected, null, input.work)),
+        (before) => controller.cached(selected, before, input.work),
+      ),
     );
     if (old !== generation || expected !== verification) return;
     displayedPage = page;
     texts.observed(page.items);
-    history.render(current, page, {
-      selected,
-      localMedia: !canWrite,
+    timedLoadSync(input.trace, 'dom', () =>
+      history.render(current, page, {
+        selected,
+        localMedia: !canWrite,
+      }),
+    );
+    input.trace?.point('complete', {
+      loadRows: page.items.length,
+      loadOutcome: 'complete',
     });
     depth.check();
     composer.update(composerState());

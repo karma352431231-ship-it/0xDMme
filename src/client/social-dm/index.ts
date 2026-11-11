@@ -1,6 +1,16 @@
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
-import { timedLoad } from '../chat-sync-diagnostics/index.ts';
-import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import {
+  timedLoad,
+  chatSyncActive,
+  measureSend,
+  traceSend,
+  traceHandleDelivery,
+} from '../chat-sync-diagnostics/index.ts';
+import type {
+  HandleDeliveryPoint,
+  LoadTrace,
+} from '../chat-sync-diagnostics/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { SocialTextOutbox } from './text-outbox.ts';
 import { decryptViewOnce } from '../view-once/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
@@ -483,17 +493,24 @@ export class SocialDms {
     return this.identityTurn(async (context) => {
       const { authority, api } = context;
       this.close();
-      const machine = await openMessageMachine(
-        authority,
-        (op, data) => api(op, data),
-        this.audiences,
+      const machine = await measureDmWork(this, 'dm/engine-open', () =>
+        openMessageMachine(
+          authority,
+          (op, data) => api(op, data),
+          this.audiences,
+        ),
       );
       try {
         this.guard(generation);
         this.machine = machine;
-        await ensureMessageRecovery(authority, api);
-        await machine.prepare(authority);
-        if (receiveInbox) await receiveSocialInbox(api, machine);
+        await measureDmWork(this, 'dm/engine-prepare', async () => {
+          await ensureMessageRecovery(authority, api);
+          await machine.prepare(authority);
+        });
+        if (receiveInbox)
+          await measureDmWork(this, 'dm/inbox', () =>
+            receiveSocialInbox(api, machine),
+          );
         return await work({
           ...context,
           machine,
@@ -515,15 +532,23 @@ export class SocialDms {
   ): Promise<T> {
     const generation = this.generation;
     this.guard(generation);
-    await prepareMessageRuntime();
+    await measureDmWork(this, 'dm/runtime', prepareMessageRuntime);
     this.guard(generation);
-    const prepared = await this.prepareSecret(generation, options);
+    const prepared = await measureDmWork(this, 'dm/identity-secret', () =>
+      this.prepareSecret(generation, options),
+    );
+    const queuedAt = chatSyncActive() ? performance.now() : undefined;
     return this.access.withVault(
       false,
       (privateAuthority) =>
         exclusive(`dm:${prepared.profile}`, async () => {
           const api = this.privateApi(privateAuthority, generation);
-          const current = await readSocialDirectory(api, null);
+          const current = await measureDmWork(
+            this,
+            'dm/own-directory',
+            () => readSocialDirectory(api, null),
+            queuedAt,
+          );
           if (current.profile !== prepared.profile) {
             this.secretReady = null;
             this.audiences.clear();
@@ -603,11 +628,14 @@ export class SocialDms {
           throw new Error(
             'A send is pending with different text. Resume the original text before sending a change.',
           );
+        const packet = held ? socialPacket(held['packet']) : null;
+        const message = packet?.id ?? id;
+        markHandleSend(message, 'submit', relation);
         await transmitSocialText(context, {
-          id: held ? socialPacket(held['packet']).id : id,
+          id: message,
           peer,
           text,
-          packet: held ? socialPacket(held['packet']) : null,
+          packet,
           ...(relation ? { relation } : {}),
           preserve: async (packet) => {
             const row = await sealLocal(
@@ -618,6 +646,7 @@ export class SocialDms {
             await localPut(scope, name, row, row.bytes.length + 512);
           },
         });
+        markHandleSend(message, 'accepted', relation);
         await localDelete(scope, name);
       },
       { priority: 'interactive' },
@@ -738,6 +767,7 @@ export class SocialDms {
             : packet.sender,
         );
         if (!peer) throw new Error('Historical public DM profile missing.');
+        traceIncomingHandle(context, packet, 'downloaded');
         const record = await this.decode(context, {
           packet,
           hash: String(item['hash']),
@@ -745,7 +775,9 @@ export class SocialDms {
           peer,
           recovery: raw['recovery'],
         });
+        traceIncomingHandle(context, packet, 'verified');
         await cacheDmRecord(context.privateAuthority, record);
+        traceIncomingHandle(context, packet, 'stored');
         result.push(record);
       }
       if (result.length)
@@ -812,11 +844,13 @@ export class SocialDms {
       (await context.api('recovery-key', { id: archive.keyId }));
     const key = await openRecoveryKey(raw, context.authority);
     try {
+      traceIncomingHandle(context, packet, 'decrypt-start');
       const content = await context.machine.decryptContent({
         packet,
         senderEvent: event,
         exported: openRoomKey(key, archive),
       });
+      traceIncomingHandle(context, packet, 'decrypted');
       const text = content.text;
       if (packet.socialMedia)
         socialAttachment(JSON.parse(text) as unknown, packet.socialMedia);
@@ -979,8 +1013,12 @@ export class SocialDms {
     before: number | null,
     options: VaultWorkOptions = {},
   ) {
-    await this.synchronizeHistory(options);
-    return this.cached(peer, before, options);
+    await measureDmWork(this, 'dm/history-sync', () =>
+      this.synchronizeHistory(options),
+    );
+    return measureDmWork(this, 'dm/history-cache', () =>
+      this.cached(peer, before, options),
+    );
   }
   async receive(): Promise<void> {
     await this.synchronizeHistory();
@@ -1153,6 +1191,7 @@ export class SocialDms {
     await this.access.withVault(false, async (a) => {
       const scope = dmMediaScope(a.session.accountId),
         id = crypto.randomUUID();
+      markHandleSend(id, 'submit');
       if (
         await localGet(
           `${a.session.accountId}:${a.session.deviceId}`,
@@ -1164,12 +1203,17 @@ export class SocialDms {
         );
       await localPut(scope, `outbox:${id}`, { pending: true }, 512);
       try {
-        const content = await stageAttachment({
-          account: scope,
+        const content = await measureSend(
+          'attachment-stage',
+          () =>
+            stageAttachment({
+              account: scope,
+              id,
+              selection,
+              caption,
+            }),
           id,
-          selection,
-          caption,
-        });
+        );
         socialAttachment(content, media);
         checkSocialBytes(content, media, selection.bytes);
         this.guard(generation);
@@ -1210,28 +1254,39 @@ export class SocialDms {
           id = uuid(draft['id']),
           text = String(draft['text']),
           content = socialAttachment(JSON.parse(text) as unknown, media);
+        markHandleSend(id, 'submit');
         let packet =
           draft['packet'] === undefined ? null : socialPacket(draft['packet']);
         if (
           packet &&
           (await api('accepted', { id, hash: await digest(canonical(packet)) }))
         ) {
+          markHandleSend(id, 'accepted');
           await localDelete(scope, `dm-media-draft:${peer}`);
           await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
           return;
         }
-        await uploadAttachments({
-          account: dmMediaScope(a.session.accountId),
-          message: id,
-          peer,
-          content,
-          api: (op, data) =>
-            api(op, {
-              ...data,
-              ...(op === 'attachment-reserve' ? { media } : {}),
+        await measureSend(
+          'upload',
+          () =>
+            uploadAttachments({
+              account: dmMediaScope(a.session.accountId),
+              message: id,
+              peer,
+              content,
+              api: (op, data) =>
+                api(op, {
+                  ...data,
+                  ...(op === 'attachment-reserve' ? { media } : {}),
+                }),
             }),
-        });
-        const recipient = await readSocialDirectory(api, peer);
+          id,
+        );
+        const recipient = await measureSend(
+          'recipient-verify',
+          () => readSocialDirectory(api, peer),
+          id,
+        );
         if (
           !packet ||
           packet.senderRevision !== authority.events.length ||
@@ -1262,7 +1317,12 @@ export class SocialDms {
             held.bytes.length + 512,
           );
         }
-        await api('publish', { packet });
+        await measureSend(
+          'server-publish',
+          () => api('publish', { packet }),
+          id,
+        );
+        markHandleSend(id, 'accepted');
         await localDelete(scope, `dm-media-draft:${peer}`);
         await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
       },
@@ -1411,4 +1471,37 @@ async function receiveSocialInbox(
         socialRevision(rows[index]?.['sequence']),
       ),
     });
+}
+
+function traceIncomingHandle(
+  context: SocialContext,
+  packet: ReturnType<typeof socialPacket>,
+  stage: HandleDeliveryPoint,
+): void {
+  if (
+    !packet.relation &&
+    packet.recipient === context.authority.session.accountId
+  )
+    traceHandleDelivery(packet.id, stage);
+}
+
+function markHandleSend(
+  id: string,
+  stage: 'submit' | 'accepted',
+  relation?: MessageRelation,
+): void {
+  if (relation) return;
+  traceSend(stage, id);
+  traceHandleDelivery(id, stage);
+}
+
+function measureDmWork<T>(
+  owner: SocialDms,
+  operation: string,
+  work: () => Promise<T>,
+  queuedAt?: number,
+): Promise<T> {
+  return chatSyncActive()
+    ? measureWork(owner, operation, work, queuedAt)
+    : work();
 }

@@ -6,6 +6,8 @@ import { observePage, observeLag } from './page.ts';
 import { observeSubmissions } from './submissions.ts';
 import { observeSyncTriggers } from './triggers.ts';
 import { observeReuseDecisions } from './reuse.ts';
+import { chatSyncControl } from '../../shared/chat-sync-diagnostics/index.ts';
+import { handlePairCode } from '../../shared/chat-sync-diagnostics/handle.ts';
 
 interface DiagnosticWindow extends Window {
   __0xdmmeLag?: ReturnType<typeof start>;
@@ -33,6 +35,24 @@ function start() {
   panel.append(label, marker, done);
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let handleTimings = false;
+  let pairSent = false;
+
+  function pair(code = crypto.randomUUID().replaceAll('-', '')): string {
+    if (stopped || !handleTimings)
+      throw new Error(
+        'Public delivery timings require the updated app and an active capture.',
+      );
+    if (pairSent || !handlePairCode(code))
+      throw new Error(
+        'Use one pairing code per capture. The code must have 32 lowercase hex characters.',
+      );
+    pairSent = true;
+    window.dispatchEvent(
+      new CustomEvent(chatSyncControl, { detail: { handlePair: code } }),
+    );
+    return code;
+  }
 
   function stop() {
     if (!stopped) {
@@ -67,11 +87,15 @@ function start() {
     stopHooks.push(observePage(recording.record));
     stopHooks.push(observeSyncTriggers(recording.record));
     stopHooks.push(
-      observeReuseDecisions(recording.record, (available, sendTimings) => {
-        if (!available || !sendTimings)
-          label.textContent =
-            'Meter active · internal send timings unavailable on this app build';
-      }),
+      observeReuseDecisions(
+        recording.record,
+        (available, sendTimings, handles) => {
+          handleTimings = handles;
+          if (!available || !sendTimings)
+            label.textContent =
+              'Meter active · internal send timings unavailable on this app build';
+        },
+      ),
     );
     stopHooks.push(observeSubmissions(recording.record));
     stopHooks.push(observeLag(recording.record));
@@ -98,6 +122,7 @@ function start() {
     report: () => recording.report(),
     stop,
     download,
+    pair,
     mark: () => recording.record('manual-marker'),
     remove: () => {
       stop();

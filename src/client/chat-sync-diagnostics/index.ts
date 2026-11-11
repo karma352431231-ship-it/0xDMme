@@ -8,6 +8,10 @@ import { AccountError } from '../../shared/account/index.ts';
 import { diagnosticRequestCategory } from '../../shared/chat-sync-diagnostics/network.ts';
 import { createLoadTrace } from './load.ts';
 import { EarlyCapture } from './early.ts';
+import { HandleDeliveryCapture } from './handle-delivery.ts';
+import type { HandleDeliveryPoint } from './handle-delivery.ts';
+export type { HandleDeliveryPoint } from './handle-delivery.ts';
+import { readHandlePair } from '../../shared/chat-sync-diagnostics/handle.ts';
 import type { LoadTrace } from './load.ts';
 import type {
   LoadKind,
@@ -41,8 +45,12 @@ const loadOwner = {};
 let nextLoad = 0,
   nextRequest = 0;
 let early: EarlyCapture | undefined;
+let handleDelivery: HandleDeliveryCapture | undefined;
+const handleOwner = {};
 
 function stop(): void {
+  handleDelivery?.stop();
+  handleDelivery = undefined;
   early?.dispose();
   early = undefined;
   nextLoad = nextRequest = 0;
@@ -66,29 +74,41 @@ export function installChatSyncDiagnostics(host: Window): void {
   installed.add(host);
   host.addEventListener(chatSyncControl, (event) => {
     if (!(event instanceof CustomEvent)) return;
+    const pair = readHandlePair(event.detail);
+    if (pair && chatSyncActive()) handleDelivery?.pair(pair);
     if (event.detail === 'stop') stop();
-    if (event.detail !== 'start') return;
-    const replay = early;
-    early = undefined;
-    if (!replay) beginCapture();
-    publish(host, {
-      version: 1,
-      event: 'ready',
-      reason: 'capture-started',
-      source: 0,
-      conversation: 0,
-      sendTimings: true,
-      nativeTimings: true,
-      loadTimings: true,
-      earlyTimings: !!replay,
-      earlyDropped: replay?.dropped ?? 0,
-      earlyLongTasks: replay?.longTasks ?? false,
-    });
-    replay?.replay((trace) => publish(host, trace));
+    if (event.detail === 'start') announceCapture(host);
   });
+}
+function announceCapture(host: Window): void {
+  const replay = early;
+  early = undefined;
+  if (!replay) beginCapture();
+  publish(host, {
+    version: 1,
+    event: 'ready',
+    reason: 'capture-started',
+    source: 0,
+    conversation: 0,
+    sendTimings: true,
+    nativeTimings: true,
+    loadTimings: true,
+    handleTimings: true,
+    earlyTimings: !!replay,
+    earlyDropped: replay?.dropped ?? 0,
+    earlyLongTasks: replay?.longTasks ?? false,
+  });
+  replay?.replay((trace) => publish(host, trace));
 }
 function beginCapture(): void {
   stop();
+  handleDelivery = new HandleDeliveryCapture((fields) =>
+    traceChatSync(handleOwner, null, {
+      event: 'handle-delivery',
+      reason: 'settled',
+      ...fields,
+    }),
+  );
   deadline = performance.now() + 600_000;
   timer = setTimeout(stop, 600_000);
 }
@@ -166,6 +186,25 @@ export function chatSyncActive(): boolean {
     deadline !== 0 &&
     performance.now() < deadline
   );
+}
+
+/** Public delivery stages contain only an optional paired tag and local slot. */
+export function traceHandleDelivery(
+  id: string,
+  stage: HandleDeliveryPoint,
+): boolean {
+  return chatSyncActive() && (handleDelivery?.mark(id, stage) ?? false);
+}
+
+export function traceHandleFrame(): (
+  id: string,
+  stage: 'frame' | 'offscreen',
+) => void {
+  const current = handleDelivery;
+  return (id, stage) => {
+    if (current === handleDelivery && chatSyncActive())
+      current?.mark(id, stage);
+  };
 }
 
 export function startLoad(
@@ -319,8 +358,10 @@ export function traceSendChecks(history: HTMLElement): void {
     'article[data-message]',
   )) {
     const id = row.dataset['message'];
-    if (id && sends.get(id)?.accepted && row.querySelector('.message-checks'))
+    if (id && sends.get(id)?.accepted && row.querySelector('.message-checks')) {
       traceSend('check-render', id);
+      traceHandleDelivery(id, 'sender-check');
+    }
   }
 }
 

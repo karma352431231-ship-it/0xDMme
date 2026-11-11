@@ -402,3 +402,44 @@ An old build has browser-only measurements with missing internal stages.
 
 See [the latency plan](VIEW_ONCE_SEND_LATENCY_PLAN.md) for the matching baseline,
 the sequential upload constraint and the remaining measurement/release gates.
+
+## Paired public handle delivery capture
+
+Use `npm run diagnostic:chat` and paste `build/chat-lag-console.js` into the
+console in both browsers after opening the same public conversation. The app
+and the snippet both need the public delivery update. The report sets
+`handleDelivery.available` to false if the app has no internal marks.
+
+1. Keep both conversations visible at the bottom, ideally in two windows on
+   the same computer with independent test accounts.
+2. Run `__0xdmmeLag.pair()` on the sender and copy the returned code into
+   `__0xdmmeLag.pair('CODE')` on the recipient. Use a fresh code per capture.
+3. Send one short text, wait until it appears in the recipient's conversation,
+   then stop and download both reports. Capture a photo or voice message
+   separately if the delay differs for media. No manual marker is needed.
+
+Match the same `handleDelivery.messages[].tag` between reports. These are
+truncated HMACs of the message ID using the temporary code. The code, raw
+message ID, accounts and contents do not enter the report, storage or network.
+Unpaired captures still have independently numbered, bounded milestones.
+
+- Sender: compare the send action, local draft and queue timings, recipient
+  verification, encryption, upload, publication, acceptance and sender check.
+- Recipient: look for `handleDelivery.refreshes` to distinguish a live hint,
+  fallback, queue state, start and continuation. Hints are account-wide, so
+  a hint alone cannot prove that it belongs to the paired message. The
+  `handle-history` load separates the permission read, verified history and
+  DOM update. Message milestones mark a downloaded packet, the decrypt
+  interval, verification, local storage, DOM insertion and the first frame
+  opportunity in the visible conversation. `offscreen` means the row was
+  rendered outside the visible area. The frame timestamp does not measure a
+  physical screen paint or the rendering of pixels inside a media message.
+- Add each report's `startedAtUnixMs` to its relative milestone when comparing
+  the two windows. Within one report the times are monotonic. For different
+  devices, clock differences limit cross-device subtraction, so use local
+  intervals to diagnose each side or repeat on the same computer.
+
+The console retains the bounded delivery summary even if rolling detail events
+were dropped. Review the report's coverage, overflow and missing milestones
+before attributing delay. No packet, transport, retention or scheduling policy
+changes to produce these marks.
