@@ -1,3 +1,6 @@
+import { startInstalledDiagnostics } from './diagnostics.ts';
+import { timedLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { installNativeApiTransport } from '../api-transport/index.ts';
 import { NativeApiTransport } from '../native-api/index.ts';
 import { InstalledSessionChannel } from './channel.ts';
@@ -7,6 +10,8 @@ import { installProtectedDisplay } from '../view-once-ui/index.ts';
 export async function startInstalledEntry(
   load: () => Promise<unknown>,
 ): Promise<void> {
+  const entryMs = performance.now();
+  let diagnostic: LoadTrace | undefined;
   let channel: InstalledSessionChannel | undefined;
   let transport: NativeApiTransport | undefined;
   const close = async () => {
@@ -19,6 +24,7 @@ export async function startInstalledEntry(
   try {
     channel = new InstalledSessionChannel();
     await channel.ready();
+    diagnostic = startInstalledDiagnostics(channel, entryMs);
     transport = new NativeApiTransport(channel);
     installNativeApiTransport(transport);
     const viewChannel = channel;
@@ -52,8 +58,11 @@ export async function startInstalledEntry(
     window.addEventListener('pageshow', (event) => {
       if (event.persisted) location.reload();
     });
-    await load();
+    await timedLoad(diagnostic, 'modules', load);
+    const shell = document.getElementById('app-shell');
+    if (shell) diagnostic?.frame(shell, () => shell.isConnected);
   } catch {
+    diagnostic?.point('failed', { loadOutcome: 'failed' });
     await close().catch(() => channel?.close());
     const report = document.createElement('p');
     report.setAttribute('role', 'alert');

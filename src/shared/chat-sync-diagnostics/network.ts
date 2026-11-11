@@ -79,14 +79,24 @@ const calls = new Set([
   'configure',
 ]);
 const areas = new Map([
+  ['account', new Set(['session', 'profile'])],
   ['messages', new Set([...operations, ...dmOperations])],
   ['calls', calls],
-  ['devices', new Set(['read'])],
+  ['devices', new Set(['read', 'status'])],
+  ['contacts', new Set(['state', 'list', 'snapshot', 'directory'])],
+  ['vault', new Set(['index', 'object', 'heads', 'changes', 'read'])],
 ]);
 
 /** Fixed categories only. Dynamic paths, query values and origins never escape. */
 export function diagnosticRequestCategory(path: string): string {
   const parts = path.split('?')[0]!.split('/');
+  if (
+    parts.length === 4 &&
+    parts[1] === 'api' &&
+    parts[2] === 'account' &&
+    ['session', 'profile'].includes(parts[3]!)
+  )
+    return 'account/' + parts[3]!;
   if (parts.length !== 5 || parts[1] !== 'api' || parts[2] !== 'account')
     return 'other-api';
   const area = parts[3]!,

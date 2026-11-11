@@ -1,3 +1,5 @@
+import { measuredLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { PrivacyControls, privacyChoices } from './privacy-controls.ts';
 import { accountSession, profileEnvelope } from '../../shared/account/index.ts';
@@ -132,28 +134,43 @@ export class AccountPrivateProfile {
     current: AccountSession,
     walletOpening: 'login' | 'restore' = 'restore',
   ): Promise<void> {
+    return measuredLoad('private-profile', (trace) =>
+      this.loadProfile(current, walletOpening, trace),
+    );
+  }
+  private async loadProfile(
+    current: AccountSession,
+    walletOpening: 'login' | 'restore',
+    trace: LoadTrace | undefined,
+  ): Promise<void> {
     this.clear();
-    const localKey = this.options.privateKey
-      ? await this.options.privateKey(current, walletOpening)
-      : await profileKey(current.accountId, current.profileRevision === 0);
+    const localKey = await timedLoad(trace, 'keys', () =>
+      this.options.privateKey
+        ? this.options.privateKey(current, walletOpening)
+        : profileKey(current.accountId, current.profileRevision === 0),
+    );
     if (!localKey) {
+      trace?.point('complete', { loadOutcome: 'unavailable' });
       this.lockedNotice();
       return;
     }
-    const stored = await api('profile');
+    const stored = await timedLoad(trace, 'profile', () => api('profile'));
     this.updateRevision(stored, current);
     const opened =
       stored === null
         ? emptyProfile()
-        : await openProfile({
-            envelope: profileEnvelope(stored),
-            key: localKey,
-            accountId: current.accountId,
-          });
+        : await timedLoad(trace, 'decrypt', () =>
+            openProfile({
+              envelope: profileEnvelope(stored),
+              key: localKey,
+              accountId: current.accountId,
+            }),
+          );
     if (
       this.state.session?.accountId !== current.accountId ||
       this.state.disposed
     ) {
+      trace?.point('cancelled', { loadOutcome: 'cancelled' });
       opened.photo?.bytes.fill(0);
       return;
     }

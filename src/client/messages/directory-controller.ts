@@ -1,3 +1,8 @@
+import {
+  loadingPresentation,
+  timedLoad,
+} from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { Contacts } from '../contacts/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
@@ -13,6 +18,7 @@ interface DirectorySources {
 }
 /** Bounded directory pages. The agenda never grants conversation authority. */
 export class MessageDirectory {
+  private readonly loading = loadingPresentation('conversation-list');
   private values: readonly ConversationPeer[] = [];
   private generation = 0;
   private archivedAfter: string | null = null;
@@ -33,6 +39,7 @@ export class MessageDirectory {
     );
   }
   clear(): void {
+    this.loading.cancel();
     this.generation++;
     this.sources.agenda.clear();
     this.values = [];
@@ -48,29 +55,57 @@ export class MessageDirectory {
     work: VaultWorkOptions = {},
   ): Promise<void> {
     const current = this.generation;
-    await this.sources.agenda.load(more, work);
+    await this.loading.run((trace) => this.load({ more, online, work }, trace));
+    this.guard(current);
+    this.sources.changed(this.values);
+  }
+  presented(host: HTMLElement | null): void {
+    this.loading.presented(host);
+  }
+  private async load(
+    {
+      more,
+      online,
+      work,
+    }: { more: boolean; online: boolean; work: VaultWorkOptions },
+    trace: LoadTrace | undefined,
+  ): Promise<number> {
+    const current = this.generation;
+    await timedLoad(trace, 'agenda', () =>
+      this.sources.agenda.load(more, work),
+    );
     this.guard(current);
     if (!more) {
       this.archivedAfter = null;
       this.archivedMore = true;
       if (online) this.remoteMore = true;
     }
-    const page = await this.approvedPage(more, online, work);
+    const page = await timedLoad(trace, 'permissions', () =>
+      this.approvedPage(more, online, work),
+    );
     this.guard(current);
     const local = this.archivedMore
-      ? await this.sources.archivedPeers(this.archivedAfter, work)
+      ? await timedLoad(trace, 'archive', () =>
+          this.sources.archivedPeers(this.archivedAfter, work),
+        )
       : { items: [], next: null };
     this.guard(current);
     const peers = this.combine(page.items, local.items, more || !online);
-    await this.sources.agenda.prepare(peers);
+    await timedLoad(trace, 'identities', () =>
+      this.sources.agenda.prepare(peers),
+    );
     this.guard(current);
     this.archivedAfter = local.next;
     this.archivedMore = local.next !== null;
     if (online) this.remoteMore = page.next !== null;
     this.values = peers;
-    this.sources.changed(peers);
+    return peers.length;
   }
-  private approvedPage(more: boolean, online: boolean, work: VaultWorkOptions) {
+  private approvedPage(
+    more: boolean,
+    online: boolean,
+    work: VaultWorkOptions,
+  ): Promise<{ items: Peer[]; next: string | null }> {
     if (!online || !this.remoteMore)
       return Promise.resolve({ items: [], next: null });
     return this.sources.contacts.list('approved', more, work);

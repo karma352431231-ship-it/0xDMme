@@ -1,3 +1,4 @@
+import { measuredLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
 import type { DeliveryState } from '../message-status/index.ts';
 
 export interface ConversationPreview {
@@ -70,7 +71,9 @@ export class ConversationPreviewLoader {
     const generation = this.generation,
       revision = this.revision;
     try {
-      const values = await this.loadEligible(peers);
+      const values = await measuredLoad('conversation-previews', (trace) =>
+        timedLoad(trace, 'previews', () => this.loadEligible(peers)),
+      );
       if (generation !== this.generation) return;
       if (revision !== this.revision) {
         this.pending ??= peers;

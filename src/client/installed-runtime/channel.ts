@@ -1,3 +1,5 @@
+import { readNativeBootTiming } from '../../shared/chat-sync-diagnostics/boot.ts';
+import type { BootMilestone } from '../../shared/chat-sync-diagnostics/boot.ts';
 import type {
   NativeApiRequest,
   NativeSessionBridge,
@@ -104,6 +106,13 @@ export class InstalledSessionChannel implements NativeSessionBridge {
       await new Promise<void>((resolve) => setTimeout(resolve, delay));
     }
     throw unavailable();
+  }
+
+  async startupTiming(milestone: BootMilestone) {
+    if ((window as InstalledWindow).__0xdmmeNativeDiagnostics !== true) return;
+    return readNativeBootTiming(
+      await this.call('startup-timing', { milestone }, 1500),
+    );
   }
 
   open(request: NativeApiRequest): Promise<unknown> {

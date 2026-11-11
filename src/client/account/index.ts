@@ -1,3 +1,5 @@
+import { measuredLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { AccountError, accountSession } from '../../shared/account/index.ts';
@@ -271,26 +273,25 @@ export function startAccount(
     }
     core.status = t('Session ended.');
   }
-  async function restore(): Promise<void> {
-    if (approval.only) {
-      await approval.restore();
-      return;
-    }
+  function restore(): Promise<void> {
+    if (approval.only) return approval.restore();
+    return measuredLoad('account-restore', restoreAccount);
+  }
+  async function restoreAccount(trace: LoadTrace | undefined): Promise<void> {
     const current = core.epoch;
     try {
       // A 401 is an expected signed-out state; other failures must be visible.
-      const response = await fetchApi(
-        'account/session',
-        '/api/account/session',
-        {
+      const response = await timedLoad(trace, 'session', () =>
+        fetchApi('account/session', '/api/account/session', {
           credentials: 'same-origin',
           cache: 'no-store',
           redirect: 'error',
           signal: AbortSignal.timeout(8000),
-        },
+        }),
       );
       if (!restoreContextIsCurrent(current)) return;
       if (response.status === 401) {
+        trace?.point('complete', { loadOutcome: 'unavailable' });
         if (!approval.incoming) await walletReturn.refresh();
         return;
       }
@@ -303,8 +304,9 @@ export function startAccount(
       // handoff is still awaiting the original browser's explicit confirmation.
       if (options.mobileOpening) await walletReturn.refresh();
       core.status = t('Opening your account…');
-      await profile.load(restored);
+      await timedLoad(trace, 'profile', () => profile.load(restored));
     } catch (error: unknown) {
+      trace?.point('failed', { loadOutcome: 'failed' });
       core.status =
         error instanceof AccountError
           ? translatedError(error.message)

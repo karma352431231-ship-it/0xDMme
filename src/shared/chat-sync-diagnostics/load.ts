@@ -1,5 +1,12 @@
 import { diagnosticCategory } from './network.ts';
 export const loadKinds = [
+  'app-startup',
+  'account-restore',
+  'private-profile',
+  'contacts',
+  'conversation-list',
+  'directory-startup',
+  'conversation-previews',
   'history',
   'text',
   'image',
@@ -12,6 +19,20 @@ export const loadKinds = [
 ] as const;
 export type LoadKind = (typeof loadKinds)[number];
 export const loadStages = [
+  'entry',
+  'bridge-ready',
+  'modules',
+  'session',
+  'keys',
+  'profile',
+  'vault',
+  'permissions',
+  'agenda',
+  'archive',
+  'identities',
+  'runtime',
+  'pins',
+  'previews',
   'start',
   'verified',
   'dom',
@@ -30,6 +51,18 @@ export const loadStages = [
 ] as const;
 export type LoadStage = (typeof loadStages)[number];
 export interface LoadDiagnosticFields {
+  beforeCaptureMs?: number;
+  earlyTimings?: boolean;
+  earlyLongTasks?: boolean;
+  earlyDropped?: number;
+  bootMilestone?:
+    'snapshot' | 'shell-frame' | 'contacts-frame' | 'conversations-frame';
+  bootActivityMs?: number;
+  bootWebViewMs?: number;
+  bootDocumentMs?: number;
+  bootNavigationMs?: number;
+  bootAvailable?: boolean;
+  bootTaskMs?: number;
   load?: number;
   loadKind?: LoadKind;
   loadStage?: LoadStage;
@@ -54,6 +87,13 @@ export function copyLoadDiagnostic(
   output: Record<string, unknown>,
 ): void {
   for (const key of [
+    'beforeCaptureMs',
+    'earlyDropped',
+    'bootActivityMs',
+    'bootWebViewMs',
+    'bootDocumentMs',
+    'bootNavigationMs',
+    'bootTaskMs',
     'load',
     'loadMs',
     'loadStageMs',
@@ -71,6 +111,12 @@ export function copyLoadDiagnostic(
     )
       output[key] = input[key];
   copyChoice(input, output, 'loadKind', loadKinds);
+  copyChoice(input, output, 'bootMilestone', [
+    'snapshot',
+    'shell-frame',
+    'contacts-frame',
+    'conversations-frame',
+  ]);
   copyChoice(input, output, 'loadStage', loadStages);
   copyChoice(input, output, 'loadOutcome', [
     'complete',
@@ -94,7 +140,13 @@ export function copyLoadDiagnostic(
   ]);
   const category = input['nativeCategory'];
   if (diagnosticCategory(category)) output['nativeCategory'] = category;
-  for (const key of ['nativeTimings', 'loadTimings'])
+  for (const key of [
+    'nativeTimings',
+    'loadTimings',
+    'earlyTimings',
+    'earlyLongTasks',
+    'bootAvailable',
+  ])
     if (typeof input[key] === 'boolean') output[key] = input[key];
 }
 function copyChoice(

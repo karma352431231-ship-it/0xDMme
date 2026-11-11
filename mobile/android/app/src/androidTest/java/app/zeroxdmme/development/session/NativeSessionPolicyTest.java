@@ -21,6 +21,25 @@ import org.junit.Test;
 
 /** Exercises native policy and OS custody only with isolated synthetic tokens. */
 public class NativeSessionPolicyTest {
+    @Test public void startupClockAcceptsOnlyDiagnosticMilestones() throws Exception {
+        NativeStartupTiming timing = new NativeStartupTiming();
+        timing.webView();
+        timing.documentStarted();
+        timing.documentCommitted();
+        JSONObject request = new JSONObject().put("milestone", "shell-frame");
+        if (!app.zeroxdmme.development.BuildConfig.DEBUG || !app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS) {
+            assertThrows(Exception.class, () -> timing.snapshot(request));
+            return;
+        }
+        JSONObject value = timing.snapshot(request);
+        assertEquals(4, value.length());
+        assertTrue(value.getLong("activityMs") >= value.getLong("documentMs"));
+        assertTrue(value.getLong("documentMs") >= value.getLong("documentStartedMs"));
+        assertTrue(value.getLong("documentMs") >= value.getLong("webViewMs"));
+        assertThrows(Exception.class, () -> timing.snapshot(new JSONObject().put("milestone", "private-content")));
+        assertThrows(Exception.class, () -> timing.snapshot(new JSONObject().put("milestone", "snapshot").put("identity", "forbidden")));
+    }
+
     @Test public void initialRouteFragmentDoesNotReplaceTheCommittedDocument() {
         assertTrue(NativeSessionChannel.sameDocument("https://localhost/", "https://localhost/#perfil"));
         assertTrue(NativeSessionChannel.sameDocument("https://localhost/wallet.html?view=entry#one", "https://localhost/wallet.html?view=entry#two"));

@@ -1,3 +1,7 @@
+import {
+  loadingPresentation,
+  timedLoad,
+} from '../chat-sync-diagnostics/index.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -50,6 +54,7 @@ export function startContacts(
   const contacts = new Contacts(access),
     book = new AddressBook(sync),
     directory = new ContactDirectory(sync);
+  const loading = loadingPresentation('contacts');
   const discovery = new DiscoveryChoices();
   const requests = new AcceptedRequest();
   const contactSettings = new ContactSettings({
@@ -169,6 +174,7 @@ export function startContacts(
     renderBook();
     renderLists();
     renderPagination();
+    loading.presented(mounted);
     for (const root of [mounted, editor])
       root?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
         b.disabled = busy;
@@ -285,23 +291,26 @@ export function startContacts(
       });
   }
   async function refresh(): Promise<void> {
-    const deadline = Date.now() + 60_000;
-    do {
-      if (Date.now() >= deadline)
-        throw new Error('Synchronization interrupted. Try again.');
-      await sync.refresh();
-    } while (!sync.complete);
-    if (sync.pending) await sync.retry();
-    await contacts.snapshot();
-    await directory.load();
-    discovery.value = contacts.state.mode;
-    status = sync.complete
-      ? t('Contacts updated.')
-      : t(
-          'Permissions verified. Continue loading the vault index before editing contacts.',
-        );
-    if (received && node('[data-contact-invite-form]')) await inspectInvite();
-    noticeAccepted();
+    return loading.run(async (trace) => {
+      const deadline = Date.now() + 60_000;
+      do {
+        if (Date.now() >= deadline)
+          throw new Error('Synchronization interrupted. Try again.');
+        await timedLoad(trace, 'vault', () => sync.refresh());
+      } while (!sync.complete);
+      if (sync.pending) await timedLoad(trace, 'vault', () => sync.retry());
+      await timedLoad(trace, 'permissions', () => contacts.snapshot());
+      await timedLoad(trace, 'agenda', () => directory.load());
+      discovery.value = contacts.state.mode;
+      status = sync.complete
+        ? t('Contacts updated.')
+        : t(
+            'Permissions verified. Continue loading the vault index before editing contacts.',
+          );
+      if (received && node('[data-contact-invite-form]')) await inspectInvite();
+      noticeAccepted();
+      return directory.entries.length;
+    });
   }
   /** The request sent from here was accepted: say so and offer the chat. */
   function noticeAccepted(): boolean {
@@ -708,6 +717,7 @@ export function startContacts(
       });
   }
   function clear(): void {
+    loading.cancel();
     generation++;
     discovery.clear();
     contactSettings.clear();
@@ -783,8 +793,11 @@ export function startContacts(
     }
   }
   async function loadLocal(): Promise<void> {
-    await sync.openLocal();
-    await directory.load();
+    await loading.run(async (trace) => {
+      await timedLoad(trace, 'vault', () => sync.openLocal());
+      await timedLoad(trace, 'agenda', () => directory.load());
+      return directory.entries.length;
+    });
   }
   /** Action buttons and forms of one root: the page view or the editor host. */
   function bindControls(root: HTMLElement): void {

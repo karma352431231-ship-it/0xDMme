@@ -30,6 +30,7 @@ type Groups = Pick<
   'entries' | 'selected' | 'listLabel' | 'unread' | 'photo'
 >;
 interface DirectoryView {
+  presented?: (host: HTMLElement) => void;
   snapshot: () => {
     peers: readonly ConversationPeer[];
     selected: ConversationPeer | null;
@@ -309,10 +310,7 @@ export class MessageDirectoryUi {
         0,
       ),
     );
-    renderDirectory(list, sorted, {
-      menu: this.options.menu,
-      ...this.emptyState(),
-    });
+    this.renderList(list, sorted);
     this.options
       .host()
       ?.querySelectorAll<HTMLButtonElement>('[data-conversation-filter]')
@@ -327,6 +325,13 @@ export class MessageDirectoryUi {
     this.options.changed(entries.length > 0);
     this.options.searchPanel.update(entries);
     this.options.presence();
+  }
+  private renderList(list: HTMLElement, entries: ConversationEntry[]): void {
+    renderDirectory(list, entries, {
+      menu: this.options.menu,
+      ...this.emptyState(),
+    });
+    this.options.presented?.(list);
   }
   private contactLabel(peer: Peer, settingsId: string): string {
     const state = this.options.snapshot().states.get(peer.accountId),

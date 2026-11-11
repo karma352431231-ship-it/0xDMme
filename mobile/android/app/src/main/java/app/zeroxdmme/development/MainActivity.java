@@ -8,12 +8,18 @@ import android.webkit.PermissionRequest;
 import com.getcapacitor.BridgeWebChromeClient;
 
 public class MainActivity extends BridgeActivity {
+    private app.zeroxdmme.development.session.NativeStartupTiming startup;
+    @Override public void onCreate(android.os.Bundle state) {
+        startup = new app.zeroxdmme.development.session.NativeStartupTiming();
+        super.onCreate(state);
+    }
     private NativeSessionChannel session;
     private NativeMediaPermissions media;
 
     @Override protected void load() {
         WebView view = findViewById(com.getcapacitor.android.R.id.webview);
-        session = new NativeSessionChannel(view);
+        startup.webView();
+        session = new NativeSessionChannel(view, startup);
         bridgeBuilder.addWebViewListener(session);
         super.load();
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG && BuildConfig.MOBILE_DIAGNOSTICS);

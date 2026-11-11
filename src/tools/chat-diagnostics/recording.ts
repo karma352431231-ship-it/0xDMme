@@ -20,7 +20,9 @@ export class Recording {
       this.events.shift();
       this.dropped++;
     }
-    const event = { ...data, ms: this.elapsed(), kind };
+    const prior = data['beforeCaptureMs'];
+    const ms = typeof prior === 'number' ? -prior : this.elapsed();
+    const event = { ...data, ms, kind };
     this.sends.observe(event);
     this.loads.observe(event);
     this.nativeRequests.observe(event);
@@ -50,7 +52,7 @@ export class Recording {
           'anonymous-DOM-rows; replacement-may-assign-a-new-slot',
         wakeups: 'local-controls-cross-tab-device-and-service-worker-hints',
         reuse:
-          'availability-in-reuse-coverage; internal-decisions-since-installation-only; no-earlier-eviction-history',
+          'availability-in-reuse-coverage; diagnostic-launch-history-only-when-loading.startup.earlyCaptureAvailable',
         groupDelivery:
           'own-text-steps-by-per-capture-message-slot; recipient-hint-and-first-shown-rows; no-cross-tab-or-device-correlation',
       },

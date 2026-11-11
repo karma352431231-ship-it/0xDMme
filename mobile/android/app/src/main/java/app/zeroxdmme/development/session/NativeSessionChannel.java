@@ -24,6 +24,7 @@ import org.json.JSONObject;
 public final class NativeSessionChannel extends WebViewListener {
     private final WebView view;
     private final NativeSession session;
+    private final NativeStartupTiming startup;
     private final NativeViewOnce viewOnce;
     private final NativeFileExport files;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -43,10 +44,19 @@ public final class NativeSessionChannel extends WebViewListener {
     private boolean closed;
 
     public NativeSessionChannel(WebView view) {
-        this(view, NativeConnectionFactory.create(view.getContext()));
+        this(view, new NativeStartupTiming());
+    }
+
+    public NativeSessionChannel(WebView view, NativeStartupTiming startup) {
+        this(view, NativeConnectionFactory.create(view.getContext()), startup);
     }
 
     NativeSessionChannel(WebView view, NativeSession session) {
+        this(view, session, new NativeStartupTiming());
+    }
+
+    private NativeSessionChannel(WebView view, NativeSession session, NativeStartupTiming startup) {
+        this.startup = startup;
         this.view = view;
         this.session = session;
         this.viewOnce = new NativeViewOnce(view, session::protectView);
@@ -114,6 +124,7 @@ public final class NativeSessionChannel extends WebViewListener {
     private void dispatch(NativePolicy.Message message, NativeSession.Reply reply) {
         try {
             switch (message.operation) {
+                case "startup-timing": reply.value(startup.snapshot(message.request)); break;
                 case "hello":
                     if (message.request.length() != 0) throw NativePolicy.failure();
                     reply.value(session.ready());
@@ -168,6 +179,7 @@ public final class NativeSessionChannel extends WebViewListener {
     private void release(int size) { pending--; characters -= size; }
 
     @Override public void onPageStarted(WebView webView) {
+        startup.documentStarted();
         viewOnce.close();
         files.close();
         generation++;
@@ -179,6 +191,7 @@ public final class NativeSessionChannel extends WebViewListener {
 
     @Override public void onPageCommitVisible(WebView webView, String url) {
         committed = local() && sameDocument(url, view.getUrl());
+        if (committed) startup.documentCommitted();
         if (committed && app.zeroxdmme.development.BuildConfig.DEBUG && app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS)
             view.evaluateJavascript("Object.defineProperty(window,'__0xdmmeNativeDiagnostics',{value:true})", null);
     }

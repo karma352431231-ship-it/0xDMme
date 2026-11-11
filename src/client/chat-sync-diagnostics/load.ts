@@ -22,9 +22,10 @@ export function timedLoad<T>(
 }
 export function createLoadTrace(
   emit: (fields: LoadDiagnosticFields) => void,
+  started = performance.now(),
 ): LoadTrace {
-  const started = performance.now();
   let ended = false;
+  let framePending = false;
   const point: LoadTrace['point'] = (stage, fields = {}) => {
     if (ended) return;
     emit({
@@ -48,22 +49,28 @@ export function createLoadTrace(
       }
     },
     frame(host, current) {
-      if (typeof requestAnimationFrame === 'undefined') return;
+      if (ended || framePending || typeof requestAnimationFrame === 'undefined')
+        return;
+      framePending = true;
       requestAnimationFrame(() => {
+        framePending = false;
         if (!current()) {
           point('cancelled', { loadOutcome: 'cancelled' });
           return;
         }
-        if (
-          !host.isConnected ||
-          host.closest('[hidden]') ||
-          document.visibilityState !== 'visible' ||
-          !host.getClientRects().length
-        )
-          return;
+        if (!loadHostVisible(host)) return;
         point('frame', { loadPresentation: 'dom-frame-opportunity' });
         point('complete', { loadOutcome: 'complete' });
       });
     },
   };
+}
+
+export function loadHostVisible(host: HTMLElement): boolean {
+  return (
+    host.isConnected &&
+    !host.closest('[hidden]') &&
+    document.visibilityState === 'visible' &&
+    host.getClientRects().length > 0
+  );
 }

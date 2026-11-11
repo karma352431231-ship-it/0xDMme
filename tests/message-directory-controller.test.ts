@@ -138,3 +138,16 @@ await test('foreground directory work retains its priority across agenda, approv
     ['1'],
   );
 });
+
+await test('a session switch between prepared data and publication rejects the old directory completion', async () => {
+  const f = fixture();
+  const refreshing = f.directory.refresh();
+  for (let turn = 0; turn < 30 && !f.directory.peers.length; turn++)
+    await Promise.resolve();
+  assert.ok(f.directory.peers.length > 0);
+  assert.equal(f.publications(), 0);
+  f.directory.clear();
+  await assert.rejects(refreshing, /Session changed/u);
+  assert.deepEqual(f.directory.peers, []);
+  assert.equal(f.publications(), 0);
+});

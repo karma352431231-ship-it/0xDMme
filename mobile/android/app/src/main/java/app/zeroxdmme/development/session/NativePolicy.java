@@ -62,7 +62,7 @@ final class NativePolicy {
             call = identifier(message, "call");
             document = identifier(message, "document");
             operation = text(message, "operation", 16);
-            if (!Arrays.asList("hello", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close", "view-frame", "file-begin", "file-append", "file-save", "file-close").contains(operation)) throw failure();
+            if (!Arrays.asList("hello", "startup-timing", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close", "view-frame", "file-begin", "file-append", "file-save", "file-close").contains(operation)) throw failure();
             request = record(message, "request");
         }
     }

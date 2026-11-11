@@ -1,3 +1,4 @@
+import { LoadingPresentation } from './presentation.ts';
 import {
   chatSyncControl,
   chatSyncEvent,
@@ -5,6 +6,7 @@ import {
 import { AccountError } from '../../shared/account/index.ts';
 import { diagnosticRequestCategory } from '../../shared/chat-sync-diagnostics/network.ts';
 import { createLoadTrace } from './load.ts';
+import { EarlyCapture } from './early.ts';
 import type { LoadTrace } from './load.ts';
 import type {
   LoadKind,
@@ -37,8 +39,11 @@ const sendOwner = {};
 const loadOwner = {};
 let nextLoad = 0,
   nextRequest = 0;
+let early: EarlyCapture | undefined;
 
 function stop(): void {
+  early?.dispose();
+  early = undefined;
   nextLoad = nextRequest = 0;
   capture++;
   sends.clear();
@@ -51,9 +56,10 @@ function stop(): void {
   nextCache = nextConversation = nextMessage = 0;
 }
 function publish(host: Window, trace: ChatSyncTrace): void {
+  early?.record(trace);
   host.dispatchEvent(new CustomEvent(chatSyncEvent, { detail: trace }));
 }
-/** Explicit local capture only; no retained events, content, storage or IO. */
+/** Explicit local capture; only the diagnostic APK can retain early metadata. */
 export function installChatSyncDiagnostics(host: Window): void {
   if (installed.has(host)) return;
   installed.add(host);
@@ -61,9 +67,9 @@ export function installChatSyncDiagnostics(host: Window): void {
     if (!(event instanceof CustomEvent)) return;
     if (event.detail === 'stop') stop();
     if (event.detail !== 'start') return;
-    stop();
-    deadline = performance.now() + 600_000;
-    timer = setTimeout(stop, 600_000);
+    const replay = early;
+    early = undefined;
+    if (!replay) beginCapture();
     publish(host, {
       version: 1,
       event: 'ready',
@@ -73,8 +79,51 @@ export function installChatSyncDiagnostics(host: Window): void {
       sendTimings: true,
       nativeTimings: true,
       loadTimings: true,
+      earlyTimings: !!replay,
+      earlyDropped: replay?.dropped ?? 0,
+      earlyLongTasks: replay?.longTasks ?? false,
     });
+    replay?.replay((trace) => publish(host, trace));
   });
+}
+function beginCapture(): void {
+  stop();
+  deadline = performance.now() + 600_000;
+  timer = setTimeout(stop, 600_000);
+}
+/** The explicit diagnostic APK authorizes one bounded in-memory launch capture. */
+export function beginStartupCapture(): boolean {
+  if (
+    (window as Window & { __0xdmmeNativeDiagnostics?: boolean })
+      .__0xdmmeNativeDiagnostics !== true
+  )
+    return false;
+  installChatSyncDiagnostics(window);
+  beginCapture();
+  early = new EarlyCapture();
+  return true;
+}
+/** Late native callbacks cannot enter a later recording. */
+export function startBootTrace() {
+  const generation = capture;
+  return (
+    fields: Pick<
+      LoadDiagnosticFields,
+      | 'bootMilestone'
+      | 'bootActivityMs'
+      | 'bootWebViewMs'
+      | 'bootDocumentMs'
+      | 'bootNavigationMs'
+      | 'bootAvailable'
+    >,
+  ): void => {
+    if (generation === capture)
+      traceChatSync(loadOwner, null, {
+        event: 'boot',
+        reason: 'settled',
+        ...fields,
+      });
+  };
 }
 export function traceChatSync(
   owner: object,
@@ -121,6 +170,7 @@ export function chatSyncActive(): boolean {
 export function startLoad(
   kind: LoadKind,
   peer: string | null = null,
+  started?: number,
 ): LoadTrace | undefined {
   if (!chatSyncActive()) return;
   const generation = capture,
@@ -134,7 +184,7 @@ export function startLoad(
         loadKind: kind,
         ...fields,
       });
-  });
+  }, started);
 }
 
 /** Transport timings include the guarded native bridge, headers and body demand.
@@ -331,3 +381,31 @@ export function traceChatSyncFailure(
 }
 
 if (typeof window !== 'undefined') installChatSyncDiagnostics(window);
+
+/** A timing wrapper preserves return values and failures of the owned operation. */
+export function measuredLoad<T>(
+  kind: import('../../shared/chat-sync-diagnostics/load.ts').LoadKind,
+  work: (trace: LoadTrace | undefined) => Promise<T>,
+): Promise<T> {
+  const trace = startLoad(kind);
+  if (!trace) return work(undefined);
+  return finishMeasuredLoad(trace, work);
+}
+async function finishMeasuredLoad<T>(
+  trace: LoadTrace,
+  work: (trace: LoadTrace) => Promise<T>,
+): Promise<T> {
+  try {
+    const value = await work(trace);
+    trace?.point('complete', { loadOutcome: 'complete' });
+    return value;
+  } catch (error: unknown) {
+    trace?.point('failed', { loadOutcome: 'failed' });
+    throw error;
+  }
+}
+
+/** The capture owner supplies trace creation; the presentation owns its lifetime. */
+export function loadingPresentation(kind: LoadKind): LoadingPresentation {
+  return new LoadingPresentation(() => startLoad(kind));
+}

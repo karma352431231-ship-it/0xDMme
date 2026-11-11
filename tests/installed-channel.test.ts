@@ -245,3 +245,47 @@ void test('installed startup rejects native denial without polling or opening HT
     f.close();
   }
 });
+
+void test('startup timing is diagnostic-only and rejects unknown fields and invalid clock order', async () => {
+  const f = fixture();
+  try {
+    assert.equal(await f.channel.startupTiming('snapshot'), undefined);
+    assert.equal(f.messages.length, 0);
+    Object.assign(f.window, { __0xdmmeNativeDiagnostics: true });
+    const result = f.channel.startupTiming('shell-frame');
+    assert.equal(f.messages[0]!.operation, 'startup-timing');
+    f.reply(
+      JSON.stringify({
+        call: f.messages[0]!.call,
+        value: {
+          activityMs: 190,
+          webViewMs: 40,
+          documentStartedMs: 52,
+          documentMs: 120,
+        },
+      }),
+    );
+    assert.deepEqual(await result, {
+      activityMs: 190,
+      webViewMs: 40,
+      documentStartedMs: 52,
+      documentMs: 120,
+    });
+    for (const value of [
+      { activityMs: 5, webViewMs: 40, documentStartedMs: 52, documentMs: 120 },
+      {
+        activityMs: 190,
+        webViewMs: 40,
+        documentStartedMs: 52,
+        documentMs: 120,
+        identity: 'forbidden',
+      },
+    ]) {
+      const invalid = f.channel.startupTiming('snapshot');
+      f.reply(JSON.stringify({ call: f.messages.at(-1)!.call, value }));
+      await assert.rejects(invalid, TypeError);
+    }
+  } finally {
+    f.close();
+  }
+});

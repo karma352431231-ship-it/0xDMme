@@ -24,6 +24,8 @@ export const chatSyncEvents = [
   'send',
   'load',
   'native-request',
+  'boot',
+  'boot-task',
 ] as const;
 export const chatSyncReasons = [
   'capture-started',

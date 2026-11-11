@@ -11,6 +11,7 @@ export function observeReuseDecisions(
   coverage?: (available: boolean, sendTimings: boolean) => void,
 ): () => void {
   const abort = new AbortController();
+  let early = false;
   let ready = false,
     sendTimings = false;
   window.addEventListener(
@@ -19,10 +20,20 @@ export function observeReuseDecisions(
       if (!(event instanceof CustomEvent)) return;
       const trace = readChatSyncTrace(event.detail);
       if (!trace) return;
-      if (trace.event === 'ready') ready = true;
+      if (trace.event === 'ready') {
+        ready = true;
+        early = trace.earlyTimings === true;
+      }
       if (trace.event === 'ready') sendTimings = trace.sendTimings === true;
       const { event: kind, ...data } = trace;
       record(`reuse-${kind}`, data);
+      if (kind === 'boot-task' && typeof trace.bootTaskMs === 'number')
+        record('long-task', {
+          durationMs: trace.bootTaskMs,
+          ...(trace.beforeCaptureMs === undefined
+            ? {}
+            : { beforeCaptureMs: trace.beforeCaptureMs }),
+        });
       if (kind === 'native-request') recordNativeRequest(trace, record);
     },
     { signal: abort.signal },
@@ -32,7 +43,9 @@ export function observeReuseDecisions(
     available: ready,
     sendTimings,
     version: 1,
-    history: 'since-installation-only',
+    history: early
+      ? 'diagnostic-launch-and-current-document'
+      : 'since-installation-only',
     conversationSlots: 'stable-within-capture-up-to-128-recent-contacts',
   });
   coverage?.(ready, sendTimings);
@@ -61,5 +74,8 @@ function recordNativeRequest(
     ...(trace.nativeStatus === undefined ? {} : { status: trace.nativeStatus }),
     ...(trace.nativeBytes === undefined ? {} : { bytes: trace.nativeBytes }),
     durationMs: trace.nativeMs ?? 0,
+    ...(trace.beforeCaptureMs === undefined
+      ? {}
+      : { beforeCaptureMs: trace.beforeCaptureMs }),
   });
 }
