@@ -343,6 +343,12 @@ MOBILE_CHAT_DELETION_MODULES = frozenset({
     'social-unread.ts',
 })
 
+# Public handle chats refuse new view-once uploads and publications. Existing
+# deliveries and idempotent publication checks keep their current contracts.
+# The complete database trees are pinned; migrations and runtime are identical.
+PUBLIC_VIEW_ONCE_DISABLED_BEFORE = 'd9bb6f228f681c94a1b7a1d8898ac29016753d71'
+PUBLIC_VIEW_ONCE_DISABLED_REVIEWED = '3d62ae7f54455688469d124e6b59e01c2afe57d5'
+
 
 def reviewed_lockfile_change(before, after):
     if frozenset([digest(before), digest(after)]) != PHANTOM_PROBE_LOCKFILES:
@@ -376,6 +382,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'social-crypto.ts', 'view-once.ts'},
+         PUBLIC_VIEW_ONCE_DISABLED_BEFORE, PUBLIC_VIEW_ONCE_DISABLED_REVIEWED),
         (PUBLIC_DM_SEND_MODULES, PUBLIC_DM_SEND_BEFORE, PUBLIC_DM_SEND_REVIEWED),
         (set(MOBILE_CHAT_DELETION_MODULES), MOBILE_CHAT_DELETION_BEFORE,
          MOBILE_CHAT_DELETION_REVIEWED),
