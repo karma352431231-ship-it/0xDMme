@@ -133,10 +133,11 @@ comparison, so the measured startup improvement is still open.
 Regular video attachments in private conversations, groups and public DMs
 share the feed's source loader and viewport lifecycle. They use an edge-to-edge
 chat bubble with a paused first frame, a centered play action and the actual
-message timestamp and delivery state over the lower-right corner. Tapping the
-video reveals the chat control bar and temporarily hides the metadata. Two
-seconds without interaction restore the metadata. Fullscreen is available in
-the lower bar, and iPhone can hand fullscreen playback to its native player.
+message timestamp and delivery state over the lower-right corner. During
+playback, tapping the video toggles the control bar without pausing. The
+metadata returns when a tap hides the bar or after two seconds without
+interaction. Fullscreen is available in the lower bar, and iPhone can hand
+fullscreen playback to its native player.
 
 The authenticated attachment loader supplies the video when the bubble
 approaches the viewport. The original file remains available from the control

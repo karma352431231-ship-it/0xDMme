@@ -144,7 +144,7 @@ function viewerSaveLink(body: MediaNode): MediaNode | undefined {
   return bar?.children.find((node) => node.tag === 'a');
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-await test('chat video keeps its preview and hides the lower controls after two seconds without interaction', async (t) => {
+await test('chat video toggles its lower controls during playback and hides them after two seconds without interaction', async (t) => {
   const { ui, blobs, revoked } = environment(t);
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const observer = Object.getOwnPropertyDescriptor(
@@ -234,6 +234,14 @@ await test('chat video keeps its preview and hides the lower controls after two 
   surface.click();
   assert.equal(toolbar.hidden, false);
   assert.equal(stage.dataset['controlsVisible'], 'true');
+  video.paused = false;
+  surface.click();
+  assert.equal(toolbar.hidden, true);
+  assert.equal(stage.dataset['controlsVisible'], undefined);
+  surface.click();
+  assert.equal(toolbar.hidden, false);
+  assert.equal(stage.dataset['controlsVisible'], 'true');
+  assert.equal(video.paused, false);
   t.mock.timers.tick(1999);
   assert.equal(toolbar.hidden, false);
   toolbar.listeners.get('click')!();

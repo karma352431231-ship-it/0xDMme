@@ -85,8 +85,12 @@ function controlVisibility({
     surface.setAttribute('aria-expanded', 'true');
     timeout = setTimeout(hide, controlsIdleMs);
   }
+  function toggle(): void {
+    if (bar.hidden) show();
+    else hide();
+  }
   signal.addEventListener('abort', hide, { once: true });
-  return { hide, show };
+  return { hide, show, toggle };
 }
 
 type Controls = ChatVideoOptions & {
@@ -112,8 +116,12 @@ function bindControls(input: Controls): void {
   surface.addEventListener(
     'click',
     () => {
+      if (!video.paused) {
+        visibility.toggle();
+        return;
+      }
       visibility.show();
-      if (video.paused && !toolbar.play.disabled) play(video);
+      if (!toolbar.play.disabled) play(video);
     },
     events,
   );
