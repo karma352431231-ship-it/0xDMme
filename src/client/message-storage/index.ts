@@ -17,6 +17,7 @@ export {
   enqueueOutboxBatch,
   outboxPage,
   removeOutbox,
+  retireOutbox,
 } from './outbox.ts';
 export async function localGet<T>(
   scope: string,

@@ -6,7 +6,6 @@ import {
   bindRecordGesture,
   showRecording,
   updateChatComposer,
-  viewOnceEnabled,
 } from '../chat-ui/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -19,10 +18,8 @@ import { VoiceRecording } from '../voice-recording/index.ts';
 import type { DmView } from './dm-chat.ts';
 import { DmComposition } from './dm-composition.ts';
 import { DmDrafts } from './dm-drafts.ts';
-import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 
 export interface ChosenMedia {
-  viewOnceOnly?: boolean;
   selection: AttachmentSelection;
   media: SocialMedia;
 }
@@ -42,7 +39,6 @@ export function startDmComposer(options: {
     text: string;
     media: ChosenMedia | null;
     pending: boolean;
-    viewOnce?: boolean;
   }) => Promise<void>;
   queueText?: (text: string, reply: string | null) => void;
   queueFull?: () => boolean;
@@ -121,6 +117,11 @@ export function startDmComposer(options: {
     chosen = null;
     releasePreview();
   }
+  function releaseSentMedia(current: DmView, media: ChosenMedia | null): void {
+    media?.selection.bytes.fill(0);
+    media?.selection.thumbnail?.fill(0);
+    if (view === current) releasePreview();
+  }
   function choose(value: ChosenMedia): void {
     discardChosen();
     chosen = value;
@@ -179,7 +180,6 @@ export function startDmComposer(options: {
       !recording.active &&
       !chosen &&
       !pending &&
-      !viewOnceEnabled(view?.form ?? null) &&
       !composition.target,
     );
   }
@@ -195,58 +195,25 @@ export function startDmComposer(options: {
   async function send(): Promise<void> {
     if (!view || !writable) return;
     const current = view,
-      recipient = bound,
-      once = viewOnceEnabled(view.form);
+      recipient = bound;
     const text = view.text.value,
       media = chosen;
     if (!text.trim() && !media && !pending) return;
-    assertMediaMode(once, media);
     chosen = null;
-    let admitted = false;
     try {
       await options.submit({
         text,
         media,
         pending: pending && !media,
-        viewOnce: once,
       });
-      admitted = true;
     } finally {
-      finishMedia({ once, admitted, current, recipient, media });
+      releaseSentMedia(current, media);
     }
     if (view !== current || bound !== recipient) return;
     pending = false;
     // A sent edit gives back the unsent text it had set aside.
     view.text.value = composition.finish();
     view.text.dispatchEvent(new Event('input'));
-  }
-  function assertMediaMode(once: boolean, media: ChosenMedia | null): void {
-    if (!once && media?.viewOnceOnly)
-      throw new Error(
-        'Enable view once to send this selected file, or remove it.',
-      );
-  }
-  function finishMedia(input: {
-    once: boolean;
-    admitted: boolean;
-    current: DmView;
-    recipient: string | null;
-    media: ChosenMedia | null;
-  }): void {
-    const { once, admitted, current, recipient, media } = input;
-    if (
-      once &&
-      !admitted &&
-      view === current &&
-      bound === recipient &&
-      writable
-    )
-      chosen = media;
-    else {
-      media?.selection.bytes.fill(0);
-      media?.selection.thumbnail?.fill(0);
-      if (view === current) releasePreview();
-    }
   }
   function hasUnsent(): boolean {
     return (
@@ -281,17 +248,7 @@ export function startDmComposer(options: {
       const file = input.files?.[0];
       input.value = '';
       if (!file || composition.target) return;
-      const preparation = viewOnceEnabled(current.form)
-        ? prepareViewOnceSelection(file, 3_000_000).then((selection) => ({
-            selection,
-            media:
-              selection.type === 'image/gif'
-                ? ('gif' as const)
-                : ('photo' as const),
-            viewOnceOnly: true,
-          }))
-        : prepareSocialImage(file);
-      void preparation
+      void prepareSocialImage(file)
         .then((value) => {
           if (view === current && writable) choose(value);
           else value.selection.bytes.fill(0);
@@ -350,28 +307,6 @@ export function startDmComposer(options: {
         pane: (host, close) => {
           mountGifPane(host, gifs, (url) => {
             close();
-            if (viewOnceEnabled(current.form)) {
-              const recipient = bound;
-              void options.run(async () => {
-                const file = await gifs.viewOnceClip(url, 3_000_000);
-                const selection = await prepareViewOnceSelection(
-                  file,
-                  3_000_000,
-                );
-                try {
-                  if (view === current && writable && bound === recipient)
-                    await options.submit({
-                      text: '',
-                      media: { selection, media: 'gif', viewOnceOnly: true },
-                      pending: false,
-                      viewOnce: true,
-                    });
-                } finally {
-                  selection.bytes.fill(0);
-                }
-              });
-              return;
-            }
             // A GIF is its KLIPY link, sent as the usual E2EE text.
             if (options.queueText && canQueueText()) {
               try {
@@ -389,7 +324,6 @@ export function startDmComposer(options: {
                   text: url,
                   media: null,
                   pending: false,
-                  viewOnce: viewOnceEnabled(view?.form ?? null),
                 }),
               );
           });

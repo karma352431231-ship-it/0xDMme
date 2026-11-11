@@ -2,12 +2,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   composerState,
+  chatComposer,
   historyPosition,
   resetHistoryPosition,
   sendOnEnter,
   updateMessageStates,
   watchHistoryPosition,
 } from '../src/client/chat-ui/index.ts';
+
+await test('the view-once control is rendered only in private chats and groups', () => {
+  assert.doesNotMatch(chatComposer('public'), /data-view-once/u);
+  assert.match(chatComposer('message'), /data-view-once/u);
+  assert.match(chatComposer('group'), /data-view-once/u);
+});
 
 function historyFixture<T extends object>(geometry: T) {
   const button = Object.assign(new EventTarget(), {

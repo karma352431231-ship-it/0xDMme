@@ -1,4 +1,4 @@
-import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
+import { traceSend } from '../chat-sync-diagnostics/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { socialPacket } from '../../shared/social-dm/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
@@ -11,9 +11,9 @@ import type {
 import type { TextDraft } from '../text-send/index.ts';
 import {
   enqueueOutbox,
-  enqueueOutboxBatch,
   outboxPage,
   removeOutbox,
+  retireOutbox,
   localPage,
   localGet,
   localDelete,
@@ -23,27 +23,13 @@ import {
 } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
 import type { SocialContext } from './crypto-context.ts';
-import { transmitSocialText, sendPeer } from './text-transmission.ts';
-import {
-  prepareViewOnceContents,
-  sealViewOnceDraft,
-  openViewOnceDraft,
-  prepareViewOnce,
-  viewOnceDescriptor,
-  uploadViewOnce,
-} from '../view-once/index.ts';
-import type { PreparedViewOnce } from '../view-once/index.ts';
-import type { AttachmentSelection } from '../attachments/index.ts';
-import { messageApi } from '../message-api/index.ts';
-import { currentRecoveryKey } from '../message-recovery/index.ts';
-import { t } from '../../shared/i18n/index.ts';
+import { transmitSocialText } from './text-transmission.ts';
 
 interface TextEntry {
   id: string;
   peer: string;
   draft: LocalCipher | LocalCipher[];
   viewOnce?: boolean;
-  viewOncePayload?: PreparedViewOnce;
   packet: MessagePacket | null;
   createdAt: number;
   outboxOrder?: string;
@@ -111,46 +97,11 @@ export class SocialTextOutbox {
       await this.enqueue(a, value, generation);
     });
   }
-  async queueViewOnce(
-    peer: string,
-    text: string,
-    selection: AttachmentSelection | null,
-  ): Promise<void> {
-    const generation = this.lifetime.current();
-    const contents = await prepareViewOnceContents(text, selection, 3_000_000);
-    uuid(peer);
-    await this.local(generation, async (a) => {
-      const entries = await Promise.all(
-        contents.map(async (content) => {
-          const id = crypto.randomUUID();
-          traceSend('submit', id);
-          const value: TextEntry = {
-            id,
-            peer,
-            viewOnce: true,
-            packet: null,
-            draft: await measureSend(
-              'draft-seal',
-              () => sealViewOnceDraft(a, content),
-              id,
-            ),
-            createdAt: Date.now(),
-          };
-          return { id: value.id, value, size: this.size(value) };
-        }),
-      );
-      await enqueueOutboxBatch({
-        scope: this.scope(a),
-        entries,
-        current: () => generation === this.lifetime.current(),
-      });
-    });
-  }
-  private chunks(value: TextEntry): LocalCipher[] {
-    return Array.isArray(value.draft) ? value.draft : [value.draft];
-  }
   private text(a: VaultAuthority, value: TextEntry): Promise<string> {
-    return openLocal(a, this.chunks(value)[0]!);
+    return openLocal(
+      a,
+      Array.isArray(value.draft) ? value.draft[0]! : value.draft,
+    );
   }
   private enqueue(
     a: VaultAuthority,
@@ -167,12 +118,10 @@ export class SocialTextOutbox {
   }
   private size(value: TextEntry): number {
     return (
-      this.chunks(value).reduce(
+      (Array.isArray(value.draft) ? value.draft : [value.draft]).reduce(
         (total, part) => total + part.bytes.length + 128,
         0,
       ) +
-      (value.viewOncePayload?.bytes.length ?? 0) +
-      JSON.stringify(value.viewOncePayload?.header ?? null).length +
       new TextEncoder().encode(JSON.stringify(value.packet)).length +
       512
     );
@@ -247,10 +196,8 @@ export class SocialTextOutbox {
       this.lifetime.guard(generation);
       const result: TextDraft[] = [];
       for (const { value } of page) {
-        if (value.peer !== peer) continue;
-        const text = value.viewOnce
-          ? t('View-once message')
-          : await this.text(a, value);
+        if (value.peer !== peer || isRetiredViewOnce(value)) continue;
+        const text = await this.text(a, value);
         this.lifetime.guard(generation);
         result.push({
           id: value.id,
@@ -284,67 +231,16 @@ export class SocialTextOutbox {
       const scope = this.scope(context.privateAuthority);
       for (const { name, value } of pending) {
         this.lifetime.guard(generation);
-        let text: string;
-        let reference: MessagePacket['viewOnce'];
-        const viewOnceApi = (
-          operation: string,
-          data: Record<string, unknown>,
-        ) =>
-          messageApi(context.privateAuthority, operation, data, () =>
-            this.lifetime.guard(generation),
-          );
-        if (value.viewOnce) {
-          const content = await measureSend(
-            'draft-open',
-            () =>
-              openViewOnceDraft(context.privateAuthority, this.chunks(value), {
-                id: value.id,
-              }),
-            value.id,
-          );
-          if (!value.viewOncePayload) {
-            const peer = await sendPeer(context, value.peer);
-            await currentRecoveryKey(
-              peer.recovery,
-              peer.directory.events,
-              value.peer,
-            );
-            value.viewOncePayload = await measureSend(
-              'payload-prepare',
-              () =>
-                prepareViewOnce({
-                  id: value.id,
-                  scope: 'public',
-                  sender: context.authority.session.accountId,
-                  recipient: peer.recovery,
-                  content,
-                }),
-              value.id,
-            );
-          }
-          const descriptor = await measureSend(
-            'descriptor',
-            () => viewOnceDescriptor(value.viewOncePayload!, content),
-            value.id,
-          );
-          text = descriptor.text;
-          reference = descriptor.reference;
-        } else text = await this.text(context.privateAuthority, value);
+        if (isRetiredViewOnce(value)) {
+          await retireOutbox(scope, name);
+          await this.forgetLegacy(context.privateAuthority, value, generation);
+          continue;
+        }
+        const text = await this.text(context.privateAuthority, value);
         await transmitSocialText(context, {
           id: value.id,
           peer: value.peer,
           text,
-          ...(reference ? { viewOnce: reference } : {}),
-          ...(value.viewOncePayload
-            ? {
-                beforePublish: () =>
-                  measureSend(
-                    'upload',
-                    () => uploadViewOnce(value.viewOncePayload!, viewOnceApi),
-                    value.id,
-                  ),
-              }
-            : {}),
           packet: value.packet,
           preserve: async (packet) => {
             this.lifetime.guard(generation);
@@ -365,4 +261,8 @@ export class SocialTextOutbox {
       return { more };
     }, options);
   }
+}
+
+function isRetiredViewOnce(value: TextEntry): boolean {
+  return value.viewOnce === true || !!value.packet?.viewOnce;
 }

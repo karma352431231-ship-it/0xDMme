@@ -90,8 +90,9 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
     chatIcon('image'),
     chatIcon('file'),
-    chatIcon('once'),
-    '',
+    scope === 'public'
+      ? ''
+      : t('html.chat-composer-view-once', [chatIcon('once')]),
   ]);
 }
 

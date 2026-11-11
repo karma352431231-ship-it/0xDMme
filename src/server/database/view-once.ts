@@ -101,6 +101,11 @@ export class ViewOnceStore {
     installed: boolean,
   ): Promise<unknown> {
     const scope = viewOnceScope(input['scope']);
+    if (scope === 'public' && publicUpload(operation))
+      throw new AccountError(
+        403,
+        'View-once sending is unavailable in public chats.',
+      );
     if (scope === 'group') {
       if (!this.groups)
         throw new AccountError(503, 'Group delivery unavailable.');
@@ -384,4 +389,8 @@ export class ViewOnceStore {
     );
     return { canceled: true };
   }
+}
+
+function publicUpload(operation: string): boolean {
+  return operation === 'view-once-create' || operation === 'view-once-part';
 }

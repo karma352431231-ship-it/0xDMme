@@ -8,8 +8,6 @@ import { readSocialDirectory } from './authority.ts';
 import type { SocialContext } from './crypto-context.ts';
 
 export interface TextTransmission {
-  viewOnce?: MessagePacket['viewOnce'];
-  beforePublish?: () => Promise<void>;
   id: string;
   peer: string;
   text: string;
@@ -47,12 +45,10 @@ export async function transmitSocialText(
       recovery: [own, peer.recovery],
       id: input.id,
       text: input.text,
-      ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
       ...(input.relation ? { relation: input.relation } : {}),
     });
     await input.preserve(packet);
   }
-  await input.beforePublish?.();
   try {
     await api('publish', { packet });
   } catch (error: unknown) {
@@ -86,7 +82,6 @@ async function retryChangedRecipient(
     ],
     id: input.id,
     text: input.text,
-    ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
     ...(input.relation ? { relation: input.relation } : {}),
   });
   await input.preserve(packet);
@@ -95,7 +90,7 @@ async function retryChangedRecipient(
 
 /** One authenticated burst pins each peer once; publication still checks the
  * current directories atomically and refuses a change before acceptance. */
-export async function sendPeer(context: SocialContext, peer: string) {
+async function sendPeer(context: SocialContext, peer: string) {
   const held = context.sendPeers.get(peer);
   if (held) return held;
   const directory = await readSocialDirectory(context.api, peer);

@@ -129,13 +129,6 @@ export function dmMediaScope(account: string): string {
   return `dm-media:${account}`;
 }
 export class SocialDms {
-  composeViewOnce(
-    peer: string,
-    text: string,
-    selection: AttachmentSelection | null,
-  ): Promise<void> {
-    return this.texts.queueViewOnce(peer, text, selection);
-  }
   async openViewOnce(
     peer: string,
     id: string,

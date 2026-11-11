@@ -344,6 +344,40 @@ await test('cuts 7–8: direct DMs, blocking, E2EE, media and social vault', asy
   });
   await am.prepare(a.authority);
   await bm.prepare(b.authority);
+  await t.test(
+    'older clients cannot upload or publish a new public view-once message',
+    async () => {
+      const authority = {
+        session: alice.login.session,
+        directory: alice.directory,
+      };
+      for (const operation of ['view-once-create', 'view-once-part'])
+        await assert.rejects(
+          async () =>
+            db.viewOnce.operate(
+              authority,
+              operation,
+              {
+                scope: 'public',
+                peer: bp.id,
+              },
+              false,
+            ),
+          { status: 403 },
+        );
+      const packet = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Synthetic view-once descriptor',
+        viewOnce: { hash: 'f'.repeat(64) },
+      });
+      await assert.rejects(operate(alice, 'publish', { packet }), {
+        status: 403,
+      });
+    },
+  );
   const packet = await am.encrypt({
     authority: a.authority,
     peerHistory: [b.directory],

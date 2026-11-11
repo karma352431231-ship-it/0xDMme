@@ -218,6 +218,20 @@ function orderName(value: unknown): string | null {
     : null;
 }
 export function removeOutbox(scope: string, name: string): Promise<void> {
+  return settleOutbox(scope, name);
+}
+
+/** Take an unsendable draft out of the FIFO without erasing its ciphertext
+ * or releasing the local quota charged for it. Both changes commit together. */
+export function retireOutbox(scope: string, name: string): Promise<void> {
+  return settleOutbox(scope, name, `retired:${name}`);
+}
+
+function settleOutbox(
+  scope: string,
+  name: string,
+  retiredName?: string,
+): Promise<void> {
   return transaction(scope, (store, done) => {
     const old = store.get([scope, name]),
       usage = store.get([scope, 'usage']);
@@ -226,6 +240,7 @@ export function removeOutbox(scope: string, name: string): Promise<void> {
       if (++reads !== 2) return;
       const previous = row(old),
         order = orderName(previous?.value);
+      const size = settleDraft(store, previous, retiredName);
       store.delete([scope, name]);
       if (order) store.delete([scope, order]);
       store.put({
@@ -233,9 +248,7 @@ export function removeOutbox(scope: string, name: string): Promise<void> {
         name: 'usage',
         value: Math.max(
           0,
-          Number(row(usage)?.value ?? 0) -
-            (previous?.size ?? 0) -
-            (order ? indexBytes : 0),
+          Number(row(usage)?.value ?? 0) - size - (order ? indexBytes : 0),
         ),
         size: 0,
       });
@@ -244,4 +257,15 @@ export function removeOutbox(scope: string, name: string): Promise<void> {
     old.onsuccess = remove;
     usage.onsuccess = remove;
   });
+}
+
+function settleDraft(
+  store: IDBObjectStore,
+  draft: RecordRow | undefined,
+  retiredName: string | undefined,
+): number {
+  if (!draft) return 0;
+  if (!retiredName) return draft.size;
+  store.put({ ...draft, name: retiredName });
+  return 0;
 }

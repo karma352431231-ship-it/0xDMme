@@ -1,9 +1,16 @@
 # View-once messages
 
-The private, private-group and handle DM composers provide a persistent ① toggle beside the
+The private and private-group composers provide a persistent ① toggle beside the
 paperclip. Text occupies the full first row; media actions and send/record sit
 below. The paperclip opens a compact three-action menu. A fading explanation
 appears on the first activation in each installation/browser.
+
+On 11 November 2026 the owner disabled new view-once messages in public handle
+chats. Public composers omit ① and the server rejects new uploads and
+publications from older clients. Previously accepted deliveries keep their
+original opening, cancellation and retention rules. Existing unsent encrypted
+drafts are moved out of the active send queue without exposing their contents
+or changing them into regular messages.
 
 Text and image bodies open once in the installed Android/iOS app. The web
 client shows only their placeholder. Native Android windows use `FLAG_SECURE`;

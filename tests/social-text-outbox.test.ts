@@ -23,6 +23,7 @@ import { groupParticipant } from './fixtures/group-participant.ts';
 import { messageTransport } from './fixtures/message-transport.ts';
 import {
   localGet,
+  enqueueOutbox,
   localPut,
   openLocal,
   outboxPage,
@@ -197,6 +198,42 @@ function draft(peer: string, index: number): TextDraft {
     createdAt: index,
   };
 }
+
+await test('a previous public view-once draft stays encrypted and cannot block regular messages', async (t) => {
+  const f = await fixture(t),
+    queue = f.create();
+  const old = draft(f.peer.accountId, 0),
+    normal = draft(f.peer.accountId, 1);
+  const ciphertext = await sealLocal(f.owner.authority, old.id, old.text);
+  await enqueueOutbox({
+    scope: f.scope,
+    id: old.id,
+    size: 512,
+    current: () => true,
+    value: {
+      id: old.id,
+      peer: old.peer,
+      draft: [ciphertext],
+      viewOnce: true,
+      packet: null,
+      createdAt: 0,
+    },
+  });
+  await queue.queueText(normal);
+  assert.deepEqual(
+    (await queue.pendingTexts(normal.peer)).map((value) => value.id),
+    [normal.id],
+  );
+  await queue.sendPending();
+  assert.deepEqual([...f.packets.keys()], [normal.id]);
+  assert.deepEqual(await outboxPage(f.scope), []);
+  const retired = await localGet<{ draft: (typeof ciphertext)[] }>(
+    f.scope,
+    `retired:outbox:${old.id}`,
+  );
+  assert.deepEqual(retired?.draft, [ciphertext]);
+  assert.equal(await localGet(f.scope, 'usage'), 512);
+});
 
 await test('public text admission is encrypted, FIFO across peers, durable across owners and drained in bounded crypto turns', async (t) => {
   const f = await fixture(t),
