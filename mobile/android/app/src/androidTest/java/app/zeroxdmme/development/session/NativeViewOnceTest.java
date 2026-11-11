@@ -17,6 +17,43 @@ import org.junit.Test;
 
 /** Synthetic native rendering only; no account, wallet, server or private history. */
 public class NativeViewOnceTest {
+    @Test public void decoderBenchmarkUsesOnlySyntheticBytes() throws Exception {
+        var instrumentation = InstrumentationRegistry.getInstrumentation();
+        String encoded = InstrumentationRegistry.getArguments().getString("decoderBenchmark");
+        assumeTrue("Provide the bundled synthetic decoder benchmark", encoded != null);
+        assertTrue(encoded.length() < 128000);
+        String script = new String(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP), java.nio.charset.StandardCharsets.UTF_8);
+        AtomicReference<WebView> owner = new AtomicReference<>();
+        CountDownLatch loaded = new CountDownLatch(1), finished = new CountDownLatch(1);
+        AtomicReference<String> result = new AtomicReference<>();
+        instrumentation.runOnMainSync(() -> {
+            WebView view = new WebView(instrumentation.getTargetContext());
+            owner.set(view);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setBlockNetworkLoads(true);
+            view.getSettings().setAllowFileAccess(false);
+            view.getSettings().setAllowContentAccess(false);
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView ignored, String url) { loaded.countDown(); }
+            });
+            view.loadDataWithBaseURL("https://benchmark.invalid", "<!doctype html><title>Synthetic decoder</title>", "text/html", "UTF-8", null);
+        });
+        try {
+            assertTrue("Synthetic WebView did not load", loaded.await(10, TimeUnit.SECONDS));
+            instrumentation.runOnMainSync(() -> owner.get().evaluateJavascript(script + ";JSON.stringify(decoderBenchmark.runDecoderBenchmark())", value -> { result.set(value); finished.countDown(); }));
+            assertTrue("Synthetic benchmark exceeded its deadline", finished.await(30, TimeUnit.SECONDS));
+            Object text = new org.json.JSONTokener(result.get()).nextValue();
+            assertTrue("Synthetic benchmark failed", text instanceof String);
+            JSONObject report = new JSONObject((String) text);
+            assertEquals(131072, report.getInt("blockBytes"));
+            android.os.Bundle status = new android.os.Bundle();
+            status.putString("stream", "DECODER_BENCHMARK " + report + "\n");
+            instrumentation.sendStatus(0, status);
+        } finally {
+            instrumentation.runOnMainSync(() -> { owner.get().stopLoading(); owner.get().destroy(); });
+        }
+    }
+
     @Test public void installedClientOpensProtectedTextAndImageThroughNativeBridge() throws Exception {
         var instrumentation = InstrumentationRegistry.getInstrumentation();
         assumeTrue("Use only the isolated fixture application", instrumentation.getTargetContext().getPackageName().endsWith(".recovery"));

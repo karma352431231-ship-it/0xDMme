@@ -1,3 +1,7 @@
+import {
+  decodeCanonicalBase64,
+  encodeCanonicalBase64,
+} from '../base64/index.ts';
 import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 export const profileLimit = 3_000_000;
@@ -119,28 +123,15 @@ export function base64(
   maximum: number,
 ): Uint8Array<ArrayBuffer> {
   const encoded = boundedText(value, Math.ceil(maximum / 3) * 4);
-  if (encoded.length % 4 !== 0 || /[^A-Za-z0-9+/=]/u.test(encoded))
-    throw new AccountError(400, 'Invalid encoding.');
-  let bytes: Uint8Array<ArrayBuffer>;
   try {
-    const decoded = atob(encoded);
-    bytes = new Uint8Array(decoded.length);
-    for (let index = 0; index < decoded.length; index++)
-      bytes[index] = decoded.charCodeAt(index);
+    return decodeCanonicalBase64(encoded, maximum);
   } catch {
     throw new AccountError(400, 'Invalid encoding.');
   }
-  if (bytes.length > maximum || encode(bytes) !== encoded)
-    throw new AccountError(400, 'Invalid encoding.');
-  return bytes;
 }
 
 export function encode(bytes: Uint8Array): string {
-  // Avoid spreading multi-megabyte arrays into the JS call stack.
-  let output = '';
-  for (let offset = 0; offset < bytes.length; offset += 8192)
-    output += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
-  return btoa(output);
+  return encodeCanonicalBase64(bytes);
 }
 
 export function profileEnvelope(value: unknown): EncryptedProfile {

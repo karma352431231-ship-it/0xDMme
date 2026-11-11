@@ -6,6 +6,7 @@ import { sourceTar } from './source-tar.ts';
 // File-count growth stays inside the existing 24 MiB expanded archive budget.
 const maximumSourceFiles = 2048;
 const authored = [
+  'src/shared/base64',
   'src/client/view-once',
   'src/client/view-once-preparation',
   'src/client/view-once-ui',

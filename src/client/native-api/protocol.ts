@@ -1,3 +1,4 @@
+import { decodeCanonicalBase64 } from '../../shared/base64/index.ts';
 import { readNativeWireTiming } from '../../shared/chat-sync-diagnostics/native.ts';
 import type { NativeWireTiming } from '../../shared/chat-sync-diagnostics/native.ts';
 export const chunkBytes = 128 * 1024;
@@ -198,25 +199,18 @@ export function responseChunk(
   const data = input['data'];
   if (typeof input['done'] !== 'boolean' || typeof data !== 'string')
     throw nativeFailure();
-  if (
-    data.length > 4 * Math.ceil(maximum / 3) ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
-      data,
-    )
-  )
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    bytes = decodeCanonicalBase64(data, maximum);
+  } catch {
     throw nativeFailure();
-  const decoded = atob(data);
-  if (
-    decoded.length > maximum ||
-    btoa(decoded) !== data ||
-    (!input['done'] && !decoded.length)
-  )
-    throw nativeFailure();
+  }
+  if (!input['done'] && !bytes.length) throw nativeFailure();
   return {
     ...(input['timing'] === undefined
       ? {}
       : { timing: readNativeWireTiming(input['timing'])! }),
     done: input['done'],
-    bytes: Uint8Array.from(decoded, (char) => char.charCodeAt(0)),
+    bytes,
   };
 }
