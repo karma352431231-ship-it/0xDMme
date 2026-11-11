@@ -1,3 +1,17 @@
+import {
+  encodeGroupText,
+  decodeGroupText,
+} from '../../shared/group-messages/index.ts';
+import { conversationPreview } from '../conversation-preview/index.ts';
+import type { ConversationPreview } from '../conversation-preview/index.ts';
+import { groupMessageView } from './message-content.ts';
+import { withSigner } from '../vault-authority/index.ts';
+import { recoveryKey } from '../../shared/messages/index.ts';
+import { validReaction } from '../../shared/daily/index.ts';
+import { decryptViewOnce } from '../view-once/index.ts';
+import type { ViewOnceMetadata } from '../view-once/index.ts';
+import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { GroupMessageLease } from './message-lease.ts';
 import { cachedGroupDescription } from './description.ts';
 import {
@@ -53,7 +67,12 @@ import { GroupGovernance } from './governance.ts';
 import type { GroupState } from './governance.ts';
 import { GroupCache, groupCacheScope, groupTitle } from './cache.ts';
 import { createGroupEvent, changeGroupEvent } from './transitions.ts';
-import { composeGroup, sendGroupPending, staleGroupSend } from './outbox.ts';
+import {
+  composeGroup,
+  composeGroupOnce,
+  sendGroupPending,
+  staleGroupSend,
+} from './outbox.ts';
 import type { GroupSendProgress } from './outbox.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { readGroupPage } from './reader.ts';
@@ -91,6 +110,22 @@ interface GroupPrefetch {
   complete: boolean;
 }
 export class GroupController {
+  private focus: { group: string; sequence: number } | null = null;
+  private readonly previews = new Map<string, ConversationPreview>();
+  preview(group: string): ConversationPreview | undefined {
+    return this.previews.get(group);
+  }
+  focusMessage(group: string, sequence: number): void {
+    if (!Number.isSafeInteger(sequence) || sequence < 1)
+      throw new Error('Invalid search page.');
+    this.focus = { group, sequence };
+  }
+  get searchFocused(): boolean {
+    return this.focus?.group === this.selected?.state.groupId;
+  }
+  latest(): void {
+    this.focus = null;
+  }
   private readonly retry = new GroupRetry();
   private readonly messageWindows = new GroupMessageWindows();
   historyPending = false;
@@ -144,6 +179,8 @@ export class GroupController {
     const identity = (s: AccountSession | null) =>
       s ? [s.accountId, s.deviceId, s.csrf].join(':') : '';
     if (identity(session) !== identity(this.session)) {
+      this.focus = null;
+      this.previews.clear();
       this.authority.invalidate();
       this.messageWindows.clear();
       this.localFloors.clear();
@@ -171,6 +208,7 @@ export class GroupController {
     this.historyPending = false;
     this.selected = null;
     this.views = [];
+    this.focus = null;
   }
   close(): void {
     this.deselect();
@@ -183,9 +221,11 @@ export class GroupController {
     this.selection.invalidate('removal');
     this.messageWindows.clear();
     this.pauseSynchronization();
+    this.previews.clear();
     this.historyPending = true;
   }
   hide(): void {
+    this.previews.clear();
     this.resetSynchronization();
     this.selection.invalidate('authorization');
     this.messageWindows.clear();
@@ -536,6 +576,8 @@ export class GroupController {
       lease.close();
     }
     c.guard();
+    if (progress.before === null)
+      this.rememberPreview(group.state.groupId, page.views);
     progress.before = prepared ? null : page.before;
     if (progress.before === null) {
       this.messageWindows.finishPreparation(group.state.groupId);
@@ -610,11 +652,15 @@ export class GroupController {
           identities: this.identities,
           read: (raw) => lease.read(raw),
         },
-        null,
+        this.focus?.group === group.state.groupId
+          ? this.focus.sequence + 1
+          : null,
         older,
       );
       guard();
       this.views = page.views;
+      if (!this.searchFocused)
+        this.rememberPreview(group.state.groupId, this.views);
       this.historyPending = false;
     } catch (error: unknown) {
       guard();
@@ -637,6 +683,18 @@ export class GroupController {
     }, group);
     guard();
     return true;
+  }
+  private rememberPreview(group: string, views: readonly GroupView[]): void {
+    const latest = views.at(-1);
+    if (latest)
+      this.previews.set(
+        group,
+        conversationPreview({
+          ...latest,
+          displayText: groupMessageView(latest).content.text,
+        }),
+      );
+    else this.previews.delete(group);
   }
   private async openLocal(groupId: string, older: boolean): Promise<void> {
     this.selection.invalidate('replacement');
@@ -1011,9 +1069,27 @@ export class GroupController {
         authority,
         groupId,
         text: draft.text,
+        contentFormat: 'daily',
         selection: null,
         id: draft.id,
         order: draft.order,
+      }),
+    );
+  }
+  async composeFor(
+    groupId: string,
+    text: string,
+    selection: AttachmentSelection | null,
+  ): Promise<void> {
+    if (!this.entries.some((g) => g.state.groupId === groupId && !g.localOnly))
+      throw new Error('Open a group first.');
+    await this.withLocalAuthority((authority) =>
+      composeGroup({
+        authority,
+        groupId,
+        text,
+        selection,
+        contentFormat: 'daily',
       }),
     );
   }
@@ -1038,6 +1114,7 @@ export class GroupController {
       !view.own ||
       view.kind !== 'text' ||
       view.localOnly ||
+      !!decodeGroupText(view.text).viewOnce ||
       this.historyPending
     )
       throw new Error('Only your own synced text messages can be edited.');
@@ -1046,6 +1123,7 @@ export class GroupController {
         authority: c.authority,
         groupId: view.groupId,
         text,
+        contentFormat: 'daily',
         selection: null,
         relation: {
           id: view.id,
@@ -1056,6 +1134,139 @@ export class GroupController {
       }),
     );
     await this.sendPending();
+  }
+  async react(view: GroupView, emoji: string, id: string): Promise<void> {
+    if (
+      !validReaction(emoji) ||
+      view.localOnly ||
+      this.historyPending ||
+      this.selected?.state.groupId !== view.groupId
+    )
+      throw new Error('Group message is unavailable.');
+    await this.authority.mutate((c) =>
+      composeGroup({
+        authority: c.authority,
+        groupId: view.groupId,
+        text: encodeGroupText({ text: emoji, reply: null, forwarded: false }),
+        selection: null,
+        id,
+        relation: {
+          id: view.id,
+          hash: view.hash,
+          author: view.sender,
+          type: 'reaction',
+        },
+      }),
+    );
+    await this.sendPending();
+  }
+  async stageMedia(input: {
+    id: string;
+    peer: string;
+    text: string;
+    reply: string | null;
+    viewOnce: boolean;
+    selection: AttachmentSelection | null;
+    createdAt: number;
+  }) {
+    return this.withLocalAuthority(async (authority) => {
+      if (input.viewOnce) {
+        const ids = await composeGroupOnce({
+          authority,
+          groupId: input.peer,
+          ...input,
+        });
+        return ids.map((id) => ({
+          id,
+          peer: input.peer,
+          createdAt: input.createdAt,
+          content: null,
+        }));
+      }
+      const cache = new GroupCache(authority, input.peer),
+        old = await cache.get(`outbox:${input.id}`);
+      if (!old)
+        await composeGroup({
+          authority,
+          groupId: input.peer,
+          id: input.id,
+          contentFormat: 'daily',
+          text: encodeGroupText({
+            text: input.text,
+            reply: input.reply,
+            forwarded: false,
+          }),
+          selection: input.selection,
+          order: input.createdAt * 1000,
+        });
+      const draft = object(await cache.get(`outbox:${input.id}`));
+      return [
+        {
+          id: input.id,
+          peer: input.peer,
+          createdAt: input.createdAt,
+          content: attachmentContent(
+            JSON.parse(String(draft['text'])) as unknown,
+          ),
+        },
+      ];
+    });
+  }
+  async openViewOnce(
+    view: GroupView,
+    metadata: ViewOnceMetadata,
+    signal: AbortSignal,
+    work: {
+      diagnostic?: LoadTrace | undefined;
+      media?: ViewOnceMediaBuffer | undefined;
+    },
+  ) {
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+      if (
+        this.historyPending ||
+        this.selected?.state.groupId !== view.groupId ||
+        !this.views.some((v) => v.id === view.id && v.hash === view.hash)
+      )
+        throw new Error('Group message changed.');
+    };
+    const delivery = await withSigner(this.access, async (authority) => {
+      guard();
+      const input = {
+        scope: 'group',
+        peer: view.groupId,
+        id: view.id,
+        hash: metadata.hash,
+      };
+      const api = (op: string, data: Record<string, unknown>) =>
+        messageApi(authority, op, data, { guard, signal });
+      const status = object(await api('view-once-status', input));
+      if (status['consumed'])
+        throw new AccountError(
+          410,
+          'This view-once message was already opened.',
+        );
+      const recovery = recoveryKey(
+        await api('recovery-key', { id: status['keyId'] }),
+      );
+      return { recovery, response: await api('view-once-open', input) };
+    });
+    guard();
+    return this.access.withVault(false, async (authority) => {
+      guard();
+      return decryptViewOnce({
+        authority,
+        ...delivery,
+        id: view.id,
+        scope: 'group',
+        group: view.groupId,
+        peer: view.sender,
+        metadata,
+        ...work,
+      });
+    });
   }
   async removeMessage(view: GroupView): Promise<void> {
     if (
@@ -1176,6 +1387,32 @@ export class GroupController {
                 ? d['text']
                 : '',
         };
+      });
+    });
+  }
+  async draftMedia(
+    group: string,
+    id: string,
+    thumbnail: boolean,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    return this.withLocalAuthority(async (authority) => {
+      const raw = object(
+        await new GroupCache(authority, group).get(`outbox:${id}`),
+      );
+      const content = attachmentContent(
+          JSON.parse(String(raw['text'])) as unknown,
+        ),
+        file = thumbnail ? content.thumbnail : content.file;
+      if (!file) throw new Error('Attachment unavailable.');
+      return downloadAttachment({
+        account: groupCacheScope(authority.session.accountId, group),
+        message: id,
+        file,
+        thumbnail,
+        image: thumbnail || content.image,
+        api: null,
+        snapshot: undefined,
+        guard: () => {},
       });
     });
   }

@@ -3,7 +3,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { conversationPreview } from '../conversation-preview/index.ts';
-import { decodeDailyText } from '../../shared/daily/index.ts';
+import { groupMessageView } from './message-content.ts';
 
 /** The normal group verifier with a permanently invisible window: receipt is
  * durable, but notification display can never acknowledge a message as read. */
@@ -31,7 +31,7 @@ export async function readGroupNotification(input: {
     );
     if (!view || !groups.selected) return null;
     const displayText =
-      view.kind === 'text' ? decodeDailyText(view.text).text : '';
+      view.kind === 'text' ? groupMessageView(view).content.text : '';
     return {
       title: groups.selected.title,
       sender: view.sender,

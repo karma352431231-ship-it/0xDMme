@@ -1,3 +1,4 @@
+import { attachGroupViewOnce } from './group-view-once.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import {
   GroupMessageUpdates,
@@ -103,6 +104,7 @@ export class GroupMessageStore {
         await this.checkDestinations(client, bundle);
         await this.media.admit(client, packet);
         await this.saveBundle(client, bundle);
+        await attachGroupViewOnce(client, packet);
         await this.savePacket(client, { packet, hash, state });
         if (!packet.relation)
           await admitGroupNotification(client, {
@@ -441,7 +443,7 @@ export class GroupMessageStore {
   }
   async relations(
     authority: ContactAuthority,
-    input: GroupMessageScope & { ids: string[] },
+    input: GroupMessageScope & { ids: string[]; after?: string },
   ) {
     return this.groups.withGroupAuthority(
       authority,
@@ -452,10 +454,18 @@ export class GroupMessageStore {
           (member) => member.accountId === authority.session.accountId,
         )?.joined;
         const rows = await client.query<{ id: string }>(
-          "SELECT DISTINCT ON (relation->>'id') id FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND relation->>'id'=ANY($4::text[]) AND body IS NOT NULL AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY relation->>'id',sequence DESC LIMIT 16",
-          [input.groupId, joined, state.epoch, input.ids, cutAnchor(input)],
+          "SELECT id FROM (SELECT DISTINCT ON (relation->>'id',relation->>'type',sender) id FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND relation->>'id'=ANY($4::text[]) AND body IS NOT NULL AND ($5::bigint IS NULL OR sequence<=$5) ORDER BY relation->>'id',relation->>'type',sender,sequence DESC) latest WHERE ($6::uuid IS NULL OR id>$6) ORDER BY id LIMIT 17",
+          [
+            input.groupId,
+            joined,
+            state.epoch,
+            input.ids,
+            cutAnchor(input),
+            input.after ?? null,
+          ],
         );
-        return { ids: rows.rows.map((row) => row.id) };
+        const ids = rows.rows.slice(0, 16).map((row) => row.id);
+        return { ids, next: rows.rows.length > 16 ? ids.at(-1)! : null };
       },
     );
   }

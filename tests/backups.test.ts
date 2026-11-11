@@ -512,3 +512,22 @@ await test('group edits preserve the backup-record binding without changing old 
   void relation;
   assert.deepEqual(backupRecord(old), old);
 });
+
+await test('group backup round-trips the authenticated content format while legacy records keep their exact shape', () => {
+  const legacy = {
+    type: 'group-message' as const,
+    id: crypto.randomUUID(),
+    hash: 'a'.repeat(64),
+    groupId: crypto.randomUUID(),
+    sequence: 1,
+    epoch: 1,
+    sender: crypto.randomUUID(),
+    own: true,
+    kind: 'text' as const,
+    text: 'Legacy raw text',
+  };
+  assert.deepEqual(backupRecord(legacy), legacy);
+  const current = { ...legacy, contentFormat: 'daily' as const };
+  assert.deepEqual(backupRecord(current), current);
+  assert.throws(() => backupRecord({ ...legacy, contentFormat: 'unexpected' }));
+});

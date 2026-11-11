@@ -117,8 +117,12 @@ export function groupDeliveryActions(
       }),
     'group-message-relations': (a, d) =>
       store.relations(a, {
-        ...messageScope(d, ['ids']),
+        ...messageScope(d, [
+          'ids',
+          ...(Object.hasOwn(d, 'after') ? ['after'] : []),
+        ]),
         ids: messageIds(d['ids']),
+        ...(d['after'] === undefined ? {} : { after: uuid(d['after']) }),
       }),
     'group-message-delete': async (a, d, proof) => {
       const input = {

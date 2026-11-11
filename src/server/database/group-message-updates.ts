@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { AccountError } from '../../shared/account/index.ts';
+import { object, AccountError } from '../../shared/account/index.ts';
 import type { GroupEvent } from '../../shared/groups/index.ts';
 import type { GroupPacket } from '../../shared/group-messages/index.ts';
 import type { MessageProof } from '../../shared/messages/index.ts';
@@ -334,10 +334,11 @@ export async function assertGroupEdit(
     'SELECT hash,sender,kind,epoch,body,relation FROM hash_talk.group_packets WHERE group_id=$1 AND id=$2 FOR UPDATE',
     [packet.groupId, relation.id],
   );
-  const root = editableRoot(rows.rows[0]);
+  const root = editableRoot(rows.rows[0], relation.type);
   assertEditOwner(root, { packet, relation, state });
+  if (relation.type === 'reaction') return;
   const count = await client.query<{ count: number }>(
-    "SELECT count(*)::integer AS count FROM hash_talk.group_packets WHERE group_id=$1 AND relation->>'id'=$2",
+    "SELECT count(*)::integer AS count FROM hash_talk.group_packets WHERE group_id=$1 AND relation->>'id'=$2 AND relation->>'type'='edit'",
     [packet.groupId, relation.id],
   );
   if ((count.rows[0]?.count ?? 0) >= 64)
@@ -352,8 +353,16 @@ interface EditRoot {
   body: unknown;
   relation: unknown;
 }
-function editableRoot(root: EditRoot | undefined): EditRoot {
-  if (!root || root.kind !== 'text' || root.relation || !root.body)
+function editableRoot(
+  root: EditRoot | undefined,
+  action: 'edit' | 'reaction',
+): EditRoot {
+  if (!root || root.kind === 'profile' || root.relation || !root.body)
+    throw new AccountError(403, 'Action is outside your authorized message.');
+  if (
+    action === 'edit' &&
+    (root.kind !== 'text' || object(root.body)['viewOnce'])
+  )
     throw new AccountError(403, 'Edit is outside your authorized message.');
   return root;
 }
@@ -370,8 +379,8 @@ function assertEditOwner(
       (member) => member.accountId === input.packet.sender,
     )?.joined ?? Infinity;
   if (
-    root.sender !== input.packet.sender ||
-    input.relation.author !== input.packet.sender ||
+    (input.relation.type === 'edit' && root.sender !== input.packet.sender) ||
+    input.relation.author !== root.sender ||
     root.hash !== input.relation.hash ||
     root.epoch < joined
   )

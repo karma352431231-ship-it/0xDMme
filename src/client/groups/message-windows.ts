@@ -8,7 +8,7 @@ import {
 import type { Snapshot, IndexItem } from './message-index.ts';
 import { GroupDelta } from './message-delta.ts';
 export { IncompleteGroupIndex } from './message-index.ts';
-import { projectGroupMessages } from './message-projection.ts';
+import { projectGroupMessages, groupViewBytes } from './message-projection.ts';
 import { localGroupEdits } from './history.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
@@ -315,6 +315,33 @@ export class GroupMessageWindows {
     }
     return views;
   }
+  private async related(
+    c: ReadContext,
+    snapshot: Snapshot,
+    base: GroupView[],
+  ): Promise<GroupView[]> {
+    let projected = base,
+      after: string | null = null;
+    const deadline = Date.now() + 45000;
+    do {
+      c.guard?.();
+      if (Date.now() > deadline)
+        throw new Error('Group preparation timed out; try again.');
+      const relations = object(
+        await c.api('group-message-relations', {
+          ...wire(snapshot),
+          ids: base.map((view) => view.id),
+          ...(after ? { after } : {}),
+        }),
+      );
+      const page = relationPage(relations, after);
+      await this.objects(c, snapshot, page.ids, (actions) => {
+        projected = projectGroupMessages(projected, actions);
+      });
+      after = page.next;
+    } while (after !== null);
+    return projected;
+  }
   private async recent(
     c: ReadContext,
     input: { scope: string; snapshot: Snapshot; before: number | null },
@@ -333,23 +360,7 @@ export class GroupMessageWindows {
       base = page.views.filter(
         (view) => view.kind !== 'profile' && !view.relation,
       );
-    const relations = object(
-      await c.api('group-message-relations', {
-        ...wire(input.snapshot),
-        ids: base.map((view) => view.id),
-      }),
-    );
-    if (!Array.isArray(relations['ids']) || relations['ids'].length > 16)
-      throw new Error('Invalid group edits.');
-    let projected = base;
-    await this.objects(
-      c,
-      input.snapshot,
-      relations['ids'].map(uuid),
-      (edits) => {
-        projected = projectGroupMessages(projected, edits);
-      },
-    );
+    let projected = await this.related(c, input.snapshot, base);
     const local = projected.filter((view) => view.localOnly);
     if (local.length)
       projected = projectGroupMessages(
@@ -398,10 +409,7 @@ export class GroupMessageWindows {
       [...this.windows.values()].reduce(
         (total, window) =>
           total +
-          window.views.reduce(
-            (bytes, view) => bytes + view.text.length * 2 + 1024,
-            0,
-          ),
+          window.views.reduce((bytes, view) => bytes + groupViewBytes(view), 0),
         0,
       ) >
         8 * 1024 * 1024
@@ -416,6 +424,17 @@ function explicitRemoval(item: IndexItem): boolean {
     !!item.deletion &&
     object(item.deletion)['type'] === 'message'
   );
+}
+
+/** Validate the bounded action page and strictly advancing transport cursor. */
+function relationPage(raw: Record<string, unknown>, after: string | null) {
+  if (!Array.isArray(raw['ids']) || raw['ids'].length > 16)
+    throw new Error('Invalid group actions.');
+  const ids = raw['ids'].map(uuid),
+    next = raw['next'] == null ? null : uuid(raw['next']);
+  if (next !== null && after !== null && next <= after)
+    throw new Error('Invalid group action cursor.');
+  return { ids, next };
 }
 
 /** Group windows hold roots only; edits are already projected into them. */

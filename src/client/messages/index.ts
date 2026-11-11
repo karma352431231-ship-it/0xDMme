@@ -1,3 +1,6 @@
+import { encodeGroupText } from '../../shared/group-messages/index.ts';
+import type { AttachmentSelection } from '../attachments/index.ts';
+import { stageForwardedMessage } from '../message-forward/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 import { awaitMessageWork } from './continuation.ts';
 export { notificationMessages } from './notification.ts';
@@ -57,7 +60,6 @@ import {
 } from '../notification-sound/index.ts';
 import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type {
   Peer,
@@ -250,6 +252,18 @@ export function startMessages(
       id === session?.accountId
         ? Promise.resolve(sharedProfile())
         : controller.knownProfile(id),
+    forwarding: {
+      contacts: () => forwardContacts(),
+      profile: (id) =>
+        id.startsWith('group:')
+          ? Promise.resolve(null)
+          : controller.knownProfile(id),
+      more: () => directoryData.hasMore(navigator.onLine),
+      loadMore: () => directoryData.refresh(true, navigator.onLine),
+    },
+    forward: (view, peer) =>
+      forwardContent(view, peer, (thumbnail) => groups.media(view, thumbnail)),
+    flushForward: () => flushForward(),
     organizationPeers: () => organizationIds(),
     isBusy: () => synchronization.busy,
     alert: () => sound.alert('group'),
@@ -591,17 +605,13 @@ export function startMessages(
     visible: () => conversationVisible('[data-direct-conversation]'),
     signal: () => externalAbort.signal,
     attachments: composer.media,
-    flush: transmit,
+    flush: flushForward,
     forwarding: {
-      contacts: () =>
-        directoryData.peers
-          .filter((peer) => !peer.localOnly)
-          .map((peer) => ({
-            id: peer.accountId,
-            title: peerTitle(peer),
-            seed: peer.address,
-          })),
-      profile: (id) => controller.knownProfile(id),
+      contacts: () => forwardContacts(),
+      profile: (id) =>
+        id.startsWith('group:')
+          ? Promise.resolve(null)
+          : controller.knownProfile(id),
       more: () => directoryData.hasMore(navigator.onLine),
       loadMore: () => directoryData.refresh(true, navigator.onLine),
     },
@@ -930,6 +940,7 @@ export function startMessages(
     composer.choose(mode, view, rows ?? []);
   }
   function clearSessionPanels(): void {
+    forwardedGroups.clear();
     mounted?.querySelectorAll('form').forEach((form) => form.reset());
     node('[data-representative-chat]')?.replaceChildren();
     node('[data-message-pending]')?.replaceChildren();
@@ -957,45 +968,71 @@ export function startMessages(
         return;
     }
   }
+  const forwardedGroups = new Set<string>();
+  function forwardContacts() {
+    return [
+      ...directoryData.peers
+        .filter((p) => !p.localOnly)
+        .map((peer) => ({
+          id: peer.accountId,
+          title: peerTitle(peer),
+          seed: peer.address,
+        })),
+      ...groups.entries
+        .filter((g) => !g.localOnly)
+        .map((group) => ({
+          id: 'group:' + group.state.groupId,
+          title: group.title,
+          seed: group.state.groupId,
+        })),
+    ];
+  }
+  async function flushForward(): Promise<void> {
+    for (const id of forwardedGroups) {
+      await groups.sendGroupDrafts(id);
+      forwardedGroups.delete(id);
+    }
+    await transmit();
+  }
   async function forward(
     view: DailyView<MessageView>,
     peer: string,
   ): Promise<void> {
-    if (!directoryData.peers.some((p) => p.accountId === peer && !p.localOnly))
-      throw new Error('Select an approved contact to forward to.');
-    if (view.kind === 'text')
-      await controller.compose(
-        peer,
-        encodeDailyText({ ...view.content, reply: null, forwarded: true }),
-      );
-    else if (view.kind === 'attachment') {
-      const content = attachmentContent(JSON.parse(view.text) as unknown),
-        bytes = await controller.media(view, false);
-      let thumbnail: Uint8Array<ArrayBuffer> | null = null;
-      try {
-        if (content.thumbnail) thumbnail = await controller.media(view, true);
-        await controller.composeAttachment(
-          peer,
-          {
-            name: content.name,
-            type: content.type,
-            image: content.image,
-            ...(content.voice ? { voice: content.voice } : {}),
-            bytes,
-            thumbnail,
-          },
-          encodeDailyText({
-            text: view.content.text,
-            reply: null,
-            forwarded: true,
-          }),
-        );
-      } finally {
-        bytes.fill(0);
-        thumbnail?.fill(0);
-      }
-    }
+    return forwardContent(view, peer, (thumbnail) =>
+      controller.media(view, thumbnail),
+    );
   }
+  async function forwardContent(
+    view: DailyView<import('../daily-text/index.ts').DailyRow>,
+    peer: string,
+    load: (thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>,
+  ): Promise<void> {
+    const group = peer.startsWith('group:') ? peer.slice(6) : null;
+    if (
+      !group &&
+      !directoryData.peers.some((p) => p.accountId === peer && !p.localOnly)
+    )
+      throw new Error('Select an approved contact to forward to.');
+    const destination = group
+      ? {
+          text: (value: string) => groups.composeFor(group, value, null),
+          attachment: (selection: AttachmentSelection, value: string) =>
+            groups.composeFor(group, value, selection),
+        }
+      : {
+          text: (value: string) => controller.compose(peer, value),
+          attachment: (selection: AttachmentSelection, value: string) =>
+            controller.composeAttachment(peer, selection, value),
+        };
+    await stageForwardedMessage({
+      view,
+      load,
+      destination,
+      ...(group ? { encode: encodeGroupText } : {}),
+    });
+    if (group) forwardedGroups.add(group);
+  }
+
   function sameSession(value: AccountSession | null): boolean {
     return (
       value?.accountId === session?.accountId &&

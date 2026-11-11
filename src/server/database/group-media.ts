@@ -61,17 +61,6 @@ export class GroupMediaStore {
     );
     return result.rows[0] ?? null;
   }
-  private async writable(
-    client: pg.PoolClient,
-    groupId: string,
-  ): Promise<void> {
-    const result = await client.query<{ clearing: boolean }>(
-      'SELECT clearing FROM hash_talk.groups WHERE id=$1',
-      [groupId],
-    );
-    if (!result.rows[0] || result.rows[0].clearing)
-      throw new AccountError(409, 'Vault cleanup in progress.');
-  }
   async reserve(
     authority: ContactAuthority,
     input: GroupScope & { message: string; refs: AttachmentRef[] },
@@ -81,7 +70,7 @@ export class GroupMediaStore {
         authority,
         input,
         async (client, state) => {
-          await this.writable(client, input.groupId);
+          await this.groups.writable(client, input.groupId);
           const accepted = await client.query(
             'SELECT 1 FROM hash_talk.group_packets WHERE id=$1',
             [input.message],
@@ -155,7 +144,7 @@ export class GroupMediaStore {
     scope: GroupScope & { id: string },
     state: GroupEvent,
   ): Promise<MediaRow> {
-    await this.writable(client, scope.groupId);
+    await this.groups.writable(client, scope.groupId);
     const row = await this.row(client, scope.id);
     if (
       !row ||
@@ -262,7 +251,7 @@ export class GroupMediaStore {
   }
   /** Called within message admission; no filesystem work inside SQL. */
   async admit(client: pg.PoolClient, packet: GroupPacket): Promise<void> {
-    await this.writable(client, packet.groupId);
+    await this.groups.writable(client, packet.groupId);
     for (const ref of packet.attachments ?? []) {
       const row = await this.row(client, ref.id);
       if (

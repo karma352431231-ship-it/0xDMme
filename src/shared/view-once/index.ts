@@ -9,7 +9,7 @@ import { integer } from '../vault/index.ts';
 export const viewOnceChunkBytes = 192 * 1024;
 export const viewOnceFileBytes = 10_000_000;
 export const viewOnceCipherBytes = 14_000_000;
-export type ViewOnceScope = 'private' | 'public';
+export type ViewOnceScope = 'private' | 'public' | 'group';
 export interface ViewOnceHeader {
   version: 1;
   id: string;
@@ -28,7 +28,7 @@ export interface ViewOnceContent {
 }
 
 export function viewOnceScope(value: unknown): ViewOnceScope {
-  if (value !== 'private' && value !== 'public')
+  if (value !== 'private' && value !== 'public' && value !== 'group')
     throw new AccountError(400, 'Invalid view-once conversation.');
   return value;
 }
@@ -66,7 +66,7 @@ export function viewOnceHeader(input: unknown): ViewOnceHeader {
   };
   if (
     header.sender === header.recipient ||
-    header.key.accountId !== header.recipient
+    (header.scope !== 'group' && header.key.accountId !== header.recipient)
   )
     throw new AccountError(400, 'Invalid view-once recipient.');
   return header;

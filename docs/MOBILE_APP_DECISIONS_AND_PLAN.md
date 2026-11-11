@@ -1060,3 +1060,10 @@ The common gesture owner follows one primary touch at the window boundary throug
 Thirty-five focused regressions passed. Actual WebKit at 390/1100 pixels passed the real Public wrapper geometry, separate glyph colors and six consecutive DOM reply replacements with focus/draft preserved. Strict types, affected lint, boundaries, formatting, web/mobile and ordinary signature/source/asset checks passed. No simulator was started for this correction.
 
 Ordinary Wallet build 11 is signed and prepared in `.local/reply-lifecycle/`, with the exact three-source-file overlay verified. The owner unplugged the phone and explicitly deferred installation: do not install or launch until they reconnect and authorize continuing that step. The installed app remains build 10. Physical gesture acceptance remains open.
+
+## Private group chat parity approved on 2026-11-11
+
+The owner authorized completing the private-group interaction gaps and extending
+view-once delivery to one opening per eligible recipient account, including local
+Android and iPhone builds ready for installation. This supersedes the earlier
+exclusion of groups from view-once messages. See [the implementation contract](PRIVATE_GROUP_CHAT_PARITY.md).

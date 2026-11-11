@@ -1,5 +1,5 @@
 import { applyGroupRemovals } from './removals.ts';
-import { groupEditRelation } from '../../shared/group-messages/index.ts';
+import { groupMessageRelation } from '../../shared/group-messages/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import {
   profilePhotoUpdate,
@@ -32,7 +32,10 @@ import { readDirectories } from '../peer-identity/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
 import { GroupCache, groupTitle, groupMessageRecordName } from './cache.ts';
 import type { GroupState } from './governance.ts';
-import { optionalSentAt } from '../../shared/message-presentation/index.ts';
+import {
+  optionalSentAt,
+  messageContentFormat,
+} from '../../shared/message-presentation/index.ts';
 import type { MessagePresentation } from '../../shared/message-presentation/index.ts';
 export interface GroupView {
   id: string;
@@ -51,8 +54,13 @@ export interface GroupView {
   relation?: MessageRelation;
   edited?: boolean;
   editedSequence?: number;
+  reactionStates?: Record<
+    string,
+    { emoji: string; sequence: number; own: boolean }
+  >;
   /** The sender's clock; groups messages sent before 24/10/2026 have none. */
   sentAt?: number;
+  contentFormat?: 'daily';
 }
 interface GroupRow {
   id: string;
@@ -242,9 +250,13 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
 }
 async function preserveEdit(cache: GroupCache, view: GroupView): Promise<void> {
   if (!view.relation) return;
-  const old = await cache.get(`edit:${view.relation.id}`);
+  const name =
+    view.relation.type === 'edit'
+      ? `edit:${view.relation.id}`
+      : `reaction:${view.relation.id}:${view.sender}`;
+  const old = await cache.get(name);
   if (old === null || groupView(old).sequence < view.sequence)
-    await cache.put(`edit:${view.relation.id}`, view);
+    await cache.put(name, view);
 }
 async function preservedView(
   cache: GroupCache,
@@ -354,8 +366,9 @@ export function groupView(input: unknown): GroupView {
     text: d['text'],
     ...(d['relation'] === undefined
       ? {}
-      : { relation: groupEditRelation(d['relation']) }),
+      : { relation: groupMessageRelation(d['relation']) }),
     ...optionalSentAt(d['sentAt']),
+    ...messageContentFormat(d['contentFormat']),
     unavailableMedia: d['unavailableMedia'].map(uuid),
   };
 }
@@ -382,7 +395,7 @@ function parseGroupPage(input: unknown): {
       ...(row['sender'] === undefined ? {} : { sender: uuid(row['sender']) }),
       ...(row['relation'] == null
         ? {}
-        : { relation: groupEditRelation(row['relation']) }),
+        : { relation: groupMessageRelation(row['relation']) }),
       deletion: row['deletion'] ?? null,
       epoch: integer(row['epoch'], 100_000),
       sequence: integer(row['sequence'], Number.MAX_SAFE_INTEGER),

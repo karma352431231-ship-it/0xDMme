@@ -1,3 +1,4 @@
+import { historicalMigrations } from '../fixtures/historical-migrations.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
@@ -285,7 +286,7 @@ await test('single-use deliveries authenticate participants, consume atomically,
   );
 });
 
-await test('populated 106→107 migration preserves every prior source row, ledger and checksum', async (t) => {
+await test('populated 106→109 migration preserves every prior source row, ledger and checksum', async (t) => {
   const c = await messageReceiptFixture(t, { through: 106 });
   const pair = await messagePair(c);
   const packet = admissionPacket(pair);
@@ -300,11 +301,14 @@ await test('populated 106→107 migration preserves every prior source row, ledg
       'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
     )
   ).rows as unknown;
-  await c.db.migrate();
+  await historicalMigrations(c.inspector, ['107-view-once-messages.sql']);
   const after = await snapshots(c);
   assert.equal(after.bytes, before.bytes);
   assert.deepEqual(
-    after.sources.filter((x) => x.name !== 'view_once_payloads'),
+    after.sources.filter(
+      (x) =>
+        !['view_once_payloads', 'group_view_once_payloads'].includes(x.name),
+    ),
     before.sources,
   );
   assert.deepEqual(
@@ -327,4 +331,14 @@ await test('populated 106→107 migration preserves every prior source row, ledg
       : result;
     assert.deepEqual(Object.values(last.rows[0]!), [true]);
   }
+  await c.db.migrate();
+  const completed = await snapshots(c);
+  assert.equal(completed.bytes, before.bytes);
+  assert.deepEqual(
+    completed.sources.filter(
+      (x) =>
+        !['view_once_payloads', 'group_view_once_payloads'].includes(x.name),
+    ),
+    before.sources,
+  );
 });

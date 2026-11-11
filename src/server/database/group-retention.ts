@@ -20,9 +20,9 @@ import {
 } from './group-quota.ts';
 import { assertContentReclamationCapacity } from './vault-quota.ts';
 import { admitGroupNotification } from './daily.ts';
-const clearableGroup = `(EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets k WHERE k.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL) OR NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))`;
+const clearableGroup = `(EXISTS(SELECT 1 FROM hash_talk.group_view_once_payloads v WHERE v.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets k WHERE k.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL) OR NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))`;
 const dueGroups = `((g.clearing AND ${clearableGroup}) OR
- (g.deleted AND (EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL))) OR
+ (g.deleted AND (EXISTS(SELECT 1 FROM hash_talk.group_view_once_payloads v WHERE v.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL))) OR
  EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id AND (c.due_at IS NULL OR c.due_at<=clock_timestamp())) OR
  (NOT g.deleted AND NOT EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id) AND (SELECT accepted_media_bytes FROM hash_talk.group_quota_usage q WHERE q.group_id=g.id)>=$1))`;
 interface CleanupRow {
@@ -90,7 +90,7 @@ export class GroupRetentionStore {
           sequence: string;
           bytes: number;
         }>(
-          'SELECT message_id,min(sequence)::text AS sequence,sum(bytes)::integer AS bytes FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 AND epoch>=$3 GROUP BY message_id HAVING min(sequence)>$4 ORDER BY min(sequence) LIMIT 16',
+          'SELECT message_id,min(sequence)::text AS sequence,sum(bytes)::integer AS bytes FROM (SELECT message_id,sequence,bytes FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 AND epoch>=$3 UNION ALL SELECT id,sequence,media_bytes FROM hash_talk.group_view_once_payloads WHERE group_id=$1 AND cleanup=$2 AND epoch>=$3) media GROUP BY message_id HAVING min(sequence)>$4 ORDER BY min(sequence) LIMIT 16',
           [input.groupId, row.id, joined, input.after],
         );
         return {
@@ -206,7 +206,7 @@ export class GroupRetentionStore {
       sequence: string;
       bytes: number;
     }>(
-      "SELECT message_id AS id,min(sequence)::text AS sequence,sum(bytes)::integer AS bytes FROM hash_talk.group_media WHERE group_id=$1 AND status='accepted' AND cleanup IS NULL GROUP BY message_id HAVING min(sequence)>$2 ORDER BY min(sequence) LIMIT 64",
+      "SELECT message_id AS id,min(sequence)::text AS sequence,sum(bytes)::integer AS bytes FROM (SELECT message_id,sequence,bytes FROM hash_talk.group_media WHERE group_id=$1 AND status='accepted' AND cleanup IS NULL UNION ALL SELECT id,sequence,media_bytes FROM hash_talk.group_view_once_payloads WHERE group_id=$1 AND attached AND media_bytes>0 AND cleanup IS NULL) media GROUP BY message_id HAVING min(sequence)>$2 ORDER BY min(sequence) LIMIT 64",
       [state.groupId, job.after_sequence],
     );
     const batch = selectMediaCleanupBatch({
@@ -216,6 +216,10 @@ export class GroupRetentionStore {
     });
     await client.query(
       "UPDATE hash_talk.group_media SET cleanup=$2 WHERE group_id=$1 AND message_id=ANY($3::uuid[]) AND status='accepted' AND cleanup IS NULL",
+      [state.groupId, job.id, batch.selected.map((r) => r.id)],
+    );
+    await client.query(
+      'UPDATE hash_talk.group_view_once_payloads SET cleanup=$2 WHERE group_id=$1 AND id=ANY($3::uuid[]) AND attached AND media_bytes>0 AND cleanup IS NULL',
       [state.groupId, job.id, batch.selected.map((r) => r.id)],
     );
     const frozen = !batch.remainingBytes || !rows.rows.length;
@@ -253,14 +257,18 @@ export class GroupRetentionStore {
       "UPDATE hash_talk.group_media SET status='deleting' WHERE id IN (SELECT id FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 AND status='accepted' ORDER BY sequence LIMIT 64) RETURNING id",
       [state.groupId, job.id],
     );
-    if (expired.rowCount)
+    const once = await client.query(
+      'DELETE FROM hash_talk.group_view_once_payloads WHERE id IN (SELECT id FROM hash_talk.group_view_once_payloads WHERE group_id=$1 AND cleanup=$2 ORDER BY sequence LIMIT 64) RETURNING id',
+      [state.groupId, job.id],
+    );
+    if (expired.rowCount || once.rowCount)
       this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },
       );
     const remaining = await client.query(
-      'SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 LIMIT 1',
+      'SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2 UNION ALL SELECT 1 FROM hash_talk.group_view_once_payloads WHERE group_id=$1 AND cleanup=$2 LIMIT 1',
       [state.groupId, job.id],
     );
     if (!remaining.rowCount)
@@ -278,6 +286,10 @@ export class GroupRetentionStore {
       "UPDATE hash_talk.group_media SET status='deleting' WHERE id IN (SELECT id FROM hash_talk.group_media WHERE group_id=$1 AND status NOT IN ('writing','deleting') ORDER BY sequence LIMIT 64)",
       [state.groupId],
     );
+    const once = await client.query(
+      'DELETE FROM hash_talk.group_view_once_payloads WHERE id IN (SELECT id FROM hash_talk.group_view_once_payloads WHERE group_id=$1 ORDER BY sequence LIMIT 64) RETURNING id',
+      [state.groupId],
+    );
     const cleared = await client.query(
       `UPDATE hash_talk.group_packets SET body=NULL,key_hash=NULL,deletion=jsonb_build_object('reason','vault-clean','at',floor(extract(epoch FROM clock_timestamp())*1000)),charge=512+16*(cardinality(pending_accounts)+cardinality(received_accounts)) WHERE id IN (SELECT id FROM hash_talk.group_packets WHERE group_id=$1 AND body IS NOT NULL ORDER BY sequence LIMIT 64)`,
       [state.groupId],
@@ -290,14 +302,14 @@ export class GroupRetentionStore {
       'UPDATE hash_talk.group_matrix_envelopes SET body=NULL,charge=512 WHERE sequence IN (SELECT sequence FROM hash_talk.group_matrix_envelopes WHERE group_id=$1 AND body IS NOT NULL ORDER BY sequence LIMIT 64)',
       [state.groupId],
     );
-    if (cleared.rowCount)
+    if (cleared.rowCount || once.rowCount)
       this.admission.changed(
         client,
         state.members.map((m) => m.accountId),
         { category: 'group-messages' },
       );
     const pending = await client.query(
-      `SELECT 1 WHERE EXISTS(SELECT 1 FROM hash_talk.group_packets WHERE group_id=$1 AND body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes WHERE group_id=$1 AND body IS NOT NULL)`,
+      `SELECT 1 WHERE EXISTS(SELECT 1 FROM hash_talk.group_view_once_payloads WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_packets WHERE group_id=$1 AND body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets WHERE group_id=$1) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes WHERE group_id=$1 AND body IS NOT NULL)`,
       [state.groupId],
     );
     if (!pending.rowCount) {

@@ -16,7 +16,7 @@ export function applyMessageAvailability(
 }
 function localControl(control: HTMLElement): boolean {
   return (
-    !!control.closest('[data-message-form]') ||
+    !!control.closest('[data-message-form], [data-group-compose]') ||
     control.matches(
       '[data-chat-back], [data-conversation], [data-draft-action], [data-message-text], [data-group-text]',
     )

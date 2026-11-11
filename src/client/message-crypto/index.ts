@@ -91,6 +91,8 @@ export interface GroupEncryptionInput {
   kind?: GroupPacket['kind'];
   existingKeys?: GroupKeys;
   relation?: import('../../shared/daily/index.ts').MessageRelation;
+  viewOnce?: import('../../shared/messages/index.ts').ViewOnceReference;
+  contentFormat?: 'daily';
 }
 // Tracing payloads may contain protocol data. Errors still reject the operation.
 const silentLogger = {
@@ -608,6 +610,7 @@ export class MessageCrypto {
       authorityRevision: input.authority.events.length,
       keyHash: await groupKeysHash(bundle),
       ...(input.relation ? { relation: input.relation } : {}),
+      ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
       ...attachmentMetadata(input.kind, input.text),
       signature: 'A'.repeat(86) + '==',
     });
@@ -854,9 +857,16 @@ export class MessageCrypto {
         groupId: input.state.groupId,
         epoch: input.state.epoch,
         ...(input.relation ? { relation: input.relation } : {}),
+        ...(input.viewOnce ? { viewOnce: input.viewOnce } : {}),
         // Sender's clock, as in private messages (24/10/2026); earlier group
         // messages have none, and earlier readers ignore it.
-        presentation: { version: 1, sentAt: Date.now() },
+        presentation: {
+          version: 1,
+          sentAt: Date.now(),
+          ...(input.contentFormat
+            ? { contentFormat: input.contentFormat }
+            : {}),
+        },
       },
     });
     if (new TextEncoder().encode(content).length > 3_000_000)
@@ -916,6 +926,7 @@ export class MessageCrypto {
     const payload = object(object(JSON.parse(event) as unknown)['content']),
       identity = object(payload['org.0xdmme.group']);
     this.assertGroupContentRelation(identity, packet);
+    this.assertGroupViewOnce(payload, identity, packet);
     if (
       payload['msgtype'] !== messageType(packet.kind) ||
       typeof payload['body'] !== 'string' ||
@@ -938,6 +949,23 @@ export class MessageCrypto {
       text: payload['body'],
       ...messagePresentation(identity['presentation']),
     };
+  }
+  private assertGroupViewOnce(
+    payload: Record<string, unknown>,
+    identity: Record<string, unknown>,
+    packet: GroupPacket,
+  ): void {
+    if (
+      canonical(identity['viewOnce'] ?? null) !==
+      canonical(packet.viewOnce ?? null)
+    )
+      throw new Error('View-once group binding differs.');
+    if (
+      packet.viewOnce &&
+      decodeDailyText(String(payload['body'])).viewOnce?.hash !==
+        packet.viewOnce.hash
+    )
+      throw new Error('View-once group descriptor differs.');
   }
   private assertGroupContentRelation(
     identity: Record<string, unknown>,

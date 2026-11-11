@@ -122,7 +122,7 @@ export class MessageHistoryUi {
   private readonly deletion: MessageDeletionSelection;
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
-  private readonly reactions: HistoryReactions;
+  private readonly reactions: HistoryReactions<MessageView>;
   private readonly loadingDiagnostics = new HistoryLoadDiagnostics();
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
@@ -502,6 +502,7 @@ export class MessageHistoryUi {
         signal,
         view,
         forward: () => this.forwarding?.start(view),
+        forwardAllowed: !!this.options.forwarding?.contacts().length,
         peers: this.options.context().peers.filter((peer) => !peer.localOnly),
         replyAllowed: !this.options.context().selected?.localOnly,
         // A remove capability exists in composition, but is offered only for an own live row.

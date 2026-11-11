@@ -513,3 +513,22 @@ await test("deletion during download discards only the removed bubble's bytes", 
   assert.equal(blobs.length, 0);
   assert.ok(bytes.every((value) => value === 0));
 });
+
+await test('conversation-supplied attachment captions preserve legacy literals and group text budgets', (t) => {
+  const { ui } = environment(t);
+  for (const caption of ['\u001e0xdmme:1:not-structured', 'x'.repeat(32000)]) {
+    const article = new MediaNode('article');
+    ui.render({
+      article: article as unknown as HTMLElement,
+      content: {
+        ...content('text/plain'),
+        caption: '\u001e0xdmme:1:not-structured',
+      },
+      caption,
+      view: { id: crypto.randomUUID(), peer: crypto.randomUUID(), text: '' },
+      load: () => Promise.reject(new Error('No download requested.')),
+      run: (work) => work(),
+    });
+    assert.ok(article.children[0]!.textContent.endsWith(' · ' + caption));
+  }
+});

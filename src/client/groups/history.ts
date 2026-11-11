@@ -82,6 +82,12 @@ export async function localGroupEdits(
   for (const view of views) {
     const edit = await cache.get(`edit:${view.id}`);
     if (edit !== null) edits.push(groupView(edit));
+    let after: string | null = null;
+    do {
+      const page = await cache.page(`reaction:${view.id}:`, after);
+      edits.push(...page.items.map((row) => groupView(row.value)));
+      after = page.next;
+    } while (after !== null);
   }
   const imported = await relatedGroupHistory(
     authority,

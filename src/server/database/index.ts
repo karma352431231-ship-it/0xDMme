@@ -1,3 +1,4 @@
+import { GroupViewOnceStore } from './group-view-once.ts';
 import { SocialMessageDeletion } from './social-message-deletion.ts';
 import { readOperationalHealth } from './operational-health.ts';
 export type { OperationalDatabaseSnapshot } from './operational-health.ts';
@@ -239,6 +240,8 @@ const migrations = [
   '105-dated-profile-follows.sql',
   '106-visitor-retention.sql',
   '107-view-once-messages.sql',
+  '108-group-message-actions.sql',
+  '109-group-view-once.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -523,6 +526,9 @@ export class Database {
       this.devices,
       contentCapacity,
       this.messageRecovery,
+    );
+    this.viewOnce.setGroups(
+      new GroupViewOnceStore(this.groups, contentCapacity),
     );
     this.groupDaily = new GroupDailyStore(
       this.pool,

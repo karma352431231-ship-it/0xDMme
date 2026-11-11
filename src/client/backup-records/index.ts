@@ -1,4 +1,8 @@
 import {
+  contentFormatKeys,
+  messageContentFormat,
+} from '../../shared/message-presentation/index.ts';
+import {
   base64,
   boundedText,
   encode,
@@ -77,6 +81,7 @@ export type BackupRecord =
     }
   | {
       type: 'group-message';
+      contentFormat?: 'daily';
       relation?: MessageRelation;
       id: string;
       hash: string;
@@ -351,6 +356,7 @@ function groupMessageRecord(
     'kind',
     'text',
     ...relationKeys(d),
+    ...contentFormatKeys(d),
   ]);
   const kind = d['kind'],
     text = boundedText(d['text'], backupTextLimit);
@@ -360,9 +366,11 @@ function groupMessageRecord(
   )
     throw new Error('Invalid historical group message.');
   if (kind === 'profile') groupTitle(JSON.parse(text) as unknown);
-  else validateContent(kind, text);
+  else if (kind === 'attachment')
+    attachmentContent(JSON.parse(text) as unknown);
   return {
     type: 'group-message',
+    ...messageContentFormat(d['contentFormat']),
     id,
     hash,
     groupId: uuid(d['groupId']),

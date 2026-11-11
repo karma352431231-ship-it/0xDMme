@@ -11,6 +11,7 @@ import type {
 } from '../src/client/groups/reader.ts';
 import type { GroupEvent } from '../src/shared/groups/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
+import { encodeDailyText } from '../src/shared/daily/index.ts';
 
 // The real cursor/projection and final-confirmation contract; transport and body
 // decoding are synthetic. Megolm, signatures and persistence have separate tests.
@@ -545,4 +546,49 @@ await test('scrolling up adds one older verified page before confirmation and la
     windows.olderAvailable(c.group.state.groupId, latest.views),
     true,
   );
+});
+
+await test('initial group window projects every page of reactions from independent authors', async () => {
+  const { c, data, add } = await fixture(),
+    root = add('Original'),
+    windows = new GroupMessageWindows();
+  const actions: GroupView[] = Array.from({ length: 20 }, (_, i) => ({
+    ...root,
+    id: crypto.randomUUID(),
+    sender: crypto.randomUUID(),
+    own: false,
+    sequence: i + 2,
+    text: encodeDailyText({ text: '👍', reply: null, forwarded: false }),
+    relation: {
+      id: root.id,
+      hash: root.hash,
+      author: root.sender,
+      type: 'reaction',
+    },
+  }));
+  data.views.push(...actions);
+  data.changed = actions;
+  const ids = actions.map((action) => action.id).sort(),
+    original = c.api,
+    cursors: unknown[] = [];
+  c.api = (op, d) => {
+    if (op !== 'group-message-relations') return original(op, d);
+    cursors.push(d['after']);
+    const remaining = ids.filter(
+      (id) => typeof d['after'] !== 'string' || id > d['after'],
+    );
+    return Promise.resolve({
+      ids: remaining.slice(0, 16),
+      next: remaining.length > 16 ? remaining[15] : null,
+    });
+  };
+  const result = await windows.read(c, null);
+  assert.deepEqual(cursors, [undefined, ids[15]]);
+  assert.equal(result.views.length, 1);
+  assert.equal(
+    Object.keys(result.views[0]!.reactionStates!).length,
+    actions.length,
+  );
+  for (const action of actions)
+    assert.equal(result.views[0]!.reactionStates![action.sender]?.emoji, '👍');
 });

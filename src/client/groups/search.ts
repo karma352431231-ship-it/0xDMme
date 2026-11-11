@@ -1,3 +1,4 @@
+import { groupMessageView } from './message-content.ts';
 import { currentLanguage } from '../../shared/i18n/index.ts';
 import { searchTerm } from '../message-search/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -57,9 +58,9 @@ export async function searchGroupCopies(c: {
   return { items, next: cursor ? JSON.stringify(cursor) : null };
 }
 function searchableText(view: GroupView): string {
-  if (view.kind !== 'attachment') return view.text;
+  if (view.kind !== 'attachment') return groupMessageView(view).content.text;
   const attachment = attachmentContent(JSON.parse(view.text) as unknown);
-  return attachment.name + ' ' + attachment.caption;
+  return attachment.name + ' ' + groupMessageView(view).content.text;
 }
 function readCursor(
   after: string | null,

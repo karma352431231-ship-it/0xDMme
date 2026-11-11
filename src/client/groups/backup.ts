@@ -256,6 +256,7 @@ async function writeView(
   const { id, hash, groupId, sequence, epoch, sender, own, kind, text } = view;
   await c.add({
     type: 'group-message',
+    ...(view.contentFormat ? { contentFormat: view.contentFormat } : {}),
     ...(view.relation ? { relation: view.relation } : {}),
     id,
     hash,

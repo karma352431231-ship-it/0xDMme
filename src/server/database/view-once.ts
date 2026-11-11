@@ -1,3 +1,4 @@
+import type { GroupViewOnceStore } from './group-view-once.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import {
@@ -73,6 +74,10 @@ export async function attachViewOncePayload(
 
 /** Payloads never join message history, attachment exports or recovery pages. */
 export class ViewOnceStore {
+  private groups: GroupViewOnceStore | null = null;
+  setGroups(groups: GroupViewOnceStore): void {
+    this.groups = groups;
+  }
   private readonly contacts: ContactStore;
   private readonly social: SocialDmStore;
   private readonly profiles: PublicProfileStore;
@@ -96,6 +101,11 @@ export class ViewOnceStore {
     installed: boolean,
   ): Promise<unknown> {
     const scope = viewOnceScope(input['scope']);
+    if (scope === 'group') {
+      if (!this.groups)
+        throw new AccountError(503, 'Group delivery unavailable.');
+      return this.groups.operate(authority, operation, input, installed);
+    }
     const peer = uuid(input['peer']);
     const actions: Record<string, (context: Context) => Promise<unknown>> = {
       'view-once-create': (context) => this.create(context, input),
@@ -350,8 +360,8 @@ export class ViewOnceStore {
   clean(): Promise<unknown> {
     return this.contacts.withMaintenance((client) =>
       client.query(
-        `DELETE FROM hash_talk.view_once_payloads
-        WHERE NOT attached AND created_at < clock_timestamp()-interval '24 hours'`,
+        `WITH groups AS (DELETE FROM hash_talk.group_view_once_payloads WHERE id IN (SELECT id FROM hash_talk.group_view_once_payloads WHERE NOT attached AND created_at < clock_timestamp()-interval '24 hours' ORDER BY created_at LIMIT 64)) DELETE FROM hash_talk.view_once_payloads
+        WHERE id IN (SELECT id FROM hash_talk.view_once_payloads WHERE NOT attached AND created_at < clock_timestamp()-interval '24 hours' ORDER BY created_at LIMIT 64)`,
       ),
     );
   }

@@ -1,3 +1,4 @@
+export { HistoryReactions } from './reactions.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
@@ -10,12 +11,14 @@ interface MessageActionOptions<T extends DailyRow> {
   view: DailyView<T>;
   peers: readonly Peer[];
   replyAllowed?: boolean;
+  forwardAllowed?: boolean;
   action: (label: string, work: () => Promise<void>) => HTMLButtonElement;
   choose: (mode: 'reply' | 'edit', view: T) => void;
   react: (view: T, reaction: string) => Promise<void>;
   picker: Pick<EmojiPicker, 'choose'>;
   forward: (view: DailyView<T>) => void;
   remove?: () => Promise<void>;
+  removeLabel?: string;
   row?: HTMLElement;
 }
 export function messageActions<T extends DailyRow>(
@@ -105,7 +108,7 @@ function appendForward<T extends DailyRow>(
   c: MessageActionOptions<T>,
 ): void {
   if (
-    c.peers.length &&
+    (c.forwardAllowed ?? c.peers.length > 0) &&
     ['text', 'attachment'].includes(c.view.kind) &&
     !c.view.content.viewOnce
   )
@@ -126,6 +129,9 @@ function appendRemove<T extends DailyRow>(
 ): void {
   if (c.remove)
     menu.append(
-      withMenuIcon(c.action(t('Delete for both'), c.remove), 'trash'),
+      withMenuIcon(
+        c.action(c.removeLabel ?? t('Delete for both'), c.remove),
+        'trash',
+      ),
     );
 }

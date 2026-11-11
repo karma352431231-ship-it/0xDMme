@@ -1,3 +1,4 @@
+export { localPutBatchWithin } from './batch.ts';
 export { MessageStorageError } from './store.ts';
 import { base64, encode } from '../../shared/account/index.ts';
 import { bytesHash, vaultQuota } from '../../shared/vault/index.ts';

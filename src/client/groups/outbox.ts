@@ -1,3 +1,14 @@
+import { messageContentFormat } from '../../shared/message-presentation/index.ts';
+import { prepareViewOnceContents } from '../view-once/index.ts';
+import type { ViewOnceContent } from '../../shared/view-once/index.ts';
+import {
+  prepareGroupViewOnce,
+  uploadGroupViewOnce,
+  groupOncePayload,
+} from '../group-view-once/index.ts';
+import type { GroupOncePayload } from '../group-view-once/index.ts';
+import { currentRecoveryKey } from '../message-recovery/index.ts';
+import { decodeDailyText } from '../../shared/daily/index.ts';
 import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -8,7 +19,7 @@ import {
 import {
   groupKeys,
   groupPacket,
-  groupEditRelation,
+  groupMessageRelation,
 } from '../../shared/group-messages/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import type {
@@ -34,13 +45,19 @@ import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { GroupCache, groupCacheScope } from './cache.ts';
 import type { GroupState } from './governance.ts';
 import { groupAttachmentApi } from './media.ts';
-interface Outbox {
+export interface GroupDraft {
   id: string;
   kind: GroupPacket['kind'];
   text: string;
   packet: GroupPacket | null;
   keys: GroupKeys | null;
   uploadEpoch: number | null;
+  contentFormat?: 'daily';
+  once?: {
+    content: ViewOnceContent;
+    payload?: GroupOncePayload;
+    batch: string[];
+  };
   relation?: MessageRelation;
   /** Admission order; drafts saved before it existed sort first. */
   order?: number;
@@ -66,6 +83,7 @@ export async function composeGroup(input: {
   text: string;
   selection: AttachmentSelection | null;
   kind?: GroupPacket['kind'];
+  contentFormat?: 'daily';
   id?: string;
   relation?: MessageRelation;
   order?: number;
@@ -97,9 +115,12 @@ export async function composeGroup(input: {
     packet: null,
     keys: null,
     uploadEpoch: null,
-    ...(input.relation ? { relation: groupEditRelation(input.relation) } : {}),
+    ...messageContentFormat(input.contentFormat),
+    ...(input.relation
+      ? { relation: groupMessageRelation(input.relation) }
+      : {}),
     ...(input.order === undefined ? {} : { order: input.order }),
-  } satisfies Outbox);
+  } satisfies GroupDraft);
   return id;
 }
 /** Sends the group's drafts in admission order. The participant directories
@@ -138,8 +159,8 @@ export function staleGroupSend(error: unknown): boolean {
 /** Every draft, so the admission order holds across storage pages. */
 async function outboxDrafts(
   cache: GroupCache,
-): Promise<{ name: string; value: Outbox }[]> {
-  const drafts: { name: string; value: Outbox }[] = [];
+): Promise<{ name: string; value: GroupDraft }[]> {
+  const drafts: { name: string; value: GroupDraft }[] = [];
   let after: string | null = null;
   for (let page = 0; page < 8; page++) {
     const result = await cache.page('outbox:', after);
@@ -155,7 +176,7 @@ async function sendGroupOne(
   entry: {
     cache: GroupCache;
     name: string;
-    value: Outbox;
+    value: GroupDraft;
     participants: () => ReturnType<typeof readDirectories>;
     batch: GroupSendBatch;
   },
@@ -177,6 +198,7 @@ async function sendGroupOne(
     c.progress?.accepted(value.id);
     return;
   }
+  await prepareGroupOnceDraft(c, { cache, name, value }, entry.participants);
   await uploadGroupDraft(c, { cache, name, value });
   if (!currentPacket(value, c)) {
     const accounts = c.group.state.members.map((m) => m.accountId);
@@ -203,7 +225,11 @@ async function sendGroupOne(
         id: value.id,
         text: value.text,
         kind: value.kind,
+        ...messageContentFormat(value.once ? 'daily' : value.contentFormat),
         ...(value.relation ? { relation: value.relation } : {}),
+        ...(value.once?.payload
+          ? { viewOnce: { hash: decodeDailyText(value.text).viewOnce!.hash } }
+          : {}),
         ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
         batch: entry.batch,
       }),
@@ -234,7 +260,7 @@ async function publish(
   entry: {
     cache: GroupCache;
     name: string;
-    value: Outbox;
+    value: GroupDraft;
     batch: GroupSendBatch;
   },
 ): Promise<unknown> {
@@ -246,6 +272,15 @@ async function publish(
     });
   } catch (error: unknown) {
     if (staleGroupSend(error)) {
+      if (value.once?.payload) {
+        await c.api('view-once-cancel', {
+          scope: 'group',
+          peer: c.group.state.groupId,
+          id: value.id,
+          hash: decodeDailyText(value.once.payload.text).viewOnce!.hash,
+        });
+        delete value.once.payload;
+      }
       entry.batch.reset();
       value.packet = null;
       value.keys = null;
@@ -254,7 +289,7 @@ async function publish(
     throw error;
   }
 }
-function currentPacket(value: Outbox, c: SendContext): boolean {
+function currentPacket(value: GroupDraft, c: SendContext): boolean {
   const packet = value.packet;
   if (!packet) return false;
   return (
@@ -265,7 +300,7 @@ function currentPacket(value: Outbox, c: SendContext): boolean {
 }
 async function uploadGroupDraft(
   c: SendContext,
-  entry: { cache: GroupCache; name: string; value: Outbox },
+  entry: { cache: GroupCache; name: string; value: GroupDraft },
 ): Promise<void> {
   const { value, cache, name } = entry;
   if (value.kind !== 'attachment') return;
@@ -300,7 +335,7 @@ async function uploadGroupDraft(
     api: groupAttachmentApi(c.group, c.api),
   });
 }
-function outbox(input: unknown): Outbox {
+function outbox(input: unknown): GroupDraft {
   const d = object(input),
     kind = d['kind'];
   if (
@@ -325,7 +360,9 @@ function outbox(input: unknown): Outbox {
     uploadEpoch,
     ...(d['relation'] === undefined
       ? {}
-      : { relation: groupEditRelation(d['relation']) }),
+      : { relation: groupMessageRelation(d['relation']) }),
+    ...optionalOnce(d['once']),
+    ...messageContentFormat(d['contentFormat']),
     ...draftOrder(d['order']),
   };
 }
@@ -334,4 +371,101 @@ function draftOrder(value: unknown): { order?: number } {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
     throw new Error('Invalid group draft order.');
   return { order: value };
+}
+
+function parseOnce(input: unknown): NonNullable<GroupDraft['once']> {
+  const d = object(input);
+  if (!Array.isArray(d['batch']))
+    throw new Error('Invalid group view-once draft.');
+  return {
+    content: d['content'] as ViewOnceContent,
+    batch: d['batch'].map(uuid),
+    ...(d['payload'] === undefined
+      ? {}
+      : { payload: groupOncePayload(d['payload']) }),
+  };
+}
+export async function composeGroupOnce(input: {
+  authority: VaultAuthority;
+  groupId: string;
+  id: string;
+  text: string;
+  selection: AttachmentSelection | null;
+  createdAt: number;
+}) {
+  const cache = new GroupCache(input.authority, input.groupId),
+    old = await cache.get(`outbox:${input.id}`);
+  if (old) return outbox(old).once!.batch;
+  const contents = await prepareViewOnceContents(
+      input.text,
+      input.selection,
+      chatFileLimit,
+    ),
+    ids = contents.map((_, index) =>
+      index === 0 ? input.id : crypto.randomUUID(),
+    );
+  await cache.putMany(
+    contents.map((content, index) => ({
+      name: `outbox:${ids[index]!}`,
+      value: {
+        id: ids[index]!,
+        kind: 'text',
+        text: '',
+        packet: null,
+        keys: null,
+        uploadEpoch: null,
+        order: (input.createdAt + index) * 1000,
+        once: { content, batch: ids },
+      } satisfies GroupDraft,
+    })),
+  );
+  return ids;
+}
+async function prepareGroupOnceDraft(
+  c: SendContext,
+  entry: { cache: GroupCache; name: string; value: GroupDraft },
+  participants: () => ReturnType<typeof readDirectories>,
+): Promise<void> {
+  const { value, cache, name } = entry,
+    once = value.once;
+  if (!once) return;
+  if (once.payload && once.payload.manifest.head !== c.group.head) {
+    await c.api('view-once-cancel', {
+      scope: 'group',
+      peer: c.group.state.groupId,
+      id: value.id,
+      hash: decodeDailyText(once.payload.text).viewOnce!.hash,
+    });
+    delete once.payload;
+    value.packet = null;
+    value.keys = null;
+    await cache.put(name, value);
+  }
+  if (!once.payload) {
+    const directories = await participants(),
+      recipients = [];
+    for (const member of c.group.state.members.filter(
+      (m) => m.accountId !== c.authority.session.accountId,
+    )) {
+      const directory = directories.get(member.accountId);
+      if (!directory) throw new Error('Participant has no directory.');
+      const key = recoveryKey(directory.recovery);
+      await currentRecoveryKey(key, directory.events, member.accountId);
+      recipients.push(key);
+    }
+    once.payload = await prepareGroupViewOnce({
+      id: value.id,
+      group: { ...c.group.state, head: c.group.head },
+      sender: c.authority.session.accountId,
+      recipients,
+      content: once.content,
+    });
+    value.text = once.payload.text;
+    await cache.put(name, value);
+  }
+  await uploadGroupViewOnce(once.payload, c.api);
+}
+
+function optionalOnce(input: unknown): Pick<GroupDraft, 'once'> {
+  return input === undefined ? {} : { once: parseOnce(input) };
 }

@@ -64,6 +64,7 @@ export async function applyGroupRemovals(
     assertKnownRemoval(raw, item, c.groupId);
     await cache.remove(name);
     await cache.remove(`edit:${item.id}`);
+    await cache.removeReactions(item.id);
     await forgetAttachment(
       groupCacheScope(c.authority.session.accountId, c.groupId),
       item.id,

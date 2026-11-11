@@ -27,7 +27,13 @@ import type { startGroups } from '../groups/index.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 type Groups = Pick<
   ReturnType<typeof startGroups>,
-  'entries' | 'selected' | 'listLabel' | 'unread' | 'photo'
+  | 'entries'
+  | 'selected'
+  | 'listLabel'
+  | 'unread'
+  | 'photo'
+  | 'preview'
+  | 'reveal'
 >;
 interface DirectoryView {
   presented?: (host: HTMLElement) => void;
@@ -232,6 +238,14 @@ export class MessageDirectoryUi {
           .listLabel(group)
           .replace(group.title + ' · ', ''),
         kind: 'group',
+        ...(this.options.groups.preview(id)
+          ? { preview: this.options.groups.preview(id)! }
+          : {}),
+        reveal: (message, sequence) => {
+          this.options.perform(() =>
+            this.options.groups.reveal(group, message, sequence),
+          );
+        },
         avatarVersion: `${group.head}:${group.profileSequence ?? 0}`,
         avatar: (host, signal) =>
           showGroupDirectoryPhoto(

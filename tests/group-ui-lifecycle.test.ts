@@ -1,3 +1,4 @@
+import { decodeDailyText } from '../src/shared/daily/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { groupUiFixture } from './fixtures/group-ui.ts';
@@ -175,7 +176,23 @@ await test('receipt refresh preserves unchanged media, while leaving and session
     {
       id: crypto.randomUUID(),
       groupId: f.group.state.groupId,
-      text: 'Synthetic attachment',
+      text: JSON.stringify({
+        version: 1,
+        name: 'synthetic.txt',
+        type: 'text/plain',
+        image: false,
+        caption: '',
+        thumbnail: null,
+        file: {
+          encryption: '{}',
+          ref: {
+            id: crypto.randomUUID(),
+            bytes: 57,
+            hash: 'a'.repeat(64),
+            parts: [{ bytes: 57, hash: 'a'.repeat(64) }],
+          },
+        },
+      }),
       kind: 'attachment',
       sender: f.other,
       hash: 'b'.repeat(64),
@@ -216,7 +233,7 @@ await test('a pending group photo never paints after the account session is clea
   assert.equal(f.nodes['groupSettings']!.open, false);
 });
 
-await test('group composition preserves drafts on local failure and clears them only after local acceptance', async () => {
+await test('group attachment admission releases typing and preserves failed staging for an explicit retry', async () => {
   const f = groupUiFixture();
   await f.ui.open(f.group);
   const input = f.nodes['groupText']!,
@@ -226,19 +243,23 @@ await test('group composition preserves drafts on local failure and clears them 
   f.attachments.selected = { bytes };
   f.state.composeFailure = true;
   form.dispatchEvent(new Event('submit', { cancelable: true }));
+  assert.equal(input.value, '');
+  assert.equal(f.attachments.selected, null);
+  input.value = 'Continue typing';
   await turn();
-  assert.equal(f.errors.length, 1);
-  assert.equal(input.value, 'Synthetic draft');
+  assert.equal(input.value, 'Continue typing');
   assert.deepEqual([...bytes], [1, 2, 3]);
   assert.equal(f.calls.includes('send'), false);
   f.state.composeFailure = false;
-  form.dispatchEvent(new Event('submit', { cancelable: true }));
+  const retry = f.nodes['groupHistory']!.querySelectorAll('button').find(
+    (button) => button.getAttribute('aria-label') === 'Retry sending message',
+  );
+  assert.ok(retry);
+  retry.click();
   await turn();
-  assert.equal(input.value, '');
+  assert.equal(input.value, 'Continue typing');
   assert.deepEqual([...bytes], [0, 0, 0]);
-  assert.equal(f.attachments.selected, null);
   assert.ok(f.calls.includes('send'));
-  assert.equal(f.errors.length, 1);
   f.ui.setSession(null);
 });
 
@@ -277,7 +298,7 @@ await test('queued group texts preserve immediate typing and do not read history
   }
   await turn();
   assert.deepEqual(
-    f.state.savedTexts.map((draft) => draft.text),
+    f.state.savedTexts.map((draft) => decodeDailyText(draft.text).text),
     ['First queued text', 'Second queued text'],
   );
   assert.equal(new Set(f.state.savedTexts.map((draft) => draft.id)).size, 2);
@@ -328,5 +349,44 @@ await test('co-member contact actions keep invitation-only wallets private', asy
   await turn();
   assert.match(alerts[0]!, /invitation only/);
   assert.deepEqual(f.errors, []);
+  f.ui.setSession(null);
+});
+
+await test('reply replacement preserves typing and editing survives a temporary history gate until its original disappears', async () => {
+  const f = groupUiFixture();
+  const view: GroupView = {
+    id: crypto.randomUUID(),
+    groupId: f.group.state.groupId,
+    sequence: 1,
+    epoch: 1,
+    hash: 'b'.repeat(64),
+    sender: f.group.state.owner,
+    own: true,
+    kind: 'text',
+    text: 'Original',
+    unavailableMedia: [],
+  };
+  f.controller.views = [view];
+  await f.ui.open(f.group);
+  const menu = f.nodes['groupHistory']!.querySelector('.message-menu')!;
+  f.nodes['groupText']!.value = 'Unsent reply draft';
+  menu.children.find((b) => b.textContent === 'Reply')!.click();
+  assert.equal(f.nodes['groupText']!.value, 'Unsent reply draft');
+  assert.match(f.nodes['composeContext']!.textContent, /Original/);
+  f.nodes['composeCancel']!.click();
+  assert.equal(f.nodes['composeBar']!.hidden, true);
+  menu.children.find((b) => b.textContent === 'Edit')!.click();
+  await turn();
+  f.nodes['groupText']!.value = 'Unsent edit draft';
+  f.controller.historyPending = true;
+  f.ui.removed();
+  f.controller.historyPending = false;
+  await f.refresh();
+  assert.equal(f.nodes['groupText']!.value, 'Unsent edit draft');
+  assert.equal(f.nodes['composeBar']!.hidden, false);
+  f.controller.views = [];
+  await f.refresh();
+  assert.equal(f.nodes['groupText']!.value, 'Unsent edit draft');
+  assert.equal(f.nodes['composeBar']!.hidden, true);
   f.ui.setSession(null);
 });

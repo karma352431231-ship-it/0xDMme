@@ -1,3 +1,4 @@
+import { verifyGroupViewOnceDelivery } from '../../shared/group-view-once/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import {
   measureSend,
@@ -200,13 +201,38 @@ export async function prepareViewOnce(input: {
   recipient: RecoveryKey;
   content: ViewOnceContent;
 }): Promise<PreparedViewOnce> {
+  const prepared = await prepareViewOnceEnvelope({
+    ...input,
+    recipient: input.recipient.accountId,
+    recipients: [input.recipient],
+  });
+  return {
+    bytes: prepared.bytes,
+    header: viewOnceHeader({
+      version: 1,
+      ...prepared.identity,
+      bytes: prepared.bytes.length,
+      hash: prepared.hash,
+      iv: prepared.iv,
+      key: prepared.keys[0],
+    }),
+  };
+}
+export async function prepareViewOnceEnvelope(input: {
+  id: string;
+  scope: ViewOnceScope;
+  sender: string;
+  recipient: string;
+  recipients: RecoveryKey[];
+  content: ViewOnceContent;
+}) {
   const prepared = await prepareContent(input.content, { id: input.id });
   const identity = {
     id: input.id,
     scope: input.scope,
     policy: prepared.policy,
     sender: input.sender,
-    recipient: input.recipient.accountId,
+    recipient: input.recipient,
   };
   const serialized = await measureSend(
     'payload-serialize',
@@ -242,23 +268,24 @@ export async function prepareViewOnce(input: {
     if (bytes.length > viewOnceCipherBytes)
       throw new Error('View-once content exceeds the limit.');
     return {
-      header: viewOnceHeader({
-        version: 1,
-        ...identity,
-        bytes: bytes.length,
-        hash: await measureSend(
-          'ciphertext-hash',
-          () => bytesHash(bytes),
-          input.id,
-        ),
-        iv: encode(iv),
-        key: await measureSend(
-          'recovery-wrap',
-          () => archiveRoomKey(input.recipient, encode(rawKey)),
-          input.id,
-        ),
-      }),
+      identity,
       bytes,
+      hash: await measureSend(
+        'ciphertext-hash',
+        () => bytesHash(bytes),
+        input.id,
+      ),
+      iv: encode(iv),
+      keys: await measureSend(
+        'recovery-wrap',
+        () =>
+          Promise.all(
+            input.recipients.map((recipient) =>
+              archiveRoomKey(recipient, encode(rawKey)),
+            ),
+          ),
+        input.id,
+      ),
     };
   } finally {
     rawKey.fill(0);
@@ -270,13 +297,26 @@ export async function viewOnceDescriptor(
   prepared: PreparedViewOnce,
   content: ViewOnceContent,
 ): Promise<{ reference: { hash: string }; text: string }> {
+  return describeViewOnce(
+    {
+      id: prepared.header.id,
+      policy: prepared.header.policy,
+      hash: await digest(viewOnceHeaderBody(prepared.header)),
+    },
+    content,
+  );
+}
+export async function describeViewOnce(
+  identity: { id: string; policy: 'mobile' | 'file'; hash: string },
+  content: ViewOnceContent,
+): Promise<{ reference: { hash: string }; text: string }> {
   const validatedContent = await prepareContent(content, {
-    id: prepared.header.id,
+    id: identity.id,
   });
   const metadata: ViewOnceMetadata = {
-    hash: await digest(viewOnceHeaderBody(prepared.header)),
-    policy: prepared.header.policy,
-    ...(content.file && prepared.header.policy === 'mobile'
+    hash: identity.hash,
+    policy: identity.policy,
+    ...(content.file && identity.policy === 'mobile'
       ? {
           file: {
             name: content.file.name,
@@ -284,7 +324,7 @@ export async function viewOnceDescriptor(
             bytes: measureSendSync(
               'descriptor-bytes',
               () => validatedContent.fileBytes,
-              prepared.header.id,
+              identity.id,
             ),
           },
         }
@@ -389,10 +429,12 @@ async function assertDeliveryHeader(
     header.id !== input.id ||
     header.scope !== input.scope ||
     header.sender !== input.peer ||
-    header.recipient !== input.authority.session.accountId ||
+    (input.scope === 'group'
+      ? header.recipient !== input.group
+      : header.recipient !== input.authority.session.accountId) ||
     header.key.keyId !== input.recovery.id ||
     header.policy !== input.metadata.policy ||
-    (await digest(viewOnceHeaderBody(header))) !== input.metadata.hash
+    !(await deliveryHashMatches(header, input))
   )
     throw new Error(
       'View-once delivery differs from its authenticated message.',
@@ -406,6 +448,7 @@ type ViewOnceDelivery = {
   id: string;
   scope: ViewOnceScope;
   peer: string;
+  group?: string;
   metadata: ViewOnceMetadata;
   response: unknown;
   diagnostic?: LoadTrace | undefined;
@@ -504,4 +547,18 @@ export async function decryptViewOnce(
     rawKey?.fill(0);
     plain?.fill(0);
   }
+}
+
+async function deliveryHashMatches(
+  header: ViewOnceHeader,
+  input: ViewOnceDelivery,
+): Promise<boolean> {
+  if (input.scope !== 'group')
+    return (await digest(viewOnceHeaderBody(header))) === input.metadata.hash;
+  return verifyGroupViewOnceDelivery(
+    header,
+    object(input.response)['manifest'],
+    input.metadata.hash,
+    input.authority.session.accountId,
+  );
 }

@@ -22,6 +22,8 @@ export interface MediaView {
 interface MediaInput<V extends MediaView> {
   signal: AbortSignal;
   content?: AttachmentContent;
+  /** Visible caption already interpreted by the conversation format owner. */
+  caption?: string;
   imageOverlay?: HTMLElement;
   saveNotice?: string;
   article: HTMLElement;
@@ -172,8 +174,11 @@ function offerSave<V extends MediaView>(
   input.article.append(save, warning);
 }
 /** Images show only their content and the sender's caption, if any. */
-function mediaInfo(content: AttachmentContent, image: boolean): string {
-  const caption = decodeDailyText(content.caption).text;
+function mediaInfo(
+  content: AttachmentContent,
+  image: boolean,
+  caption: string,
+): string {
   if (image) return caption;
   const size = t('{0} MB', [(content.file.ref.bytes / 1_000_000).toFixed(2)]);
   return t('{0} · {1}{2}', [
@@ -222,7 +227,7 @@ function renderVoice<V extends MediaView>(
       load: () => input.run(() => input.enqueue(play)),
     }),
   );
-  const caption = decodeDailyText(content.caption).text;
+  const caption = input.caption ?? decodeDailyText(content.caption).text;
   if (!caption) return;
   const text = document.createElement('p');
   text.textContent = caption;
@@ -234,7 +239,7 @@ function renderVideo<V extends MediaView>(
 ): void {
   const slot = document.createElement('figure');
   slot.className = 'chat-attachment-video';
-  const caption = decodeDailyText(content.caption).text;
+  const caption = input.caption ?? decodeDailyText(content.caption).text;
   input.article.append(slot);
   if (caption) {
     const text = document.createElement('p');
@@ -320,7 +325,11 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
-  info.textContent = mediaInfo(content, image);
+  info.textContent = mediaInfo(
+    content,
+    image,
+    input.caption ?? decodeDailyText(content.caption).text,
+  );
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';

@@ -296,6 +296,8 @@ export class AttachmentUi {
   }
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
+    /** Visible caption already interpreted by the conversation format owner. */
+    caption?: string;
     imageOverlay?: HTMLElement;
     saveNotice?: string;
     signal?: AbortSignal;

@@ -6,7 +6,7 @@ import type { GroupEvent } from '../../shared/groups/index.ts';
 import { groupEventHash } from '../../shared/groups/index.ts';
 import {
   localGet,
-  localPutWithin,
+  localPutBatchWithin,
   openLocal,
   sealLocal,
   localPage,
@@ -37,23 +37,51 @@ export class GroupCache {
     return row ? this.open(name, row) : null;
   }
   async put(name: string, value: unknown): Promise<void> {
-    const row = await sealLocal(
-      this.authority,
-      crypto.randomUUID(),
-      JSON.stringify({ scope: this.scope, name, value }),
-    );
-    await localPutWithin({
+    await this.putMany([{ name, value }]);
+  }
+  async putMany(
+    records: readonly { name: string; value: unknown }[],
+  ): Promise<void> {
+    const sealed = [];
+    for (const { name, value } of records) {
+      const text = JSON.stringify({ scope: this.scope, name, value }),
+        chunks: LocalCipher[] = [];
+      for (let offset = 0; offset < text.length;) {
+        let end = Math.min(text.length, offset + 65536);
+        if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+        chunks.push(
+          await sealLocal(
+            this.authority,
+            crypto.randomUUID(),
+            text.slice(offset, end),
+          ),
+        );
+        offset = end;
+      }
+      const stored = chunks.length === 1 ? chunks[0]! : { chunks };
+      sealed.push({
+        name,
+        value: stored,
+        size: chunks.reduce((total, c) => total + c.bytes.length + 512, 0),
+      });
+    }
+    await localPutBatchWithin({
       scope: this.scope,
-      name,
-      value: row,
-      size: row.bytes.length + 512,
+      records: sealed,
       maximum: groupQuota,
     });
   }
-  private async open(name: string, row: LocalCipher): Promise<unknown> {
-    const data = object(
-      JSON.parse(await openLocal(this.authority, row)) as unknown,
-    );
+  private async open(
+    name: string,
+    row: LocalCipher | { chunks: LocalCipher[] },
+  ): Promise<unknown> {
+    const chunks = 'chunks' in row ? row.chunks : [row];
+    if (!chunks.length || chunks.length > 512)
+      throw new Error('Invalid group cache record.');
+    const parts = [];
+    for (const chunk of chunks)
+      parts.push(await openLocal(this.authority, chunk));
+    const data = object(JSON.parse(parts.join('')) as unknown);
     if (data['scope'] !== this.scope || data['name'] !== name)
       throw new Error('Cache belongs to another group or record.');
     return data['value'];
@@ -88,6 +116,16 @@ export class GroupCache {
   }
   remove(name: string): Promise<void> {
     return localDelete(this.scope, name);
+  }
+  /** Explicit root deletion also erases its per-author reaction snapshots. */
+  async removeReactions(id: string): Promise<void> {
+    let after: string | null = null;
+    do {
+      const page: { items: { name: string }[]; next: string | null } =
+        await localPage<LocalCipher>(this.scope, `reaction:${id}:`, after);
+      for (const row of page.items) await this.remove(row.name);
+      after = page.next;
+    } while (after !== null);
   }
   async messages(
     before: number | null,

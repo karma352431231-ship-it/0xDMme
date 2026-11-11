@@ -1,12 +1,29 @@
+import { decodeGroupText } from '../../shared/group-messages/index.ts';
+import type { DailyText } from '../../shared/daily/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { GroupController } from './controller.ts';
 import type { GroupView } from './reader.ts';
-import { GroupMessageActions } from './message-actions.ts';
+import { groupMessageActions } from './message-actions.ts';
+import type { GroupMessageActions } from './message-actions.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
-import { VoiceRecording } from '../voice-recording/index.ts';
+import { GroupComposer } from './composer.ts';
+import { groupMessageView } from './message-content.ts';
+import type { GroupMessageView } from './message-content.ts';
+import { HistoryReactions } from '../message-actions/index.ts';
+import { renderViewOnce } from '../view-once-ui/index.ts';
+import {
+  openMessageMenu,
+  reopenMessageMenu,
+  closeMessageMenu,
+} from '../message-menu/index.ts';
+import { MessageDeletionSelection } from '../message-selection/index.ts';
+import { MessageForwardSelection } from '../message-forward/index.ts';
+import type { ForwardDirectory } from '../message-forward/index.ts';
+import type { DailyView } from '../daily-text/index.ts';
+import type { Peer } from '../../shared/contacts/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { placeVideoMessageMeta } from '../chat-video/index.ts';
-import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
+import { emojiText } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
@@ -18,22 +35,16 @@ import {
   messageTime,
   withDayHeadings,
 } from '../message-presentation/index.ts';
-import { groupTextQueue } from './text-queue.ts';
+
 import { GroupOutgoing } from './outgoing.ts';
 import type { PendingGroupText } from './outgoing.ts';
 import { GroupDeliveryTrace } from './delivery-trace.ts';
-import type { GroupSendProgress } from './outbox.ts';
 import type { GroupMemberPresentation } from './member-presentation.ts';
 import { memberContactTrigger } from './member-contact.ts';
-import { measureWork } from '../synchronization-diagnostics/index.ts';
-import { chatFileLimit } from '../../shared/attachments/index.ts';
+
 import {
-  updateChatComposer,
   historyPosition,
   resetHistoryPosition,
-  bindChatComposer,
-  bindRecordGesture,
-  showRecording,
   watchOlderHistory,
 } from '../chat-ui/index.ts';
 import type { OlderHistory } from '../chat-ui/index.ts';
@@ -51,6 +62,11 @@ interface ChatOptions {
     | 'sendPending'
     | 'composeText'
     | 'sendGroupDrafts'
+    | 'react'
+    | 'stageMedia'
+    | 'draftMedia'
+    | 'openViewOnce'
+    | 'searchFocused'
   >;
   account: () => string | undefined;
   playback: VoicePlayback;
@@ -68,6 +84,10 @@ interface ChatOptions {
   select: () => void;
   report: (notice: string) => void;
   status: () => void;
+  peers?: () => readonly Peer[];
+  forwarding?: ForwardDirectory;
+  forward?: (view: DailyView<GroupMessageView>, peer: string) => Promise<void>;
+  flushForward?: () => Promise<void>;
 }
 /** Owns the mounted conversation's bubbles, composer and media resources.
  * Persistence, verified reads and group authority stay in the controller. */
@@ -75,92 +95,44 @@ export class GroupChatView {
   private readonly options: ChatOptions;
   private readonly outgoing = new GroupOutgoing();
   private readonly delivery = new GroupDeliveryTrace();
-  private readonly texts: ReturnType<typeof groupTextQueue>;
+  private readonly composer: GroupComposer;
+  private readonly reactions: HistoryReactions<GroupMessageView>;
+  private readonly deletion: MessageDeletionSelection;
+  private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
-  private readonly emoji = new EmojiPicker();
-  private readonly attachments: AttachmentUi;
-  private readonly voice: VoiceRecording;
+  private readonly attachments: Pick<AttachmentUi, 'render'>;
   private readonly messageActions: GroupMessageActions;
   private readonly externalRows = new ExternalTextHistory();
   private externalAbort = new AbortController();
   private older: { stop: AbortController; watch: OlderHistory } | null = null;
   constructor(options: ChatOptions) {
     this.options = options;
-    this.attachments = new AttachmentUi(
-      options.playback,
-      () => this.voiceStatus(),
-      chatFileLimit,
-    );
-    this.voice = new VoiceRecording({
-      changed: () => this.voiceStatus(),
-      completed: (selection) => {
-        const account = options.account(),
-          selected = options.controller.selected;
-        if (!account || !selected) {
-          selection.bytes.fill(0);
-          return;
-        }
-        this.attachments.selectVoice(selection, account);
-        this.voiceStatus();
-      },
-    });
-    this.messageActions = new GroupMessageActions({
+    this.composer = new GroupComposer({
+      controller: options.controller,
+      playback: options.playback,
+      externalMedia: options.externalMedia,
+      account: options.account,
+      isBusy: options.isBusy,
       run: options.run,
-      edit: async (view, text) => {
-        await options.controller.edit(view, text);
-        await options.reopen();
-      },
-      remove: async (view) => {
-        const pending = options.controller.removeMessage(view);
-        this.renderHistory();
-        try {
-          await pending;
-          await options.reopen();
-        } finally {
-          this.renderHistory();
-        }
-      },
-    });
-    const sendProgress: GroupSendProgress = {
-      sending: (id) => this.delivery.step('sending', id),
-      accepted: (id) => {
-        this.delivery.step('accepted', id);
-        const open = this.options.visibleGroup();
-        this.outgoing.accepted(id, performance.now(), open);
-        if (open && this.outgoing.crowded(open))
-          this.options
-            .reconcile(open)
-            .catch((error: unknown) => this.reportGroupError(error));
-      },
-    };
-    this.texts = groupTextQueue({
-      save: (groupId, draft) =>
-        this.options.controller.composeText(groupId, draft),
-      send: async (groupId) => {
-        let sent = false;
-        const queued = performance.now();
-        await this.options.operationRun(() =>
-          measureWork(
-            this.options.controller,
-            'group/send',
-            async () => {
-              await this.options.controller.sendGroupDrafts(
-                groupId,
-                sendProgress,
-              );
-              sent = true;
-            },
-            queued,
-          ),
-        );
-        return sent;
-      },
-      available: () => !!this.options.controller.selected && navigator.onLine,
+      operationRun: options.operationRun,
+      reopen: () => options.reopen(),
+      report: options.report,
       changed: () => {
-        this.composerStatus();
-        this.options.status();
+        this.renderHistory();
+        options.status();
       },
-      failed: (error) => this.reportGroupError(error),
+      progress: {
+        sending: (id) => this.delivery.step('sending', id),
+        accepted: (id) => {
+          this.delivery.step('accepted', id);
+          const open = options.visibleGroup();
+          this.outgoing.accepted(id, performance.now(), open);
+          if (open && this.outgoing.crowded(open))
+            options
+              .reconcile(open)
+              .catch((error: unknown) => this.reportGroupError(error));
+        },
+      },
       draftChanged: (draft, phase) => {
         this.outgoing.update(draft, phase);
         if (phase !== 'save-failed')
@@ -171,27 +143,81 @@ export class GroupChatView {
         this.renderHistory();
       },
     });
+    this.attachments = this.composer.media;
+    this.deletion = new MessageDeletionSelection(options.run, { group: true });
+    this.reactions = new HistoryReactions<GroupMessageView>({
+      action: (label, work) => this.button(label, work),
+      send: async (view, emoji, id) => {
+        await options.controller.react(view, emoji, id);
+        await options.reopen();
+      },
+    });
+    this.forwarding =
+      options.forwarding && options.forward
+        ? new MessageForwardSelection({
+            history: () => this.node('[data-group-history]'),
+            views: () =>
+              options.controller.views
+                .map(groupMessageView)
+                .filter((v) => !v.content.viewOnce),
+            signal: () => this.externalAbort.signal,
+            directory: options.forwarding,
+            run: options.run,
+            stage: options.forward,
+            flush: options.flushForward ?? (() => Promise.resolve()),
+          })
+        : null;
+    this.messageActions = {
+      run: options.run,
+      choose: (mode, view) => this.composer.choose(mode, view),
+      picker: this.composer.picker,
+      peers: options.peers ?? (() => []),
+      forwardAllowed: () => !!options.forwarding?.contacts().length,
+      writable: () =>
+        !!options.controller.selected && !options.controller.selected.localOnly,
+      forward: (view) => {
+        this.deletion.clear();
+        this.forwarding?.start(groupMessageView(view));
+      },
+      react: (view, emoji) =>
+        this.reactions.change(groupMessageView(view), emoji),
+      remove: async (view) => {
+        if (matchMedia('(max-width: 700px)').matches) {
+          this.forwarding?.clear();
+          this.deletion.begin(view.id);
+          return;
+        }
+        const pending = options.controller.removeMessage(view);
+        this.renderHistory();
+        try {
+          await pending;
+          await options.reopen();
+        } finally {
+          this.renderHistory();
+        }
+      },
+    };
   }
 
   status(): void {
-    const compose = this.node<HTMLFormElement>('[data-group-compose]');
-    if (compose) compose.hidden = !!this.options.controller.selected?.localOnly;
-    this.voiceStatus();
+    this.composer.status();
   }
   get recording(): boolean {
-    return this.voice.active || !!this.attachments.selected?.voice;
+    return this.composer.recording;
   }
   canActivate(): boolean {
-    return !this.voice.active && !this.attachments.selected;
+    return this.composer.canActivate();
   }
   closeActions(): void {
-    this.messageActions.close();
+    closeMessageMenu(this.node('[data-group-history]'));
+    this.deletion.clear();
+    this.forwarding?.clear();
   }
   pauseActions(): void {
-    this.messageActions.pause();
+    closeMessageMenu(this.node('[data-group-history]'));
   }
   open(id: string): void {
-    this.messageActions.close();
+    closeMessageMenu(this.node('[data-group-history]'));
     if (this.recording)
       throw new Error(
         'Send or remove the voice preview before changing conversations.',
@@ -199,14 +225,12 @@ export class GroupChatView {
     if (this.options.controller.selected?.state.groupId !== id)
       resetHistoryPosition(this.node('[data-group-history]'));
     this.options.select();
-    this.attachments.clearSelection();
-    this.emoji.close();
+    this.composer.deselect();
     if (this.host) this.host.hidden = false;
   }
   deselect(): void {
-    this.attachments.clearSelection();
-    this.attachments.clearMedia();
-    this.emoji.close();
+    this.invalidateHistory();
+    this.composer.deselect();
     if (this.host) this.host.hidden = true;
   }
   invalidateHistory(): void {
@@ -215,52 +239,24 @@ export class GroupChatView {
     this.externalAbort = new AbortController();
   }
   clearSession(): void {
-    this.voice.cancel();
-    this.attachments.clearSelection();
-    this.attachments.clearMedia();
-    this.emoji.reset();
+    this.composer.reset();
+    this.closeActions();
   }
   leave(): void {
     this.invalidateHistory();
-    if (this.voice.active)
-      void this.voice.stop(
-        t(
-          'Navigation interrupted recording. Check the excerpt when you return.',
-        ),
-      );
-    this.attachments.clearMedia();
-    this.attachments.pausePreview();
-    this.emoji.close();
+    this.closeActions();
+    this.composer.leave();
   }
   suspend(revoked: boolean): void {
-    this.attachments.clearMedia();
+    this.composer.suspend(revoked);
     this.renderHistory();
-    if (revoked) {
-      this.voice.cancel();
-      this.attachments.clearSelection();
-    }
   }
   bindBrowserLifetime(): void {
-    window.addEventListener('beforeunload', (event) => {
-      if (!this.recording) return;
-      event.preventDefault();
-      event.returnValue = '';
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.voice.active)
-        void this.voice.stop(
-          t(
-            'The browser interrupted recording. Check the preserved excerpt when you return.',
-          ),
-        );
-    });
+    this.composer.bindBrowserLifetime();
   }
   mount(container: HTMLElement): void {
     this.host = container;
-    this.attachments.mount(container, this.options.run);
-    const form = this.node('[data-group-compose]');
-    if (form) bindChatComposer(form, () => this.composerStatus());
-    this.bindChat();
+    this.composer.mount(container);
     this.watchOlder();
   }
   /** Scrolling to the top of the history reads one page further back. */
@@ -276,7 +272,9 @@ export class GroupChatView {
         history,
         button: this.node<HTMLButtonElement>('[data-group-older]'),
         available: () =>
-          !controller.historyPending && controller.olderAvailable,
+          !controller.historyPending &&
+          !controller.searchFocused &&
+          controller.olderAvailable,
         load: async () => {
           const group = controller.selected?.state.groupId,
             shown = controller.views.length;
@@ -293,47 +291,19 @@ export class GroupChatView {
   private node<T extends HTMLElement>(selector: string): T | null {
     return this.host?.querySelector<T>(selector) ?? null;
   }
-  private composerStatus(): void {
-    updateChatComposer(this.node('[data-group-compose]'), {
-      blocked: this.options.isBusy() || !this.options.controller.selected,
-      textSendBlocked: this.canQueueText() ? this.texts.full : undefined,
-      recording: this.voice.active,
-      attachment: this.attachments.selected !== null,
-    });
-  }
-  private voiceStatus(): void {
-    this.composerStatus();
-    showRecording(this.node('[data-group-compose]'), this.voice.state);
-    this.voiceControls();
-  }
-  private voiceControls(): void {
-    const stop = this.node<HTMLButtonElement>('[data-voice-stop]');
-    if (stop) stop.hidden = !this.voice.active;
-    const cancel = this.node('[data-voice-cancel]');
-    if (cancel) cancel.hidden = !this.voice.active;
-    const start = this.node<HTMLButtonElement>('[data-voice-record]');
-    if (start)
-      start.disabled =
-        this.options.isBusy() ||
-        this.voice.active ||
-        this.attachments.selected !== null;
-    const file = this.node<HTMLInputElement>('[data-attachment-file]');
-    if (file)
-      file.disabled =
-        this.options.isBusy() ||
-        this.voice.active ||
-        !!this.attachments.selected?.voice;
-  }
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
     if (this.options.controller.historyPending) {
       historyPosition(history);
       history.hidden = true;
-      this.messageActions.pause();
+      closeMessageMenu(this.node('[data-group-history]'));
+      this.forwarding?.clear();
+      this.deletion.clear();
+      this.reactions.closeGate();
       return;
     }
-    this.messageActions.resume(this.options.controller.views);
+    this.composer.reconcileContext();
     const restoreScroll = historyPosition(
       history,
       this.options.controller.views,
@@ -358,6 +328,7 @@ export class GroupChatView {
       render: (signal: AbortSignal) =>
         this.renderView(view, signal, this.startsRun(views, index)),
     }));
+    const menu = openMessageMenu(history);
     this.externalRows.render(
       history,
       [
@@ -372,6 +343,9 @@ export class GroupChatView {
           }),
         ),
         ...this.pendingRows(),
+        ...this.composer.pendingRows(
+          new Set(this.options.controller.views.map((v) => v.id)),
+        ),
       ],
       this.externalAbort.signal,
     );
@@ -385,6 +359,35 @@ export class GroupChatView {
       );
       if (row) this.renderDelivery(row, view);
     }
+    this.reactions.reconcile(
+      this.options.controller.views.map(groupMessageView),
+      [],
+    );
+    this.forwarding?.update();
+    this.deletion.update(
+      history,
+      this.options.controller.views
+        .filter((v) => v.own && !v.localOnly)
+        .flatMap((view) => {
+          const row = [
+            ...history.querySelectorAll<HTMLElement>('[data-group-message]'),
+          ].find((r) => r.dataset['groupMessage'] === view.id);
+          return row
+            ? [
+                {
+                  id: view.id,
+                  row,
+                  remove: async () => {
+                    await this.options.controller.removeMessage(view);
+                    await this.options.reopen();
+                  },
+                },
+              ]
+            : [];
+        }),
+    );
+    this.composer.observed(history, this.options.controller.views);
+    reopenMessageMenu(history, menu);
     restoreScroll();
     this.older?.watch.check();
   }
@@ -398,10 +401,34 @@ export class GroupChatView {
       ? 'chat-message own'
       : 'chat-message group-incoming';
     article.dataset['groupMessage'] = view.id;
+    article.dataset['message'] = view.id;
+    const content = groupMessageView(view).content;
+    const reactionPanel = this.reactions.mount(
+      groupMessageView(view),
+      mediaSignal,
+    );
     this.appendAuthor(article, view, first);
-    if (view.kind === 'attachment') {
+    if (content.viewOnce) {
+      renderViewOnce({
+        host: article,
+        id: view.id,
+        own: view.own,
+        metadata: content.viewOnce,
+        signal: mediaSignal,
+        current: () => article.isConnected && !mediaSignal.aborted,
+        open: (diagnostic, media) =>
+          this.options.controller.openViewOnce(
+            view,
+            content.viewOnce!,
+            mediaSignal,
+            { diagnostic, media },
+          ),
+      });
+    } else if (view.kind === 'attachment') {
       this.attachments.render({
         article,
+        imageOverlay: reactionPanel,
+        caption: content.text,
         view: { id: view.id, text: view.text, peer: view.sender },
         signal: mediaSignal,
         load: (_media, thumbnail) =>
@@ -417,10 +444,11 @@ export class GroupChatView {
       }
     } else {
       const text = document.createElement('p');
-      emojiText(text, view.text);
-      this.renderExternal(article, text, view.text, mediaSignal);
+      emojiText(text, content.text);
+      this.renderExternal(article, text, content.text, mediaSignal);
       article.append(text);
     }
+    this.appendAnnotations(article, content);
     this.renderDelivery(article, view);
     if (view.localOnly) {
       const local = document.createElement('small');
@@ -429,8 +457,38 @@ export class GroupChatView {
       );
       article.append(local);
     }
-    article.append(this.messageActions.render(view, mediaSignal));
+    article.append(
+      groupMessageActions({
+        view,
+        signal: mediaSignal,
+        row: article,
+        actions: this.messageActions,
+      }),
+    );
+    if (!reactionPanel.parentNode) article.append(reactionPanel);
     return article;
+  }
+  private appendAnnotations(article: HTMLElement, content: DailyText): void {
+    if (content.reply) {
+      const quote = document.createElement('small');
+      quote.className = 'chat-reply-quote';
+      const original = this.options.controller.views.find(
+        (v) => v.id === content.reply,
+      );
+      quote.textContent = original
+        ? t('Replying to: {0}', [
+            this.options.members.name(original.sender) +
+              ' · ' +
+              groupMessageView(original).content.text.slice(0, 120),
+          ])
+        : t('Reply: original message is outside this page or unavailable.');
+      article.prepend(quote);
+    }
+    if (content.forwarded) {
+      const label = document.createElement('small');
+      label.textContent = t('Forwarded');
+      article.append(label);
+    }
   }
   private renderDelivery(article: HTMLElement, view: GroupView): void {
     article.querySelector('.message-meta')?.remove();
@@ -460,79 +518,6 @@ export class GroupChatView {
     showExternalVideos(article, value, settings);
   }
 
-  private bind(selector: string, handler: () => void): void {
-    this.node(selector)?.addEventListener('click', handler);
-  }
-
-  private bindChat(): void {
-    this.node<HTMLFormElement>('[data-group-compose]')?.addEventListener(
-      'submit',
-      (event) => {
-        event.preventDefault();
-        if (this.queueText()) return;
-        void this.options.run(async () => {
-          const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
-            group = this.options.controller.selected?.state.groupId;
-          // Each chosen file is its own message, sent before the next is
-          // staged so the order holds; only the first carries the text.
-          do {
-            await this.options.controller.compose(
-              input?.value ?? '',
-              this.attachments.selected,
-            );
-            this.attachments.sent();
-            this.voice.cancel();
-            if (input) {
-              input.value = '';
-              input.dispatchEvent(new Event('input'));
-            }
-            await this.options.controller.sendPending();
-          } while (
-            this.attachments.selected &&
-            this.options.controller.selected?.state.groupId === group
-          );
-          await this.options.reopen();
-          this.options.report(t('Message sent.'));
-        });
-      },
-    );
-    this.bind('[data-group-emoji]', () => {
-      const anchor = this.node('[data-group-emoji]'),
-        input = this.node<HTMLTextAreaElement>('[data-group-text]');
-      if (!anchor || !input) return;
-      void emojiIntoComposer(this.emoji, anchor, input).catch(() => {
-        this.options.report(t('Could not open emoji.'));
-        this.options.status();
-      });
-    });
-    bindRecordGesture(this.node('[data-voice-record]'), {
-      start: () => {
-        if (
-          !this.options.isBusy() &&
-          !this.voice.active &&
-          !this.attachments.selected
-        )
-          void this.voice.start();
-      },
-      // Releasing before the microphone opens keeps recording hands-free.
-      release: () => {
-        if (this.voice.state.phase === 'recording') void this.voice.stop();
-      },
-    });
-    this.bind('[data-voice-stop]', () => void this.voice.stop());
-    this.bind('[data-voice-cancel]', () => this.voice.cancel());
-    this.bind('[data-attachment-clear]', () => {
-      if (!this.voice.active) this.voice.cancel();
-    });
-  }
-  private canQueueText(): boolean {
-    return (
-      !!this.options.controller.selected &&
-      !this.options.controller.selected.localOnly &&
-      !this.voice.active &&
-      this.attachments.selected === null
-    );
-  }
   private pendingRows() {
     const group = this.options.controller.selected;
     if (!group) return [];
@@ -554,7 +539,7 @@ export class GroupChatView {
     const sender = document.createElement('strong');
     sender.textContent = t('You');
     const body = document.createElement('p');
-    emojiText(body, text.text);
+    emojiText(body, decodeGroupText(text.text).text);
     const state = document.createElement('small');
     state.className = 'message-meta';
     if (text.failed) {
@@ -567,7 +552,7 @@ export class GroupChatView {
         'aria-label',
         t('{0}. {1}', [t('chat.save-failed'), t('chat.retry-save')]),
       );
-      retry.addEventListener('click', () => this.texts.retry());
+      retry.addEventListener('click', () => this.composer.retryTexts());
       state.append(retry);
     } else
       state.append(
@@ -575,6 +560,7 @@ export class GroupChatView {
           messageChecks({ own: true, delivery: 'accepted', read: false })!,
         ),
       );
+    this.appendAnnotations(article, decodeGroupText(text.text));
     article.append(sender, body, state);
     return article;
   }
@@ -620,7 +606,8 @@ export class GroupChatView {
     if (
       selected?.state.groupId !== id ||
       selected.localOnly ||
-      this.options.controller.historyPending
+      this.options.controller.historyPending ||
+      this.options.controller.searchFocused
     )
       return;
     const { settled, retired } = this.outgoing.verified(
@@ -640,35 +627,18 @@ export class GroupChatView {
     );
     this.options.status();
   }
-  private queueText(): boolean {
-    const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
-      group = this.options.controller.selected;
-    if (!input || !group || !this.canQueueText() || !input.value.trim())
-      return false;
-    try {
-      this.texts.enqueue({
-        id: crypto.randomUUID(),
-        peer: group.state.groupId,
-        text: input.value,
-      });
-    } catch (error: unknown) {
-      this.options.report(
-        error instanceof Error
-          ? translatedError(error.message)
-          : t('Could not complete the group operation.'),
-      );
-      this.options.status();
-      return true;
-    }
-    input.value = '';
-    input.dispatchEvent(new Event('input'));
-    // Keep typing: the chat and its keyboard stay as they were.
-    input.focus();
-    return true;
-  }
   resetTexts(): void {
-    this.texts.reset();
+    this.composer.reset();
     this.outgoing.clear();
+  }
+  private button(label: string, work: () => Promise<void>): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      void this.options.run(work);
+    });
+    return button;
   }
   hint(): void {
     this.delivery.hint();

@@ -212,9 +212,12 @@ function assertSeparatedContent(
     throw new Error('View-once content must be separate from history.');
 }
 const prefix = '\u001e0xdmme:1:';
-export function encodeDailyText(value: DailyText): string {
+export function encodeDailyText(
+  value: DailyText,
+  maximumBytes = 16000,
+): string {
   assertSeparatedContent(value);
-  if (new TextEncoder().encode(value.text).length > 16000)
+  if (new TextEncoder().encode(value.text).length > maximumBytes)
     throw new Error('Write up to 16 KB of text.');
   return (
     prefix +
@@ -228,7 +231,10 @@ export function encodeDailyText(value: DailyText): string {
     })
   );
 }
-export function decodeDailyText(value: string): DailyText {
+export function decodeDailyText(
+  value: string,
+  maximumBytes = 16000,
+): DailyText {
   if (!value.startsWith(prefix))
     return { text: value, reply: null, forwarded: false };
   const d = object(JSON.parse(value.slice(prefix.length)) as unknown);
@@ -238,11 +244,7 @@ export function decodeDailyText(value: string): DailyText {
     'forwarded',
     ...(Object.hasOwn(d, 'viewOnce') ? ['viewOnce'] : []),
   ]);
-  if (
-    typeof d['text'] !== 'string' ||
-    typeof d['forwarded'] !== 'boolean' ||
-    new TextEncoder().encode(d['text']).length > 16000
-  )
+  if (!validDailyTextFields(d, maximumBytes))
     throw new Error('Invalid daily content.');
   const viewOnce = Object.hasOwn(d, 'viewOnce')
     ? viewOnceTextMetadata(d['viewOnce'])
@@ -274,5 +276,16 @@ export function validReaction(value: string): boolean {
   return (
     value === '' ||
     (new TextEncoder().encode(value).length <= 128 && emojiSequence.test(value))
+  );
+}
+
+function validDailyTextFields(
+  data: Record<string, unknown>,
+  maximumBytes: number,
+): data is Record<string, unknown> & { text: string; forwarded: boolean } {
+  return (
+    typeof data['text'] === 'string' &&
+    typeof data['forwarded'] === 'boolean' &&
+    new TextEncoder().encode(data['text']).length <= maximumBytes
   );
 }

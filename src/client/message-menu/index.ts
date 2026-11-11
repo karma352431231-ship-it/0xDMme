@@ -7,6 +7,10 @@ interface MessageMenuOptions {
   reply?: () => void;
 }
 let activeMenu: (() => void) | null = null;
+let activeHost: HTMLElement | null = null;
+export function closeMessageMenu(history: HTMLElement | null): void {
+  if (activeHost && history?.contains(activeHost)) activeMenu?.();
+}
 /** Compact anchored menu; native popover stays above scrolling chat without a modal backdrop. */
 export function anchoredMessageMenu(options: MessageMenuOptions): {
   host: HTMLElement;
@@ -36,7 +40,10 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
   const close = (): void => {
     if (!opened) return;
     opened = false;
-    if (activeMenu === close) activeMenu = null;
+    if (activeMenu === close) {
+      activeMenu = null;
+      activeHost = null;
+    }
     if (typeof panel.hidePopover === 'function') panel.hidePopover();
     panel.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
@@ -51,6 +58,7 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
     if (options.signal.aborted) return;
     activeMenu?.();
     activeMenu = close;
+    activeHost = host;
     panel.hidden = false;
     if (typeof panel.showPopover === 'function') panel.showPopover();
     opened = true;

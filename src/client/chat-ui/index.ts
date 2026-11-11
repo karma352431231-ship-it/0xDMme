@@ -72,7 +72,7 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
   }[scope];
   return t('html.46729037ae98', [
     form,
-    scope === 'message' ? t('html.2e7c749dbe8a', [chatIcon('close')]) : '',
+    scope !== 'public' ? t('html.2e7c749dbe8a', [chatIcon('close')]) : '',
     chatIcon('trash'),
     chatIcon('trash'),
     chatIcon('stop'),
@@ -87,7 +87,7 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     chatIcon('image'),
     chatIcon('file'),
     chatIcon('once'),
-    scope === 'group' ? 'hidden' : '',
+    '',
   ]);
 }
 

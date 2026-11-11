@@ -142,6 +142,15 @@ export class GroupStore {
       return work(client, groupEvent(row.event));
     });
   }
+  /** Admission already holds the group lock; all content writers share this gate. */
+  async writable(client: pg.PoolClient, groupId: string): Promise<void> {
+    const result = await client.query<{ clearing: boolean }>(
+      'SELECT clearing FROM hash_talk.groups WHERE id=$1',
+      [groupId],
+    );
+    if (!result.rows[0] || result.rows[0].clearing)
+      throw new AccountError(409, 'Vault cleanup in progress.');
+  }
   async authorizedScopes(
     client: pg.PoolClient,
     account: string,

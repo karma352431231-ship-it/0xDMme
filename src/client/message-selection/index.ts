@@ -13,7 +13,12 @@ export class MessageDeletionSelection {
   private active = false;
   private busy = false;
   private readonly run: (work: () => Promise<void>) => Promise<void>;
-  constructor(run: (work: () => Promise<void>) => Promise<void>) {
+  private readonly options: { group?: boolean };
+  constructor(
+    run: (work: () => Promise<void>) => Promise<void>,
+    options: { group?: boolean } = {},
+  ) {
+    this.options = options;
     this.run = run;
   }
   update(history: HTMLElement, rows: readonly SelectableMessage[]): void {
@@ -80,7 +85,9 @@ export class MessageDeletionSelection {
     const remove = document.createElement('button'),
       cancel = document.createElement('button');
     remove.type = cancel.type = 'button';
-    remove.textContent = t('Delete for both ({0})', [this.selected.size]);
+    remove.textContent = this.options.group
+      ? t('Delete for everyone') + ' (' + this.selected.size + ')'
+      : t('Delete for both ({0})', [this.selected.size]);
     cancel.textContent = t('Cancel');
     remove.disabled = !this.selected.size || this.busy;
     cancel.disabled = this.busy;

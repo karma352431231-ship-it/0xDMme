@@ -1,119 +1,57 @@
 import { t } from '../../shared/i18n/index.ts';
-import { anchoredMessageMenu } from '../message-menu/index.ts';
-import { withMenuIcon } from '../menu-icons/index.ts';
+import type { Peer } from '../../shared/contacts/index.ts';
+import { messageActions } from '../message-actions/index.ts';
+import type { EmojiPicker } from '../emoji/index.ts';
+import type { GroupMessageView } from './message-content.ts';
+import { groupMessageView } from './message-content.ts';
 import type { GroupView } from './reader.ts';
-interface Actions {
+
+export interface GroupMessageActions {
   run: (work: () => Promise<void>) => Promise<void>;
-  edit: (view: GroupView, text: string) => Promise<void>;
+  choose: (mode: 'reply' | 'edit', view: GroupView) => void;
   remove: (view: GroupView) => Promise<void>;
+  react: (view: GroupView, emoji: string) => Promise<void>;
+  picker: Pick<EmojiPicker, 'choose'>;
+  peers: () => readonly Peer[];
+  writable: () => boolean;
+  forward: (view: GroupView) => void;
+  forwardAllowed: () => boolean;
 }
-/** Own-message capabilities and editing draft have a lifecycle independent of
- * unchanged message bubbles. Server authorization remains authoritative. */
-export class GroupMessageActions {
-  private readonly actions: Actions;
-  private dialog: HTMLDialogElement | null = null;
-  private editing: GroupView | null = null;
-  private paused = false;
-  constructor(actions: Actions) {
-    this.actions = actions;
-  }
-  close(): void {
-    this.dialog?.close();
-    this.dialog?.remove();
-    this.dialog = null;
-    this.editing = null;
-    this.paused = false;
-  }
-  pause(): void {
-    if (!this.dialog?.open) return;
-    this.paused = true;
-    this.dialog.close();
-  }
-  resume(views: readonly GroupView[]): void {
-    if (!this.paused) return;
-    const editing = this.editing;
-    const current = views.find(
-      (view) =>
-        view.id === editing?.id &&
-        view.groupId === editing.groupId &&
-        view.hash === editing.hash &&
-        view.own &&
-        !view.localOnly,
-    );
-    if (!current) {
-      this.close();
-      return;
-    }
-    this.paused = false;
-    this.dialog?.showModal();
-  }
-  render(view: GroupView, signal: AbortSignal): HTMLElement {
-    if (!view.own || view.localOnly) return document.createElement('div');
-    const { host, panel } = anchoredMessageMenu({ signal });
-    if (view.kind === 'text')
-      panel.append(
-        withMenuIcon(
-          this.button(t('Edit'), () => this.edit(view)),
-          'edit',
-        ),
-      );
-    panel.append(
-      withMenuIcon(
-        this.button(t('Delete for everyone'), () => {
-          void this.actions.run(() => this.actions.remove(view));
-        }),
-        'trash',
-      ),
-    );
-    return host;
-  }
-  private button(label: string, work: () => void): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.addEventListener('click', work);
-    return button;
-  }
-  private edit(view: GroupView): void {
-    this.close();
-    const dialog = document.createElement('dialog'),
-      form = document.createElement('form'),
-      title = document.createElement('h2'),
-      text = document.createElement('textarea'),
-      save = document.createElement('button');
-    dialog.className = 'group-dialog group-message-edit';
-    dialog.setAttribute('aria-label', t('Edit message'));
-    title.textContent = t('Edit message');
-    text.value = view.text;
-    text.required = true;
-    text.setAttribute('aria-label', t('Message'));
-    save.type = 'submit';
-    save.textContent = t('Save change');
-    form.append(
-      title,
-      text,
-      save,
-      this.button(t('Cancel'), () => this.close()),
-    );
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const value = text.value;
-      if (!value.trim()) return;
-      save.disabled = true;
-      void this.actions.run(async () => {
-        try {
-          await this.actions.edit(view, value);
-          this.close();
-        } finally {
-          save.disabled = false;
-        }
-      });
-    });
-    dialog.append(form);
-    document.body.append(dialog);
-    this.dialog = dialog;
-    this.editing = view;
-    dialog.showModal();
-    text.focus();
-  }
+/** The group supplies capabilities; the shared menu owns gestures and disposal. */
+export function groupMessageActions(input: {
+  view: GroupView;
+  signal: AbortSignal;
+  row: HTMLElement;
+  actions: GroupMessageActions;
+}): HTMLElement {
+  const { view, signal, row, actions } = input;
+  const writable = actions.writable(),
+    projected = groupMessageView(view);
+  return messageActions<GroupMessageView>({
+    signal,
+    row,
+    removeLabel: t('Delete for everyone'),
+    view: { ...projected, archived: projected.archived || !writable },
+    peers: actions.peers(),
+    picker: actions.picker,
+    replyAllowed: writable,
+    choose: actions.choose,
+    react: actions.react,
+    forward: actions.forward,
+    forwardAllowed: actions.forwardAllowed(),
+    action: (label, work) =>
+      actionButton(label, () => {
+        void actions.run(work);
+      }),
+    ...(view.own && !view.localOnly && writable
+      ? { remove: () => actions.remove(view) }
+      : {}),
+  });
+}
+function actionButton(label: string, work: () => void): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', work);
+  return button;
 }

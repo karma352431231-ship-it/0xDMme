@@ -122,6 +122,8 @@ await test('directory shows the private group avatar and marks only the opened g
       },
       groups: {
         entries: [current],
+        preview: () => undefined,
+        reveal: () => Promise.resolve(),
         get selected() {
           return selected;
         },

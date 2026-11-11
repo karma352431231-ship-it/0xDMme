@@ -2,7 +2,7 @@ import { WorkInterruption } from '../synchronization-work/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
-import { groupEditRelation } from '../../shared/group-messages/index.ts';
+import { groupMessageRelation } from '../../shared/group-messages/index.ts';
 import { applyGroupRemovals } from './removals.ts';
 import type { GroupRemovalItem } from './removals.ts';
 import type { GroupReadContext } from './reader.ts';
@@ -249,7 +249,7 @@ function readIndex(raw: Record<string, unknown>, c: ReadContext): IndexItem[] {
       deletion: value['deletion'],
       ...(value['relation'] == null
         ? {}
-        : { relation: groupEditRelation(value['relation']) }),
+        : { relation: groupMessageRelation(value['relation']) }),
     };
   });
   if (new Set(items.map((item) => item.id)).size !== items.length)

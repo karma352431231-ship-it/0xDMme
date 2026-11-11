@@ -1,6 +1,6 @@
 # View-once messages
 
-The private and handle DM composers provide a persistent ① toggle beside the
+The private, private-group and handle DM composers provide a persistent ① toggle beside the
 paperclip. Text occupies the full first row; media actions and send/record sit
 below. The paperclip opens a compact three-action menu. A fading explanation
 appears on the first activation in each installation/browser.
@@ -10,7 +10,8 @@ client shows only their placeholder. Native Android windows use `FLAG_SECURE`;
 iOS renders sensitive pixels through the public protected AVFoundation layer.
 Closing, backgrounding or leaving the conversation erases the native view.
 Supported images use the platform's native decoders; animated images currently
-show their first frame. Groups do not offer this mode.
+show their first frame. Private groups grant each eligible recipient one opening
+per account, as specified in [Private group chat parity](PRIVATE_GROUP_CHAT_PARITY.md).
 
 Other files initially show a generic view-once placeholder. Opening consumes
 the delivery and reveals only filename, extension/MIME and size in B/KB/MB/GB.

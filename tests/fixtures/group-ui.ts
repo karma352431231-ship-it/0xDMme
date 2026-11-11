@@ -21,8 +21,17 @@ const adapters: Record<string, string[]> = {
   '../appearance/index.ts': ['paintAvatar', 'displayName', 'shortAddress'],
   '../contacts/index.ts': ['Contacts'],
   '../external-video/index.ts': ['showExternalVideos'],
-  '../gif-search/index.ts': ['showGifText', 'gifUrls'],
+  '../gif-search/index.ts': [
+    'showGifText',
+    'gifUrls',
+    'GifSearch',
+    'mountGifPane',
+    'gifMessageUrl',
+  ],
   '../chat-ui/index.ts': [
+    'viewOnceEnabled',
+    'revealMessage',
+    'renderSearchReturn',
     'chatIcon',
     'ChatHistoryLoading',
     'chatCollapse',
@@ -180,6 +189,9 @@ export function groupUiFixture() {
   const form = element(host, 'groupCompose', 'form');
   nodes['groupCompose'] = form;
   for (const key of [
+    'composeBar',
+    'composeContext',
+    'composeCancel',
     'groupText',
     'groupEmoji',
     'voiceRecord',
@@ -306,6 +318,9 @@ export function groupUiFixture() {
     },
     async refreshIncoming() {},
     async cancelCreation() {},
+    latest() {},
+    focusMessage() {},
+    searchFocused: false,
     async refreshReceipts() {},
     async updatePhoto() {},
     async updateDescription() {},
@@ -314,6 +329,27 @@ export function groupUiFixture() {
       return state.composeFailure
         ? Promise.reject(new Error('Synthetic compose failure'))
         : Promise.resolve();
+    },
+    stageMedia(item: {
+      id: string;
+      peer: string;
+      text: string;
+      createdAt: number;
+    }) {
+      calls.push(`compose:${item.text}`);
+      if (state.composeFailure)
+        return Promise.reject(new Error('Synthetic compose failure'));
+      return Promise.resolve([
+        {
+          id: item.id,
+          peer: item.peer,
+          createdAt: item.createdAt,
+          content: null,
+        },
+      ]);
+    },
+    draftMedia() {
+      return Promise.resolve(new Uint8Array());
     },
     composeText(
       _groupId: string,
@@ -329,6 +365,7 @@ export function groupUiFixture() {
       _groupId: string,
       progress: { accepted: (id: string) => void },
     ) {
+      calls.push('send');
       if (state.holdTextSend) await state.textSend.promise;
       for (const draft of state.savedTexts) progress.accepted(draft.id);
     },
@@ -348,12 +385,19 @@ export function groupUiFixture() {
       this.views = [];
     },
     removed() {
-      this.selected = null;
-      this.views = [];
+      this.historyPending = true;
     },
   };
   const attachments = {
     selected: null as { voice?: object; bytes: Uint8Array } | null,
+    get selectedBatch() {
+      return this.selected ? [this.selected] : [];
+    },
+    takeSelection() {
+      const items = this.selectedBatch;
+      this.selected = null;
+      return items;
+    },
     mount() {},
     pausePreview() {
       calls.push('pause-preview');
@@ -423,6 +467,12 @@ export function groupUiFixture() {
     showExternalVideos() {},
     showGifText() {},
     gifUrls: () => [],
+    GifSearch: class {},
+    mountGifPane() {},
+    gifMessageUrl: () => true,
+    viewOnceEnabled: () => false,
+    revealMessage: () => Promise.resolve(true),
+    renderSearchReturn() {},
     chatIcon: () => '',
     chatComposer: () => '',
     chatCollapse: () => '',
@@ -447,8 +497,10 @@ export function groupUiFixture() {
     navigator: { onLine: true },
     crypto,
     Event,
+    EventTarget,
     AbortController,
     AbortSignal,
+    matchMedia: () => ({ matches: false }),
     queueMicrotask,
     Blob,
     URL,

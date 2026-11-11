@@ -1,3 +1,8 @@
+import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
+import type { ForwardDirectory } from '../message-forward/index.ts';
+import type { DailyView } from '../daily-text/index.ts';
+import type { GroupMessageView } from './message-content.ts';
+import type { AttachmentSelection } from '../attachments/index.ts';
 import { GroupMemberPresentation } from './member-presentation.ts';
 import { GroupReconciliation } from './reconciliation.ts';
 import { GroupHistoryWork } from './history-work.ts';
@@ -51,6 +56,9 @@ interface GroupOptions {
   alias: (account: string) => string;
   addContact: (wallet: WalletContact, alias: string) => void;
   profile: GroupProfile;
+  forwarding?: ForwardDirectory;
+  forward?: (view: DailyView<GroupMessageView>, peer: string) => Promise<void>;
+  flushForward?: () => Promise<void>;
   organizationPeers?: () => readonly string[];
 }
 export function startGroups(
@@ -92,6 +100,10 @@ export function startGroups(
     externalMedia: options.externalMedia,
     isBusy: options.isBusy,
     members,
+    peers: options.peers,
+    ...(options.forwarding ? { forwarding: options.forwarding } : {}),
+    ...(options.forward ? { forward: options.forward } : {}),
+    ...(options.flushForward ? { flushForward: options.flushForward } : {}),
     visibleGroup,
     reconcile: (id) => reconciliation.request(id),
     operationRun: options.run,
@@ -308,9 +320,14 @@ export function startGroups(
     directory: () => refresh(),
     changed: () => options.changed(),
   });
-  async function open(group: GroupSummary | string): Promise<void> {
+  async function open(
+    group: GroupSummary | string,
+    focus?: { sequence: number },
+  ): Promise<void> {
     const id = typeof group === 'string' ? group : group.state.groupId,
       localOnly = typeof group === 'string' ? false : !!group.localOnly;
+    if (focus) controller.focusMessage(id, focus.sequence);
+    else controller.latest();
     chat.open(id);
     try {
       await readHistory(id, false, localOnly);
@@ -329,6 +346,15 @@ export function startGroups(
     }
     management.renderIdentity(group);
     chat.renderHistory();
+    const history = node('[data-group-history]');
+    if (history)
+      renderSearchReturn(history, {
+        active: () => controller.searchFocused,
+        latest: () => {
+          controller.latest();
+          void run(() => reopen());
+        },
+      });
     management.renderMembers();
     members.load(group);
     vault.render();
@@ -406,6 +432,31 @@ export function startGroups(
       if (accept) await refresh();
       await controller.refreshIncoming();
       management.renderIncoming();
+    },
+    preview: (id: string) => controller.preview(id),
+    media: (view: GroupView, thumbnail: boolean) =>
+      controller.media(view, thumbnail),
+    composeFor: (
+      id: string,
+      text: string,
+      selection: AttachmentSelection | null,
+    ) => controller.composeFor(id, text, selection),
+    sendGroupDrafts: (id: string) => controller.sendGroupDrafts(id),
+    async reveal(
+      group: GroupSummary,
+      id: string,
+      sequence: number,
+    ): Promise<void> {
+      controller.focusMessage(group.state.groupId, sequence);
+      await open(group, { sequence });
+      await revealMessage(id, {
+        row: (target) =>
+          node('[data-group-history]')?.querySelector<HTMLElement>(
+            `article[data-group-message="${CSS.escape(target)}"]`,
+          ) ?? null,
+        older: { available: () => false, load: () => Promise.resolve(false) },
+        valid: () => controller.selected?.state.groupId === group.state.groupId,
+      });
     },
     unread: (id: string) => states.get(id)?.unread ?? 0,
     search: (query: string, after: string | null) =>

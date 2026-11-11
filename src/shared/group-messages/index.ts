@@ -1,3 +1,4 @@
+export { encodeGroupText, decodeGroupText, groupTextBytes } from './text.ts';
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
 import { messageRelation } from '../daily/index.ts';
 import type { MessageRelation } from '../daily/index.ts';
@@ -19,6 +20,7 @@ import {
 } from '../groups/index.ts';
 import type { GroupEvent } from '../groups/index.ts';
 import {
+  viewOnceReference,
   matrixBinding,
   megolmContent,
   roomKeyArchive,
@@ -55,6 +57,7 @@ export interface GroupPacket {
   authorityRevision: number;
   attachments?: AttachmentRef[];
   relation?: MessageRelation;
+  viewOnce?: import('../messages/index.ts').ViewOnceReference;
   signature: string;
 }
 /** One signed recovery bundle per Megolm session/audience, referenced by messages. */
@@ -108,6 +111,7 @@ export function groupPacket(value: unknown): GroupPacket {
     'signature',
     ...(data['kind'] === 'attachment' ? ['attachments'] : []),
     ...groupRelationKeys(data),
+    ...groupOnceKeys(data),
   ]);
   if (
     data['version'] !== 1 ||
@@ -132,6 +136,7 @@ export function groupPacket(value: unknown): GroupPacket {
     authorityRevision: positive(data['authorityRevision']),
     signature: checkedSignature(data['signature']),
     ...groupRelationFields(data),
+    ...groupOnceFields(data),
     ...(data['kind'] === 'attachment'
       ? { attachments: attachmentRefs(data['attachments'], chatFileLimit) }
       : {}),
@@ -348,10 +353,8 @@ export {
 } from './profile.ts';
 export type { GroupPhoto } from './profile.ts';
 
-export function groupEditRelation(value: unknown): MessageRelation {
+export function groupMessageRelation(value: unknown): MessageRelation {
   const relation = messageRelation(value);
-  if (relation.type !== 'edit')
-    throw new AccountError(400, 'Invalid group action.');
   return relation;
 }
 
@@ -366,7 +369,7 @@ function groupRelationFields(data: Record<string, unknown>): {
   if (data['relation'] === undefined) return {};
   if (data['kind'] !== 'text')
     throw new AccountError(400, 'Only text can be used to edit a message.');
-  return { relation: groupEditRelation(data['relation']) };
+  return { relation: groupMessageRelation(data['relation']) };
 }
 
 export {
@@ -375,3 +378,15 @@ export {
   profileDescriptionUpdate,
   groupDescriptionLimit,
 } from './description.ts';
+
+function groupOnceKeys(data: Record<string, unknown>): string[] {
+  return Object.hasOwn(data, 'viewOnce') ? ['viewOnce'] : [];
+}
+function groupOnceFields(
+  data: Record<string, unknown>,
+): Pick<GroupPacket, 'viewOnce'> {
+  if (data['viewOnce'] === undefined) return {};
+  if (data['kind'] !== 'text' || data['relation'] !== undefined)
+    throw new AccountError(400, 'Invalid view-once group message.');
+  return { viewOnce: viewOnceReference(data['viewOnce']) };
+}
