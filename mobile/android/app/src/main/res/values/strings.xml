@@ -4,4 +4,10 @@
     <string name="title_activity_main">0xDMme</string>
     <string name="package_name">app.zeroxdmme.development</string>
     <string name="custom_url_scheme">app.zeroxdmme.development</string>
+    <string name="video_play">Play video</string>
+    <string name="video_pause">Pause video</string>
+    <string name="video_seek">Video position</string>
+    <string name="video_fullscreen">Full screen</string>
+    <string name="video_close">Close video</string>
+    <string name="video_failed">Could not play this video.</string>
 </resources>

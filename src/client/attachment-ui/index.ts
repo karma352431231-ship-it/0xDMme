@@ -10,6 +10,7 @@ import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import { NativeVideoPlayback } from '../native-video/index.ts';
 import { renderMedia } from './media.ts';
 import { renderSelectionStrip, renderUsageRing } from './selection-strip.ts';
 import { AttachmentSelectionQueue, wipe } from './selection-queue.ts';
@@ -18,6 +19,7 @@ import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import { viewOnceEnabled } from '../chat-ui/index.ts';
 
 export class AttachmentUi {
+  private readonly video = new NativeVideoPlayback();
   private selectionWork: symbol | null = null;
   get preparing(): boolean {
     return this.selectionWork !== null;
@@ -111,6 +113,7 @@ export class AttachmentUi {
   }
   clearMedia(): void {
     this.generation++;
+    this.video.close();
     for (const url of this.urls) URL.revokeObjectURL(url);
     this.urls.clear();
   }
@@ -309,6 +312,7 @@ export class AttachmentUi {
     renderMedia({
       ...input,
       playback: this.playback,
+      playVideo: (video) => this.video.play(video),
       current: () =>
         token === this.generation &&
         !input.signal?.aborted &&

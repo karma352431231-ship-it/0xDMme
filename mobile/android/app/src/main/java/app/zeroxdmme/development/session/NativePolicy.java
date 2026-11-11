@@ -62,7 +62,7 @@ final class NativePolicy {
             call = identifier(message, "call");
             document = identifier(message, "document");
             operation = text(message, "operation", 16);
-            if (!Arrays.asList("hello", "startup-timing", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close", "view-frame", "file-begin", "file-append", "file-save", "file-close").contains(operation)) throw failure();
+            if (!Arrays.asList("hello", "startup-timing", "open", "read", "cancel", "view-begin", "view-append", "view-show", "view-active", "view-close", "view-frame", "video-begin", "video-append", "video-show", "video-active", "video-close", "video-frame", "file-begin", "file-append", "file-save", "file-close").contains(operation)) throw failure();
             request = record(message, "request");
         }
     }
@@ -125,6 +125,20 @@ final class NativePolicy {
         int size = (Integer) value;
         if (size < 1 || size > CHUNK_BYTES) throw failure();
         return size;
+    }
+
+    /** Shared bounded presentation wire contract; the caller must wipe the chunk. */
+    static byte[] mediaChunk(JSONObject input, int offset, int remaining) throws Exception {
+        exact(input, "id", "offset", "bytes");
+        int requested = integer(input, "offset", 0, 10_000_000);
+        String text = text(input, "bytes", 90_000);
+        byte[] chunk = Base64.decode(text, Base64.NO_WRAP);
+        if (chunk.length == 0 || chunk.length > 65_536 || chunk.length > remaining || requested != offset
+            || !Base64.encodeToString(chunk, Base64.NO_WRAP).equals(text)) {
+            Arrays.fill(chunk, (byte) 0);
+            throw failure();
+        }
+        return chunk;
     }
 
     private static String path(String input) throws Exception {

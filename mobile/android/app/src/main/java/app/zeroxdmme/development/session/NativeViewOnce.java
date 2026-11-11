@@ -10,7 +10,6 @@ import android.graphics.Color;
 import android.graphics.ImageDecoder;
 import android.graphics.drawable.Animatable;
 import android.os.Build;
-import android.util.Base64;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
@@ -49,6 +48,7 @@ final class NativeViewOnce {
         this.source = source;
         this.protectedState = protectedState;
     }
+    boolean active() { return dialog != null; }
     Object dispatch(String operation, JSONObject input) throws Exception {
         if (operation.equals("view-begin")) return begin(input);
         String requested = NativePolicy.identifier(input, "id");
@@ -151,14 +151,8 @@ final class NativeViewOnce {
         return true;
     }
     private boolean append(JSONObject input) throws Exception {
-        NativePolicy.exact(input, "id", "offset", "bytes");
-        int next = number(input, "offset", 10_000_000);
-        String value = NativePolicy.text(input, "bytes", 90_000);
-        byte[] chunk = Base64.decode(value, Base64.NO_WRAP);
+        byte[] chunk = NativePolicy.mediaChunk(input, offset, bytes.length - offset);
         try {
-            if (chunk.length == 0 || chunk.length > 65_536 || next != offset ||
-                offset + chunk.length > bytes.length || !Base64.encodeToString(chunk, Base64.NO_WRAP).equals(value))
-                throw NativePolicy.failure();
             System.arraycopy(chunk, 0, bytes, offset, chunk.length);
             offset += chunk.length;
             return true;
@@ -173,7 +167,7 @@ final class NativeViewOnce {
             video.onFirstFrame(timing::videoFrame);
             content.showMedia(video, 16, 9, value);
             video.load(bytes, mime);
-            bytes = null; // The isolated player already cleared the input buffer.
+            bytes = null; // The native source now owns and wipes it on decoder teardown.
         } else if (mime.equals("image/gif") || (mime.equals("image/webp") && Build.VERSION.SDK_INT >= 28)) {
             showAnimated(value);
         } else {

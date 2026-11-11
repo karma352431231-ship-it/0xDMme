@@ -10,6 +10,7 @@ import {
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { startLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import type { NativeVideoInput } from '../native-video/index.ts';
 
 export interface MediaView {
   archived?: boolean;
@@ -18,6 +19,8 @@ export interface MediaView {
   peer: string;
 }
 interface MediaInput<V extends MediaView> {
+  playVideo: (input: NativeVideoInput) => Promise<boolean>;
+  signal?: AbortSignal;
   content?: AttachmentContent;
   imageOverlay?: HTMLElement;
   saveNotice?: string;
@@ -274,22 +277,53 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   );
   button.hidden = image;
   let pending = false;
+  let savedVideoUrl: string | null = null;
+  async function presentVideo(value: {
+    bytes: Uint8Array<ArrayBuffer>;
+    type: string;
+    url: string;
+    diagnostic: LoadTrace | undefined;
+  }): Promise<void> {
+    const { bytes, type, url, diagnostic } = value;
+    if (!savedVideoUrl) {
+      savedVideoUrl = url;
+      offerSave(input, url, content.name);
+    }
+    input.playback.pause();
+    if (
+      await input.playVideo({
+        bytes,
+        mime: type,
+        signal: input.signal,
+        current: input.current,
+        diagnostic,
+      })
+    )
+      return;
+    if (!input.current()) return;
+    button.hidden = true;
+    showVideo(preview, url, content.name);
+    readyMedia(preview, diagnostic, input.current);
+  }
+  function keepBlob(bytes: Uint8Array<ArrayBuffer>, type: string): string {
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
+    input.retain(url);
+    return url;
+  }
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
     const diagnostic = startLoad(mediaLoadKind(content), input.view.peer);
     const bytes = await loadMediaBytes(input, diagnostic);
     try {
       if (!input.current()) return;
-      const type = displayType(bytes, content),
-        url = URL.createObjectURL(new Blob([bytes], { type }));
-      input.retain(url);
-      button.hidden = true;
+      const type = displayType(bytes, content);
       if (video && type.startsWith('video/')) {
-        showVideo(preview, url, content.name);
-        readyMedia(preview, diagnostic, input.current);
-        offerSave(input, url, content.name);
+        const url = savedVideoUrl ?? keepBlob(bytes, type);
+        await presentVideo({ bytes, type, url, diagnostic });
         return;
       }
+      const url = keepBlob(bytes, type);
+      button.hidden = true;
       if (image && type !== 'application/octet-stream') {
         showImage(preview, url, {
           name: content.name,

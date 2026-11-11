@@ -123,9 +123,24 @@ physical acceptance, not inferred from the isolated benchmark. The previous
 1.25-second player interval must be reported separately if it persists; native
 player preparation is evaluated separately from startup and transfer work.
 
-The explicitly enabled `NativeStartupBenchmarkTest` visits Conversations and
-Contacts and exports only fixed timing/row/byte counters from the existing
-diagnostic protocol. Run each trial in a new instrumented process for matched
-baseline/candidate comparisons. It does not open histories, consume protected
-media or export account identifiers. Instrumentation adds launch overhead, so
-these runs must not be compared directly with an ordinary launcher capture.
+The optional `NativeStartupBenchmarkTest` visits Conversations and Contacts and
+exports timing, row and byte counters. Three baseline trials completed. The
+candidate trial ended when the Activity was destroyed. The owner chose manual
+comparison, so the measured startup improvement is still open.
+
+## Android chat video playback
+
+The installed Android chat attachment UI presents replayable videos in a native
+player for private conversations, groups and public DMs. The player uses the
+platform `MediaPlayer`, play/pause, seeking and a fullscreen control. The
+existing browser player remains available when the native decoder rejects a
+file. The regular attachment still offers an explicit save action.
+
+The same decoder renders MP4 in the secure view-once window. Protected
+QuickTime playback uses the existing isolated WebView for compatibility. The
+single-use capability and screenshot/audio protection stay with the protected
+viewer. Only one native presentation can be active per document. Native buffers
+stay in memory and are wiped after teardown. The document, foreground and chat
+row lifecycles close their active presentation. The diagnostic APK reports first
+frame timing from the Android rendering callback. Playback and latency on the
+physical device are part of manual acceptance.

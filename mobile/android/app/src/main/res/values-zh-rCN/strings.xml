@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="video_play">播放视频</string>
+    <string name="video_pause">暂停视频</string>
+    <string name="video_seek">视频播放位置</string>
+    <string name="video_fullscreen">全屏</string>
+    <string name="video_close">关闭视频</string>
+    <string name="video_failed">无法播放此视频。</string>
+</resources>

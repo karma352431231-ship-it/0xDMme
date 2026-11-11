@@ -219,7 +219,7 @@ export class DmHistory {
         },
       );
     this.renderReply(bubble.row, item, page);
-    this.renderAttachment(bubble.row, item, { ...input, localMedia });
+    this.renderAttachment(bubble.row, item, { ...input, localMedia, signal });
     const metadata = messageViewOnce(item);
     if (metadata) {
       bubble.row.querySelector('p')?.remove();
@@ -304,11 +304,12 @@ export class DmHistory {
   private renderAttachment(
     article: HTMLElement,
     item: DmItem,
-    input: { selected: string; localMedia: boolean },
+    input: { selected: string; localMedia: boolean; signal: AbortSignal },
   ): void {
     if (item.kind !== 'attachment' || !item.media) return;
     this.mediaUi.render({
       article,
+      signal: input.signal,
       view: { ...item, peer: input.selected, archived: input.localMedia },
       saveNotice: t(
         'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
