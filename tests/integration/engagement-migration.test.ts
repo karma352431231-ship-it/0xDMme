@@ -138,13 +138,14 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
   }
   // The runtime migrator accepts the explicit steps and adds only the empty
   // follower notice table of 104, the follow date column of 105 and the
-  // visitor retention function and coverage column of 106.
+  // visitor retention function and coverage column of 106, and the empty
+  // direct/group view-once tables plus group action support of 107–109.
   await db.migrate();
   assert.deepEqual(await snapshot(), before);
   assert.equal(
     (await client.query('SELECT version FROM hash_talk.schema_migrations'))
       .rowCount,
-    107,
+    109,
   );
   assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));
   await client.query('BEGIN');
