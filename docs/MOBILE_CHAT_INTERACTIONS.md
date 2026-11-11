@@ -111,3 +111,26 @@ separate block-icon colors. No simulator is started for this correction.
 
 Pointer cancellation and native scrolling remain separate contracts, as specified
 in [Pointer Events](https://www.w3.org/TR/pointerevents3/#declaring-direct-manipulation-behavior).
+
+## Keyboard following and deliberate emoji search — 2026-11-11
+
+The owner requested that private, private-group and public-handle conversations
+keep the latest messages visible while the keyboard opens, the draft grows or
+new messages arrive. The existing history-position owner now observes changes
+to the displayed history's dimensions. It restores the preceding reading intent
+before recording the new geometry, including native scroll events delivered
+before the resize notification. Readers above the latest messages keep their
+visible anchor and existing new-message control. Each history presenter supplies
+its existing abort lifetime; observers and scroll listeners stop with it.
+Native viewport geometry and sending/retention rules remain with their owners.
+
+The modal emoji selector initially focuses its close button, so opening reactions does
+not select search or summon the keyboard. Search receives focus on an explicit
+press or keyboard navigation. The composer attachment menu sizes its columns to
+their labels; the phone icon-only rule no longer overrides a labeled Emoji
+button's padding. These shared controls apply to all three conversation families.
+
+Verification covers resize/render ordering, reading-position preservation and
+observer disposal, plus assembled Chrome/WebKit fixtures using the real templates
+and styles with synthetic messages. Browser geometry checks do not replace
+physical Android/iPhone keyboard acceptance.

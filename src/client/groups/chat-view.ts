@@ -44,6 +44,7 @@ import { memberContactTrigger } from './member-contact.ts';
 
 import {
   historyPosition,
+  watchHistoryPosition,
   resetHistoryPosition,
   watchOlderHistory,
 } from '../chat-ui/index.ts';
@@ -294,6 +295,7 @@ export class GroupChatView {
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
+    watchHistoryPosition(history, this.externalAbort.signal);
     if (this.options.controller.historyPending) {
       historyPosition(history);
       history.hidden = true;

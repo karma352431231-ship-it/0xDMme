@@ -21,6 +21,7 @@ import {
   ChatAvatarPhoto,
   ChatHistoryLoading,
   historyPosition,
+  watchHistoryPosition,
   updateMessageStates,
   watchOlderHistory,
 } from '../chat-ui/index.ts';
@@ -205,6 +206,7 @@ export class MessageHistoryUi {
     if (history) this.paint(history, update);
   }
   private paint(history: HTMLElement, update: HistoryUpdate): void {
+    watchHistoryPosition(history, this.options.signal());
     const latest =
       update === 'history' && !this.options.searchFocus?.active()
         ? (this.views ?? undefined)

@@ -89,9 +89,6 @@ export class EmojiPanel {
           );
       });
   }
-  focusSearch(): void {
-    element<HTMLInputElement>(this.host, '[data-query]').focus();
-  }
   private credit(): void {
     element(this.host, '[data-art]').textContent = recentEmojis.persistent
       ? t('Twemoji artwork · CC-BY-4.0 · Recents saved on this device')

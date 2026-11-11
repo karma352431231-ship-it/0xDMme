@@ -41,6 +41,7 @@ const adapted: Record<string, string[]> = {
   './dm-message-menu.ts': ['dmMessageMenu', 'dmReactionChips'],
   '../chat-ui/index.ts': [
     'historyPosition',
+    'watchHistoryPosition',
     'resetHistoryPosition',
     'renderSearchReturn',
     'revealMessage',
@@ -560,6 +561,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       node.textContent = text;
     },
     historyPosition: () => noop,
+    watchHistoryPosition: noop,
     resetHistoryPosition: noop,
     renderSearchReturn: noop,
     revealMessage: () => true,

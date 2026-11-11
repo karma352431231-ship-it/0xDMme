@@ -20,6 +20,13 @@ interface HistoryState {
   latest: number | null;
   arrivals: number;
   button?: HTMLButtonElement;
+  layout?: HistoryLayout;
+}
+interface HistoryLayout {
+  width: number;
+  height: number;
+  signal: AbortSignal;
+  stop: () => void;
 }
 const states = new WeakMap<HTMLElement, HistoryState>();
 const bottom: ReadingPosition = { top: 0, follow: true, anchors: [] };
@@ -53,7 +60,7 @@ export function historyPosition(
   rows?: readonly HistoryMessage[],
 ): () => void {
   const state = historyState(history);
-  if (!state.resetPending && visible(history))
+  if (!state.resetPending && visible(history) && sameLayout(history, state))
     state.position = capture(history);
   state.resetPending = false;
   const position = state.position;
@@ -61,9 +68,72 @@ export function historyPosition(
     if (rows) observeArrivals(state, rows, position.follow);
     if (!visible(history)) return;
     restorePosition(history, position);
+    state.position = capture(history);
     if (atBottom(history)) clearArrivals(state);
     if (state.arrivals) showArrivals(history, state);
   };
+}
+
+/** Follow the latest messages when keyboard/composer/dock geometry changes.
+ * The displayed history's owner supplies its existing cancellation lifetime. */
+export function watchHistoryPosition(
+  history: HTMLElement,
+  signal: AbortSignal,
+): void {
+  const state = historyState(history);
+  if (state.layout?.signal === signal) return;
+  state.layout?.stop();
+  if (signal.aborted || typeof ResizeObserver === 'undefined') return;
+  const abort = new AbortController();
+  const layout: HistoryLayout = {
+    width: history.clientWidth,
+    height: history.clientHeight,
+    signal,
+    stop: () => abort.abort(),
+  };
+  state.layout = layout;
+  if (!state.resetPending && visible(history))
+    state.position = capture(history);
+  const observer = new ResizeObserver(() => {
+    if (abort.signal.aborted || !visible(history)) return;
+    layout.width = history.clientWidth;
+    layout.height = history.clientHeight;
+    restorePosition(history, state.position);
+    state.position = capture(history);
+    if (atBottom(history)) clearArrivals(state);
+  });
+  history.addEventListener('scroll', () => rememberPosition(history, state), {
+    passive: true,
+    signal: abort.signal,
+  });
+  signal.addEventListener('abort', layout.stop, {
+    once: true,
+    signal: abort.signal,
+  });
+  abort.signal.addEventListener(
+    'abort',
+    () => {
+      observer.disconnect();
+      if (state.layout === layout) delete state.layout;
+    },
+    { once: true },
+  );
+  observer.observe(history);
+}
+
+function rememberPosition(history: HTMLElement, state: HistoryState): void {
+  // Native scroll events can precede ResizeObserver after a keyboard resize.
+  // Keep the intent captured before that resize, rather than the new geometry.
+  if (!visible(history) || !sameLayout(history, state)) return;
+  state.position = capture(history);
+  if (atBottom(history)) clearArrivals(state);
+}
+function sameLayout(history: HTMLElement, state: HistoryState): boolean {
+  return (
+    !state.layout ||
+    (state.layout.width === history.clientWidth &&
+      state.layout.height === history.clientHeight)
+  );
 }
 
 function visible(history: HTMLElement): boolean {

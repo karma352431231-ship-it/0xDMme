@@ -28,14 +28,16 @@ export class EmojiPicker {
     const promise = new Promise<string | null>((resolve) => {
       this.resolve = resolve;
     });
-    let panel: EmojiPanel;
     try {
-      panel = new EmojiPanel(dialog, {
+      new EmojiPanel(dialog, {
         selected: (emoji) => this.finish(emoji),
         close: () => this.finish(null),
         ...(gifPane ? { gifPane } : {}),
         start,
       });
+      // A non-editable initial control avoids opening the keyboard. Some
+      // browsers still delegate to search when autofocus is on the dialog.
+      dialog.querySelector('[data-close]')?.setAttribute('autofocus', '');
     } catch (error: unknown) {
       this.finish(null);
       throw error;
@@ -57,8 +59,6 @@ export class EmojiPicker {
       throw error;
     }
     place(dialog, anchor);
-    if (start !== 'gif' && !matchMedia('(max-width: 700px)').matches)
-      panel.focusSearch();
     return promise;
   }
   async compose(

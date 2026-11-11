@@ -7,7 +7,7 @@ import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker } from '../emoji/index.ts';
 import { outgoingTextRows } from '../text-send/index.ts';
 import type { OutgoingText } from '../text-send/index.ts';
-import { historyPosition } from '../chat-ui/index.ts';
+import { historyPosition, watchHistoryPosition } from '../chat-ui/index.ts';
 import { dayHeading, withDayHeadings } from '../message-presentation/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -79,6 +79,7 @@ export class DmHistory {
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): void {
+    watchHistoryPosition(current.history, this.abort.signal);
     const restore = historyPosition(
       current.history,
       input.localMedia ? undefined : page.items,

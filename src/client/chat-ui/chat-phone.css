@@ -91,7 +91,11 @@
   #app-shell
     .chat-panel
     .chat-composer
-    :is([data-message-emoji], [data-group-emoji], [data-public-emoji]) {
+    .chat-icon:is(
+      [data-message-emoji],
+      [data-group-emoji],
+      [data-public-emoji]
+    ) {
     flex: 0 0 44px;
     width: 44px;
     height: 44px;

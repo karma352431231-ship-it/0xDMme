@@ -1,7 +1,11 @@
 export { renderSearchReturn } from './search-return.ts';
 export { revealMessage } from './search-reveal.ts';
 export type { RevealPorts } from './search-reveal.ts';
-export { historyPosition, resetHistoryPosition } from './history-position.ts';
+export {
+  historyPosition,
+  resetHistoryPosition,
+  watchHistoryPosition,
+} from './history-position.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { sendOnEnter } from './enter.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
