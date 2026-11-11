@@ -19,7 +19,7 @@ public class NativeStartupBenchmarkTest {
         assumeTrue("Explicit diagnostic run required", "true".equals(
             InstrumentationRegistry.getArguments().getString("startupBenchmark")));
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            await(scenario, "document.readyState !== 'loading'");
+            await(scenario, "location.origin === 'https://localhost' && typeof window.__zeroXSessionDocument === 'string' && document.readyState === 'complete'");
             evaluate(scenario, OBSERVE);
             await(scenario, "!!window.__startupBenchmark.boot['conversations-frame']");
             evaluate(scenario, "document.querySelector('a[href=\"/contacts\"]').click()");
