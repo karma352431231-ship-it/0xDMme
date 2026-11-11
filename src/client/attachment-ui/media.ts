@@ -153,21 +153,21 @@ function openImageViewer(
   document.body.append(viewer);
   viewer.showModal();
 }
-function saveControls(name: string, notice: string | undefined) {
+function saveLink(name: string): HTMLAnchorElement {
   const save = document.createElement('a');
   save.download = name;
   save.textContent = t('Save on device');
-  const warning = document.createElement('small');
-  warning.textContent = notice ?? defaultSaveNotice;
-  return { save, warning };
+  return save;
 }
 function offerSave<V extends MediaView>(
   input: MediaInput<V>,
   url: string,
   name: string,
 ): void {
-  const { save, warning } = saveControls(name, input.saveNotice);
+  const save = saveLink(name),
+    warning = document.createElement('small');
   save.href = url;
+  warning.textContent = input.saveNotice ?? defaultSaveNotice;
   input.article.append(save, warning);
 }
 /** Images show only their content and the sender's caption, if any. */
@@ -240,20 +240,18 @@ function renderVideo<V extends MediaView>(
     text.textContent = caption;
     input.article.append(text);
   }
-  const { save, warning } = saveControls(content.name, input.saveNotice);
-  const actions = document.createElement('div');
-  actions.className = 'chat-video-save';
-  actions.hidden = true;
-  actions.append(save, warning);
-  input.article.append(actions);
+  let fallback: HTMLAnchorElement | undefined;
   mountInlineVideo(slot, {
     signal: input.signal,
     label: content.name,
     play: () => input.playback.pause(),
-    sourceChanged: (url) => {
-      actions.hidden = url === null;
-      if (url) save.href = url;
-      else save.removeAttribute('href');
+    downloadFallback: (url) => {
+      fallback?.remove();
+      fallback = undefined;
+      if (!url) return;
+      fallback = saveLink(content.name);
+      fallback.href = url;
+      input.article.append(fallback);
     },
     load: (signal) => loadVideo(input, signal),
   });

@@ -146,11 +146,8 @@ final class NativeViewOnceWebVideo extends FrameLayout {
         <style nonce="__NONCE__">
         html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;color-scheme:dark}
         video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
-        button{position:absolute;top:10px;right:10px;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:999px;background:#0009;color:#fff}
-        svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
         </style></head><body>
         <video controls playsinline preload="auto" controlslist="nodownload noremoteplayback" disablepictureinpicture src="data:__MIME__;base64,__DATA__"></video>
-        <button type="button" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
         <script nonce="__NONCE__">
         const video=document.querySelector('video');
         if (__DIAGNOSTIC__ && typeof video.requestVideoFrameCallback === 'function')
@@ -161,10 +158,6 @@ final class NativeViewOnceWebVideo extends FrameLayout {
         });
         video.addEventListener('error',()=>ZeroXVideoMetadata.postMessage('{}'));
         document.addEventListener('contextmenu',event=>event.preventDefault());
-        document.querySelector('button').addEventListener('click',()=>{
-          if(document.fullscreenElement)document.exitFullscreen();
-          else video.requestFullscreen().catch(()=>{});
-        });
         </script></body></html>
         """;
 }

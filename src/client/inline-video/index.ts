@@ -16,7 +16,7 @@ interface InlineVideoOptions {
   size?: VideoSize;
   label?: string;
   poster?: { bytes: number; load: (signal: AbortSignal) => Promise<Blob> };
-  sourceChanged?: (url: string | null) => void;
+  downloadFallback?: (url: string | null) => void;
   play?: () => void;
 }
 
@@ -45,7 +45,7 @@ export function mountInlineVideo(
   retry.type = 'button';
   retry.textContent = t('Try loading video');
   retry.hidden = true;
-  slot.append(video, fullscreenButton(video), caption, retry);
+  slot.append(video, caption, retry);
   let visible = false,
     stopped = false,
     current: AbortController | null = null,
@@ -70,7 +70,7 @@ export function mountInlineVideo(
     if (posterUrl) URL.revokeObjectURL(posterUrl);
     posterUrl = null;
     video.removeAttribute('poster');
-    options.sourceChanged?.(null);
+    options.downloadFallback?.(null);
   }
   function usable(signal: AbortSignal): boolean {
     return !signal.aborted && !stopped;
@@ -111,14 +111,13 @@ export function mountInlineVideo(
   function present(source: InlineVideoSource): void {
     const { blob } = source;
     resultUrl = URL.createObjectURL(blob);
-    options.sourceChanged?.(resultUrl);
     retained = retainedMedia.keep({
       bytes: blob.size + (poster?.bytes ?? 0),
       visible,
       dispose: unload,
     });
     if (!blob.type.startsWith('video/')) {
-      caption.textContent = t('Video unavailable. Try again.');
+      unavailable();
       return;
     }
     decoded = source.decoded;
@@ -129,16 +128,24 @@ export function mountInlineVideo(
     if (!size)
       setRatio(slot, { width: video.videoWidth, height: video.videoHeight });
     if (position > 0 && position < video.duration) video.currentTime = position;
+    else if (!poster && resultUrl) showFirstFrame(video);
   });
-  video.addEventListener('loadeddata', () => {
+  function firstData(): void {
+    if (!resultUrl || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
+      return;
     caption.textContent = '';
     const notify = decoded;
     decoded = undefined;
     notify?.(video);
-  });
-  video.addEventListener('error', () => {
-    if (resultUrl) caption.textContent = t('Video unavailable. Try again.');
-  });
+  }
+  video.addEventListener('loadeddata', firstData);
+  video.addEventListener('seeked', firstData);
+  function unavailable(): void {
+    if (!resultUrl) return;
+    caption.textContent = t('Video unavailable. Try again.');
+    options.downloadFallback?.(resultUrl);
+  }
+  video.addEventListener('error', unavailable);
   retry.addEventListener('click', () => {
     void load();
   });
@@ -173,37 +180,9 @@ function setRatio(slot: HTMLElement, size: VideoSize): void {
     slot.style.setProperty('--video-ratio', String(size.width / size.height));
 }
 
-/** iOS Safari only offers full screen on the video element itself. */
-type FullscreenVideo = HTMLVideoElement & {
-  webkitEnterFullscreen?: () => void;
-};
-
-/**
- * Phones shrink the native controls and hide their full-screen choice in an
- * overflow menu or drop it, so touch screens get an explicit button (16/10/2026).
- */
-function fullscreenButton(video: FullscreenVideo): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'public-video-fullscreen';
-  button.setAttribute('aria-label', t('video.fullscreen'));
-  button.title = t('video.fullscreen');
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  const corners = document.createElementNS(
-    'http://www.w3.org/2000/svg',
-    'path',
-  );
-  corners.setAttribute('d', 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
-  svg.append(corners);
-  button.append(svg);
-  button.addEventListener('click', () => {
-    if (typeof video.requestFullscreen === 'function') {
-      video.requestFullscreen().catch(() => video.webkitEnterFullscreen?.());
-      return;
-    }
-    video.webkitEnterFullscreen?.();
-  });
-  return button;
+/** Seeking clears the browser's poster flag even at time zero. The decoded
+ * start frame replaces the WebView's generic cover without starting playback. */
+function showFirstFrame(video: HTMLVideoElement): void {
+  if (video.paused && !video.seeking && video.currentTime === 0)
+    video.currentTime = 0;
 }

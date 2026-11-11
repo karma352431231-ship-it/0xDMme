@@ -36,6 +36,8 @@ class MediaNode {
     },
   };
   controls = false;
+  paused = true;
+  seeking = false;
   currentTime = 0;
   load(): void {}
   pause(): void {}
@@ -133,7 +135,7 @@ function viewerSaveLink(body: MediaNode): MediaNode | undefined {
   return bar?.children.find((node) => node.tag === 'a');
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-await test('a video attachment mounts the feed controls immediately, loads when visible and releases its URL with the row', async (t) => {
+await test('a video attachment shows its opening frame without playback, extra controls or save text', async (t) => {
   const { ui, blobs, revoked } = environment(t);
   const observer = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -191,17 +193,29 @@ await test('a video attachment mounts the feed controls immediately, loads when 
     run: (work) => work(),
   });
   const figure = row.children[0]!;
-  const [video, fullscreen, , retry] = figure.children;
+  const [video, , retry] = figure.children;
   assert.equal(video?.tag, 'video');
   assert.equal(video.controls, true);
   assert.equal(video.attributes.has('playsinline'), true);
-  assert.equal(fullscreen?.className, 'public-video-fullscreen');
+  assert.deepEqual(
+    figure.children.map((node) => node.tag),
+    ['video', 'span', 'button'],
+  );
   assert.equal(retry?.hidden, true);
   assert.equal(loads, 0);
   visibility([{ isIntersecting: true }]);
   await flush();
   assert.equal(loads, 1);
   assert.equal(video.src, 'blob:synthetic-1');
+  assert.deepEqual(row.children, [figure]);
+  const seeks: number[] = [];
+  Object.defineProperty(video, 'currentTime', {
+    get: () => 0,
+    set: (time: number) => seeks.push(time),
+  });
+  video.listeners.get('loadedmetadata')?.();
+  assert.deepEqual(seeks, [0]);
+  assert.equal(video.paused, true);
   assert.equal(blobs[0]?.type, 'video/mp4');
   assert.ok(bytes.every((byte) => byte === 0));
   visibility([{ isIntersecting: false }]);

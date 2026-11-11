@@ -247,6 +247,11 @@ await test('visited feed video keeps its source and position across scrolling an
     );
     assert.equal(requested, 0);
     assert.equal(host.querySelectorAll('video').length, 1);
+    assert.equal(
+      host.querySelectorAll('button').length,
+      1,
+      'Only the hidden retry is outside native controls.',
+    );
     visible([{ isIntersecting: true }]);
     while (!video.src)
       await new Promise<void>((resolve) => setImmediate(resolve));
