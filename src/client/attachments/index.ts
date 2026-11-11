@@ -23,6 +23,7 @@ import {
   localPutWithin,
 } from '../message-storage/index.ts';
 import { attachmentWork } from './worker-client.ts';
+export { attachmentWork as attachmentPreparationWork } from './worker-client.ts';
 import type { SealedFile } from '../attachment-crypto/index.ts';
 import type { PreparedPhoto } from '../attachment-images/index.ts';
 import { validateVoice } from '../../shared/voice/index.ts';
@@ -67,7 +68,8 @@ export async function prepareAttachment(
 function name(message: string, id: string, index: number): string {
   return `attachment:${message}:${id}:${index}`;
 }
-export async function stageAttachment(input: {
+interface StageAttachmentInput {
+  signal?: AbortSignal | undefined;
   account: string;
   id: string;
   selection: AttachmentSelection;
@@ -75,24 +77,20 @@ export async function stageAttachment(input: {
   budget?: number;
   /** Product limit of the conversation; defaults to 3 MB. */
   maximum?: number;
-}): Promise<AttachmentContent> {
+}
+export async function stageAttachment(
+  input: StageAttachmentInput,
+): Promise<AttachmentContent> {
   if (input.selection.voice)
     validateVoice(input.selection.bytes, input.selection.voice);
-  const main = await attachmentWork<SealedFile>({
-    operation: 'seal',
-    bytes: input.selection.bytes,
-    maximum: input.maximum ?? fileLimit,
-  });
-  await saveParts(input.account, input.id, main, input.budget);
-  let thumbnail: SealedFile | null = null;
-  if (input.selection.thumbnail) {
-    thumbnail = await attachmentWork<SealedFile>({
-      operation: 'seal',
-      bytes: input.selection.thumbnail,
-      maximum: thumbnailLimit,
-    });
-    await saveParts(input.account, input.id, thumbnail, input.budget);
-  }
+  const main = await stageFile(
+    input,
+    input.selection.bytes,
+    input.maximum ?? fileLimit,
+  );
+  const thumbnail = input.selection.thumbnail
+    ? await stageFile(input, input.selection.thumbnail, thumbnailLimit)
+    : null;
   const content =
     input.selection.image && input.selection.type === 'image/gif'
       ? animatedAttachmentContent
@@ -107,6 +105,19 @@ export async function stageAttachment(input: {
     file: main.file,
     thumbnail: thumbnail?.file ?? null,
   });
+}
+async function stageFile(
+  input: StageAttachmentInput,
+  bytes: Uint8Array<ArrayBuffer>,
+  maximum: number,
+): Promise<SealedFile> {
+  const sealed = await attachmentWork<SealedFile>(
+    { operation: 'seal', bytes, maximum },
+    input.signal,
+  );
+  input.signal?.throwIfAborted();
+  await saveParts(input.account, input.id, sealed, input.budget);
+  return sealed;
 }
 async function saveParts(
   account: string,
@@ -203,7 +214,12 @@ async function uploadParts(input: {
       throw new Error('Part storage not confirmed.');
     window.dispatchEvent(
       new CustomEvent('0xdmme-attachment-progress', {
-        detail: { done: ++completed, total: input.ref.parts.length },
+        detail: {
+          message: input.message,
+          id: input.ref.id,
+          done: ++completed,
+          total: input.ref.parts.length,
+        },
       }),
     );
   }

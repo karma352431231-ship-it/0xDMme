@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'view-once pure transforms cannot import vault authority',
+    files: {
+      'src/client/view-once-preparation/index.ts':
+        "import { authority } from '../vault-authority/index.ts'; console.log(authority);\n",
+      'src/client/vault-authority/index.ts': 'export const authority = {};\n',
+    },
+    diagnostic: /view-once-preparation-has-no-authority-or-io/,
+  },
+  {
     name: 'native action output cannot import product internals',
     files: {
       'tests/fixtures/native-product-output.ts':

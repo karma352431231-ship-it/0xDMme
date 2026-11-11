@@ -1,6 +1,7 @@
 import { mediaKinds } from './composition.ts';
 import type { MediaKind } from './composition.ts';
 import { sendStages } from '../../shared/chat-sync-diagnostics/index.ts';
+import type { SendStage } from '../../shared/chat-sync-diagnostics/index.ts';
 import type { TraceEvent } from './events.ts';
 
 type SendCase =
@@ -34,6 +35,10 @@ interface SendSummary {
   submitMs: number | null;
   acceptedMs: number | null;
   checkRenderMs: number | null;
+  stagingCompleteMs: number | null;
+  transferCompleteMs: number | null;
+  uiAvailableMs: number | null;
+  blockingReasons: string[];
   manualMarkerMs: number | null;
   publishResponseMs: number | null;
   message: number | null;
@@ -51,6 +56,14 @@ interface SendSummary {
   };
 }
 const partOperations = new Set(['attachment-part', 'view-once-part']);
+const pointFields = {
+  submit: 'submitMs',
+  accepted: 'acceptedMs',
+  'check-render': 'checkRenderMs',
+  'staging-complete': 'stagingCompleteMs',
+  'transfer-complete': 'transferCompleteMs',
+  'ui-available': 'uiAvailableMs',
+} as const;
 const sendOperations = new Set([
   ...partOperations,
   'attachment-reserve',
@@ -157,13 +170,12 @@ export class ComparisonSends {
   private stage(event: TraceEvent): void {
     const send = this.forMessage(event);
     if (!send) return;
-    const stage = event['sendStage'];
-    if (!sendStages.some((value) => value === stage)) return;
+    const stage = sendStages.find((value) => value === event['sendStage']);
+    if (!stage) return;
     if (event['sendPhase'] === 'point') {
-      this.point(send, event);
+      this.point(send, event, stage);
       return;
     }
-    if (typeof stage !== 'string') return;
     this.duration(send, event, stage);
   }
   private duration(send: SendSummary, event: TraceEvent, stage: string): void {
@@ -205,18 +217,16 @@ export class ComparisonSends {
     this.active.message = message;
     return this.active;
   }
-  private point(send: SendSummary, event: TraceEvent): void {
-    switch (event['sendStage']) {
-      case 'submit':
-        send.submitMs ??= event.ms;
-        break;
-      case 'accepted':
-        send.acceptedMs ??= event.ms;
-        break;
-      case 'check-render':
-        send.checkRenderMs ??= event.ms;
-        break;
-    }
+  private point(send: SendSummary, event: TraceEvent, stage: SendStage): void {
+    const field = pointFields[stage as keyof typeof pointFields];
+    if (field) send[field] ??= event.ms;
+    const reason = event['sendBlock'];
+    if (
+      stage === 'ui-blocked' &&
+      typeof reason === 'string' &&
+      !send.blockingReasons.includes(reason)
+    )
+      send.blockingReasons.push(reason);
   }
   private startRequest(event: TraceEvent): void {
     const category = event['category'];
@@ -294,6 +304,14 @@ export class ComparisonSends {
         return {
           ...send,
           fileSlots: [...send.fileSlots],
+          blockingReasons: [...send.blockingReasons],
+          acceptance: send.acceptedMs === null ? 'not-observed' : 'accepted',
+          render:
+            send.checkRenderMs !== null
+              ? 'observed'
+              : send.acceptedMs === null
+                ? 'awaiting-acceptance'
+                : 'absent-after-acceptance',
           stages: structuredClone(send.stages),
           upload: {
             ...send.upload,
@@ -311,6 +329,7 @@ export class ComparisonSends {
             this.requestOverflow === 0,
           clickToAcceptanceMs: difference(send.acceptedMs, send.submitMs),
           clickToCheckMs: difference(send.checkRenderMs, send.submitMs),
+          clickToUiAvailableMs: difference(send.uiAvailableMs, send.submitMs),
         };
       }),
     };
@@ -345,7 +364,7 @@ function unfinished(send: SendSummary, internal: boolean): boolean {
   const pending = internal
     ? send.acceptedMs === null
     : send.publishResponseMs === null;
-  return pending || send.manualMarkerMs === null || send.upload.inFlight > 0;
+  return pending || send.upload.inFlight > 0;
 }
 
 function newSummary(ms: number): SendSummary {
@@ -370,6 +389,10 @@ function newSummary(ms: number): SendSummary {
     submitMs: null,
     acceptedMs: null,
     checkRenderMs: null,
+    stagingCompleteMs: null,
+    transferCompleteMs: null,
+    uiAvailableMs: null,
+    blockingReasons: [],
     manualMarkerMs: null,
     publishResponseMs: null,
     message: null,

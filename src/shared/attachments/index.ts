@@ -17,6 +17,8 @@ export const fileLimit = 3_000_000;
  * context enforces its own product limit when sending and at server admission.
  */
 export const chatFileLimit = 10_000_000;
+/** At most this many files share one composer submission. */
+export const attachmentBatchLimit = 10;
 /** Fixed catalog messages for the two product limits. */
 export function oversizedFileMessage(maximum: number): string {
   return maximum > fileLimit

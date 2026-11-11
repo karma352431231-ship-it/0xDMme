@@ -12,6 +12,14 @@ import {
   oversizedFileMessage,
 } from '../../shared/attachments/index.ts';
 import type { PrivateFile } from '../../shared/attachments/index.ts';
+import {
+  validateViewOnce,
+  selectionContents,
+  draftChunks,
+  openDraft,
+  serializeViewOnce,
+} from '../view-once-preparation/index.ts';
+import type { ValidatedViewOnce } from '../view-once-preparation/index.ts';
 interface Scope {
   addEventListener(
     type: 'message',
@@ -20,6 +28,16 @@ interface Scope {
   postMessage(value: unknown, transfer: Transferable[]): void;
 }
 type Request =
+  | { operation: 'view-once-validate'; content: unknown }
+  | {
+      operation: 'view-once-selection';
+      text: string;
+      file: { name: string; type: string; bytes: Uint8Array } | null;
+      maximum: number;
+    }
+  | { operation: 'view-once-seal-draft'; prepared: ValidatedViewOnce }
+  | { operation: 'view-once-serialize'; prepared: ValidatedViewOnce }
+  | { operation: 'view-once-open-draft'; chunks: string[] }
   | { operation: 'photo'; file: File }
   | { operation: 'seal'; bytes: Uint8Array; maximum: number }
   | {
@@ -33,12 +51,32 @@ type Request =
 const scope = globalThis as unknown as Scope;
 const actionableErrors = new Set([
   'Use an MP4 or MOV video.',
+  'Use an MP4 or MOV video for view once.',
+  'Write up to 16 KB of text.',
+  'Write a message.',
+  'Invalid view-once file.',
+  'View-once draft exceeds the limit.',
+  'View-once content exceeds the limit.',
+  'File exceeds this conversation’s limit.',
   ...[fileLimit, chatFileLimit].flatMap((maximum) => [
     fileLimitMessage(maximum),
     oversizedFileMessage(maximum),
   ]),
 ]);
+function viewOnceWork(
+  data: Extract<Request, { operation: `view-once-${string}` }>,
+): unknown {
+  if (data.operation === 'view-once-validate')
+    return validateViewOnce(data.content);
+  if (data.operation === 'view-once-selection') return selectionContents(data);
+  if (data.operation === 'view-once-open-draft') return openDraft(data.chunks);
+  if (data.operation === 'view-once-seal-draft')
+    return draftChunks(data.prepared);
+  if (data.operation === 'view-once-serialize')
+    return { bytes: serializeViewOnce(data.prepared) };
+}
 async function run(data: Request): Promise<unknown> {
+  if (isViewOnceWork(data)) return viewOnceWork(data);
   if (data.operation === 'photo') return preparePhoto(data.file);
   if (data.operation === 'seal') return sealFile(data.bytes, data.maximum);
   if (data.operation === 'open') {
@@ -52,9 +90,24 @@ async function run(data: Request): Promise<unknown> {
   }
   return prepareOriginal(data.file, data.maximum);
 }
+function isViewOnceWork(
+  data: Request,
+): data is Extract<Request, { operation: `view-once-${string}` }> {
+  return data.operation.startsWith('view-once-');
+}
 scope.addEventListener('message', (event) => {
   void run(event.data)
-    .then((result) => scope.postMessage({ result }, []))
+    .then((result) => {
+      const transfer =
+        result &&
+        typeof result === 'object' &&
+        'bytes' in result &&
+        result.bytes instanceof Uint8Array &&
+        result.bytes.buffer instanceof ArrayBuffer
+          ? [result.bytes.buffer]
+          : [];
+      scope.postMessage({ result }, transfer);
+    })
     .catch((error: unknown) => {
       scope.postMessage(
         {

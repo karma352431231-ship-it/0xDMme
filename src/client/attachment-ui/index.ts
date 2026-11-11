@@ -1,24 +1,26 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
-import { fileLimit } from '../../shared/attachments/index.ts';
+import {
+  attachmentBatchLimit,
+  fileLimit,
+} from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { renderMedia } from './media.ts';
 import { renderSelectionStrip, renderUsageRing } from './selection-strip.ts';
-import {
-  AttachmentSelectionQueue,
-  attachmentBatchLimit,
-  wipe,
-} from './selection-queue.ts';
+import { AttachmentSelectionQueue, wipe } from './selection-queue.ts';
 import type { MediaView } from './media.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import { viewOnceEnabled } from '../chat-ui/index.ts';
-export { attachmentBatchLimit } from './selection-queue.ts';
 
 export class AttachmentUi {
+  private selectionWork: symbol | null = null;
+  get preparing(): boolean {
+    return this.selectionWork !== null;
+  }
   private readonly playback: VoicePlayback;
   private readonly changed: () => void;
   /** Product limit of the conversation: 10 MB in private and group chats.
@@ -47,6 +49,17 @@ export class AttachmentUi {
   /** The next selection to send; senders stage it, then call sent(). */
   get selected(): AttachmentSelection | null {
     return this.selections.first;
+  }
+  get selectedBatch(): readonly AttachmentSelection[] {
+    return this.selections.all;
+  }
+  /** The submission owner now owns the bytes. Selection URLs stay here and
+   * are revoked; preparation started for the old draft cannot join the new one. */
+  takeSelection(): AttachmentSelection[] {
+    if (this.selected?.voice) this.playback.release(this.previewId());
+    const items = this.selections.take();
+    this.discard();
+    return items;
   }
   selectVoice(selection: AttachmentSelection, peer: string): void {
     this.clearSelection();
@@ -85,6 +98,7 @@ export class AttachmentUi {
   }
   private discard(): void {
     this.selectionGeneration++;
+    this.selectionWork = null;
     this.selections.clear();
     this.pausePreview();
     this.host?.querySelector('[data-attachment-preview]')?.replaceChildren();
@@ -129,7 +143,27 @@ export class AttachmentUi {
   }
   /** Prepares chosen files one by one after those already waiting. */
   private async add(host: HTMLElement, files: readonly File[]): Promise<void> {
+    if (this.preparing) {
+      showToast(t('Processing attachments. Please wait.'));
+      return;
+    }
     if (this.selected?.voice) this.clearSelection();
+    const work = Symbol();
+    this.selectionWork = work;
+    this.changed();
+    try {
+      await this.readSelections(host, files);
+    } finally {
+      if (this.selectionWork === work) {
+        this.selectionWork = null;
+        this.changed();
+      }
+    }
+  }
+  private async readSelections(
+    host: HTMLElement,
+    files: readonly File[],
+  ): Promise<void> {
     const generation = this.selectionGeneration;
     for (const file of files)
       if (!(await this.addOne(host, file, generation))) break;

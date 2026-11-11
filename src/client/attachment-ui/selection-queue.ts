@@ -1,7 +1,6 @@
 import type { AttachmentSelection } from '../attachments/index.ts';
 
-/** At most this many files wait in the composer; each is sent as its own message. */
-export const attachmentBatchLimit = 10;
+import { attachmentBatchLimit } from '../../shared/attachments/index.ts';
 
 export type Admission = 'added' | 'full' | 'over-limit';
 
@@ -56,6 +55,12 @@ export class AttachmentSelectionQueue {
   clear(): void {
     for (const item of this.items) wipe(item);
     this.items = [];
+  }
+  /** Transfer ownership without wiping the submitted buffers. */
+  take(): AttachmentSelection[] {
+    const items = this.items;
+    this.items = [];
+    return items;
   }
 }
 

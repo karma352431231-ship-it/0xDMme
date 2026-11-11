@@ -11,7 +11,11 @@ interface MessageLifecycle {
   imported: () => void;
   preferences: () => void;
   tick: () => Promise<void>;
-  progress: (progress: { done: number; total: number }) => void;
+  progress: (progress: {
+    message?: string;
+    done: number;
+    total: number;
+  }) => void;
   beforeUnload: (event: BeforeUnloadEvent) => void;
   pageHide: (event: PageTransitionEvent) => void;
   pageShow: (event: PageTransitionEvent) => void;

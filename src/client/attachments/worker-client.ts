@@ -5,20 +5,29 @@ class WorkerUnavailable extends Error {}
 /** A worker can fail while fetching/starting, before it can report a file
  * error. One fresh worker retries that local-only operation; uploads are never
  * repeated here. A reported processing error or timeout is not retried. */
-async function workWithStartupRetry<T>(input: unknown): Promise<T> {
+async function workWithStartupRetry<T>(
+  input: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   try {
-    return await runWorker<T>(input);
+    return await runWorker<T>(input, signal);
   } catch (error: unknown) {
     if (!(error instanceof WorkerUnavailable)) throw error;
-    return runWorker<T>(input);
+    return runWorker<T>(input, signal);
   }
 }
 /** Bounded serial jobs, each worker terminated to release keys/WASM/decoder memory. */
-export function attachmentWork<T>(input: unknown): Promise<T> {
+export function attachmentWork<T>(
+  input: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   if (queued >= 4)
     return Promise.reject(new Error('Processing attachments. Please wait.'));
   queued++;
-  const result = tail.then(() => workWithStartupRetry<T>(input));
+  const result = tail.then(() => {
+    signal?.throwIfAborted();
+    return workWithStartupRetry<T>(input, signal);
+  });
   tail = result.then(
     () => {},
     () => {},
@@ -27,7 +36,7 @@ export function attachmentWork<T>(input: unknown): Promise<T> {
     queued--;
   });
 }
-function runWorker<T>(input: unknown): Promise<T> {
+function runWorker<T>(input: unknown, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     let worker: Worker | null = null,
       finished = false;
@@ -39,11 +48,20 @@ function runWorker<T>(input: unknown): Promise<T> {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       worker?.terminate();
       if (error) reject(error);
       else resolve(result as T);
     }
+    function abort() {
+      finish(new DOMException('Local processing cancelled.', 'AbortError'));
+    }
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
     try {
+      signal?.addEventListener('abort', abort, { once: true });
       worker = new Worker(ATTACHMENT_WORKER_URL, { type: 'module' });
       worker.onmessage = (event: MessageEvent<{ error?: string; result: T }>) =>
         finish(

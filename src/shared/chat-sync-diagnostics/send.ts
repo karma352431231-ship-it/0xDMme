@@ -14,6 +14,15 @@ export const sendStages = [
   'submit',
   'accepted',
   'check-render',
+  'staging-complete',
+  'transfer-complete',
+  'ui-available',
+  'ui-blocked',
+  'content-validate',
+  'policy-detect',
+  'ciphertext-hash',
+  'recovery-wrap',
+  'descriptor-bytes',
 ] as const;
 export type SendStage = (typeof sendStages)[number];
 export interface SendDiagnosticFields {
@@ -22,6 +31,13 @@ export interface SendDiagnosticFields {
   sendMs?: number;
   sendSuccess?: boolean;
   sendTimings?: boolean;
+  sendBlock?:
+    | 'engine'
+    | 'queue-full'
+    | 'authorization'
+    | 'history'
+    | 'recording'
+    | 'editing';
 }
 /** Never reflect arbitrary annotations, filenames, IDs or exception text. */
 export function copySendDiagnostic(
@@ -37,4 +53,15 @@ export function copySendDiagnostic(
     result['sendMs'] = ms;
   for (const key of ['sendSuccess', 'sendTimings'])
     if (typeof input[key] === 'boolean') result[key] = input[key];
+  if (
+    [
+      'engine',
+      'queue-full',
+      'authorization',
+      'history',
+      'recording',
+      'editing',
+    ].includes(String(input['sendBlock']))
+  )
+    result['sendBlock'] = input['sendBlock'];
 }

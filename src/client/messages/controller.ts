@@ -546,6 +546,9 @@ export class Messages {
   ): Promise<void> {
     return this.outbox.composeViewOnce(peer, text, selection);
   }
+  stageSubmission(item: import('./attachment-submissions.ts').SubmissionItem) {
+    return this.outbox.stageSubmission(item);
+  }
   async openViewOnce(
     peer: string,
     id: string,
@@ -671,6 +674,34 @@ export class Messages {
         this.close();
       throw error;
     }
+  }
+  async submissionMedia(
+    row: import('./attachment-submissions.ts').StagedMedia,
+    thumbnail: boolean,
+    signal: AbortSignal,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const generation = this.generation,
+      session = this.session;
+    if (!session || !row.content) throw new Error('Attachment unavailable.');
+    const file = thumbnail ? row.content.thumbnail : row.content.file;
+    if (!file) throw new Error('Thumbnail missing.');
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+    };
+    return this.access.withLocalVault(session, async (a) => {
+      guard();
+      return downloadAttachment({
+        account: a.session.accountId,
+        message: row.id,
+        file,
+        thumbnail,
+        image: thumbnail || row.content!.image,
+        api: null,
+        snapshot: undefined,
+        guard,
+      });
+    });
   }
   private async historicalMedia(
     view: MessageView,

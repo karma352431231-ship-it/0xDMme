@@ -12,6 +12,11 @@ import type { VaultWorkOptions } from '../../src/client/vault-authority/index.ts
 import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import { deferred } from './deferred.ts';
+import type { AttachmentSelection } from '../../src/client/attachments/index.ts';
+import type {
+  SubmissionItem,
+  SubmittedMedia,
+} from '../../src/client/messages/attachment-submissions.ts';
 import { updateChatComposer } from '../../src/client/chat-ui/index.ts';
 import {
   encodeDailyText,
@@ -44,6 +49,8 @@ for (const match of source.matchAll(
 }
 const real = new Set([
   './composer.ts',
+  './attachment-submissions.ts',
+  './interaction-availability.ts',
   './synchronization.ts',
   './live-updates.ts',
   './preview-admission.ts',
@@ -126,6 +133,8 @@ export function coordinatorFixture(
   const sending = deferred<void>();
   const profile = deferred<void>();
   const drafts: { id: string; peer: string; text: string }[] = [];
+  const stagedMedia: SubmissionItem[] = [];
+  let mediaRows: readonly SubmittedMedia[] = [];
   const state = {
     visibilityState: 'visible',
     chatVisible: true,
@@ -139,6 +148,8 @@ export function coordinatorFixture(
     holdSave: false,
     holdEdit: false,
     holdSend: false,
+    selections: [] as AttachmentSelection[],
+    viewOnce: false,
     withProfile: false,
     holdProfile: false,
     liveCurrent: true,
@@ -213,7 +224,13 @@ export function coordinatorFixture(
       return {
         ...base,
         active: false,
-        selected: null,
+        get selected() {
+          return name === 'AttachmentUi' ? (state.selections[0] ?? null) : null;
+        },
+        get selectedBatch() {
+          return state.selections;
+        },
+        takeSelection: () => state.selections.splice(0),
         state: { phase: 'idle' },
         ids: [],
         values: new Map(),
@@ -240,11 +257,15 @@ export function coordinatorFixture(
   fixture.MessageHistoryUi = function (options: {
     composerChanged: () => void;
     actions: { choose: typeof choose };
+    submittedMedia: () => readonly SubmittedMedia[];
   }) {
     choose = options.actions.choose;
     return {
       ...base,
-      render: () => options.composerChanged(),
+      render: () => {
+        mediaRows = options.submittedMedia();
+        options.composerChanged();
+      },
       clearMedia: noop,
       markRead: () => {
         calls.push('read');
@@ -290,6 +311,7 @@ export function coordinatorFixture(
   fixture.updateChatComposer = updateChatComposer;
   fixture.encodeDailyText = encodeDailyText;
   fixture.decodeDailyText = decodeDailyText;
+  fixture.viewOnceEnabled = () => state.viewOnce;
   fixture.dailyViews = () => [];
   const syntheticMessages = function (
     _access: unknown,
@@ -394,6 +416,19 @@ export function coordinatorFixture(
       composeAction: async (view: MessageView) => {
         calls.push('edit:' + view.peer);
         if (state.holdEdit) await editing.promise;
+      },
+      stageSubmission: (item: SubmissionItem) => {
+        stagedMedia.push({ ...item });
+        calls.push('stage:' + item.peer);
+        drafts.push({ id: item.id, peer: item.peer, text: item.text });
+        return Promise.resolve([
+          {
+            id: item.id,
+            peer: item.peer,
+            createdAt: item.createdAt,
+            content: null,
+          },
+        ]);
       },
       pending: () => Promise.resolve([]),
       queueText: async (draft: { id: string; peer: string; text: string }) => {
@@ -628,6 +663,7 @@ export function coordinatorFixture(
     TextEncoder,
     setTimeout,
     clearTimeout,
+    queueMicrotask,
   };
   runInNewContext(bundle.outputFiles[0]!.text, context);
   if (!context.coordinator) throw new Error('Coordenador ausente.');
@@ -679,6 +715,8 @@ export function coordinatorFixture(
     sending,
     profile,
     drafts,
+    stagedMedia,
+    mediaRows: () => mediaRows,
     input,
     send,
     compositionBar,

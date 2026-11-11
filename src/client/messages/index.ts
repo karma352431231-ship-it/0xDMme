@@ -5,6 +5,8 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import { AttachmentSubmissions } from './attachment-submissions.ts';
+import { applyMessageAvailability } from './interaction-availability.ts';
 import type { ChangeFollowupScope } from './change-followup.ts';
 import { MessageLiveUpdates } from './live-updates.ts';
 import { SelectedPreviewAdmission } from './preview-admission.ts';
@@ -141,6 +143,7 @@ export function startMessages(
       pendingRender++;
       rows = value;
       outgoing.observed(value);
+      mediaSubmissions.observed(selected?.accountId, value);
       previewAdmission.observe({
         rows: value,
         projection,
@@ -163,7 +166,7 @@ export function startMessages(
       elsewhere: () => refreshDirectoryPreviews(),
       published: (value) => {
         outgoing.acknowledge(value);
-        renderHistory();
+        if (!mediaSubmissions.acknowledge(value)) renderHistory();
       },
       verified: (peer, verifiedRows) =>
         publishVerifiedConversationPreview({
@@ -176,7 +179,7 @@ export function startMessages(
       receipt: (receipt) => receiptPreviews.commit(receipt),
     },
   );
-  const composer = new MessageComposer({
+  const composer: MessageComposer = new MessageComposer({
     playback,
     controller,
     ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
@@ -186,11 +189,15 @@ export function startMessages(
       localOnly: !!selected?.localOnly,
       authenticated: session !== null,
       busy: synchronization.busy,
+      draftAvailable: canCompose(),
+      mediaFull:
+        mediaSubmissions.full || (composer.editing && synchronization.busy),
       historyReady: rows !== null,
       callActive: !!options.calls?.active(),
       textSendBlocked: canQueueText() ? textQueue.full : undefined,
     }),
     run,
+    prepare: (work) => work().catch(reportTextSaveError),
     textChanged: () => {
       if (canQueueText() && composer.text) textQueue.deferBackground();
     },
@@ -401,7 +408,7 @@ export function startMessages(
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
       startupPending: startupWarmup.pending,
-      textPending: textQueue.pending,
+      textPending: textQueue.pending || mediaSubmissions.ready,
     }),
     status: () => {
       status();
@@ -446,10 +453,37 @@ export function startMessages(
     pending: () => controller.pending(),
     sendPending: () => sendPending(),
   });
+  const mediaSubmissions = new AttachmentSubmissions({
+    available: () =>
+      synchronization.localForegroundReady && !continuity.suspended,
+    run: (work) => synchronization.run(work),
+    stage: (item) => controller.stageSubmission(item),
+    send: () => sendPending({ priority: 'interactive' }),
+    changed: (update) => {
+      if (update === 'progress') return historyUi.renderSubmittedMediaStates();
+      renderHistory();
+      status();
+    },
+    failed: reportTextSaveError,
+    followup: () => sendFollowup.queue(),
+  });
+  const sendFollowup = new MessageWarmup({
+    available: () => synchronization.backgroundReady,
+    run: (step) => synchronization.background(step),
+    changed: () => synchronization.resume(),
+    failed: reportTextSaveError,
+    steps: [
+      async () => {
+        if (await synchronizeVisible({}, () => controller.savePins()))
+          await historyUi.markRead(daily);
+      },
+      dailyTick,
+    ],
+  });
   const textQueue: TextSendQueue = new TextSendQueue({
     draftChanged: (draft, phase) => outgoing.update(draft, phase),
     save: (draft) => controller.queueText(draft),
-    available: () => synchronization.foregroundReady,
+    available: () => synchronization.foregroundReady && !mediaSubmissions.ready,
     transmit: async () => {
       const ok = await synchronization.run(() =>
         sendPending({ priority: 'interactive' }),
@@ -584,6 +618,16 @@ export function startMessages(
       },
     },
     outgoing: () => outgoing.forPeer(selected?.accountId),
+    submittedMedia: () => mediaSubmissions.forPeer(selected?.accountId),
+    submissionMedia: (row, thumbnail, signal) =>
+      controller.submissionMedia(row, thumbnail, signal),
+    retryMedia: () => {
+      if (!mediaSubmissions.retry() && navigator.onLine)
+        void run(async () => {
+          await sendPending({ priority: 'interactive' });
+          sendFollowup.queue();
+        });
+    },
     retryOutgoing: () => {
       outgoing.retry();
       textQueue.retry();
@@ -624,6 +668,8 @@ export function startMessages(
     }
     stopPreload();
     if (event === 'revoked' || event === 'ended') {
+      mediaSubmissions.reset();
+      sendFollowup.reset();
       composer.cancelRecording();
       composer.clearAttachment();
       playback.close();
@@ -672,6 +718,7 @@ export function startMessages(
   }
   /** While an attachment is sent, the strip shows its ring instead of text. */
   function renderUploadStatus(text: HTMLElement): boolean {
+    if (mediaSubmissions.active) return false;
     if (!synchronization.busy) uploading = null;
     if (uploading === null) return false;
     uploadIndicator.set(uploading);
@@ -709,6 +756,8 @@ export function startMessages(
         : t('Conversations updated.');
   }
   function status(): void {
+    mediaSubmissions.resume();
+    sendFollowup.resume();
     textQueue.resume();
     startupWarmup.resume();
     visits.resume();
@@ -717,19 +766,7 @@ export function startMessages(
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
     if (dailyStatus) dailyStatus.textContent = message;
     renderSoundSettings();
-    for (const host of [mounted, directory])
-      host
-        ?.querySelectorAll<
-          | HTMLButtonElement
-          | HTMLInputElement
-          | HTMLSelectElement
-          | HTMLTextAreaElement
-        >(
-          'button:not([data-chat-back]):not([data-conversation]),input,select,textarea:not([data-message-text]):not([data-group-text])',
-        )
-        .forEach((control) => {
-          control.disabled = synchronization.busy;
-        });
+    applyMessageAvailability([mounted, directory], synchronization.busy);
     composer.update();
     groups.status();
   }
@@ -780,7 +817,10 @@ export function startMessages(
     return button;
   }
   async function run(work: () => Promise<void>): Promise<void> {
-    await synchronization.run(work);
+    if (!(await synchronization.run(work)) && !synchronization.failed)
+      reportTextSaveError(
+        new Error('Wait for conversations to update, then try again.'),
+      );
   }
   /** One page further back in the selected conversation, keeping what is
    * shown meanwhile; true when the window grew. */
@@ -895,6 +935,7 @@ export function startMessages(
       await controller.sendPending(work);
     } catch (error: unknown) {
       outgoing.failTransfer();
+      mediaSubmissions.failTransfer();
       renderHistory();
       throw error;
     }
@@ -972,7 +1013,11 @@ export function startMessages(
     list.replaceChildren(
       ...pending
         .filter(
-          (item) => item.peer === peer && !item.text && !outgoing.has(item.id),
+          (item) =>
+            item.peer === peer &&
+            !item.text &&
+            !outgoing.has(item.id) &&
+            !mediaSubmissions.has(item.id),
         )
         .map((item) =>
           pendingBubble(
@@ -985,7 +1030,7 @@ export function startMessages(
     if (!peer || rows === null) return;
     const restored = await outgoing.restorePending({
       peer,
-      pending,
+      pending: pending.filter((item) => !mediaSubmissions.has(item.id)),
       verified: rows,
       current: () => current() && rows !== null,
       read: (ids) => controller.pendingTexts(peer, ids),
@@ -999,14 +1044,17 @@ export function startMessages(
         : t('Could not complete the operation.');
     status();
   }
-  function canQueueText(): boolean {
+  function canCompose(): boolean {
     return (
+      !!session &&
       !!selected &&
       !selected.localOnly &&
       rows !== null &&
-      !continuity.suspended &&
-      composer.acceptsQueuedText
+      !continuity.suspended
     );
+  }
+  function canQueueText(): boolean {
+    return canCompose() && composer.acceptsQueuedText;
   }
   function queueText(): boolean {
     if (!canQueueText() || !selected) return false;
@@ -1336,19 +1384,10 @@ export function startMessages(
       throw new Error(
         'Ask your contact for permission to send new messages. Your saved history remains available.',
       );
-    // Files chosen together leave one by one, each sent before the next is
-    // staged, so they arrive in the order they were chosen.
-    do {
-      if (!(await composer.save(selected?.accountId ?? null))) return;
-      await renderPending();
-      if (navigator.onLine) await sendPending();
-    } while (composer.hasAttachment);
-    if (navigator.onLine)
-      await synchronizeVisible({ priority: 'interactive' }, () =>
-        controller.savePins(),
-      );
-    if (startupWarmup.pending) await historyUi.markRead(daily);
-    else await dailyTick();
+    if (!(await composer.save(selected?.accountId ?? null))) return;
+    await renderPending();
+    if (navigator.onLine) await sendPending();
+    sendFollowup.queue();
   }
   /** The message carries only the KLIPY link, inside the usual E2EE text. */
   async function sendGif(url: string): Promise<void> {
@@ -1439,7 +1478,15 @@ export function startMessages(
     else searchPanel.close();
     renderHistory();
   }
-  function attachmentProgress(progress: { done: number; total: number }): void {
+  function attachmentProgress(progress: {
+    message?: string;
+    done: number;
+    total: number;
+  }): void {
+    if (progress.message && mediaSubmissions.has(progress.message)) {
+      mediaSubmissions.progress({ ...progress, message: progress.message });
+      return;
+    }
     if (!synchronization.busy || !mounted?.isConnected) return;
     uploading = progress.total ? progress.done / progress.total : 0;
     message = t(
@@ -1454,6 +1501,7 @@ export function startMessages(
       composer.recording ||
       composer.voicePreview ||
       textQueue.unsaved ||
+      mediaSubmissions.unsaved ||
       composer.text.trim() !== ''
     );
   }
@@ -1578,6 +1626,8 @@ export function startMessages(
       );
     if (!event.persisted) {
       textQueue.reset();
+      mediaSubmissions.reset();
+      sendFollowup.reset();
       outgoing.reset();
       startupWarmup.reset();
       composer.dispose();
@@ -1628,6 +1678,7 @@ export function startMessages(
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
       if (synchronization.resumeHistory()) return;
+      if (mediaSubmissions.retry()) return;
       if (live.connected) {
         void run(() => refresh({ priority: 'interactive' }));
         return;
@@ -1644,7 +1695,34 @@ export function startMessages(
       'submit',
       (event) => {
         event.preventDefault();
-        if (!queueText()) void run(submit);
+        if (queueText()) return;
+        try {
+          if (!canCompose()) {
+            if (selected?.localOnly)
+              throw new Error(
+                'Ask your contact for permission to send new messages. Your saved history remains available.',
+              );
+            throw new Error(
+              'Wait for conversations to update, then try again.',
+            );
+          }
+          if (
+            selected &&
+            composer.takeSubmission(selected.accountId, (input) =>
+              mediaSubmissions.enqueue(input),
+            )
+          )
+            return;
+          if (synchronization.busy) {
+            reportTextSaveError(
+              new Error('Wait for conversations to update, then try again.'),
+            );
+            return;
+          }
+          void run(submit);
+        } catch (error: unknown) {
+          reportTextSaveError(error);
+        }
       },
     );
   }
@@ -1702,6 +1780,8 @@ export function startMessages(
       generation++;
       visits.reset();
       textQueue.reset();
+      mediaSubmissions.reset();
+      sendFollowup.reset();
       outgoing.reset();
       continuity.reset();
       previews.clear();

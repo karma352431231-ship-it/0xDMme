@@ -10,6 +10,7 @@ import { encodeDailyText } from '../src/shared/daily/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 import { OutgoingTexts } from '../src/client/messages/outgoing-text.ts';
 import { setActiveLanguage, t as translate } from '../src/shared/i18n/index.ts';
+import type { SubmittedMedia } from '../src/client/messages/attachment-submissions.ts';
 
 function row(id: string, own = false): MessageView {
   return {
@@ -51,6 +52,8 @@ function fixture(t: TestContext) {
     name: '',
   };
   const outgoing = new OutgoingTexts();
+  const media: SubmittedMedia[] = [];
+  const previews: AbortSignal[] = [];
   const receipts: {
     peer: string;
     outgoing: readonly string[];
@@ -75,7 +78,9 @@ function fixture(t: TestContext) {
       clearMedia: () => {
         clears++;
       },
-      render() {},
+      render: ({ signal }) => {
+        if (signal) previews.push(signal);
+      },
     },
     media: () =>
       Promise.reject(new Error('No media transport in this fixture')),
@@ -83,6 +88,10 @@ function fixture(t: TestContext) {
     composerChanged() {},
     receiptsVerified: (window) => receipts.push(window),
     outgoing: () => outgoing.forPeer(selected?.accountId),
+    submittedMedia: () =>
+      media.filter((draft) => draft.peer === selected?.accountId),
+    submissionMedia: () =>
+      Promise.reject(new Error('No media transport in this fixture')),
     retryOutgoing: () => {
       retries++;
       outgoing.retry();
@@ -103,6 +112,8 @@ function fixture(t: TestContext) {
   return {
     ui,
     outgoing,
+    media,
+    previews,
     receipts,
     retries: () => retries,
     history,
@@ -124,6 +135,56 @@ function fixture(t: TestContext) {
     },
   };
 }
+await test('the accepted attachment check keeps the local preview until verified history reconciles it', (t) => {
+  const f = fixture(t);
+  const draft: SubmittedMedia = {
+    id: crypto.randomUUID(),
+    peer: 'peer',
+    createdAt: 1700000000000,
+    viewOnce: false,
+    phase: 'sending',
+    progress: 0.25,
+    content: {
+      version: 1,
+      name: 'test.bin',
+      type: 'application/octet-stream',
+      caption: '',
+      image: false,
+      thumbnail: null,
+      file: {
+        encryption: '{}',
+        ref: {
+          id: crypto.randomUUID(),
+          hash: 'a'.repeat(64),
+          bytes: 1,
+          parts: [{ hash: 'a'.repeat(64), bytes: 1 }],
+        },
+      },
+    },
+  };
+  f.media.push(draft);
+  f.ui.render([]);
+  const bubble = f.history.querySelectorAll('[data-outgoing-media]')[0]!;
+  assert.equal(f.previews.length, 1);
+  assert.equal(bubble.querySelector('.message-checks'), null);
+  draft.phase = 'accepted';
+  f.ui.render([]);
+  assert.equal(f.history.querySelectorAll('[data-outgoing-media]')[0], bubble);
+  assert.equal(
+    bubble.querySelector('svg')?.getAttribute('aria-label'),
+    translate('Accepted by the server; recipient receipt is not yet confirmed'),
+  );
+  assert.equal(f.previews[0]!.aborted, false);
+  f.ui.render([row(draft.id, true)]);
+  assert.equal(f.history.querySelectorAll('[data-outgoing-media]').length, 0);
+  assert.equal(
+    f.history
+      .querySelectorAll('[data-message]')
+      .filter((node) => node.dataset['message'] === draft.id).length,
+    1,
+  );
+  assert.equal(f.previews[0]!.aborted, true);
+});
 await test('Enter text appears as a normal own bubble before persistence, then confirmation replaces it exactly once', (t) => {
   const f = fixture(t),
     incoming = row('incoming');

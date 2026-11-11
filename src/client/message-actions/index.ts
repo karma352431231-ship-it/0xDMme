@@ -24,20 +24,13 @@ export function messageActions<T extends DailyRow>(
   if (c.view.kind === 'profile' && !c.remove)
     return document.createElement('div');
   const { host, panel: menu, trigger } = anchoredMessageMenu(gestureOptions(c));
+  trigger.dataset['draftAction'] = 'true';
   if (c.view.kind === 'profile') {
     appendRemove(menu, c);
     return host;
   }
   if (c.replyAllowed !== false)
-    menu.append(
-      withMenuIcon(
-        c.action(t('Reply'), () => {
-          c.choose('reply', c.view);
-          return Promise.resolve();
-        }),
-        'reply',
-      ),
-    );
+    menu.append(withMenuIcon(replyButton(c), 'reply'));
   if (
     !c.view.archived &&
     c.view.own &&
@@ -62,6 +55,18 @@ export function messageActions<T extends DailyRow>(
   appendForward(menu, c);
   appendRemove(menu, c);
   return host;
+}
+function replyButton<T extends DailyRow>(
+  c: MessageActionOptions<T>,
+): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset['draftAction'] = 'true';
+  button.textContent = t('Reply');
+  button.addEventListener('click', () => c.choose('reply', c.view), {
+    signal: c.signal,
+  });
+  return button;
 }
 
 /** Touch affordances use the same reply capability as the visible menu. */

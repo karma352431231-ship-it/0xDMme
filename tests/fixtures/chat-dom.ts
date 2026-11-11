@@ -69,9 +69,15 @@ export class ChatNode extends CommunityNode {
     );
   }
   override querySelectorAll(selector: string): CommunityNode[] {
-    if (selector !== '[data-message]') return super.querySelectorAll(selector);
+    const key =
+      selector === '[data-message]'
+        ? 'message'
+        : selector === '[data-outgoing-media]'
+          ? 'outgoingMedia'
+          : null;
+    if (!key) return super.querySelectorAll(selector);
     return this.children.flatMap((node) => [
-      ...('message' in node.dataset ? [node] : []),
+      ...(key in node.dataset ? [node] : []),
       ...node.querySelectorAll(selector),
     ]);
   }

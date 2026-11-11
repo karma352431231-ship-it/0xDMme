@@ -1,4 +1,9 @@
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
+import {
+  submittedMediaRows,
+  updateSubmittedMediaStates,
+} from './submitted-media-rows.ts';
+import type { SubmittedMedia } from './attachment-submissions.ts';
 import { renderSearchReturn } from '../chat-ui/index.ts';
 import { MessageDeletionSelection } from '../message-selection/index.ts';
 import { MessageForwardSelection } from './forward-selection.ts';
@@ -75,6 +80,13 @@ interface HistoryPresentation {
     read: ReadonlySet<string>;
   }) => void;
   outgoing?: () => readonly OutgoingText[];
+  submittedMedia?: () => readonly SubmittedMedia[];
+  submissionMedia?: (
+    row: SubmittedMedia,
+    thumbnail: boolean,
+    signal: AbortSignal,
+  ) => Promise<Uint8Array<ArrayBuffer>>;
+  retryMedia?: () => void;
   retryOutgoing?: () => void;
   externalMedia?: ExternalMediaConsent;
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
@@ -177,6 +189,7 @@ export class MessageHistoryUi {
         : undefined;
     const restoreScroll = historyPosition(history, latest);
     this.renderContent(history, update);
+    this.renderSubmittedMediaStates(history);
     renderSearchReturn(history, this.options.searchFocus);
     this.updateDeletion(history, this.views);
     this.forwarding?.update();
@@ -280,6 +293,7 @@ export class MessageHistoryUi {
             }),
           ),
           ...this.outgoingRows(),
+          ...this.submittedRows(),
         ],
         this.options.signal(),
       );
@@ -293,6 +307,27 @@ export class MessageHistoryUi {
       verified: this.views ?? [],
       retry: this.options.retryOutgoing ?? (() => {}),
     });
+  }
+  private submittedRows(): ReturnType<typeof submittedMediaRows> {
+    if (!this.options.submissionMedia || this.views === null) return [];
+    return submittedMediaRows({
+      drafts: this.options.submittedMedia?.() ?? [],
+      shown: new Set(this.views.map((view) => view.id)),
+      attachments: this.options.attachments,
+      load: this.options.submissionMedia,
+      retry: this.options.retryMedia ?? (() => {}),
+    });
+  }
+  renderSubmittedMediaStates(
+    history = this.options.node('[data-message-history]'),
+  ): void {
+    if (!history || !this.options.visible() || !this.options.submittedMedia)
+      return;
+    updateSubmittedMediaStates(
+      history,
+      this.options.submittedMedia(),
+      this.options.retryMedia ?? (() => {}),
+    );
   }
   renderStates(): void {
     updateMessageStates(

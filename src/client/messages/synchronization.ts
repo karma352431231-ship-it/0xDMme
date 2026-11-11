@@ -439,6 +439,18 @@ export class MessageSynchronization {
       !state.suspended
     );
   }
+  /** Local durable staging shares foreground exclusion, without requiring a
+   * network connection. Offline drafts still use locally verified authority. */
+  get localForegroundReady(): boolean {
+    const state = this.options.state();
+    return (
+      !this.closed &&
+      !this.busy &&
+      this.maintenance === null &&
+      state.session &&
+      !state.suspended
+    );
+  }
   reuseDiagnostics() {
     const state = this.options.state();
     return {

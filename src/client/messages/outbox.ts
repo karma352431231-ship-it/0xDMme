@@ -46,7 +46,7 @@ import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { sealProfileChunks } from './profile-chunks.ts';
 import {
-  makeViewOnceContents,
+  prepareViewOnceContents,
   sealViewOnceDraft,
   openViewOnceDraft,
   prepareViewOnce,
@@ -55,6 +55,8 @@ import {
 } from '../view-once/index.ts';
 import type { PreparedViewOnce } from '../view-once/index.ts';
 import { t } from '../../shared/i18n/index.ts';
+import { encodeDailyText } from '../../shared/daily/index.ts';
+import type { SubmissionItem, StagedMedia } from './attachment-submissions.ts';
 
 interface SendAuthority {
   session: () => Readonly<AccountSession> | null;
@@ -181,10 +183,37 @@ export class MessageOutbox {
     selection: AttachmentSelection,
     caption: string,
   ): Promise<void> {
+    await this.stageOrdinary({
+      id: crypto.randomUUID(),
+      peer,
+      selection,
+      text: caption,
+      reply: null,
+      viewOnce: false,
+      createdAt: Date.now(),
+    });
+  }
+  async stageSubmission(item: SubmissionItem): Promise<StagedMedia[]> {
+    if (item.viewOnce) return this.queueViewOnce(item);
+    return [
+      await this.stageOrdinary({
+        ...item,
+        text: encodeDailyText({
+          text: item.text,
+          reply: item.reply,
+          forwarded: false,
+        }),
+      }),
+    ];
+  }
+  private async stageOrdinary(item: SubmissionItem): Promise<StagedMedia> {
+    const { id, peer, selection } = item;
+    if (!selection) throw new Error('Choose an attachment.');
     const generation = this.authority.current();
-    await this.access.withVault(!navigator.onLine, async (a) => {
+    const session = this.authority.session();
+    if (!session) throw new WorkInterruption('session');
+    return this.access.withLocalVault(session, async (a) => {
       this.authority.guard(generation);
-      const id = crypto.randomUUID();
       traceSend('submit', id);
       try {
         const content = await measureSend(
@@ -194,25 +223,30 @@ export class MessageOutbox {
               account: a.session.accountId,
               id,
               selection,
-              caption,
+              caption: item.text,
+              signal: item.signal,
               maximum: chatFileLimit,
             }),
           id,
         );
         this.authority.guard(generation);
         const draft = [await sealLocal(a, id, JSON.stringify(content))];
-        await localPut(
-          a.session.accountId,
-          `outbox:${id}`,
-          {
-            id,
-            peer,
-            draft,
-            kind: 'attachment',
-            packet: null,
-          } satisfies OutboxEntry,
-          draft[0]!.bytes.length + 512,
-        );
+        const value: OutboxEntry = {
+          id,
+          peer,
+          draft,
+          kind: 'attachment',
+          packet: null,
+          createdAt: item.createdAt,
+        };
+        await enqueueOutbox({
+          scope: a.session.accountId,
+          id,
+          value,
+          size: this.entrySize(value),
+          current: () => generation === this.authority.current(),
+        });
+        return { id, peer, content, createdAt: item.createdAt };
       } catch (error: unknown) {
         await forgetAttachment(a.session.accountId, id);
         throw error;
@@ -224,28 +258,44 @@ export class MessageOutbox {
     text: string,
     selection: AttachmentSelection | null,
   ): Promise<void> {
+    await this.queueViewOnce({
+      id: crypto.randomUUID(),
+      peer,
+      text,
+      selection,
+      reply: null,
+      viewOnce: true,
+      createdAt: Date.now(),
+    });
+  }
+  private async queueViewOnce(item: SubmissionItem): Promise<StagedMedia[]> {
     const session = this.authority.session();
     if (!session) throw new WorkInterruption('session');
     const generation = this.authority.current();
-    const contents = makeViewOnceContents(text, selection, chatFileLimit);
-    await this.access.withLocalVault(session, async (a) => {
+    const contents = await prepareViewOnceContents(
+      item.text,
+      item.selection,
+      chatFileLimit,
+      { id: item.id, signal: item.signal },
+    );
+    return this.access.withLocalVault(session, async (a) => {
       this.authority.guard(generation);
       const entries = await Promise.all(
-        contents.map(async (content) => {
-          const id = crypto.randomUUID();
+        contents.map(async (content, index) => {
+          const id = index === 0 ? item.id : crypto.randomUUID();
           traceSend('submit', id);
           const value: OutboxEntry = {
             id,
-            peer,
+            peer: item.peer,
             kind: 'text',
             packet: null,
             draft: await measureSend(
               'draft-seal',
-              () => sealViewOnceDraft(a, content),
+              () => sealViewOnceDraft(a, content, { id, signal: item.signal }),
               id,
             ),
             viewOnce: true,
-            createdAt: Date.now(),
+            createdAt: item.createdAt + index,
           };
           return { id: value.id, value, size: this.entrySize(value) };
         }),
@@ -255,6 +305,12 @@ export class MessageOutbox {
         entries,
         current: () => generation === this.authority.current(),
       });
+      return entries.map(({ id, value }) => ({
+        id,
+        peer: item.peer,
+        createdAt: value.createdAt ?? item.createdAt,
+        content: null,
+      }));
     });
   }
   private entrySize(value: OutboxEntry): number {
@@ -402,6 +458,7 @@ export class MessageOutbox {
       await localPut(a.session.accountId, name, value, this.entrySize(value));
     }
     await this.transferOutbox(a, api, value);
+    traceSend('transfer-complete', value.id);
     await this.publishOutbox(api, value);
     this.notifyPublished(value, generation);
     await this.retainOutbox(a, value);
@@ -423,7 +480,7 @@ export class MessageOutbox {
     if (value.viewOnce) {
       const content = await measureSend(
         'draft-open',
-        () => openViewOnceDraft(a, value.draft),
+        () => openViewOnceDraft(a, value.draft, { id: value.id }),
         value.id,
       );
       value.viewOncePayload ??= await measureSend(
@@ -465,7 +522,7 @@ export class MessageOutbox {
       traceSend('accepted', value.id);
     if (
       generation === this.authority.current() &&
-      value.kind === 'text' &&
+      (value.kind === 'text' || value.kind === 'attachment') &&
       !value.relation
     )
       this.published({ id: value.id, peer: value.peer });

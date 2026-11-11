@@ -1,5 +1,7 @@
 # 0xDMme view-once send latency
 
+Use [the updated implementation instructions](#updated-implementation-instructions-after-the-schema-2-capture) for the current action plan, including the confirmed global UI block. Earlier sections preserve prior investigations and implemented meter changes.
+
 ## Decision for the implementing agent
 
 Start with the view-once part uploader. The captured send spent 5.15 seconds uploading 23 parts one at a time. The ordinary attachment uploader overlapped requests, but the later 409 capture below established that its server write lease does not support this safely. A second opportunity is local preparation: four long tasks occupied the browser's main thread for 3.26 seconds before the first view-once part started. Investigate the first-check rendering path separately because the manual marker includes human reaction time.
@@ -182,3 +184,105 @@ formatting, and web/installed-product builds passed. Structural review confirms
 that upload sequencing remains in its existing owner, with no new state,
 dependencies or server lease changes. Browser acceptance on the deployed build
 is pending integration and publication.
+
+## Updated implementation instructions after the schema 2 capture
+
+This section supersedes the initial implementation order and its concurrency proposal. Source inspection used integration commit `8a0eb449`. Apply the work to the current integration branch in a separate worktree and reconcile changes made since that commit. The earlier sections retain the implementation and investigation history.
+
+The owner requests a responsive chat throughout attachment sending in both ordinary and view-once modes. Prioritize independent draft interaction during transfer, release of send-related UI state at authoritative acceptance, and removal of post-publication maintenance from the send's foreground lifetime. Preserve engine serialization, durable drafts, account authorization and the existing upload protocol.
+
+### Measured baseline
+
+The schema 2 report retained five summaries with no summary overflow despite 1,048 dropped detailed events. The ordinary/view-once pairs have matching anonymous file slots and sizes. The image is 1,233,195 bytes and the video is 3,356,742 bytes. Only the view-once video has `ambiguous: false` and `complete: true`. Treat the other summaries as indicative until their association ambiguity is resolved. These are single samples.
+
+| Case            | Click to acceptance | Acceptance to accepted check in DOM | Part upload wall time |
+| --------------- | ------------------: | ----------------------------------: | --------------------: |
+| Text            |            1,673 ms |                                8 ms |                     — |
+| Ordinary image  |            3,229 ms |                            1,818 ms |    1,558 ms / 5 parts |
+| View-once image |            4,813 ms |                               22 ms |    2,131 ms / 9 parts |
+| Ordinary video  |            6,339 ms |                            1,843 ms |   4,257 ms / 13 parts |
+| View-once video |           10,872 ms |                               10 ms |   5,455 ms / 23 parts |
+
+The view-once video took 4,742 ms from submit to the beginning of the instrumented upload operation, 5,937 ms in that operation including creation/preparation, and about 194 ms from upload completion to acceptance. The part-only span is nested within the upload operation. Likewise, serialize/encrypt timings are nested in payload preparation. Avoid adding nested spans.
+
+### Confirmed cause of broad UI blocking
+
+The following references are repository-relative paths at the inspected commit. Function names identify the change sites even after line numbers move.
+
+| Owner                                                                  | Current behavior and required intervention                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/messages/index.ts`, submit event handler                   | Calls `queueText()`, then falls back to `run(submit)`. Attachments use the fallback and acquire the global foreground state.                                                                                                                                                          |
+| `src/client/messages/synchronization.ts`, `MessageSynchronization.run` | Sets `busy = true` before waiting for active inbox/maintenance. It holds this state across the complete supplied operation. `finishRun` also awaits pending projection before clearing it. Keep serialization authoritative here, while exposing interaction availability separately. |
+| `src/client/messages/index.ts`, `status`                               | Disables almost all buttons, inputs and selects in the mounted chat and directory whenever `busy` is true. Calls `menu.setBusy` with the same flag. Back and conversation buttons are exceptions. Replace this blanket presentation dependency with explicit action availability.     |
+| `src/client/messages/composer.ts`, `update` and `voiceButtons`         | Uses `busy` to block attachment selection, recording and composer actions. Distinguish changing the next local draft from mutating the active send.                                                                                                                                   |
+| `src/client/chat-ui/index.ts`, `updateChatComposer`                    | Keeps the textarea enabled except during recording, but disables attachment, emoji and view-once buttons through the blocked state. Text send has a queue-specific override. Preserve that existing typing behavior while extending independent draft actions.                        |
+| `src/client/messages/index.ts`, `submit`                               | Awaits staging, pending rendering and `sendPending` for each selected file, then `synchronizeVisible`, then `markRead` or `dailyTick`. All remain inside the foreground operation.                                                                                                    |
+| `src/client/messages/index.ts`, `dailyTick`                            | Awaits activity refresh, push settings refresh, daily configuration and heartbeat. These requests prolong the send-related busy interval. Schedule them through existing maintenance facilities.                                                                                      |
+| `src/client/messages/outbox.ts`, `sendOne` and `notifyPublished`       | Publishes, emits acceptance, then retains local state and removes the outbox item. The published callback currently accepts only `kind === 'text'` without a relation. View-once uses that kind. Ordinary attachments miss this immediate callback.                                   |
+| `src/client/messages/index.ts`, controller `published` callback        | Acknowledges the outgoing projection and rerenders history. Extend the projection contract to include staged attachments before broadening the callback.                                                                                                                              |
+| `src/client/messages/visits.ts` and synchronization opening queue      | Conversation selection may be accepted while actual opening waits for engine ownership. Keep an already safe retained projection usable and preserve the existing queue for work requiring the engine.                                                                                |
+
+In the trace, ordinary video was accepted at 57,327 ms, its check appeared at 59,170 ms, and foreground work ended at 60,247 ms. View-once video was accepted at 81,434 ms, its check appeared at 81,444 ms, and foreground work ended at 84,091 ms. Therefore acceptance-to-foreground-completion was about 2.9 and 2.7 seconds respectively. The actual controls can remain disabled through `finishRun`'s pending projection afterward.
+
+This path contains local synchronization and maintenance after publication. It contains no explicit wait for the recipient to receive or read the message. The recipient opening the app can coincide with live updates, which needs a separate reproduction if the delay persists. Validate with the recipient offline.
+
+### Change 1 — give the active send its own lifecycle
+
+1. Introduce a cohesive attachment submission owner beside the existing message submission modules. It owns the immutable batch captured at submit, its destination, caption/reply, view-once mode, file order, stage/transfer/failure state and cleanup. Keep screen edits limited to wiring and rendering its state. Keep persistent outbox entries and retry ciphertext under `MessageOutbox`.
+2. Replace `submit`'s iteration over mutable `composer.hasAttachment` and repeated reads of `selected` with a captured batch. The first item receives the caption/reply under the existing semantics. A conversation switch or a new selection must never change the destination or contents of a submitted batch. Preserve current file limits and bounded selection counts.
+3. Transfer ownership of selected buffers/previews to the batch. After safe staging, clear only the matching draft generation and enable the next local draft. Retain or recover the failed draft on staging failure without overwriting anything typed since submit. Give transferred buffers, object URLs and cancellation explicit cleanup on failure, session change and disposal. Avoid keeping duplicate plaintext media for the entire upload.
+4. Use the existing engine scheduler for durable writes and network sends. Keep one active mutation owner. Let users type, choose emoji, prepare a reply or select the next attachment while a transfer owns the engine. Gate destructive actions by their own conflicts and queue engine-dependent operations explicitly. An enabled action must either execute or enter a bounded queue with visible pending state. `run()` currently returns false when busy, so merely enabling its callers would silently drop actions.
+5. Preserve the existing bounded text queue. Inspect `canQueueText`, `acceptsQueuedText` and `TextSendQueue` when transferring draft ownership so a leftover view-once toggle or the previous selection does not prevent the next eligible text from entering its queue. A second media submit must have an explicit bounded admission contract and stable ordering. Reuse existing persistent outbox limits and reject excess admissions visibly.
+6. Separate transfer status from global synchronization. `renderUploadStatus` currently clears upload progress based on `synchronization.busy`. Bind progress to the batch lifecycle and attachment ID, with per-message pending/sending/accepted/failed projection. Release the accepted send's visible state when its authoritative publication succeeds. Keep required persistence cleanup under its owner until it finishes.
+7. Move `synchronizeVisible`, pin persistence where required by that synchronization, and `dailyTick`/read follow-up to the existing scheduled follow-up owners. Preserve pin persistence required before publication in the outbox. Use the existing refresh/projection/maintenance APIs and ensure failures are reported and retried according to their established policy. Avoid detached unhandled promises.
+
+### Change 2 — acknowledge ordinary attachments at publication
+
+The ordinary send's delay before the check has a concrete asymmetry in `notifyPublished`. View-once entries have kind text, so they reach the immediate published callback. Ordinary attachment entries do not.
+
+Extend the outgoing projection to represent an ordinary attachment from its safely staged metadata and local preview capability. Then extend the publication callback for those tracked attachments. Reconcile by stable message ID when verified history arrives, so the pending row becomes one accepted row. Dispose preview resources when that projection is replaced or removed. Keep acceptance, recipient delivery and read state separate. Failure or a lost publication response must retain the existing recovery/idempotency path.
+
+A callback change alone is insufficient because the current outgoing acknowledgement path is designed for text. Review the outgoing text projection and pending render together and define a typed attachment projection contract in its owning module.
+
+### Change 3 — remove expensive repeated work in view-once preparation
+
+The inspected `src/client/view-once/index.ts` encodes media as base64 inside JSON. `sealViewOnceDraft` serializes that content, splits it into 64 KiB slices, base64-encodes each slice and calls `sealLocal` serially. `openViewOnceDraft` reverses that work and validates the assembled content. `prepareViewOnce` validates again, derives policy by decoding the file, encrypts the JSON, hashes ciphertext and wraps the key. `viewOnceDescriptor` decodes the file again to obtain its byte count. The shared `viewOnceContent` validator also decodes file data.
+
+In the video sample, draft sealing took 893 ms, draft opening 913 ms and payload preparation 879 ms. Payload serialization took 10 ms and AES-GCM encryption 3 ms inside preparation. The 1,925 ms long task overlaps draft opening, preparation and descriptor creation. Small AES-GCM timing alone does not identify the cost of hashing, validation or key wrapping.
+
+1. Add fixed timing spans for content validation, policy detection, ciphertext hashing, recovery-key wrapping and descriptor byte-count extraction. Use the existing diagnostic bridge and avoid payload logging.
+2. Consolidate repeated validation/decoding within the same trusted preparation operation. Derive MIME/policy and input byte count once and pass validated metadata through a narrow internal contract. Keep validation at external and persisted-data boundaries.
+3. Reduce redundant per-chunk conversions while preserving the existing encrypted draft format and recovery behavior. Inspect `src/client/message-storage/index.ts` before changing how local blocks are sealed. If a different stored or transmitted format is necessary, document versioning, old-entry recovery and compatibility as a separate decision.
+4. Evaluate a worker for the identified CPU-heavy pure transforms if conversion improvements still leave long tasks. Define buffer ownership, cancellation and session invalidation. Avoid passing the whole authority object or SDK machine into a worker.
+5. Remeasure click-to-acceptance and longest task. UI enablement alone cannot make clicks responsive while synchronous preparation occupies the main thread.
+
+### Upload constraints that supersede the original proposal
+
+Ordinary upload serialization was fixed in `8a0eb449` after HTTP 409 conflicts against the server's single-writer lease. View-once upload has another sequential contract: `uploadViewOnce` sends the current offset and requires the returned offset to equal that offset plus the uploaded length before advancing.
+
+The part-count difference has an identifiable format cause. View-once encrypts JSON containing base64 media and uses 192 KiB chunks. A 3,356,742-byte file expands to roughly 4.48 MB of base64 content before metadata and encryption overhead, consistent with 23 chunks. Ordinary attachment transfer produced 13 parts. Measure ciphertext bytes and per-request wire bytes to quantify the remaining overhead.
+
+Keep sequential writes while applying the frontend lifecycle and CPU changes. Concurrent writes or larger chunks require review of server admission, offset/retry semantics, body limits, quotas and deployed-client compatibility. The initial two-in-flight suggestion is superseded by these confirmed constraints.
+
+### Regression and browser acceptance checklist
+
+Extend existing tests at the owning layer, including `message-coordinator.test.ts`, `message-synchronization.test.ts`, `message-outbox-order.test.ts`, `outgoing-text.test.ts`, `view-once.test.ts`, `view-once-chat-recovery.test.ts` and `attachment-transfer.test.ts` as their contracts require.
+
+- Hold an upload part unresolved. Verify that the next draft can be typed, emoji/reply/media selection can work, and queued actions have observable outcomes. Verify that the active file, caption, recipient and mode stay fixed.
+- Change conversations and select another file during transfer. Verify that completion never clears or sends the new draft and that file ordering and destination remain correct.
+- Hold post-publish history refresh and presence requests unresolved. The accepted row must show its first check and independent composer actions must remain usable.
+- Keep the recipient offline through upload, publication and UI recovery. Confirm that acceptance and composer availability do not depend on a recipient delivery/read event.
+- Exercise staging failure, a failed part, a response lost after publication, revocation, logout and disposal. Verify bounded queue admission, no duplicate publication, stable retry ciphertext, preserved recoverable drafts and cleanup of local preview resources.
+- Preserve the single-writer transfer regression. For view-once, preserve existing encrypted drafts and single-view opening tests.
+- Add per-send diagnostic events for staging completion, transfer completion, acceptance and UI availability, plus fixed blocking reasons. Fix schema 2 summary ambiguity before relying on the other four comparison cases. Report an absent render separately from an unaccepted send when the user switches chats.
+- Repeat matched image/video captures with the recipient offline and online. Record before/after acceptance, check, UI availability, part upload and longest main-thread task. Use the repository's combined quality checks and relevant tests after the cohesive implementation.
+
+The remaining screen-level coupling in `messages/index.ts` predates this task. Extract batch submission ownership first, then wire explicit availability and acceptance projection. Keep authority and history synchronization in their current owners. Structural completion requires that the new batch module owns its lifecycle through a narrow interface rather than receiving the screen's mutable state and callbacks wholesale.
+
+### Implementation follow-up
+
+- Private chat captures a fixed destination, mode, ordered selection and first caption/reply. At most two submissions can retain their transferred plaintext selections. Staging seals them into the existing ordered outbox and releases the plaintext buffers. A failed stage retains its own retryable draft; signing out or revoking the session cancels active preparation and clears those in-memory drafts.
+- A staged attachment has a local ciphertext preview and its own progress. Server publication advances that row to the accepted check. Verified history replaces it by message ID and takes over subsequent delivery and read state. History, read and daily presence follow-up use scheduled maintenance.
+- The local attachment worker performs view-once JSON and base64 transforms without vault authority. Old 64 KiB sealed draft blocks still open; new blocks use the same representation. Preparation reuses validated metadata for payload policy and descriptor byte count. Ordinary parts and view-once offsets still advance sequentially.
+- Diagnostic comparison now reports stage/transfer completion, independent UI availability and accepted messages whose check was not observed. A missing manual perception marker does not make the next send ambiguous.
+- The comparative browser capture remains to be repeated with the same files and an already authorized recipient, offline and online. No new latency figures are inferred from the regression tests.

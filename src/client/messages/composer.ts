@@ -18,12 +18,15 @@ import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import type { MessageView, Messages } from './controller.ts';
+import type { MediaSubmission } from './attachment-submissions.ts';
 
 interface ComposerAvailability {
   peer: string | null;
   localOnly: boolean;
   authenticated: boolean;
   busy: boolean;
+  draftAvailable?: boolean;
+  mediaFull?: boolean;
   historyReady: boolean;
   callActive: boolean;
   textSendBlocked: boolean | undefined;
@@ -38,6 +41,7 @@ interface ComposerOptions {
   signal: () => AbortSignal;
   externalMedia?: ExternalMediaConsent;
   run: (work: () => Promise<void>) => Promise<void>;
+  prepare?: (work: () => Promise<void>) => Promise<void>;
   textChanged: () => void;
   report: (notice: string) => void;
   sendGif: (url: string) => Promise<void>;
@@ -97,9 +101,13 @@ export class MessageComposer {
   get hasAttachment(): boolean {
     return this.attachments.selected !== null;
   }
+  get editing(): boolean {
+    return this.composing?.mode === 'edit';
+  }
   get acceptsQueuedText(): boolean {
     return (
       !this.voice.active &&
+      !this.attachments.preparing &&
       !this.attachments.selected &&
       !viewOnceEnabled(this.node('[data-message-form]')) &&
       this.composing?.mode !== 'edit'
@@ -129,8 +137,8 @@ export class MessageComposer {
     const state = this.options.availability();
     showRecording(this.node('[data-message-form]'), this.voice.state);
     updateChatComposer(this.node('[data-message-form]'), {
-      blocked: state.busy || !state.historyReady || !state.peer,
-      textSendBlocked: state.textSendBlocked,
+      blocked: !this.draftAvailable(state),
+      textSendBlocked: this.sendBlocked(state),
       recording: this.voice.active,
       attachment: this.hasAttachment,
     });
@@ -139,18 +147,30 @@ export class MessageComposer {
     const file = this.node<HTMLInputElement>('[data-attachment-file]');
     if (file)
       file.disabled =
-        state.busy ||
+        !this.draftAvailable(state) ||
         !state.historyReady ||
+        this.attachments.preparing ||
         this.voice.active ||
         this.voicePreview;
+  }
+  private draftAvailable(state: ComposerAvailability): boolean {
+    return (
+      state.draftAvailable ??
+      (!state.busy && state.historyReady && !!state.peer)
+    );
+  }
+  private sendBlocked(state: ComposerAvailability): boolean | undefined {
+    if (this.attachments.preparing) return true;
+    return this.acceptsQueuedText ? state.textSendBlocked : state.mediaFull;
   }
   private voiceButtons(state: ComposerAvailability): void {
     const start = this.node<HTMLButtonElement>('[data-voice-record]');
     if (start)
       start.disabled =
-        state.busy ||
+        !this.draftAvailable(state) ||
         !state.historyReady ||
         this.voice.active ||
+        this.attachments.preparing ||
         this.hasAttachment ||
         !state.peer ||
         state.callActive;
@@ -212,6 +232,42 @@ export class MessageComposer {
     // Keep typing: the chat and its keyboard stay as they were.
     input.focus({ preventScroll: true });
     return true;
+  }
+  /** Admission captures the current draft synchronously. A later edit or
+   * conversation switch cannot alter it or be cleared by its completion. */
+  takeSubmission(
+    peer: string,
+    accept: (input: MediaSubmission) => void,
+  ): boolean {
+    if (this.attachments.preparing)
+      throw new Error('Processing attachments. Please wait.');
+    const once = viewOnceEnabled(this.node('[data-message-form]'));
+    if (!this.hasAttachment && !once) return false;
+    this.checkMediaSubmission();
+    const input = this.node<HTMLTextAreaElement>('[data-message-text]');
+    if (!input || (!input.value.trim() && !this.hasAttachment)) return false;
+    accept({
+      peer,
+      text: input.value,
+      reply: this.composing?.view.id ?? null,
+      viewOnce: once,
+      selections: [...this.attachments.selectedBatch],
+    });
+    this.attachments.takeSelection();
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    this.clearContext();
+    this.cancelRecording();
+    this.closePicker();
+    return true;
+  }
+  private checkMediaSubmission(): void {
+    if (this.voice.active)
+      throw new Error('Stop recording and check the preview before sending.');
+    if (this.editing)
+      throw new Error(
+        'Editing changes text only; remove the selected attachment.',
+      );
   }
   /** Stages the text, with the first chosen file when there is one. Each file
    * is its own message: callers repeat while `hasAttachment` stays true, and
@@ -385,7 +441,7 @@ export class MessageComposer {
     this.bindings = new AbortController();
     this.host = host;
     this.setPeer(this.options.availability().peer);
-    this.attachments.mount(host, this.options.run);
+    this.attachments.mount(host, this.options.prepare ?? this.options.run);
     const form = this.node('[data-message-form]');
     if (form)
       bindChatComposer(form, () => {
@@ -453,8 +509,9 @@ export class MessageComposer {
   private startRecording(): void {
     const state = this.options.availability();
     if (
-      state.busy ||
+      !this.draftAvailable(state) ||
       this.voice.active ||
+      this.attachments.preparing ||
       this.hasAttachment ||
       !state.peer ||
       !state.authenticated ||

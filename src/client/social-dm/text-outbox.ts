@@ -25,7 +25,7 @@ import type { LocalCipher } from '../message-storage/index.ts';
 import type { SocialContext } from './crypto-context.ts';
 import { transmitSocialText, sendPeer } from './text-transmission.ts';
 import {
-  makeViewOnceContents,
+  prepareViewOnceContents,
   sealViewOnceDraft,
   openViewOnceDraft,
   prepareViewOnce,
@@ -117,7 +117,7 @@ export class SocialTextOutbox {
     selection: AttachmentSelection | null,
   ): Promise<void> {
     const generation = this.lifetime.current();
-    const contents = makeViewOnceContents(text, selection, 3_000_000);
+    const contents = await prepareViewOnceContents(text, selection, 3_000_000);
     uuid(peer);
     await this.local(generation, async (a) => {
       const entries = await Promise.all(
@@ -297,7 +297,9 @@ export class SocialTextOutbox {
           const content = await measureSend(
             'draft-open',
             () =>
-              openViewOnceDraft(context.privateAuthority, this.chunks(value)),
+              openViewOnceDraft(context.privateAuthority, this.chunks(value), {
+                id: value.id,
+              }),
             value.id,
           );
           if (!value.viewOncePayload) {

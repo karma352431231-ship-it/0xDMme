@@ -260,6 +260,37 @@ await test('an early perception marker cannot hide overlapping sends or unfinish
   assert.equal(first?.complete, false);
 });
 
+await test('an absent perception marker or hidden accepted row does not contaminate the next send attribution', (t) => {
+  const { recording: r } = fixture(t);
+  r.record('reuse-coverage', { sendTimings: true });
+  submit(r, 1);
+  for (const sendStage of [
+    'submit',
+    'staging-complete',
+    'transfer-complete',
+    'accepted',
+    'ui-available',
+  ])
+    r.record('reuse-send', { message: 1, sendStage, sendPhase: 'point' });
+  r.record('reuse-send', {
+    message: 1,
+    sendStage: 'ui-blocked',
+    sendPhase: 'point',
+    sendBlock: 'engine',
+  });
+  submit(r, 2);
+  const [first, second] = r.report().comparison.sends;
+  assert.equal(first!.ambiguous, false);
+  assert.equal(second!.ambiguous, false);
+  assert.equal(first!.acceptance, 'accepted');
+  assert.equal(first!.render, 'absent-after-acceptance');
+  assert.equal(second!.render, 'awaiting-acceptance');
+  assert.notEqual(first!.stagingCompleteMs, null);
+  assert.notEqual(first!.transferCompleteMs, null);
+  assert.notEqual(first!.uiAvailableMs, null);
+  assert.deepEqual(first!.blockingReasons, ['engine']);
+});
+
 await test('late signature results refine the matching send after another file is selected', (t) => {
   const { recording: r } = fixture(t);
   r.record('attachment-selection', {

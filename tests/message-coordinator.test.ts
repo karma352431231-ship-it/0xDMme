@@ -33,6 +33,107 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+for (const viewOnce of [false, true])
+  await test(`a held ${viewOnce ? 'view-once' : 'ordinary'} media transfer permits the next draft and its accepted row precedes held history maintenance`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = coordinatorFixture(t);
+    f.state.probeChanged = true;
+    await f.messages.openContact(peer('media-peer'));
+    await finishStartupMaintenance(t);
+    const bytes = new Uint8Array([1, 2, 3]);
+    f.state.selections = [
+      {
+        name: 'first.bin',
+        type: 'application/octet-stream',
+        image: false,
+        bytes,
+        thumbnail: null,
+      },
+    ];
+    f.input.value = 'First caption';
+    f.state.viewOnce = viewOnce;
+    f.state.holdSend = true;
+    f.submit();
+    await turn();
+    assert.equal(f.stagedMedia.length, 1);
+    assert.equal(f.stagedMedia[0]!.viewOnce, viewOnce);
+    assert.equal(f.input.value, '');
+    f.state.viewOnce = false;
+    f.input.value = 'Next text';
+    const reply = crypto.randomUUID();
+    f.choose('reply', {
+      id: reply,
+      peer: 'media-peer',
+      kind: 'text',
+      text: 'Previous message',
+      own: false,
+      state: 'received',
+      hash: 'synthetic-hash',
+    });
+    f.input.dispatchEvent(new Event('input'));
+    assert.equal(f.send.disabled, false);
+    f.submit();
+    await turn();
+    assert.ok(
+      f.drafts.some((item) => {
+        const draft = decodeDailyText(item.text);
+        return draft.text === 'Next text' && draft.reply === reply;
+      }),
+    );
+    f.state.selections = [
+      {
+        name: 'next.bin',
+        type: 'application/octet-stream',
+        image: false,
+        bytes: new Uint8Array([4]),
+        thumbnail: null,
+      },
+    ];
+    f.input.value = 'Untouched next draft';
+    f.state.holdHistory = true;
+    f.sending.resolve();
+    await turn();
+    assert.equal(f.mediaRows()[0]?.phase, 'accepted');
+    assert.equal(f.input.value, 'Untouched next draft');
+    assert.equal(f.state.selections[0]?.name, 'next.bin');
+    assert.equal(bytes[0], 0);
+    t.mock.timers.tick(1000);
+    await turn();
+    assert.equal(f.mediaRows()[0]?.phase, 'accepted');
+    assert.equal(f.send.disabled, false);
+    f.history.resolve();
+  });
+
+await test('a queued conversation switch cannot redirect a captured media batch or clear the new draft', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('media-source'));
+  f.state.selections = [1, 2].map((value) => ({
+    name: `${value}.bin`,
+    type: 'application/octet-stream',
+    image: false,
+    bytes: new Uint8Array([value]),
+    thumbnail: null,
+  }));
+  f.input.value = 'Batch caption';
+  f.state.holdSend = true;
+  f.submit();
+  await turn();
+  f.clickPeer(peer('different-peer'));
+  f.input.value = 'New conversation draft';
+  f.sending.resolve();
+  await turn();
+  assert.deepEqual(
+    f.stagedMedia.map((item) => [item.peer, item.text]),
+    [
+      ['media-source', 'Batch caption'],
+      ['media-source', ''],
+    ],
+  );
+  assert.equal(f.input.value, 'New conversation draft');
+});
+
 await test('a private update with the chat open is received once by the account receiver before counters, without unrelated maintenance', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

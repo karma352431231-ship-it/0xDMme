@@ -75,6 +75,16 @@ export function viewOnceHeaderBody(header: ViewOnceHeader): string {
   return canonical(['0xdmme-view-once', 1, viewOnceHeader(header)]);
 }
 export function viewOnceContent(input: unknown): ViewOnceContent {
+  const result = readViewOnceContent(input);
+  result.bytes?.fill(0);
+  return result.content;
+}
+/** Validation and its decoded bytes belong to one operation. Callers must
+ * wipe bytes after deriving policy/size; content keeps the canonical format. */
+export function readViewOnceContent(input: unknown): {
+  content: ViewOnceContent;
+  bytes: Uint8Array<ArrayBuffer> | null;
+} {
   const value = object(input);
   keys(value, ['text', ...(Object.hasOwn(value, 'file') ? ['file'] : [])]);
   if (
@@ -85,12 +95,13 @@ export function viewOnceContent(input: unknown): ViewOnceContent {
   const text = value['text'];
   if (!Object.hasOwn(value, 'file')) {
     if (!text.trim()) throw new AccountError(400, 'Write a message.');
-    return { text };
+    return { content: { text }, bytes: null };
   }
-  return { text, file: contentFile(value['file']) };
+  const result = contentFile(value['file']);
+  return { content: { text, file: result.file }, bytes: result.bytes };
 }
 
-function contentFile(input: unknown): NonNullable<ViewOnceContent['file']> {
+function contentFile(input: unknown) {
   const file = object(input);
   keys(file, ['name', 'mime', 'data']);
   if (
@@ -100,9 +111,13 @@ function contentFile(input: unknown): NonNullable<ViewOnceContent['file']> {
     /[\p{Cc}]/u.test(file['name']) ||
     typeof file['mime'] !== 'string' ||
     !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(file['mime']) ||
-    typeof file['data'] !== 'string' ||
-    base64(file['data'], viewOnceFileBytes).length === 0
+    typeof file['data'] !== 'string'
   )
     throw new AccountError(400, 'Invalid view-once file.');
-  return { name: file['name'], mime: file['mime'], data: file['data'] };
+  const bytes = base64(file['data'], viewOnceFileBytes);
+  if (!bytes.length) throw new AccountError(400, 'Invalid view-once file.');
+  return {
+    file: { name: file['name'], mime: file['mime'], data: file['data'] },
+    bytes,
+  };
 }

@@ -1,6 +1,7 @@
 import {
   measureSend,
   measureSendSync,
+  traceSend,
 } from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -10,7 +11,6 @@ import type { DailyText } from '../../shared/daily/index.ts';
 import {
   viewOnceChunkBytes,
   viewOnceCipherBytes,
-  viewOnceContent,
   viewOnceHeader,
   viewOnceHeaderBody,
 } from '../../shared/view-once/index.ts';
@@ -25,11 +25,15 @@ import {
   openRecoveryKey,
   openRoomKey,
 } from '../message-recovery/index.ts';
-import { originalImageType } from '../attachment-images/index.ts';
 import {
-  viewOnceSelectionMime,
-  viewOnceVideoType,
-} from '../view-once-media/index.ts';
+  validateViewOnce,
+  selectionContents,
+  draftChunks,
+  openDraft,
+  serializeViewOnce,
+} from '../view-once-preparation/index.ts';
+import type { ValidatedViewOnce } from '../view-once-preparation/index.ts';
+import { attachmentPreparationWork as attachmentWork } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { openLocal, sealLocal } from '../message-storage/index.ts';
@@ -47,47 +51,71 @@ export type ViewOnceMetadata = NonNullable<DailyText['viewOnce']>;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
-export function makeViewOnceContents(
+const validated = new WeakMap<object, ValidatedViewOnce>();
+type Preparation = { id?: string; signal?: AbortSignal | undefined };
+function remember(prepared: ValidatedViewOnce, id?: string): ViewOnceContent {
+  if (prepared.content.file) Object.freeze(prepared.content.file);
+  Object.freeze(prepared.content);
+  validated.set(prepared.content, prepared);
+  traceSend('content-validate', id, {
+    sendPhase: 'end',
+    sendMs: prepared.validationMs,
+    sendSuccess: true,
+  });
+  traceSend('policy-detect', id, {
+    sendPhase: 'end',
+    sendMs: prepared.policyMs,
+    sendSuccess: true,
+  });
+  return prepared.content;
+}
+function pureWork<T>(
+  input: unknown,
+  local: () => T,
+  signal?: AbortSignal,
+): Promise<T> {
+  signal?.throwIfAborted();
+  return typeof window === 'undefined'
+    ? Promise.resolve().then(local)
+    : attachmentWork<T>(input, signal);
+}
+async function prepareContent(
+  content: ViewOnceContent,
+  work: Preparation = {},
+): Promise<ValidatedViewOnce> {
+  work.signal?.throwIfAborted();
+  const cached = validated.get(content);
+  if (cached) return cached;
+  const result = await pureWork(
+    { operation: 'view-once-validate', content },
+    () => validateViewOnce(content),
+    work.signal,
+  );
+  remember(result, work.id);
+  return result;
+}
+export async function prepareViewOnceContents(
   text: string,
   file: AttachmentSelection | null,
   maximum: number,
-): ViewOnceContent[] {
-  if (file && file.bytes.length > maximum)
-    throw new Error('File exceeds this conversation’s limit.');
-  const content = measureSendSync('content-encode', () =>
-    viewOnceContent({
-      text,
-      ...(file
-        ? {
-            file: {
-              name: file.name,
-              mime: viewOnceSelectionMime(file.bytes, file.name, file.type),
-              data: encode(file.bytes),
-            },
-          }
-        : {}),
-    }),
+  work: Preparation = {},
+): Promise<ViewOnceContent[]> {
+  const input = {
+    text,
+    maximum,
+    file: file ? { name: file.name, type: file.type, bytes: file.bytes } : null,
+  };
+  const result = await measureSend(
+    'content-encode',
+    () =>
+      pureWork(
+        { operation: 'view-once-selection', ...input },
+        () => selectionContents(input),
+        work.signal,
+      ),
+    work.id,
   );
-  if (policy(content) === 'file' && text.trim())
-    return [viewOnceContent({ text }), { ...content, text: '' }];
-  return [content];
-}
-
-function policy(
-  content: ViewOnceContent,
-  legacyFile = false,
-): ViewOnceHeader['policy'] {
-  if (!content.file) return 'mobile';
-  const bytes = base64(content.file.data, 10_000_000);
-  try {
-    return content.file.mime.startsWith('image/') ||
-      originalImageType(bytes) ||
-      (!legacyFile && viewOnceVideoType(bytes) === content.file.mime)
-      ? 'mobile'
-      : 'file';
-  } finally {
-    bytes.fill(0);
-  }
+  return result.map((prepared) => remember(prepared, work.id));
 }
 function associatedData(
   header: Pick<
@@ -112,50 +140,51 @@ function associatedData(
 export async function sealViewOnceDraft(
   authority: VaultAuthority,
   content: ViewOnceContent,
+  work: Preparation = {},
 ): Promise<LocalCipher[]> {
-  const bytes = encoder.encode(JSON.stringify(viewOnceContent(content)));
-  if (bytes.length + 16 > viewOnceCipherBytes)
-    throw new Error('View-once content exceeds the limit.');
+  const prepared = await prepareContent(content, work);
+  const chunks = await pureWork(
+    { operation: 'view-once-seal-draft', prepared },
+    () => draftChunks(prepared),
+    work.signal,
+  );
   const result: LocalCipher[] = [];
   try {
-    for (let offset = 0; offset < bytes.length; offset += 64 * 1024)
+    for (let index = 0; index < chunks.length; index++) {
+      work.signal?.throwIfAborted();
       result.push(
-        await sealLocal(
-          authority,
-          crypto.randomUUID(),
-          encode(bytes.subarray(offset, offset + 64 * 1024)),
-        ),
+        await sealLocal(authority, crypto.randomUUID(), chunks[index]!),
       );
+      chunks[index] = '';
+    }
     return result;
   } finally {
-    bytes.fill(0);
+    chunks.fill('');
   }
 }
 
 export async function openViewOnceDraft(
   authority: VaultAuthority,
   chunks: readonly LocalCipher[],
+  work: Preparation = {},
 ): Promise<ViewOnceContent> {
-  const parts = [];
-  let length = 0;
-  for (const chunk of chunks) {
-    const bytes = base64(await openLocal(authority, chunk), 64 * 1024);
-    length += bytes.length;
-    if (length + 16 > viewOnceCipherBytes)
-      throw new Error('View-once draft exceeds the limit.');
-    parts.push(bytes);
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
+  // Each sealed block still contains exactly the old canonical base64 string.
+  const parts: string[] = [];
   try {
-    for (const part of parts) {
-      bytes.set(part, offset);
-      offset += part.length;
+    for (const chunk of chunks) {
+      work.signal?.throwIfAborted();
+      if (parts.length >= Math.ceil(viewOnceCipherBytes / (64 * 1024)))
+        throw new Error('View-once draft exceeds the limit.');
+      parts.push(await openLocal(authority, chunk));
     }
-    return viewOnceContent(JSON.parse(decoder.decode(bytes)) as unknown);
+    const result = await pureWork(
+      { operation: 'view-once-open-draft', chunks: parts },
+      () => openDraft(parts),
+      work.signal,
+    );
+    return remember(result, work.id);
   } finally {
-    bytes.fill(0);
-    for (const part of parts) part.fill(0);
+    parts.fill('');
   }
 }
 
@@ -166,21 +195,25 @@ export async function prepareViewOnce(input: {
   recipient: RecoveryKey;
   content: ViewOnceContent;
 }): Promise<PreparedViewOnce> {
-  const content = viewOnceContent(input.content);
+  const prepared = await prepareContent(input.content, { id: input.id });
   const identity = {
     id: input.id,
     scope: input.scope,
-    policy: policy(content),
+    policy: prepared.policy,
     sender: input.sender,
     recipient: input.recipient.accountId,
   };
-  const rawKey = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plain = measureSendSync(
+  const serialized = await measureSend(
     'payload-serialize',
-    () => encoder.encode(JSON.stringify(content)),
+    () =>
+      pureWork({ operation: 'view-once-serialize', prepared }, () => ({
+        bytes: serializeViewOnce(prepared),
+      })),
     input.id,
   );
+  const plain = serialized.bytes;
+  const rawKey = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
   try {
     const key = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, [
       'encrypt',
@@ -208,9 +241,17 @@ export async function prepareViewOnce(input: {
         version: 1,
         ...identity,
         bytes: bytes.length,
-        hash: await bytesHash(bytes),
+        hash: await measureSend(
+          'ciphertext-hash',
+          () => bytesHash(bytes),
+          input.id,
+        ),
         iv: encode(iv),
-        key: await archiveRoomKey(input.recipient, encode(rawKey)),
+        key: await measureSend(
+          'recovery-wrap',
+          () => archiveRoomKey(input.recipient, encode(rawKey)),
+          input.id,
+        ),
       }),
       bytes,
     };
@@ -224,6 +265,9 @@ export async function viewOnceDescriptor(
   prepared: PreparedViewOnce,
   content: ViewOnceContent,
 ): Promise<{ reference: { hash: string }; text: string }> {
+  const validatedContent = await prepareContent(content, {
+    id: prepared.header.id,
+  });
   const metadata: ViewOnceMetadata = {
     hash: await digest(viewOnceHeaderBody(prepared.header)),
     policy: prepared.header.policy,
@@ -232,7 +276,11 @@ export async function viewOnceDescriptor(
           file: {
             name: content.file.name,
             mime: content.file.mime,
-            bytes: base64(content.file.data, 10_000_000).length,
+            bytes: measureSendSync(
+              'descriptor-bytes',
+              () => validatedContent.fileBytes,
+              prepared.header.id,
+            ),
           },
         }
       : {}),
@@ -283,25 +331,39 @@ export async function uploadViewOnce(
     if (next['offset'] !== offset + bytes.length)
       throw new Error('View-once upload offset differs.');
     offset += bytes.length;
+    if (typeof window !== 'undefined')
+      window.dispatchEvent(
+        new CustomEvent('0xdmme-attachment-progress', {
+          detail: {
+            id: header.id,
+            message: header.id,
+            done: offset,
+            total: header.bytes,
+          },
+        }),
+      );
   }
 }
 
 function assertDeliveryContent(
-  content: ViewOnceContent,
+  prepared: ValidatedViewOnce,
   input: ViewOnceDelivery,
 ): void {
   // Older clients sent video under the authenticated download-only policy.
+  const { content, policy, legacyPolicy, fileBytes } = prepared;
   if (
-    policy(content, input.metadata.policy === 'file') !== input.metadata.policy
+    (input.metadata.policy === 'file' ? legacyPolicy : policy) !==
+    input.metadata.policy
   )
     throw new Error('View-once display policy differs.');
   if (input.metadata.policy === 'file' && content.text !== '')
     throw new Error('Download-only files cannot contain a message preview.');
-  assertFileMetadata(content.file, input.metadata.file);
+  assertFileMetadata(content.file, input.metadata.file, fileBytes);
 }
 function assertFileMetadata(
   contentFile: ViewOnceContent['file'],
   file: ViewOnceMetadata['file'],
+  bytes: number,
 ): void {
   if (
     (file && !contentFile) ||
@@ -309,7 +371,7 @@ function assertFileMetadata(
       contentFile &&
       (file.name !== contentFile.name ||
         file.mime !== contentFile.mime ||
-        file.bytes !== base64(contentFile.data, 10_000_000).length))
+        file.bytes !== bytes))
   )
     throw new Error('View-once file metadata differs.');
 }
@@ -375,11 +437,11 @@ export async function decryptViewOnce(
         ciphertext,
       ),
     );
-    const content = viewOnceContent(
+    const prepared = validateViewOnce(
       JSON.parse(decoder.decode(plain)) as unknown,
     );
-    assertDeliveryContent(content, input);
-    return content;
+    assertDeliveryContent(prepared, input);
+    return prepared.content;
   } finally {
     secret.free();
     ciphertext.fill(0);

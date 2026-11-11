@@ -1,6 +1,16 @@
 module.exports = {
   forbidden: [
     {
+      name: 'view-once-preparation-has-no-authority-or-io',
+      severity: 'error',
+      from: { path: '^src/client/view-once-preparation/' },
+      to: {
+        path: '^src/(client|server)/',
+        pathNot:
+          '^src/client/(?:view-once-preparation|attachment-images|view-once-media)/',
+      },
+    },
+    {
       name: 'native-browser-fixtures-cannot-import-server-admission',
       severity: 'error',
       from: {

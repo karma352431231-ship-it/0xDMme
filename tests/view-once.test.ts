@@ -6,7 +6,7 @@ import {
   prepareViewOnce,
   viewOnceDescriptor,
   decryptViewOnce,
-  makeViewOnceContents,
+  prepareViewOnceContents,
   sealViewOnceDraft,
   openViewOnceDraft,
   uploadViewOnce,
@@ -20,6 +20,7 @@ import { decodeDailyText, encodeDailyText } from '../src/shared/daily/index.ts';
 import { digest } from '../src/shared/devices/index.ts';
 import { encode, object } from '../src/shared/account/index.ts';
 import type { ViewOnceContent } from '../src/shared/view-once/index.ts';
+import { openLocal, sealLocal } from '../src/client/message-storage/index.ts';
 
 await test('single-use content stays outside history and cannot be decrypted with another audience, scope, policy, hash or file metadata', async () => {
   const sender = await groupParticipant(),
@@ -156,7 +157,7 @@ await test('download-only files split accompanying text into a protected message
     bytes,
     thumbnail: null,
   };
-  const contents = makeViewOnceContents(
+  const contents = await prepareViewOnceContents(
     'Secret caption',
     selection,
     10_000_000,
@@ -165,8 +166,12 @@ await test('download-only files split accompanying text into a protected message
   assert.deepEqual(contents[0], { text: 'Secret caption' });
   assert.equal(contents[1]?.text, '');
   assert.equal(contents[1]?.file?.name, 'report.txt');
-  assert.throws(() =>
-    makeViewOnceContents('', { ...selection, bytes: new Uint8Array(12) }, 10),
+  await assert.rejects(
+    prepareViewOnceContents(
+      '',
+      { ...selection, bytes: new Uint8Array(12) },
+      10,
+    ),
   );
   assert.throws(() =>
     viewOnceContent({
@@ -174,7 +179,7 @@ await test('download-only files split accompanying text into a protected message
       file: { name: 'bad\nname', mime: 'text/plain', data: encode(bytes) },
     }),
   );
-  const image = makeViewOnceContents(
+  const image = await prepareViewOnceContents(
     'Caption',
     { ...selection, type: 'image/png' },
     10_000_000,
@@ -194,6 +199,25 @@ await test('download-only files split accompanying text into a protected message
   assert.ok(chunks.length > 1);
   assert.equal(JSON.stringify(chunks).includes('large.bin'), false);
   assert.deepEqual(await openViewOnceDraft(owner.authority, chunks), long);
+  // Old drafts sealed canonical base64 strings of 64 KiB JSON slices.
+  const original = new TextEncoder().encode(JSON.stringify(long));
+  const oldChunks = [];
+  for (let offset = 0; offset < original.length; offset += 64 * 1024)
+    oldChunks.push(
+      await sealLocal(
+        owner.authority,
+        crypto.randomUUID(),
+        encode(original.subarray(offset, offset + 64 * 1024)),
+      ),
+    );
+  assert.deepEqual(await openViewOnceDraft(owner.authority, oldChunks), long);
+  assert.deepEqual(
+    await Promise.all(chunks.map((chunk) => openLocal(owner.authority, chunk))),
+    await Promise.all(
+      oldChunks.map((chunk) => openLocal(owner.authority, chunk)),
+    ),
+  );
+  original.fill(0);
   await assert.rejects(openViewOnceDraft(owner.authority, chunks.slice(1)));
 });
 

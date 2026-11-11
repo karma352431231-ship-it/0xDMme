@@ -107,7 +107,10 @@ export function chatSyncActive(): boolean {
 export function traceSend(
   stage: SendStage,
   id?: string,
-  fields: Pick<ChatSyncDecision, 'sendPhase' | 'sendMs' | 'sendSuccess'> = {},
+  fields: Pick<
+    ChatSyncDecision,
+    'sendPhase' | 'sendMs' | 'sendSuccess' | 'sendBlock'
+  > = {},
 ): void {
   if (!chatSyncActive()) return;
   const message = id === undefined ? undefined : sendMessage(id, stage);

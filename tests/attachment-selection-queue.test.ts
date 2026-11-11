@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  AttachmentSelectionQueue,
-  attachmentBatchLimit,
-} from '../src/client/attachment-ui/selection-queue.ts';
+import { AttachmentSelectionQueue } from '../src/client/attachment-ui/selection-queue.ts';
+import { attachmentBatchLimit } from '../src/shared/attachments/index.ts';
 import type { AttachmentSelection } from '../src/client/attachments/index.ts';
 
 function file(name: string, size: number): AttachmentSelection {

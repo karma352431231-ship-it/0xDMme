@@ -12,13 +12,16 @@ const bundle = await build({
   globalName: 'attachmentClient',
   define: { ATTACHMENT_WORKER_URL: '"/synthetic-worker.js"' },
 });
-function workerFixture(steps: ('start-error' | 'file-error' | 'ok')[]) {
+function workerFixture(
+  steps: ('start-error' | 'file-error' | 'ok' | 'hold')[],
+) {
   let started = 0,
     terminated = 0;
   const context: Record<string, unknown> = {
     setTimeout,
     clearTimeout,
     Error,
+    DOMException,
     Worker: class {
       onmessage: ((event: { data: unknown }) => void) | null = null;
       onerror: (() => void) | null = null;
@@ -32,6 +35,7 @@ function workerFixture(steps: ('start-error' | 'file-error' | 'ok')[]) {
       postMessage(input: unknown) {
         const step = steps.shift();
         queueMicrotask(() => {
+          if (step === 'hold') return;
           if (step === 'start-error') this.onerror?.();
           else
             this.onmessage?.({
@@ -57,6 +61,24 @@ await test('a transient worker startup error retries once and keeps multiple loc
     [1, 2, 3],
   );
   assert.deepEqual(counts(), { started: 4, terminated: 4 });
+});
+
+await test('cancelled local preparation terminates its worker and skips a queued cancelled job', async () => {
+  const { client, counts } = workerFixture(['hold', 'ok']);
+  const active = new AbortController(),
+    queued = new AbortController();
+  const first = client.attachmentWork('first', active.signal);
+  const second = client.attachmentWork('second', queued.signal);
+  const rejected = Promise.all([
+    assert.rejects(first, { name: 'AbortError' }),
+    assert.rejects(second, { name: 'AbortError' }),
+  ]);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  queued.abort();
+  active.abort();
+  await rejected;
+  assert.equal(await client.attachmentWork('third'), 'third');
+  assert.deepEqual(counts(), { started: 2, terminated: 2 });
 });
 await test('startup retries are bounded, file errors do not retry, and the queue recovers', async () => {
   const { client, counts } = workerFixture([
