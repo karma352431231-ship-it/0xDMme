@@ -23,6 +23,7 @@ import {
   localPutWithin,
 } from '../message-storage/index.ts';
 import { attachmentWork } from './worker-client.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 export { attachmentWork as attachmentPreparationWork } from './worker-client.ts';
 import type { SealedFile } from '../attachment-crypto/index.ts';
 import type { PreparedPhoto } from '../attachment-images/index.ts';
@@ -261,6 +262,7 @@ async function storedPart(
   return null;
 }
 interface DownloadInput {
+  diagnostic?: LoadTrace | undefined;
   budget?: number;
   account: string;
   message: string;
@@ -310,13 +312,15 @@ export async function downloadAttachment(
 ): Promise<Uint8Array<ArrayBuffer>> {
   input.guard();
   await retainAttachment(input.account, input.message, input.budget);
-  const bytes = await downloadSealedAttachment(input);
-  const result = await openStoredAttachment(
-    input.file,
-    bytes,
-    input.thumbnail,
-    input.image,
-  );
+  const download = () => downloadSealedAttachment(input);
+  const bytes = input.diagnostic
+    ? await input.diagnostic.measure('download', download)
+    : await download();
+  const decrypt = () =>
+    openStoredAttachment(input.file, bytes, input.thumbnail, input.image);
+  const result = input.diagnostic
+    ? await input.diagnostic.measure('decrypt', decrypt)
+    : await decrypt();
   try {
     input.guard();
     return result;

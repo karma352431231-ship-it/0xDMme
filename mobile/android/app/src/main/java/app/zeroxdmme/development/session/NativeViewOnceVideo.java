@@ -33,6 +33,8 @@ final class NativeViewOnceVideo extends FrameLayout {
     private AudioManager audio;
     private int capturePolicy;
     private boolean closed;
+    private Runnable firstFrame = () -> {};
+    void onFirstFrame(Runnable callback) { firstFrame = callback; }
 
     NativeViewOnceVideo(NativeViewOnceLayout layout) {
         super(layout.getContext());
@@ -79,6 +81,10 @@ final class NativeViewOnceVideo extends FrameLayout {
                     String value = message.getType() == WebMessageCompat.TYPE_STRING ? message.getData() : null;
                     if (value == null || value.length() > 128) throw NativePolicy.failure();
                     JSONObject metadata = new JSONObject(value);
+                    if (metadata.length() == 1 && metadata.optBoolean("frame")) {
+                        firstFrame.run();
+                        return;
+                    }
                     int width = metadata.getInt("width"), height = metadata.getInt("height");
                     if (metadata.length() != 2 || width <= 0 || height <= 0 ||
                         (long) width * height > 8_400_000) throw NativePolicy.failure();
@@ -101,6 +107,7 @@ final class NativeViewOnceVideo extends FrameLayout {
             new SecureRandom().nextBytes(random);
             String nonce = Base64.encodeToString(random, Base64.NO_WRAP);
             String html = DOCUMENT.replace("__NONCE__", nonce).replace("__MIME__", mime)
+                .replace("__DIAGNOSTIC__", Boolean.toString(app.zeroxdmme.development.BuildConfig.DEBUG && app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS))
                 .replace("__DATA__", Base64.encodeToString(bytes, Base64.NO_WRAP));
             player.loadDataWithBaseURL("https://view-once.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception unavailable) { fail(); }
@@ -120,6 +127,7 @@ final class NativeViewOnceVideo extends FrameLayout {
     private void fail() { close(); layout.show(null, "Could not play this video."); }
 
     void close() {
+        firstFrame = () -> {};
         if (closed) return;
         closed = true;
         exitFullscreen();
@@ -145,6 +153,8 @@ final class NativeViewOnceVideo extends FrameLayout {
         <button type="button" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
         <script nonce="__NONCE__">
         const video=document.querySelector('video');
+        if (__DIAGNOSTIC__ && typeof video.requestVideoFrameCallback === 'function')
+          video.requestVideoFrameCallback(()=>ZeroXVideoMetadata.postMessage('{"frame":true}'));
         video.addEventListener('loadedmetadata',()=>{
           ZeroXVideoMetadata.postMessage(JSON.stringify({width:video.videoWidth,height:video.videoHeight}));
           video.play().catch(()=>{});

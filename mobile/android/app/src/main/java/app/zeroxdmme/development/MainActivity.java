@@ -16,6 +16,7 @@ public class MainActivity extends BridgeActivity {
         session = new NativeSessionChannel(view);
         bridgeBuilder.addWebViewListener(session);
         super.load();
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG && BuildConfig.MOBILE_DIAGNOSTICS);
         media = new NativeMediaPermissions(bridge, view);
         bridge.addWebViewListener(media);
         view.setWebChromeClient(new BridgeWebChromeClient(bridge) {

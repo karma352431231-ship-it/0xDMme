@@ -9,6 +9,10 @@ export interface ProtectedDisplay {
   begin(input: { id: string; mime: string; bytes: number }): Promise<void>;
   append(input: { id: string; offset: number; bytes: string }): Promise<void>;
   show(input: { id: string; text: string }): Promise<void>;
+  presented?(input: { id: string; signal: AbortSignal }): Promise<{
+    state: 'native-draw' | 'video-frame' | 'unavailable' | 'timeout';
+    elapsedMs: number;
+  }>;
   active(input: { id: string }): Promise<boolean>;
   close(input: { id: string }): Promise<void>;
 }

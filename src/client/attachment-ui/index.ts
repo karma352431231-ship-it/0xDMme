@@ -9,6 +9,7 @@ import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { renderMedia } from './media.ts';
 import { renderSelectionStrip, renderUsageRing } from './selection-strip.ts';
 import { AttachmentSelectionQueue, wipe } from './selection-queue.ts';
@@ -297,7 +298,11 @@ export class AttachmentUi {
     signal?: AbortSignal;
     article: HTMLElement;
     view: V;
-    load: (view: V, thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>;
+    load: (
+      view: V,
+      thumbnail: boolean,
+      diagnostic?: LoadTrace,
+    ) => Promise<Uint8Array<ArrayBuffer>>;
     run: (work: () => Promise<void>) => Promise<void>;
   }): void {
     const token = this.generation;

@@ -1,86 +1,6 @@
+import { diagnosticRequestCategory } from '../../shared/chat-sync-diagnostics/network.ts';
 import { callerPositions, failureCategory } from './recording.ts';
 import type { RecordEvent } from './recording.ts';
-
-const operations = new Set([
-  'attachment-reserve',
-  'attachment-part',
-  'attachment-finish',
-  'view-once-create',
-  'view-once-part',
-  'snapshot',
-  'confirm',
-  'delivery',
-  'page',
-  'preview',
-  'changes',
-  'relations',
-  'object',
-  'acknowledge',
-  'live',
-  'publish',
-  'delete',
-  'directory',
-  'history',
-  'matrix-inbox',
-  'matrix-received',
-  'matrix-upload',
-  'matrix-query',
-  'matrix-claim',
-  'matrix-send',
-  'recovery-key',
-  'recovery-current',
-  'recovery-register',
-  'recovery-peer',
-  'daily-states',
-  'daily-configure',
-  'daily-heartbeat',
-  'daily-read',
-  'daily-receipts',
-  'daily-push-state',
-  'group-list',
-  'group-preview',
-  'group-snapshot',
-  'group-confirm',
-  'group-changes',
-  'group-read',
-  'group-page',
-  'group-incoming',
-  'group-daily-states',
-  'group-daily-read',
-  'group-daily-receipts',
-]);
-const dmOperations = new Set([
-  ...[...operations].map((operation) => `dm-${operation}`),
-  ...[
-    'accepted',
-    'list',
-    'state',
-    'open',
-    'secret-get',
-    'secret-save',
-    'personal-page',
-    'personal-snapshot',
-    'message-history',
-    'message-status',
-    'preview-status',
-    'received',
-  ].map((operation) => `dm-${operation}`),
-]);
-const calls = new Set([
-  'sync',
-  'start',
-  'accept',
-  'turn',
-  'offer',
-  'answer',
-  'end',
-  'configure',
-]);
-const areas = new Map([
-  ['messages', new Set([...operations, ...dmOperations])],
-  ['calls', calls],
-  ['devices', new Set(['read'])],
-]);
 
 /** Exact operation allowlist. Query strings, dynamic segments and foreign
  * requests never enter the report; request/response bodies are never read. */
@@ -90,13 +10,8 @@ export function requestCategory(input: RequestInfo | URL): string | null {
     location.href,
   );
   if (url.origin !== location.origin) return null;
-  const parts = url.pathname.split('/');
-  if (parts.length !== 5 || parts[1] !== 'api' || parts[2] !== 'account')
-    return null;
-  const area = parts[3]!,
-    op = parts[4]!;
-  if (areas.get(area)?.has(op)) return `${area}/${op}`;
-  return 'other-account-api';
+  const category = diagnosticRequestCategory(url.pathname);
+  return category === 'other-api' ? null : category;
 }
 
 export function observeNetwork(record: RecordEvent, locks: () => string[]) {

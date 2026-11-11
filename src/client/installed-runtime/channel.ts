@@ -14,6 +14,7 @@ interface AndroidPort {
   onmessage: ((event: MessageEvent<unknown>) => void) | null;
 }
 interface InstalledWindow extends Window {
+  __0xdmmeNativeDiagnostics?: boolean;
   ZeroXSession?: AndroidPort;
   webkit?: {
     messageHandlers?: {
@@ -39,6 +40,29 @@ function channelReply(
   }
   keys(reply, ['call', 'value']);
   return { call, value: reply['value'] };
+}
+function presentationReply(input: unknown): {
+  state: 'native-draw' | 'video-frame' | 'unavailable' | 'timeout';
+  elapsedMs: number;
+} {
+  const value = object(input);
+  keys(value, ['state', 'elapsedMs']);
+  const state = value['state'],
+    elapsedMs = value['elapsedMs'];
+  if (
+    typeof elapsedMs !== 'number' ||
+    !Number.isSafeInteger(elapsedMs) ||
+    elapsedMs < 0
+  )
+    throw unavailable();
+  if (
+    state !== 'native-draw' &&
+    state !== 'video-frame' &&
+    state !== 'unavailable' &&
+    state !== 'timeout'
+  )
+    throw unavailable();
+  return { state, elapsedMs };
 }
 
 /** Owns only the guarded message channel and its bounded pending replies.
@@ -117,6 +141,17 @@ export class InstalledSessionChannel implements NativeSessionBridge {
   }
   async viewShow(request: { id: string; text: string }): Promise<void> {
     if ((await this.call('view-show', request)) !== true) throw unavailable();
+  }
+  async viewPresented(input: { id: string; signal: AbortSignal }): Promise<{
+    state: 'native-draw' | 'video-frame' | 'unavailable' | 'timeout';
+    elapsedMs: number;
+  }> {
+    if ((window as InstalledWindow).__0xdmmeNativeDiagnostics !== true)
+      return { state: 'unavailable', elapsedMs: 0 };
+    input.signal.throwIfAborted();
+    return presentationReply(
+      await this.call('view-frame', { id: input.id }, 11000),
+    );
   }
   async viewActive(request: { id: string }): Promise<boolean> {
     const value = await this.call('view-active', request);

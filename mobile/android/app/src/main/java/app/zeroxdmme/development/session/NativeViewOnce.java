@@ -29,6 +29,7 @@ import org.json.JSONObject;
 final class NativeViewOnce {
     private final WebView source;
     private final Consumer<Boolean> protectedState;
+    private final NativeViewOnceTiming timing = new NativeViewOnceTiming();
     private Dialog dialog;
     private Activity activity;
     private NativeViewOnceLayout content;
@@ -71,6 +72,14 @@ final class NativeViewOnce {
             current = ((ContextWrapper) current).getBaseContext();
         if (!(current instanceof Activity)) throw NativePolicy.failure();
         return (Activity) current;
+    }
+    void awaitFrame(JSONObject input, NativeSession.Reply reply) throws Exception {
+        NativePolicy.exact(input, "id");
+        if (!app.zeroxdmme.development.BuildConfig.DEBUG || !app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS)
+            throw NativePolicy.failure();
+        if (!NativePolicy.identifier(input, "id").equals(id))
+            reply.value(new JSONObject().put("state", "unavailable").put("elapsedMs", 0));
+        else timing.awaitFrame(reply);
     }
     private int number(JSONObject input, String key, int maximum) throws Exception {
         Object value = input.opt(key);
@@ -159,7 +168,9 @@ final class NativeViewOnce {
         NativePolicy.exact(input, "id", "text");
         String value = NativePolicy.text(input, "text", 16000);
         if (value.getBytes(StandardCharsets.UTF_8).length > 16000 || offset != bytes.length) throw NativePolicy.failure();
+        timing.start(content, video != null);
         if (video != null) {
+            video.onFirstFrame(timing::videoFrame);
             content.showMedia(video, 16, 9, value);
             video.load(bytes, mime);
             bytes = null; // The isolated player already cleared the input buffer.
@@ -222,6 +233,7 @@ final class NativeViewOnce {
     }
 
     private void dispose() {
+        timing.close();
         protectedState.accept(false);
         if (video != null) video.close();
         if (animation != null) animation.stop();

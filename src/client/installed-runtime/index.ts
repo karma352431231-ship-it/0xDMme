@@ -35,6 +35,12 @@ export async function startInstalledEntry(
       begin: (input) => viewChannel.viewBegin(input),
       append: (input) => viewChannel.viewAppend(input),
       show: (input) => viewChannel.viewShow(input),
+      ...(location.protocol === 'https:'
+        ? {
+            presented: (input: { id: string; signal: AbortSignal }) =>
+              viewChannel.viewPresented(input),
+          }
+        : {}),
       active: (input) => viewChannel.viewActive(input),
       close: (input) => viewChannel.viewClose(input),
     });

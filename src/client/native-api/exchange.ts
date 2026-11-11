@@ -6,6 +6,7 @@ import {
   responseHead,
 } from './protocol.ts';
 import type { NativeApiRequest, NativeSessionBridge } from './protocol.ts';
+import { startNativeRequest } from '../chat-sync-diagnostics/index.ts';
 
 function aborted(): DOMException {
   return new DOMException('Native API request cancelled.', 'AbortError');
@@ -61,6 +62,7 @@ export class NativeExchange {
   private received = 0;
   private expected: number | null = null;
   private live = false;
+  private readonly diagnostic: ReturnType<typeof startNativeRequest>;
 
   constructor(input: {
     bridge: NativeSessionBridge;
@@ -70,6 +72,7 @@ export class NativeExchange {
   }) {
     this.bridge = input.bridge;
     this.request = input.request;
+    this.diagnostic = startNativeRequest(input.request.path);
     this.released = input.released;
     this.caller = input.signal;
     this.caller?.addEventListener('abort', this.onAbort, { once: true });
@@ -88,7 +91,9 @@ export class NativeExchange {
       });
       if (this.ended) throw aborted();
       const head = this.acceptHead(raw);
+      this.diagnostic?.('headers', { nativeStatus: head.status });
       if (this.request.method === 'HEAD' || [204, 205].includes(head.status)) {
+        this.diagnostic?.('body', { nativeBytes: 0 });
         await this.cancel();
         return new Response(null, head);
       }
@@ -178,6 +183,7 @@ export class NativeExchange {
   }
 
   private finish(): void {
+    this.diagnostic?.('body', { nativeBytes: this.received });
     this.detach();
     this.released(true);
   }
@@ -185,6 +191,9 @@ export class NativeExchange {
   cancel(error?: unknown): Promise<void> {
     if (this.closing) return this.closing;
     if (this.ended) return Promise.resolve();
+    this.diagnostic?.(error === undefined ? 'cancelled' : 'failed', {
+      nativeBytes: this.received,
+    });
     this.detach();
     // A consumer cancel already closes its stream. Errors also reject pending reads.
     if (error !== undefined) this.stream?.error(error);

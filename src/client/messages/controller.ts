@@ -553,8 +553,13 @@ export class Messages {
     peer: string,
     id: string,
     metadata: ViewOnceMetadata,
-    signal: AbortSignal,
+    work: {
+      signal: AbortSignal;
+      diagnostic?:
+        import('../chat-sync-diagnostics/index.ts').LoadTrace | undefined;
+    },
   ) {
+    const { signal, diagnostic } = work;
     const generation = this.generation;
     const guard = () => {
       this.guard(generation);
@@ -562,36 +567,44 @@ export class Messages {
     };
     // Download ciphertext with signing authority only. A slow transfer must
     // not retain the account's key/SDK turn and starve incoming messages.
-    const delivery = await withSigner(this.access, async (a) => {
-      guard();
-      const input = { scope: 'private', peer, id, hash: metadata.hash };
-      const api = (operation: string, payload: Record<string, unknown>) =>
-        messageApi(a, operation, payload, { guard, signal });
-      const status = object(await api('view-once-status', input));
-      if (status['consumed'])
-        throw new AccountError(
-          410,
-          'This view-once message was already opened.',
+    const download = () =>
+      withSigner(this.access, async (a) => {
+        guard();
+        const input = { scope: 'private', peer, id, hash: metadata.hash };
+        const api = (operation: string, payload: Record<string, unknown>) =>
+          messageApi(a, operation, payload, { guard, signal });
+        const status = object(await api('view-once-status', input));
+        if (status['consumed'])
+          throw new AccountError(
+            410,
+            'This view-once message was already opened.',
+          );
+        const key = recoveryKey(
+          await api('recovery-key', { id: status['keyId'] }),
         );
-      const key = recoveryKey(
-        await api('recovery-key', { id: status['keyId'] }),
-      );
-      return { key, response: await api('view-once-open', input) };
-    });
+        return { key, response: await api('view-once-open', input) };
+      });
+    const delivery = diagnostic
+      ? await diagnostic.measure('download', download)
+      : await download();
     guard();
     return this.access.withVault(
       false,
       async (a) => {
         guard();
-        const content = await decryptViewOnce({
-          authority: a,
-          recovery: delivery.key,
-          id,
-          scope: 'private',
-          peer,
-          metadata,
-          response: delivery.response,
-        });
+        const decrypt = () =>
+          decryptViewOnce({
+            authority: a,
+            recovery: delivery.key,
+            id,
+            scope: 'private',
+            peer,
+            metadata,
+            response: delivery.response,
+          });
+        const content = diagnostic
+          ? await diagnostic.measure('decrypt', decrypt)
+          : await decrypt();
         guard();
         return content;
       },
@@ -624,6 +637,7 @@ export class Messages {
   async media(
     view: MessageView,
     thumbnail: boolean,
+    diagnostic?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
   ): Promise<Uint8Array<ArrayBuffer>> {
     const generation = this.generation,
       reading = this.reader.captureMedia(view);
@@ -643,6 +657,7 @@ export class Messages {
         : (op: string, d: Record<string, unknown>) =>
             messageApi(a, op, d, guard);
       const bytes = await downloadAttachment({
+        diagnostic,
         account: a.session.accountId,
         message: view.id,
         file,

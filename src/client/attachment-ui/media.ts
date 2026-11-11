@@ -8,6 +8,8 @@ import {
   originalVideoType,
 } from '../attachment-images/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
+import { startLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 
 export interface MediaView {
   archived?: boolean;
@@ -21,7 +23,11 @@ interface MediaInput<V extends MediaView> {
   saveNotice?: string;
   article: HTMLElement;
   view: V;
-  load: (view: V, thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>;
+  load: (
+    view: V,
+    thumbnail: boolean,
+    diagnostic?: LoadTrace,
+  ) => Promise<Uint8Array<ArrayBuffer>>;
   run: (work: () => Promise<void>) => Promise<void>;
   current: () => boolean;
   retain: (url: string) => void;
@@ -51,6 +57,56 @@ function showVideo(preview: HTMLElement, url: string, name: string): void {
   video.setAttribute('aria-label', name);
   preview.replaceChildren(video);
   void video.play().catch(() => undefined);
+}
+function readyMedia(
+  preview: HTMLElement,
+  diagnostic: LoadTrace | undefined,
+  current: () => boolean,
+): void {
+  if (!diagnostic) return;
+  const image = preview.querySelector('img');
+  if (image) {
+    void image.decode().then(
+      () => {
+        diagnostic?.point('decode');
+        diagnostic?.frame(preview, current);
+      },
+      () => diagnostic?.point('failed', { loadOutcome: 'failed' }),
+    );
+    return;
+  }
+  const video = preview.querySelector('video');
+  if (!video) {
+    diagnostic.point('complete', { loadOutcome: 'complete' });
+    return;
+  }
+  const ready = () => {
+    diagnostic.point('decode');
+    if ('requestVideoFrameCallback' in video)
+      video.requestVideoFrameCallback(() => diagnostic.frame(preview, current));
+    else diagnostic.frame(preview, current);
+  };
+  video.addEventListener('loadeddata', ready, { once: true });
+}
+function mediaLoadKind(content: AttachmentContent): 'image' | 'video' | 'file' {
+  if (imageCandidate(content)) return 'image';
+  return content.type.startsWith('video/') ? 'video' : 'file';
+}
+async function loadMediaBytes<V extends MediaView>(
+  input: MediaInput<V>,
+  diagnostic: LoadTrace | undefined,
+): Promise<Uint8Array<ArrayBuffer>> {
+  diagnostic?.point('queue');
+  try {
+    const bytes = await input.load(input.view, false, diagnostic);
+    if (!input.current())
+      diagnostic?.point('cancelled', { loadOutcome: 'cancelled' });
+    diagnostic?.point('decode', { loadBytes: bytes.length });
+    return bytes;
+  } catch (error: unknown) {
+    diagnostic?.point('failed', { loadOutcome: 'failed' });
+    throw error;
+  }
 }
 const defaultSaveNotice = t(
   'The saved copy is outside the vault and bilateral deletion. Only open files from sources you trust.',
@@ -220,7 +276,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   let pending = false;
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
-    const bytes = await input.load(input.view, false);
+    const diagnostic = startLoad(mediaLoadKind(content), input.view.peer);
+    const bytes = await loadMediaBytes(input, diagnostic);
     try {
       if (!input.current()) return;
       const type = displayType(bytes, content),
@@ -229,6 +286,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       button.hidden = true;
       if (video && type.startsWith('video/')) {
         showVideo(preview, url, content.name);
+        readyMedia(preview, diagnostic, input.current);
         offerSave(input, url, content.name);
         return;
       }
@@ -237,6 +295,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
           name: content.name,
           saveNotice: input.saveNotice ?? defaultSaveNotice,
         });
+        readyMedia(preview, diagnostic, input.current);
         return;
       }
       if (image)
@@ -244,6 +303,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
           'Preview unavailable for this image. The original file is preserved.',
         );
       offerSave(input, url, content.name);
+      readyMedia(preview, diagnostic, input.current);
     } finally {
       bytes.fill(0);
     }

@@ -5,6 +5,11 @@ import type { ViewOnceContent } from '../../shared/view-once/index.ts';
 import { showToast } from '../toast/index.ts';
 import { protectedDisplay } from './display.ts';
 import type { DailyText } from '../../shared/daily/index.ts';
+import { startLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
+import { protectedPresentation, failedProtectedLoad } from './diagnostics.ts';
+import type { ProtectedDisplay } from './display.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import type { LoadKind } from '../../shared/chat-sync-diagnostics/load.ts';
 type ViewOnceMetadata = NonNullable<DailyText['viewOnce']>;
 
 const receiptKey = '0xdmme:view-once-receipts:v1';
@@ -83,6 +88,7 @@ async function showProtected(
   id: string,
   content: ViewOnceContent,
   signal: AbortSignal,
+  diagnostic?: LoadTrace,
 ): Promise<void> {
   const display = protectedDisplay();
   if (!display)
@@ -91,17 +97,14 @@ async function showProtected(
     ? Uint8Array.from(base64(content.file.data, 10_000_000))
     : null;
   try {
-    if (bytes)
-      for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
-        signal.throwIfAborted();
-        await display.append({
-          id,
-          offset,
-          bytes: encode(bytes.subarray(offset, offset + 64 * 1024)),
-        });
-      }
+    await timedLoad(diagnostic, 'native-append', () =>
+      appendProtected({ display, id, bytes, signal }),
+    );
     signal.throwIfAborted();
-    await display.show({ id, text: content.text });
+    await timedLoad(diagnostic, 'native-show', () =>
+      display.show({ id, text: content.text }),
+    );
+    await protectedPresentation({ display, id, signal, trace: diagnostic });
     while (!signal.aborted && (await display.active({ id })))
       await new Promise<void>((resolve) => setTimeout(resolve, 400));
   } finally {
@@ -116,7 +119,23 @@ interface ViewOnceRow {
   metadata: ViewOnceMetadata;
   signal: AbortSignal;
   current: () => boolean;
-  open: () => Promise<ViewOnceContent>;
+  open: (diagnostic?: LoadTrace) => Promise<ViewOnceContent>;
+}
+async function appendProtected(input: {
+  display: ProtectedDisplay;
+  id: string;
+  bytes: Uint8Array<ArrayBuffer> | null;
+  signal: AbortSignal;
+}): Promise<void> {
+  if (!input.bytes) return;
+  for (let offset = 0; offset < input.bytes.length; offset += 64 * 1024) {
+    input.signal.throwIfAborted();
+    await input.display.append({
+      id: input.id,
+      offset,
+      bytes: encode(input.bytes.subarray(offset, offset + 64 * 1024)),
+    });
+  }
 }
 
 export function renderViewOnce(input: ViewOnceRow): void {
@@ -191,28 +210,47 @@ async function openViewOnce(
   const { id, metadata } = input;
   const file = metadata.policy === 'file';
   const display = file ? null : protectedDisplay();
+  const diagnostic = startLoad(viewOnceKind(metadata));
   let content: ViewOnceContent | null = null;
   const cancel = () => {
     void display?.close({ id }).catch(() => undefined);
   };
   input.signal.addEventListener('abort', cancel, { once: true });
   try {
-    if (display)
-      await display.begin({
-        id,
-        ...protectedContentSize(metadata),
-      });
+    await beginProtected(display, id, metadata, diagnostic);
     input.signal.throwIfAborted();
-    content = await input.open();
-    if (!input.current() || input.signal.aborted) return;
-    if (file) await showFileDetails(id, content, input.signal);
-    else await showProtected(id, content, input.signal);
+    content = await input.open(diagnostic);
+    if (!input.current() || input.signal.aborted) {
+      diagnostic?.point('cancelled', { loadOutcome: 'cancelled' });
+      return;
+    }
+    if (file) await showFileDetails(id, content, input.signal, diagnostic);
+    else await showProtected(id, content, input.signal, diagnostic);
+  } catch (error: unknown) {
+    failedProtectedLoad(diagnostic, input.signal);
+    throw error;
   } finally {
     input.signal.removeEventListener('abort', cancel);
     eraseContent(content);
     await display?.close({ id }).catch(() => undefined);
     if (content) opened();
   }
+}
+async function beginProtected(
+  display: ProtectedDisplay | null,
+  id: string,
+  metadata: ViewOnceMetadata,
+  trace: LoadTrace | undefined,
+): Promise<void> {
+  if (display)
+    await timedLoad(trace, 'native-begin', () =>
+      display.begin({ id, ...protectedContentSize(metadata) }),
+    );
+}
+function viewOnceKind(metadata: ViewOnceMetadata): LoadKind {
+  if (metadata.policy === 'file') return 'view-once-file';
+  if (metadata.file?.mime.startsWith('video/')) return 'view-once-video';
+  return metadata.file ? 'view-once-image' : 'view-once-text';
 }
 
 function protectedContentSize(metadata: ViewOnceMetadata): {
@@ -234,6 +272,7 @@ function showFileDetails(
   id: string,
   content: ViewOnceContent,
   signal: AbortSignal,
+  diagnostic?: LoadTrace,
 ): Promise<void> {
   const file = content.file;
   if (!file) throw new Error('View-once file metadata missing.');
@@ -305,6 +344,8 @@ function showFileDetails(
       signal.throwIfAborted();
       document.body.append(dialog);
       dialog.showModal();
+      diagnostic?.point('dom');
+      diagnostic?.frame(dialog, () => !signal.aborted);
     } catch (error: unknown) {
       cleanup();
       reject(

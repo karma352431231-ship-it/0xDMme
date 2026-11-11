@@ -35,6 +35,7 @@ import { showExternalVideos } from '../external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { messageRowKeys } from './row-keys.ts';
 import { HistoryReactions } from './history-reactions.ts';
+import { HistoryLoadDiagnostics } from './history-load-diagnostics.ts';
 import { openMessageMenu, reopenMessageMenu } from '../message-menu/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emojiText } from '../emoji/index.ts';
@@ -50,6 +51,7 @@ import type { OutgoingText } from './outgoing-text.ts';
 import { renderViewOnce } from '../view-once-ui/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
 import type { ViewOnceContent } from '../../shared/view-once/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
 interface HistoryPresentation {
@@ -57,6 +59,7 @@ interface HistoryPresentation {
     view: MessageView,
     metadata: ViewOnceMetadata,
     signal: AbortSignal,
+    diagnostic?: LoadTrace,
   ) => Promise<ViewOnceContent>;
   node: <T extends HTMLElement>(selector: string) => T | null;
   context: () => {
@@ -115,6 +118,7 @@ export class MessageHistoryUi {
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
   private readonly reactions: HistoryReactions;
+  private readonly loadingDiagnostics = new HistoryLoadDiagnostics();
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
@@ -152,6 +156,7 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.loadingDiagnostics.reset();
     this.receipts.incoming.clear();
     this.receipts.outgoing.clear();
     this.loading.reset();
@@ -168,6 +173,9 @@ export class MessageHistoryUi {
     this.avatarPhoto.clear();
     this.headerPhoto?.abort();
     this.externalRows.clear();
+  }
+  opening(peer: string): void {
+    this.loadingDiagnostics.request(peer);
   }
   /** Apply background results only when the conversation is visible. Closing
    * the gate still hides content immediately, including in hidden tabs. */
@@ -203,6 +211,12 @@ export class MessageHistoryUi {
     this.updateDeletion(history, this.views);
     this.forwarding?.update();
     this.renderGate(history);
+    if (this.views !== null)
+      this.loadingDiagnostics.presented(
+        this.options.context().selected?.accountId,
+        history,
+        this.views.length,
+      );
     traceSendChecks(history);
     this.renderPeer();
     restoreScroll();
@@ -521,8 +535,8 @@ export class MessageHistoryUi {
         metadata,
         signal,
         current: () => article.isConnected && !signal.aborted,
-        open: () =>
-          this.options.openViewOnce?.(view, metadata, signal) ??
+        open: (diagnostic) =>
+          this.options.openViewOnce?.(view, metadata, signal, diagnostic) ??
           Promise.reject(new Error('View-once message unavailable.')),
       });
     } else if (view.kind === 'attachment') {

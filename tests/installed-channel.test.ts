@@ -89,6 +89,40 @@ void test('installed channel binds a document nonce and preserves signed UTF-8 b
   }
 });
 
+void test('protected frame diagnostics require the explicit native capability and validate their metadata', async () => {
+  const f = fixture();
+  try {
+    const id = crypto.randomUUID(),
+      signal = new AbortController().signal;
+    assert.deepEqual(await f.channel.viewPresented({ id, signal }), {
+      state: 'unavailable',
+      elapsedMs: 0,
+    });
+    assert.equal(f.messages.length, 0);
+    Object.assign(f.window, { __0xdmmeNativeDiagnostics: true });
+    const result = f.channel.viewPresented({ id, signal });
+    const call = f.messages[0]!;
+    assert.equal(call.operation, 'view-frame');
+    f.reply(
+      JSON.stringify({
+        call: call.call,
+        value: { state: 'native-draw', elapsedMs: 17 },
+      }),
+    );
+    assert.deepEqual(await result, { state: 'native-draw', elapsedMs: 17 });
+    const invalid = f.channel.viewPresented({ id, signal });
+    f.reply(
+      JSON.stringify({
+        call: f.messages[1]!.call,
+        value: { state: 'native-draw', elapsedMs: -1 },
+      }),
+    );
+    await assert.rejects(invalid, TypeError);
+  } finally {
+    f.close();
+  }
+});
+
 void test('malformed native replies close the channel and reject every retained operation', async () => {
   const f = fixture();
   try {

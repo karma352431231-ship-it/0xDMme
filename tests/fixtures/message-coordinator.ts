@@ -191,6 +191,7 @@ export function coordinatorFixture(
     reset: noop,
     clear: noop,
     render: noop,
+    opening: noop,
     status: noop,
     setSession: noop,
     observe: noop,

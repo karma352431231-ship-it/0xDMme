@@ -13,6 +13,8 @@ interface DiagnosticWindow extends Window {
 
 /** Console-only entry. No app import, automatic installation or remote export. */
 function start() {
+  const native =
+    location.hostname === 'localhost' && location.protocol === 'https:';
   const recording = new Recording();
   const stopHooks: (() => void)[] = [];
   const panel = document.createElement('aside');
@@ -27,7 +29,7 @@ function start() {
   marker.onclick = () => recording.record('manual-marker');
   const done = document.createElement('button');
   done.type = 'button';
-  done.textContent = 'Stop and download report';
+  done.textContent = native ? 'Stop capture' : 'Stop and download report';
   panel.append(label, marker, done);
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -40,7 +42,9 @@ function start() {
       recording.stop();
       label.textContent = 'Capture ended · local report only';
       marker.disabled = true;
-      done.textContent = 'Download report';
+      done.textContent = native
+        ? 'Capture ended · export on Mac'
+        : 'Download report';
     }
     return recording.report();
   }
@@ -75,7 +79,14 @@ function start() {
     window.addEventListener('pagehide', stop, { signal: lifecycle.signal });
     stopHooks.push(() => lifecycle.abort());
     document.body.append(panel);
-    done.onclick = download;
+    done.onclick = native
+      ? () => {
+          stop();
+          console.info(
+            'Export on the Mac: copy(JSON.stringify(window.__0xdmmeLag.stop(), null, 2))',
+          );
+        }
+      : download;
     deadline = setTimeout(stop, 600_000);
     recording.record('capture-started');
   } catch (error: unknown) {

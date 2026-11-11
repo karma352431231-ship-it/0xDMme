@@ -3,6 +3,15 @@ import {
   chatSyncEvent,
 } from '../../shared/chat-sync-diagnostics/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
+import { diagnosticRequestCategory } from '../../shared/chat-sync-diagnostics/network.ts';
+import { createLoadTrace } from './load.ts';
+import type { LoadTrace } from './load.ts';
+import type {
+  LoadKind,
+  LoadDiagnosticFields,
+} from '../../shared/chat-sync-diagnostics/load.ts';
+export type { LoadTrace } from './load.ts';
+export { timedLoad } from './load.ts';
 import type {
   ChatSyncDecision,
   ChatSyncTrace,
@@ -25,8 +34,12 @@ const sends = new Map<
   { slot: number; rendered: boolean; accepted: boolean }
 >();
 const sendOwner = {};
+const loadOwner = {};
+let nextLoad = 0,
+  nextRequest = 0;
 
 function stop(): void {
+  nextLoad = nextRequest = 0;
   capture++;
   sends.clear();
   nextSend = 0;
@@ -58,6 +71,8 @@ export function installChatSyncDiagnostics(host: Window): void {
       source: 0,
       conversation: 0,
       sendTimings: true,
+      nativeTimings: true,
+      loadTimings: true,
     });
   });
 }
@@ -101,6 +116,54 @@ export function chatSyncActive(): boolean {
     deadline !== 0 &&
     performance.now() < deadline
   );
+}
+
+export function startLoad(
+  kind: LoadKind,
+  peer: string | null = null,
+): LoadTrace | undefined {
+  if (!chatSyncActive()) return;
+  const generation = capture,
+    load = ++nextLoad;
+  return createLoadTrace((fields) => {
+    if (generation === capture)
+      traceChatSync(loadOwner, peer, {
+        event: 'load',
+        reason: 'settled',
+        load,
+        loadKind: kind,
+        ...fields,
+      });
+  });
+}
+
+/** Transport timings include the guarded native bridge, headers and body demand.
+ * Only fixed categories/status/counts enter the trace, never request data. */
+export function startNativeRequest(path: string) {
+  if (!chatSyncActive()) return;
+  const generation = capture,
+    nativeRequest = ++nextRequest,
+    started = performance.now();
+  const nativeCategory = diagnosticRequestCategory(path);
+  let ended = false;
+  const point = (
+    nativePhase: NonNullable<LoadDiagnosticFields['nativePhase']>,
+    fields: Pick<LoadDiagnosticFields, 'nativeStatus' | 'nativeBytes'> = {},
+  ) => {
+    if (ended || generation !== capture) return;
+    traceChatSync(loadOwner, null, {
+      event: 'native-request',
+      reason: 'settled',
+      nativeRequest,
+      nativeCategory,
+      nativePhase,
+      nativeMs: Math.max(0, Math.round(performance.now() - started)),
+      ...fields,
+    });
+    ended = ['body', 'failed', 'cancelled'].includes(nativePhase);
+  };
+  point('start');
+  return point;
 }
 
 /** Message identities stay inside this tab and expire with the capture. */

@@ -571,8 +571,11 @@ export function startMessages(
   const peerTitle = (peer: ConversationPeer) =>
     agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
-    openViewOnce: (view, metadata, signal) =>
-      controller.openViewOnce(view.peer, view.id, metadata, signal),
+    openViewOnce: (view, metadata, signal, diagnostic) =>
+      controller.openViewOnce(view.peer, view.id, metadata, {
+        signal,
+        diagnostic,
+      }),
     receiptsVerified: (window) =>
       publishVerifiedPreviewReceipts({ ...window, previews }),
     peerPhoto: showPeerPhoto,
@@ -601,7 +604,8 @@ export function startMessages(
       more: () => directoryData.hasMore(navigator.onLine),
       loadMore: () => directoryData.refresh(true, navigator.onLine),
     },
-    media: (view, thumbnail) => controller.media(view, thumbnail),
+    media: (view, thumbnail, diagnostic) =>
+      controller.media(view, thumbnail, diagnostic),
     run,
     older: {
       available: () => controller.olderAvailable(rootsShown()),
@@ -1167,6 +1171,7 @@ export function startMessages(
     return !composer.recording && !composer.voicePreview && visits.open(peer);
   }
   function requestPeer(peer: ConversationPeer, focus?: number): Promise<void> {
+    historyUi.opening(peer.accountId);
     if (focus === undefined && reopenSelectedPeer(peer))
       return Promise.resolve();
     if (focus === undefined && reusePeer(peer)) return Promise.resolve();

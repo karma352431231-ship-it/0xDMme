@@ -1,5 +1,7 @@
 import { copyWorkDiagnostic } from './work.ts';
 import { copySendDiagnostic } from './send.ts';
+import { copyLoadDiagnostic } from './load.ts';
+import type { LoadDiagnosticFields } from './load.ts';
 import type { SendDiagnosticFields } from './send.ts';
 import type { WorkDiagnosticFields } from './work.ts';
 export const chatSyncControl = '0xdmme-chat-sync-diagnostic-control';
@@ -20,6 +22,8 @@ export const chatSyncEvents = [
   'group-send',
   'group-receive',
   'send',
+  'load',
+  'native-request',
 ] as const;
 export const chatSyncReasons = [
   'capture-started',
@@ -71,7 +75,7 @@ const failures = [
   'failed',
 ] as const;
 export interface ChatSyncDecision
-  extends WorkDiagnosticFields, SendDiagnosticFields {
+  extends WorkDiagnosticFields, SendDiagnosticFields, LoadDiagnosticFields {
   event: (typeof chatSyncEvents)[number];
   reason: ChatSyncReason;
   windows?: number;
@@ -125,6 +129,7 @@ export function readChatSyncTrace(value: unknown): ChatSyncTrace | null {
   copyState(input, result);
   copyWorkDiagnostic(input, result);
   copySendDiagnostic(input, result);
+  copyLoadDiagnostic(input, result);
   if (failures.some((failure) => failure === input['failure']))
     result['failure'] = input['failure'];
   if (Array.isArray(input['callers']))

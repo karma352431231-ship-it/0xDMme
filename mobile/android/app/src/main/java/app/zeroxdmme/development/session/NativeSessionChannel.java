@@ -128,6 +128,7 @@ public final class NativeSessionChannel extends WebViewListener {
                 case "view-close":
                     reply.value(viewOnce.dispatch(message.operation, message.request));
                     break;
+                case "view-frame": viewOnce.awaitFrame(message.request, reply); break;
                 case "file-begin":
                 case "file-append":
                 case "file-save":
@@ -178,6 +179,8 @@ public final class NativeSessionChannel extends WebViewListener {
 
     @Override public void onPageCommitVisible(WebView webView, String url) {
         committed = local() && sameDocument(url, view.getUrl());
+        if (committed && app.zeroxdmme.development.BuildConfig.DEBUG && app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS)
+            view.evaluateJavascript("Object.defineProperty(window,'__0xdmmeNativeDiagnostics',{value:true})", null);
     }
 
     /** A fragment routes inside this document; path/query changes do not. */

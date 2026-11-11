@@ -23,6 +23,7 @@ export function observeReuseDecisions(
       if (trace.event === 'ready') sendTimings = trace.sendTimings === true;
       const { event: kind, ...data } = trace;
       record(`reuse-${kind}`, data);
+      if (kind === 'native-request') recordNativeRequest(trace, record);
     },
     { signal: abort.signal },
   );
@@ -39,4 +40,26 @@ export function observeReuseDecisions(
     abort.abort();
     window.dispatchEvent(new CustomEvent(chatSyncControl, { detail: 'stop' }));
   };
+}
+
+function recordNativeRequest(
+  trace: import('../../shared/chat-sync-diagnostics/index.ts').ChatSyncTrace,
+  record: RecordEvent,
+): void {
+  if (trace.nativeRequest === undefined || !trace.nativeCategory) return;
+  const kind = {
+    start: 'request-start',
+    headers: 'response-headers',
+    body: 'response-body',
+    failed: 'request-failed',
+    cancelled: 'response-body-failed',
+  }[trace.nativePhase ?? 'failed'];
+  record(kind, {
+    id: `native-${trace.nativeRequest}`,
+    category: trace.nativeCategory,
+    transport: 'native',
+    ...(trace.nativeStatus === undefined ? {} : { status: trace.nativeStatus }),
+    ...(trace.nativeBytes === undefined ? {} : { bytes: trace.nativeBytes }),
+    durationMs: trace.nativeMs ?? 0,
+  });
 }

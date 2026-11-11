@@ -5,6 +5,7 @@ apply plugin: 'com.android.application'
 android {
     namespace = "app.zeroxdmme.development"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures { buildConfig true }
     defaultConfig {
         applicationId "app.zeroxdmme.development"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -13,6 +14,7 @@ android {
         versionCode = (project.findProperty('feasibilityVersionCode') ?: '1').toInteger()
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "boolean", "MOBILE_DIAGNOSTICS", "false"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -21,6 +23,7 @@ android {
     }
     buildTypes {
         debug {
+            buildConfigField "boolean", "MOBILE_DIAGNOSTICS", (project.findProperty('mobileDiagnostics') == 'true').toString()
             def fixtureSuffix = project.findProperty('syntheticAppSuffix') ?: (project.findProperty('syntheticPeer') == 'true' ? '.peer' : '')
             if (fixtureSuffix != '') {
                 if (!project.hasProperty('syntheticFixtureAssets')) {
