@@ -7,6 +7,7 @@ type Fields = Pick<
   LoadDiagnosticFields,
   | 'loadRows'
   | 'loadBytes'
+  | 'loadReusedBytes'
   | 'loadOutcome'
   | 'loadPresentation'
   | 'loadStageMs'

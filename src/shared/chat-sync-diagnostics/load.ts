@@ -100,6 +100,7 @@ export interface LoadDiagnosticFields extends NativeTimingFields {
   loadStageMs?: number;
   loadRows?: number;
   loadBytes?: number;
+  loadReusedBytes?: number;
   loadTransferBytes?: number;
   loadTransferBlocks?: number;
   loadTransferPlannedBytes?: number;
@@ -134,6 +135,7 @@ export function copyLoadDiagnostic(
     'loadStageMs',
     'loadRows',
     'loadBytes',
+    'loadReusedBytes',
     'loadTransferBytes',
     'loadTransferBlocks',
     'loadTransferPlannedBytes',

@@ -26,6 +26,21 @@ export function validateViewOnce(
   input: unknown,
   base64Timing?: (ms: number) => void,
 ): ValidatedViewOnce {
+  const result = validateViewOnceMedia(input, base64Timing);
+  try {
+    return result.prepared;
+  } finally {
+    result.bytes?.fill(0);
+  }
+}
+/** The successful caller owns and must wipe the validated media buffer. */
+export function validateViewOnceMedia(
+  input: unknown,
+  base64Timing?: (ms: number) => void,
+): {
+  prepared: ValidatedViewOnce;
+  bytes: Uint8Array<ArrayBuffer> | null;
+} {
   const started = performance.now();
   const { content, bytes } = readViewOnceContent(input, base64Timing);
   const validationMs = Math.round(performance.now() - started);
@@ -33,14 +48,18 @@ export function validateViewOnce(
   try {
     const policies = contentPolicies(content, bytes);
     return {
-      content,
-      fileBytes: bytes?.length ?? 0,
-      ...policies,
-      validationMs,
-      policyMs: Math.round(performance.now() - policyStart),
+      bytes,
+      prepared: {
+        content,
+        fileBytes: bytes?.length ?? 0,
+        ...policies,
+        validationMs,
+        policyMs: Math.round(performance.now() - policyStart),
+      },
     };
-  } finally {
+  } catch (error: unknown) {
     bytes?.fill(0);
+    throw error;
   }
 }
 function contentPolicies(

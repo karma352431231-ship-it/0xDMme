@@ -230,12 +230,12 @@ export class DmHistory {
         metadata,
         signal,
         current: () => bubble.row.isConnected && !signal.aborted,
-        open: (diagnostic) =>
+        open: (diagnostic, media) =>
           this.options.controller.openViewOnce?.(
             input.selected,
             item.id,
             metadata,
-            { signal, diagnostic },
+            { signal, diagnostic, media },
           ) ?? Promise.reject(new Error('View-once message unavailable.')),
       });
     }

@@ -1,3 +1,4 @@
+import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import {
   measureSend,
   measureSendSync,
@@ -30,6 +31,7 @@ import {
 } from '../message-recovery/index.ts';
 import {
   validateViewOnce,
+  validateViewOnceMedia,
   selectionContents,
   draftChunks,
   openDraft,
@@ -407,6 +409,7 @@ type ViewOnceDelivery = {
   metadata: ViewOnceMetadata;
   response: unknown;
   diagnostic?: LoadTrace | undefined;
+  media?: ViewOnceMediaBuffer | undefined;
 };
 
 export async function decryptViewOnce(
@@ -474,17 +477,27 @@ export async function decryptViewOnce(
       'decrypt-json',
       () => JSON.parse(text) as unknown,
     );
-    const prepared = timedLoadSync(trace, 'decrypt-validate', () => {
-      const validated = validateViewOnce(
+    const result = timedLoadSync(trace, 'decrypt-validate', () =>
+      validateViewOnceMedia(
         parsed,
         trace
           ? (ms) => trace.point('decrypt-base64', { loadStageMs: ms })
           : undefined,
+      ),
+    );
+    let adopted = false;
+    try {
+      timedLoadSync(trace, 'decrypt-validate', () =>
+        assertDeliveryContent(result.prepared, input),
       );
-      assertDeliveryContent(validated, input);
-      return validated;
-    });
-    return prepared.content;
+      if (input.media && result.bytes && input.metadata.policy === 'mobile') {
+        input.media.adopt(result.bytes);
+        adopted = true;
+      }
+      return result.prepared.content;
+    } finally {
+      if (!adopted) result.bytes?.fill(0);
+    }
   } finally {
     secret.free();
     ciphertext.fill(0);

@@ -1,3 +1,4 @@
+import { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { transferProtected } from './transfer.ts';
 import { base64 } from '../../shared/account/index.ts';
 import { safeFilename } from '../../shared/attachments/index.ts';
@@ -89,13 +90,17 @@ async function showProtected(
   id: string,
   content: ViewOnceContent,
   signal: AbortSignal,
-  diagnostic?: LoadTrace,
+  work: {
+    diagnostic?: LoadTrace | undefined;
+    media?: ViewOnceMediaBuffer | undefined;
+  },
 ): Promise<void> {
+  const { diagnostic, media } = work;
   const display = protectedDisplay();
   if (!display)
     throw new Error('Open this view-once message in the mobile app.');
   await timedLoad(diagnostic, 'native-transfer', () =>
-    transferProtected({ display, id, content, signal, diagnostic }),
+    transferProtected({ display, id, content, signal, diagnostic, media }),
   );
   signal.throwIfAborted();
   await timedLoad(diagnostic, 'native-show', () =>
@@ -113,7 +118,10 @@ interface ViewOnceRow {
   metadata: ViewOnceMetadata;
   signal: AbortSignal;
   current: () => boolean;
-  open: (diagnostic?: LoadTrace) => Promise<ViewOnceContent>;
+  open: (
+    diagnostic?: LoadTrace,
+    media?: ViewOnceMediaBuffer,
+  ) => Promise<ViewOnceContent>;
 }
 
 export function renderViewOnce(input: ViewOnceRow): void {
@@ -189,26 +197,29 @@ async function openViewOnce(
   const file = metadata.policy === 'file';
   const display = file ? null : protectedDisplay();
   const diagnostic = startLoad(viewOnceKind(metadata));
+  const media = new ViewOnceMediaBuffer();
   let content: ViewOnceContent | null = null;
   const cancel = () => {
+    media?.close();
     void display?.close({ id }).catch(() => undefined);
   };
   input.signal.addEventListener('abort', cancel, { once: true });
   try {
     await beginProtected(display, id, metadata, diagnostic);
     input.signal.throwIfAborted();
-    content = await input.open(diagnostic);
+    content = await input.open(diagnostic, media);
     if (!input.current() || input.signal.aborted) {
       diagnostic?.point('cancelled', { loadOutcome: 'cancelled' });
       return;
     }
     if (file) await showFileDetails(id, content, input.signal, diagnostic);
-    else await showProtected(id, content, input.signal, diagnostic);
+    else await showProtected(id, content, input.signal, { diagnostic, media });
   } catch (error: unknown) {
     failedProtectedLoad(diagnostic, input.signal);
     throw error;
   } finally {
     input.signal.removeEventListener('abort', cancel);
+    media?.close();
     eraseContent(content);
     await display?.close({ id }).catch(() => undefined);
     if (content) opened();

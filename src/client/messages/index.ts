@@ -572,10 +572,10 @@ export function startMessages(
   const peerTitle = (peer: ConversationPeer) =>
     agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
-    openViewOnce: (view, metadata, signal, diagnostic) =>
+    openViewOnce: (view, metadata, signal, work) =>
       controller.openViewOnce(view.peer, view.id, metadata, {
         signal,
-        diagnostic,
+        ...work,
       }),
     receiptsVerified: (window) =>
       publishVerifiedPreviewReceipts({ ...window, previews }),

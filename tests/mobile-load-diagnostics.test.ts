@@ -1,3 +1,4 @@
+import { ViewOnceMediaBuffer } from '../src/client/view-once-media-buffer/index.ts';
 import { transferProtected } from '../src/client/view-once-ui/transfer.ts';
 import { ContactsScreenDiagnostics } from '../src/client/contacts/diagnostics.ts';
 import assert from 'node:assert/strict';
@@ -399,4 +400,51 @@ await test('viewer transfer records conversion and acknowledged bytes/blocks, in
     JSON.stringify(recording.report()),
     /private-name|private native failure/u,
   );
+});
+
+await test('validated viewer bytes bypass base64 conversion and are wiped after acknowledgement, cancellation and failure', async (t) => {
+  const { recording } = fixture(t);
+  for (const outcome of ['success', 'failed', 'cancelled'] as const) {
+    const media = new ViewOnceMediaBuffer(),
+      bytes = new Uint8Array([1, 2, 3]);
+    media.adopt(bytes);
+    const abort = new AbortController();
+    const failure = new Error('Synthetic append failed');
+    const display = {
+      append: () =>
+        outcome === 'failed' ? Promise.reject(failure) : Promise.resolve(),
+    } as unknown as ProtectedDisplay;
+    if (outcome === 'cancelled') abort.abort();
+    const transfer = transferProtected({
+      display,
+      id: crypto.randomUUID(),
+      content: {
+        text: '',
+        file: {
+          name: 'synthetic.png',
+          mime: 'image/png',
+          data: 'Must not decode this field again',
+        },
+      },
+      signal: abort.signal,
+      media,
+      diagnostic: startLoad('view-once-image'),
+    });
+    if (outcome === 'success') await transfer;
+    else await assert.rejects(transfer);
+    assert.deepEqual(bytes, new Uint8Array(3));
+    await assert.rejects(
+      media.present(() => Promise.resolve()),
+      { name: 'AbortError' },
+    );
+  }
+  assert.equal(
+    recording.report().loading.operations[0]!.transfer['loadReusedBytes'],
+    3,
+  );
+  const closed = new ViewOnceMediaBuffer();
+  closed.close();
+  const late = new Uint8Array([1]);
+  assert.throws(() => closed.adopt(late), { name: 'AbortError' });
+  assert.equal(late[0], 0);
 });

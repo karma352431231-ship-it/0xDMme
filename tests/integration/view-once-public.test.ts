@@ -1,3 +1,4 @@
+import { ViewOnceMediaBuffer } from '../../src/client/view-once-media-buffer/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -119,7 +120,18 @@ await test('public DM publication binds the independent encrypted payload to the
   });
   await am.prepare(a.authority);
   await bm.prepare(b.authority);
-  const content = { text: 'Synthetic protected public message' };
+  const mediaBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNwzn4FRAwQCgAqEgZh/qKZDQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const content = {
+    text: 'Synthetic protected public message',
+    file: {
+      name: 'synthetic.png',
+      mime: 'image/png',
+      data: mediaBytes.toString('base64'),
+    },
+  };
   const prepared = await prepareViewOnce({
     id: crypto.randomUUID(),
     scope: 'public',
@@ -166,6 +178,7 @@ await test('public DM publication binds the independent encrypted payload to the
   };
   await assert.rejects(operate(bob, 'view-once-open', data), { status: 403 });
   const response = await operate(bob, 'view-once-open', data, true);
+  const media = new ViewOnceMediaBuffer();
   assert.deepEqual(
     await decryptViewOnce({
       authority: b.authority,
@@ -175,9 +188,20 @@ await test('public DM publication binds the independent encrypted payload to the
       peer: ap.id,
       metadata: decodeDailyText(text).viewOnce!,
       response,
+      media,
     }),
     content,
   );
+  let transferred: Uint8Array | undefined;
+  assert.equal(
+    await media.present((bytes) => {
+      transferred = bytes;
+      assert.deepEqual(Buffer.from(bytes), mediaBytes);
+      return Promise.resolve();
+    }),
+    true,
+  );
+  assert.ok(transferred?.every((byte) => byte === 0));
   await assert.rejects(operate(bob, 'view-once-open', data, true), {
     status: 410,
   });

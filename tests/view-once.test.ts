@@ -1,3 +1,4 @@
+import { ViewOnceMediaBuffer } from '../src/client/view-once-media-buffer/index.ts';
 import { createLoadTrace } from '../src/client/chat-sync-diagnostics/load.ts';
 import type { LoadDiagnosticFields } from '../src/shared/chat-sync-diagnostics/load.ts';
 import assert from 'node:assert/strict';
@@ -77,9 +78,11 @@ await test('single-use content stays outside history and cannot be decrypted wit
       response: { header: prepared.header, bytes: encode(prepared.bytes) },
     };
     const stages: LoadDiagnosticFields[] = [];
+    const media = new ViewOnceMediaBuffer();
     assert.deepEqual(
       await decryptViewOnce({
         ...input,
+        media,
         diagnostic: createLoadTrace((fields) => stages.push(fields)),
       }),
       content,
@@ -94,6 +97,19 @@ await test('single-use content stays outside history and cannot be decrypted wit
     ])
       assert.ok(stages.some((step) => step.loadStage === stage));
     assert.doesNotMatch(JSON.stringify(stages), /Secret|report.pdf|photo.png/u);
+    let borrowed: Uint8Array | undefined;
+    const reused = await media.present((bytes) => {
+      borrowed = bytes;
+      assert.deepEqual(
+        bytes,
+        Uint8Array.from(Buffer.from(content.file!.data, 'base64')),
+      );
+      return Promise.resolve();
+    });
+    assert.equal(reused, !!content.file && prepared.header.policy === 'mobile');
+    if (borrowed) assert.ok(borrowed.every((byte) => byte === 0));
+    media.close();
+
     if (prepared.header.policy === 'file' && content.file) {
       const legacy = {
         name: content.file.name,

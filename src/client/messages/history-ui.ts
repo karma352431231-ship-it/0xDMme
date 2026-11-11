@@ -1,3 +1,4 @@
+import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
 import {
   submittedMediaRows,
@@ -59,7 +60,10 @@ interface HistoryPresentation {
     view: MessageView,
     metadata: ViewOnceMetadata,
     signal: AbortSignal,
-    diagnostic?: LoadTrace,
+    work: {
+      diagnostic?: LoadTrace | undefined;
+      media?: ViewOnceMediaBuffer | undefined;
+    },
   ) => Promise<ViewOnceContent>;
   node: <T extends HTMLElement>(selector: string) => T | null;
   context: () => {
@@ -535,9 +539,11 @@ export class MessageHistoryUi {
         metadata,
         signal,
         current: () => article.isConnected && !signal.aborted,
-        open: (diagnostic) =>
-          this.options.openViewOnce?.(view, metadata, signal, diagnostic) ??
-          Promise.reject(new Error('View-once message unavailable.')),
+        open: (diagnostic, media) =>
+          this.options.openViewOnce?.(view, metadata, signal, {
+            diagnostic,
+            media,
+          }) ?? Promise.reject(new Error('View-once message unavailable.')),
       });
     } else if (view.kind === 'attachment') {
       this.options.attachments.render({

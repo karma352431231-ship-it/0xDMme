@@ -1,3 +1,4 @@
+import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { ConversationReader } from './conversation-reader.ts';
 import type { MessageWindowRead } from './conversation-reader.ts';
 import type {
@@ -554,6 +555,7 @@ export class Messages {
     id: string,
     metadata: ViewOnceMetadata,
     work: {
+      media?: ViewOnceMediaBuffer | undefined;
       signal: AbortSignal;
       diagnostic?:
         import('../chat-sync-diagnostics/index.ts').LoadTrace | undefined;
@@ -602,6 +604,7 @@ export class Messages {
             metadata,
             response: delivery.response,
             diagnostic,
+            media: work.media,
           });
         const content = diagnostic
           ? await diagnostic.measure('decrypt', decrypt)

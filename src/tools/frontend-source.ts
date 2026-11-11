@@ -7,6 +7,7 @@ import { sourceTar } from './source-tar.ts';
 const maximumSourceFiles = 2048;
 const authored = [
   'src/shared/base64',
+  'src/client/view-once-media-buffer',
   'src/client/view-once',
   'src/client/view-once-preparation',
   'src/client/view-once-ui',

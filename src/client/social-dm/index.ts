@@ -1,3 +1,4 @@
+import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { timedLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { SocialTextOutbox } from './text-outbox.ts';
@@ -139,7 +140,11 @@ export class SocialDms {
     peer: string,
     id: string,
     metadata: ViewOnceMetadata,
-    work: { signal: AbortSignal; diagnostic?: LoadTrace | undefined },
+    work: {
+      signal: AbortSignal;
+      diagnostic?: LoadTrace | undefined;
+      media?: ViewOnceMediaBuffer | undefined;
+    },
   ) {
     const { signal, diagnostic } = work;
     const generation = this.generation;
@@ -183,6 +188,7 @@ export class SocialDms {
             metadata,
             response: delivery.response,
             diagnostic,
+            media: work.media,
           }),
         );
         guard();

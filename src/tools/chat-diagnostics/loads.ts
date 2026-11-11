@@ -111,6 +111,7 @@ export class ComparisonLoads {
       summary.bytes = event['loadBytes'];
     if (typeof event['loadRows'] === 'number') summary.rows = event['loadRows'];
     for (const field of [
+      'loadReusedBytes',
       'loadTransferBytes',
       'loadTransferBlocks',
       'loadTransferPlannedBytes',
