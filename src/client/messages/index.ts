@@ -641,11 +641,12 @@ export function startMessages(
       picker: composer.picker,
       choose,
       forward,
-      react: async (view, reaction) => {
+      react: async (view, reaction, id) => {
         await controller.composeAction(
           view,
           'reaction',
           encodeDailyText({ text: reaction, reply: null, forwarded: false }),
+          id,
         );
         await transmit();
       },

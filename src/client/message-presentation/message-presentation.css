@@ -6,10 +6,13 @@
 .chat-message:has(> .message-reactions:not(:empty)) {
   margin-bottom: 18px;
 }
-.chat-message > .message-reactions {
+.chat-image-frame:has(> .message-reactions:not(:empty)) {
+  margin-block-end: 16px;
+}
+:is(.chat-message, .chat-image-frame) > .message-reactions {
   position: absolute;
   top: calc(100% - 12px);
-  left: 10px;
+  inset-inline-start: 10px;
   display: flex;
   gap: 4px;
   z-index: 1;

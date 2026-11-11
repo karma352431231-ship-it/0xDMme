@@ -602,8 +602,8 @@ export class Messages {
     view: MessageView,
     type: MessageRelation['type'],
     text: string,
+    id: string = crypto.randomUUID(),
   ): Promise<void> {
-    const id = crypto.randomUUID();
     const session = this.session;
     if (!session) throw new Error('Session ended.');
     const relation = {

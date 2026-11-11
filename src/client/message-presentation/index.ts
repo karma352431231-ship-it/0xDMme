@@ -79,13 +79,15 @@ export function dayHeading(label: string): HTMLElement {
 }
 /** One chip per emoji; only the current author's choice is removable. */
 export function messageReactions(input: {
+  host?: HTMLElement;
   reactions: readonly string[];
   ownReaction: string;
   action: (label: string, work: () => Promise<void>) => HTMLButtonElement;
   remove: (() => Promise<void>) | null;
 }): HTMLElement {
-  const host = document.createElement('div');
+  const host = input.host ?? document.createElement('div');
   host.className = 'message-reactions';
+  host.replaceChildren();
   const counts = new Map<string, number>();
   for (const emoji of input.reactions)
     counts.set(emoji, (counts.get(emoji) ?? 0) + 1);

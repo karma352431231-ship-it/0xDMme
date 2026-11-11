@@ -2,7 +2,7 @@ import type { DailyView } from '../daily-text/index.ts';
 import type { MessageView } from './controller.ts';
 import { messageStates } from '../message-state/index.ts';
 
-/** Delivery/read receipts have their own renderer. Content changes replace only
+/** Receipts and reactions have their own renderers. Content changes replace only
  * the affected row and replies whose visible quote depends on that content. */
 export function messageRowKeys(
   views: DailyView<MessageView>[],
@@ -21,8 +21,6 @@ export function messageRowKeys(
         view.content,
         view.text,
         view.edited,
-        view.reactions,
-        view.ownReaction,
         view.sentAt,
         view.archived,
         view.state === messageStates.suspended,

@@ -11,7 +11,6 @@ import type { ForwardDirectory } from '../message-forward/index.ts';
 import {
   dayHeading,
   messageTime,
-  messageReactions,
   withDayHeadings,
 } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -35,6 +34,7 @@ import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { messageRowKeys } from './row-keys.ts';
+import { HistoryReactions } from './history-reactions.ts';
 import { openMessageMenu, reopenMessageMenu } from '../message-menu/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emojiText } from '../emoji/index.ts';
@@ -102,7 +102,8 @@ interface HistoryPresentation {
     signal: AbortSignal,
     ready?: (url: string | null) => void,
   ) => void;
-  actions: Pick<Actions, 'action' | 'picker' | 'choose' | 'react'> & {
+  actions: Pick<Actions, 'action' | 'picker' | 'choose'> & {
+    react: (view: MessageView, emoji: string, id: string) => Promise<void>;
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
   };
@@ -113,6 +114,7 @@ export class MessageHistoryUi {
   private readonly deletion: MessageDeletionSelection;
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
+  private readonly reactions: HistoryReactions;
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
@@ -132,6 +134,10 @@ export class MessageHistoryUi {
   constructor(options: HistoryPresentation) {
     this.deletion = new MessageDeletionSelection(options.run);
     this.options = options;
+    this.reactions = new HistoryReactions({
+      action: options.actions.action,
+      send: options.actions.react,
+    });
     this.forwarding =
       options.forwarding && options.flush
         ? new MessageForwardSelection({
@@ -172,7 +178,10 @@ export class MessageHistoryUi {
     rows: readonly MessageView[] | null,
     update: HistoryUpdate = 'history',
   ): void {
-    if (rows === null) this.forwarding?.clear();
+    if (rows === null) {
+      this.forwarding?.clear();
+      this.reactions.closeGate();
+    }
     this.views = rows;
     if (rows !== null && !this.options.visible()) {
       this.pending = this.pending === 'history' ? 'history' : update;
@@ -297,6 +306,7 @@ export class MessageHistoryUi {
         ],
         this.options.signal(),
       );
+      this.reactions.reconcile(views, this.views ?? []);
       reopenMessageMenu(history, menu);
       this.renderStates();
     } else if (this.views !== null) this.renderStates();
@@ -442,8 +452,7 @@ export class MessageHistoryUi {
     signal: AbortSignal,
   ): HTMLElement {
     const article = document.createElement('article');
-    const { action, picker, choose, react } = this.options.actions;
-    const actions = { action, picker, choose, react };
+    const { action, picker, choose } = this.options.actions;
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['message'] = view.id;
     article.setAttribute(
@@ -453,7 +462,8 @@ export class MessageHistoryUi {
         : t('Message received from {0}', [this.peerLabel()]),
     );
     const text = document.createElement('p');
-    this.renderMessageContent({ article, text, view, signal });
+    const reactionPanel = this.reactions.mount(view, signal);
+    this.renderMessageContent({ article, text, view, signal, reactionPanel });
     if (view.kind === 'text' && this.options.externalMedia)
       showExternalVideos(article, view.content.text, {
         privacy: this.options.externalMedia,
@@ -465,7 +475,10 @@ export class MessageHistoryUi {
       text,
       detail,
       messageActions({
-        ...actions,
+        action,
+        picker,
+        choose,
+        react: (target, emoji) => this.reactions.change(target, emoji),
         row: article,
         signal,
         view,
@@ -486,15 +499,7 @@ export class MessageHistoryUi {
           : {}),
       }),
     );
-    if (view.reactions.length)
-      article.append(
-        messageReactions({
-          reactions: view.reactions,
-          ownReaction: view.ownReaction,
-          action: actions.action,
-          remove: view.archived ? null : () => actions.react(view, ''),
-        }),
-      );
+    if (!reactionPanel.parentNode) article.append(reactionPanel);
     return article;
   }
   private renderMessageContent(input: {
@@ -502,6 +507,7 @@ export class MessageHistoryUi {
     text: HTMLElement;
     view: DailyView<MessageView>;
     signal: AbortSignal;
+    reactionPanel: HTMLElement;
   }): void {
     const { article, text, view, signal } = input;
     const { session, peers } = this.options.context();
@@ -522,6 +528,7 @@ export class MessageHistoryUi {
     } else if (view.kind === 'attachment') {
       this.options.attachments.render({
         article,
+        imageOverlay: input.reactionPanel,
         view,
         signal,
         load: this.options.media,

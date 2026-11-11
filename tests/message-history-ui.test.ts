@@ -11,6 +11,7 @@ import { deferred } from './fixtures/deferred.ts';
 import { OutgoingTexts } from '../src/client/messages/outgoing-text.ts';
 import { setActiveLanguage, t as translate } from '../src/shared/i18n/index.ts';
 import type { SubmittedMedia } from '../src/client/messages/attachment-submissions.ts';
+import type { AttachmentContent } from '../src/shared/attachments/index.ts';
 
 function row(id: string, own = false): MessageView {
   return {
@@ -24,7 +25,13 @@ function row(id: string, own = false): MessageView {
     delivery: 'received',
   };
 }
-function fixture(t: TestContext) {
+type ReactionHooks = Partial<
+  Pick<
+    ConstructorParameters<typeof MessageHistoryUi>[0]['actions'],
+    'picker' | 'react'
+  >
+>;
+function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
   const document = new ChatNode('#document');
   const create = (tag: string) => new ChatNode(tag);
   Object.defineProperty(globalThis, 'document', {
@@ -60,6 +67,7 @@ function fixture(t: TestContext) {
     read: ReadonlySet<string>;
   }[] = [];
   let retries = 0;
+  let lastAction: Promise<void> | undefined;
   let visible = true,
     clears = 0;
   const ui = new MessageHistoryUi({
@@ -97,9 +105,13 @@ function fixture(t: TestContext) {
       outgoing.retry();
     },
     actions: {
-      action: (label) => {
+      action: (label, work) => {
         const button = create('button');
         button.textContent = label;
+        button.addEventListener('click', () => {
+          lastAction = work();
+          void lastAction.catch(() => undefined);
+        });
         return button as unknown as HTMLButtonElement;
       },
       picker: {} as EmojiPicker,
@@ -107,6 +119,7 @@ function fixture(t: TestContext) {
       react: () => Promise.resolve(),
       forward: () => Promise.resolve(),
       remove: () => Promise.resolve(),
+      ...reactionHooks,
     },
   });
   return {
@@ -114,6 +127,7 @@ function fixture(t: TestContext) {
     outgoing,
     media,
     previews,
+    lastAction: () => lastAction!,
     receipts,
     retries: () => retries,
     history,
@@ -135,6 +149,211 @@ function fixture(t: TestContext) {
     },
   };
 }
+
+function photoMessage(): MessageView {
+  const content: AttachmentContent = {
+    version: 1,
+    name: 'test.png',
+    type: 'image/png',
+    caption: '',
+    image: true,
+    thumbnail: null,
+    file: {
+      encryption: '{}',
+      ref: {
+        id: crypto.randomUUID(),
+        hash: 'b'.repeat(64),
+        bytes: 57,
+        parts: [{ hash: 'b'.repeat(64), bytes: 57 }],
+      },
+    },
+  };
+  return {
+    ...row(crypto.randomUUID()),
+    author: 'author',
+    kind: 'attachment',
+    text: JSON.stringify(content),
+  };
+}
+function reactionTo(
+  photo: MessageView,
+  input: {
+    id: string;
+    emoji: string;
+    own: boolean;
+    sequence: number;
+  },
+): MessageView {
+  return {
+    ...row(input.id, input.own),
+    text: input.emoji,
+    author: input.own ? 'self' : 'author',
+    sequence: input.sequence,
+    relation: {
+      type: 'reaction',
+      id: photo.id,
+      hash: photo.hash,
+      author: photo.author!,
+    },
+  };
+}
+function chooseReaction(bubble: ChatNode): void {
+  const action = bubble
+    .querySelectorAll('button')
+    .find((button) => button.textContent === translate('React…'));
+  assert.ok(action);
+  action.click();
+}
+
+await test('a photo reaction appears before publication and verified changes preserve the preview', async (t) => {
+  const publish = deferred<void>();
+  const sent: string[] = [];
+  const f = fixture(t, {
+    picker: { choose: () => Promise.resolve('😂') },
+    react: (_view, _emoji, id) => {
+      sent.push(id);
+      return publish.promise;
+    },
+  });
+  const photo = photoMessage();
+  f.ui.render([photo]);
+  const bubble = f.history.children[0]! as ChatNode;
+  const panel = bubble.querySelector('.message-reactions')!;
+  chooseReaction(bubble);
+  await Promise.resolve();
+  assert.equal(sent.length, 1);
+  assert.match(panel.textContent, /😂/u);
+  assert.equal(
+    panel.querySelector('button')?.getAttribute('aria-pressed'),
+    'true',
+  );
+
+  const other = reactionTo(photo, {
+    id: 'other-reaction',
+    emoji: '😂',
+    own: false,
+    sequence: 2,
+  });
+  f.ui.render([photo, other]);
+  assert.match(panel.textContent, /😂 2/u);
+  const accepted = reactionTo(photo, {
+    id: sent[0]!,
+    emoji: '😂',
+    own: true,
+    sequence: 3,
+  });
+  f.ui.render([photo, other, accepted]);
+  publish.resolve();
+  await f.lastAction();
+  assert.equal(f.history.children[0], bubble);
+  assert.equal(bubble.querySelector('.message-reactions'), panel);
+  assert.equal(f.previews.length, 1);
+  assert.equal(f.previews[0]!.aborted, false);
+
+  const removed = reactionTo(photo, {
+    id: 'own-removal',
+    emoji: '',
+    own: true,
+    sequence: 4,
+  });
+  f.ui.render([photo, other, accepted, removed]);
+  assert.equal(
+    panel.querySelector('button')?.getAttribute('aria-label'),
+    translate('message.reaction {0} {1}', ['😂', 1]),
+  );
+  assert.equal(
+    panel.querySelector('button')?.getAttribute('aria-pressed'),
+    'false',
+  );
+});
+
+await test('a failed photo reaction restores the confirmed chips without replacing its preview', async (t) => {
+  const publish = deferred<void>();
+  const f = fixture(t, {
+    picker: { choose: () => Promise.resolve('😂') },
+    react: () => publish.promise,
+  });
+  const photo = photoMessage();
+  f.ui.render([
+    photo,
+    reactionTo(photo, { id: 'prior', emoji: '👍', own: true, sequence: 2 }),
+  ]);
+  const bubble = f.history.children[0]! as ChatNode;
+  const panel = bubble.querySelector('.message-reactions')!;
+  chooseReaction(bubble);
+  await Promise.resolve();
+  assert.equal(
+    panel.querySelector('button')?.getAttribute('aria-label'),
+    translate('message.remove-reaction {0} {1}', ['😂', 1]),
+  );
+  publish.reject(new Error('Send failed'));
+  await assert.rejects(f.lastAction(), /Send failed/u);
+  assert.equal(
+    panel.querySelector('button')?.getAttribute('aria-label'),
+    translate('message.remove-reaction {0} {1}', ['👍', 1]),
+  );
+  assert.equal(f.history.children[0], bubble);
+  assert.equal(f.previews.length, 1);
+  assert.equal(f.previews[0]!.aborted, false);
+});
+
+await test('removing a reaction is immediate and a failed removal restores the same image and chips', async (t) => {
+  const pending = deferred<void>();
+  const f = fixture(t, { react: () => pending.promise });
+  const photo = photoMessage();
+  const confirmed = reactionTo(photo, {
+    id: 'previous',
+    emoji: '👍',
+    own: true,
+    sequence: 2,
+  });
+  f.ui.render([photo, confirmed]);
+  const bubble = f.history.children[0]!;
+  const chips = bubble.querySelector('.message-reactions')!;
+  chips.querySelector('button')!.click();
+  assert.equal(chips.children.length, 0);
+  f.ui.render([photo, confirmed]);
+  assert.equal(chips.children.length, 0);
+  pending.reject(new Error('Removal failed'));
+  await assert.rejects(f.lastAction(), /Removal failed/u);
+  assert.equal(
+    chips.querySelector('button')!.getAttribute('aria-pressed'),
+    'true',
+  );
+  assert.equal(f.previews.length, 1);
+  assert.equal(f.previews[0]!.aborted, false);
+  assert.equal(f.history.children[0], bubble);
+});
+
+await test('a late failed reaction cannot alter the next conversation and deletion aborts only its own image', async (t) => {
+  const pending = deferred<void>();
+  const f = fixture(t, {
+    picker: { choose: () => Promise.resolve('😂') },
+    react: () => pending.promise,
+  });
+  const first = photoMessage();
+  f.ui.render([first]);
+  chooseReaction(f.history.children[0]! as ChatNode);
+  await Promise.resolve();
+  assert.match(
+    f.history.children[0]!.querySelector('.message-reactions')!.textContent,
+    /😂/u,
+  );
+  f.ui.render(null);
+  const next = { ...photoMessage(), peer: 'next-peer' };
+  f.select(next.peer);
+  f.ui.render([next]);
+  const bubble = f.history.children[0]!;
+  const chips = bubble.querySelector('.message-reactions')!;
+  pending.reject(new Error('Old reaction failed'));
+  await assert.rejects(f.lastAction(), /Old reaction failed/u);
+  assert.equal(chips.children.length, 0);
+  assert.equal(f.history.children[0], bubble);
+  assert.equal(f.previews[0]!.aborted, true);
+  assert.equal(f.previews[1]!.aborted, false);
+  f.ui.render([]);
+  assert.equal(f.previews[1]!.aborted, true);
+});
 await test('the accepted attachment check keeps the local preview until verified history reconciles it', (t) => {
   const f = fixture(t);
   const draft: SubmittedMedia = {

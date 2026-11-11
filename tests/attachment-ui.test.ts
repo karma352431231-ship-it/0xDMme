@@ -114,6 +114,33 @@ function viewerSaveLink(body: MediaNode): MediaNode | undefined {
   return bar?.children.find((node) => node.tag === 'a');
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+await test('an image overlay shares the image frame and survives preview loading', async (t) => {
+  const { ui, blobs, revoked } = environment(t);
+  const article = new MediaNode('article');
+  const reactions = new MediaNode('div');
+  reactions.className = 'message-reactions';
+  ui.render({
+    article: article as unknown as HTMLElement,
+    imageOverlay: reactions as unknown as HTMLElement,
+    content: content('image/png', true),
+    view: { id: crypto.randomUUID(), text: '', peer: crypto.randomUUID() },
+    load: () => Promise.resolve(png()),
+    run: (work) => work(),
+  });
+  const frame = article.children.find(
+    (node) => node.className === 'chat-image-frame',
+  )!;
+  const preview = frame.children[0]!;
+  assert.equal(frame.children[1], reactions);
+  await flush();
+  const image = preview.children[0]?.children[0];
+  assert.equal(image?.src, 'blob:synthetic-1');
+  reactions.textContent = '😂';
+  assert.equal(preview.children[0]?.children[0], image);
+  assert.equal(frame.children[1], reactions);
+  assert.equal(blobs.length, 1);
+  assert.deepEqual(revoked, []);
+});
 function render(
   ui: AttachmentUi,
   load: () => Promise<Uint8Array<ArrayBuffer>>,

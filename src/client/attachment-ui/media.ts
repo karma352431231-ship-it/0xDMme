@@ -17,6 +17,7 @@ export interface MediaView {
 }
 interface MediaInput<V extends MediaView> {
   content?: AttachmentContent;
+  imageOverlay?: HTMLElement;
   saveNotice?: string;
   article: HTMLElement;
   view: V;
@@ -141,6 +142,17 @@ function mediaInfo(content: AttachmentContent, image: boolean): string {
     caption ? ` · ${caption}` : '',
   ]);
 }
+/** Keep the overlay outside the preview contents replaced by the media loader. */
+function frameImagePreview(
+  preview: HTMLElement,
+  overlay?: HTMLElement,
+): HTMLElement {
+  if (!overlay) return preview;
+  const frame = document.createElement('div');
+  frame.className = 'chat-image-frame';
+  frame.append(preview, overlay);
+  return frame;
+}
 /** A voice is its player; decryption and download wait for the first play. */
 function renderVoice<V extends MediaView>(
   input: MediaInput<V>,
@@ -198,7 +210,12 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     : video
       ? t('Play video')
       : t('Download original file');
-  input.article.append(...(image ? [preview, info] : [info, preview]), button);
+  input.article.append(
+    ...(image
+      ? [frameImagePreview(preview, input.imageOverlay), info]
+      : [info, preview]),
+    button,
+  );
   button.hidden = image;
   let pending = false;
   async function fetchMedia(): Promise<void> {

@@ -292,6 +292,7 @@ export class AttachmentUi {
   }
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
+    imageOverlay?: HTMLElement;
     saveNotice?: string;
     signal?: AbortSignal;
     article: HTMLElement;
