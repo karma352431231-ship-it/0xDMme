@@ -6,7 +6,6 @@ import type {
   NativeSessionBridge,
 } from '../native-api/index.ts';
 import { encode, keys, object, uuid } from '../../shared/account/index.ts';
-import type { NativeVideoPort } from '../native-video/index.ts';
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -142,30 +141,6 @@ export class InstalledSessionChannel implements NativeSessionBridge {
     bytes: number;
   }): Promise<void> {
     if ((await this.call('view-begin', request)) !== true) throw unavailable();
-  }
-  videoPort(): NativeVideoPort | null {
-    if (!this.android) return null;
-    return {
-      begin: (input) => this.videoCall('video-begin', input),
-      append: (input) => this.videoCall('video-append', input),
-      show: (input) => this.videoCall('video-show', input),
-      close: (input) => this.videoCall('video-close', input),
-      status: async (input) => {
-        const value = await this.call('video-active', input);
-        if (value !== 'open' && value !== 'closed' && value !== 'failed')
-          throw unavailable();
-        return value;
-      },
-      presented: async ({ id, signal }) => {
-        signal.throwIfAborted();
-        if ((window as InstalledWindow).__0xdmmeNativeDiagnostics !== true)
-          return { state: 'unavailable', elapsedMs: 0 };
-        return presentationReply(await this.call('video-frame', { id }, 11000));
-      },
-    };
-  }
-  private async videoCall(operation: string, input: object): Promise<void> {
-    if ((await this.call(operation, input)) !== true) throw unavailable();
   }
   async viewAppend(request: {
     id: string;

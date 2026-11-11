@@ -48,7 +48,6 @@ final class NativeViewOnce {
         this.source = source;
         this.protectedState = protectedState;
     }
-    boolean active() { return dialog != null; }
     Object dispatch(String operation, JSONObject input) throws Exception {
         if (operation.equals("view-begin")) return begin(input);
         String requested = NativePolicy.identifier(input, "id");

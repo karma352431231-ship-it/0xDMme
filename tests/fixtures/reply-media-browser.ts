@@ -41,7 +41,7 @@ export async function replyMediaFixture(
       if (kind !== 'root') card.classList.add('community-post-is-reply');
       card.innerHTML = `<p class="community-text">Synthetic ${kind}</p>
         <div class="community-public-media"><figure data-picture></figure></div>
-        <div class="community-public-media"><figure class="community-public-video" style="--video-ratio: 1.142857"><video width="640" height="560" class="community-media-preview"></video></figure></div>
+        <div class="community-public-media"><figure class="inline-video" style="--video-ratio: 1.142857"><video width="640" height="560" class="community-media-preview"></video></figure></div>
         <div class="community-external-gif"><figure class="chat-gif"><img src="${source}" width="640" height="560" alt="Synthetic GIF"></figure></div>
         <div class="community-external-gif"><figure class="chat-gif"><video poster="${source}" width="640" height="560"></video></figure></div>`;
       scope.append(card);

@@ -4,6 +4,17 @@
   max-width: 100%;
 }
 
+.chat-message:has(> .chat-attachment-video) {
+  width: min(100%, 420px);
+}
+.chat-video-save {
+  font-size: var(--fs-caption);
+}
+.chat-video-save > small {
+  display: block;
+  color: var(--text-muted);
+}
+
 /*
  * Files chosen in the chat composer (24/10/2026): tiles side by side with only
  * the picture or a file mark, a remove X on hover (always shown on touch), and

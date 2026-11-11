@@ -1,31 +1,46 @@
 import { t } from '../../shared/i18n/index.ts';
-import type { PublicPostMedia } from '../../shared/public-media/index.ts';
-import { retainedPublicMedia } from './retained.ts';
-import type { RetainedPublicMedia } from './retained.ts';
+import { retainedMedia } from '../media-retention/index.ts';
+import type { RetainedMedia } from '../media-retention/index.ts';
 
-/** Retain visited players within the shared RAM budget. Playback stays user initiated. */
-export function mountPublicVideo(
+interface VideoSize {
+  width: number;
+  height: number;
+}
+interface InlineVideoSource {
+  blob: Blob;
+  decoded?: (video: HTMLVideoElement) => void;
+}
+interface InlineVideoOptions {
+  signal: AbortSignal;
+  load: (signal: AbortSignal) => Promise<InlineVideoSource>;
+  size?: VideoSize;
+  label?: string;
+  poster?: { bytes: number; load: (signal: AbortSignal) => Promise<Blob> };
+  sourceChanged?: (url: string | null) => void;
+  play?: () => void;
+}
+
+/** The feed and chat share the same inline player, controls and viewport lifecycle. */
+export function mountInlineVideo(
   slot: HTMLElement,
-  media: PublicPostMedia,
-  options: {
-    signal: AbortSignal;
-    load: (thumbnail: boolean, signal: AbortSignal) => Promise<Blob>;
-  },
+  options: InlineVideoOptions,
 ): () => void {
   const video = document.createElement('video'),
     caption = document.createElement('span'),
     retry = document.createElement('button');
-  slot.classList.add('community-public-video');
-  slot.style.setProperty(
-    '--video-ratio',
-    String(media.result.width / media.result.height),
-  );
+  slot.classList.add('inline-video');
+  const { size, poster } = options;
+  setRatio(slot, size ?? { width: 16, height: 9 });
   video.className = 'community-media-preview';
   video.controls = true;
   video.preload = 'auto';
-  video.width = media.result.width;
-  video.height = media.result.height;
+  if (size) {
+    video.width = size.width;
+    video.height = size.height;
+  }
+  if (options.label) video.setAttribute('aria-label', options.label);
   video.setAttribute('playsinline', '');
+  if (options.play) video.addEventListener('play', options.play);
   caption.setAttribute('role', 'status');
   retry.type = 'button';
   retry.textContent = t('Try loading video');
@@ -36,11 +51,13 @@ export function mountPublicVideo(
     current: AbortController | null = null,
     resultUrl: string | null = null,
     posterUrl: string | null = null,
-    retained: RetainedPublicMedia | null = null,
+    retained: RetainedMedia | null = null,
+    decoded: InlineVideoSource['decoded'],
     position = 0;
   function unload(): void {
     retained?.release();
     retained = null;
+    decoded = undefined;
     current?.abort();
     current = null;
     if (resultUrl && Number.isFinite(video.currentTime))
@@ -53,14 +70,15 @@ export function mountPublicVideo(
     if (posterUrl) URL.revokeObjectURL(posterUrl);
     posterUrl = null;
     video.removeAttribute('poster');
+    options.sourceChanged?.(null);
   }
   function usable(signal: AbortSignal): boolean {
     return !signal.aborted && !stopped;
   }
   function loadPoster(signal: AbortSignal): void {
-    if (!posterUrl)
-      void options
-        .load(true, signal)
+    if (poster && !posterUrl)
+      void poster
+        .load(signal)
         .then((blob) => {
           if (!usable(signal)) return;
           posterUrl = URL.createObjectURL(blob);
@@ -79,16 +97,8 @@ export function mountPublicVideo(
     retry.hidden = true;
     loadPoster(signal);
     try {
-      const blob = await options.load(false, signal);
-      if (!usable(signal)) return;
-      resultUrl = URL.createObjectURL(blob);
-      video.src = resultUrl;
-      video.load();
-      retained = retainedPublicMedia.keep({
-        bytes: blob.size + media.result.thumbnailBytes,
-        visible,
-        dispose: unload,
-      });
+      const source = await options.load(signal);
+      if (usable(signal)) present(source);
     } catch {
       if (usable(signal)) {
         caption.textContent = t('Video unavailable. Try again.');
@@ -98,11 +108,36 @@ export function mountPublicVideo(
       if (current === controller) current = null;
     }
   }
+  function present(source: InlineVideoSource): void {
+    const { blob } = source;
+    resultUrl = URL.createObjectURL(blob);
+    options.sourceChanged?.(resultUrl);
+    retained = retainedMedia.keep({
+      bytes: blob.size + (poster?.bytes ?? 0),
+      visible,
+      dispose: unload,
+    });
+    if (!blob.type.startsWith('video/')) {
+      caption.textContent = t('Video unavailable. Try again.');
+      return;
+    }
+    decoded = source.decoded;
+    video.src = resultUrl;
+    video.load();
+  }
   video.addEventListener('loadedmetadata', () => {
+    if (!size)
+      setRatio(slot, { width: video.videoWidth, height: video.videoHeight });
     if (position > 0 && position < video.duration) video.currentTime = position;
   });
   video.addEventListener('loadeddata', () => {
     caption.textContent = '';
+    const notify = decoded;
+    decoded = undefined;
+    notify?.(video);
+  });
+  video.addEventListener('error', () => {
+    if (resultUrl) caption.textContent = t('Video unavailable. Try again.');
   });
   retry.addEventListener('click', () => {
     void load();
@@ -131,6 +166,11 @@ export function mountPublicVideo(
   options.signal.addEventListener('abort', cleanup, { once: true });
   if (options.signal.aborted) cleanup();
   return cleanup;
+}
+
+function setRatio(slot: HTMLElement, size: VideoSize): void {
+  if (size.width > 0 && size.height > 0)
+    slot.style.setProperty('--video-ratio', String(size.width / size.height));
 }
 
 /** iOS Safari only offers full screen on the video element itself. */

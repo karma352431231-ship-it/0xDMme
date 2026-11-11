@@ -8,6 +8,5 @@
     <string name="video_pause">Pause video</string>
     <string name="video_seek">Video position</string>
     <string name="video_fullscreen">Full screen</string>
-    <string name="video_close">Close video</string>
     <string name="video_failed">Could not play this video.</string>
 </resources>

@@ -10,7 +10,6 @@ import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
-import { NativeVideoPlayback } from '../native-video/index.ts';
 import { renderMedia } from './media.ts';
 import { renderSelectionStrip, renderUsageRing } from './selection-strip.ts';
 import { AttachmentSelectionQueue, wipe } from './selection-queue.ts';
@@ -19,7 +18,7 @@ import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import { viewOnceEnabled } from '../chat-ui/index.ts';
 
 export class AttachmentUi {
-  private readonly video = new NativeVideoPlayback();
+  private mediaLifetime = new AbortController();
   private selectionWork: symbol | null = null;
   get preparing(): boolean {
     return this.selectionWork !== null;
@@ -113,7 +112,8 @@ export class AttachmentUi {
   }
   clearMedia(): void {
     this.generation++;
-    this.video.close();
+    this.mediaLifetime.abort();
+    this.mediaLifetime = new AbortController();
     for (const url of this.urls) URL.revokeObjectURL(url);
     this.urls.clear();
   }
@@ -309,17 +309,21 @@ export class AttachmentUi {
     run: (work: () => Promise<void>) => Promise<void>;
   }): void {
     const token = this.generation;
+    const lifetime = this.mediaLifetime.signal;
+    const signal = input.signal
+      ? AbortSignal.any([input.signal, lifetime])
+      : lifetime;
     renderMedia({
       ...input,
       playback: this.playback,
-      playVideo: (video) => this.video.play(video),
+      signal,
       current: () =>
         token === this.generation &&
-        !input.signal?.aborted &&
+        !signal.aborted &&
         input.article.isConnected,
       retain: (url) => {
         this.urls.add(url);
-        input.signal?.addEventListener(
+        signal.addEventListener(
           'abort',
           () => {
             if (this.urls.delete(url)) URL.revokeObjectURL(url);
@@ -330,12 +334,15 @@ export class AttachmentUi {
       enqueue: (work) => this.enqueue(work),
     });
   }
-  private enqueue(work: () => Promise<void>): Promise<void> {
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
     if (this.queued >= 18)
       return Promise.reject(new Error('Processing media. Please wait.'));
     this.queued++;
     const result = this.queue.then(work);
-    this.queue = result.catch(() => {});
+    this.queue = result.then(
+      () => undefined,
+      () => undefined,
+    );
     return result.finally(() => {
       this.queued--;
     });

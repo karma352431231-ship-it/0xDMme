@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PublicMediaRetention } from '../src/client/public-media/retained.ts';
+import { MediaRetention } from '../src/client/media-retention/index.ts';
 
 await test('public media evicts the least recently visited inactive file within the byte budget and never interrupts visible playback', () => {
-  const memory = new PublicMediaRetention(),
+  const memory = new MediaRetention(),
     removed: number[] = [];
   const keep = (id: number, visible = false) =>
     memory.keep({
@@ -29,7 +29,7 @@ await test('public media evicts the least recently visited inactive file within 
 });
 
 await test('tiny visited media respect the aggregate item budget and explicit cleanup removes its reservation', () => {
-  const memory = new PublicMediaRetention(),
+  const memory = new MediaRetention(),
     removed: number[] = [];
   const keep = (id: number) =>
     memory.keep({

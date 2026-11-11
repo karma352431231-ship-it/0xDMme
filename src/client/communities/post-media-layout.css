@@ -41,33 +41,3 @@
   object-fit: contain;
   background: transparent;
 }
-:is(.app[data-page='comunidades'], .community-scope)
-  .community-public-media
-  figure.community-public-video {
-  width: min(
-    100%,
-    calc(var(--community-video-height, 560px) * var(--video-ratio))
-  );
-  justify-self: center;
-}
-:is(.app[data-page='comunidades'], .community-scope)
-  .community-public-media
-  figure.community-public-video
-  > video {
-  aspect-ratio: var(--video-ratio);
-  height: auto;
-}
-:is(.app[data-page='comunidades'], .community-scope)
-  .community-public-media
-  figure.community-public-video
-  > button {
-  font-size: var(--fs-caption);
-  padding: 8px;
-  background: transparent;
-}
-:is(.app[data-page='comunidades'], .community-scope)
-  .community-public-media
-  figure.community-public-video
-  > button[hidden] {
-  display: none;
-}

@@ -25,7 +25,7 @@ public final class NativeSessionChannel extends WebViewListener {
     private final WebView view;
     private final NativeSession session;
     private final NativeStartupTiming startup;
-    private final NativePresentations presentations;
+    private final NativeViewOnce viewOnce;
     private final NativeFileExport files;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor parser = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
@@ -59,7 +59,7 @@ public final class NativeSessionChannel extends WebViewListener {
         this.startup = startup;
         this.view = view;
         this.session = session;
-        this.presentations = new NativePresentations(view, session::protectView);
+        this.viewOnce = new NativeViewOnce(view, session::protectView);
         this.files = new NativeFileExport(view);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             close();
@@ -137,15 +137,9 @@ public final class NativeSessionChannel extends WebViewListener {
                 case "view-show":
                 case "view-active":
                 case "view-close":
-                case "video-begin":
-                case "video-append":
-                case "video-show":
-                case "video-active":
-                case "video-close":
-                    reply.value(presentations.dispatch(message.operation, message.request));
+                    reply.value(viewOnce.dispatch(message.operation, message.request));
                     break;
-                case "view-frame":
-                case "video-frame": presentations.awaitFrame(message.operation, message.request, reply); break;
+                case "view-frame": viewOnce.awaitFrame(message.request, reply); break;
                 case "file-begin":
                 case "file-append":
                 case "file-save":
@@ -186,7 +180,7 @@ public final class NativeSessionChannel extends WebViewListener {
 
     @Override public void onPageStarted(WebView webView) {
         startup.documentStarted();
-        presentations.close();
+        viewOnce.close();
         files.close();
         generation++;
         committed = false;
@@ -217,7 +211,7 @@ public final class NativeSessionChannel extends WebViewListener {
     public void close() {
         if (closed) return;
         closed = true;
-        presentations.close();
+        viewOnce.close();
         files.close();
         generation++;
         calls.clear();
@@ -226,5 +220,5 @@ public final class NativeSessionChannel extends WebViewListener {
     }
     public boolean fileResult(int request, int status, android.content.Intent data) { return files.result(request, status, data); }
 
-    public void suspend() { presentations.close(); }
+    public void suspend() { viewOnce.close(); }
 }

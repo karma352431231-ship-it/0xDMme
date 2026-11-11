@@ -130,17 +130,19 @@ comparison, so the measured startup improvement is still open.
 
 ## Android chat video playback
 
-The installed Android chat attachment UI presents replayable videos in a native
-player for private conversations, groups and public DMs. The player uses the
-platform `MediaPlayer`, play/pause, seeking and a fullscreen control. The
-existing browser player remains available when the native decoder rejects a
-file. The regular attachment still offers an explicit save action.
+Regular video attachments in private conversations, groups and public DMs mount
+with the feed's shared inline player and fullscreen control. The player is
+visible immediately. The existing authenticated attachment loader supplies the
+video when the bubble approaches the viewport, and playback starts on user
+input. Save on device still requires an explicit action. Source URLs share the
+existing bounded offscreen media budget and are revoked on row disposal.
 
-The same decoder renders MP4 in the secure view-once window. Protected
+The Android MediaPlayer renders MP4 in the secure view-once window. Protected
 QuickTime playback uses the existing isolated WebView for compatibility. The
 single-use capability and screenshot/audio protection stay with the protected
-viewer. Only one native presentation can be active per document. Native buffers
+viewer. Only one protected presentation can be active per document. Native buffers
 stay in memory and are wiped after teardown. The document, foreground and chat
-row lifecycles close their active presentation. The diagnostic APK reports first
-frame timing from the Android rendering callback. Playback and latency on the
-physical device are part of manual acceptance.
+row lifecycles close their active presentation. The diagnostic APK reports protected first-frame timing from the Android
+rendering callback. The regular inline player reports decode and the following
+DOM frame opportunity. Playback and latency on the physical device are part of
+manual acceptance.

@@ -3,19 +3,19 @@ interface MediaEntry {
   visible: boolean;
   dispose: () => void;
 }
-export interface RetainedPublicMedia {
+export interface RetainedMedia {
   visibility: (visible: boolean) => void;
   release: () => void;
 }
 
-/** Mounted public media only. Keep at most 128 MiB / 48 off-screen files;
+/** Mounted media only. Keep at most 128 MiB / 48 off-screen files;
  * visible players are not interrupted. No persistent or external GIF cache. */
-export class PublicMediaRetention {
+export class MediaRetention {
   private readonly entries = new Set<MediaEntry>();
   private readonly maximumBytes = 128 * 1024 * 1024;
   private readonly maximumItems = 48;
 
-  keep(input: MediaEntry): RetainedPublicMedia {
+  keep(input: MediaEntry): RetainedMedia {
     const entry = { ...input };
     this.entries.add(entry);
     this.trim();
@@ -45,4 +45,4 @@ export class PublicMediaRetention {
   }
 }
 
-export const retainedPublicMedia = new PublicMediaRetention();
+export const retainedMedia = new MediaRetention();

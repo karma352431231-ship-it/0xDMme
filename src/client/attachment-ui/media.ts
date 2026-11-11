@@ -10,7 +10,7 @@ import {
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { startLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
-import type { NativeVideoInput } from '../native-video/index.ts';
+import { mountInlineVideo } from '../inline-video/index.ts';
 
 export interface MediaView {
   archived?: boolean;
@@ -19,8 +19,7 @@ export interface MediaView {
   peer: string;
 }
 interface MediaInput<V extends MediaView> {
-  playVideo: (input: NativeVideoInput) => Promise<boolean>;
-  signal?: AbortSignal;
+  signal: AbortSignal;
   content?: AttachmentContent;
   imageOverlay?: HTMLElement;
   saveNotice?: string;
@@ -34,7 +33,7 @@ interface MediaInput<V extends MediaView> {
   run: (work: () => Promise<void>) => Promise<void>;
   current: () => boolean;
   retain: (url: string) => void;
-  enqueue: (work: () => Promise<void>) => Promise<void>;
+  enqueue: <T>(work: () => Promise<T>) => Promise<T>;
   playback: VoicePlayback;
 }
 function imageCandidate(content: AttachmentContent): boolean {
@@ -49,17 +48,6 @@ function displayType(bytes: Uint8Array, content: AttachmentContent): string {
     return originalVideoType(bytes) ?? 'application/octet-stream';
   if (content.image && content.type === 'image/gif') return 'image/gif';
   return originalImageType(bytes) ?? 'application/octet-stream';
-}
-function showVideo(preview: HTMLElement, url: string, name: string): void {
-  const video = document.createElement('video');
-  video.className = 'chat-video';
-  video.controls = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-  video.src = url;
-  video.setAttribute('aria-label', name);
-  preview.replaceChildren(video);
-  void video.play().catch(() => undefined);
 }
 function readyMedia(
   preview: HTMLElement,
@@ -78,22 +66,10 @@ function readyMedia(
     );
     return;
   }
-  const video = preview.querySelector('video');
-  if (!video) {
-    diagnostic.point('complete', { loadOutcome: 'complete' });
-    return;
-  }
-  const ready = () => {
-    diagnostic.point('decode');
-    if ('requestVideoFrameCallback' in video)
-      video.requestVideoFrameCallback(() => diagnostic.frame(preview, current));
-    else diagnostic.frame(preview, current);
-  };
-  video.addEventListener('loadeddata', ready, { once: true });
+  diagnostic.point('complete', { loadOutcome: 'complete' });
 }
-function mediaLoadKind(content: AttachmentContent): 'image' | 'video' | 'file' {
-  if (imageCandidate(content)) return 'image';
-  return content.type.startsWith('video/') ? 'video' : 'file';
+function attachmentLoadKind(content: AttachmentContent): 'image' | 'file' {
+  return imageCandidate(content) ? 'image' : 'file';
 }
 async function loadMediaBytes<V extends MediaView>(
   input: MediaInput<V>,
@@ -177,17 +153,21 @@ function openImageViewer(
   document.body.append(viewer);
   viewer.showModal();
 }
+function saveControls(name: string, notice: string | undefined) {
+  const save = document.createElement('a');
+  save.download = name;
+  save.textContent = t('Save on device');
+  const warning = document.createElement('small');
+  warning.textContent = notice ?? defaultSaveNotice;
+  return { save, warning };
+}
 function offerSave<V extends MediaView>(
   input: MediaInput<V>,
   url: string,
   name: string,
 ): void {
-  const save = document.createElement('a');
+  const { save, warning } = saveControls(name, input.saveNotice);
   save.href = url;
-  save.download = name;
-  save.textContent = t('Save on device');
-  const warning = document.createElement('small');
-  warning.textContent = input.saveNotice ?? defaultSaveNotice;
   input.article.append(save, warning);
 }
 /** Images show only their content and the sender's caption, if any. */
@@ -247,6 +227,81 @@ function renderVoice<V extends MediaView>(
   text.textContent = caption;
   input.article.append(text);
 }
+function renderVideo<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+): void {
+  const slot = document.createElement('figure');
+  slot.className = 'chat-attachment-video';
+  const caption = decodeDailyText(content.caption).text;
+  input.article.append(slot);
+  if (caption) {
+    const text = document.createElement('p');
+    text.textContent = caption;
+    input.article.append(text);
+  }
+  const { save, warning } = saveControls(content.name, input.saveNotice);
+  const actions = document.createElement('div');
+  actions.className = 'chat-video-save';
+  actions.hidden = true;
+  actions.append(save, warning);
+  input.article.append(actions);
+  mountInlineVideo(slot, {
+    signal: input.signal,
+    label: content.name,
+    play: () => input.playback.pause(),
+    sourceChanged: (url) => {
+      actions.hidden = url === null;
+      if (url) save.href = url;
+      else save.removeAttribute('href');
+    },
+    load: (signal) => loadVideo(input, signal),
+  });
+}
+async function loadVideo<V extends MediaView>(
+  input: MediaInput<V>,
+  signal: AbortSignal,
+) {
+  const diagnostic = startLoad('video', input.view.peer);
+  const current = () => !signal.aborted && input.current();
+  try {
+    return await input.enqueue(async () => {
+      requireVideoRow(current);
+      const bytes = await loadMediaBytes(input, diagnostic);
+      try {
+        requireVideoRow(current);
+        const type = originalVideoType(bytes);
+        if (!type) diagnostic?.point('failed', { loadOutcome: 'failed' });
+        const blob = new Blob([bytes], {
+          type: type ?? 'application/octet-stream',
+        });
+        return {
+          blob,
+          decoded: (video: HTMLVideoElement) =>
+            videoDecoded(video, diagnostic, current),
+        };
+      } finally {
+        bytes.fill(0);
+      }
+    });
+  } catch (error: unknown) {
+    if (current()) diagnostic?.point('failed', { loadOutcome: 'failed' });
+    else diagnostic?.point('cancelled', { loadOutcome: 'cancelled' });
+    throw error;
+  }
+}
+function requireVideoRow(current: () => boolean): void {
+  if (!current()) throw new DOMException('Video row closed.', 'AbortError');
+}
+function videoDecoded(
+  video: HTMLVideoElement,
+  diagnostic: LoadTrace | undefined,
+  current: () => boolean,
+): void {
+  if (!diagnostic || !current()) return;
+  diagnostic.point('decode');
+  diagnostic.frame(video, current);
+}
 /** The owner supplies generation checks, serial admission and Blob cleanup. */
 export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   const content =
@@ -255,8 +310,11 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     renderVoice(input, content, content.voice);
     return;
   }
+  if (content.type === 'video/mp4' || content.type === 'video/quicktime') {
+    renderVideo(input, content);
+    return;
+  }
   const image = imageCandidate(content),
-    video = content.type === 'video/mp4' || content.type === 'video/quicktime',
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
@@ -264,11 +322,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
-  button.textContent = image
-    ? t('Load image')
-    : video
-      ? t('Play video')
-      : t('Download original file');
+  button.textContent = image ? t('Load image') : t('Download original file');
   input.article.append(
     ...(image
       ? [frameImagePreview(preview, input.imageOverlay), info]
@@ -277,52 +331,15 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   );
   button.hidden = image;
   let pending = false;
-  let savedVideoUrl: string | null = null;
-  async function presentVideo(value: {
-    bytes: Uint8Array<ArrayBuffer>;
-    type: string;
-    url: string;
-    diagnostic: LoadTrace | undefined;
-  }): Promise<void> {
-    const { bytes, type, url, diagnostic } = value;
-    if (!savedVideoUrl) {
-      savedVideoUrl = url;
-      offerSave(input, url, content.name);
-    }
-    input.playback.pause();
-    if (
-      await input.playVideo({
-        bytes,
-        mime: type,
-        signal: input.signal,
-        current: input.current,
-        diagnostic,
-      })
-    )
-      return;
-    if (!input.current()) return;
-    button.hidden = true;
-    showVideo(preview, url, content.name);
-    readyMedia(preview, diagnostic, input.current);
-  }
-  function keepBlob(bytes: Uint8Array<ArrayBuffer>, type: string): string {
-    const url = URL.createObjectURL(new Blob([bytes], { type }));
-    input.retain(url);
-    return url;
-  }
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
-    const diagnostic = startLoad(mediaLoadKind(content), input.view.peer);
+    const diagnostic = startLoad(attachmentLoadKind(content), input.view.peer);
     const bytes = await loadMediaBytes(input, diagnostic);
     try {
       if (!input.current()) return;
       const type = displayType(bytes, content);
-      if (video && type.startsWith('video/')) {
-        const url = savedVideoUrl ?? keepBlob(bytes, type);
-        await presentVideo({ bytes, type, url, diagnostic });
-        return;
-      }
-      const url = keepBlob(bytes, type);
+      const url = URL.createObjectURL(new Blob([bytes], { type }));
+      input.retain(url);
       button.hidden = true;
       if (image && type !== 'application/octet-stream') {
         showImage(preview, url, {

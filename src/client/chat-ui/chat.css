@@ -390,12 +390,6 @@
   line-height: 1.3;
   opacity: 1;
 }
-.chat-video {
-  display: block;
-  max-width: 100%;
-  max-height: min(480px, 60dvh);
-  border-radius: 12px;
-}
 .chat-view-once > span:last-child {
   min-width: 0;
   overflow-wrap: anywhere;

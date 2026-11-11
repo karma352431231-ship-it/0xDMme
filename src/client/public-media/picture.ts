@@ -2,8 +2,8 @@ import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { openImageViewer, pinchOpensViewer } from '../image-viewer/index.ts';
 import type { ZoomGesture } from '../image-viewer/index.ts';
-import { retainedPublicMedia } from './retained.ts';
-import type { RetainedPublicMedia } from './retained.ts';
+import { retainedMedia } from '../media-retention/index.ts';
+import type { RetainedMedia } from '../media-retention/index.ts';
 
 /** Load near the screen and retain visited media until cleanup or memory pressure. */
 export function mountPublicPicture(
@@ -48,7 +48,7 @@ export function mountPublicPicture(
     stopped = false,
     pending: AbortController | null = null,
     url: string | null = null,
-    retained: RetainedPublicMedia | null = null,
+    retained: RetainedMedia | null = null,
     closeViewer: (() => void) | null = null;
   function unload(): void {
     retained?.release();
@@ -82,7 +82,7 @@ export function mountPublicPicture(
       image.src = url;
       image.hidden = false;
       caption.textContent = '';
-      retained = retainedPublicMedia.keep({
+      retained = retainedMedia.keep({
         bytes: blob.size,
         visible,
         dispose: unload,

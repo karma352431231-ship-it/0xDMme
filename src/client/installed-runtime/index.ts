@@ -5,7 +5,6 @@ import { installNativeApiTransport } from '../api-transport/index.ts';
 import { NativeApiTransport } from '../native-api/index.ts';
 import { InstalledSessionChannel } from './channel.ts';
 import { installProtectedDisplay } from '../view-once-ui/index.ts';
-import { installNativeVideo } from '../native-video/index.ts';
 
 /** Installed entry owns initialization/disposal before any domain module loads. */
 export async function startInstalledEntry(
@@ -29,8 +28,6 @@ export async function startInstalledEntry(
     transport = new NativeApiTransport(channel);
     installNativeApiTransport(transport);
     const viewChannel = channel;
-    const videoPort = channel.videoPort();
-    if (videoPort) installNativeVideo(videoPort);
     installProtectedDisplay({
       ...(location.protocol === 'https:'
         ? {

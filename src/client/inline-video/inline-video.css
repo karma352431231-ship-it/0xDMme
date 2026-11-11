@@ -1,0 +1,68 @@
+/* The inline controls and frame are shared by feed posts and chat bubbles. */
+:is(#app-shell, .community-scope) figure.inline-video {
+  --shorts-height: min(560px, 75vh);
+  position: relative;
+  width: min(100%, calc(var(--shorts-height) * var(--video-ratio)));
+  min-width: 0;
+  margin: 0;
+  justify-self: center;
+}
+:is(#app-shell, .community-scope)
+  figure.inline-video
+  > video.community-media-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: var(--video-ratio);
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  object-fit: contain;
+  background: var(--media-backdrop);
+}
+:is(#app-shell, .community-scope) figure.inline-video > button[hidden] {
+  display: none;
+}
+@media (max-width: 700px) {
+  :is(#app-shell, .community-scope) figure.inline-video {
+    --shorts-height: min(560px, 68vh);
+  }
+}
+:is(#app-shell, .community-scope)
+  figure.inline-video
+  > button.public-video-fullscreen {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--media-control-bg);
+  color: var(--media-control-ink);
+  font-size: 0;
+}
+@media (hover: none), (pointer: coarse) {
+  :is(#app-shell, .community-scope)
+    figure.inline-video
+    > button.public-video-fullscreen {
+    display: grid;
+  }
+}
+:is(#app-shell, .community-scope)
+  .inline-video
+  > button.public-video-fullscreen
+  svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

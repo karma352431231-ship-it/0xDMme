@@ -29,8 +29,23 @@ class MediaNode {
     this.textContent = '';
   }
   readonly attributes = new Map<string, string>();
+  readonly style = { setProperty() {} };
+  readonly classList = {
+    add: (name: string) => {
+      this.className += ' ' + name;
+    },
+  };
+  controls = false;
+  currentTime = 0;
+  load(): void {}
+  pause(): void {}
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
+  }
+  removeAttribute(name: string): void {
+    this.attributes.delete(name);
+    if (name === 'src') this.src = '';
+    if (name === 'href') this.href = '';
   }
   addEventListener(event: string, callback: () => void): void {
     this.listeners.set(event, callback);
@@ -50,7 +65,11 @@ function environment(t: TestContext, playback?: Partial<VoicePlayback>) {
   const body = new MediaNode('body');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: { createElement: (tag: string) => new MediaNode(tag), body },
+    value: {
+      createElement: (tag: string) => new MediaNode(tag),
+      createElementNS: (_ns: string, tag: string) => new MediaNode(tag),
+      body,
+    },
   });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
@@ -114,6 +133,85 @@ function viewerSaveLink(body: MediaNode): MediaNode | undefined {
   return bar?.children.find((node) => node.tag === 'a');
 }
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+await test('a video attachment mounts the feed controls immediately, loads when visible and releases its URL with the row', async (t) => {
+  const { ui, blobs, revoked } = environment(t);
+  const observer = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'IntersectionObserver',
+  );
+  let visibility: (entries: { isIntersecting: boolean }[]) => void = () => {};
+  let disconnected = false;
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    value: class {
+      constructor(callback: typeof visibility) {
+        visibility = callback;
+      }
+      observe() {}
+      disconnect() {
+        disconnected = true;
+      }
+    },
+  });
+  t.after(() => {
+    if (observer)
+      Object.defineProperty(globalThis, 'IntersectionObserver', observer);
+    else Reflect.deleteProperty(globalThis, 'IntersectionObserver');
+  });
+  const signal = new AbortController();
+  const row = new MediaNode('article');
+  const bytes = Uint8Array.of(
+    0,
+    0,
+    0,
+    16,
+    102,
+    116,
+    121,
+    112,
+    105,
+    115,
+    111,
+    109,
+    0,
+    0,
+    0,
+    0,
+  );
+  let loads = 0;
+  ui.render({
+    article: row as unknown as HTMLElement,
+    content: { ...content('video/mp4'), name: 'sample.mp4' },
+    signal: signal.signal,
+    view: { id: 'video', peer: 'synthetic', text: '' },
+    load: () => {
+      loads++;
+      return Promise.resolve(bytes);
+    },
+    run: (work) => work(),
+  });
+  const figure = row.children[0]!;
+  const [video, fullscreen, , retry] = figure.children;
+  assert.equal(video?.tag, 'video');
+  assert.equal(video.controls, true);
+  assert.equal(video.attributes.has('playsinline'), true);
+  assert.equal(fullscreen?.className, 'public-video-fullscreen');
+  assert.equal(retry?.hidden, true);
+  assert.equal(loads, 0);
+  visibility([{ isIntersecting: true }]);
+  await flush();
+  assert.equal(loads, 1);
+  assert.equal(video.src, 'blob:synthetic-1');
+  assert.equal(blobs[0]?.type, 'video/mp4');
+  assert.ok(bytes.every((byte) => byte === 0));
+  visibility([{ isIntersecting: false }]);
+  visibility([{ isIntersecting: true }]);
+  assert.equal(loads, 1);
+  signal.abort();
+  assert.equal(disconnected, true);
+  assert.equal(video.src, '');
+  assert.deepEqual(revoked, ['blob:synthetic-1']);
+});
 await test('an image overlay shares the image frame and survives preview loading', async (t) => {
   const { ui, blobs, revoked } = environment(t);
   const article = new MediaNode('article');

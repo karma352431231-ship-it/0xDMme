@@ -10,7 +10,7 @@ import type { PublicAvatarKind } from '../../shared/public-media/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { withPublicRead } from './reads.ts';
-import { mountPublicVideo } from './video.ts';
+import { mountInlineVideo } from '../inline-video/index.ts';
 import { mountPublicPicture } from './picture.ts';
 
 function blobEnvelope(
@@ -115,10 +115,16 @@ export function showPublicPostMedia(
       const slot = document.createElement('figure');
       field.append(slot);
       mediaCleanup.push(
-        mountPublicVideo(slot, item, {
+        mountInlineVideo(slot, {
           signal: lifetime,
-          load: (thumbnail, signal) =>
-            publicPostMediaBlob(item, thumbnail, signal),
+          size: item.result,
+          load: async (signal) => ({
+            blob: await publicPostMediaBlob(item, false, signal),
+          }),
+          poster: {
+            bytes: item.result.thumbnailBytes,
+            load: (signal) => publicPostMediaBlob(item, true, signal),
+          },
         }),
       );
       continue;
