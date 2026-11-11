@@ -32,17 +32,19 @@ type ReactionHooks = Partial<
   >
 >;
 function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
-  const document = new ChatNode('#document');
   const create = (tag: string) => new ChatNode(tag);
+  const document = Object.assign(new ChatNode('#document'), {
+    createElement: create,
+    createElementNS: (_ns: string, tag: string) => create(tag),
+  });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: Object.assign(document, {
-      createElement: create,
-      createElementNS: (_ns: string, tag: string) => create(tag),
-    }),
+    value: document,
   });
   t.after(() => Reflect.deleteProperty(globalThis, 'document'));
-  const history = new ChatNode(),
+  const lifetime = new AbortController();
+  t.after(() => lifetime.abort());
+  const history = Object.assign(new ChatNode(), { ownerDocument: document }),
     gate = new ChatNode(),
     older = new ChatNode(),
     peer = new ChatNode();
@@ -81,7 +83,7 @@ function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
       calls: false,
     }),
     visible: () => visible,
-    signal: () => new AbortController().signal,
+    signal: () => lifetime.signal,
     attachments: {
       clearMedia: () => {
         clears++;
