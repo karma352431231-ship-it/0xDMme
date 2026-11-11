@@ -1,3 +1,7 @@
+import type {
+  CryptoReporter,
+  CryptoStage,
+} from '../../shared/chat-sync-diagnostics/crypto.ts';
 import {
   Attachment,
   EncryptedAttachment,
@@ -56,15 +60,43 @@ export async function openFile(
   file: PrivateFile,
   bytes: Uint8Array,
   maximum = chatFileLimit,
+  report?: CryptoReporter,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const ref = attachmentRef(file.ref, maximum);
-  if (bytes.length !== ref.bytes || (await bytesHash(bytes)) !== ref.hash)
-    throw new Error('Attachment incomplete or tampered with.');
-  await initAsync('/matrix-crypto-18.9.0.wasm');
+  await cryptoStep(
+    'decrypt-integrity',
+    async () => {
+      if (bytes.length !== ref.bytes || (await bytesHash(bytes)) !== ref.hash)
+        throw new Error('Attachment incomplete or tampered with.');
+    },
+    report,
+  );
+  await cryptoStep(
+    'decrypt-runtime',
+    () => initAsync('/matrix-crypto-18.9.0.wasm'),
+    report,
+  );
   const sealed = new EncryptedAttachment(bytes, file.encryption);
   try {
-    return Uint8Array.from(Attachment.decrypt(sealed));
+    return await cryptoStep(
+      'decrypt-sdk',
+      () => Uint8Array.from(Attachment.decrypt(sealed)),
+      report,
+    );
   } finally {
     sealed.free();
+  }
+}
+
+async function cryptoStep<T>(
+  stage: CryptoStage,
+  work: () => T | Promise<T>,
+  report?: CryptoReporter,
+): Promise<T> {
+  const started = report ? performance.now() : 0;
+  try {
+    return await work();
+  } finally {
+    report?.(stage, Math.round(performance.now() - started));
   }
 }

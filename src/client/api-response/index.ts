@@ -1,6 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
-import { requestApi } from '../api-transport/index.ts';
+import { requestApi, readTransportJson } from '../api-transport/index.ts';
 
 export type ApiFailure =
   'http' | 'non-json' | 'invalid-json' | 'network' | 'timeout' | 'cancelled';
@@ -157,7 +157,7 @@ export async function readApiJson(
   }
   let data: unknown;
   try {
-    data = await response.json();
+    data = await readTransportJson(response);
   } catch (error: unknown) {
     throw new ApiResponseError({
       operation,

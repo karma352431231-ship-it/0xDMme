@@ -59,7 +59,9 @@ final class NativeExchange {
     }
 
     Head open() throws Exception {
+        long started = NativeExchangeTiming.start();
         Response received = call.execute();
+        long receiveUs = NativeExchangeTiming.elapsed(started);
         synchronized (this) {
             if (closed.get()) {
                 received.close();
@@ -78,7 +80,7 @@ final class NativeExchange {
             ResponseBody body = received.body();
             if (body == null) throw NativePolicy.failure();
             stream = body.byteStream();
-            return new Head(new JSONObject().put("status", status).put("headers", headers), received.headers("Set-Cookie"));
+            return new Head(NativeExchangeTiming.attach(new JSONObject().put("status", status).put("headers", headers), receiveUs, 0), received.headers("Set-Cookie"));
         }
     }
 
@@ -94,6 +96,7 @@ final class NativeExchange {
             // A socket read often returns only 4 KiB. Fill the bounded bridge
             // chunk for finite bodies instead of crossing the WebView for every
             // network fragment. Live events must still be delivered immediately.
+            long readingAt = NativeExchangeTiming.start();
             while (!done && count < maximum) {
                 int received = source.read(bytes, count, maximum - count);
                 if (closed.get() || received == 0) throw NativePolicy.failure();
@@ -102,11 +105,14 @@ final class NativeExchange {
                 if (expected >= 0 && total + count == expected) done = true;
                 if (live) break;
             }
+            long receiveUs = NativeExchangeTiming.elapsed(readingAt);
             total = Math.addExact(total, count);
             if ((!live && total > NativePolicy.RESPONSE_BYTES) ||
                 (expected >= 0 && (total > expected || (done && total != expected)))) throw NativePolicy.failure();
-            return new JSONObject().put("done", done)
-                .put("data", Base64.encodeToString(Arrays.copyOf(bytes, count), Base64.NO_WRAP));
+            long encodingAt = NativeExchangeTiming.start();
+            String data = Base64.encodeToString(Arrays.copyOf(bytes, count), Base64.NO_WRAP);
+            return NativeExchangeTiming.attach(new JSONObject().put("done", done).put("data", data),
+                receiveUs, NativeExchangeTiming.elapsed(encodingAt));
           }
         } finally {
             reading.set(false);

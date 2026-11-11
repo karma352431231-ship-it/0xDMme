@@ -81,7 +81,10 @@ export function viewOnceContent(input: unknown): ViewOnceContent {
 }
 /** Validation and its decoded bytes belong to one operation. Callers must
  * wipe bytes after deriving policy/size; content keeps the canonical format. */
-export function readViewOnceContent(input: unknown): {
+export function readViewOnceContent(
+  input: unknown,
+  base64Timing?: (ms: number) => void,
+): {
   content: ViewOnceContent;
   bytes: Uint8Array<ArrayBuffer> | null;
 } {
@@ -97,11 +100,11 @@ export function readViewOnceContent(input: unknown): {
     if (!text.trim()) throw new AccountError(400, 'Write a message.');
     return { content: { text }, bytes: null };
   }
-  const result = contentFile(value['file']);
+  const result = contentFile(value['file'], base64Timing);
   return { content: { text, file: result.file }, bytes: result.bytes };
 }
 
-function contentFile(input: unknown) {
+function contentFile(input: unknown, base64Timing?: (ms: number) => void) {
   const file = object(input);
   keys(file, ['name', 'mime', 'data']);
   if (
@@ -114,10 +117,19 @@ function contentFile(input: unknown) {
     typeof file['data'] !== 'string'
   )
     throw new AccountError(400, 'Invalid view-once file.');
-  const bytes = base64(file['data'], viewOnceFileBytes);
+  const bytes = decodeContentFile(file['data'], base64Timing);
   if (!bytes.length) throw new AccountError(400, 'Invalid view-once file.');
   return {
     file: { name: file['name'], mime: file['mime'], data: file['data'] },
     bytes,
   };
+}
+
+function decodeContentFile(data: unknown, timing?: (ms: number) => void) {
+  const started = timing ? performance.now() : 0;
+  try {
+    return base64(data, viewOnceFileBytes);
+  } finally {
+    timing?.(Math.round(performance.now() - started));
+  }
 }

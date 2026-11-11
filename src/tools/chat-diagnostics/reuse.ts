@@ -66,6 +66,8 @@ function recordNativeRequest(
     body: 'response-body',
     failed: 'request-failed',
     cancelled: 'response-body-failed',
+    transfer: 'native-transfer',
+    json: 'native-json',
   }[trace.nativePhase ?? 'failed'];
   record(kind, {
     id: `native-${trace.nativeRequest}`,

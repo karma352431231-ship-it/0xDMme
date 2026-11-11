@@ -601,6 +601,7 @@ export class Messages {
             peer,
             metadata,
             response: delivery.response,
+            diagnostic,
           });
         const content = diagnostic
           ? await diagnostic.measure('decrypt', decrypt)

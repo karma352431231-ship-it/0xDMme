@@ -1,3 +1,4 @@
+import { measureNativeReply } from '../native-api/index.ts';
 import { readNativeBootTiming } from '../../shared/chat-sync-diagnostics/boot.ts';
 import type { BootMilestone } from '../../shared/chat-sync-diagnostics/boot.ts';
 import type {
@@ -238,7 +239,7 @@ export class InstalledSessionChannel implements NativeSessionBridge {
   private receive(input: unknown): void {
     if (this.closed) return;
     try {
-      const reply = channelReply(input);
+      const reply = measureNativeReply(() => channelReply(input));
       const call = reply.call;
       const pending = this.pending.get(call);
       if (!pending) return;

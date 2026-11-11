@@ -2,6 +2,7 @@ export const bootMilestones = [
   'snapshot',
   'shell-frame',
   'contacts-frame',
+  'contacts-screen-frame',
   'conversations-frame',
 ] as const;
 export type BootMilestone = (typeof bootMilestones)[number];

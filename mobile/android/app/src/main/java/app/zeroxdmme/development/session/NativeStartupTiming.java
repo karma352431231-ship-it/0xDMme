@@ -19,8 +19,8 @@ public final class NativeStartupTiming {
         if (!BuildConfig.DEBUG || !BuildConfig.MOBILE_DIAGNOSTICS) throw NativePolicy.failure();
         NativePolicy.exact(input, "milestone");
         if (input.length() != 1) throw NativePolicy.failure();
-        String milestone = NativePolicy.text(input, "milestone", 20);
-        if (!Arrays.asList("snapshot", "shell-frame", "contacts-frame", "conversations-frame").contains(milestone))
+        String milestone = NativePolicy.text(input, "milestone", 24);
+        if (!Arrays.asList("snapshot", "shell-frame", "contacts-frame", "contacts-screen-frame", "conversations-frame").contains(milestone))
             throw NativePolicy.failure();
         return new JSONObject().put("activityMs", elapsed()).put("webViewMs", webView)
             .put("documentMs", document).put("documentStartedMs", documentStarted);

@@ -1,4 +1,5 @@
-import { base64, encode } from '../../shared/account/index.ts';
+import { transferProtected } from './transfer.ts';
+import { base64 } from '../../shared/account/index.ts';
 import { safeFilename } from '../../shared/attachments/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { ViewOnceContent } from '../../shared/view-once/index.ts';
@@ -93,23 +94,16 @@ async function showProtected(
   const display = protectedDisplay();
   if (!display)
     throw new Error('Open this view-once message in the mobile app.');
-  const bytes = content.file
-    ? Uint8Array.from(base64(content.file.data, 10_000_000))
-    : null;
-  try {
-    await timedLoad(diagnostic, 'native-append', () =>
-      appendProtected({ display, id, bytes, signal }),
-    );
-    signal.throwIfAborted();
-    await timedLoad(diagnostic, 'native-show', () =>
-      display.show({ id, text: content.text }),
-    );
-    await protectedPresentation({ display, id, signal, trace: diagnostic });
-    while (!signal.aborted && (await display.active({ id })))
-      await new Promise<void>((resolve) => setTimeout(resolve, 400));
-  } finally {
-    bytes?.fill(0);
-  }
+  await timedLoad(diagnostic, 'native-transfer', () =>
+    transferProtected({ display, id, content, signal, diagnostic }),
+  );
+  signal.throwIfAborted();
+  await timedLoad(diagnostic, 'native-show', () =>
+    display.show({ id, text: content.text }),
+  );
+  await protectedPresentation({ display, id, signal, trace: diagnostic });
+  while (!signal.aborted && (await display.active({ id })))
+    await new Promise<void>((resolve) => setTimeout(resolve, 400));
 }
 
 interface ViewOnceRow {
@@ -120,22 +114,6 @@ interface ViewOnceRow {
   signal: AbortSignal;
   current: () => boolean;
   open: (diagnostic?: LoadTrace) => Promise<ViewOnceContent>;
-}
-async function appendProtected(input: {
-  display: ProtectedDisplay;
-  id: string;
-  bytes: Uint8Array<ArrayBuffer> | null;
-  signal: AbortSignal;
-}): Promise<void> {
-  if (!input.bytes) return;
-  for (let offset = 0; offset < input.bytes.length; offset += 64 * 1024) {
-    input.signal.throwIfAborted();
-    await input.display.append({
-      id: input.id,
-      offset,
-      bytes: encode(input.bytes.subarray(offset, offset + 64 * 1024)),
-    });
-  }
 }
 
 export function renderViewOnce(input: ViewOnceRow): void {

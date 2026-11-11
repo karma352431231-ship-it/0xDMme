@@ -1,9 +1,14 @@
+import { bootMilestones } from './boot.ts';
+import type { BootMilestone } from './boot.ts';
+import { copyNativeTiming } from './native.ts';
+import type { NativeTimingFields } from './native.ts';
 import { diagnosticCategory } from './network.ts';
 export const loadKinds = [
   'app-startup',
   'account-restore',
   'private-profile',
   'contacts',
+  'contacts-screen',
   'conversation-list',
   'directory-startup',
   'conversation-previews',
@@ -18,6 +23,19 @@ export const loadKinds = [
   'view-once-file',
 ] as const;
 export type LoadKind = (typeof loadKinds)[number];
+const startupKinds = new Set<unknown>([
+  'app-startup',
+  'account-restore',
+  'private-profile',
+  'contacts-screen',
+  'contacts',
+  'conversation-list',
+  'directory-startup',
+  'conversation-previews',
+]);
+export function startupLoadKind(value: unknown): value is LoadKind {
+  return startupKinds.has(value);
+}
 export const loadStages = [
   'entry',
   'bridge-ready',
@@ -40,6 +58,19 @@ export const loadStages = [
   'queue',
   'download',
   'decrypt',
+  'decrypt-header',
+  'decrypt-base64',
+  'decrypt-integrity',
+  'decrypt-key',
+  'decrypt-aes',
+  'decrypt-text',
+  'decrypt-json',
+  'decrypt-validate',
+  'decrypt-runtime',
+  'decrypt-sdk',
+  'native-payload-decode',
+  'native-payload-encode',
+  'native-transfer',
   'decode',
   'native-begin',
   'native-append',
@@ -50,13 +81,12 @@ export const loadStages = [
   'cancelled',
 ] as const;
 export type LoadStage = (typeof loadStages)[number];
-export interface LoadDiagnosticFields {
+export interface LoadDiagnosticFields extends NativeTimingFields {
   beforeCaptureMs?: number;
   earlyTimings?: boolean;
   earlyLongTasks?: boolean;
   earlyDropped?: number;
-  bootMilestone?:
-    'snapshot' | 'shell-frame' | 'contacts-frame' | 'conversations-frame';
+  bootMilestone?: BootMilestone;
   bootActivityMs?: number;
   bootWebViewMs?: number;
   bootDocumentMs?: number;
@@ -70,11 +100,16 @@ export interface LoadDiagnosticFields {
   loadStageMs?: number;
   loadRows?: number;
   loadBytes?: number;
+  loadTransferBytes?: number;
+  loadTransferBlocks?: number;
+  loadTransferPlannedBytes?: number;
+  loadTransferPlannedBlocks?: number;
   loadOutcome?: 'complete' | 'failed' | 'cancelled' | 'unavailable' | 'timeout';
   loadPresentation?:
     'dom-frame-opportunity' | 'native-draw' | 'video-frame' | 'unavailable';
   nativeRequest?: number;
-  nativePhase?: 'start' | 'headers' | 'body' | 'failed' | 'cancelled';
+  nativePhase?:
+    'start' | 'headers' | 'body' | 'failed' | 'cancelled' | 'transfer' | 'json';
   nativeCategory?: string;
   nativeStatus?: number;
   nativeBytes?: number;
@@ -99,6 +134,10 @@ export function copyLoadDiagnostic(
     'loadStageMs',
     'loadRows',
     'loadBytes',
+    'loadTransferBytes',
+    'loadTransferBlocks',
+    'loadTransferPlannedBytes',
+    'loadTransferPlannedBlocks',
     'nativeRequest',
     'nativeStatus',
     'nativeBytes',
@@ -111,12 +150,7 @@ export function copyLoadDiagnostic(
     )
       output[key] = input[key];
   copyChoice(input, output, 'loadKind', loadKinds);
-  copyChoice(input, output, 'bootMilestone', [
-    'snapshot',
-    'shell-frame',
-    'contacts-frame',
-    'conversations-frame',
-  ]);
+  copyChoice(input, output, 'bootMilestone', bootMilestones);
   copyChoice(input, output, 'loadStage', loadStages);
   copyChoice(input, output, 'loadOutcome', [
     'complete',
@@ -134,10 +168,13 @@ export function copyLoadDiagnostic(
   copyChoice(input, output, 'nativePhase', [
     'start',
     'headers',
+    'transfer',
+    'json',
     'body',
     'failed',
     'cancelled',
   ]);
+  copyNativeTiming(input, output);
   const category = input['nativeCategory'];
   if (diagnosticCategory(category)) output['nativeCategory'] = category;
   for (const key of [

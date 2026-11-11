@@ -1,3 +1,4 @@
+import type { NativeTimingFields } from '../../shared/chat-sync-diagnostics/native.ts';
 import { LoadingPresentation } from './presentation.ts';
 import {
   chatSyncControl,
@@ -13,7 +14,7 @@ import type {
   LoadDiagnosticFields,
 } from '../../shared/chat-sync-diagnostics/load.ts';
 export type { LoadTrace } from './load.ts';
-export { timedLoad } from './load.ts';
+export { timedLoad, timedLoadSync } from './load.ts';
 import type {
   ChatSyncDecision,
   ChatSyncTrace,
@@ -198,9 +199,10 @@ export function startNativeRequest(path: string) {
   let ended = false;
   const point = (
     nativePhase: NonNullable<LoadDiagnosticFields['nativePhase']>,
-    fields: Pick<LoadDiagnosticFields, 'nativeStatus' | 'nativeBytes'> = {},
+    fields: Pick<LoadDiagnosticFields, 'nativeStatus' | 'nativeBytes'> &
+      NativeTimingFields = {},
   ) => {
-    if (ended || generation !== capture) return;
+    if ((ended && nativePhase !== 'json') || generation !== capture) return;
     traceChatSync(loadOwner, null, {
       event: 'native-request',
       reason: 'settled',
@@ -210,7 +212,7 @@ export function startNativeRequest(path: string) {
       nativeMs: Math.max(0, Math.round(performance.now() - started)),
       ...fields,
     });
-    ended = ['body', 'failed', 'cancelled'].includes(nativePhase);
+    ended ||= ['body', 'failed', 'cancelled'].includes(nativePhase);
   };
   point('start');
   return point;

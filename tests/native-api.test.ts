@@ -457,3 +457,38 @@ await test('native header/read deadlines reject without waiting for an unresolve
     assert.equal(bridge.cancelled.length, 1);
   }
 });
+
+await test('optional native timing is strictly validated without accepting content or changing normal responses', async (t) => {
+  const { bridge, transport } = fixture(t);
+  bridge.head = {
+    status: 200,
+    headers: {},
+    timing: { receiveUs: 7, encodeUs: 0 },
+  };
+  bridge.chunks = [
+    { ...chunk('ok', true), timing: { receiveUs: 9, encodeUs: 3 } },
+  ];
+  assert.equal(
+    await (await transport.fetch('/api/account/session', {})).text(),
+    'ok',
+  );
+  for (const timing of [
+    null,
+    { receiveUs: -1, encodeUs: 0 },
+    { receiveUs: 1, encodeUs: 0, cookie: 'private' },
+    { receiveUs: 1.5, encodeUs: 0 },
+    { receiveUs: 1, encodeUs: 600_000_001 },
+  ]) {
+    bridge.head = { status: 200, headers: {}, timing };
+    await assert.rejects(transport.fetch('/api/account/session', {}), failure);
+  }
+  bridge.head = { status: 200, headers: {} };
+  bridge.chunks = [
+    {
+      ...chunk('secret', true),
+      timing: { receiveUs: 1, encodeUs: 0, payload: 'private' },
+    },
+  ];
+  const response = await transport.fetch('/api/account/session', {});
+  await assert.rejects(response.text(), failure);
+});

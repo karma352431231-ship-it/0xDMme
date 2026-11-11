@@ -1,3 +1,7 @@
+import type {
+  CryptoReporter,
+  CryptoTiming,
+} from '../../shared/chat-sync-diagnostics/crypto.ts';
 import { openFile, sealFile } from '../attachment-crypto/index.ts';
 import {
   imageShape,
@@ -46,6 +50,7 @@ type Request =
       bytes: Uint8Array;
       maximum: number;
       image: boolean;
+      diagnostic?: boolean;
     }
   | { operation: 'original'; file: File; maximum: number };
 const scope = globalThis as unknown as Scope;
@@ -75,17 +80,19 @@ function viewOnceWork(
   if (data.operation === 'view-once-serialize')
     return { bytes: serializeViewOnce(data.prepared) };
 }
-async function run(data: Request): Promise<unknown> {
+async function run(data: Request, report?: CryptoReporter): Promise<unknown> {
   if (isViewOnceWork(data)) return viewOnceWork(data);
   if (data.operation === 'photo') return preparePhoto(data.file);
   if (data.operation === 'seal') return sealFile(data.bytes, data.maximum);
   if (data.operation === 'open') {
-    const bytes = await openFile(data.file, data.bytes, data.maximum);
+    const bytes = await openFile(data.file, data.bytes, data.maximum, report);
+    const validating = report ? performance.now() : 0;
     if (data.image)
       imageShape(
         bytes,
         data.maximum === thumbnailLimit ? 4_194_304 : 24_000_000,
       );
+    report?.('decrypt-validate', Math.round(performance.now() - validating));
     return { bytes };
   }
   return prepareOriginal(data.file, data.maximum);
@@ -96,7 +103,14 @@ function isViewOnceWork(
   return data.operation.startsWith('view-once-');
 }
 scope.addEventListener('message', (event) => {
-  void run(event.data)
+  const diagnostic: CryptoTiming[] = [];
+  const report: CryptoReporter | undefined =
+    event.data.operation === 'open' && event.data.diagnostic === true
+      ? (stage, ms) => {
+          if (diagnostic.length < 8) diagnostic.push({ stage, ms });
+        }
+      : undefined;
+  void run(event.data, report)
     .then((result) => {
       const transfer =
         result &&
@@ -106,11 +120,15 @@ scope.addEventListener('message', (event) => {
         result.bytes.buffer instanceof ArrayBuffer
           ? [result.bytes.buffer]
           : [];
-      scope.postMessage({ result }, transfer);
+      scope.postMessage(
+        { result, ...(report ? { diagnostic } : {}) },
+        transfer,
+      );
     })
     .catch((error: unknown) => {
       scope.postMessage(
         {
+          ...(report ? { diagnostic } : {}),
           // Translate at the UI boundary. Loading the complete UI catalog in
           // every short-lived decoder/crypto worker wastes mobile memory.
           error:

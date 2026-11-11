@@ -1,3 +1,4 @@
+import { ContactsScreenDiagnostics } from './diagnostics.ts';
 import {
   loadingPresentation,
   timedLoad,
@@ -55,6 +56,7 @@ export function startContacts(
     book = new AddressBook(sync),
     directory = new ContactDirectory(sync);
   const loading = loadingPresentation('contacts');
+  const screenDiagnostics = new ContactsScreenDiagnostics();
   const discovery = new DiscoveryChoices();
   const requests = new AcceptedRequest();
   const contactSettings = new ContactSettings({
@@ -718,6 +720,7 @@ export function startContacts(
   }
   function clear(): void {
     loading.cancel();
+    screenDiagnostics.clear();
     generation++;
     discovery.clear();
     contactSettings.clear();
@@ -911,6 +914,7 @@ export function startContacts(
       // current search remain owned by this session's contact controller.
       if (mounted === container) {
         render();
+        screenDiagnostics.show(container, mode);
         return;
       }
       const formValues = ['[data-book-search]'].map((selector) => ({
@@ -950,6 +954,7 @@ export function startContacts(
         renderPagination();
       });
       render();
+      screenDiagnostics.show(container, mode);
       void run(async () => {
         if (navigator.onLine && contacts.session) await refresh();
         else await loadLocal();

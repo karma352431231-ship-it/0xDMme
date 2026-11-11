@@ -2,7 +2,10 @@ import {
   measureSend,
   measureSendSync,
   traceSend,
+  timedLoad,
+  timedLoadSync,
 } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { bytesHash } from '../../shared/vault/index.ts';
@@ -403,44 +406,84 @@ type ViewOnceDelivery = {
   peer: string;
   metadata: ViewOnceMetadata;
   response: unknown;
+  diagnostic?: LoadTrace | undefined;
 };
 
 export async function decryptViewOnce(
   input: ViewOnceDelivery,
 ): Promise<ViewOnceContent> {
+  const trace = input.diagnostic;
   const raw = object(input.response);
-  const header = viewOnceHeader(raw['header']);
-  await assertDeliveryHeader(header, input);
-  const ciphertext = base64(raw['bytes'], viewOnceCipherBytes);
-  if (
-    ciphertext.length !== header.bytes ||
-    (await bytesHash(ciphertext)) !== header.hash
-  )
-    throw new Error('View-once ciphertext differs.');
-  const secret = await openRecoveryKey(input.recovery, input.authority);
+  const header = timedLoadSync(trace, 'decrypt-header', () =>
+    viewOnceHeader(raw['header']),
+  );
+  await timedLoad(trace, 'decrypt-header', () =>
+    assertDeliveryHeader(header, input),
+  );
+  const ciphertext = timedLoadSync(trace, 'decrypt-base64', () =>
+    base64(raw['bytes'], viewOnceCipherBytes),
+  );
+  await timedLoad(trace, 'decrypt-integrity', async () => {
+    if (
+      ciphertext.length !== header.bytes ||
+      (await bytesHash(ciphertext)) !== header.hash
+    )
+      throw new Error('View-once ciphertext differs.');
+  });
+  const secret = await timedLoad(trace, 'decrypt-key', () =>
+    openRecoveryKey(input.recovery, input.authority),
+  );
   let rawKey: Uint8Array<ArrayBuffer> | undefined;
   let plain: Uint8Array<ArrayBuffer> | undefined;
   try {
-    rawKey = Uint8Array.from(base64(openRoomKey(secret, header.key), 32));
+    rawKey = timedLoadSync(trace, 'decrypt-key', () =>
+      Uint8Array.from(base64(openRoomKey(secret, header.key), 32)),
+    );
     if (rawKey.length !== 32) throw new Error('Invalid view-once content key.');
-    const key = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, [
-      'decrypt',
-    ]);
+    const rawContentKey = rawKey;
+    const key = await timedLoad(trace, 'decrypt-key', () =>
+      crypto.subtle.importKey('raw', rawContentKey, 'AES-GCM', false, [
+        'decrypt',
+      ]),
+    );
+    const iv = timedLoadSync(trace, 'decrypt-base64', () =>
+      base64(header.iv, 12),
+    );
+    const context = timedLoadSync(trace, 'decrypt-header', () =>
+      associatedData(header),
+    );
     plain = new Uint8Array(
-      await crypto.subtle.decrypt(
-        {
-          name: 'AES-GCM',
-          iv: base64(header.iv, 12),
-          additionalData: associatedData(header),
-        },
-        key,
-        ciphertext,
+      await timedLoad(trace, 'decrypt-aes', () =>
+        crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv,
+            additionalData: context,
+          },
+          key,
+          ciphertext,
+        ),
       ),
     );
-    const prepared = validateViewOnce(
-      JSON.parse(decoder.decode(plain)) as unknown,
+    const plaintext = plain;
+    const text = timedLoadSync(trace, 'decrypt-text', () =>
+      decoder.decode(plaintext),
     );
-    assertDeliveryContent(prepared, input);
+    const parsed: unknown = timedLoadSync(
+      trace,
+      'decrypt-json',
+      () => JSON.parse(text) as unknown,
+    );
+    const prepared = timedLoadSync(trace, 'decrypt-validate', () => {
+      const validated = validateViewOnce(
+        parsed,
+        trace
+          ? (ms) => trace.point('decrypt-base64', { loadStageMs: ms })
+          : undefined,
+      );
+      assertDeliveryContent(validated, input);
+      return validated;
+    });
     return prepared.content;
   } finally {
     secret.free();

@@ -1,3 +1,5 @@
+import { readNativeWireTiming } from '../../shared/chat-sync-diagnostics/native.ts';
+import type { NativeWireTiming } from '../../shared/chat-sync-diagnostics/native.ts';
 export const chunkBytes = 128 * 1024;
 export const responseBytes = 256 * 1024 * 1024;
 const requestBytes = 8_400_000;
@@ -159,9 +161,10 @@ function incomingHeaders(value: unknown): Headers {
 export function responseHead(value: unknown): {
   status: number;
   headers: Headers;
+  timing: NativeWireTiming | undefined;
 } {
   const input = record(value);
-  exact(input, ['status', 'headers']);
+  exact(input, ['status', 'headers', 'timing']);
   const status = input['status'];
   if (
     !Number.isInteger(status) ||
@@ -178,15 +181,20 @@ export function responseHead(value: unknown): {
     (!/^(?:0|[1-9][0-9]{0,9})$/u.test(length) || Number(length) > responseBytes)
   )
     throw nativeFailure();
-  return { status, headers };
+  const timing = readNativeWireTiming(input['timing']);
+  return { status, headers, timing };
 }
 
 export function responseChunk(
   value: unknown,
   maximum: number,
-): { done: boolean; bytes: Uint8Array<ArrayBuffer> } {
+): {
+  done: boolean;
+  bytes: Uint8Array<ArrayBuffer>;
+  timing?: NativeWireTiming;
+} {
   const input = record(value);
-  exact(input, ['done', 'data']);
+  exact(input, ['done', 'data', 'timing']);
   const data = input['data'];
   if (typeof input['done'] !== 'boolean' || typeof data !== 'string')
     throw nativeFailure();
@@ -205,6 +213,9 @@ export function responseChunk(
   )
     throw nativeFailure();
   return {
+    ...(input['timing'] === undefined
+      ? {}
+      : { timing: readNativeWireTiming(input['timing'])! }),
     done: input['done'],
     bytes: Uint8Array.from(decoded, (char) => char.charCodeAt(0)),
   };

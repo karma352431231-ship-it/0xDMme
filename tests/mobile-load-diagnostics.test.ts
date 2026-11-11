@@ -1,3 +1,5 @@
+import { transferProtected } from '../src/client/view-once-ui/transfer.ts';
+import { ContactsScreenDiagnostics } from '../src/client/contacts/diagnostics.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
@@ -55,16 +57,22 @@ await test('native headers, body bytes and HTTP errors are timed without exporti
     {},
   );
   assert.equal(response.status, 409);
-  assert.deepEqual(await response.json(), { private: 'content' });
+  assert.deepEqual(await transport.readJson(response), { private: 'content' });
   const events = recording
     .report()
     .events.filter((event) => event.kind === 'reuse-native-request');
   assert.deepEqual(
     events.map((event) => event['nativePhase']),
-    ['start', 'headers', 'body'],
+    ['start', 'transfer', 'headers', 'transfer', 'body', 'json'],
   );
-  assert.equal(events[1]!['nativeStatus'], 409);
-  assert.equal(events[2]!['nativeBytes'], 21);
+  assert.equal(
+    events.find((event) => event['nativePhase'] === 'headers')!['nativeStatus'],
+    409,
+  );
+  assert.equal(
+    events.find((event) => event['nativePhase'] === 'body')!['nativeBytes'],
+    21,
+  );
   assert.equal(events[0]!['nativeCategory'], 'messages/view-once-status');
   const category =
     recording.report().nativeRequests.categories['messages/view-once-status']!;
@@ -179,8 +187,19 @@ await test('early metadata bounds noisy work while retaining startup failures an
     trace.point('permissions', { loadStageMs: 930 });
     trace.point('failed', { loadOutcome: 'failed' });
   });
+  for (let n = 0; n < 1800; n++) recording.record('later-work');
   const report = recording.report();
   assert.ok(report.loading.startup.droppedEarlyEvents > 0);
+  assert.ok(
+    report.loading.startup.details.events.some(
+      (event) => event.kind === 'reuse-work',
+    ),
+  );
+  assert.ok(
+    report.loading.startup.details.events.some(
+      (event) => event['loadStage'] === 'failed',
+    ),
+  );
   assert.equal(report.loading.operations[0]!.outcome, 'failed');
   assert.equal(
     report.loading.operations[0]!.stages.permissions?.durationMs,
@@ -222,6 +241,9 @@ await test('a contact placeholder cannot complete before verified data and a vis
     closest: () => null,
     getClientRects: () => (visible ? [1] : []),
   } as unknown as HTMLElement;
+  const screen = new ContactsScreenDiagnostics();
+  screen.show(host, 'settings');
+  assert.equal(recording.report().loading.operations.length, 0);
   const loading = loadingPresentation('contacts');
   const gate = deferred<number>();
   const work = loading.run(() => gate.promise);
@@ -257,4 +279,124 @@ await test('a contact placeholder cannot complete before verified data and a vis
   );
   assert.equal(recording.report().loading.operations[2]!.outcome, 'failed');
   assert.doesNotMatch(JSON.stringify(recording.report()), /private failure/u);
+  screen.show(host, 'contacts');
+  frames.shift()!(0);
+  assert.equal(
+    recording.report().loading.operations.at(-1)!.kind,
+    'contacts-screen',
+  );
+  assert.equal(
+    recording.report().loading.operations.at(-1)!.outcome,
+    'complete',
+  );
+  for (let n = 0; n < 1800; n++) recording.record('later');
+  assert.ok(
+    recording
+      .report()
+      .loading.startup.details.events.some(
+        (event) =>
+          event['loadKind'] === 'contacts-screen' &&
+          event['loadStage'] === 'complete',
+      ),
+  );
+});
+
+await test('native receive, bridge conversion and JSON parsing retain separate aggregate timings after detail eviction', async (t) => {
+  const { recording } = fixture(t);
+  const bridge = new FixtureBridge(),
+    transport = new NativeApiTransport(bridge);
+  t.after(() => transport.close());
+  bridge.head = {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+    timing: { receiveUs: 200, encodeUs: 0 },
+  };
+  bridge.chunks = [
+    {
+      ...chunk('{"private":"payload"}', true),
+      timing: { receiveUs: 700, encodeUs: 90 },
+    },
+  ];
+  const response = await transport.fetch('/api/account/contacts/snapshot', {});
+  assert.deepEqual(await transport.readJson(response), { private: 'payload' });
+  for (let n = 0; n < 1800; n++) recording.record('later');
+  const summary =
+    recording.report().nativeRequests.categories['contacts/snapshot']!;
+  assert.equal(summary.timingUs['nativeReceiveUs'], 900);
+  assert.equal(summary.timingUs['nativeEncodeUs'], 90);
+  assert.equal(summary.counts['nativeReadBlocks'], 1);
+  assert.equal(summary.counts['nativeReceiveSamples'], 2);
+  assert.ok(Number.isInteger(summary.timingUs['nativeJsonParseUs']));
+  assert.equal(summary.jsonReads, 1);
+  bridge.chunks = [chunk('invalid JSON', true)];
+  const invalid = await transport.fetch('/api/account/contacts/snapshot', {});
+  await assert.rejects(transport.readJson(invalid), SyntaxError);
+  assert.equal(
+    recording.report().nativeRequests.categories['contacts/snapshot']!
+      .jsonFailures,
+    1,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(recording.report()),
+    /private|payload|invalid JSON/u,
+  );
+});
+
+await test('viewer transfer records conversion and acknowledged bytes/blocks, including a partial failure', async (t) => {
+  const { recording } = fixture(t);
+  const data = new Uint8Array(131073).fill(27);
+  const content = {
+    text: '',
+    file: {
+      name: 'private-name.png',
+      mime: 'image/png',
+      data: Buffer.from(data).toString('base64'),
+    },
+  };
+  let calls = 0;
+  const display = {
+    append: (part: { offset: number; bytes: string }) => {
+      assert.equal(part.offset, calls++ * 65536);
+      assert.deepEqual(
+        Buffer.from(part.bytes, 'base64'),
+        Buffer.from(data.subarray(part.offset, part.offset + 65536)),
+      );
+      return Promise.resolve();
+    },
+  } as unknown as ProtectedDisplay;
+  const trace = startLoad('view-once-image')!;
+  await transferProtected({
+    display,
+    content,
+    id: crypto.randomUUID(),
+    signal: new AbortController().signal,
+    diagnostic: trace,
+  });
+  const success = recording.report().loading.operations[0]!;
+  assert.equal(success.transfer['loadTransferBytes'], 131073);
+  assert.equal(success.transfer['loadTransferBlocks'], 3);
+  assert.equal(success.stages['native-payload-encode']?.count, 3);
+  const failure = new Error('private native failure');
+  calls = 0;
+  const failing = {
+    append: () => (++calls === 2 ? Promise.reject(failure) : Promise.resolve()),
+  } as unknown as ProtectedDisplay;
+  await assert.rejects(
+    transferProtected({
+      display: failing,
+      content,
+      id: crypto.randomUUID(),
+      signal: new AbortController().signal,
+      diagnostic: startLoad('view-once-image'),
+    }),
+    (error) => error === failure,
+  );
+  const partial = recording.report().loading.operations[1]!;
+  assert.equal(partial.transfer['loadTransferBytes'], 65536);
+  assert.equal(partial.transfer['loadTransferBlocks'], 1);
+  assert.equal(partial.transfer['loadTransferPlannedBytes'], 131073);
+  assert.doesNotMatch(
+    JSON.stringify(recording.report()),
+    /private-name|private native failure/u,
+  );
 });

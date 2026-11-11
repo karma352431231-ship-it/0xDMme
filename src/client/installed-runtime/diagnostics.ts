@@ -8,6 +8,7 @@ import {
   readChatSyncTrace,
 } from '../../shared/chat-sync-diagnostics/index.ts';
 import type { InstalledSessionChannel } from './channel.ts';
+import type { LoadKind } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { BootMilestone } from '../../shared/chat-sync-diagnostics/boot.ts';
 
 /** Diagnostic launch owner. No capture is armed by an ordinary app build. */
@@ -65,12 +66,19 @@ export function startInstalledDiagnostics(
         value.loadPresentation === 'unavailable'
       )
         return;
-      if (value.loadKind === 'app-startup') report('shell-frame');
-      if (value.loadKind === 'contacts') report('contacts-frame');
-      if (value.loadKind === 'conversation-list') report('conversations-frame');
+      const milestone =
+        value.loadKind && presentationMilestones[value.loadKind];
+      if (milestone) report(milestone);
     },
     { signal: abort.signal },
   );
   report('snapshot');
   return trace;
 }
+
+const presentationMilestones: Partial<Record<LoadKind, BootMilestone>> = {
+  'app-startup': 'shell-frame',
+  contacts: 'contacts-frame',
+  'contacts-screen': 'contacts-screen-frame',
+  'conversation-list': 'conversations-frame',
+};

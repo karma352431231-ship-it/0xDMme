@@ -24,3 +24,8 @@ export function requestApi(
     );
   return native.fetch(path, input);
 }
+
+/** Body parsing belongs to the transport that supplied this response. */
+export function readTransportJson(response: Response): Promise<unknown> {
+  return native ? native.readJson(response) : response.json();
+}

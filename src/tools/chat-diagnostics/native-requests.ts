@@ -1,3 +1,4 @@
+import { nativeTimingFields } from '../../shared/chat-sync-diagnostics/native.ts';
 import type { TraceEvent } from './events.ts';
 interface Category {
   requests: number;
@@ -8,6 +9,10 @@ interface Category {
   totalMs: number;
   longestMs: number;
   statuses: Record<string, number>;
+  timingUs: Record<string, number>;
+  counts: Record<string, number>;
+  jsonReads: number;
+  jsonFailures: number;
 }
 /** Aggregate native requests survive detail eviction without retaining paths/IDs. */
 export class NativeRequestSummaries {
@@ -27,14 +32,30 @@ export class NativeRequestSummaries {
       this.start(id, category);
       return;
     }
-    if (this.active.get(id) !== category) return;
-    const summary = this.categories.get(category)!;
+    const summary = this.categories.get(category);
+    if (
+      !summary ||
+      (event['nativePhase'] !== 'json' && this.active.get(id) !== category)
+    )
+      return;
+    this.timings(event, summary);
     if (event['nativePhase'] === 'headers') {
       const status = String(event['nativeStatus']);
       summary.statuses[status] = (summary.statuses[status] ?? 0) + 1;
       return;
     }
     this.finish(event, summary, id);
+  }
+  private timings(event: TraceEvent, summary: Category): void {
+    for (const key of nativeTimingFields)
+      if (typeof event[key] === 'number') {
+        const values = key.endsWith('Us') ? summary.timingUs : summary.counts;
+        values[key] = (values[key] ?? 0) + event[key];
+      }
+    if (event['nativePhase'] === 'json') {
+      summary.jsonReads++;
+      if (event['nativeJsonSuccess'] !== true) summary.jsonFailures++;
+    }
   }
   private start(id: number, category: string): void {
     if (
@@ -53,6 +74,10 @@ export class NativeRequestSummaries {
       totalMs: 0,
       longestMs: 0,
       statuses: {},
+      timingUs: {},
+      counts: {},
+      jsonReads: 0,
+      jsonFailures: 0,
     };
     summary.requests++;
     this.categories.set(category, summary);
@@ -74,7 +99,8 @@ export class NativeRequestSummaries {
     return {
       overflow: this.overflow,
       pending: this.active.size,
-      timing: 'native-bridge-and-demand-driven-body; includes-caller-read-wait',
+      timing:
+        'integer microseconds; native socket reads and encode, bridge roundtrip/residual, wire/base64 decode, body text read and JSON parse are separate; roundtrip includes native work',
       categories: structuredClone(Object.fromEntries(this.categories)),
     };
   }

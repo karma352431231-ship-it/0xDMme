@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { CryptoTiming } from '../src/shared/chat-sync-diagnostics/crypto.ts';
 import { Attachment } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { checkSocialBytes } from '../src/shared/social-media/index.ts';
 import { openFile, sealFile } from '../src/client/attachment-crypto/index.ts';
@@ -24,7 +25,20 @@ await test('3 MB attachment uses the real SDK, keeps verifiable size and rejects
   assert.equal(sealed.bytes.length, bytes.length);
   assert.equal(sealed.file.ref.parts.length, 12);
   assert.equal(attachmentRef(sealed.file.ref).bytes, fileLimit);
-  assert.deepEqual(await openFile(sealed.file, sealed.bytes), bytes);
+  const timing: CryptoTiming[] = [];
+  assert.deepEqual(
+    await openFile(sealed.file, sealed.bytes, fileLimit, (stage, ms) =>
+      timing.push({ stage, ms }),
+    ),
+    bytes,
+  );
+  assert.deepEqual(
+    timing.map((step) => step.stage),
+    ['decrypt-integrity', 'decrypt-runtime', 'decrypt-sdk'],
+  );
+  assert.ok(
+    timing.every((step) => Number.isSafeInteger(step.ms) && step.ms >= 0),
+  );
   const corrupt = sealed.bytes.slice();
   corrupt[0] = corrupt[0]! ^ 1;
   await assert.rejects(openFile(sealed.file, corrupt));

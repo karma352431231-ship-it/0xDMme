@@ -22,9 +22,12 @@ export interface ValidatedViewOnce {
 }
 /** Pure transforms for the short-lived local worker. No keys, authority,
  * persistence, SDK machines, network or retained content live here. */
-export function validateViewOnce(input: unknown): ValidatedViewOnce {
+export function validateViewOnce(
+  input: unknown,
+  base64Timing?: (ms: number) => void,
+): ValidatedViewOnce {
   const started = performance.now();
-  const { content, bytes } = readViewOnceContent(input);
+  const { content, bytes } = readViewOnceContent(input, base64Timing);
   const validationMs = Math.round(performance.now() - started);
   const policyStart = performance.now();
   try {

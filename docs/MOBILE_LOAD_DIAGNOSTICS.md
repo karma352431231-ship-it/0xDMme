@@ -79,8 +79,9 @@ from a new activity. Reopen the activity for comparable fresh launches.
 Android activity-relative milestones. Negative timeline `ms` values precede Mac
 console installation; operation stage times remain relative to that operation.
 The launch buffer has two lanes: 512 startup milestones and 988 other events.
-The noisy timeline evicts oldest entries; a full milestone lane drops new entries
-and reports the loss. Stop, expiry, document destruction and a new launch release
+Both lanes retain their first entries and report newly dropped events when full.
+The exported `loading.startup.details` keeps the same bounded launch evidence
+independently of the rolling main timeline, plus later startup/contact milestones. Stop, expiry, document destruction and a new launch release
 the buffer. Early long-task entries are included where WebView supports them.
 No content, identifiers or response bodies are retained by this buffer.
 
@@ -96,6 +97,8 @@ No content, identifiers or response bodies are retained by this buffer.
   identities and the loaded list's DOM/frame. A loading placeholder does not
   complete it. Empty loaded lists are valid. Hidden lists remain incomplete
   until presented; there is no claim that every avatar is ready.
+- `contacts-screen`: the Contacts page DOM/frame before loading finishes,
+  distinct from the `contacts-screen-frame` Android milestone and the loaded data.
 - `contacts`: Contacts page vault/permission/agenda loading through its next
   rendered frame. This operation starts when the page's load starts, while the
   native frame milestone measures elapsed activity time to the first result.
@@ -114,3 +117,38 @@ provide a median and range without reusing consumed messages.
 Instrumentation does not automatically open protected messages or change their
 single-delivery contract. Content, names, account/device IDs, keys, cookies,
 signatures and response bodies are excluded from the diagnostic export.
+
+## Detailed transport, crypto and viewer timings
+
+The owner requested these cuts on 2026-11-11. All fields remain fixed metadata.
+Native timing aggregates survive detailed timeline eviction in `nativeRequests`:
+
+- `nativeReceiveUs`: Android `execute()` until response headers plus cumulative
+  socket body-read durations. Demand-driven body reads include waits for data;
+  bytes buffered before a read are not independently timestamped on arrival.
+- `nativeEncodeUs`: Android base64 serialization; `nativeWireUs`: JavaScript
+  parsing of the bridge envelope; `nativeDecodeUs`: response chunk base64 checks
+  and binary conversion. `nativeBridgeUs` is the encompassing bridge roundtrip;
+  `nativeBridgeOnlyUs` subtracts those measured components and is an approximate
+  residual for queues, scheduling, serialization and crossing the bridge.
+- `nativeBodyReadUs`: application body assembly/UTF-8 read via Response.text;
+  `nativeJsonParseUs`: JSON.parse separately, including failed parses.
+  Encompassing spans overlap: do not sum them as independent durations.
+- Values ending in `Us` are integer microseconds; `counts` reports read blocks
+  and native samples. Old native builds omit native receive/encoding metadata.
+
+View-once `decrypt` now contains header verification, `decrypt-base64`,
+`decrypt-integrity`, `decrypt-key` (recovery, unwrap and import), `decrypt-aes`,
+UTF-8 decoding, plaintext JSON parsing and `decrypt-validate`. Validation includes
+its existing file base64 decode, which is also measured as a nested base64 span.
+Normal attachment crypto in the worker exposes integrity, runtime, the maintained
+Matrix `decrypt-sdk` operation and image validation. The SDK does not expose its
+internal key/AES phases; the report does not invent that separation or replace
+its cryptography. Historical archived media and private-profile decrypt spans
+retain their existing outer coverage.
+
+`native-payload-decode` precedes transfer. Each 64 KiB viewer block records its
+base64 conversion separately from `native-append`. `native-transfer` encompasses
+the operation and records planned bytes/blocks and acknowledged bytes/blocks.
+Partial failure preserves the last successful acknowledgement. The temporary
+binary copy is wiped on both success and failure; no viewer input is exported.

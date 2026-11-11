@@ -5,7 +5,15 @@ import type {
 
 type Fields = Pick<
   LoadDiagnosticFields,
-  'loadRows' | 'loadBytes' | 'loadOutcome' | 'loadPresentation' | 'loadStageMs'
+  | 'loadRows'
+  | 'loadBytes'
+  | 'loadOutcome'
+  | 'loadPresentation'
+  | 'loadStageMs'
+  | 'loadTransferBytes'
+  | 'loadTransferBlocks'
+  | 'loadTransferPlannedBytes'
+  | 'loadTransferPlannedBlocks'
 >;
 /** One capture-local attempt. Its caller owns completion/cancellation. */
 export interface LoadTrace {
@@ -73,4 +81,18 @@ export function loadHostVisible(host: HTMLElement): boolean {
     document.visibilityState === 'visible' &&
     host.getClientRects().length > 0
   );
+}
+
+export function timedLoadSync<T>(
+  trace: LoadTrace | undefined,
+  stage: LoadStage,
+  work: () => T,
+): T {
+  if (!trace) return work();
+  const start = performance.now();
+  try {
+    return work();
+  } finally {
+    trace.point(stage, { loadStageMs: Math.round(performance.now() - start) });
+  }
 }

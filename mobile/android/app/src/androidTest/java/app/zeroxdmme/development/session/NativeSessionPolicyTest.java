@@ -21,6 +21,20 @@ import org.junit.Test;
 
 /** Exercises native policy and OS custody only with isolated synthetic tokens. */
 public class NativeSessionPolicyTest {
+    @Test public void responseTimingContainsOnlyDiagnosticDurations() throws Exception {
+        long start = NativeExchangeTiming.start();
+        long receive = NativeExchangeTiming.elapsed(start);
+        JSONObject result = NativeExchangeTiming.attach(new JSONObject().put("done", true), receive, 12);
+        boolean diagnostic = app.zeroxdmme.development.BuildConfig.DEBUG && app.zeroxdmme.development.BuildConfig.MOBILE_DIAGNOSTICS;
+        assertEquals(diagnostic, result.has("timing"));
+        if (diagnostic) {
+            JSONObject timing = result.getJSONObject("timing");
+            assertEquals(2, timing.length());
+            assertTrue(timing.getLong("receiveUs") >= 0);
+            assertEquals(12, timing.getLong("encodeUs"));
+        }
+    }
+
     @Test public void startupClockAcceptsOnlyDiagnosticMilestones() throws Exception {
         NativeStartupTiming timing = new NativeStartupTiming();
         timing.webView();

@@ -8,25 +8,27 @@ class WorkerUnavailable extends Error {}
 async function workWithStartupRetry<T>(
   input: unknown,
   signal?: AbortSignal,
+  report?: (value: unknown) => void,
 ): Promise<T> {
   try {
-    return await runWorker<T>(input, signal);
+    return await runWorker<T>(input, signal, report);
   } catch (error: unknown) {
     if (!(error instanceof WorkerUnavailable)) throw error;
-    return runWorker<T>(input, signal);
+    return runWorker<T>(input, signal, report);
   }
 }
 /** Bounded serial jobs, each worker terminated to release keys/WASM/decoder memory. */
 export function attachmentWork<T>(
   input: unknown,
   signal?: AbortSignal,
+  report?: (value: unknown) => void,
 ): Promise<T> {
   if (queued >= 4)
     return Promise.reject(new Error('Processing attachments. Please wait.'));
   queued++;
   const result = tail.then(() => {
     signal?.throwIfAborted();
-    return workWithStartupRetry<T>(input, signal);
+    return workWithStartupRetry<T>(input, signal, report);
   });
   tail = result.then(
     () => {},
@@ -36,7 +38,11 @@ export function attachmentWork<T>(
     queued--;
   });
 }
-function runWorker<T>(input: unknown, signal?: AbortSignal): Promise<T> {
+function runWorker<T>(
+  input: unknown,
+  signal?: AbortSignal,
+  report?: (value: unknown) => void,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     let worker: Worker | null = null,
       finished = false;
@@ -63,11 +69,25 @@ function runWorker<T>(input: unknown, signal?: AbortSignal): Promise<T> {
     try {
       signal?.addEventListener('abort', abort, { once: true });
       worker = new Worker(ATTACHMENT_WORKER_URL, { type: 'module' });
-      worker.onmessage = (event: MessageEvent<{ error?: string; result: T }>) =>
+      worker.onmessage = (
+        event: MessageEvent<{
+          error?: string;
+          result: T;
+          diagnostic?: unknown;
+        }>,
+      ) => {
+        if (finished) return;
+        try {
+          report?.(event.data.diagnostic);
+        } catch {
+          finish(new Error('Invalid local processing timing.'));
+          return;
+        }
         finish(
           event.data.error ? new Error(event.data.error) : null,
           event.data.result,
         );
+      };
       worker.onerror = () =>
         finish(
           new WorkerUnavailable('Local attachment processing unavailable.'),

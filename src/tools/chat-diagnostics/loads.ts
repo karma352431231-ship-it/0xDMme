@@ -1,3 +1,4 @@
+import { StartupDetails } from './startup.ts';
 import { bootMilestones } from '../../shared/chat-sync-diagnostics/boot.ts';
 import {
   loadKinds,
@@ -41,10 +42,12 @@ interface LoadSummary {
   longestTaskMs: number;
   bytes: number | null;
   rows: number | null;
+  transfer: Record<string, number>;
   stages: Partial<Record<LoadStage, StageTiming>>;
 }
 /** Bounded operation summaries outlive detailed timeline eviction. */
 export class ComparisonLoads {
+  private readonly details = new StartupDetails();
   private readonly loads = new Map<number, LoadSummary>();
   private overflow = 0;
   private native = false;
@@ -54,6 +57,7 @@ export class ComparisonLoads {
   private earlyDropped = 0;
   private readonly boot: Record<string, number | boolean> = {};
   observe(event: TraceEvent): void {
+    this.details.observe(event);
     if (event.kind === 'reuse-ready') {
       this.native = event['nativeTimings'] === true;
       this.coverage = event['loadTimings'] === true;
@@ -106,6 +110,14 @@ export class ComparisonLoads {
     if (typeof event['loadBytes'] === 'number')
       summary.bytes = event['loadBytes'];
     if (typeof event['loadRows'] === 'number') summary.rows = event['loadRows'];
+    for (const field of [
+      'loadTransferBytes',
+      'loadTransferBlocks',
+      'loadTransferPlannedBytes',
+      'loadTransferPlannedBlocks',
+    ])
+      if (typeof event[field] === 'number')
+        summary.transfer[field] = event[field];
     summary.elapsedMs = Number(event['loadMs']) || 0;
     summary.stages[stage] = stageTiming(
       summary.stages[stage],
@@ -136,6 +148,7 @@ export class ComparisonLoads {
       longestTaskMs: 0,
       bytes: null,
       rows: null,
+      transfer: {},
       stages: {},
     };
     this.loads.set(slot, summary);
@@ -155,6 +168,7 @@ export class ComparisonLoads {
         earlyLongTasksAvailable: this.earlyLongTasks,
         droppedEarlyEvents: this.earlyDropped,
         native: { ...this.boot },
+        details: this.details.report(),
         timing:
           'document-relative JavaScript; Android activity-relative milestones include bridge notification delay; no time before Activity.onCreate',
         timeline: 'negative ms precedes Mac console installation',

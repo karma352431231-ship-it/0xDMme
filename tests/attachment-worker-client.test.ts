@@ -14,6 +14,7 @@ const bundle = await build({
 });
 function workerFixture(
   steps: ('start-error' | 'file-error' | 'ok' | 'hold')[],
+  diagnostic?: unknown,
 ) {
   let started = 0,
     terminated = 0;
@@ -41,8 +42,8 @@ function workerFixture(
             this.onmessage?.({
               data:
                 step === 'file-error'
-                  ? { error: 'Invalid file.' }
-                  : { result: input },
+                  ? { error: 'Invalid file.', diagnostic }
+                  : { result: input, diagnostic },
             });
         });
       }
@@ -94,4 +95,24 @@ await test('startup retries are bounded, file errors do not retry, and the queue
   await assert.rejects(client.attachmentWork(2), /Invalid file/u);
   assert.equal(await client.attachmentWork(3), 3);
   assert.deepEqual(counts(), { started: 4, terminated: 4 });
+});
+
+await test('worker processing metadata follows success and failure while preserving worker disposal', async () => {
+  const steps = [{ stage: 'decrypt-sdk', ms: 73 }];
+  const { client, counts } = workerFixture(['ok', 'file-error'], steps);
+  const observed: unknown[] = [];
+  assert.equal(
+    await client.attachmentWork('synthetic', undefined, (value) =>
+      observed.push(value),
+    ),
+    'synthetic',
+  );
+  await assert.rejects(
+    client.attachmentWork('invalid', undefined, (value) =>
+      observed.push(value),
+    ),
+    /Invalid file/u,
+  );
+  assert.deepEqual(observed, [steps, steps]);
+  assert.deepEqual(counts(), { started: 2, terminated: 2 });
 });

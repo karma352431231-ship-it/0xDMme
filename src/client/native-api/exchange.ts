@@ -1,4 +1,10 @@
 import {
+  recordNativeRead,
+  observeNativeResponse,
+  nativeClock,
+  nativeElapsed,
+} from './diagnostics.ts';
+import {
   chunkBytes,
   nativeFailure,
   responseBytes,
@@ -85,17 +91,26 @@ export class NativeExchange {
   async response(): Promise<Response> {
     try {
       if (this.caller?.aborted) throw aborted();
+      const started = nativeClock(this.diagnostic);
       const raw = await bounded(() => this.bridge.open(this.request), {
         signal: this.abort.signal,
         ms: 15000,
       });
       if (this.ended) throw aborted();
       const head = this.acceptHead(raw);
+      recordNativeRead({
+        trace: this.diagnostic,
+        raw,
+        started,
+        timing: head.timing,
+        decodeUs: 0,
+        blocks: 0,
+      });
       this.diagnostic?.('headers', { nativeStatus: head.status });
       if (this.request.method === 'HEAD' || [204, 205].includes(head.status)) {
         this.diagnostic?.('body', { nativeBytes: 0 });
         await this.cancel();
-        return new Response(null, head);
+        return observeNativeResponse(new Response(null, head), this.diagnostic);
       }
       const body = new ReadableStream<Uint8Array>(
         {
@@ -108,7 +123,7 @@ export class NativeExchange {
         },
         { highWaterMark: 0 },
       );
-      return new Response(body, head);
+      return observeNativeResponse(new Response(body, head), this.diagnostic);
     } catch (error: unknown) {
       await this.cancel(error);
       throw error;
@@ -144,6 +159,7 @@ export class NativeExchange {
     clearTimeout(this.idle);
     try {
       const maximum = this.live ? 4096 : chunkBytes;
+      const started = nativeClock(this.diagnostic);
       const raw = await bounded(
         () => this.bridge.read({ id: this.request.id, bytes: maximum }),
         {
@@ -152,7 +168,16 @@ export class NativeExchange {
         },
       );
       if (this.ended) return;
-      const { done, bytes } = responseChunk(raw, maximum);
+      const decoding = nativeClock(this.diagnostic);
+      const { done, bytes, timing } = responseChunk(raw, maximum);
+      recordNativeRead({
+        trace: this.diagnostic,
+        raw,
+        started,
+        timing,
+        decodeUs: nativeElapsed(this.diagnostic, decoding),
+        blocks: 1,
+      });
       this.account(bytes.length, done);
       if (bytes.length) this.stream?.enqueue(bytes);
       if (done) {

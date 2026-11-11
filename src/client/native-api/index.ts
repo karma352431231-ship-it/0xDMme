@@ -1,3 +1,5 @@
+import { readNativeJson } from './diagnostics.ts';
+export { measureNativeReply } from './diagnostics.ts';
 import { NativeExchange } from './exchange.ts';
 import { nativeFailure, nativeRequest } from './protocol.ts';
 import type { NativeSessionBridge } from './protocol.ts';
@@ -36,6 +38,10 @@ export class NativeApiTransport {
     });
     this.exchanges.add(exchange);
     return exchange.response();
+  }
+
+  readJson(response: Response): Promise<unknown> {
+    return readNativeJson(response);
   }
 
   /** A failed native cancel disables this instance: no accumulated orphan work. */

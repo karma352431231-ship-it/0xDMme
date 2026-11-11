@@ -1,3 +1,4 @@
+import { readCryptoTimings } from '../../shared/chat-sync-diagnostics/crypto.ts';
 import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
 import {
@@ -317,7 +318,13 @@ export async function downloadAttachment(
     ? await input.diagnostic.measure('download', download)
     : await download();
   const decrypt = () =>
-    openStoredAttachment(input.file, bytes, input.thumbnail, input.image);
+    openAttachment({
+      file: input.file,
+      bytes,
+      thumbnail: input.thumbnail,
+      image: input.image,
+      diagnostic: input.diagnostic,
+    });
   const result = input.diagnostic
     ? await input.diagnostic.measure('decrypt', decrypt)
     : await decrypt();
@@ -346,13 +353,32 @@ export async function openStoredAttachment(
   thumbnail: boolean,
   image: boolean,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const result = await attachmentWork<{ bytes: Uint8Array<ArrayBuffer> }>({
-    operation: 'open',
-    file,
-    bytes,
-    maximum: thumbnail ? thumbnailLimit : chatFileLimit,
-    image,
-  });
+  return openAttachment({ file, bytes, thumbnail, image });
+}
+async function openAttachment(input: {
+  file: PrivateFile;
+  bytes: Uint8Array<ArrayBuffer>;
+  thumbnail: boolean;
+  image: boolean;
+  diagnostic?: LoadTrace | undefined;
+}): Promise<Uint8Array<ArrayBuffer>> {
+  const result = await attachmentWork<{ bytes: Uint8Array<ArrayBuffer> }>(
+    {
+      operation: 'open',
+      file: input.file,
+      bytes: input.bytes,
+      maximum: input.thumbnail ? thumbnailLimit : chatFileLimit,
+      image: input.image,
+      diagnostic: !!input.diagnostic,
+    },
+    undefined,
+    input.diagnostic
+      ? (value) => {
+          for (const step of readCryptoTimings(value))
+            input.diagnostic?.point(step.stage, { loadStageMs: step.ms });
+        }
+      : undefined,
+  );
   return result.bytes;
 }
 /** Cache eviction only removes downloaded ciphertext, never queued drafts or remote objects. */

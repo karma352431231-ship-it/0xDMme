@@ -1,3 +1,5 @@
+import { timedLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { SocialTextOutbox } from './text-outbox.ts';
 import { decryptViewOnce } from '../view-once/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
@@ -137,46 +139,52 @@ export class SocialDms {
     peer: string,
     id: string,
     metadata: ViewOnceMetadata,
-    signal: AbortSignal,
+    work: { signal: AbortSignal; diagnostic?: LoadTrace | undefined },
   ) {
+    const { signal, diagnostic } = work;
     const generation = this.generation;
     const guard = () => {
       this.guard(generation);
       signal.throwIfAborted();
     };
-    const delivery = await withSigner(this.access, async (a) => {
-      guard();
-      const dmApi = this.privateApi(a, generation);
-      const input = { scope: 'public', peer, id, hash: metadata.hash };
-      const api = (operation: string, payload: Record<string, unknown>) =>
-        privateMessageApi(a, operation, payload, {
-          guard,
-          signal,
-        });
-      const status = object(await api('view-once-status', input));
-      if (status['consumed'])
-        throw new AccountError(
-          410,
-          'This view-once message was already opened.',
+    const delivery = await timedLoad(diagnostic, 'download', () =>
+      withSigner(this.access, async (a) => {
+        guard();
+        const dmApi = this.privateApi(a, generation);
+        const input = { scope: 'public', peer, id, hash: metadata.hash };
+        const api = (operation: string, payload: Record<string, unknown>) =>
+          privateMessageApi(a, operation, payload, {
+            guard,
+            signal,
+          });
+        const status = object(await api('view-once-status', input));
+        if (status['consumed'])
+          throw new AccountError(
+            410,
+            'This view-once message was already opened.',
+          );
+        const key = recoveryKey(
+          await dmApi('recovery-key', { id: status['keyId'] }),
         );
-      const key = recoveryKey(
-        await dmApi('recovery-key', { id: status['keyId'] }),
-      );
-      return { key, response: await api('view-once-open', input) };
-    });
+        return { key, response: await api('view-once-open', input) };
+      }),
+    );
     guard();
     return this.identityTurn(
       async (context) => {
         guard();
-        const content = await decryptViewOnce({
-          authority: context.authority,
-          recovery: delivery.key,
-          id,
-          scope: 'public',
-          peer,
-          metadata,
-          response: delivery.response,
-        });
+        const content = await timedLoad(diagnostic, 'decrypt', () =>
+          decryptViewOnce({
+            authority: context.authority,
+            recovery: delivery.key,
+            id,
+            scope: 'public',
+            peer,
+            metadata,
+            response: delivery.response,
+            diagnostic,
+          }),
+        );
         guard();
         return content;
       },

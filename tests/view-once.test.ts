@@ -1,3 +1,5 @@
+import { createLoadTrace } from '../src/client/chat-sync-diagnostics/load.ts';
+import type { LoadDiagnosticFields } from '../src/shared/chat-sync-diagnostics/load.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { groupParticipant } from './fixtures/group-participant.ts';
@@ -74,7 +76,24 @@ await test('single-use content stays outside history and cannot be decrypted wit
       metadata: daily.viewOnce,
       response: { header: prepared.header, bytes: encode(prepared.bytes) },
     };
-    assert.deepEqual(await decryptViewOnce(input), content);
+    const stages: LoadDiagnosticFields[] = [];
+    assert.deepEqual(
+      await decryptViewOnce({
+        ...input,
+        diagnostic: createLoadTrace((fields) => stages.push(fields)),
+      }),
+      content,
+    );
+    for (const stage of [
+      'decrypt-base64',
+      'decrypt-integrity',
+      'decrypt-key',
+      'decrypt-aes',
+      'decrypt-json',
+      'decrypt-validate',
+    ])
+      assert.ok(stages.some((step) => step.loadStage === stage));
+    assert.doesNotMatch(JSON.stringify(stages), /Secret|report.pdf|photo.png/u);
     if (prepared.header.policy === 'file' && content.file) {
       const legacy = {
         name: content.file.name,
