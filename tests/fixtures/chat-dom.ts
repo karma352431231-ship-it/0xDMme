@@ -55,10 +55,6 @@ export class ChatNode extends CommunityNode {
     if (!this.parent) return;
     (this.parent as ChatNode).insertBefore(node, this);
   }
-  after(node: CommunityNode): void {
-    if (!this.parent) return;
-    (this.parent as ChatNode).insertBefore(node, this.nextSibling);
-  }
   replaceWith(node: CommunityNode): void {
     (this.parent as ChatNode).insertBefore(node, this);
     this.remove();
