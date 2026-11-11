@@ -1,4 +1,5 @@
 import { historicalMigrations } from '../fixtures/historical-migrations.ts';
+import type { MessageReceiptFixture } from '../fixtures/message-receipt-database.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
@@ -319,26 +320,63 @@ await test('populated 106→109 migration preserves every prior source row, ledg
     ).rows,
     catalog,
   );
+  await verifyMigrationContract(c.inspector, 'view-once');
+  await c.inspector.query(
+    `INSERT INTO hash_talk.view_once_payloads(id,scope,policy,sender,recipient,sender_actor,recipient_actor,hash,header,ciphertext,expected_bytes,charge,sender_charge,recipient_charge) VALUES($1,'private','mobile',$2,$3,$2,$3,$4,'{}'::jsonb,$5,16,1024,512,512)`,
+    [
+      crypto.randomUUID(),
+      pair.sender.session.accountId,
+      pair.recipient.session.accountId,
+      'b'.repeat(64),
+      Buffer.alloc(16, 29),
+    ],
+  );
+  const beforeGroup = await snapshots(c),
+    oldPayloads = (
+      await c.inspector.query('SELECT * FROM hash_talk.view_once_payloads')
+    ).rows,
+    oldVersions = (
+      await c.inspector.query(
+        'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
+      )
+    ).rows;
+  await c.db.migrate();
+  const completed = await snapshots(c);
+  assert.equal(completed.bytes, beforeGroup.bytes);
+  assert.deepEqual(
+    completed.sources.filter((x) => x.name !== 'group_view_once_payloads'),
+    beforeGroup.sources,
+  );
+  assert.deepEqual(
+    (await c.inspector.query('SELECT * FROM hash_talk.view_once_payloads'))
+      .rows,
+    oldPayloads,
+  );
+  assert.deepEqual(
+    (
+      await c.inspector.query(
+        'SELECT * FROM hash_talk.schema_migrations WHERE version<=107 ORDER BY version',
+      )
+    ).rows,
+    oldVersions,
+  );
+  await verifyMigrationContract(c.inspector, 'group-chat');
+});
+
+async function verifyMigrationContract(
+  client: Pick<MessageReceiptFixture['inspector'], 'query'>,
+  name: 'view-once' | 'group-chat',
+): Promise<void> {
   const contract = JSON.parse(
-    execFileSync('python3', ['tests/fixtures/view-once-migration-review.py'], {
+    execFileSync('python3', [`tests/fixtures/${name}-migration-review.py`], {
       encoding: 'utf8',
     }),
   ) as Record<string, string>;
   for (const sql of Object.values(contract)) {
-    const result = await c.inspector.query<Record<string, unknown>>(sql);
+    const result = await client.query<Record<string, unknown>>(sql);
     const last = Array.isArray(result)
       ? (result as (typeof result)[]).at(-1)!
       : result;
     assert.deepEqual(Object.values(last.rows[0]!), [true]);
   }
-  await c.db.migrate();
-  const completed = await snapshots(c);
-  assert.equal(completed.bytes, before.bytes);
-  assert.deepEqual(
-    completed.sources.filter(
-      (x) =>
-        !['view_once_payloads', 'group_view_once_payloads'].includes(x.name),
-    ),
-    before.sources,
-  );
-});
+}

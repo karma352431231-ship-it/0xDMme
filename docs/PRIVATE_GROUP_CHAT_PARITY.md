@@ -38,3 +38,24 @@ payload cleanup. Native protection stays in the existing protected display owner
 Database migrations and server activation must be released with the corresponding
 client. Local builds and synthetic tests are recorded separately from physical
 Android/iPhone acceptance and deployment.
+
+## Activation approved on 2026-11-11
+
+The owner explicitly authorized VPS activation, including migrations 108 and 109.
+Use `npm run deploy:staging -- --group-chat` with the existing explicit destination
+profile, clean pushed source and passing exact-commit CI. The internal
+`deploy_group_chat` transition pins predecessor `fb82b0a9` and application sources
+`8bec16d9`; later executor-only commits cannot change those application sources.
+
+The transition preserves every existing table, including direct view-once
+ciphertext, quota rows and all 107 migration checksums. Both new group delivery
+tables start empty; verify the reaction constraint/index, consumption/deletion
+triggers, global accounting and group quota reconciliation before reopening.
+Dependencies, Node, configuration and service units retain their existing bytes.
+
+Reuse the official private backup and restore rehearsal. Pause the own web and
+three own writers for the migration; restart only those services. Keep all access,
+operational fingerprints and receipts in `.local/`. A pre-opening failure restores
+the verified old database/release. After reopening, preserve new writes and stop
+for review if validation fails. Shared services are not restarted. Existing
+Android/iPhone builds remain compatible because application sources are pinned.

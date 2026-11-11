@@ -212,13 +212,13 @@ def executor_code(config):
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
-                'follow_dates', 'visitor_retention', 'view_once']):
+                'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
-                                                 'follow_notices', 'follow_dates', 'visitor_retention', 'view_once']):
+                                                 'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -234,12 +234,14 @@ def executor_code(config):
         names.append('deploy_account_engagement')
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
-    if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once']):
+    if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
     if config.get('view_once') is True:
         names.append('deploy_view_once')
+    if config.get('group_chat') is True:
+        names.append('deploy_group_chat')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -345,6 +347,8 @@ def main():
                         help='Apply the approved 105→106 visitor retention.')
     parser.add_argument('--view-once', action='store_true',
                         help='Apply the reviewed 106→107 single-delivery payload transition.')
+    parser.add_argument('--group-chat', action='store_true',
+                        help='Apply the reviewed 107→109 private group chat transition.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -355,8 +359,11 @@ def main():
         # 08/11/2026; every other transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
-                               'follow_notices', 'follow_dates', 'visitor_retention', 'view_once']):
+                               'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
+    if args.group_chat and any(vars(args)[name] for name in vars(args)
+                                 if name not in ['group_chat', 'check', 'activate']):
+        parser.error('Group chat requires its separate --check or --activate release.')
     if args.view_once and any(vars(args)[name] for name in vars(args)
                                 if name not in ['view_once', 'check', 'activate']):
         parser.error('View-once messages require their separate --check or --activate release.')
@@ -423,6 +430,8 @@ def main():
         config['visitor_retention'] = True
     if args.view_once:
         config['view_once'] = True
+    if args.group_chat:
+        config['group_chat'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:
