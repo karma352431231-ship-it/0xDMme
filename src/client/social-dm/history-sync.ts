@@ -17,6 +17,8 @@ export interface DmHistorySnapshot {
   directory: string;
   profile: string;
 }
+export { snapshot as readDmHistorySnapshot };
+
 export interface DmHistoryCursor extends DmHistorySnapshot {
   version: 4;
   after: number;
@@ -78,7 +80,11 @@ interface HistoryPorts {
   page: (
     snapshot: DmHistorySnapshot,
     after: number,
-  ) => Promise<{ next: number | null; unavailable: readonly string[] }>;
+  ) => Promise<{
+    next: number | null;
+    unavailable: readonly string[];
+    confirmation?: unknown;
+  }>;
   guard: () => void;
 }
 interface Progress {
@@ -120,30 +126,40 @@ export class DmHistorySynchronization {
   private async read(ports: HistoryPorts): Promise<DmHistorySnapshot> {
     ports.guard();
     const progress = this.progress ?? (await this.target(ports));
-    if (
-      progress.pending === null &&
-      progress.after < progress.snapshot.anchor
-    ) {
-      const page = await ports.page(progress.snapshot, progress.after);
-      ports.guard();
-      const after = page.next === null ? progress.snapshot.anchor : page.next;
-      if (after <= progress.after || after > progress.snapshot.anchor)
-        throw new Error('Removal pagination does not match.');
-      if (page.unavailable.length) throw new Error('DM unavailable.');
-      // Every page is authorized against this removal/directory context by the
-      // server. The sealed prefix remains bound to it after restart. It is not a
-      // presentation permit: final confirmation is still mandatory below.
-      if (after < progress.snapshot.anchor) {
-        await this.save(ports, progress, after);
-        throw new WorkInterruption('continuation');
-      }
-      progress.pending = after;
-    }
-    confirmDmHistory(progress.snapshot, await ports.snapshot());
+    const confirmation =
+      progress.pending === null && progress.after < progress.snapshot.anchor
+        ? await this.advance(ports, progress)
+        : null;
+    confirmDmHistory(
+      progress.snapshot,
+      confirmation ? confirmation.value : await ports.snapshot(),
+    );
     ports.guard();
     await this.save(ports, progress, progress.pending ?? progress.after);
     this.progress = null;
     return progress.snapshot;
+  }
+  private async advance(
+    ports: HistoryPorts,
+    progress: Progress,
+  ): Promise<{ value: unknown } | null> {
+    const page = await ports.page(progress.snapshot, progress.after);
+    ports.guard();
+    const after = page.next === null ? progress.snapshot.anchor : page.next;
+    if (after <= progress.after || after > progress.snapshot.anchor)
+      throw new Error('Removal pagination does not match.');
+    if (page.unavailable.length) throw new Error('DM unavailable.');
+    // Every page is authorized against this removal/directory context by the
+    // server. The sealed prefix remains bound to it after restart. It is not a
+    // presentation permit: final confirmation is still mandatory below.
+    if (after < progress.snapshot.anchor) {
+      await this.save(ports, progress, after);
+      throw new WorkInterruption('continuation');
+    }
+    progress.pending = after;
+    return Object.hasOwn(page, 'confirmation')
+      ? { value: page.confirmation }
+      : null;
   }
   private async target(ports: HistoryPorts): Promise<Progress> {
     const current = snapshot(await ports.snapshot());

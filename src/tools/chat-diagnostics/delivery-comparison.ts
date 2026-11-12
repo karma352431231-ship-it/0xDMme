@@ -11,39 +11,7 @@ export function compareDelivery(sender: Report, recipient: Report) {
       (row) => row.tag && row.tag === sent.tag,
     );
     if (!received || sent.stages.submit === undefined) return [];
-    return [
-      {
-        tag: sent.tag,
-        recipientCaptureBeforeClick: captureCoverage(
-          sender,
-          recipient,
-          sent.clickMs,
-        ),
-        clickToFrame: interval({
-          from: sender,
-          to: recipient,
-          start: sent.clickMs,
-          end: received.stages.frame,
-        }),
-        acceptedToDownloaded: interval({
-          from: sender,
-          to: recipient,
-          start: sent.stages.accepted,
-          end: received.stages.downloaded,
-        }),
-        acceptedToFrame: interval({
-          from: sender,
-          to: recipient,
-          start: sent.stages.accepted,
-          end: received.stages.frame,
-        }),
-        localProcessingMs: localDuration(
-          received,
-          'processing-start',
-          'processing-end',
-        ),
-      },
-    ];
+    return [messageComparison({ sender, recipient, sent, received })];
   });
   return {
     available: true,
@@ -52,6 +20,51 @@ export function compareDelivery(sender: Report, recipient: Report) {
     assumptions:
       'same server clock; 100ppm drift allowance per capture; frame opportunity is not physical paint',
   };
+}
+function messageComparison(input: {
+  sender: Report;
+  recipient: Report;
+  sent: Message;
+  received: Message;
+}) {
+  const { sender, recipient, sent, received } = input;
+  const before = captureCoverage(sender, recipient, sent.clickMs);
+  const through = endCoverage(sender, recipient, received.stages.frame);
+  const fullCapture = before === 'confirmed' && through === 'confirmed';
+  const cross = (start: number | null | undefined, end: number | undefined) =>
+    fullCapture ? interval({ from: sender, to: recipient, start, end }) : null;
+  return {
+    tag: sent.tag,
+    recipientCaptureBeforeClick: before,
+    senderCaptureThroughFrame: through,
+    fullCapture,
+    clickToFrame: cross(sent.clickMs, received.stages.frame),
+    acceptedToDownloaded: cross(
+      sent.stages.accepted,
+      received.stages.downloaded,
+    ),
+    acceptedToFrame: cross(sent.stages.accepted, received.stages.frame),
+    localProcessingMs: localDuration(
+      received,
+      'processing-start',
+      'processing-end',
+    ),
+  };
+}
+function endCoverage(
+  from: Report,
+  to: Report,
+  frame: number | undefined,
+): string {
+  const span = interval({
+    from: to,
+    to: from,
+    start: frame,
+    end: from.elapsedMs,
+  });
+  if (!span) return 'unknown-frame';
+  if (span.minimumMs >= 0) return 'confirmed';
+  return span.maximumMs < 0 ? 'stopped-before-frame' : 'uncertain';
 }
 function comparisonProblem(a: Report, b: Report): string | undefined {
   if (a?.schema !== 3 || b?.schema !== 3) return 'incompatible-report-schema';

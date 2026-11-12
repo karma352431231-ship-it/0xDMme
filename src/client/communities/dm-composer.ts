@@ -39,14 +39,17 @@ export function startDmComposer(options: {
   run: (work: () => Promise<void>) => Promise<void>;
   /** Sends text and/or media; `pending` resumes media saved on this device. */
   submit: (input: {
+    peer: string;
     text: string;
     media: ChosenMedia | null;
     pending: boolean;
+    editing: DmComposition['target'];
+    replying: string | null;
     viewOnce?: boolean;
   }) => Promise<void>;
   queueText?: (text: string, reply: string | null) => void;
   queueFull?: () => boolean;
-  discardPending: () => Promise<void>;
+  discardPending: (peer: string) => Promise<void>;
   changed: () => void;
 }) {
   let view: DmView | null = null,
@@ -57,6 +60,8 @@ export function startDmComposer(options: {
     writable = false,
     busy = false,
     previewUrl: string | null = null;
+  let draftRevision = 0,
+    mediaRevision = 0;
   let abort = new AbortController();
   const emoji = new EmojiPicker();
   const composition = new DmComposition();
@@ -115,13 +120,18 @@ export function startDmComposer(options: {
     previewUrl = null;
     node('[data-attachment-preview]')?.replaceChildren();
   }
+  function wipeMedia(media: ChosenMedia | null): void {
+    media?.selection.bytes.fill(0);
+    media?.selection.thumbnail?.fill(0);
+  }
   function discardChosen(): void {
-    chosen?.selection.bytes.fill(0);
-    chosen?.selection.thumbnail?.fill(0);
+    mediaRevision++;
+    wipeMedia(chosen);
     chosen = null;
     releasePreview();
   }
   function choose(value: ChosenMedia): void {
+    draftRevision++;
     discardChosen();
     chosen = value;
     preview();
@@ -192,33 +202,68 @@ export function startDmComposer(options: {
     view.text.focus({ preventScroll: true });
     return true;
   }
-  async function send(): Promise<void> {
-    if (!view || !writable) return;
-    const current = view,
-      recipient = bound,
-      once = viewOnceEnabled(view.form);
-    const text = view.text.value,
+  function captureSubmission() {
+    if (!view || !bound || !writable) return null;
+    const once = viewOnceEnabled(view.form),
+      text = view.text.value,
       media = chosen;
-    if (!text.trim() && !media && !pending) return;
+    if (!text.trim() && !media && !pending) return null;
     assertMediaMode(once, media);
     chosen = null;
+    mediaRevision++;
+    return {
+      once,
+      text,
+      media,
+      current: view,
+      recipient: bound,
+      revision: draftRevision,
+      pending: pending && !media,
+      editing: composition.target,
+      replying: composition.replying?.id ?? null,
+    };
+  }
+  type Submission = NonNullable<ReturnType<typeof captureSubmission>>;
+  function currentDraft(input: Submission): boolean {
+    return (
+      view === input.current &&
+      bound === input.recipient &&
+      draftRevision === input.revision
+    );
+  }
+  async function send(): Promise<void> {
+    const input = captureSubmission();
+    if (!input) return;
+    let started = false;
+    try {
+      await options.run(async () => {
+        started = true;
+        await sendCaptured(input);
+      });
+    } finally {
+      if (!started) finishMedia({ ...input, admitted: false });
+    }
+  }
+  async function sendCaptured(input: Submission): Promise<void> {
     let admitted = false;
     try {
       await options.submit({
-        text,
-        media,
-        pending: pending && !media,
-        viewOnce: once,
+        peer: input.recipient,
+        text: input.text,
+        media: input.media,
+        pending: input.pending,
+        viewOnce: input.once,
+        editing: input.editing,
+        replying: input.replying,
       });
       admitted = true;
     } finally {
-      finishMedia({ once, admitted, current, recipient, media });
+      finishMedia({ ...input, admitted });
     }
-    if (view !== current || bound !== recipient) return;
+    if (!currentDraft(input)) return;
     pending = false;
-    // A sent edit gives back the unsent text it had set aside.
-    view.text.value = composition.finish();
-    view.text.dispatchEvent(new Event('input'));
+    input.current.text.value = composition.finish();
+    input.current.text.dispatchEvent(new Event('input'));
   }
   function assertMediaMode(once: boolean, media: ChosenMedia | null): void {
     if (!once && media?.viewOnceOnly)
@@ -226,26 +271,19 @@ export function startDmComposer(options: {
         'Enable view once to send this selected file, or remove it.',
       );
   }
-  function finishMedia(input: {
-    once: boolean;
-    admitted: boolean;
-    current: DmView;
-    recipient: string | null;
-    media: ChosenMedia | null;
-  }): void {
-    const { once, admitted, current, recipient, media } = input;
+  function finishMedia(input: Submission & { admitted: boolean }): void {
     if (
-      once &&
-      !admitted &&
-      view === current &&
-      bound === recipient &&
-      writable
+      input.once &&
+      !input.admitted &&
+      currentDraft(input) &&
+      writable &&
+      !chosen
     )
-      chosen = media;
+      chosen = input.media;
     else {
-      media?.selection.bytes.fill(0);
-      media?.selection.thumbnail?.fill(0);
-      if (view === current) releasePreview();
+      wipeMedia(input.media);
+      if (view === input.current && bound === input.recipient && !chosen)
+        releasePreview();
     }
   }
   function hasUnsent(): boolean {
@@ -281,6 +319,8 @@ export function startDmComposer(options: {
       const file = input.files?.[0];
       input.value = '';
       if (!file || composition.target) return;
+      const recipient = bound,
+        preparationRevision = ++mediaRevision;
       const preparation = viewOnceEnabled(current.form)
         ? prepareViewOnceSelection(file, 3_000_000).then((selection) => ({
             selection,
@@ -293,8 +333,14 @@ export function startDmComposer(options: {
         : prepareSocialImage(file);
       void preparation
         .then((value) => {
-          if (view === current && writable) choose(value);
-          else value.selection.bytes.fill(0);
+          if (
+            view === current &&
+            writable &&
+            bound === recipient &&
+            mediaRevision === preparationRevision
+          )
+            choose(value);
+          else wipeMedia(value);
         })
         .catch((error: unknown) => {
           showToast(
@@ -310,9 +356,17 @@ export function startDmComposer(options: {
         sync();
         return;
       }
-      if (pending)
+      const recipient = bound,
+        revision = draftRevision;
+      if (pending && recipient)
         void options.run(async () => {
-          await options.discardPending();
+          await options.discardPending(recipient);
+          if (
+            view !== current ||
+            bound !== recipient ||
+            revision !== draftRevision
+          )
+            return;
           pending = false;
           releasePreview();
           sync();
@@ -350,8 +404,11 @@ export function startDmComposer(options: {
         pane: (host, close) => {
           mountGifPane(host, gifs, (url) => {
             close();
-            if (viewOnceEnabled(current.form)) {
-              const recipient = bound;
+            const recipient = bound,
+              replying = composition.replying?.id ?? null,
+              once = viewOnceEnabled(current.form);
+            if (!recipient || view !== current) return;
+            if (once) {
               void options.run(async () => {
                 const file = await gifs.viewOnceClip(url, 3_000_000);
                 const selection = await prepareViewOnceSelection(
@@ -361,6 +418,9 @@ export function startDmComposer(options: {
                 try {
                   if (view === current && writable && bound === recipient)
                     await options.submit({
+                      peer: recipient,
+                      editing: null,
+                      replying,
                       text: '',
                       media: { selection, media: 'gif', viewOnceOnly: true },
                       pending: false,
@@ -375,7 +435,7 @@ export function startDmComposer(options: {
             // A GIF is its KLIPY link, sent as the usual E2EE text.
             if (options.queueText && canQueueText()) {
               try {
-                options.queueText(url, composition.replying?.id ?? null);
+                options.queueText(url, replying);
               } catch (error: unknown) {
                 showToast(
                   error instanceof Error
@@ -386,10 +446,13 @@ export function startDmComposer(options: {
             } else
               void options.run(() =>
                 options.submit({
+                  peer: recipient,
+                  editing: null,
+                  replying,
                   text: url,
                   media: null,
                   pending: false,
-                  viewOnce: viewOnceEnabled(view?.form ?? null),
+                  viewOnce: once,
                 }),
               );
           });
@@ -409,10 +472,20 @@ export function startDmComposer(options: {
       restore(next, peer);
       guardUnload();
       bindChatComposer(next.form, sync);
+      next.text.addEventListener('input', () => {
+        draftRevision++;
+      });
       next.form.addEventListener('submit', (event) => {
         event.preventDefault();
         try {
-          if (!queueText()) void options.run(send);
+          if (!queueText())
+            void send().catch((error: unknown) =>
+              showToast(
+                error instanceof Error
+                  ? translatedError(error.message)
+                  : t('Could not complete the operation.'),
+              ),
+            );
         } catch (error: unknown) {
           showToast(
             error instanceof Error
@@ -467,6 +540,7 @@ export function startDmComposer(options: {
     },
     reply(target: Parameters<DmComposition['reply']>[0]): void {
       if (!writable || recording.active || chosen || pending) return;
+      draftRevision++;
       composition.reply(target);
       sync();
     },
@@ -476,9 +550,11 @@ export function startDmComposer(options: {
       sync();
     },
     cancelEdit(): void {
+      draftRevision++;
       composition.cancel();
     },
     leave(): void {
+      draftRevision++;
       emoji.close();
       if (view && bound) drafts.keep(bound, composition.unsent());
       bound = null;

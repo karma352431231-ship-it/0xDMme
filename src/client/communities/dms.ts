@@ -1,3 +1,4 @@
+import { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
   startHandleRead,
   traceHandleRead,
@@ -131,7 +132,9 @@ export function startSocialDmUi(
     previews: (peers, options) => controller.directoryPreviews(peers, options),
   });
   const playback = new VoicePlayback();
+  const outgoingMedia = new DmOutgoingMedia(drawOutgoing);
   const history = new DmHistory({
+    outgoingMedia,
     playback,
     privacy,
     controller,
@@ -150,7 +153,7 @@ export function startSocialDmUi(
       await conversation();
     },
   });
-  const sending = new DmSending(controller);
+  const sending = new DmSending(controller, outgoingMedia);
   const texts = new DmTextSending({
     controller,
     available: () =>
@@ -187,8 +190,15 @@ export function startSocialDmUi(
     },
     queueFull: () => texts.full,
     changed: () => refreshes.resumeRefresh(),
-    submit: async ({ text, media, pending, viewOnce }) => {
-      const selected = peer;
+    submit: async ({
+      peer: selected,
+      text,
+      media,
+      pending,
+      viewOnce,
+      editing,
+      replying,
+    }) => {
       if (!selected) return;
       if (viewOnce) {
         if (pending || composer.editing)
@@ -208,15 +218,14 @@ export function startSocialDmUi(
         text,
         media,
         pending,
-        editing: composer.editing,
-        replying: composer.replying,
+        editing,
+        replying,
       });
       if (selected !== peer) return;
-      await conversation();
+      if (media || pending) pendingMedia = false;
+      refreshes.requestContent();
     },
-    discardPending: async () => {
-      if (peer) await controller.cancelMedia(peer);
-    },
+    discardPending: (selected) => controller.cancelMedia(selected),
   });
   const projections = new DmProjections();
   const workQueue = new DmWork();
@@ -304,6 +313,7 @@ export function startSocialDmUi(
     });
   }
   function closeGate(): void {
+    outgoingMedia.reset();
     projections.clear();
     followup.clear();
     refreshes.clearContinuation();
@@ -992,6 +1002,7 @@ export function startSocialDmUi(
       leave();
       composer.forgetDrafts();
       texts.reset();
+      outgoingMedia.reset();
       textsReady = false;
       session = value;
       ownProfile = null;

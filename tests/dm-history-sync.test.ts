@@ -176,3 +176,32 @@ await test('a version 3 client that skipped author deletions is replayed before 
     after: f.snapshot.anchor,
   });
 });
+
+await test('a final page can provide confirmation from the same authority turn without another snapshot request', async () => {
+  const f = fixture();
+  let snapshots = 0;
+  f.options.snapshot = () => {
+    snapshots++;
+    return Promise.resolve({ ...f.snapshot });
+  };
+  f.options.page = () =>
+    Promise.resolve({
+      next: null,
+      unavailable: [],
+      confirmation: { ...f.snapshot },
+    });
+  await f.sync.run(f.options);
+  assert.equal(snapshots, 1);
+  assert.equal(f.saved.length, 1);
+});
+await test('inline final confirmation still rejects changed removals before exposing progress', async () => {
+  const f = fixture();
+  f.options.page = () =>
+    Promise.resolve({
+      next: null,
+      unavailable: [],
+      confirmation: { ...f.snapshot, removals: 1 },
+    });
+  await assert.rejects(f.sync.run(f.options), /DM history changed/u);
+  assert.equal(f.saved.length, 0);
+});

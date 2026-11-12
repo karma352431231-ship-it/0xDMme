@@ -155,6 +155,22 @@ await test('cross-device comparison joins the same tag and uses clock bounds ins
     consistent: true,
     entirelyNegative: false,
   });
+  b.startedAtUnixMs += 1000;
+  const late = compareDelivery(a, b).messages[0];
+  assert.equal(late?.recipientCaptureBeforeClick, 'late');
+  assert.equal(late?.fullCapture, false);
+  assert.equal(
+    late?.clickToFrame,
+    null,
+    'nonoverlapping captures cannot claim complete delivery',
+  );
+  b.startedAtUnixMs -= 1000;
+  a.elapsedMs = 150;
+  assert.equal(
+    compareDelivery(a, b).messages[0]?.senderCaptureThroughFrame,
+    'stopped-before-frame',
+  );
+  a.elapsedMs = 400;
   b.handleDelivery.pairFingerprint = 'c'.repeat(32);
   assert.equal(compareDelivery(a, b).available, false);
   b.handleDelivery.pairFingerprint = a.handleDelivery.pairFingerprint;

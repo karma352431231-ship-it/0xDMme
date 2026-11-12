@@ -1,3 +1,4 @@
+import { deferred } from './fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -70,7 +71,7 @@ const bundle = await build({
 });
 
 for (const interactive of [false, true])
-  await test(`handle history preserves signed snapshot priority and never spends a network turn on the local cursor: interactive=${interactive}`, async () => {
+  await test(`handle history preserves signed snapshot priority and never spends a network turn on the local cursor: interactive=${interactive}`, async (t) => {
     const session = {
       accountId: crypto.randomUUID(),
       deviceId: crypto.randomUUID(),
@@ -111,13 +112,15 @@ for (const interactive of [false, true])
         return work({ ...authority, offline: true });
       },
     };
+    let saveWait: Promise<void> | null = null;
     const empty = () => Promise.resolve([]);
     const fixture: Record<string, unknown> = {
       dmConversationHistory: empty,
       relatedDmHistory: empty,
       localGet: (_scope: string, name: string) =>
         Promise.resolve(stored.get(name) ?? null),
-      localPut: (_scope: string, name: string, value: unknown) => {
+      localPut: async (_scope: string, name: string, value: unknown) => {
+        if (name === 'dm-sync-state' && saveWait) await saveWait;
         stored.set(name, value);
         return Promise.resolve();
       },
@@ -195,5 +198,41 @@ for (const interactive of [false, true])
       requests.length - afterCancel,
       3,
       'Cancelled verification cannot be reused',
+    );
+    // A final page supplies an assembled candidate, but cursor persistence is
+    // still a gate. No redundant offline projection turn is acquired after it.
+    snapshot.anchor = 1;
+    controller.cancel();
+    const candidate = {
+      items: [],
+      reactionReads: [],
+      next: null,
+      self: 'self',
+    };
+    t.mock.method(controller, 'historyPage', () =>
+      Promise.resolve({
+        items: [],
+        unavailable: [],
+        next: null,
+        confirmation: { ...snapshot },
+        pageCandidate: candidate,
+      }),
+    );
+    const saved = deferred<void>();
+    saveWait = saved.promise;
+    const turns = boundaries.length;
+    let displayed = false;
+    const pendingRead = controller.read(profile, null, {}).then((value) => {
+      displayed = true;
+      return value;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(displayed, false);
+    saved.resolve();
+    assert.equal(await pendingRead, candidate);
+    assert.equal(
+      boundaries.length - turns,
+      1,
+      'the assembled page requires no second cached-history authority',
     );
   });

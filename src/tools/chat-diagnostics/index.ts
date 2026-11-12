@@ -1,3 +1,4 @@
+import { PairingControls } from './pairing-controls.ts';
 import { compareDelivery } from './delivery-comparison.ts';
 import { deliveryReadiness } from './readiness.ts';
 import { Recording } from './recording.ts';
@@ -43,6 +44,8 @@ function start() {
   let handleTimings = false;
   let revision = 0;
   let pairSent = false;
+  const pairing = new PairingControls(pair);
+  label.after(pairing.element);
 
   function pair(code = crypto.randomUUID().replaceAll('-', '')): string {
     if (stopped || !handleTimings || revision !== handleDiagnosticRevision)
@@ -63,6 +66,7 @@ function start() {
   function stop() {
     if (!stopped) {
       stopped = true;
+      pairing.stop();
       clearTimeout(deadline);
       for (const hook of stopHooks.reverse()) hook();
       recording.stop();
@@ -117,6 +121,10 @@ function start() {
       : download;
     const refreshStatus = () => {
       label.textContent = deliveryReadiness(recording.readiness()).label;
+      pairing.update(
+        handleTimings && revision === handleDiagnosticRevision,
+        pairSent,
+      );
     };
     refreshStatus();
     const statusTimer = setInterval(refreshStatus, 1000);

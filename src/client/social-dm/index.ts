@@ -1,3 +1,5 @@
+export type { AcceptedDmMedia, DmMediaAccepted } from './accepted-media.ts';
+import type { DmMediaAccepted } from './accepted-media.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import {
   timedLoad,
@@ -38,7 +40,11 @@ import {
 } from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { projectDmMessages } from './presentation.ts';
-import { DmHistorySynchronization, confirmDmHistory } from './history-sync.ts';
+import {
+  DmHistorySynchronization,
+  confirmDmHistory,
+  readDmHistorySnapshot,
+} from './history-sync.ts';
 import type { DmHistorySnapshot } from './history-sync.ts';
 import { WorkInterruption } from '../synchronization-work/index.ts';
 import { readDmDirectoryPreviews } from './directory-previews.ts';
@@ -737,7 +743,9 @@ export class SocialDms {
     snapshot: unknown,
     after: number,
     options: VaultWorkOptions = {},
+    projection?: { peer: string; before: number | null },
   ) {
+    const generation = this.generation;
     return this.withCrypto(async (context) => {
       const raw = personalPage(
         await context.api('personal-page', {
@@ -793,12 +801,58 @@ export class SocialDms {
         await context.api('received', {
           items: result.map((row) => ({ id: row.id, hash: row.hash })),
         });
-      return {
-        items: result,
-        unavailable,
-        next: raw['next'] === null ? null : socialRevision(raw['next']),
-      };
+      return this.finishHistoryPage(
+        { api: context.api, authority: context.privateAuthority },
+        {
+          snapshot,
+          projection,
+          generation,
+          result: {
+            items: result,
+            unavailable,
+            next: raw['next'] === null ? null : socialRevision(raw['next']),
+          },
+        },
+      );
     }, options);
+  }
+  /** Final confirmation and local assembly share this already-authorized turn.
+   * The candidate does not become presentable until the history owner confirms
+   * the same snapshot and saves its cursor successfully. */
+  private async finishHistoryPage(
+    context: { api: SocialApi; authority: VaultAuthority },
+    input: {
+      snapshot: unknown;
+      generation: number;
+      projection: { peer: string; before: number | null } | undefined;
+      result: {
+        items: Extract<BackupRecord, { type: 'dm-message' }>[];
+        unavailable: string[];
+        next: number | null;
+      };
+    },
+  ) {
+    if (!input.projection) return { ...input.result, pageCandidate: undefined };
+    const expected = readDmHistorySnapshot(input.snapshot);
+    if (input.result.next !== null && input.result.next < expected.anchor)
+      return { ...input.result, pageCandidate: undefined };
+    const confirmation = await measureDmWork(this, 'dm/history-confirm', () =>
+      context.api('personal-snapshot', {}),
+    );
+    confirmDmHistory(expected, confirmation);
+    const generation = input.generation;
+    await this.removals.load(context.authority, () => this.guard(generation));
+    const projection = input.projection;
+    const pageCandidate = await measureDmWork(this, 'dm/history-cache', () =>
+      this.cachedPage({
+        a: context.authority,
+        ...projection,
+        generation,
+        maximum: 16,
+      }),
+    );
+    this.guard(generation);
+    return { ...input.result, confirmation, pageCandidate };
   }
   private async applyDeletion(
     context: SocialContext,
@@ -1022,9 +1076,10 @@ export class SocialDms {
     before: number | null,
     options: VaultWorkOptions = {},
   ) {
-    await measureDmWork(this, 'dm/history-sync', () =>
-      this.synchronizeHistory(options),
+    const confirmed = await measureDmWork(this, 'dm/history-sync', () =>
+      this.synchronizeHistory(options, { peer, before }),
     );
+    if (confirmed.page) return confirmed.page;
     return measureDmWork(this, 'dm/history-cache', () =>
       this.cached(peer, before, options),
     );
@@ -1034,14 +1089,25 @@ export class SocialDms {
   }
   private async synchronizeHistory(
     options: VaultWorkOptions = {},
-  ): Promise<DmHistorySnapshot | null> {
+    projection?: { peer: string; before: number | null },
+  ) {
     const generation = this.generation;
     let snapshot: DmHistorySnapshot | null = null;
+    let page: Awaited<ReturnType<SocialDms['cached']>> | undefined;
     if (navigator.onLine) {
       snapshot = await this.history.run({
         snapshot: () => this.request('personal-snapshot', {}, options),
         guard: () => this.guard(generation),
-        page: (snapshot, after) => this.historyPage(snapshot, after, options),
+        page: async (snapshot, after) => {
+          const result = await this.historyPage(
+            snapshot,
+            after,
+            options,
+            projection,
+          );
+          page = result.pageCandidate;
+          return result;
+        },
         cursor: () =>
           this.localWork(generation, async (a) => {
             const held = await localGet<LocalCipher>(
@@ -1071,7 +1137,7 @@ export class SocialDms {
     }
     this.guard(generation);
     this.confirmedHistory = snapshot;
-    return snapshot;
+    return { snapshot, page };
   }
   async directoryPreviews(
     peers: readonly string[],
@@ -1081,7 +1147,7 @@ export class SocialDms {
     const generation = this.generation;
     const snapshot = navigator.onLine
       ? ((options.afterReceive ? this.confirmedHistory : null) ??
-        (await this.synchronizeHistory()))
+        (await this.synchronizeHistory()).snapshot)
       : null;
     return this.access.withVault(true, async (a) => {
       await this.removals.load(a, () => this.guard(generation));
@@ -1252,7 +1318,7 @@ export class SocialDms {
       { diagnosticOperation: 'handle-media-stage' },
     );
   }
-  async sendMedia(peer: string): Promise<void> {
+  async sendMedia(peer: string, accepted?: DmMediaAccepted): Promise<void> {
     await this.withCrypto(
       async (context) => {
         const { privateAuthority: a, api, authority, machine } = context,
@@ -1275,6 +1341,7 @@ export class SocialDms {
           (await api('accepted', { id, hash: await digest(canonical(packet)) }))
         ) {
           markHandleSend(id, 'accepted');
+          accepted?.({ id, peer, media, content });
           await localDelete(scope, `dm-media-draft:${peer}`);
           await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
           return;
@@ -1336,6 +1403,7 @@ export class SocialDms {
           id,
         );
         markHandleSend(id, 'accepted');
+        accepted?.({ id, peer, media, content });
         await localDelete(scope, `dm-media-draft:${peer}`);
         await localDelete(dmMediaScope(a.session.accountId), `outbox:${id}`);
       },

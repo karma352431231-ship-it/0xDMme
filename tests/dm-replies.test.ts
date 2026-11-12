@@ -1,3 +1,5 @@
+import { deferred } from './fixtures/deferred.ts';
+import { expectedInterruption } from '../src/client/synchronization-work/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeDailyText } from '../src/shared/daily/index.ts';
@@ -94,4 +96,37 @@ await test('handle reply sends the existing encrypted reply envelope and retries
   await sender.send('peer', { ...input, text: 'Next', replying: null });
   assert.equal(calls[2]!.text, 'Next');
   assert.notEqual(calls[2]!.id, calls[1]!.id);
+});
+
+await test('a staged media send cannot resume under a new conversation or session generation', async () => {
+  const staged = deferred<void>();
+  let publications = 0;
+  const sending = new DmSending({
+    stageMedia: () => staged.promise,
+    sendMedia: () => {
+      publications++;
+      return Promise.resolve();
+    },
+    edit: () => Promise.resolve(),
+    send: () => Promise.resolve(),
+  });
+  const pending = sending.send('original-peer', {
+    text: 'Caption',
+    pending: false,
+    editing: null,
+    media: {
+      media: 'photo',
+      selection: {
+        name: 'synthetic.png',
+        type: 'image/png',
+        image: true,
+        bytes: new Uint8Array([1]),
+        thumbnail: null,
+      },
+    },
+  });
+  sending.reset();
+  staged.resolve();
+  await assert.rejects(pending, expectedInterruption);
+  assert.equal(publications, 0);
 });

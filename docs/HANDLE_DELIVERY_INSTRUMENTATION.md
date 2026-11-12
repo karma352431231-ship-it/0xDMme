@@ -159,3 +159,10 @@ Keep both reports. `__0xdmmeLag.compare(recipientReport)` in the sender's consol
 can compare a parsed recipient report; returning the two files for analysis also
 preserves all timing intervals and missing-stage evidence. Review the attributed
 critical path before implementing or claiming a latency optimization.
+
+## Latency correction follow-up
+
+The accepted-media presentation, verified receiver turn reuse and operator
+pairing controls are described in
+[Handle chat latency corrections](HANDLE_CHAT_LATENCY.md). Timing gains still
+require the owner's matched device captures.

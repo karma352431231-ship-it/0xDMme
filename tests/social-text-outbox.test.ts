@@ -1,3 +1,10 @@
+import { SocialDms } from '../src/client/social-dm/index.ts';
+import type { AcceptedDmMedia } from '../src/client/social-dm/index.ts';
+import { VaultSync } from '../src/client/vault-sync/index.ts';
+import type { AccountSession } from '../src/shared/account/index.ts';
+import { sealFile } from '../src/client/attachment-crypto/index.ts';
+import { deferred } from './fixtures/deferred.ts';
+import { sendPeer } from '../src/client/social-dm/text-transmission.ts';
 import { ApiResponseError } from '../src/client/api-response/index.ts';
 import { createIdentity, aesKey } from '../src/client/device-keys/index.ts';
 import {
@@ -173,6 +180,7 @@ async function fixture(t: TestContext) {
       },
     });
   return {
+    context,
     owner,
     own,
     peer,
@@ -500,4 +508,134 @@ await test('more than sixteen legacy peers drain ahead of newly queued FIFO text
   );
   assert.equal(await localGet(oldScope, 'usage'), 0);
   assert.equal(await localGet(f.scope, 'usage'), 0);
+});
+
+await test('peer metadata reads overlap but all checkpoint work settles before an error releases the turn', async (t) => {
+  const f = await fixture(t);
+  for (const fail of [false, true]) {
+    const directoryStarted = deferred<void>(),
+      recoveryStarted = deferred<void>(),
+      release = deferred<void>();
+    const context: SocialContext = {
+      ...f.context,
+      sendPeers: new Map(),
+      api: async (op, data) => {
+        if (op === 'directory') {
+          directoryStarted.resolve();
+          await release.promise;
+        }
+        if (op === 'recovery-peer') {
+          recoveryStarted.resolve();
+          if (fail) throw new Error('Synthetic key lookup failure');
+        }
+        return f.context.api(op, data);
+      },
+    };
+    let settled = false;
+    const pending = sendPeer(context, f.peer.accountId);
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await Promise.all([directoryStarted.promise, recoveryStarted.promise]);
+    assert.equal(settled, false);
+    release.resolve();
+    if (fail) {
+      await assert.rejects(pending, /Synthetic key lookup failure/u);
+      assert.equal(context.sendPeers.size, 0);
+    } else {
+      const first = await pending;
+      assert.equal(await sendPeer(context, f.peer.accountId), first);
+    }
+  }
+});
+
+await test('media acceptance projects at publish and on lost-response reconciliation while refusals keep the stable retry draft', async (t) => {
+  const f = await fixture(t),
+    controller = new SocialDms(f.access, {} as VaultSync);
+  controller.setSession(f.owner.authority.session as AccountSession);
+  const context: SocialContext = {
+    ...f.context,
+    api: (op, data) =>
+      op === 'attachment-reserve'
+        ? Promise.resolve(
+            (data['refs'] as { id: string }[]).map(({ id }) => ({
+              id,
+              ready: true,
+              received: [],
+            })),
+          )
+        : f.context.api(op, data),
+  };
+  const withCrypto: SocialDms['withCrypto'] = (work) => work(context);
+  t.mock.method(controller, 'withCrypto', withCrypto);
+  const file = await sealFile(new Uint8Array([1, 2, 3]));
+  const content = {
+    version: 1,
+    name: 'synthetic.png',
+    type: 'image/png',
+    caption: 'Caption',
+    image: true,
+    file: file.file,
+    thumbnail: null,
+  };
+  const scope = `${f.owner.accountId}:${f.owner.deviceId}`,
+    name = `dm-media-draft:${f.peer.accountId}`;
+  async function prepare() {
+    const id = crypto.randomUUID(),
+      row = await sealLocal(
+        f.owner.authority,
+        crypto.randomUUID(),
+        JSON.stringify({ id, media: 'photo', text: JSON.stringify(content) }),
+      );
+    await localPut(scope, name, row, row.bytes.length + 512);
+    return id;
+  }
+  const projected: AcceptedDmMedia[] = [];
+  const first = await prepare();
+  await controller.sendMedia(f.peer.accountId, (message) =>
+    projected.push(message),
+  );
+  assert.equal(projected[0]?.id, first);
+  assert.equal(projected[0]?.content.caption, 'Caption');
+  assert.equal(await localGet(scope, name), null);
+  const lost = await prepare();
+  f.state.loseResponse = true;
+  await assert.rejects(
+    controller.sendMedia(f.peer.accountId, (message) =>
+      projected.push(message),
+    ),
+    /Response lost/u,
+  );
+  assert.equal(
+    projected.length,
+    1,
+    'uncertain publication must not fabricate acceptance',
+  );
+  assert.ok(await localGet(scope, name));
+  f.state.loseResponse = false;
+  await controller.sendMedia(f.peer.accountId, (message) =>
+    projected.push(message),
+  );
+  assert.equal(projected[1]?.id, lost);
+  assert.equal(await localGet(scope, name), null);
+  const refused = await prepare();
+  f.state.rejectPublish = true;
+  await assert.rejects(
+    controller.sendMedia(f.peer.accountId, (message) =>
+      projected.push(message),
+    ),
+    /Publication refused/u,
+  );
+  assert.equal(projected.length, 2);
+  assert.ok(await localGet(scope, name));
+  f.state.rejectPublish = false;
+  await controller.sendMedia(f.peer.accountId, (message) =>
+    projected.push(message),
+  );
+  assert.equal(projected[2]?.id, refused);
 });

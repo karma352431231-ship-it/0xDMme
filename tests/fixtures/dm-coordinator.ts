@@ -1,3 +1,7 @@
+import type {
+  DmMediaAccepted,
+  AcceptedDmMedia,
+} from '../../src/client/social-dm/index.ts';
 import { build } from 'esbuild';
 import { runInNewContext } from 'node:vm';
 import type { TestContext } from 'node:test';
@@ -139,6 +143,10 @@ class DmNode extends CommunityNode {
     return this.hidden ? [] : [{}];
   }
   focus() {}
+  override setAttribute(name: string, value: string): void {
+    super.setAttribute(name, value);
+    if (name === 'class') this.className = value;
+  }
   get firstChild() {
     return this.children[0] ?? null;
   }
@@ -201,6 +209,9 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     pending: null as { id: string; text: string } | null,
     textDrafts: [] as TextDraft[],
     savedTexts: [] as TextDraft[],
+    readWait: null as Promise<void> | null,
+    mediaId: crypto.randomUUID(),
+    mediaCaption: '',
     sendWait: null as Promise<void> | null,
     saveWait: null as Promise<void> | null,
     settingsWait: null as Promise<void> | null,
@@ -223,6 +234,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     }[],
     revokedUrls: [] as string[],
     selected: null as AttachmentSelection | null,
+    preparationWait: null as Promise<void> | null,
     streamStops: 0,
     playbackClosed: 0,
   };
@@ -354,7 +366,9 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
           data.readAfters.push(before);
           return readFailure
             ? Promise.reject(readFailure)
-            : Promise.resolve(page());
+            : data.readWait
+              ? data.readWait.then(() => page())
+              : Promise.resolve(page());
         },
         cached: (peer: string, before: number | null) => {
           calls.push('cached:' + peer);
@@ -408,15 +422,43 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
           data.pending = null;
           return Promise.resolve();
         },
-        stageMedia: () => {
+        stageMedia: (
+          _peer: string,
+          _selection: AttachmentSelection,
+          _media: string,
+          caption: string,
+        ) => {
+          data.mediaCaption = caption;
           calls.push('stage-media');
           data.mediaPending = true;
           return Promise.resolve();
         },
-        sendMedia: () => {
+        sendMedia: async (peer: string, accepted?: DmMediaAccepted) => {
+          const generation = cancellations;
+          if (data.sendWait) await data.sendWait;
+          if (generation !== cancellations)
+            throw new context.WorkInterruption('session');
           calls.push('send-media');
           if (data.sendFailure) return Promise.reject(data.sendFailure);
           data.mediaPending = false;
+          const content: AcceptedDmMedia['content'] = {
+            version: 1,
+            name: 'synthetic.png',
+            type: 'image/png',
+            caption: data.mediaCaption,
+            image: true,
+            file: {
+              encryption: '{}',
+              ref: {
+                id: crypto.randomUUID(),
+                hash: 'a'.repeat(64),
+                bytes: 2,
+                parts: [],
+              },
+            },
+            thumbnail: null,
+          };
+          accepted?.({ id: data.mediaId, peer, media: 'photo', content });
           return Promise.resolve();
         },
         mediaDraft: (peer: string) => {
@@ -454,8 +496,13 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     GifSearch: function () {},
     mountGifPane: noop,
     dropFilesInto: noop,
-    prepareSocialImage: () =>
-      Promise.resolve({ selection: data.selected, media: 'photo' }),
+    prepareSocialImage: () => {
+      const selected = data.selected;
+      return Promise.resolve(data.preparationWait).then(() => ({
+        selection: selected,
+        media: 'photo',
+      }));
+    },
     showToast: noop,
     VoiceRecording: function (options: { changed: (state: unknown) => void }) {
       record = {

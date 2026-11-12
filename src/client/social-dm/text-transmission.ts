@@ -120,8 +120,16 @@ async function retryChangedRecipient(
 export async function sendPeer(context: SocialContext, peer: string) {
   const held = context.sendPeers.get(peer);
   if (held) return held;
-  const directory = await readSocialDirectory(context.api, peer);
-  const raw = await context.api('recovery-peer', { accountId: peer });
+  const [directoryRead, recoveryRead] = await Promise.allSettled([
+    readSocialDirectory(context.api, peer),
+    context.api('recovery-peer', { accountId: peer }),
+  ]);
+  // Settle both reads before releasing the authorized turn, even on failure:
+  // directory verification can still be updating its trusted checkpoint.
+  if (directoryRead.status === 'rejected') throw directoryRead.reason;
+  if (recoveryRead.status === 'rejected') throw recoveryRead.reason;
+  const directory = directoryRead.value,
+    raw = recoveryRead.value;
   if (raw === null)
     throw new Error(
       'The recipient must open Handle messages in this app to prepare E2EE recovery.',

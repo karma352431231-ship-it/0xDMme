@@ -874,3 +874,134 @@ for (const own of [false, true])
     f.release('first');
     await turn();
   });
+
+await test('accepted image shows one check and clears only its draft before a held history refresh finishes', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  const selection: AttachmentSelection = {
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2]),
+    thumbnail: null,
+  };
+  f.chooseImage(selection);
+  await turn();
+  current.text.value = 'Caption';
+  current.text.dispatchEvent(new Event('input'));
+  const read = deferred<void>();
+  f.data.readWait = read.promise;
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.ok(
+    current.history.querySelector('.message-checks'),
+    'authoritative acceptance renders without readback',
+  );
+  assert.equal(current.text.value, '');
+  assert.equal(
+    current.history.querySelectorAll('[data-outgoing-media]').length,
+    1,
+  );
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(
+    current.history.querySelector('.message-checks'),
+    'unresolved refresh cannot hide the accepted check',
+  );
+  read.resolve();
+  await turn();
+});
+
+await test('late media completion preserves text typed after submission', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  const selection: AttachmentSelection = {
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2]),
+    thumbnail: null,
+  };
+  f.chooseImage(selection);
+  await turn();
+  const sent = deferred<void>();
+  f.data.sendWait = sent.promise;
+  current.text.value = 'Original caption';
+  current.form.dispatchEvent(new Event('submit'));
+  await Promise.resolve();
+  current.text.value = 'New draft';
+  current.text.dispatchEvent(new Event('input'));
+  sent.resolve();
+  await turn();
+  assert.equal(current.text.value, 'New draft');
+});
+
+await test('media acknowledgement after navigation cannot clear another conversation draft or draw into it', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  f.chooseImage({
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2]),
+    thumbnail: null,
+  });
+  await turn();
+  const sent = deferred<void>();
+  f.data.sendWait = sent.promise;
+  f.views.at(-1)!.form.dispatchEvent(new Event('submit'));
+  await turn();
+  f.ui.mount(f.host, 'B');
+  const current = f.views.at(-1)!;
+  current.text.value = 'B draft';
+  current.text.dispatchEvent(new Event('input'));
+  sent.resolve();
+  await turn();
+  await turn();
+  assert.equal(current.text.value, 'B draft');
+  assert.equal(
+    current.history.querySelectorAll('[data-outgoing-media]').length,
+    0,
+  );
+});
+
+await test('caption typing preserves a preparing image while a newer image replaces only the older selection', async (t) => {
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!,
+    held = deferred<void>();
+  const selected: AttachmentSelection = {
+    name: 'synthetic.png',
+    type: 'image/png',
+    image: true,
+    bytes: new Uint8Array([1, 2]),
+    thumbnail: null,
+  };
+  f.data.preparationWait = held.promise;
+  f.chooseImage(selected);
+  current.text.value = 'Caption entered during processing';
+  current.text.dispatchEvent(new Event('input'));
+  held.resolve();
+  await turn();
+  assert.deepEqual([...selected.bytes], [1, 2]);
+  const older = deferred<void>(),
+    stale = { ...selected, bytes: new Uint8Array([3, 4]) };
+  f.data.preparationWait = older.promise;
+  f.chooseImage(stale);
+  f.data.preparationWait = null;
+  const newer = { ...selected, bytes: new Uint8Array([5, 6]) };
+  f.chooseImage(newer);
+  await turn();
+  older.resolve();
+  await turn();
+  assert.deepEqual([...stale.bytes], [0, 0]);
+  assert.deepEqual([...newer.bytes], [5, 6]);
+  assert.equal(current.text.value, 'Caption entered during processing');
+});

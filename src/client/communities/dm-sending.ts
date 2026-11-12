@@ -1,3 +1,5 @@
+import { WorkInterruption } from '../synchronization-work/index.ts';
+import type { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
 import type { ChosenMedia } from './dm-composer.ts';
@@ -6,18 +8,36 @@ import type { ChosenMedia } from './dm-composer.ts';
  * sequence. Encryption, durable drafts and retries stay in SocialDms. */
 export class DmSending {
   private messageId: string = crypto.randomUUID();
+  private generation = 0;
   private readonly controller: Pick<
     SocialDms,
     'send' | 'edit' | 'stageMedia' | 'sendMedia'
   >;
-  constructor(controller: DmSending['controller']) {
+  private readonly outgoing: Pick<DmOutgoingMedia, 'acceptance'> | undefined;
+  constructor(
+    controller: DmSending['controller'],
+    outgoing?: Pick<DmOutgoingMedia, 'acceptance'>,
+  ) {
+    this.outgoing = outgoing;
     this.controller = controller;
   }
   reset(): void {
+    this.generation++;
     this.messageId = crypto.randomUUID();
   }
   restore(id: string): void {
     this.messageId = id;
+  }
+  private capture(media: ChosenMedia | null) {
+    const generation = this.generation;
+    return {
+      id: this.messageId,
+      accepted: this.outgoing?.acceptance(media ? media.selection : null),
+      current: () => {
+        if (generation !== this.generation)
+          throw new WorkInterruption('navigation');
+      },
+    };
   }
   async send(
     selected: string,
@@ -30,6 +50,7 @@ export class DmSending {
     },
   ): Promise<void> {
     const { text, media, pending, editing } = input;
+    const operation = this.capture(media);
     if (editing) {
       await this.controller.edit(selected, editing, text);
     } else if (media) {
@@ -45,14 +66,18 @@ export class DmSending {
             })
           : text.trim(),
       );
-      await this.controller.sendMedia(selected);
+      operation.current();
+      await this.controller.sendMedia(selected, operation.accepted);
     } else {
-      if (pending) await this.controller.sendMedia(selected);
+      if (pending)
+        await this.controller.sendMedia(selected, operation.accepted);
+      operation.current();
       if (text.trim()) {
         const payload = input.replying
           ? encodeDailyText({ text, reply: input.replying, forwarded: false })
           : text;
-        await this.controller.send(selected, payload, this.messageId);
+        await this.controller.send(selected, payload, operation.id);
+        operation.current();
         this.messageId = crypto.randomUUID();
       }
     }

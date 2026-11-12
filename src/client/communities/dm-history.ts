@@ -1,3 +1,4 @@
+import type { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
   chatSyncActive,
   traceSendChecks,
@@ -33,6 +34,7 @@ interface HistoryOptions {
   edit: (item: DmItem) => void;
   reply?: (item: DmItem) => void;
   remove?: (item: DmItem) => Promise<void>;
+  outgoingMedia?: Pick<DmOutgoingMedia, 'rows' | 'take'>;
   outgoing?: (peer: string) => readonly OutgoingText[];
   retryOutgoing?: () => void;
 }
@@ -141,14 +143,22 @@ export class DmHistory {
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ) {
-    return outgoingTextRows({
-      drafts: input.localMedia
+    return [
+      ...outgoingTextRows({
+        drafts: input.localMedia
+          ? []
+          : (this.options.outgoing?.(input.selected) ?? []),
+        shown: new Set(page.items.map((item) => item.id)),
+        quote: (id) => page.items.find((item) => item.id === id)?.displayText,
+        retry: this.options.retryOutgoing ?? (() => {}),
+      }),
+      ...(input.localMedia
         ? []
-        : (this.options.outgoing?.(input.selected) ?? []),
-      shown: new Set(page.items.map((item) => item.id)),
-      quote: (id) => page.items.find((item) => item.id === id)?.displayText,
-      retry: this.options.retryOutgoing ?? (() => {}),
-    });
+        : (this.options.outgoingMedia?.rows(
+            input.selected,
+            new Set(page.items.map((item) => item.id)),
+          ) ?? [])),
+    ];
   }
   private reconcile(history: HTMLElement, wanted: HTMLElement[]): void {
     const shown = new Set<Element>(wanted);
@@ -322,6 +332,10 @@ export class DmHistory {
     input: { selected: string; localMedia: boolean; signal: AbortSignal },
   ): void {
     if (item.kind !== 'attachment' || !item.media) return;
+    const content = socialAttachment(
+      JSON.parse(item.text) as unknown,
+      item.media,
+    );
     this.mediaUi.render({
       article,
       signal: input.signal,
@@ -329,9 +343,25 @@ export class DmHistory {
       saveNotice: t(
         'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
       ),
-      content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
-      load: (_view, thumbnail) =>
-        this.options.controller.media(item, thumbnail, false, input.localMedia),
+      content,
+      load: (_view, thumbnail) => {
+        const local =
+          !input.localMedia && item.own
+            ? this.options.outgoingMedia?.take(
+                item.id,
+                thumbnail,
+                content.file.ref.hash,
+              )
+            : null;
+        return local
+          ? Promise.resolve(local)
+          : this.options.controller.media(
+              item,
+              thumbnail,
+              false,
+              input.localMedia,
+            );
+      },
       run: this.options.run,
     });
   }
