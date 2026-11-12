@@ -709,11 +709,17 @@ export function startMessages(
     stars: {
       starred: conversationStars.starred,
       load: conversationStars.load,
+      // The star shows at once; the vault save follows (12/11/2026).
       toggle: async (view) => {
-        await conversationStars.toggle(
+        const saving = conversationStars.toggle(
           starredMessage(view, view.peer, t('Message')),
         );
         renderHistory();
+        try {
+          await saving;
+        } finally {
+          renderHistory();
+        }
       },
     },
     ...(options.representatives
@@ -737,6 +743,8 @@ export function startMessages(
         await controller.remove(view);
         await synchronizeVisible();
       },
+      // Stored locally first; sending never rereads the open history, which
+      // emptied the chat while it ran (12/11/2026).
       pin: async (view, until) => {
         await controller.composeAction(
           view,
@@ -747,7 +755,7 @@ export function startMessages(
             forwarded: false,
           }),
         );
-        await transmit();
+        void sendActions().catch(reportTextSaveError);
       },
     },
   });
@@ -1035,6 +1043,21 @@ export function startMessages(
       mediaSubmissions.failTransfer();
       renderHistory();
       throw error;
+    }
+  }
+  /** Sends stored message actions when the chat is free, without rereading
+   * the open history; a few bounded retries while other work holds it. */
+  async function sendActions(): Promise<void> {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      if (!networkAvailable()) return;
+      if (
+        await synchronization.run(() =>
+          sendPending({ priority: 'interactive' }),
+        )
+      )
+        return;
+      if (synchronization.failed) return;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
   }
   async function transmit(): Promise<void> {

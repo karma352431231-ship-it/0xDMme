@@ -31,14 +31,18 @@ import { showGifText, gifUrls } from '../gif-search/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import {
   dayHeading,
-  messageDay,
   messageTime,
   withDayHeadings,
+  messageRuns,
+  messageExcerpt,
+  replyQuote,
+  markRuns,
 } from '../message-presentation/index.ts';
+import type { RunPlace } from '../message-presentation/index.ts';
 
 import { GroupOutgoing } from './outgoing.ts';
-import { PinnedBar } from '../message-pins/index.ts';
-import { starredMessage } from '../message-stars/index.ts';
+import { PinnedBar, PendingPins } from '../message-pins/index.ts';
+import { starredMessage, starMark } from '../message-stars/index.ts';
 import type { ConversationStars } from '../message-stars/index.ts';
 import { activePin } from '../daily-text/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
@@ -106,7 +110,8 @@ export class GroupChatView {
   private readonly delivery = new GroupDeliveryTrace();
   private readonly composer: GroupComposer;
   private readonly reactions: HistoryReactions<GroupMessageView>;
-  private readonly pinned = new PinnedBar((id) => this.revealPinned(id));
+  private readonly pinned = new PinnedBar((id) => this.revealLoaded(id));
+  private readonly pendingPins = new PendingPins();
   private readonly deletion: MessageDeletionSelection;
   private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
@@ -202,17 +207,24 @@ export class GroupChatView {
           groupManager(group.state, account)
         );
       },
-      pin: async (view, until) => {
-        await options.controller.pin(view, until);
-        await options.reopen();
-      },
+      // Shown at once; storing and sending never reopen the history, which
+      // hid the chat while it ran (12/11/2026).
+      pin: (view, until) =>
+        this.pendingPins.run({
+          id: view.id,
+          until,
+          store: () => options.controller.pin(view, until),
+          repaint: () => this.renderHistory(),
+        }),
+      project: (view) => this.projected(view),
       star: (view) => {
         const stars = options.stars;
         if (!stars) return undefined;
         return {
           starred: stars.starred(view.id),
+          // The star shows at once; the vault save follows (12/11/2026).
           toggle: async () => {
-            await stars.toggle(
+            const saving = stars.toggle(
               starredMessage(
                 groupMessageView(view),
                 view.groupId,
@@ -220,6 +232,11 @@ export class GroupChatView {
               ),
             );
             this.renderHistory();
+            try {
+              await saving;
+            } finally {
+              this.renderHistory();
+            }
           },
         };
       },
@@ -283,8 +300,10 @@ export class GroupChatView {
   clearSession(): void {
     this.composer.reset();
     this.closeActions();
+    this.pendingPins.clear();
   }
   leave(): void {
+    this.pendingPins.clear();
     this.invalidateHistory();
     this.closeActions();
     this.composer.leave();
@@ -338,7 +357,9 @@ export class GroupChatView {
     const thread = history.closest('.chat-thread');
     if (thread && this.pinned.element.nextElementSibling !== thread)
       thread.before(this.pinned.element);
-    this.pinned.update(this.options.controller.views.map(groupMessageView));
+    this.pinned.update(
+      this.options.controller.views.map((view) => this.projected(view)),
+    );
   }
   /** Star marks follow the shown rows; the menu repaints once they load. */
   private loadStars(): void {
@@ -359,7 +380,12 @@ export class GroupChatView {
         () => undefined,
       );
   }
-  private revealPinned(id: string): void {
+  /** The message as shown, with a pin chosen here but not yet read back. */
+  private projected(view: GroupView): DailyView<GroupMessageView> {
+    return this.pendingPins.apply([groupMessageView(view)])[0]!;
+  }
+  /** Marks a message of the loaded window: a pinned or quoted original. */
+  private revealLoaded(id: string): void {
     const group = this.options.controller.selected?.state.groupId;
     void revealMessage(id, {
       row: (target) =>
@@ -390,7 +416,12 @@ export class GroupChatView {
       this.options.controller.views,
     );
     history.hidden = false;
-    const rows = this.options.controller.views.map((view, index, views) => ({
+    const runs = messageRuns(
+      this.options.controller.views,
+      (view) => view.sender,
+      (view) => view.sentAt,
+    );
+    const rows = this.options.controller.views.map((view, index) => ({
       id: view.id,
       sentAt: view.sentAt,
       key: JSON.stringify([
@@ -399,18 +430,19 @@ export class GroupChatView {
         view.sender,
         this.options.members.name(view.sender),
         this.options.members.label(view.sender).wallet ?? '',
-        this.startsRun(views, index),
+        // The author's name tops a run's first bubble; corners update in place.
+        runs[index] === 'single' || runs[index] === 'start',
         view.localOnly,
         view.kind,
         view.unavailableMedia,
         view.edited,
         view.sentAt,
         // The menu offers Pin or Unpin, Star or Unstar.
-        activePin(view.pinState ?? null),
+        activePin(this.projected(view).pin),
         this.options.stars?.starred(view.id) ?? false,
       ]),
       render: (signal: AbortSignal) =>
-        this.renderView(view, signal, this.startsRun(views, index)),
+        this.renderView(view, signal, runs[index] ?? 'single'),
     }));
     this.showPinned(history);
     this.loadStars();
@@ -445,6 +477,15 @@ export class GroupChatView {
       );
       if (row) this.renderDelivery(row, view);
     }
+    markRuns(
+      history,
+      new Map(
+        this.options.controller.views.map((view, index) => [
+          view.id,
+          runs[index] ?? 'single',
+        ]),
+      ),
+    );
     this.reactions.reconcile(
       this.options.controller.views.map(groupMessageView),
       [],
@@ -480,14 +521,17 @@ export class GroupChatView {
   private renderView(
     view: GroupView,
     mediaSignal: AbortSignal,
-    first: boolean,
+    run: RunPlace,
   ): HTMLElement {
-    const article = document.createElement('article');
+    const article = document.createElement('article'),
+      // The author's photo and name top the first bubble of a run.
+      first = run === 'single' || run === 'start';
     article.className = view.own
       ? 'chat-message own'
       : 'chat-message group-incoming';
     article.dataset['groupMessage'] = view.id;
     article.dataset['message'] = view.id;
+    article.dataset['run'] = run;
     const content = groupMessageView(view).content;
     const reactionPanel = this.reactions.mount(
       groupMessageView(view),
@@ -556,19 +600,24 @@ export class GroupChatView {
   }
   private appendAnnotations(article: HTMLElement, content: DailyText): void {
     if (content.reply) {
-      const quote = document.createElement('small');
-      quote.className = 'chat-reply-quote';
       const original = this.options.controller.views.find(
         (v) => v.id === content.reply,
       );
-      quote.textContent = original
-        ? t('Replying to: {0}', [
-            this.options.members.name(original.sender) +
-              ' · ' +
-              groupMessageView(original).content.text.slice(0, 120),
-          ])
-        : t('Reply: original message is outside this page or unavailable.');
-      article.prepend(quote);
+      const quote = replyQuote(
+        original
+          ? {
+              author: original.own
+                ? t('You')
+                : this.options.members.name(original.sender),
+              excerpt: messageExcerpt(groupMessageView(original)),
+              open: () => this.revealLoaded(original.id),
+            }
+          : { author: null, excerpt: null },
+      );
+      // Below the author's name, above the text.
+      const name = article.querySelector(':scope > .group-sender-name');
+      if (name) name.after(quote);
+      else article.prepend(quote);
     }
     if (content.forwarded) {
       const label = document.createElement('small');
@@ -579,6 +628,7 @@ export class GroupChatView {
   private renderDelivery(article: HTMLElement, view: GroupView): void {
     article.querySelector('.message-meta')?.remove();
     const parts = metaParts(view);
+    if (this.options.stars?.starred(view.id)) parts.unshift(starMark());
     if (!parts.length) return;
     const state = document.createElement('small');
     state.className = 'message-meta';
@@ -651,15 +701,6 @@ export class GroupChatView {
     return article;
   }
   /** A new author, or a new day heading, shows the author again. */
-  private startsRun(views: readonly GroupView[], index: number): boolean {
-    const previous = views[index - 1],
-      view = views[index];
-    return (
-      !previous ||
-      previous.sender !== view?.sender ||
-      dayOf(previous) !== dayOf(view)
-    );
-  }
   private appendAuthor(
     article: HTMLElement,
     view: GroupView,
@@ -729,10 +770,6 @@ export class GroupChatView {
   hint(): void {
     this.delivery.hint();
   }
-}
-
-function dayOf(view: GroupView | undefined): string | null {
-  return view?.sentAt === undefined ? null : messageDay(view.sentAt).key;
 }
 
 /** Time, edit mark and checks, in the order private messages show them. */

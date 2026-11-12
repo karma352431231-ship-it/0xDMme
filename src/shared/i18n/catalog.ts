@@ -10475,4 +10475,17 @@ export const catalog: Record<string, readonly [string, string]> = {
     'No starred messages in this chat yet.',
     '此聊天中还没有收藏的消息。',
   ],
+  Starred: ['Starred', '已收藏'],
+  '↩ {0}': ['↩ {0}', '↩ {0}'],
+  '↩ Reply': ['↩ Reply', '↩ 回复'],
+  'Original message is outside this page or unavailable.': [
+    'Original message is outside this page or unavailable.',
+    '原消息不在此页面中或不可用。',
+  ],
+  'Mute for': ['Mute for', '静音时长'],
+  'mute.choice-1h': ['1 hour', '1 小时'],
+  'mute.choice-8h': ['8 hours', '8 小时'],
+  'mute.choice-24h': ['24 hours', '24 小时'],
+  'mute.choice-7d': ['7 days', '7 天'],
+  'mute.choice-always': ['Until I turn alerts back on', '直到我重新开启提醒'],
 };

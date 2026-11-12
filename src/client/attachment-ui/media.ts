@@ -97,17 +97,21 @@ const defaultSaveNotice = t(
 function showImage(
   preview: HTMLElement,
   url: string,
-  input: { name: string; saveNotice: string },
+  input: { name: string },
 ): void {
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'chat-image-open';
+  // A tap opens the viewer; a hold opens the message options.
+  open.dataset['messageHold'] = 'true';
   open.setAttribute('aria-label', t('Zoom in on image {0}', [input.name]));
   const image = document.createElement('img');
   image.src = url;
   image.alt = input.name;
   image.loading = 'lazy';
   image.decoding = 'async';
+  // iOS drag-and-drop would take over a held image and cancel the touch.
+  image.draggable = false;
   image.addEventListener('error', () => {
     preview.textContent = t(
       'Could not display the image. You can save the original file.',
@@ -120,10 +124,7 @@ function showImage(
   preview.replaceChildren(open);
 }
 /** Full-size view of a decrypted image; the Blob URL stays owned by the chat. */
-function openImageViewer(
-  url: string,
-  input: { name: string; saveNotice: string },
-): void {
+function openImageViewer(url: string, input: { name: string }): void {
   const viewer = document.createElement('dialog');
   viewer.className = 'media-viewer';
   viewer.setAttribute('aria-label', input.name);
@@ -142,9 +143,8 @@ function openImageViewer(
   close.addEventListener('click', () => {
     viewer.close();
   });
-  const notice = document.createElement('small');
-  notice.textContent = input.saveNotice;
-  bar.append(save, notice, close);
+  // The viewer shows only the image and its two controls (owner, 12/11/2026).
+  bar.append(save, close);
   viewer.append(image, bar);
   // A click on the backdrop or the image closes; the bar keeps its controls.
   viewer.addEventListener('click', (event) => {
@@ -353,10 +353,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       input.retain(url);
       button.hidden = true;
       if (image && type !== 'application/octet-stream') {
-        showImage(preview, url, {
-          name: content.name,
-          saveNotice: input.saveNotice ?? defaultSaveNotice,
-        });
+        showImage(preview, url, { name: content.name });
         readyMedia(preview, diagnostic, input.current);
         return;
       }

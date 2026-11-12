@@ -117,10 +117,27 @@ export class MessageStars {
     }
     return changed;
   }
+  /** Shows the new state at once; saving to the vault follows and the
+   * state goes back when it fails (12/11/2026). */
   async toggle(message: StarredMessage): Promise<boolean> {
     const account = this.account(),
       generation = this.generation;
     if (!account) throw new Error('Session ended.');
+    const starred = !this.starred(message.id);
+    this.known.set(message.id, starred);
+    try {
+      await this.save(account, message, starred);
+    } catch (error: unknown) {
+      if (generation === this.generation) this.known.set(message.id, !starred);
+      throw error;
+    }
+    return starred;
+  }
+  private async save(
+    account: string,
+    message: StarredMessage,
+    starred: boolean,
+  ): Promise<void> {
     const entity = await starEntity(account, message.conversation, message.id),
       parents = this.sync
         .heads(entity)
@@ -128,7 +145,6 @@ export class MessageStars {
         .map((entry) => entry.commit.id);
     if (parents.length > 16)
       throw new Error('Too many versions of this star. Sync, then try again.');
-    const starred = !this.starred(message.id);
     const value: StarValue = {
       ...message,
       excerpt: starExcerpt(message.excerpt),
@@ -144,8 +160,6 @@ export class MessageStars {
       },
       value: JSON.stringify({ version: 1, ...value }),
     });
-    if (generation === this.generation) this.known.set(message.id, starred);
-    return starred;
   }
   /** Every starred message of one conversation, newest first. */
   async list(conversation: string): Promise<StarredMessage[]> {

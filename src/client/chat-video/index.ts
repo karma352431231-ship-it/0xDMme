@@ -29,6 +29,8 @@ export function chatVideoStage({
   stage.className = 'chat-video-stage';
   const surface = videoButton('play', t('Play video'));
   surface.className = 'chat-video-surface';
+  // A tap plays; a hold opens the message options.
+  surface.dataset['messageHold'] = 'true';
   surface.setAttribute('aria-expanded', 'false');
   const meta = document.createElement('div');
   meta.className = 'chat-video-meta';

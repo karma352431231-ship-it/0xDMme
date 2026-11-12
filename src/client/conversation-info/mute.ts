@@ -14,6 +14,15 @@ export const muteDurations = [
   ['conversation.mute-forever', Number.MAX_SAFE_INTEGER],
 ] as const;
 
+/** The same pauses with the short labels the info panels list. */
+const muteChoices = [
+  ['mute.choice-1h', 3_600_000],
+  ['mute.choice-8h', 28_800_000],
+  ['mute.choice-24h', 86_400_000],
+  ['mute.choice-7d', 604_800_000],
+  ['mute.choice-always', Number.MAX_SAFE_INTEGER],
+] as const;
+
 /** The existing per-conversation mute kept by the account's daily state. */
 export interface MutePort {
   /** When alerts resume, in milliseconds; 0 or a past time means not muted. */
@@ -65,7 +74,12 @@ export class MuteRow {
     this.toggle.append(menuIcon('unmute'), copy, knob);
     this.choices.className = 'info-mute-choices';
     this.choices.hidden = true;
-    for (const [label, duration] of muteDurations) {
+    this.choices.setAttribute('role', 'group');
+    const heading = document.createElement('small');
+    heading.textContent = t('Mute for');
+    this.choices.append(heading);
+    // A compact list with short labels under the switch (owner, 12/11/2026).
+    for (const [label, duration] of muteChoices) {
       const choice = document.createElement('button');
       choice.type = 'button';
       choice.textContent = t(label);

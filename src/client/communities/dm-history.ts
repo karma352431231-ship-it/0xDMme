@@ -12,7 +12,15 @@ import { EmojiPicker } from '../emoji/index.ts';
 import { outgoingTextRows } from '../text-send/index.ts';
 import type { OutgoingText } from '../text-send/index.ts';
 import { historyPosition, watchHistoryPosition } from '../chat-ui/index.ts';
-import { dayHeading, withDayHeadings } from '../message-presentation/index.ts';
+import {
+  dayHeading,
+  withDayHeadings,
+  messageRuns,
+  replyQuote,
+  markRuns,
+} from '../message-presentation/index.ts';
+import type { RunPlace } from '../message-presentation/index.ts';
+import { revealMessage } from '../chat-ui/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import type { SocialDms } from '../social-dm/index.ts';
@@ -103,17 +111,30 @@ export class DmHistory {
         held.row.remove();
         this.rows.delete(id);
       }
+    // Visual B: one author's messages within five minutes form a run.
+    const runs = messageRuns(
+        page.items,
+        (item) => item.sender,
+        (item) => item.sentAt,
+      ),
+      runOf = new Map(page.items.map((item, i) => [item.id, runs[i]!]));
     const wanted = withDayHeadings<{ item?: DmItem; day?: string }>(
       page.items.map((item) => ({ item })),
       (entry) => entry.item?.sentAt,
       (day) => ({ day: day.label }),
     ).map((entry) =>
       entry.item
-        ? this.messageRow(entry.item, page, input)
+        ? this.messageRow(
+            entry.item,
+            page,
+            input,
+            runOf.get(entry.item.id) ?? 'single',
+          )
         : this.heading(entry.day ?? ''),
     );
     for (const draft of pending) wanted.push(this.pendingRow(draft));
     this.reconcile(current.history, wanted);
+    markRuns(current.history, runOf);
     this.emptyState(current.gate, wanted.length === 0);
     this.deletion.update(
       current.history,
@@ -202,18 +223,36 @@ export class DmHistory {
     const replyId = decodeDailyText(encoded).reply;
     if (replyId) {
       const original = page.items.find((row) => row.id === replyId);
-      const quote = document.createElement('small');
-      quote.className = 'chat-reply-quote';
-      quote.textContent = original
-        ? t('Replying to: {0}', [original.displayText.slice(0, 120)])
-        : t('Reply: original message is outside this page or unavailable.');
-      row.prepend(quote);
+      row.prepend(
+        replyQuote(
+          original
+            ? {
+                author:
+                  original.sender === page.self
+                    ? t('You')
+                    : `@${original.peer.handle}`,
+                excerpt: replyExcerpt(original.displayText),
+                open: () => this.revealLoaded(original.id),
+              }
+            : { author: null, excerpt: null },
+        ),
+      );
     }
+  }
+  /** Marks a message of the shown page, such as a quoted original. */
+  private revealLoaded(id: string): void {
+    const row = this.rows.get(id)?.row;
+    void revealMessage(id, {
+      row: () => (row?.isConnected ? row : null),
+      older: { available: () => false, load: () => Promise.resolve(false) },
+      valid: () => !this.abort.signal.aborted,
+    });
   }
   private messageRow(
     item: DmItem,
     page: DmPage,
     input: { selected: string; localMedia: boolean },
+    run: RunPlace,
   ): HTMLElement {
     const localMedia = input.localMedia || item.localOnly === true,
       key = JSON.stringify([
@@ -243,6 +282,7 @@ export class DmHistory {
           signal,
         },
       );
+    bubble.row.dataset['run'] = run;
     this.renderReply(bubble.row, item, page);
     this.renderAttachment(bubble.row, item, { ...input, localMedia, signal });
     const metadata = messageViewOnce(item);
@@ -372,4 +412,10 @@ export class DmHistory {
 
 function messageViewOnce(item: DmItem) {
   return item.kind === 'text' ? decodeDailyText(item.text).viewOnce : undefined;
+}
+
+function replyExcerpt(text: string): string {
+  const clean = text.replace(/\s+/gu, ' ').trim();
+  if (!clean) return t('Message');
+  return clean.length > 120 ? `${clean.slice(0, 120)}…` : clean;
 }

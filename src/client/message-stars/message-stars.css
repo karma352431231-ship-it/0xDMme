@@ -74,3 +74,16 @@ dialog.starred-list button.info-icon {
   color: var(--text-muted);
   font-size: var(--fs-caption);
 }
+/* Starred messages carry a small filled star beside their time. */
+.message-meta .star-mark {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  vertical-align: -2px;
+  color: var(--warn);
+}
+.message-meta .star-mark svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}

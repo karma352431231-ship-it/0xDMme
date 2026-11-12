@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { groupMessageView } from '../src/client/groups/message-content.ts';
 import { test } from 'node:test';
 import { groupMessageActions } from '../src/client/groups/message-actions.ts';
 import type { GroupMessageActions } from '../src/client/groups/message-actions.ts';
@@ -35,6 +36,7 @@ for (const language of ['en', 'zh-CN'] as const)
       forwardAllowed: () => true,
       canPin: () => false,
       pin: () => Promise.resolve(),
+      project: (view) => groupMessageView(view),
     };
     const view: GroupView = {
       id: crypto.randomUUID(),

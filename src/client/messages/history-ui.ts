@@ -14,7 +14,12 @@ import {
   dayHeading,
   messageTime,
   withDayHeadings,
+  messageRuns,
+  messageExcerpt,
+  replyQuote,
+  markRuns,
 } from '../message-presentation/index.ts';
+import type { RunPlace } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
 import {
@@ -55,7 +60,8 @@ import { renderViewOnce } from '../view-once-ui/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
 import type { ViewOnceContent } from '../../shared/view-once/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
-import { PinnedBar } from '../message-pins/index.ts';
+import { PinnedBar, PendingPins } from '../message-pins/index.ts';
+import { starMark } from '../message-stars/index.ts';
 import { revealMessage } from '../chat-ui/index.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
@@ -141,7 +147,8 @@ export class MessageHistoryUi {
   private views: readonly MessageView[] | null = null;
   private headerPhoto: AbortController | null = null;
   private readonly avatarPhoto = new ChatAvatarPhoto();
-  private readonly pinned = new PinnedBar((id) => this.revealPinned(id));
+  private readonly pinned = new PinnedBar((id) => this.revealLoaded(id));
+  private readonly pendingPins = new PendingPins();
   private readonly loading = new ChatHistoryLoading();
   private pending: HistoryUpdate | null = null;
   private older: {
@@ -185,6 +192,7 @@ export class MessageHistoryUi {
     this.pending = null;
     this.views = null;
     this.pinned.clear();
+    this.pendingPins.clear();
     this.readIds.clear();
     this.externalRows.clear();
   }
@@ -310,7 +318,7 @@ export class MessageHistoryUi {
     if (update === 'pending') return;
     if (update === 'history') {
       if (this.views === null) this.options.attachments.clearMedia();
-      const views = dailyViews(this.views ?? []),
+      const views = this.pendingPins.apply(dailyViews(this.views ?? [])),
         keys = messageRowKeys(
           views,
           this.options.context().selected?.localOnly,
@@ -319,11 +327,20 @@ export class MessageHistoryUi {
       this.showPinned(history, views);
       this.loadStars(views);
       const menu = openMessageMenu(history);
+      const runs = messageRuns(
+        views,
+        (view) => String(view.own),
+        (view) => view.sentAt,
+      );
+      const runOf = new Map(
+        views.map((view, index) => [view.id, runs[index] ?? 'single']),
+      );
       const rows = views.map((view) => ({
         id: view.id,
         key: keys.get(view.id)!,
         sentAt: view.sentAt,
-        render: (signal: AbortSignal) => this.renderMessage(view, signal),
+        render: (signal: AbortSignal) =>
+          this.renderMessage(view, signal, runOf.get(view.id) ?? 'single'),
       }));
       this.externalRows.render(
         history,
@@ -343,6 +360,7 @@ export class MessageHistoryUi {
         ],
         this.options.signal(),
       );
+      markRuns(history, runOf);
       this.reactions.reconcile(views, this.views ?? []);
       reopenMessageMenu(history, menu);
       this.renderStates();
@@ -461,6 +479,7 @@ export class MessageHistoryUi {
       detail.prepend(detail.childNodes.length ? t('Edited · ') : t('Edited'));
     const time = messageTime(view.sentAt);
     if (time) detail.prepend(time);
+    if (this.options.stars?.starred(view.id)) detail.prepend(starMark());
     return detail;
   }
   private renderAnnotations(
@@ -468,15 +487,20 @@ export class MessageHistoryUi {
     article: HTMLElement,
   ): void {
     if (view.content.reply) {
-      const reply = document.createElement('small');
-      reply.className = 'chat-reply-quote';
       const original = dailyViews(this.views ?? []).find(
         (row) => row.id === view.content.reply,
       );
-      reply.textContent = original
-        ? t('Replying to: {0}', [original.content.text.slice(0, 120)])
-        : t('Reply: original message is outside this page or unavailable.');
-      article.append(reply);
+      article.append(
+        replyQuote(
+          original
+            ? {
+                author: original.own ? t('You') : displayName(this.peerLabel()),
+                excerpt: messageExcerpt(original),
+                open: () => this.revealLoaded(original.id),
+              }
+            : { author: null, excerpt: null },
+        ),
+      );
     }
     if (view.content.forwarded) {
       const forwarded = document.createElement('small');
@@ -487,11 +511,13 @@ export class MessageHistoryUi {
   private renderMessage(
     view: DailyView<MessageView>,
     signal: AbortSignal,
+    run: RunPlace = 'single',
   ): HTMLElement {
     const article = document.createElement('article');
     const { action, picker, choose } = this.options.actions;
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['message'] = view.id;
+    article.dataset['run'] = run;
     article.setAttribute(
       'aria-label',
       view.own
@@ -548,7 +574,15 @@ export class MessageHistoryUi {
           }
         : {}),
       ...(live
-        ? { pin: (until: number) => this.options.actions.pin(view, until) }
+        ? {
+            pin: (until: number) =>
+              this.pendingPins.run({
+                id: view.id,
+                until,
+                store: () => this.options.actions.pin(view, until),
+                repaint: () => this.render(this.views),
+              }),
+          }
         : {}),
       ...(!view.archived && view.own
         ? {
@@ -592,7 +626,8 @@ export class MessageHistoryUi {
       thread.before(this.pinned.element);
     this.pinned.update(views);
   }
-  private revealPinned(id: string): void {
+  /** Marks a message of the loaded window: a pinned or quoted original. */
+  private revealLoaded(id: string): void {
     const peer = this.options.context().selected?.accountId;
     void revealMessage(id, {
       row: (message) =>

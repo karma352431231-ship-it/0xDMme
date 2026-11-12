@@ -183,3 +183,16 @@
     justify-content: flex-start;
   }
 }
+/* Accept and Decline share one size: the card's generic button margin and
+ * padding no longer apply to only one of them (12/11/2026). */
+.notifications-card .activity-actions button {
+  box-sizing: border-box;
+  min-width: 92px;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.2;
+}

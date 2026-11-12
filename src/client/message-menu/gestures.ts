@@ -3,10 +3,12 @@ interface GestureOptions {
   menu: () => void;
   reply?: () => void;
 }
+/** Controls keep their own touch, except media marked for holding: a hold
+ * on a photo or a video still opens the message options (12/11/2026). */
 function embeddedControl(target: EventTarget | null): boolean {
-  return !!(target as Element | null)?.closest(
-    'button, a, input, select, textarea, audio, video',
-  );
+  const element = target as Element | null;
+  if (element?.closest('[data-message-hold]')) return false;
+  return !!element?.closest('button, a, input, select, textarea, audio, video');
 }
 let cancelActiveTouch: (() => void) | null = null;
 /** One primary touch owns its window-level movement until release, cancellation or disposal. */

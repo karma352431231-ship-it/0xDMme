@@ -4,7 +4,8 @@ import { messageGestures } from '../src/client/message-menu/gestures.ts';
 class Bubble extends EventTarget {
   dataset: Record<string, string> = {};
   style = { setProperty: () => {}, removeProperty: () => {} };
-  closest() {
+  closest(selector?: string): Bubble | null {
+    void selector;
     return null;
   }
 }
@@ -139,4 +140,48 @@ await test('a focused reply can switch repeatedly across bubbles and cleanly rec
   pointer(rows[1]!, 'pointerup', { x: 70, y: 10 });
   t.mock.timers.tick(600);
   assert.equal(replies.length, 6, 'Disposal stops active window listeners');
+});
+
+await test('a hold on a photo or video opens the options; other embedded controls keep their touch', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const savedWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: new EventTarget(),
+  });
+  t.after(() => {
+    if (savedWindow) Object.defineProperty(globalThis, 'window', savedWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  // The touched element answers closest() like an image button in a bubble.
+  class Control extends Bubble {
+    readonly hold: boolean;
+    constructor(hold: boolean) {
+      super();
+      this.hold = hold;
+    }
+    override closest(selector?: string): Bubble | null {
+      if (selector === '[data-message-hold]') return this.hold ? this : null;
+      return this;
+    }
+  }
+  for (const [hold, expected] of [
+    [true, 1],
+    [false, 0],
+  ] as const) {
+    const row = new Control(hold),
+      stop = new AbortController();
+    let menus = 0;
+    messageGestures(row as unknown as HTMLElement, {
+      signal: stop.signal,
+      menu: () => {
+        menus++;
+      },
+    });
+    pointer(row, 'pointerdown', { x: 10, y: 10 });
+    t.mock.timers.tick(500);
+    pointer(row, 'pointerup', { x: 10, y: 10 });
+    assert.equal(menus, expected, hold ? 'media hold' : 'plain control');
+    stop.abort();
+  }
 });

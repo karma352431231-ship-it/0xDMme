@@ -3,8 +3,9 @@ import type { Peer } from '../../shared/contacts/index.ts';
 import { messageActions } from '../message-actions/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
 import type { GroupMessageView } from './message-content.ts';
-import { groupMessageView } from './message-content.ts';
+
 import type { GroupView } from './reader.ts';
+import type { DailyView } from '../daily-text/index.ts';
 
 export interface GroupMessageActions {
   run: (work: () => Promise<void>) => Promise<void>;
@@ -18,6 +19,8 @@ export interface GroupMessageActions {
   forwardAllowed: () => boolean;
   canPin: () => boolean;
   pin: (view: GroupView, until: number) => Promise<void>;
+  /** The message as shown, including a pin chosen but not yet read back. */
+  project: (view: GroupView) => DailyView<GroupMessageView>;
   /** The person's own star of a message, when stars are available. */
   star?: (
     view: GroupView,
@@ -32,7 +35,7 @@ export function groupMessageActions(input: {
 }): HTMLElement {
   const { view, signal, row, actions } = input;
   const writable = actions.writable(),
-    projected = groupMessageView(view);
+    projected = actions.project(view);
   return messageActions<GroupMessageView>({
     signal,
     row,

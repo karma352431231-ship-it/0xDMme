@@ -1,0 +1,100 @@
+/*
+ * Visual B for message bubbles and replies (owner, 12/11/2026): rounded
+ * borderless bubbles that touch within a run of one author's messages, the
+ * time once per run, and the reply as a card naming the original's author.
+ */
+#app-shell .chat-message {
+  padding: 7px 12px 6px;
+  border: 0;
+  border-radius: 18px 18px 18px 6px;
+  box-shadow: none;
+  background: var(--recv);
+}
+#app-shell .chat-message.own {
+  border-radius: 18px 18px 6px 18px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+#app-shell .chat-message:is([data-run='middle'], [data-run='end']) {
+  margin-top: -3px;
+  border-top-left-radius: 6px;
+}
+#app-shell .chat-message.own:is([data-run='middle'], [data-run='end']) {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 6px;
+}
+/* Only the last bubble of a run shows the time and the delivery checks. */
+#app-shell
+  .chat-message:is([data-run='start'], [data-run='middle'])
+  .message-meta
+  :is(time, .message-checks) {
+  display: none;
+}
+#app-shell
+  .chat-message:is([data-run='start'], [data-run='middle'])
+  .message-meta {
+  margin-top: 0;
+}
+#app-shell .chat-message.own .message-meta {
+  color: inherit;
+}
+#app-shell .chat-message.own a {
+  color: inherit;
+  text-decoration: underline;
+}
+/* Touch opens the options with a hold; the chevron stays only as a hidden
+ * target for assistive technology. Mouse users keep the floating button. */
+@media (pointer: coarse) {
+  #app-shell .chat-message {
+    padding-right: 12px;
+  }
+  #app-shell .chat-message .message-actions > .chat-icon {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    opacity: 0;
+  }
+}
+#app-shell .chat-message > .chat-reply-quote {
+  display: grid;
+  gap: 1px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 140px;
+  max-width: none;
+  margin: 2px 0 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-inline-start: 3px solid var(--accent-text);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  text-align: start;
+}
+#app-shell button.chat-reply-quote {
+  cursor: pointer;
+}
+#app-shell .chat-message.own > .chat-reply-quote {
+  border-inline-start-color: var(--accent-ink);
+  background: var(--overlay);
+  color: var(--accent-ink);
+}
+.chat-reply-quote > strong {
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.chat-message.own > .chat-reply-quote > strong {
+  color: inherit;
+}
+.chat-reply-quote > span {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  opacity: 0.85;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

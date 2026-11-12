@@ -11,6 +11,8 @@ import {
 import {
   messageTime,
   messageReactions,
+  messageRuns,
+  markRuns,
 } from '../src/client/message-presentation/index.ts';
 import {
   backupRecord,
@@ -184,4 +186,40 @@ await test('public reaction reads deduplicate within a view and a stale view sen
   usable = false;
   await refreshDmChecks(input);
   assert.equal(batches.length, 2);
+});
+
+await test('runs join one author within five minutes on one day; marking updates bubbles in place', () => {
+  const minute = 60_000,
+    base = new Date(2026, 10, 12, 10, 0).getTime();
+  const rows = [
+    { who: 'a', at: base },
+    { who: 'a', at: base + minute },
+    { who: 'a', at: base + 2 * minute },
+    { who: 'b', at: base + 3 * minute },
+    { who: 'b', at: base + 20 * minute },
+    { who: 'a', at: undefined },
+  ];
+  assert.deepEqual(
+    messageRuns(
+      rows,
+      (row) => row.who,
+      (row) => row.at,
+    ),
+    ['start', 'middle', 'end', 'single', 'single', 'single'],
+  );
+  const bubble = (id: string) => ({
+    dataset: { message: id } as Record<string, string>,
+  });
+  const history = { children: [bubble('x'), bubble('y'), { dataset: {} }] };
+  markRuns(
+    history as unknown as HTMLElement,
+    new Map([
+      ['x', 'start'],
+      ['y', 'end'],
+    ] as const),
+  );
+  assert.deepEqual(
+    history.children.map((child) => child.dataset['run']),
+    ['start', 'end', undefined],
+  );
 });

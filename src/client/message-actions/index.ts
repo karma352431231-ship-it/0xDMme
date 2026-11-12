@@ -1,5 +1,5 @@
 export { HistoryReactions } from './reactions.ts';
-import { t } from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
@@ -122,7 +122,7 @@ function appendPin<T extends DailyRow>(
   if (activePin(c.view.pin)) {
     menu.append(
       withMenuIcon(
-        c.action(t('Unpin'), () => pin(0)),
+        personalAction(t('Unpin'), () => pin(0)),
         'unpin',
       ),
     );
@@ -130,13 +130,38 @@ function appendPin<T extends DailyRow>(
   }
   menu.append(
     withMenuIcon(
-      c.action(t('Pin'), async () => {
+      personalAction(t('Pin'), async () => {
         const until = await choosePinDuration();
         if (until !== null && !c.signal.aborted) await pin(until);
       }),
       'pin',
     ),
   );
+}
+
+/**
+ * Pins and stars show at once and finish in the background, as in WhatsApp:
+ * they never take the chat's busy lane, which waits for maintenance and
+ * disables the conversation (12/11/2026). The capability undoes its own
+ * early display when the change fails; the menu only reports the failure.
+ */
+function personalAction(
+  label: string,
+  work: () => Promise<void>,
+): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', () => {
+    work().catch((error: unknown) =>
+      showToast(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Could not complete the operation.'),
+      ),
+    );
+  });
+  return button;
 }
 
 function appendStar<T extends DailyRow>(
@@ -147,7 +172,7 @@ function appendStar<T extends DailyRow>(
   if (!star || c.view.content.viewOnce) return;
   menu.append(
     withMenuIcon(
-      c.action(star.starred ? t('Unstar') : t('Star'), star.toggle),
+      personalAction(star.starred ? t('Unstar') : t('Star'), star.toggle),
       star.starred ? 'unstar' : 'star',
     ),
   );
