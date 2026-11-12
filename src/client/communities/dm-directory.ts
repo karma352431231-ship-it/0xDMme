@@ -9,6 +9,8 @@ import { paintConversationPreview } from '../conversation-preview/index.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { communityElement as el } from './elements.ts';
+import { missingPublicProfile } from '../public-action-guidance/index.ts';
+import { publicProfileInvitation } from './directory-notice.ts';
 
 export type DmDirectoryContact =
   SocialRelation | { peer: PublicProfile; label: string; local: true };
@@ -86,15 +88,7 @@ export class DmDirectory {
       paintDmDirectoryPreviews(host, previews);
     } catch (error: unknown) {
       if (expectedInterruption(error)) throw error;
-      if (this.current(generation))
-        host.replaceChildren(
-          el(
-            'p',
-            error instanceof Error
-              ? translatedError(error.message)
-              : t('preview.unavailable'),
-          ),
-        );
+      if (this.current(generation)) showListFailure(host, error);
     }
   }
   private current(generation: number): boolean {
@@ -229,4 +223,26 @@ export function dmDirectoryRow(
 function relationLabel(row: SocialRelation): string {
   if (row.blocked) return t('Blocked');
   return row.canSend ? t('Conversation') : t('DM unavailable.');
+}
+
+/**
+ * Without a public profile there is nothing to list yet: the list invites
+ * the account to create one instead of showing the transport diagnostic
+ * (owner, 12/11/2026). Other failures keep their translated message.
+ */
+function showListFailure(host: HTMLElement, error: unknown): void {
+  if (missingPublicProfile(error)) {
+    host.replaceChildren(
+      publicProfileInvitation(t('dm.profile-invitation.title')),
+    );
+    return;
+  }
+  host.replaceChildren(
+    el(
+      'p',
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('preview.unavailable'),
+    ),
+  );
 }

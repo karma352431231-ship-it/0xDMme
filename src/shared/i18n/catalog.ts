@@ -382,6 +382,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Want to participate?',
     '想参与讨论？',
   ],
+  'dm.profile-invitation.title': [
+    'Create a public profile to message people by @handle.',
+    '创建公开个人资料，即可通过 @用户名 发消息。',
+  ],
   'community.profile-invitation.link': [
     'Create your public profile here',
     '在此创建你的公开个人资料',

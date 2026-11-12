@@ -6,16 +6,24 @@ import {
 } from '../profile-shortcut/index.ts';
 import { communityElement as el } from './elements.ts';
 
-function invitation(): HTMLElement {
+/**
+ * A short invitation to create a public profile, for places that only list
+ * public content when the account has one (communities, @handle messages).
+ */
+export function publicProfileInvitation(title: string): HTMLElement {
   const notice = el('section', '', 'community-profile-invitation');
   notice.setAttribute('role', 'status');
   const heading = el('p');
-  heading.append(el('strong', t('community.profile-invitation.title')));
+  heading.append(el('strong', title));
   const link = el('a', t('community.profile-invitation.link'));
   link.href = editPublicProfileHash;
   rememberProfileReturn(link);
   notice.append(heading, link);
   return notice;
+}
+
+function invitation(): HTMLElement {
+  return publicProfileInvitation(t('community.profile-invitation.title'));
 }
 
 /** The mobile layout has no sidebar; keep its matching notice on the page. */
