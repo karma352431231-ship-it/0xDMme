@@ -107,6 +107,7 @@ export class CompositionMetadata {
       return {
         ...base,
         selection: 0,
+        ...fileDetails([]),
         mediaKind: 'text',
         fileCount: 0,
         fileBytes: 0,

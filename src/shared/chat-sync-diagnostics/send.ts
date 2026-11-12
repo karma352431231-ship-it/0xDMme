@@ -6,6 +6,8 @@ export const sendStages = [
   'draft-open',
   'draft-save',
   'recipient-verify',
+  'sender-keys',
+  'recipient-keys',
   'message-encrypt',
   'packet-save',
   'server-publish',

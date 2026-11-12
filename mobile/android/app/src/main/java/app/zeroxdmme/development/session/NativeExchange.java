@@ -145,7 +145,7 @@ final class NativeExchange {
 
     private static JSONObject safeHeaders(Response response) throws Exception {
         JSONObject result = new JSONObject();
-        for (String name : Arrays.asList("content-type", "content-length", "cache-control", "retry-after")) {
+        for (String name : Arrays.asList("content-type", "content-length", "cache-control", "retry-after", "x-0xdmme-server-time")) {
             List<String> values = response.headers(name);
             if (values.isEmpty()) continue;
             if (values.size() != 1) throw NativePolicy.failure();

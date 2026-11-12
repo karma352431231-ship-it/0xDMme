@@ -1,3 +1,4 @@
+import { deferred, waitForBoundary } from './fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -42,6 +43,27 @@ class Control {
   }
 }
 
+class DiagnosticFileReader {
+  result: ArrayBuffer | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  private cancelled = false;
+  abort(): void {
+    this.cancelled = true;
+    this.onerror?.();
+  }
+  readAsArrayBuffer(file: File): void {
+    void file.arrayBuffer().then(
+      (bytes) => {
+        if (this.cancelled) return;
+        this.result = bytes;
+        this.onload?.();
+      },
+      () => this.onerror?.(),
+    );
+  }
+}
+
 function fixture(t: TestContext) {
   const forms = new Map<string, Control>(),
     document = Object.assign(new EventTarget(), {
@@ -63,13 +85,19 @@ function fixture(t: TestContext) {
       active = false;
     }
   }
-  const previous = ['document', 'Element', 'MutationObserver'].map(
+  const previous = [
+    'document',
+    'Element',
+    'MutationObserver',
+    'FileReader',
+  ].map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
   );
   for (const [key, value] of Object.entries({
     document,
     Element: Control,
     MutationObserver: Observer,
+    FileReader: DiagnosticFileReader,
   }))
     Object.defineProperty(globalThis, key, { configurable: true, value });
   t.after(() => {
@@ -78,11 +106,16 @@ function fixture(t: TestContext) {
       else Reflect.deleteProperty(globalThis, key);
     }
   });
+  const inspected = deferred<void>();
   const capture = new Recording(),
-    stop = observeSubmissions(capture.record);
+    stop = observeSubmissions((kind, data) => {
+      capture.record(kind, data);
+      if (kind === 'attachment-inspected') inspected.resolve();
+    });
   t.after(stop);
   return {
     capture,
+    inspected: inspected.promise,
     stop,
     changed: () => notify(),
     form(selector: string) {
@@ -245,4 +278,33 @@ await test('a preexisting attachment is explicit unknown and blocked sends alloc
     f.capture.report().comparison.sends[0]?.label,
     'ordinary-unknown',
   );
+});
+
+await test('a text send after an inspected attachment cannot inherit file identity or inspection state', async (t) => {
+  const f = fixture(t),
+    { form, file, clear, send } = f.form('[data-public-compose]');
+  const selected = new File(
+    [new Uint8Array([255, 216, 255, 0])],
+    'synthetic-image',
+    { type: 'image/jpeg' },
+  );
+  file.files = { length: 1, item: () => selected } as unknown as FileList;
+  f.emit('change', file);
+  clear.hidden = false;
+  await waitForBoundary(f.inspected);
+  f.emit('click', send);
+  await Promise.resolve();
+  assert.equal(f.capture.report().comparison.sends[0]?.fileSlots.length, 1);
+  // The application clears its composer programmatically after submission.
+  clear.hidden = true;
+  f.emit('click', send);
+  f.emit('submit', form);
+  const text = f.capture.report().comparison.sends[1]!;
+  assert.equal(text.label, 'text');
+  assert.equal(text.selection, 0);
+  assert.deepEqual(text.fileSlots, []);
+  assert.equal(text.inspectedFiles, 0);
+  assert.equal(text.signatureFiles, 0);
+  assert.equal(text.inspectionPending, false);
+  assert.equal(text.fileBytes, 0);
 });

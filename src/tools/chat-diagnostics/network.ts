@@ -36,6 +36,7 @@ export function observeNetwork(record: RecordEvent, locks: () => string[]) {
       record('response-headers', {
         id,
         status: response.status,
+        serverUnixMs: Number(response.headers.get('x-0xdmme-server-time')) || 0,
         durationMs: Math.round(performance.now() - started),
       });
       return response;

@@ -1,3 +1,4 @@
+import { deferred } from './fixtures/deferred.ts';
 import { expectedInterruption } from '../src/client/synchronization-work/index.ts';
 import { measureWork } from '../src/client/synchronization-diagnostics/index.ts';
 import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
@@ -369,4 +370,23 @@ await test('group delivery steps share one per-capture slot per message and neve
       .events.filter((event) => event.kind === 'reuse-group-send').length,
     5,
   );
+});
+
+await test('work finishing after capture replacement cannot contaminate the new timeline', async (t) => {
+  const f = fixture(t),
+    done = deferred<void>();
+  const pending = measureWork({}, 'inbox', () => done.promise);
+  f.stop();
+  const next = new Recording(),
+    stop = observeReuseDecisions(next.record);
+  try {
+    done.resolve();
+    await pending;
+    assert.equal(
+      next.report().events.some((event) => event.kind === 'reuse-work'),
+      false,
+    );
+  } finally {
+    stop();
+  }
 });

@@ -113,7 +113,10 @@ export class ComparisonSends {
       : false;
     if (this.active) this.active.ambiguous ||= ambiguous;
     const send =
-      this.pending && this.pending.composer === event['composer']
+      this.pending &&
+      this.pending.composer === event['composer'] &&
+      this.pending.selection > 0 &&
+      this.pending.selection === event['selection']
         ? this.pending
         : newSummary(event.ms);
     applyComposition(send, event);
@@ -216,15 +219,14 @@ export class ComparisonSends {
     const known = this.sends.find((send) => send.message === message);
     if (known) return known;
     if (event['sendStage'] !== 'submit') return undefined;
-    if (!this.active && this.sends.length < 5)
-      this.begin({ ...event, composer: 0 });
-    if (!this.active) return undefined;
-    if (this.active.message !== null) {
-      this.active.ambiguous = true;
-      return undefined;
+    const unbound = this.sends.filter((send) => send.message === null);
+    if (unbound.length === 1) {
+      unbound[0]!.message = message;
+      return unbound[0];
     }
-    this.active.message = message;
-    return this.active;
+    // A background retry or concurrent case must never steal another send.
+    for (const send of unbound) send.ambiguous = true;
+    return undefined;
   }
   private point(send: SendSummary, event: TraceEvent, stage: SendStage): void {
     const field = pointFields[stage as keyof typeof pointFields];

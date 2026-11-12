@@ -1,3 +1,5 @@
+import { compareDelivery } from './delivery-comparison.ts';
+import { deliveryReadiness } from './readiness.ts';
 import { Recording } from './recording.ts';
 import { observeAuthorityLocks } from './locks.ts';
 import { observeNetwork } from './network.ts';
@@ -7,7 +9,10 @@ import { observeSubmissions } from './submissions.ts';
 import { observeSyncTriggers } from './triggers.ts';
 import { observeReuseDecisions } from './reuse.ts';
 import { chatSyncControl } from '../../shared/chat-sync-diagnostics/index.ts';
-import { handlePairCode } from '../../shared/chat-sync-diagnostics/handle.ts';
+import {
+  handlePairCode,
+  handleDiagnosticRevision,
+} from '../../shared/chat-sync-diagnostics/handle.ts';
 
 interface DiagnosticWindow extends Window {
   __0xdmmeLag?: ReturnType<typeof start>;
@@ -36,12 +41,13 @@ function start() {
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let handleTimings = false;
+  let revision = 0;
   let pairSent = false;
 
   function pair(code = crypto.randomUUID().replaceAll('-', '')): string {
-    if (stopped || !handleTimings)
+    if (stopped || !handleTimings || revision !== handleDiagnosticRevision)
       throw new Error(
-        'Public delivery timings require the updated app and an active capture.',
+        'Handle delivery requires a compatible app build and an active capture. Check __0xdmmeLag.ready().',
       );
     if (pairSent || !handlePairCode(code))
       throw new Error(
@@ -89,11 +95,9 @@ function start() {
     stopHooks.push(
       observeReuseDecisions(
         recording.record,
-        (available, sendTimings, handles) => {
-          handleTimings = handles;
-          if (!available || !sendTimings)
-            label.textContent =
-              'Meter active · internal send timings unavailable on this app build';
+        (available, sendTimings, handles, appRevision) => {
+          handleTimings = available && sendTimings && handles;
+          revision = appRevision;
         },
       ),
     );
@@ -111,6 +115,12 @@ function start() {
           );
         }
       : download;
+    const refreshStatus = () => {
+      label.textContent = deliveryReadiness(recording.readiness()).label;
+    };
+    refreshStatus();
+    const statusTimer = setInterval(refreshStatus, 1000);
+    stopHooks.push(() => clearInterval(statusTimer));
     deadline = setTimeout(stop, 600_000);
     recording.record('capture-started');
   } catch (error: unknown) {
@@ -120,6 +130,13 @@ function start() {
   }
   return Object.freeze({
     report: () => recording.report(),
+    compare: (recipient: ReturnType<Recording['report']>) =>
+      compareDelivery(recording.report(), recipient),
+    ready: () => ({
+      ...deliveryReadiness(recording.readiness()),
+      peerConfirmed: false,
+      expectedRevision: handleDiagnosticRevision,
+    }),
     stop,
     download,
     pair,
@@ -141,5 +158,6 @@ if (host.__0xdmmeLag?.report().active)
 host.__0xdmmeLag?.remove();
 host.__0xdmmeLag = start();
 console.info(
-  'Local meter active. Reproduce the delay and use Stop and download report. Do not reload the page during capture.',
+  'Meter installed. Check __0xdmmeLag.ready() and BOTH device panels before sending. Do not reload during capture.',
+  host.__0xdmmeLag.ready(),
 );

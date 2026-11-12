@@ -443,3 +443,11 @@ The console retains the bounded delivery summary even if rolling detail events
 were dropped. Review the report's coverage, overflow and missing milestones
 before attributing delay. No packet, transport, retention or scheduling policy
 changes to produce these marks.
+
+## Handle delivery revision 2
+
+For build compatibility, acknowledged pairing, server-clock uncertainty, queue
+attribution and the next two-device capture, follow
+[Handle delivery instrumentation](HANDLE_DELIVERY_INSTRUMENTATION.md). Complete
+delivery requires matching updated app hooks and server/native transports;
+pasting the new script into an older app cannot provide the missing stages.

@@ -15,7 +15,8 @@ import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
 import { deferred } from './fixtures/deferred.ts';
 
 function recorder() {
-  const linked = deferred<string>();
+  const linked = deferred<string>(),
+    paired = deferred<string>();
   const recording = new Recording();
   const capture = new HandleDeliveryCapture((fields) => {
     const trace = readChatSyncTrace({
@@ -30,8 +31,10 @@ function recorder() {
     const { event: kind, ...data } = trace;
     recording.record(`reuse-${kind}`, data);
     if (trace.handleTag) linked.resolve(trace.handleTag);
+    if (trace.handlePairFingerprint)
+      paired.resolve(trace.handlePairFingerprint);
   });
-  return { capture, recording, linked: linked.promise };
+  return { capture, recording, linked: linked.promise, paired: paired.promise };
 }
 
 await test('paired reports match the same public message and keep milestones after timeline eviction', async () => {
@@ -70,6 +73,13 @@ await test('paired reports match the same public message and keep milestones aft
     to.linked,
     other.linked,
   ]);
+  const fingerprints = await Promise.all([
+    from.paired,
+    to.paired,
+    other.paired,
+  ]);
+  assert.equal(fingerprints[0], fingerprints[1]);
+  assert.notEqual(fingerprints[0], fingerprints[2]);
   assert.equal(senderTag, recipientTag);
   assert.notEqual(senderTag, unrelatedTag);
   for (let i = 0; i < 1600; i++) to.recording.record('request-start');
@@ -108,10 +118,24 @@ await test('the diagnostic bridge drops arbitrary fields and tags outside paired
 await test('public receive marks a new visible DOM row and distinguishes a row outside the scrollport', (t) => {
   const host = new EventTarget();
   const frames: FrameRequestCallback[] = [];
+  let notifyIntersection = () => {};
+  let disconnected = false;
+  class Observer {
+    constructor(callback: () => void) {
+      notifyIntersection = callback;
+    }
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {
+      disconnected = true;
+    }
+  }
   const restore: (() => void)[] = [];
   for (const [name, value] of Object.entries({
     window: host,
-    document: { visibilityState: 'visible' },
+    IntersectionObserver: Observer,
+    cancelAnimationFrame: () => {},
+    document: Object.assign(new EventTarget(), { visibilityState: 'visible' }),
     innerWidth: 800,
     innerHeight: 600,
     requestAnimationFrame: (callback: FrameRequestCallback) =>
@@ -169,9 +193,24 @@ await test('public receive marks a new visible DOM row and distinguishes a row o
   const before = report.report().handleDelivery.messages;
   assert.equal(typeof before[0]?.stages.dom, 'number');
   assert.equal(before[0]?.stages.frame, undefined);
-  frames[0]?.(performance.now());
+  frames[0]!(performance.now());
   const after = report.report().handleDelivery.messages;
   assert.equal(typeof after[0]?.stages.frame, 'number');
   assert.equal(typeof after[1]?.stages.offscreen, 'number');
   assert.equal(after[2]?.stages.dom, undefined);
+  Object.assign(rows.get('offscreen')!, {
+    getBoundingClientRect: () => ({
+      top: 150,
+      bottom: 180,
+      left: 20,
+      right: 150,
+    }),
+  });
+  notifyIntersection();
+  frames[1]!(performance.now());
+  assert.equal(
+    typeof report.report().handleDelivery.messages[1]?.stages.frame,
+    'number',
+  );
+  assert.equal(disconnected, true, 'all visible rows release their observer');
 });

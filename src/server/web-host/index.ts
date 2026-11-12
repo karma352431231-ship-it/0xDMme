@@ -81,6 +81,7 @@ function securityHeaders(
   response: ServerResponse,
   scriptSources = "'self'",
 ): void {
+  response.setHeader('X-0xDMme-Server-Time', String(Date.now()));
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('Content-Security-Policy', contentPolicy(scriptSources));
   response.setHeader('X-Content-Type-Options', 'nosniff');

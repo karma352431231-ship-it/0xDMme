@@ -1,3 +1,9 @@
+import { CaptureWork } from './capture-work.ts';
+import type {
+  AuthorityDiagnosticContext,
+  HandleReadToken,
+  FlowDiagnosticFields,
+} from '../../shared/chat-sync-diagnostics/flow.ts';
 import type { NativeTimingFields } from '../../shared/chat-sync-diagnostics/native.ts';
 import { LoadingPresentation } from './presentation.ts';
 import {
@@ -11,7 +17,10 @@ import { EarlyCapture } from './early.ts';
 import { HandleDeliveryCapture } from './handle-delivery.ts';
 import type { HandleDeliveryPoint } from './handle-delivery.ts';
 export type { HandleDeliveryPoint } from './handle-delivery.ts';
-import { readHandlePair } from '../../shared/chat-sync-diagnostics/handle.ts';
+import {
+  handleDiagnosticRevision,
+  readHandlePair,
+} from '../../shared/chat-sync-diagnostics/handle.ts';
 import type { LoadTrace } from './load.ts';
 import type {
   LoadKind,
@@ -46,9 +55,15 @@ let nextLoad = 0,
   nextRequest = 0;
 let early: EarlyCapture | undefined;
 let handleDelivery: HandleDeliveryCapture | undefined;
+let captureWork: CaptureWork | undefined;
+let captureAbort: AbortController | undefined;
 const handleOwner = {};
 
 function stop(): void {
+  captureAbort?.abort();
+  captureAbort = undefined;
+  captureWork?.stop();
+  captureWork = undefined;
   handleDelivery?.stop();
   handleDelivery = undefined;
   early?.dispose();
@@ -94,6 +109,7 @@ function announceCapture(host: Window): void {
     nativeTimings: true,
     loadTimings: true,
     handleTimings: true,
+    handleRevision: handleDiagnosticRevision,
     earlyTimings: !!replay,
     earlyDropped: replay?.dropped ?? 0,
     earlyLongTasks: replay?.longTasks ?? false,
@@ -102,12 +118,16 @@ function announceCapture(host: Window): void {
 }
 function beginCapture(): void {
   stop();
+  captureAbort = new AbortController();
   handleDelivery = new HandleDeliveryCapture((fields) =>
     traceChatSync(handleOwner, null, {
       event: 'handle-delivery',
       reason: 'settled',
       ...fields,
     }),
+  );
+  captureWork = new CaptureWork((event, fields) =>
+    traceChatSync(handleOwner, null, { event, reason: 'settled', ...fields }),
   );
   deadline = performance.now() + 600_000;
   timer = setTimeout(stop, 600_000);
@@ -146,6 +166,15 @@ export function startBootTrace() {
       });
   };
 }
+function diagnosticHint(decision: ChatSyncDecision): ChatSyncDecision {
+  if (
+    decision.event === 'handle-refresh' &&
+    decision.reason === 'live-hint' &&
+    captureWork
+  )
+    decision = { ...decision, handleHint: captureWork.noteHint() };
+  return decision;
+}
 export function traceChatSync(
   owner: object,
   peer: string | null,
@@ -156,6 +185,7 @@ export function traceChatSync(
     stop();
     return;
   }
+  decision = diagnosticHint(decision);
   let source = caches.get(owner);
   if (source === undefined) {
     source = ++nextCache;
@@ -192,8 +222,18 @@ export function chatSyncActive(): boolean {
 export function traceHandleDelivery(
   id: string,
   stage: HandleDeliveryPoint,
+  read?: HandleReadToken,
 ): boolean {
-  return chatSyncActive() && (handleDelivery?.mark(id, stage) ?? false);
+  return (
+    chatSyncActive() &&
+    (handleDelivery?.mark(
+      id,
+      stage,
+      captureWork?.slot(read),
+      sends.get(id)?.slot,
+    ) ??
+      false)
+  );
 }
 
 export function traceHandleFrame(): (
@@ -451,4 +491,29 @@ async function finishMeasuredLoad<T>(
 /** The capture owner supplies trace creation; the presentation owns its lifetime. */
 export function loadingPresentation(kind: LoadKind): LoadingPresentation {
   return new LoadingPresentation(() => startLoad(kind));
+}
+
+export function startHandleRead(): HandleReadToken | undefined {
+  return chatSyncActive() ? captureWork?.read() : undefined;
+}
+export function traceHandleRead(
+  token: HandleReadToken | undefined,
+  phase: NonNullable<FlowDiagnosticFields['readPhase']>,
+): void {
+  if (chatSyncActive()) captureWork?.markRead(token, phase);
+}
+export function startAuthorityWork(
+  context: AuthorityDiagnosticContext = {},
+  priority?: 'interactive',
+) {
+  return chatSyncActive() ? captureWork?.queue(context, priority) : undefined;
+}
+
+export function diagnosticCaptureSignal(): AbortSignal | undefined {
+  return chatSyncActive() ? captureAbort?.signal : undefined;
+}
+
+/** Async diagnostic owners capture this value before starting work. */
+export function diagnosticGeneration(): number | undefined {
+  return chatSyncActive() ? capture : undefined;
 }

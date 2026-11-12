@@ -1,5 +1,6 @@
 /** Integer microseconds keep short chunk costs measurable without wall-clock data. */
 export const nativeTimingFields = [
+  'nativeServerUnixMs',
   'nativeReceiveUs',
   'nativeEncodeUs',
   'nativeReceiveSamples',

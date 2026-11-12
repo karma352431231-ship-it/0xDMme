@@ -1,3 +1,5 @@
+import { startAuthorityWork } from '../chat-sync-diagnostics/index.ts';
+import type { AuthorityDiagnosticContext } from '../../shared/chat-sync-diagnostics/flow.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 
@@ -13,6 +15,7 @@ type NativeTurn = (
 
 interface WaitingWork {
   interactive: boolean;
+  trace?: ReturnType<typeof startAuthorityWork>;
   /** Plain work acquires its own native turn. */
   run: () => Promise<void>;
   /** Held work runs inside a turn this queue acquires; it settles its caller
@@ -63,20 +66,25 @@ export class AuthorityWork {
     key: string,
     operation: (context: AuthorityTurnContext) => Promise<T>,
     priority?: 'interactive',
+    diagnostic: AuthorityDiagnosticContext = {},
   ): Promise<T> {
     const turn = this.turn;
     if (!turn) return Promise.reject(new Error('Authority turn unavailable.'));
-    return this.enqueue(priority, (entry, settle, fail, remaining) => {
-      const held = {
-        key,
-        operation: (context: AuthorityTurnContext) =>
-          settle(() => operation(context)),
-        fail,
-        remaining,
-      };
-      entry.held = held;
-      entry.run = () => this.lead(entry, held, turn);
-    });
+    return this.enqueue(
+      priority,
+      (entry, settle, fail, remaining) => {
+        const held = {
+          key,
+          operation: (context: AuthorityTurnContext) =>
+            settle(() => operation(context)),
+          fail,
+          remaining,
+        };
+        entry.held = held;
+        entry.run = () => this.lead(entry, held, turn);
+      },
+      diagnostic,
+    );
   }
   private enqueue<T>(
     priority: 'interactive' | undefined,
@@ -86,11 +94,13 @@ export class AuthorityWork {
       fail: (error: unknown) => void,
       remaining: () => number,
     ) => void,
+    diagnostic: AuthorityDiagnosticContext = {},
   ): Promise<T> {
     if (this.waiting.length >= 64)
       return Promise.reject(
         new Error('Wait for conversations to update, then try again.'),
       );
+    const trace = startAuthorityWork(diagnostic, priority);
     const queuedAt = performance.now();
     const deadline = queuedAt + 8000;
     return new Promise<T>((resolve, reject) => {
@@ -99,12 +109,14 @@ export class AuthorityWork {
           t('Wait for conversations to update, then try again.'),
           'TimeoutError',
         );
-      const fail = (error: unknown) =>
+      const fail = (error: unknown) => {
+        trace?.finish(false);
         reject(
           error instanceof Error
             ? error
             : new Error('Could not complete the operation.'),
         );
+      };
       const remaining = () => Math.ceil(deadline - performance.now());
       const settle = async (
         run: (remaining: number) => Promise<T>,
@@ -112,9 +124,11 @@ export class AuthorityWork {
         clearTimeout(timer);
         const left = remaining();
         if (left <= 0) {
+          trace?.finish(false);
           reject(timeout());
           return false;
         }
+        trace?.start();
         try {
           resolve(
             await measureWork(
@@ -124,6 +138,7 @@ export class AuthorityWork {
               queuedAt,
             ),
           );
+          trace?.finish(true);
           return true;
         } catch (error: unknown) {
           fail(error);
@@ -132,6 +147,7 @@ export class AuthorityWork {
       };
       const entry: WaitingWork = {
         interactive: priority === 'interactive',
+        trace,
         run: () => Promise.resolve(),
       };
       prepare(entry, settle, fail, remaining);
@@ -139,6 +155,7 @@ export class AuthorityWork {
         const index = this.waiting.indexOf(entry);
         if (index < 0) return;
         this.waiting.splice(index, 1);
+        trace?.finish(false);
         reject(timeout());
       }, 8000);
       this.waiting.push(entry);
@@ -182,6 +199,7 @@ export class AuthorityWork {
       if (index < 0) return;
       const [next] = this.waiting.splice(index, 1);
       if (next!.interactive) this.interactiveTurns++;
+      next!.trace?.admitted();
       usable = await next!.held!.operation({ follower: true });
     }
   }
@@ -207,6 +225,7 @@ export class AuthorityWork {
     const index = this.next();
     const [entry] = this.waiting.splice(index, 1);
     this.running = true;
+    entry!.trace?.admitted();
     void entry!.run().finally(() => {
       this.running = false;
       this.resume();

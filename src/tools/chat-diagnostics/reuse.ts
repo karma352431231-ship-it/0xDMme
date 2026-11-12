@@ -12,10 +12,12 @@ export function observeReuseDecisions(
     available: boolean,
     sendTimings: boolean,
     handleTimings: boolean,
+    revision: number,
   ) => void,
 ): () => void {
   const abort = new AbortController();
   let early = false;
+  let revision = 0;
   let ready = false,
     sendTimings = false,
     handleTimings = false;
@@ -29,17 +31,13 @@ export function observeReuseDecisions(
         ready = true;
         early = trace.earlyTimings === true;
         handleTimings = trace.handleTimings === true;
+        revision = trace.handleRevision ?? 0;
+        coverage?.(true, trace.sendTimings === true, handleTimings, revision);
       }
       if (trace.event === 'ready') sendTimings = trace.sendTimings === true;
       const { event: kind, ...data } = trace;
       record(`reuse-${kind}`, data);
-      if (kind === 'boot-task' && typeof trace.bootTaskMs === 'number')
-        record('long-task', {
-          durationMs: trace.bootTaskMs,
-          ...(trace.beforeCaptureMs === undefined
-            ? {}
-            : { beforeCaptureMs: trace.beforeCaptureMs }),
-        });
+      recordBootTask(trace, record);
       if (kind === 'native-request') recordNativeRequest(trace, record);
     },
     { signal: abort.signal },
@@ -49,13 +47,14 @@ export function observeReuseDecisions(
     available: ready,
     sendTimings,
     handleTimings,
+    handleRevision: revision,
     version: 1,
     history: early
       ? 'diagnostic-launch-and-current-document'
       : 'since-installation-only',
     conversationSlots: 'stable-within-capture-up-to-128-recent-contacts',
   });
-  coverage?.(ready, sendTimings, handleTimings);
+  coverage?.(ready, sendTimings, handleTimings, revision);
   return () => {
     abort.abort();
     window.dispatchEvent(new CustomEvent(chatSyncControl, { detail: 'stop' }));
@@ -83,8 +82,23 @@ function recordNativeRequest(
     ...(trace.nativeStatus === undefined ? {} : { status: trace.nativeStatus }),
     ...(trace.nativeBytes === undefined ? {} : { bytes: trace.nativeBytes }),
     durationMs: trace.nativeMs ?? 0,
+    serverUnixMs: trace.nativeServerUnixMs ?? 0,
     ...(trace.beforeCaptureMs === undefined
       ? {}
       : { beforeCaptureMs: trace.beforeCaptureMs }),
   });
+}
+
+function recordBootTask(
+  trace: import('../../shared/chat-sync-diagnostics/index.ts').ChatSyncTrace,
+  record: RecordEvent,
+): void {
+  const kind = trace.event;
+  if (kind === 'boot-task' && typeof trace.bootTaskMs === 'number')
+    record('long-task', {
+      durationMs: trace.bootTaskMs,
+      ...(trace.beforeCaptureMs === undefined
+        ? {}
+        : { beforeCaptureMs: trace.beforeCaptureMs }),
+    });
 }

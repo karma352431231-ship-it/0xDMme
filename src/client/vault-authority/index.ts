@@ -1,3 +1,4 @@
+import type { AuthorityDiagnosticContext } from '../../shared/chat-sync-diagnostics/flow.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { SealedSecret } from '../../shared/devices/index.ts';
@@ -32,7 +33,7 @@ export interface VaultAccess {
     work: (authority: VaultAuthority) => Promise<T>,
   ) => Promise<T>;
 }
-export interface VaultWorkOptions {
+export interface VaultWorkOptions extends AuthorityDiagnosticContext {
   priority?: 'interactive';
 }
 export interface VaultLocator {

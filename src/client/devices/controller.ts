@@ -421,6 +421,7 @@ export class DeviceController {
         return result;
       },
       options.priority,
+      options,
     );
   }
   /** A follower inside the same native turn reuses the directory its leader

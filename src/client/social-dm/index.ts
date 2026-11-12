@@ -304,7 +304,10 @@ export class SocialDms {
     return this.access.withVault(
       false,
       (authority) => this.privateApi(authority, generation)(operation, payload),
-      options,
+      {
+        ...options,
+        diagnosticOperation: options.diagnosticOperation ?? 'handle-request',
+      },
     );
   }
   async list(after: string | null, options: VaultWorkOptions = {}) {
@@ -564,7 +567,10 @@ export class SocialDms {
           this.guard(generation);
           return work({ authority, privateAuthority, api });
         }),
-      options,
+      {
+        ...options,
+        diagnosticOperation: options.diagnosticOperation ?? 'handle-crypto',
+      },
     );
   }
   queueText(draft: TextDraft): Promise<void> {
@@ -742,6 +748,7 @@ export class SocialDms {
           deletions: true,
         }),
       );
+      markDownloaded(context, raw['items'], options);
       const profiles = new Map(
         raw['profiles'].map((value) => {
           const p = publicProfile(value);
@@ -767,7 +774,8 @@ export class SocialDms {
             : packet.sender,
         );
         if (!peer) throw new Error('Historical public DM profile missing.');
-        traceIncomingHandle(context, packet, 'downloaded');
+        traceIncomingHandle(context, packet, 'downloaded', options);
+        traceIncomingHandle(context, packet, 'processing-start', options);
         const record = await this.decode(context, {
           packet,
           hash: String(item['hash']),
@@ -775,9 +783,10 @@ export class SocialDms {
           peer,
           recovery: raw['recovery'],
         });
-        traceIncomingHandle(context, packet, 'verified');
+        traceIncomingHandle(context, packet, 'verified', options);
         await cacheDmRecord(context.privateAuthority, record);
-        traceIncomingHandle(context, packet, 'stored');
+        traceIncomingHandle(context, packet, 'stored', options);
+        traceIncomingHandle(context, packet, 'processing-end', options);
         result.push(record);
       }
       if (result.length)
@@ -1188,56 +1197,60 @@ export class SocialDms {
     caption: string,
   ): Promise<void> {
     const generation = this.generation;
-    await this.access.withVault(false, async (a) => {
-      const scope = dmMediaScope(a.session.accountId),
-        id = crypto.randomUUID();
-      markHandleSend(id, 'submit');
-      if (
-        await localGet(
-          `${a.session.accountId}:${a.session.deviceId}`,
-          `dm-media-draft:${peer}`,
+    const id = crypto.randomUUID();
+    markHandleSend(id, 'submit');
+    await this.access.withVault(
+      false,
+      async (a) => {
+        const scope = dmMediaScope(a.session.accountId);
+        if (
+          await localGet(
+            `${a.session.accountId}:${a.session.deviceId}`,
+            `dm-media-draft:${peer}`,
+          )
         )
-      )
-        throw new Error(
-          'Media pending. Send or cancel it before choosing more.',
-        );
-      await localPut(scope, `outbox:${id}`, { pending: true }, 512);
-      try {
-        const content = await measureSend(
-          'attachment-stage',
-          () =>
-            stageAttachment({
-              account: scope,
-              id,
-              selection,
-              caption,
-            }),
-          id,
-        );
-        socialAttachment(content, media);
-        checkSocialBytes(content, media, selection.bytes);
-        this.guard(generation);
-        const row = await sealLocal(
-          a,
-          crypto.randomUUID(),
-          JSON.stringify({ text: JSON.stringify(content), media, id }),
-        );
-        await localPut(
-          `${a.session.accountId}:${a.session.deviceId}`,
-          `dm-media-draft:${peer}`,
-          row,
-          row.bytes.length + 512,
-        );
-      } catch (error: unknown) {
-        await forgetAttachment(scope, id);
-        await localDelete(scope, `outbox:${id}`);
-        await localDelete(
-          `${a.session.accountId}:${a.session.deviceId}`,
-          `dm-media-draft:${peer}`,
-        );
-        throw error;
-      }
-    });
+          throw new Error(
+            'Media pending. Send or cancel it before choosing more.',
+          );
+        await localPut(scope, `outbox:${id}`, { pending: true }, 512);
+        try {
+          const content = await measureSend(
+            'attachment-stage',
+            () =>
+              stageAttachment({
+                account: scope,
+                id,
+                selection,
+                caption,
+              }),
+            id,
+          );
+          socialAttachment(content, media);
+          checkSocialBytes(content, media, selection.bytes);
+          this.guard(generation);
+          const row = await sealLocal(
+            a,
+            crypto.randomUUID(),
+            JSON.stringify({ text: JSON.stringify(content), media, id }),
+          );
+          await localPut(
+            `${a.session.accountId}:${a.session.deviceId}`,
+            `dm-media-draft:${peer}`,
+            row,
+            row.bytes.length + 512,
+          );
+        } catch (error: unknown) {
+          await forgetAttachment(scope, id);
+          await localDelete(scope, `outbox:${id}`);
+          await localDelete(
+            `${a.session.accountId}:${a.session.deviceId}`,
+            `dm-media-draft:${peer}`,
+          );
+          throw error;
+        }
+      },
+      { diagnosticOperation: 'handle-media-stage' },
+    );
   }
   async sendMedia(peer: string): Promise<void> {
     await this.withCrypto(
@@ -1473,16 +1486,30 @@ async function receiveSocialInbox(
     });
 }
 
+function markDownloaded(
+  context: SocialContext,
+  values: unknown[],
+  options: VaultWorkOptions,
+): void {
+  if (!chatSyncActive()) return;
+  for (const value of values) {
+    const packet = object(value)['packet'];
+    if (packet !== undefined)
+      traceIncomingHandle(context, socialPacket(packet), 'downloaded', options);
+  }
+}
+
 function traceIncomingHandle(
   context: SocialContext,
   packet: ReturnType<typeof socialPacket>,
   stage: HandleDeliveryPoint,
+  options: VaultWorkOptions = {},
 ): void {
   if (
     !packet.relation &&
     packet.recipient === context.authority.session.accountId
   )
-    traceHandleDelivery(packet.id, stage);
+    traceHandleDelivery(packet.id, stage, options.handleRead);
 }
 
 function markHandleSend(

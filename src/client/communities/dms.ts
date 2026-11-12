@@ -1,3 +1,8 @@
+import {
+  startHandleRead,
+  traceHandleRead,
+} from '../chat-sync-diagnostics/index.ts';
+import type { HandleReadToken } from '../../shared/chat-sync-diagnostics/flow.ts';
 import { DmSearch } from './dm-search.ts';
 import { navigateApp } from '../app-navigation/index.ts';
 import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
@@ -226,7 +231,17 @@ export function startSocialDmUi(
       composing: composer.active,
     }),
     reload: () => {
-      void run(reload);
+      const read = startHandleRead();
+      void run(async () => {
+        traceHandleRead(read, 'start');
+        try {
+          await reload(read);
+          traceHandleRead(read, 'complete');
+        } catch (error: unknown) {
+          traceHandleRead(read, 'failed');
+          throw error;
+        }
+      });
     },
     invalidate: () => {
       publicDirectory.invalidate();
@@ -339,13 +354,14 @@ export function startSocialDmUi(
       history.getClientRects().length > 0
     );
   }
-  async function reload(): Promise<void> {
+  async function reload(read?: HandleReadToken): Promise<void> {
     if (peer && container) {
       const trace = startLoad('handle-history', peer);
       try {
         await conversation({
           refreshDirectory: publicDirectory.available,
           trace,
+          read,
         });
         trace?.point('cancelled', { loadOutcome: 'cancelled' });
       } catch (error: unknown) {
@@ -515,13 +531,25 @@ export function startSocialDmUi(
     };
   }
   async function conversation(
-    input: { refreshDirectory?: boolean; trace?: LoadTrace | undefined } = {},
+    input: {
+      refreshDirectory?: boolean;
+      trace?: LoadTrace | undefined;
+      read?: HandleReadToken | undefined;
+    } = {},
   ): Promise<void> {
     const selected = peer;
     if (!selected || !container) return;
     const old = generation,
       expected = verification,
-      work = dmConversationWork(),
+      work = {
+        ...dmConversationWork(),
+        ...(input.read
+          ? {
+              handleRead: input.read,
+              diagnosticOperation: 'handle-read' as const,
+            }
+          : {}),
+      },
       data = await timedLoad(input.trace, 'permissions', () =>
         loadConversation(
           selected,

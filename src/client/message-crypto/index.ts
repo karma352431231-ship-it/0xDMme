@@ -1,3 +1,4 @@
+import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import type { PrivateAudiences } from './audiences.ts';
 export { PrivateAudiences } from './audiences.ts';
 export { GroupSendBatch } from './group-batch.ts';
@@ -461,8 +462,16 @@ export class MessageCrypto {
     );
     await currentRecoveryKey(input.recovery[1], peerHistory, peer.accountId);
     await this.prepare(authority);
-    await this.trustDevices(authority.events);
-    await this.trustDevices(peerHistory);
+    await measureSend(
+      'sender-keys',
+      () => this.trustDevices(authority.events),
+      id,
+    );
+    await measureSend(
+      'recipient-keys',
+      () => this.trustDevices(peerHistory),
+      id,
+    );
     const room = messageRoom(authority.session.accountId, peer.accountId);
     const membership = canonical([authority.directory, await eventHash(peer)]);
     const identity = await this.rotateChangedAudience(room, membership);

@@ -656,7 +656,10 @@ await test('server rejects origin violations, mutations, traversal and private d
   assert.equal((await get('/health/ready')).status, 200);
   healthy = false;
   assert.equal((await get('/health/ready')).status, 503);
-  assert.equal((await get('/health/live')).status, 200);
+  const live = await get('/health/live');
+  assert.equal(live.status, 200);
+  const clock = Number(live.headers['x-0xdmme-server-time']);
+  assert.ok(Number.isSafeInteger(clock) && Math.abs(Date.now() - clock) < 5000);
   const manifest = JSON.parse((await get('/manifest.webmanifest')).body) as {
     icons: { src: string }[];
   };

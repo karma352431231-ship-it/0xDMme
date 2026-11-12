@@ -2,10 +2,11 @@ import {
   chatSyncActive,
   traceHandleDelivery,
   traceHandleFrame,
+  diagnosticCaptureSignal,
 } from '../chat-sync-diagnostics/index.ts';
 
-/** A verified packet becomes a DOM row, then gets a chance to appear in the
- * visible scrollport. A cached row or a receipt update cannot create a trace. */
+/** Only newly decoded messages enter this observer. Cached rows and receipt
+ * updates cannot create delivery. An offscreen row may become visible later. */
 export function observeDmRows(input: {
   history: HTMLElement;
   messages: readonly { id: string; own: boolean; relation?: unknown }[];
@@ -14,7 +15,6 @@ export function observeDmRows(input: {
   previous: ReadonlySet<string>;
 }): void {
   if (!chatSyncActive()) return;
-  const { history, signal } = input;
   const committed = input.messages.flatMap((message) => {
     if (message.own || message.relation || input.previous.has(message.id))
       return [];
@@ -23,19 +23,65 @@ export function observeDmRows(input: {
       ? [{ id: message.id, row }]
       : [];
   });
-  if (!committed.length) return;
-  const trace = traceHandleFrame();
-  const frame = () => {
-    if (signal.aborted) return;
-    for (const { id, row } of committed) {
-      if (row.parentElement === history)
-        trace(id, visibleRow(history, row) ? 'frame' : 'offscreen');
-    }
-  };
-  if (document.visibilityState === 'visible') requestAnimationFrame(frame);
-  else frame();
+  if (committed.length) observeVisibility(input, committed);
 }
-
+function observeVisibility(
+  input: { history: HTMLElement; signal: AbortSignal },
+  rows: { id: string; row: HTMLElement }[],
+): void {
+  const trace = traceHandleFrame(),
+    capture = diagnosticCaptureSignal();
+  const pending = new Set(rows);
+  let disposed = false;
+  let observer: IntersectionObserver | undefined;
+  let frame: number | undefined;
+  const dispose = () => {
+    disposed = true;
+    observer?.disconnect();
+    document.removeEventListener('visibilitychange', schedule);
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    input.signal.removeEventListener('abort', dispose);
+    capture?.removeEventListener('abort', dispose);
+  };
+  const render = () => {
+    frame = undefined;
+    if (input.signal.aborted || capture?.aborted) return dispose();
+    showRows({ pending, history: input.history, trace, observer });
+    if (!pending.size || !observer) dispose();
+  };
+  const schedule = () => {
+    if (!disposed && frame === undefined) frame = requestAnimationFrame(render);
+  };
+  if (typeof IntersectionObserver !== 'undefined') {
+    observer = new IntersectionObserver(schedule, { root: input.history });
+    for (const item of rows) observer.observe(item.row);
+  }
+  document.addEventListener('visibilitychange', schedule);
+  input.signal.addEventListener('abort', dispose, { once: true });
+  capture?.addEventListener('abort', dispose, { once: true });
+  if (document.visibilityState === 'visible') schedule();
+  else render();
+}
+function showRows(input: {
+  pending: Set<{ id: string; row: HTMLElement }>;
+  history: HTMLElement;
+  trace: ReturnType<typeof traceHandleFrame>;
+  observer: IntersectionObserver | undefined;
+}): void {
+  const { pending, history, trace, observer } = input;
+  for (const item of pending) {
+    if (item.row.parentElement !== history) {
+      pending.delete(item);
+      continue;
+    }
+    const visible = visibleRow(history, item.row);
+    trace(item.id, visible ? 'frame' : 'offscreen');
+    if (visible) {
+      observer?.unobserve(item.row);
+      pending.delete(item);
+    }
+  }
+}
 function visibleRow(history: HTMLElement, row: HTMLElement): boolean {
   if (document.visibilityState !== 'visible' || history.closest('[hidden]'))
     return false;

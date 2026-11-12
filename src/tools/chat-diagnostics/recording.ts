@@ -1,3 +1,5 @@
+import { ClockCalibration } from './clock.ts';
+import { FlowSummaries } from './flow.ts';
 import { ComparisonSends } from './sends.ts';
 import { ComparisonLoads } from './loads.ts';
 import { NativeRequestSummaries } from './native-requests.ts';
@@ -9,6 +11,9 @@ export type { TraceEvent, RecordEvent } from './events.ts';
  * No payloads, errors, identity, DOM text or arbitrary user annotations. */
 export class Recording {
   private readonly started = performance.now();
+  private readonly origin = Math.round(performance.timeOrigin + this.started);
+  private readonly clock = new ClockCalibration(this.origin);
+  private readonly flows = new FlowSummaries();
   private readonly events: TraceEvent[] = [];
   private dropped = 0;
   private ended: number | null = null;
@@ -25,6 +30,8 @@ export class Recording {
     const prior = data['beforeCaptureMs'];
     const ms = typeof prior === 'number' ? -prior : this.elapsed();
     const event = { ...data, ms, kind };
+    this.clock.observe(event);
+    this.flows.observe(event);
     this.sends.observe(event);
     this.loads.observe(event);
     this.nativeRequests.observe(event);
@@ -38,9 +45,19 @@ export class Recording {
     this.record('capture-stopped');
     this.ended ??= performance.now();
   }
-  report() {
+  readiness() {
     return {
-      schema: 2,
+      active: this.ended === null,
+      clock: this.clock.report(),
+      handleDelivery: this.handles.state(),
+    };
+  }
+  report() {
+    const comparison = this.sends.report();
+    return {
+      schema: 3,
+      meterRevision: 2,
+      appAssets: applicationAssets(),
       active: this.ended === null,
       elapsedMs: this.elapsed(),
       startedAtUnixMs: Math.round(performance.timeOrigin + this.started),
@@ -61,10 +78,12 @@ export class Recording {
           'own-text-steps-by-per-capture-message-slot; recipient-hint-and-first-shown-rows; no-cross-tab-or-device-correlation',
       },
       events: this.events.map((event) => ({ ...event })),
-      comparison: this.sends.report(),
+      comparison,
       loading: this.loads.report(),
       nativeRequests: this.nativeRequests.report(),
-      handleDelivery: this.handles.report(),
+      clock: this.clock.report(),
+      handleDelivery: this.handles.report(comparison.sends),
+      deliveryFlow: this.flows.report(),
     };
   }
 }
@@ -81,4 +100,15 @@ export function failureCategory(error: unknown): string {
   if (error instanceof Error && error.name === 'AbortError') return 'aborted';
   if (error instanceof Error && error.name === 'TimeoutError') return 'timeout';
   return 'failed';
+}
+
+/** Public content-addressed bundle names identify web/native builds without
+ * recording host paths, origins, DOM content or account identifiers. */
+function applicationAssets(): string[] {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return [];
+  return [...document.querySelectorAll<HTMLScriptElement>('script[src]')]
+    .flatMap(
+      (script) => script.src.match(/\bapp-[a-f0-9]{16}\.js\b/u)?.[0] ?? [],
+    )
+    .slice(0, 4);
 }

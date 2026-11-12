@@ -1,3 +1,5 @@
+import { copyFlowDiagnostic } from './flow.ts';
+import type { FlowDiagnosticFields } from './flow.ts';
 import { copyWorkDiagnostic } from './work.ts';
 import { copySendDiagnostic } from './send.ts';
 import { copyLoadDiagnostic } from './load.ts';
@@ -25,6 +27,8 @@ export const chatSyncEvents = [
   'group-receive',
   'handle-delivery',
   'handle-refresh',
+  'handle-read',
+  'authority-work',
   'send',
   'load',
   'native-request',
@@ -89,7 +93,8 @@ export interface ChatSyncDecision
     WorkDiagnosticFields,
     SendDiagnosticFields,
     LoadDiagnosticFields,
-    HandleDiagnosticFields {
+    HandleDiagnosticFields,
+    FlowDiagnosticFields {
   event: (typeof chatSyncEvents)[number];
   reason: ChatSyncReason;
   windows?: number;
@@ -145,6 +150,7 @@ export function readChatSyncTrace(value: unknown): ChatSyncTrace | null {
   copySendDiagnostic(input, result);
   copyLoadDiagnostic(input, result);
   copyHandleDiagnostic(input, result);
+  copyFlowDiagnostic(input, result);
   if (failures.some((failure) => failure === input['failure']))
     result['failure'] = input['failure'];
   if (Array.isArray(input['callers']))

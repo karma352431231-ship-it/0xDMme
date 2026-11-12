@@ -165,7 +165,7 @@ export class DmRefresh {
     this.continuations.request();
   }
   requestContent(): void {
-    this.requestRead('live-hint');
+    this.requestRead('pending-confirmation');
   }
   private requestRead(reason: ChatSyncReason): void {
     this.lastWait = '';

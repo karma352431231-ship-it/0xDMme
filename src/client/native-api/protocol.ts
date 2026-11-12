@@ -140,6 +140,7 @@ const responseHeaders = new Set([
   'content-length',
   'cache-control',
   'retry-after',
+  'x-0xdmme-server-time',
 ]);
 
 function incomingHeaders(value: unknown): Headers {

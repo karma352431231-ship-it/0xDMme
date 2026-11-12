@@ -12,7 +12,7 @@ struct NativeResponse {
               !(300...399).contains(http.statusCode),
               http.value(forHTTPHeaderField: "content-encoding").map({ $0.lowercased() == "identity" }) ?? true else { throw NativeFailure.unavailable }
         var headers: [String: String] = [:]
-        for name in ["content-type", "content-length", "cache-control", "retry-after"] {
+        for name in ["content-type", "content-length", "cache-control", "retry-after", "x-0xdmme-server-time"] {
             guard let value = http.value(forHTTPHeaderField: name) else { continue }
             guard value.utf16.count <= 256, !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw NativeFailure.unavailable }
             headers[name] = value

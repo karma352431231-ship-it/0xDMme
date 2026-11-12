@@ -1,6 +1,9 @@
 import { AccountError } from '../../shared/account/index.ts';
 import { ApiResponseError } from '../api-response/index.ts';
-import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
+import {
+  traceChatSync,
+  diagnosticGeneration,
+} from '../chat-sync-diagnostics/index.ts';
 import { workInterruption } from '../synchronization-work/index.ts';
 import type { WorkDiagnosticFields } from '../../shared/chat-sync-diagnostics/index.ts';
 
@@ -34,7 +37,8 @@ export async function measureWork<T>(
   work: () => Promise<T>,
   queuedAt = now(),
 ): Promise<T> {
-  const started = now();
+  const started = now(),
+    generation = diagnosticGeneration();
   let result: NonNullable<WorkDiagnosticFields['outcome']> = 'complete';
   let origin: WorkDiagnosticFields['origin'];
   try {
@@ -44,14 +48,15 @@ export async function measureWork<T>(
     origin = workInterruption(error)?.origin;
     throw error;
   } finally {
-    traceChatSync(owner, null, {
-      event: 'work',
-      reason: 'settled',
-      operation,
-      outcome: result,
-      ...(origin ? { origin } : {}),
-      queueMs: Math.max(0, Math.round(started - queuedAt)),
-      runMs: Math.max(0, Math.round(now() - started)),
-    });
+    if (generation !== undefined && generation === diagnosticGeneration())
+      traceChatSync(owner, null, {
+        event: 'work',
+        reason: 'settled',
+        operation,
+        outcome: result,
+        ...(origin ? { origin } : {}),
+        queueMs: Math.max(0, Math.round(started - queuedAt)),
+        runMs: Math.max(0, Math.round(now() - started)),
+      });
   }
 }

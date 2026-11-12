@@ -137,12 +137,17 @@ await test('HTTP errors retain status and content type without retrying mutation
   for (const status of [401, 403, 429, 502, 503, 504]) {
     bridge.head = {
       status,
-      headers: { 'content-type': 'text/html', 'retry-after': '3' },
+      headers: {
+        'content-type': 'text/html',
+        'retry-after': '3',
+        'x-0xdmme-server-time': '1800000000000',
+      },
     };
     bridge.chunks = [chunk('<html>synthetic failure</html>', true)];
     const response = await transport.fetch('/api/account/login', {});
     assert.equal(response.status, status);
     assert.equal(response.headers.get('content-type'), 'text/html');
+    assert.equal(response.headers.get('x-0xdmme-server-time'), '1800000000000');
     await response.body?.cancel();
   }
   assert.equal(bridge.opened.length, 6);

@@ -92,6 +92,7 @@ export class GroupAuthority {
         guard();
         return result;
       },
+      { diagnosticOperation: 'group' },
     );
   }
 }

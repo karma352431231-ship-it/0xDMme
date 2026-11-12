@@ -106,7 +106,11 @@ export class NativeExchange {
         decodeUs: 0,
         blocks: 0,
       });
-      this.diagnostic?.('headers', { nativeStatus: head.status });
+      this.diagnostic?.('headers', {
+        nativeStatus: head.status,
+        nativeServerUnixMs:
+          Number(head.headers.get('x-0xdmme-server-time')) || 0,
+      });
       if (this.request.method === 'HEAD' || [204, 205].includes(head.status)) {
         this.diagnostic?.('body', { nativeBytes: 0 });
         await this.cancel();
