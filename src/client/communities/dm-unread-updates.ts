@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { DmContinuations } from './dm-continuation.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 type UnreadWork = 'receive' | 'project';
@@ -61,7 +62,7 @@ export class DmUnreadUpdates {
       this.active &&
       this.enabled &&
       document.visibilityState === 'visible' &&
-      navigator.onLine
+      networkAvailable()
     );
   }
   private async refresh(): Promise<void> {

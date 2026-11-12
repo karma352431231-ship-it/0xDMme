@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../connectivity/index.ts';
 import { DmUnreadUpdates } from './dm-unread-updates.ts';
 import type { SocialDms } from '../social-dm/index.ts';
 
@@ -20,7 +21,7 @@ class DmInbox {
         resume = () => this.request();
       document.addEventListener('visibilitychange', resume, options);
       document.addEventListener('resume', resume, options);
-      window.addEventListener('online', resume, options);
+      window.addEventListener(networkOnlineEvent, resume, options);
       window.addEventListener('pageshow', resume, options);
     }
     this.updates.start();

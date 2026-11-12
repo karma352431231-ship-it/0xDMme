@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import {
   encodeGroupText,
   decodeGroupText,
@@ -283,7 +284,7 @@ export class GroupController {
     });
   }
   async search(query: string, after: string | null) {
-    if (this.historyPending && navigator.onLine)
+    if (this.historyPending && networkAvailable())
       throw new Error('Verify deletions before searching.');
     const generation = this.generation;
     return this.withLocalAuthority((authority) =>
@@ -297,7 +298,7 @@ export class GroupController {
     );
   }
   async refresh(more = false): Promise<void> {
-    if (!navigator.onLine) return this.refreshLocal(more);
+    if (!networkAvailable()) return this.refreshLocal(more);
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
     await this.identities.load();
     const data = await this.withAuthority(async (c) => {
@@ -422,7 +423,7 @@ export class GroupController {
     if (this.selected) this.entries.push(this.selected);
   }
   private async refreshLocal(more: boolean, combine = false): Promise<void> {
-    if (!navigator.onLine) this.remoteNext = null;
+    if (!networkAvailable()) this.remoteNext = null;
     const result = await this.withLocalAuthority(async (authority) => {
       if (!this.historyLoaded) {
         const generation = this.generation;
@@ -602,7 +603,7 @@ export class GroupController {
   }): Promise<MessageWorkResult> {
     const { groupId, older, localOnly, guard } = input;
     guard();
-    if (!navigator.onLine || localOnly) return this.openLocal(groupId, older);
+    if (!networkAvailable() || localOnly) return this.openLocal(groupId, older);
     await this.identities.load();
     guard();
     const complete = await this.withAuthority(async (c) => {
@@ -1317,14 +1318,14 @@ export class GroupController {
     return (
       !!selected &&
       !selected.localOnly &&
-      navigator.onLine &&
+      networkAvailable() &&
       this.retry.available(selected.state.groupId) &&
       (await this.pending()).length > 0
     );
   }
   async resumePending(): Promise<boolean> {
     const selected = this.selected;
-    if (!selected || selected.localOnly || !navigator.onLine) return false;
+    if (!selected || selected.localOnly || !networkAvailable()) return false;
     if (
       !(await this.pending()).length ||
       !this.retry.take(selected.state.groupId)
@@ -1430,7 +1431,7 @@ export class GroupController {
       throw new Error('Group message changed.');
     const generation = this.generation;
     return this.withAuthority(async (c) => {
-      if (selected.localOnly || !navigator.onLine)
+      if (selected.localOnly || !networkAvailable())
         return this.localMedia(c.authority, view, thumbnail, generation);
       const group = await c.governance.verify(selected.state.groupId),
         content = attachmentContent(JSON.parse(view.text) as unknown),

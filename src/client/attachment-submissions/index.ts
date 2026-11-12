@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 export { submittedMediaRows, updateSubmittedMediaStates } from './rows.ts';
 import type {
   MediaSubmission,
@@ -136,8 +137,8 @@ export class AttachmentSubmissions {
       const ran = await this.options.run(async () => {
         await this.stageBatch(batch, generation);
         if (generation !== this.generation) return;
-        this.markBatch(batch, navigator.onLine ? 'sending' : 'saved');
-        if (navigator.onLine) await this.options.send();
+        this.markBatch(batch, networkAvailable() ? 'sending' : 'saved');
+        if (networkAvailable()) await this.options.send();
         if (generation === this.generation) this.markBatch(batch, 'saved');
         if (generation === this.generation) this.options.followup();
       });

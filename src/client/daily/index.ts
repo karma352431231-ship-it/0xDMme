@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { groupMediaQuota } from '../../shared/group-quota/index.ts';
 import { object, base64, keys } from '../../shared/account/index.ts';
 import {
@@ -97,7 +98,7 @@ export class Daily {
     this.configured = identity;
   }
   private readonly presence = new LatestPresence(async (active) => {
-    if (this.session && navigator.onLine)
+    if (this.session && networkAvailable())
       await this.api('daily-heartbeat', { active });
   });
   heartbeat(active: boolean): Promise<void> {

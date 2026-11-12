@@ -14,18 +14,24 @@ import {
   readApiJson,
 } from '../src/client/api-response/index.ts';
 import { chunk, FixtureBridge } from './fixtures/native-api-bridge.ts';
+import type {
+  networkAvailable,
+  startConnectivity,
+} from '../src/client/connectivity/index.ts';
 
 interface InstalledClient {
   requestApi: typeof requestApi;
   installNativeApiTransport: typeof installNativeApiTransport;
   fetchApi: typeof fetchApi;
   readApiJson: typeof readApiJson;
+  networkAvailable: typeof networkAvailable;
+  startConnectivity: typeof startConnectivity;
 }
 async function installedClient() {
   const result = await build({
     stdin: {
       contents:
-        "export * from './src/client/api-transport/index.ts'; export * from './src/client/api-response/index.ts';",
+        "export * from './src/client/api-transport/index.ts'; export * from './src/client/api-response/index.ts'; export * from './src/client/connectivity/index.ts';",
       resolveDir: fileURLToPath(new URL('../', import.meta.url)),
     },
     bundle: true,
@@ -45,6 +51,13 @@ async function installedClient() {
       DOMException,
       Error,
       TypeError,
+      navigator: { onLine: false },
+      window: new EventTarget(),
+      document: Object.assign(new EventTarget(), {
+        visibilityState: 'visible',
+      }),
+      AbortController,
+      Event,
       fetch: () => {
         browserRequests++;
         throw new Error('Browser HTTP must not run.');
@@ -95,6 +108,8 @@ await test('installed diagnostics retain HTTP/authorization and streamed-body er
   const { client, browserRequests } = await installedClient();
   const bridge = new FixtureBridge();
   const transport = new NativeApiTransport(bridge);
+  const closeConnectivity = client.startConnectivity();
+  assert.equal(client.networkAvailable(), false);
   client.installNativeApiTransport(transport);
   assert.throws(
     () => client.installNativeApiTransport(transport),
@@ -109,6 +124,11 @@ await test('installed diagnostics retain HTTP/authorization and streamed-body er
     'account/session',
     '/api/account/session',
     {},
+  );
+  assert.equal(
+    client.networkAvailable(),
+    true,
+    'Native HTTP errors prove connectivity without authorizing a device',
   );
   await assert.rejects(
     client.readApiJson(response, 'account/session'),
@@ -142,6 +162,7 @@ await test('installed diagnostics retain HTTP/authorization and streamed-body er
   await transport.close();
   await assert.rejects(client.requestApi('/api/account/session', {}));
   assert.equal(browserRequests(), 0);
+  closeConnectivity();
 });
 
 await test('existing API diagnostics remain the public error type on the web path', async (t) => {

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
@@ -99,7 +100,7 @@ export class GroupComposer {
     this.texts = groupTextQueue({
       save: (groupId, draft) => options.controller.composeText(groupId, draft),
       send: (id) => this.transmit(id),
-      available: () => !!options.account() && navigator.onLine,
+      available: () => !!options.account() && networkAvailable(),
       changed: () => this.status(),
       failed: (error) => this.failure(error),
       draftChanged: options.draftChanged,

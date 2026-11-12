@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'connectivity cannot acquire account or vault authority',
+    files: {
+      'src/client/connectivity/index.ts':
+        "export { authority } from '../vault-authority/index.ts';\n",
+      'src/client/vault-authority/index.ts': 'export const authority = {};\n',
+    },
+    diagnostic: /connectivity-cannot-import-domain-operations/,
+  },
+  {
     name: 'view-once pure transforms cannot import vault authority',
     files: {
       'src/client/view-once-preparation/index.ts':

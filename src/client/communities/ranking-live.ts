@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../connectivity/index.ts';
 import { RankingConnection } from './ranking-live-connection.ts';
 interface Subscriber {
   visible: () => boolean;
@@ -25,7 +26,7 @@ export function watchRankingUpdates(options: {
   subscribers.add(subscriber);
   if (subscribers.size === 1) {
     document.addEventListener('visibilitychange', sync);
-    window.addEventListener('online', sync);
+    window.addEventListener(networkOnlineEvent, sync);
     window.addEventListener('resize', sync);
     observer = new MutationObserver(sync);
     observer.observe(document.body, {
@@ -41,7 +42,7 @@ export function watchRankingUpdates(options: {
       observer?.disconnect();
       observer = null;
       document.removeEventListener('visibilitychange', sync);
-      window.removeEventListener('online', sync);
+      window.removeEventListener(networkOnlineEvent, sync);
       window.removeEventListener('resize', sync);
     }
     sync();

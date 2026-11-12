@@ -37,6 +37,9 @@ receipt, coordinator and visibility tests must accompany those cuts.
   Routine maintenance must not repeatedly abort a page that is making progress.
 - Hidden/offline/suspended browsers retain their existing deferral policy;
   resuming the browser requests current authority before projecting content.
+  [Connectivity recovery](CONNECTIVITY_RECOVERY.md) distinguishes a false browser
+  offline hint from a failed network check; server reachability never supplies
+  account or device authority.
 - No new server endpoint, schema, crypto format, dependency or telemetry is needed.
 
 ## Implemented flow

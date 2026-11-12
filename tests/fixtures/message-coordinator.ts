@@ -48,6 +48,7 @@ for (const match of source.matchAll(
   );
 }
 const real = new Set([
+  '../connectivity/index.ts',
   './composer.ts',
   './attachment-submissions.ts',
   './interaction-availability.ts',

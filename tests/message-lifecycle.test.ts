@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../src/client/connectivity/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { bindMessageLifecycle } from '../src/client/messages/lifecycle.ts';
@@ -70,7 +71,7 @@ await test('bfcache retains one lifecycle binding; permanent departure closes ev
   t.after(close);
   const page = (name: string, persisted: boolean) =>
     window.dispatchEvent(Object.assign(new Event(name), { persisted }));
-  window.dispatchEvent(new Event('online'));
+  window.dispatchEvent(new Event(networkOnlineEvent));
   window.dispatchEvent(new Event('0xdmme-message-controls'));
   document.dispatchEvent(new Event('freeze'));
   document.dispatchEvent(new Event('resume'));
@@ -90,7 +91,7 @@ await test('bfcache retains one lifecycle binding; permanent departure closes ev
   document.dispatchEvent(new Event('resume'));
   assert.equal(freezes, 1);
   assert.equal(resumes, 1);
-  window.dispatchEvent(new Event('online'));
+  window.dispatchEvent(new Event(networkOnlineEvent));
   window.dispatchEvent(new Event('0xdmme-message-controls'));
   page('pageshow', true);
   t.mock.timers.tick(30000);

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 export type { AcceptedDmMedia, DmMediaAccepted } from './accepted-media.ts';
 import { SocialListReads } from './list-reads.ts';
 import type { DmMediaAccepted } from './accepted-media.ts';
@@ -1133,7 +1134,7 @@ export class SocialDms {
     const generation = this.generation;
     let snapshot: DmHistorySnapshot | null = null;
     let page: Awaited<ReturnType<SocialDms['cached']>> | undefined;
-    if (navigator.onLine) {
+    if (networkAvailable()) {
       snapshot = await this.history.run({
         snapshot: () => this.request('personal-snapshot', {}, options),
         guard: () => this.guard(generation),
@@ -1184,7 +1185,7 @@ export class SocialDms {
   ): Promise<Map<string, ConversationPreview>> {
     if (!peers.length) return new Map();
     const generation = this.generation;
-    const snapshot = navigator.onLine
+    const snapshot = networkAvailable()
       ? ((options.afterReceive ? this.confirmedHistory : null) ??
         (await this.synchronizeHistory()).snapshot)
       : null;
@@ -1196,7 +1197,7 @@ export class SocialDms {
           this.cachedPage({ a, peer, before, generation, maximum: 1 }),
         guard: () => this.guard(generation),
         states: async (own) =>
-          navigator.onLine && own.length
+          networkAvailable() && own.length
             ? dmMessageStates(
                 await this.privateApi(a, generation)('preview-status', { own }),
               )
@@ -1489,31 +1490,34 @@ export class SocialDms {
       file = thumbnail ? content.thumbnail : content.file;
     if (!file) throw new Error('Thumbnail missing.');
     const generation = this.generation;
-    return this.access.withVault(localOnly || !navigator.onLine, async (a) => {
-      const bytes = await this.mediaCipher(a, {
-        row,
-        file,
-        thumbnail,
-        image: content.image && row.media !== 'gif',
-        generation,
-      });
-      this.guard(generation);
-      if (sealed) return Uint8Array.from(bytes);
-      const plain = await openStoredAttachment(
-        file,
-        Uint8Array.from(bytes),
-        thumbnail,
-        content.image && row.media !== 'gif',
-      );
-      try {
+    return this.access.withVault(
+      localOnly || !networkAvailable(),
+      async (a) => {
+        const bytes = await this.mediaCipher(a, {
+          row,
+          file,
+          thumbnail,
+          image: content.image && row.media !== 'gif',
+          generation,
+        });
         this.guard(generation);
-        if (!thumbnail) checkSocialBytes(content, row.media!, plain);
-        return plain;
-      } catch (error: unknown) {
-        plain.fill(0);
-        throw error;
-      }
-    });
+        if (sealed) return Uint8Array.from(bytes);
+        const plain = await openStoredAttachment(
+          file,
+          Uint8Array.from(bytes),
+          thumbnail,
+          content.image && row.media !== 'gif',
+        );
+        try {
+          this.guard(generation);
+          if (!thumbnail) checkSocialBytes(content, row.media!, plain);
+          return plain;
+        } catch (error: unknown) {
+          plain.fill(0);
+          throw error;
+        }
+      },
+    );
   }
   private async mediaCipher(
     a: VaultAuthority,

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
   startHandleRead,
@@ -111,7 +112,7 @@ export function startSocialDmUi(
   );
   const publicDirectory = new DmDirectory({
     list: async (after) => {
-      if (!navigator.onLine || after?.startsWith('local:')) {
+      if (!networkAvailable() || after?.startsWith('local:')) {
         const page = await controller.copies(
           after?.slice('local:'.length) || null,
         );
@@ -160,7 +161,7 @@ export function startSocialDmUi(
     controller,
     available: () =>
       Boolean(session) &&
-      navigator.onLine &&
+      networkAvailable() &&
       document.visibilityState === 'visible',
     changed: () => {
       drawOutgoing();
@@ -352,7 +353,7 @@ export function startSocialDmUi(
       !!peer &&
       (writable || !view) &&
       !localOnly &&
-      navigator.onLine &&
+      networkAvailable() &&
       document.visibilityState === 'visible'
     );
   }
@@ -395,7 +396,7 @@ export function startSocialDmUi(
     if (!container) return;
     const old = generation,
       expected = verification,
-      offline = localOnly || !navigator.onLine,
+      offline = localOnly || !networkAvailable(),
       page = offline
         ? null
         : await controller.list(cursor, { handleListCaller: 'visible-list' });
@@ -525,7 +526,7 @@ export function startSocialDmUi(
     usable: () => boolean,
     work: VaultWorkOptions,
   ) {
-    const offline = localOnly || !navigator.onLine;
+    const offline = localOnly || !networkAvailable();
     if (offline) {
       const page = await controller.cached(
         selected,
@@ -833,7 +834,7 @@ export function startSocialDmUi(
       link.href = `#users?handle=${encodeURIComponent(profile.handle)}`;
       current.options.append(withMenuIcon(link, 'profile'));
     }
-    if (localOnly || !navigator.onLine) return;
+    if (localOnly || !networkAvailable()) return;
     if (value)
       for (const action of controls.actions(value)) {
         const button = communityElement('button', action.label);
@@ -907,7 +908,7 @@ export function startSocialDmUi(
     watchingCreation = false,
     textsReady = false;
   function publishDevices(): void {
-    if (!session || !navigator.onLine || devicesChecked === session) return;
+    if (!session || !networkAvailable() || devicesChecked === session) return;
     devicesChecked = session;
     controller.publishDevices().catch(() => {
       // Not retried in this session: a profile-less account would only fail
@@ -969,7 +970,7 @@ export function startSocialDmUi(
       const restored = id
         ? projections.get(
             id,
-            refreshes.current && navigator.onLine && !localOnly,
+            refreshes.current && networkAvailable() && !localOnly,
           )
         : null;
       if (restored && id) {
@@ -988,13 +989,13 @@ export function startSocialDmUi(
       const old = generation;
       void run(async () => {
         const profile =
-          navigator.onLine && !localOnly
+          networkAvailable() && !localOnly
             ? (ownProfile ??
               (await controller.initialize(id ? dmConversationWork() : {})))
             : ownProfile;
         if (old !== generation) return;
         ownProfile = profile;
-        if (navigator.onLine && !localOnly) refreshes.connect();
+        if (networkAvailable() && !localOnly) refreshes.connect();
         await reload();
       });
     },

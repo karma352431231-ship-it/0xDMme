@@ -1,3 +1,8 @@
+import {
+  networkAvailable,
+  networkOfflineEvent,
+  networkOnlineEvent,
+} from '../connectivity/index.ts';
 /** Foreground rechecks follow the private chat: hiding a healthy tab keeps
  * continuity; loss of the stream or actual suspension closes the history. */
 export function bindDmLifecycle(options: {
@@ -14,7 +19,7 @@ export function bindDmLifecycle(options: {
     if (!suspended && options.current()) return;
     suspended = false;
     options.pause();
-    if (navigator.onLine) {
+    if (networkAvailable()) {
       options.reconnect();
       options.refresh();
     }
@@ -35,8 +40,8 @@ export function bindDmLifecycle(options: {
   );
   document.addEventListener('freeze', pause, { signal });
   document.addEventListener('resume', resume, { signal });
-  window.addEventListener('offline', pause, { signal });
-  window.addEventListener('online', resume, { signal });
+  window.addEventListener(networkOfflineEvent, pause, { signal });
+  window.addEventListener(networkOnlineEvent, resume, { signal });
   window.addEventListener('pagehide', pause, { signal });
   window.addEventListener('pageshow', resume, { signal });
   return () => abort.abort();

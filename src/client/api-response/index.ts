@@ -1,6 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { requestApi, readTransportJson } from '../api-transport/index.ts';
+import {
+  recordServerResponse,
+  recordNetworkFailure,
+} from '../connectivity/index.ts';
 
 export type ApiFailure =
   'http' | 'non-json' | 'invalid-json' | 'network' | 'timeout' | 'cancelled';
@@ -117,13 +121,16 @@ export async function fetchApi(
 ): Promise<Response> {
   try {
     const response = await requestApi(path, options);
+    if (!options.signal?.aborted) recordServerResponse();
     if (options.signal) requestSignals.set(response, options.signal);
     return response;
   } catch (error: unknown) {
+    const failure = transportFailure(error, options.signal);
+    if (failure === 'network') recordNetworkFailure();
     throw new ApiResponseError({
       operation,
       status: 0,
-      failure: transportFailure(error, options.signal),
+      failure,
       cause: options.signal?.aborted ? options.signal.reason : error,
     });
   }

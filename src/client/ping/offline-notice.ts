@@ -1,3 +1,8 @@
+import {
+  networkAvailable,
+  networkOnlineEvent,
+  networkOfflineEvent,
+} from '../connectivity/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { pingElement } from './art.ts';
 
@@ -11,7 +16,7 @@ function paint(): void {
   document
     .querySelectorAll<HTMLElement>('[data-offline-notice]')
     .forEach((notice) => {
-      notice.hidden = navigator.onLine;
+      notice.hidden = networkAvailable();
     });
 }
 
@@ -28,8 +33,8 @@ export function mountOfflineNotice(before: HTMLElement): void {
   }
   if (!listening) {
     listening = true;
-    window.addEventListener('online', paint);
-    window.addEventListener('offline', paint);
+    window.addEventListener(networkOnlineEvent, paint);
+    window.addEventListener(networkOfflineEvent, paint);
   }
   paint();
 }

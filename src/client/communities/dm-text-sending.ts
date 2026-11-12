@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../connectivity/index.ts';
 import { OutgoingTexts, TextSendQueue } from '../text-send/index.ts';
 import { traceHandleDelivery } from '../chat-sync-diagnostics/index.ts';
 import type { OutgoingText, TextDraft } from '../text-send/index.ts';
@@ -36,7 +37,7 @@ export class DmTextSending {
     failed: (error: unknown) => void;
   }) {
     this.options = options;
-    window.addEventListener('online', () => this.resume());
+    window.addEventListener(networkOnlineEvent, () => this.resume());
     window.addEventListener('beforeunload', (event) => {
       if (!this.queue.unsaved) return;
       event.preventDefault();

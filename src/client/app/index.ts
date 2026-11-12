@@ -1,3 +1,9 @@
+import {
+  startConnectivity,
+  networkAvailable,
+  networkOnlineEvent,
+  networkOfflineEvent,
+} from '../connectivity/index.ts';
 import { installedApplication } from '../application-origin/index.ts';
 import { startPullRefresh } from '../pull-refresh/index.ts';
 import {
@@ -73,6 +79,8 @@ function element<T extends HTMLElement>(id: string): T {
   if (!result) throw new Error('Interface incomplete.');
   return result as T;
 }
+
+startConnectivity();
 
 // A file dropped outside a composer must not navigate away from the app.
 startLanguage();
@@ -699,7 +707,7 @@ function connection(): void {
   renderConnection();
 }
 function renderConnection(): void {
-  element('connection').textContent = navigator.onLine
+  element('connection').textContent = networkAvailable()
     ? connectedAccount
       ? devices.authorized()
         ? t('Account connected')
@@ -804,8 +812,8 @@ if (communitiesTab && !account.approvalPage)
     link: communitiesTab,
     feedReturn: () => communities.feedReturnTarget(),
   });
-window.addEventListener('online', connection);
-window.addEventListener('offline', connection);
+window.addEventListener(networkOnlineEvent, connection);
+window.addEventListener(networkOfflineEvent, connection);
 startEnrollmentEntry(devices);
 route();
 if (!account.approvalPage)

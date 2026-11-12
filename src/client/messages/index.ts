@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { stageForwardedMessage } from '../message-forward/index.ts';
@@ -149,7 +150,7 @@ export function startMessages(
       previewAdmission.observe({
         rows: value,
         projection,
-        online: navigator.onLine,
+        online: networkAvailable(),
         localOnly: selected?.localOnly ?? false,
       });
       publishVerifiedConversationPreview({
@@ -157,7 +158,7 @@ export function startMessages(
         update,
         projection,
         previews,
-        online: navigator.onLine,
+        online: networkAvailable(),
         localOnly: selected?.localOnly ?? false,
       });
       renderHistory(update);
@@ -175,7 +176,7 @@ export function startMessages(
           rows: verifiedRows,
           projection: { peer, latest: true },
           previews,
-          online: navigator.onLine,
+          online: networkAvailable(),
           localOnly: false,
         }),
       receipt: (receipt) => receiptPreviews.commit(receipt),
@@ -230,7 +231,7 @@ export function startMessages(
         selected?.accountId ?? null,
         conversationVisible('[data-direct-conversation]'),
       ),
-    online: () => navigator.onLine,
+    online: () => networkAvailable(),
     lookupAllowed: () => !startupWarmup.pending && !textQueue.pending,
     lookup: refreshDirectoryPreviews,
   });
@@ -258,8 +259,8 @@ export function startMessages(
         id.startsWith('group:')
           ? Promise.resolve(null)
           : controller.knownProfile(id),
-      more: () => directoryData.hasMore(navigator.onLine),
-      loadMore: () => directoryData.refresh(true, navigator.onLine),
+      more: () => directoryData.hasMore(networkAvailable()),
+      loadMore: () => directoryData.refresh(true, networkAvailable()),
     },
     forward: (view, peer) =>
       forwardContent(view, peer, (thumbnail) => groups.media(view, thumbnail)),
@@ -409,7 +410,7 @@ export function startMessages(
       !startupWarmup.pending &&
       !textQueue.pending &&
       !!session &&
-      navigator.onLine &&
+      networkAvailable() &&
       document.visibilityState === 'visible' &&
       !synchronization.conversationWorkPending,
   });
@@ -418,7 +419,7 @@ export function startMessages(
       generation,
       connected: connected(),
       session: !!session,
-      online: navigator.onLine,
+      online: networkAvailable(),
       visible: document.visibilityState === 'visible',
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
@@ -554,14 +555,15 @@ export function startMessages(
   });
   const continuity = new MessageContinuity({
     current: () => live.current,
-    available: () => !!session && navigator.onLine,
+    available: () => !!session && networkAvailable(),
     pause: suspend,
     stop: () => live.stop(),
     reconnect: () => live.retry(),
     check: () => requestRefresh('probe'),
   });
   const visits = new ConnectedConversationVisits<ConversationPeer>({
-    connected: () => live.current && navigator.onLine && !continuity.suspended,
+    connected: () =>
+      live.current && networkAvailable() && !continuity.suspended,
     available: () => synchronization.presentationReady,
     backgroundReady: () => synchronization.backgroundReady,
     reusable: (peer) =>
@@ -612,8 +614,8 @@ export function startMessages(
         id.startsWith('group:')
           ? Promise.resolve(null)
           : controller.knownProfile(id),
-      more: () => directoryData.hasMore(navigator.onLine),
-      loadMore: () => directoryData.refresh(true, navigator.onLine),
+      more: () => directoryData.hasMore(networkAvailable()),
+      loadMore: () => directoryData.refresh(true, networkAvailable()),
     },
     media: (view, thumbnail, diagnostic) =>
       controller.media(view, thumbnail, diagnostic),
@@ -637,7 +639,7 @@ export function startMessages(
     submissionMedia: (row, thumbnail, signal) =>
       controller.submissionMedia(row, thumbnail, signal),
     retryMedia: () => {
-      if (!mediaSubmissions.retry() && navigator.onLine)
+      if (!mediaSubmissions.retry() && networkAvailable())
         void run(async () => {
           await sendPending({ priority: 'interactive' });
           sendFollowup.queue();
@@ -847,7 +849,7 @@ export function startMessages(
     await run(async () => {
       controller.requestOlder();
       if (peer.localOnly) await controller.openArchive(peer.accountId);
-      else if (navigator.onLine)
+      else if (networkAvailable())
         await synchronization.history(() =>
           controller.synchronize({ priority: 'interactive' }),
         );
@@ -958,7 +960,7 @@ export function startMessages(
     }
   }
   async function transmit(): Promise<void> {
-    if (navigator.onLine) {
+    if (networkAvailable()) {
       await sendPending();
       if (
         !(await synchronizeVisible({ priority: 'interactive' }, () =>
@@ -1246,7 +1248,7 @@ export function startMessages(
       );
     selectPeer(peer);
     if (focus !== undefined) controller.focusMessage(focus);
-    if (!navigator.onLine) {
+    if (!networkAvailable()) {
       await controller.openOffline(peer.accountId);
       return;
     }
@@ -1317,7 +1319,7 @@ export function startMessages(
     const button = node('[data-message-more-contacts]');
     if (button)
       button.hidden =
-        !directoryData.hasMore(navigator.onLine) && groups.next === null;
+        !directoryData.hasMore(networkAvailable()) && groups.next === null;
   }
   async function refreshContacts(
     more = false,
@@ -1356,7 +1358,7 @@ export function startMessages(
       startupWarmup.request();
       if (
         session &&
-        navigator.onLine &&
+        networkAvailable() &&
         (document.visibilityState === 'visible' || playback.open)
       )
         live.start();
@@ -1430,7 +1432,7 @@ export function startMessages(
       );
     if (!(await composer.save(selected?.accountId ?? null))) return;
     await renderPending();
-    if (navigator.onLine) await sendPending();
+    if (networkAvailable()) await sendPending();
     sendFollowup.queue();
   }
   /** The message carries only the KLIPY link, inside the usual E2EE text. */
@@ -1441,13 +1443,13 @@ export function startMessages(
       url,
     );
     await renderPending();
-    if (navigator.onLine) {
+    if (networkAvailable()) {
       await sendPending();
       await synchronizeVisible();
     }
   }
   async function dailyTick(): Promise<void> {
-    if (!session || !navigator.onLine) return;
+    if (!session || !networkAvailable()) return;
     const current = generation;
     await activity.refresh();
     if (current !== generation || !connected()) return;
@@ -1585,7 +1587,7 @@ export function startMessages(
       );
       status();
     });
-    if (!visible || !session || !navigator.onLine) return;
+    if (!visible || !session || !networkAvailable()) return;
     broadcastProfile();
     historyUi.resume();
     if (groups.selected) requestRefresh('probe');
@@ -1612,7 +1614,7 @@ export function startMessages(
     synchronization.prepareHistory();
     groups.historyChanged();
     if (mounted?.isConnected && !synchronization.busy)
-      void run(navigator.onLine ? refresh : refreshLocalContacts);
+      void run(networkAvailable() ? refresh : refreshLocalContacts);
   }
   async function groupTick(): Promise<void> {
     if (!mounted?.isConnected) return;
@@ -1648,7 +1650,7 @@ export function startMessages(
   }
   function preferencesChanged(): void {
     if (!startupWarmup.ready || startupWarmup.pending) return;
-    if (!synchronization.busy && session && navigator.onLine)
+    if (!synchronization.busy && session && networkAvailable())
       void synchronization.maintainPresence();
     broadcastProfile();
   }
@@ -1727,12 +1729,12 @@ export function startMessages(
         void run(() => refresh({ priority: 'interactive' }));
         return;
       }
-      if (session && navigator.onLine) live.retry();
+      if (session && networkAvailable()) live.retry();
       requestRefresh();
     });
     bind('[data-message-more-contacts]', () => {
       void run(() =>
-        navigator.onLine ? moreConversations() : refreshLocalContacts(true),
+        networkAvailable() ? moreConversations() : refreshLocalContacts(true),
       );
     });
     node<HTMLFormElement>('[data-message-form]')?.addEventListener(
@@ -1863,15 +1865,19 @@ export function startMessages(
     },
     ready(): void {
       if (selected) mountRepresentativeChat(selected);
-      if (session && navigator.onLine && document.visibilityState === 'visible')
+      if (
+        session &&
+        networkAvailable() &&
+        document.visibilityState === 'visible'
+      )
         live.start();
-      if (!navigatingToConversation && session && navigator.onLine)
+      if (!navigatingToConversation && session && networkAvailable())
         requestRefresh();
     },
     /** App-tab return: the directory is still live and loaded. Only the
      * selected history needs its normal authorization/snapshot check. */
     resume(): void {
-      if (!session || !navigator.onLine) return;
+      if (!session || !networkAvailable()) return;
       live.start();
       if (!navigatingToConversation)
         void synchronization.open(() =>
@@ -1926,10 +1932,10 @@ export function startMessages(
       renderContacts();
       renderHistory();
       status();
-      if (session && navigator.onLine) {
+      if (session && networkAvailable()) {
         live.start();
         requestRefresh();
-      } else if (!navigator.onLine) void run(refreshLocalContacts);
+      } else if (!networkAvailable()) void run(refreshLocalContacts);
     },
   };
 }

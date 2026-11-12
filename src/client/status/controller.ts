@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
@@ -79,7 +80,7 @@ export class StatusController {
     generation: number,
     work: (a: VaultAuthority) => Promise<T>,
   ): Promise<T> {
-    if (!this.session || !navigator.onLine)
+    if (!this.session || !networkAvailable())
       throw new Error('Sign in and connect to open statuses.');
     return this.access.withVault(false, async (a) => {
       this.guard(generation);

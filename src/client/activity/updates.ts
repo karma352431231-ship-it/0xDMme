@@ -1,3 +1,4 @@
+import { networkAvailable, networkOnlineEvent } from '../connectivity/index.ts';
 import { LiveUpdates, scopedLiveEvent } from '../message-live/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 
@@ -25,7 +26,7 @@ export class ActivityUpdates {
     });
   }
   private available(): boolean {
-    return this.active && !document.hidden && navigator.onLine;
+    return this.active && !document.hidden && networkAvailable();
   }
   start(): void {
     if (this.active) return;
@@ -37,7 +38,7 @@ export class ActivityUpdates {
       () => this.request(),
       options,
     );
-    window.addEventListener('online', () => this.request(), options);
+    window.addEventListener(networkOnlineEvent, () => this.request(), options);
     window.addEventListener('focus', () => this.request(), options);
     navigator.serviceWorker?.addEventListener(
       'message',

@@ -1,3 +1,7 @@
+import {
+  networkOfflineEvent,
+  networkOnlineEvent,
+} from '../connectivity/index.ts';
 import { observeMessageControls } from '../message-controls/index.ts';
 
 interface MessageLifecycle {
@@ -34,8 +38,8 @@ export function bindMessageLifecycle(options: MessageLifecycle): () => void {
       ? null
       : new BroadcastChannel('0xdmme-device-changes');
   channel?.addEventListener('message', options.devices, { signal });
-  window.addEventListener('offline', options.offline, { signal });
-  window.addEventListener('online', options.online, { signal });
+  window.addEventListener(networkOfflineEvent, options.offline, { signal });
+  window.addEventListener(networkOnlineEvent, options.online, { signal });
   document.addEventListener('visibilitychange', options.visibility, { signal });
   document.addEventListener('freeze', options.freeze, { signal });
   document.addEventListener('resume', options.resume, { signal });

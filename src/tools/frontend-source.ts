@@ -23,6 +23,7 @@ const authored = [
   'src/client/installed-runtime',
   'src/client/application-origin',
   'src/client/api-transport',
+  'src/client/connectivity',
   'src/client/native-api',
   'src/shared/content-policy',
   'src/tools/frontend-assets.ts',
