@@ -462,6 +462,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     '{0} offered you ownership of a group. Accept to take over administration.',
     '{0} 向你转让群组所有权。接受后，你将负责管理该群组。',
   ],
+  '1 participant': ['1 participant', '1 位成员'],
   '{0} participants': ['{0} participants', '{0} 位成员'],
   '{0} posts · {1} replies': [
     '{0} posts · {1} replies',

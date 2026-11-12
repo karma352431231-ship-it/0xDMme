@@ -3,6 +3,11 @@ import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 import { menuIconMarkup } from '../menu-icons/index.ts';
 import { bindInfoTrigger } from '../conversation-info/index.ts';
+
+/** "1 participant" or "{n} participants" for a group's header. */
+export function participantCount(count: number): string {
+  return count === 1 ? t('1 participant') : t('{0} participants', [count]);
+}
 /** The chat keeps its selectors and authority; this module owns settings presentation. */
 export const groupSettingsTemplate = t('html.6f2aac1c9ed0', [
   chatIcon('close'),
@@ -64,8 +69,7 @@ export function updateGroupSettingsIdentity(
     count = host?.querySelector('[data-group-settings-count]'),
     avatar = host?.querySelector<HTMLElement>('[data-group-settings-avatar]');
   if (title) title.textContent = group.title;
-  if (count)
-    count.textContent = t('{0} participants', [group.state.members.length]);
+  if (count) count.textContent = participantCount(group.state.members.length);
   if (avatar)
     paintAvatar(avatar, { label: group.title, seed: group.state.groupId });
 }

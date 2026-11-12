@@ -250,7 +250,9 @@
 .chat-history {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Shared with bubbles.css, whose runs pull bubbles 2px apart. */
+  --chat-history-gap: 10px;
+  gap: var(--chat-history-gap);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

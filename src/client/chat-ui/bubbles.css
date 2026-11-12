@@ -4,7 +4,7 @@
  * time once per run, and the reply as a card naming the original's author.
  */
 #app-shell .chat-message {
-  padding: 7px 12px 6px;
+  padding: 7px 12px;
   border: 0;
   border-radius: 18px 18px 18px 6px;
   box-shadow: none;
@@ -15,15 +15,54 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
+/* One's own bubbles need no author line; the side already says it. */
+#app-shell .chat-message.own > strong:first-child {
+  display: none;
+}
+#app-shell .chat-panel .chat-message p {
+  margin: 0;
+  padding-inline-end: 0;
+  line-height: 1.4;
+  color: inherit;
+}
+/* Bubbles of one run sit 2px apart; runs keep the history's own gap. */
 #app-shell .chat-message:is([data-run='middle'], [data-run='end']) {
-  margin-top: -3px;
+  margin-top: calc(2px - var(--chat-history-gap, 10px));
   border-top-left-radius: 6px;
 }
 #app-shell .chat-message.own:is([data-run='middle'], [data-run='end']) {
   border-top-left-radius: 18px;
   border-top-right-radius: 6px;
 }
-/* Only the last bubble of a run shows the time and the delivery checks. */
+/*
+ * The time and delivery checks sit under the last bubble of a run, outside
+ * it, aligned with its side. Earlier bubbles keep only marks such as the star.
+ */
+#app-shell
+  .chat-message:is([data-run='single'], [data-run='end'], :not([data-run])) {
+  margin-bottom: 18px;
+}
+#app-shell
+  .chat-message:is([data-run='single'], [data-run='end'], :not([data-run]))
+  > .message-meta {
+  position: absolute;
+  top: calc(100% + 3px);
+  inset-inline-end: 4px;
+  flex-wrap: nowrap;
+  width: max-content;
+  margin: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+#app-shell
+  .chat-message:not(.own):is(
+    [data-run='single'],
+    [data-run='end'],
+    :not([data-run])
+  )
+  > .message-meta {
+  inset-inline: 4px auto;
+}
 #app-shell
   .chat-message:is([data-run='start'], [data-run='middle'])
   .message-meta
@@ -32,28 +71,69 @@
 }
 #app-shell
   .chat-message:is([data-run='start'], [data-run='middle'])
-  .message-meta {
-  margin-top: 0;
+  > .message-meta {
+  margin-top: 2px;
 }
-#app-shell .chat-message.own .message-meta {
+#app-shell
+  .chat-message:is([data-run='start'], [data-run='middle'])
+  > .message-meta:not(:has(> :not(time, .message-checks))) {
+  display: none;
+}
+#app-shell .chat-message .message-meta time {
   color: inherit;
+}
+/* Reactions and the time share the space under the bubble. */
+#app-shell .chat-message:has(> .message-reactions:not(:empty)) > .message-meta {
+  top: calc(100% + 4px);
 }
 #app-shell .chat-message.own a {
   color: inherit;
   text-decoration: underline;
 }
+/*
+ * The options chevron appears beside the bubble on hover, outside it, so it
+ * never covers the text or reserves empty space inside short bubbles.
+ */
+#app-shell .chat-message .message-actions {
+  top: 50%;
+  right: auto;
+  left: 100%;
+  /* Padding, not a gap, keeps the hover alive on the way to the button. */
+  padding-inline: 4px;
+  transform: translateY(-50%);
+}
+#app-shell .chat-message.own .message-actions {
+  right: 100%;
+  left: auto;
+}
+#app-shell .chat-message .message-actions > .chat-icon {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+}
+#app-shell .chat-message .message-actions > .chat-icon:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
 /* Touch opens the options with a hold; the chevron stays only as a hidden
- * target for assistive technology. Mouse users keep the floating button. */
+ * target for assistive technology. */
 @media (pointer: coarse) {
-  #app-shell .chat-message {
-    padding-right: 12px;
-  }
   #app-shell .chat-message .message-actions > .chat-icon {
     width: 24px;
     height: 24px;
     padding: 0;
     opacity: 0;
   }
+}
+/* Day headings read as quiet labels, not pills. */
+#app-shell .chat-day span {
+  padding: 2px 0;
+  background: none;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 #app-shell .chat-message > .chat-reply-quote {
   display: grid;
@@ -97,4 +177,67 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+}
+/* Photos, videos and GIFs stand on their own, without a bubble behind. */
+#app-shell
+  .chat-message:is(
+    :has(.chat-image-open),
+    :has(.gif-only .chat-gif :is(video, img))
+  ) {
+  background: transparent;
+}
+#app-shell .chat-panel .chat-message:has(.chat-image-open) > p:not(:empty) {
+  margin: 6px 4px 0;
+}
+/*
+ * A text reply shows the quoted message as a card above its bubble (visual
+ * B): the article drops its own bubble and the text paragraph takes it.
+ * Replies carrying media or voice keep the card inside their bubble.
+ */
+#app-shell
+  .chat-panel
+  .chat-message:has(> .chat-reply-quote):not(
+    :has(
+      > :not(
+        .chat-reply-quote,
+        p,
+        strong,
+        .message-meta,
+        .message-actions,
+        .message-reactions
+      )
+    )
+  ) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0;
+  background: transparent;
+
+  &.own {
+    align-items: flex-end;
+  }
+  > .chat-reply-quote {
+    width: auto;
+    max-width: 100%;
+    margin: 0 0 3px;
+    border: 1px solid var(--line);
+    border-inline-start: 3px solid var(--accent-text);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  > .chat-reply-quote > strong {
+    color: var(--accent-text);
+  }
+  > p:not([hidden], :empty) {
+    max-width: 100%;
+    padding: 7px 12px;
+    border-radius: 18px 18px 18px 6px;
+    background: var(--recv);
+  }
+  &.own > p:not([hidden], :empty) {
+    border-radius: 18px 18px 6px 18px;
+    background: var(--accent);
+  }
 }

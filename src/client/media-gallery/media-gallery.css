@@ -25,7 +25,10 @@ dialog.media-gallery::backdrop {
   padding: 10px 12px 0;
 }
 .media-gallery h2 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
+  text-align: start;
   overflow: hidden;
   font-size: var(--fs-body);
   text-overflow: ellipsis;
@@ -95,12 +98,13 @@ dialog.media-gallery button.media-gallery-tile {
   overflow: hidden;
   cursor: pointer;
 }
-.media-gallery-tile img {
+.media-gallery-tile :is(img, video) {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
 }
 .media-gallery-tile[data-video='true'] > svg {
   position: relative;
@@ -110,7 +114,11 @@ dialog.media-gallery button.media-gallery-tile {
   background: var(--overlay);
   color: var(--accent-ink);
 }
-.media-gallery-tile img + svg {
+/* Once the picture shows, photos drop their icon; videos keep a corner badge. */
+.media-gallery-tile:not([data-video='true']) > :is(img, video) + svg {
+  display: none;
+}
+.media-gallery-tile[data-video='true'] > :is(img, video) + svg {
   position: absolute;
   bottom: 6px;
   left: 6px;

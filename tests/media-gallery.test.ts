@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   galleryItems,
   galleryCount,
+  tileSource,
 } from '../src/client/media-gallery/index.ts';
 import type { DailyRow, DailyView } from '../src/client/daily-text/index.ts';
 
@@ -114,4 +115,10 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     [['https://example.com/a', 'example.com']],
   );
   assert.equal(galleryCount(items), 4);
+  // Videos and photos sent as originals have no thumbnail: their tile reads
+  // the file, and a video shows its opening frame (regression, 12/11/2026).
+  assert.deepEqual(items.media.map(tileSource), [
+    { thumbnail: false, frameType: 'video/mp4' },
+    { thumbnail: true, frameType: null },
+  ]);
 });

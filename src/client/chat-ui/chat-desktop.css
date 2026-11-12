@@ -52,7 +52,8 @@
     height: 18px;
   }
   #app-shell .chat-panel .chat-history {
-    gap: 6px;
+    --chat-history-gap: 6px;
+    gap: var(--chat-history-gap);
     padding: 18px 22px;
   }
   #app-shell .chat-message {

@@ -455,7 +455,7 @@ export function startGroups(
     gallery.show({
       title,
       views: () => controller.views.map(groupMessageView),
-      preview: (view) => controller.media(view, true),
+      media: (view, thumbnail) => controller.media(view, thumbnail),
       older: {
         available: () => controller.olderAvailable,
         load: async () => {

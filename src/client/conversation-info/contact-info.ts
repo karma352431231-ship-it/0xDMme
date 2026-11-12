@@ -101,7 +101,13 @@ export class ContactInfoDialog {
     hero.className = 'info-hero';
     avatar.className = 'info-avatar';
     avatar.setAttribute('aria-hidden', 'true');
-    paintAvatar(avatar, { label: info.title, seed: info.address });
+    // An unnamed contact's title is its short address; its initials, like
+    // the chat header's, come from the full one.
+    paintAvatar(avatar, {
+      label:
+        info.title === shortAddress(info.address) ? info.address : info.title,
+      seed: info.address,
+    });
     if (info.photo) {
       this.photo = new AbortController();
       info.photo(avatar, this.photo.signal);

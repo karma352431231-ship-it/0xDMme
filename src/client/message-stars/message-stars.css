@@ -65,7 +65,8 @@ dialog.starred-list button.info-icon {
 }
 .starred-list li svg {
   grid-row: span 2;
-  color: var(--accent);
+  color: var(--warn);
+  fill: currentColor;
 }
 .starred-list li span {
   overflow-wrap: anywhere;

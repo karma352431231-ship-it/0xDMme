@@ -639,7 +639,7 @@ export function startMessages(
           gallery.show({
             title,
             views: () => dailyViews(rows ?? []),
-            preview: (view) => controller.media(view, true),
+            media: (view, thumbnail) => controller.media(view, thumbnail),
             older: {
               available: () => controller.olderAvailable(rootsShown()),
               load: loadOlder,

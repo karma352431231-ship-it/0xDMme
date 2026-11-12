@@ -5,7 +5,7 @@ import {
 } from '../../shared/i18n/index.ts';
 import { menuIcon } from '../menu-icons/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
-import { galleryItems } from './classify.ts';
+import { galleryItems, tileSource } from './classify.ts';
 import type {
   GalleryDoc,
   GalleryItems,
@@ -22,9 +22,13 @@ export interface GalleryPort<V extends GalleryRow> {
   title: string;
   /** The messages loaded and decrypted on this device. */
   views: () => readonly DailyView<V>[];
-  /** The sender's small preview of a photo or video, or null. */
-  preview: (
+  /**
+   * The sender's small preview (thumbnail) or, when there is none, the file
+   * itself: photos sent as originals and videos carry no preview.
+   */
+  media: (
     view: DailyView<V>,
+    thumbnail: boolean,
     signal: AbortSignal,
   ) => Promise<Uint8Array<ArrayBuffer> | null>;
   older?: { available: () => boolean; load: () => Promise<boolean> };
@@ -197,25 +201,24 @@ export class MediaGallery<V extends GalleryRow> {
     tile.append(menuIcon(entry.video ? 'video' : 'image'));
     if (entry.video) tile.dataset['video'] = 'true';
     tile.addEventListener('click', this.opener(entry.view));
-    if (entry.preview) this.loadPreview(tile, entry.view);
+    this.loadPreview(tile, entry);
     return tile;
   }
-  private loadPreview(tile: HTMLElement, view: DailyView<V>): void {
+  private loadPreview(tile: HTMLElement, entry: GalleryMedia<V>): void {
     const port = this.port,
       signal = this.abort.signal;
     if (!port) return;
     this.queue.push(async () => {
       if (signal.aborted) return;
       try {
-        const bytes = await port.preview(view, signal);
+        const source = tileSource(entry),
+          bytes = await port.media(entry.view, source.thumbnail, signal);
         if (!bytes || signal.aborted) return;
-        const url = URL.createObjectURL(new Blob([bytes]));
+        const url = URL.createObjectURL(
+          new Blob([bytes], source.frameType ? { type: source.frameType } : {}),
+        );
         this.urls.add(url);
-        const image = document.createElement('img');
-        image.alt = '';
-        image.src = url;
-        image.draggable = false;
-        tile.prepend(image);
+        tile.prepend(source.frameType ? firstFrame(url) : previewImage(url));
       } catch {
         // The tile keeps its icon; opening the message still works.
         tile.dataset['unavailable'] = 'true';
@@ -278,6 +281,27 @@ export class MediaGallery<V extends GalleryRow> {
     });
     this.footer.append(more);
   }
+}
+
+function previewImage(url: string): HTMLImageElement {
+  const image = document.createElement('img');
+  image.alt = '';
+  image.src = url;
+  image.draggable = false;
+  return image;
+}
+
+/** A still of a video's opening; iOS paints it only for a seek past 0. */
+function firstFrame(url: string): HTMLVideoElement {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'metadata';
+  video.disablePictureInPicture = true;
+  video.tabIndex = -1;
+  video.setAttribute('aria-hidden', 'true');
+  video.src = `${url}#t=0.1`;
+  return video;
 }
 
 function byMonth<E extends { month: GalleryMonth }>(

@@ -13,6 +13,7 @@ import type { GroupProfile } from './people.ts';
 import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import { chooseGroupSuccessor } from './owner-handover.ts';
 import { GroupSettingsShortcuts } from './settings-shortcuts.ts';
+import { participantCount } from './settings-ui.ts';
 import type { GroupShortcutPorts } from './settings-shortcuts.ts';
 import {
   groupSettingsTemplate,
@@ -253,7 +254,7 @@ export class GroupManagementPanel {
     if (count)
       count.textContent = group.localOnly
         ? t('Independent local copy · this copy grants no remote access')
-        : t('{0} participants', [group.state.members.length]);
+        : participantCount(group.state.members.length);
     this.renderGroupPhoto(group);
     this.renderLocalControls(group);
   }

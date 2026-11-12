@@ -99,7 +99,10 @@ dialog.pin-duration::backdrop {
   gap: 8px;
   margin-top: 16px;
 }
+/* Both buttons share one size; the app-wide .primary margin stays out. */
 .pin-duration-buttons button {
+  min-height: 40px;
+  margin: 0;
   padding: 9px 16px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
