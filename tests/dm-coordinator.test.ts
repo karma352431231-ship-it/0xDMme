@@ -713,7 +713,7 @@ await test('handle messages render during a recording and while its preview and 
   current.text.value = 'Keep this caption';
   current.text.dispatchEvent(new Event('input'));
   const preview = current.form.querySelector('[data-attachment-preview]')!;
-  const player = preview.firstChild;
+  const player = preview.children[0];
   assert.ok(player);
   f.data.items = [
     ...f.data.items,
@@ -724,7 +724,7 @@ await test('handle messages render during a recording and while its preview and 
   await turn();
   assert.equal(f.views.at(-1), current);
   assert.equal(current.text.value, 'Keep this caption');
-  assert.equal(preview.firstChild, player);
+  assert.equal(preview.children[0], player);
   assert.ok(
     current.history.children.some(
       (row) => row.dataset['message'] === 'while-reviewing',
@@ -757,13 +757,13 @@ await test('a handle receive leaves the microphone and voice submit usable, and 
   stop.click();
   assert.equal(send.hidden, false);
   assert.equal(send.disabled, false);
-  const player = preview.firstChild;
+  const player = preview.children[0];
   assert.ok(player);
   current.form.dispatchEvent(new Event('submit'));
   current.form.dispatchEvent(new Event('submit'));
   await turn();
   assert.equal(send.disabled, true);
-  assert.equal(preview.firstChild, player);
+  assert.equal(preview.children[0], player);
   assert.equal(f.calls.includes('stage-media'), false);
   read.resolve();
   await turn();

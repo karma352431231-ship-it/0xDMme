@@ -215,7 +215,7 @@ export function startDmComposer(options: {
     return true;
   }
   function captureSubmission() {
-    if (!view || !bound || controlsBlocked() || recording.active) return null;
+    if (!view || !bound) return null;
     const once = viewOnceEnabled(view.form),
       text = view.text.value,
       media = chosen;
@@ -242,6 +242,7 @@ export function startDmComposer(options: {
     );
   }
   async function send(): Promise<void> {
+    if (controlsBlocked() || recording.active) return;
     const input = captureSubmission();
     if (!input) return;
     // The foreground read can already own the turn. Keep the preview until
