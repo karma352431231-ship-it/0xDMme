@@ -39,17 +39,18 @@ export class GroupMemberPresentation {
   }
   label(account: string): MemberLabel {
     if (account === this.options.account())
-      return { text: t('You'), chosen: true };
+      return { text: t('You'), chosen: true, placeholder: true };
     const alias = this.options.alias(account);
     if (alias) return { text: alias, chosen: true };
     const wallet = this.wallets.get(account);
+    const name =
+      this.senders.knownName(account) ||
+      this.people.knownName(account) ||
+      this.options.peers().find((peer) => peer.accountId === account)?.name;
     return {
-      text:
-        this.senders.knownName(account) ||
-        this.people.knownName(account) ||
-        this.options.peers().find((peer) => peer.accountId === account)?.name ||
-        t('Member {0}', [account.slice(0, 8)]),
+      text: name || t('Member {0}', [account.slice(0, 8)]),
       chosen: false,
+      ...(name ? {} : { placeholder: true }),
       ...(wallet ? { wallet: wallet.address } : {}),
     };
   }

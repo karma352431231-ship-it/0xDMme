@@ -211,6 +211,7 @@ export function coordinatorFixture(
     'ConversationMenu',
     'EmojiPicker',
     'ConversationSearch',
+    'ContactInfoDialog',
     'AttachmentUi',
     'VoiceRecording',
     'MessageDirectoryUi',

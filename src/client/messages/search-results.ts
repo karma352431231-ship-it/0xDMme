@@ -27,6 +27,18 @@ export function latestConversationMatches<
   }
   return newestFirst([...latest.values()]).slice(0, 100);
 }
+/** Every distinct match in one conversation, newest first, bounded like the list above. */
+export function conversationMatches<
+  T extends TimedResult & { id: string; peer: string; sequence: number },
+>(conversation: string, items: readonly T[]): T[] {
+  const unique = new Map<string, T>();
+  for (const item of items)
+    if (item.peer === conversation && !unique.has(item.id))
+      unique.set(item.id, item);
+  return newestFirst(
+    [...unique.values()].sort((a, b) => b.sequence - a.sequence),
+  ).slice(0, 200);
+}
 function newerMatch(
   next: TimedResult & { sequence: number },
   current: TimedResult & { sequence: number },

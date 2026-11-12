@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { paintAvatar, displayName, shortAddress } from '../appearance/index.ts';
+import { menuIcon } from '../menu-icons/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 
 export type GroupProfile = (account: string) => Promise<ProfileCard | null>;
@@ -10,6 +11,9 @@ export interface MemberLabel {
   chosen: boolean;
   /** Shown beside the name only for members who accept requests by wallet. */
   wallet?: string;
+  /** The text is a placeholder ("You", "Member 1a2b…"), not a name: the
+   * avatar shows a person until a profile name or photo is known. */
+  placeholder?: boolean;
 }
 interface LoadedCard {
   name: string;
@@ -72,21 +76,26 @@ export class GroupPeople {
     account: string,
     label: MemberLabel,
   ): void {
-    const show = (text: string) => {
+    const show = (text: string, initials: string | null) => {
       target.name.textContent = label.wallet
         ? t('{0} · {1}', [displayName(text), shortAddress(label.wallet)])
         : displayName(text);
       if (label.wallet) target.name.title = label.wallet;
-      paintAvatar(target.avatar, { label: text, seed: account });
+      paintAvatar(target.avatar, { label: initials ?? text, seed: account });
+      if (initials !== null) return;
+      target.avatar.textContent = '';
+      target.avatar.append(menuIcon('member'));
     };
-    show(label.text);
+    show(label.text, label.placeholder ? null : label.text);
     const epoch = this.epoch;
     void this.card(account)
       .then((card) => {
         // Rows may attach after a cached card resolves; only a newer epoch
         // (another group, session or panel) discards the result.
         if (!card || epoch !== this.epoch) return;
-        if (card.name && !label.chosen) show(card.name);
+        if (card.name && !label.chosen) show(card.name, card.name);
+        // "You" keeps its text; the avatar takes the own profile's initials.
+        else if (card.name && label.placeholder) show(label.text, card.name);
         if (!card.url) return;
         const image = document.createElement('img');
         image.alt = '';

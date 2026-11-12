@@ -164,6 +164,7 @@ const authored = [
   'src/client/backup-records',
   'src/client/personal-removals',
   'src/client/groups',
+  'src/client/conversation-info',
   'src/client/message-session',
   'src/client/message-runtime',
   'src/client/status',

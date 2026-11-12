@@ -31,6 +31,7 @@
 @import '../public-profile/profile.css';
 @import '../chat-ui/chat.css';
 @import '../groups/groups.css';
+@import '../conversation-info/conversation-info.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
 @import '../devices/devices.css';

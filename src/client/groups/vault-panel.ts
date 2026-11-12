@@ -29,13 +29,37 @@ export class GroupVaultPanel {
     return this.host?.querySelector<T>(selector) ?? null;
   }
   async refresh(): Promise<void> {
-    this.value =
-      this.options.controller.selected?.localOnly ||
-      !this.node<HTMLDetailsElement>('[data-group-vault]')?.open
-        ? null
-        : await this.options.controller.vault();
+    if (this.options.controller.selected?.localOnly) {
+      this.value = null;
+      return;
+    }
+    // A closed section keeps the usage read when settings opened.
+    if (!this.node<HTMLDetailsElement>('[data-group-vault]')?.open) return;
+    this.value = await this.options.controller.vault();
+  }
+  /** Reads the usage once when settings open, so the closed summary shows it. */
+  preview(): void {
+    // Usage read for another group or an earlier opening never shows here.
+    this.value = null;
+    this.render();
+    if (this.options.controller.selected?.localOnly || this.options.isBusy())
+      return;
+    void this.options.run(async () => {
+      this.value = await this.options.controller.vault();
+      this.render();
+    });
   }
   render(): void {
+    const summary = this.node('[data-group-vault-summary]');
+    if (summary)
+      summary.textContent = this.value
+        ? t('{0} MB used', [
+            (
+              (this.value.textBytes + this.value.mediaBytes) /
+              1_000_000
+            ).toFixed(1),
+          ])
+        : '';
     const value = this.node('[data-group-usage]');
     if (value)
       value.textContent = this.value

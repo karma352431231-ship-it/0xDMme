@@ -60,6 +60,8 @@ interface GroupOptions {
   forward?: (view: DailyView<GroupMessageView>, peer: string) => Promise<void>;
   flushForward?: () => Promise<void>;
   organizationPeers?: () => readonly string[];
+  /** Message search limited to one group, opened from its settings. */
+  searchConversation?: (group: { id: string; title: string }) => void;
 }
 export function startGroups(
   access: VaultAccess,
@@ -127,6 +129,20 @@ export function startGroups(
     dialogRun: options.run,
     report,
     render,
+    shortcuts: {
+      mute: (id) => ({
+        read: async () => (await options.daily.state(id)).mutedUntil,
+        apply: async (duration) => {
+          await options.daily.mute(id, duration, { settingsId: id });
+          await refreshStates();
+          options.changed();
+        },
+      }),
+      ...(options.searchConversation
+        ? { search: options.searchConversation }
+        : {}),
+    },
+    settingsOpened: () => vault.preview(),
   });
   const vault = new GroupVaultPanel({
     controller,

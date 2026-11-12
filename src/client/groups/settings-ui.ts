@@ -1,21 +1,33 @@
 import { t } from '../../shared/i18n/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
+import { menuIconMarkup } from '../menu-icons/index.ts';
+import { bindInfoTrigger } from '../conversation-info/index.ts';
 /** The chat keeps its selectors and authority; this module owns settings presentation. */
 export const groupSettingsTemplate = t('html.6f2aac1c9ed0', [
   chatIcon('close'),
+  menuIconMarkup('lock'),
+  menuIconMarkup('vault'),
+  menuIconMarkup('chevron'),
+  menuIconMarkup('leave'),
+  menuIconMarkup('trash'),
+  menuIconMarkup('edit'),
 ]);
 export function bindGroupSettings(
   host: HTMLElement,
   lifecycle: { opened: () => void; closed: () => void },
 ): void {
   const dialog = host.querySelector<HTMLDialogElement>('[data-group-settings]');
+  const open = () => {
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    lifecycle.opened();
+  };
   host
     .querySelector('[data-group-settings-open]')
-    ?.addEventListener('click', () => {
-      dialog?.showModal();
-      lifecycle.opened();
-    });
+    ?.addEventListener('click', open);
+  // Tapping the group name opens the same settings, as in a contact's info.
+  bindInfoTrigger(host.querySelector<HTMLElement>('[data-group-info]'), open);
   dialog?.addEventListener('close', lifecycle.closed);
   host
     .querySelector('[data-group-settings-close]')

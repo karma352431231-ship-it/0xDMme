@@ -6,7 +6,10 @@ import {
 } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 import { pingNotice } from '../ping/index.ts';
-import { latestConversationMatches } from './search-results.ts';
+import {
+  latestConversationMatches,
+  conversationMatches,
+} from './search-results.ts';
 import { searchMessageRow } from './search-view.ts';
 export type { SearchItem, SearchPage } from './search-types.ts';
 import type { SearchItem, SearchPage } from './search-types.ts';
@@ -23,6 +26,9 @@ export class ConversationSearch {
   private timer: ReturnType<typeof setTimeout> | undefined;
   /** Set while the dialog closes to open a result, so its query and results stay. */
   private keepResults = false;
+  /** Search limited to one conversation, opened from its contact or group info. */
+  private only: { id: string; title: string } | null = null;
+  private readonly allLabel: string;
   private readonly search: (
     query: string,
     after: string | null,
@@ -45,6 +51,7 @@ export class ConversationSearch {
     this.dialog.setAttribute('aria-labelledby', 'conversation-search-title');
     this.dialog.innerHTML = t('html.bc850aca5a52');
     document.body.append(this.dialog);
+    this.allLabel = this.dialog.querySelector('label')?.textContent ?? '';
     this.node('[data-search-close]').addEventListener('click', () =>
       this.close(),
     );
@@ -66,6 +73,11 @@ export class ConversationSearch {
       if (this.next && this.nearEnd()) void this.find(true);
     });
   }
+  /** The input's label names what is searched; it is text only. */
+  private setLabel(text: string): void {
+    const label = this.dialog.querySelector('label');
+    if (label) label.textContent = text;
+  }
   private node<T extends HTMLElement>(selector: string): T {
     const node = this.dialog.querySelector<T>(selector);
     if (!node) throw new Error('Search incomplete.');
@@ -76,7 +88,7 @@ export class ConversationSearch {
     if (this.dialog.open) this.renderChats();
   }
   open(scope: 'private' | 'public' = 'private'): void {
-    if (scope !== this.scope) {
+    if (scope !== this.scope || this.only) {
       this.close();
       this.scope = scope;
     }
@@ -85,6 +97,21 @@ export class ConversationSearch {
         ? t('Search handle conversations')
         : t('Search private conversations');
     this.renderChats();
+    this.dialog.showModal();
+    this.node<HTMLInputElement>('input').focus();
+  }
+  /** Every match in one private conversation or group, newest first. */
+  openConversation(conversation: { id: string; title: string }): void {
+    if (this.only?.id !== conversation.id || this.scope !== 'private')
+      this.close();
+    this.scope = 'private';
+    this.only = conversation;
+    this.dialog.dataset['conversation'] = 'true';
+    this.node('#conversation-search-title').textContent = t('Search in {0}', [
+      conversation.title,
+    ]);
+    this.setLabel(t('Words in this conversation'));
+    if (!this.results.length) this.clearResults();
     this.dialog.showModal();
     this.node<HTMLInputElement>('input').focus();
   }
@@ -106,6 +133,9 @@ export class ConversationSearch {
       return;
     }
     this.additional.clear();
+    this.only = null;
+    delete this.dialog.dataset['conversation'];
+    this.setLabel(this.allLabel);
     this.node<HTMLInputElement>('input').value = '';
     clearDirectory(this.node('[data-search-chats]'));
     this.clearResults();
@@ -115,15 +145,15 @@ export class ConversationSearch {
     this.results = [];
     this.query = '';
     clearDirectory(this.node('[data-search-messages]'));
-    this.node('[data-search-notice]').textContent = t(
-      'Type to find a conversation or search for words in messages.',
-    );
+    this.node('[data-search-notice]').textContent = this.only
+      ? t('Type to search for words in this conversation.')
+      : t('Type to find a conversation or search for words in messages.');
   }
   private renderChats(): void {
     const query = this.node<HTMLInputElement>('input').value;
     const host = this.node('[data-search-chats]');
     clearDirectory(host);
-    if (!query.trim()) return;
+    if (!query.trim() || this.only) return;
     const matches = matchingConversations(
       this.scope === 'private' ? this.entries : [...this.additional.values()],
       query,
@@ -224,7 +254,9 @@ export class ConversationSearch {
   /** Keep the latest matching message per conversation across all pages. */
   private renderMessages(page: SearchPage): void {
     const host = this.node('[data-search-messages]');
-    this.results = latestConversationMatches([...this.results, ...page.items]);
+    this.results = this.only
+      ? conversationMatches(this.only.id, [...this.results, ...page.items])
+      : latestConversationMatches([...this.results, ...page.items]);
     clearDirectory(host);
     for (const item of this.results) {
       const entry =

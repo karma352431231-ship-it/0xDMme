@@ -482,18 +482,25 @@ export class MessageComposer {
       },
     }).catch(() => this.options.report(t('Could not open the emoji panel.')));
   }
+  /** Whether the open conversation can start a voice call now. */
+  get canCall(): boolean {
+    const state = this.options.availability();
+    return !!state.peer && !state.localOnly && !!this.options.call;
+  }
+  /** Calls the open conversation; the header button and contact info share it. */
+  startCall(): void {
+    const state = this.options.availability();
+    if (state.peer && !state.localOnly && this.options.call)
+      void this.options.call(state.peer).catch((error: unknown) => {
+        this.options.report(
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Could not complete the operation.'),
+        );
+      });
+  }
   private bindVoice(): void {
-    this.bind('[data-call-start]', () => {
-      const state = this.options.availability();
-      if (state.peer && !state.localOnly && this.options.call)
-        void this.options.call(state.peer).catch((error: unknown) => {
-          this.options.report(
-            error instanceof Error
-              ? translatedError(error.message)
-              : t('Could not complete the operation.'),
-          );
-        });
-    });
+    this.bind('[data-call-start]', () => this.startCall());
     bindRecordGesture(this.node('[data-voice-record]'), {
       signal: this.bindings.signal,
       start: () => this.startRecording(),

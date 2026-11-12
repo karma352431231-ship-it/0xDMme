@@ -152,3 +152,68 @@ await test('public and private search never cross sources, contacts, queries or 
   assert.equal(body.textContent.includes('@public'), true);
   search.close();
 });
+
+await test('search opened from a conversation info lists every match there and nothing else', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const dialog = dialogFixture(),
+    body = new ChatNode('body');
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      body,
+      createElement: (tag: string) =>
+        tag === 'dialog' ? dialog : new SearchNode(tag),
+      createTextNode: (text: string) => {
+        const node = new ChatNode('#text');
+        node.textContent = text;
+        return node;
+      },
+    },
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else Reflect.deleteProperty(globalThis, 'document');
+  });
+  const entry = (id: string, title: string): ConversationEntry => ({
+    id,
+    title,
+    searchText: title,
+    selected: false,
+    detail: '',
+    kind: 'contact',
+    open: () => {},
+  });
+  const search = new ConversationSearch(
+    () =>
+      Promise.resolve({
+        items: [
+          { id: 'a1', peer: 'alice', sequence: 1, excerpt: 'first match' },
+          { id: 'b1', peer: 'bob', sequence: 2, excerpt: 'bob match' },
+          { id: 'a2', peer: 'alice', sequence: 3, excerpt: 'second match' },
+        ],
+        next: null,
+      }),
+    () => {},
+  );
+  search.update([entry('alice', 'Alice'), entry('bob', 'Bob')]);
+  search.openConversation({ id: 'alice', title: 'Alice' });
+  assert.equal(dialog.dataset['conversation'], 'true');
+  const input = dialog.selectors.get('input')!;
+  input.value = 'match';
+  input.dispatchEvent(new Event('input'));
+  t.mock.timers.tick(201);
+  await new Promise(setImmediate);
+  const messages = dialog.selectors.get('[data-search-messages]')!;
+  assert.equal(messages.children.length, 2, 'both matches in this chat');
+  assert.equal(messages.textContent.includes('bob match'), false);
+  assert.equal(
+    dialog.selectors.get('[data-search-chats]')!.children.length,
+    0,
+    'no conversation list in a single conversation',
+  );
+  search.open('private');
+  assert.equal(dialog.dataset['conversation'], undefined);
+  assert.equal(input.value, '', 'the general search starts fresh');
+  search.close();
+});

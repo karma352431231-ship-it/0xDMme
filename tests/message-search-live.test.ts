@@ -1,4 +1,7 @@
-import { latestConversationMatches } from '../src/client/messages/search-results.ts';
+import {
+  latestConversationMatches,
+  conversationMatches,
+} from '../src/client/messages/search-results.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -29,5 +32,18 @@ await test('search retains only the most recent matching message per contact acr
       { id: 'unknown-new', peer: 'bob', sequence: 5 },
     ]).map((row) => row.id),
     ['new', 'unknown-new'],
+  );
+});
+
+await test('search in one conversation keeps every match there once, newest first', () => {
+  assert.deepEqual(
+    conversationMatches('alice', [
+      { id: 'old', peer: 'alice', sequence: 3, sentAt: 30 },
+      { id: 'other', peer: 'bob', sequence: 9, sentAt: 90 },
+      { id: 'new', peer: 'alice', sequence: 10, sentAt: 100 },
+      { id: 'old', peer: 'alice', sequence: 3, sentAt: 30 },
+      { id: 'untimed', peer: 'alice', sequence: 5 },
+    ]).map((row) => row.id),
+    ['new', 'old', 'untimed'],
   );
 });

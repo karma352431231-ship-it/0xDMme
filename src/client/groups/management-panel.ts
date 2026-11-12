@@ -12,6 +12,8 @@ import type { GroupMemberPresentation } from './member-presentation.ts';
 import type { GroupProfile } from './people.ts';
 import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import { chooseGroupSuccessor } from './owner-handover.ts';
+import { GroupSettingsShortcuts } from './settings-shortcuts.ts';
+import type { GroupShortcutPorts } from './settings-shortcuts.ts';
 import {
   groupSettingsTemplate,
   bindGroupSettings,
@@ -60,7 +62,11 @@ interface ManagementOptions {
   dialogRun: (work: () => Promise<void>) => Promise<void>;
   report: (notice: string) => void;
   render: () => void;
+  shortcuts: GroupShortcutPorts;
+  /** Settings opened; the vault panel reads its usage summary. */
+  settingsOpened: () => void;
 }
+const roleOrder = { owner: 0, admin: 1, member: 2 } as const;
 /** Owns settings/profile resources, role controls and admission presentation.
  * The controller remains the authority for membership and consent operations. */
 export class GroupManagementPanel {
@@ -72,8 +78,10 @@ export class GroupManagementPanel {
   private readonly photoUi: GroupPhotoUi;
   private readonly descriptionUi: GroupDescriptionUi;
   private readonly actions: GroupActionsUi;
+  private readonly shortcuts: GroupSettingsShortcuts;
   constructor(options: ManagementOptions) {
     this.options = options;
+    this.shortcuts = new GroupSettingsShortcuts(options.shortcuts);
     this.photoUi = new GroupPhotoUi({
       selected: () => options.controller.selected,
       account: () => options.account(),
@@ -114,6 +122,7 @@ export class GroupManagementPanel {
   closeSettings(): void {
     this.node<HTMLDialogElement>('[data-group-settings]')?.close();
     this.options.members.clearPanel();
+    this.shortcuts.clear(this.node('[data-group-shortcuts]'));
   }
   deselected(): void {
     this.descriptionUi.reset();
@@ -149,10 +158,24 @@ export class GroupManagementPanel {
     bindGroupSettings(host, {
       opened: () => {
         this.renderMembers();
-        if (this.options.controller.selected)
-          this.descriptionUi.show(this.options.controller.selected);
+        const group = this.options.controller.selected;
+        if (!group) return;
+        this.descriptionUi.show(group);
+        this.shortcuts.show(
+          this.node('[data-group-shortcuts]'),
+          {
+            id: group.state.groupId,
+            title: group.title,
+            localOnly: !!group.localOnly,
+          },
+          () => this.closeSettings(),
+        );
+        this.options.settingsOpened();
       },
-      closed: () => this.options.members.clearPanel(),
+      closed: () => {
+        this.options.members.clearPanel();
+        this.shortcuts.clear(this.node('[data-group-shortcuts]'));
+      },
     });
     this.bind();
   }
@@ -308,16 +331,10 @@ export class GroupManagementPanel {
     if (!list || !group || !account) return;
     this.options.members.clearPanel();
     list.replaceChildren();
-    for (const member of group.state.members) {
+    for (const member of membersInOrder(group.state.members, account)) {
       const row = document.createElement('li');
       row.className = 'group-member-row';
-      const role =
-        member.role === 'owner'
-          ? t('Owner')
-          : member.role === 'admin'
-            ? t('Administrator')
-            : t('Member');
-      row.append(this.options.members.identity(member.accountId, role));
+      row.append(this.memberIdentity(member));
       const controls = document.createElement('div');
       this.renderMemberActions(controls, group, member);
       if (
@@ -340,6 +357,20 @@ export class GroupManagementPanel {
       list.append(row);
     }
     this.renderOwnership(group, account);
+  }
+  /** Only the owner and administrators carry a badge; members need none. */
+  private memberIdentity(
+    member: GroupSummary['state']['members'][number],
+  ): HTMLElement {
+    const role =
+      member.role === 'owner'
+        ? t('Owner')
+        : member.role === 'admin'
+          ? t('Administrator')
+          : '';
+    const identity = this.options.members.identity(member.accountId, role);
+    if (role) identity.querySelector('small')?.classList.add('group-role');
+    return identity;
   }
   private renderOwnership(group: GroupSummary, account: string): void {
     const owner = group.state.owner === account,
@@ -517,4 +548,17 @@ export class GroupManagementPanel {
         }),
     );
   }
+}
+
+/** Owner first, then administrators and members; the viewer comes last
+ * unless they own the group. */
+function membersInOrder<T extends { accountId: string; role: string }>(
+  members: readonly T[],
+  account: string,
+): T[] {
+  const rank = (member: T) =>
+    member.accountId === account && member.role !== 'owner'
+      ? 3
+      : (roleOrder[member.role as keyof typeof roleOrder] ?? 2);
+  return [...members].sort((a, b) => rank(a) - rank(b));
 }

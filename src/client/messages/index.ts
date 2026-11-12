@@ -31,7 +31,11 @@ import {
   bindChatOptions,
   resetHistoryPosition,
 } from '../chat-ui/index.ts';
-import { shortAddress } from '../appearance/index.ts';
+import { shortAddress, displayName } from '../appearance/index.ts';
+import {
+  ContactInfoDialog,
+  bindInfoTrigger,
+} from '../conversation-info/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
@@ -116,6 +120,7 @@ export function startMessages(
   let states = new Map<string, PeerState>();
   let navigatingToConversation = false;
   let directory: HTMLElement | null = null;
+  const contactInfo = new ContactInfoDialog();
   const searchPanel = new ConversationSearch(
     searchPage,
     openSearchResult,
@@ -265,6 +270,7 @@ export function startMessages(
       forwardContent(view, peer, (thumbnail) => groups.media(view, thumbnail)),
     flushForward: () => flushForward(),
     organizationPeers: () => organizationIds(),
+    searchConversation: (group) => searchPanel.openConversation(group),
     isBusy: () => synchronization.busy,
     alert: () => sound.alert('group'),
     select: selectGroup,
@@ -585,6 +591,33 @@ export function startMessages(
   /** The name the conversation list shows: saved alias, profile name, then the address. */
   const peerTitle = (peer: ConversationPeer) =>
     agenda.find(peer)?.contact.alias || peer.name || peer.address;
+  /** Contact info for the open private conversation; each action keeps its owner. */
+  function showContactInfo(): void {
+    const peer = selected;
+    if (!peer || groups.selected) return;
+    const title = displayName(peerTitle(peer)),
+      settingsId = directoryUi.settingsId(peer);
+    contactInfo.show({
+      title,
+      address: peer.address,
+      search: () => searchPanel.openConversation({ id: peer.accountId, title }),
+      edit: () => directoryUi.editSelected(),
+      ...(composer.canCall ? { call: () => composer.startCall() } : {}),
+      ...(peer.localOnly
+        ? {}
+        : {
+            photo: (host: HTMLElement, signal: AbortSignal) =>
+              showPeerPhoto(host, peer.accountId, signal),
+            mute: {
+              read: async () => (await daily.state(peer.accountId)).mutedUntil,
+              apply: async (duration: number) => {
+                await daily.mute(peer.accountId, duration, { settingsId });
+                renderContacts();
+              },
+            },
+          }),
+    });
+  }
   const historyUi = new MessageHistoryUi({
     openViewOnce: (view, metadata, signal, work) =>
       controller.openViewOnce(view.peer, view.id, metadata, {
@@ -1512,6 +1545,7 @@ export function startMessages(
     renderContacts();
     stopPreload();
     menu.close();
+    contactInfo.close();
     composer.closePicker();
     if (reason === 'invalidate') controller.close();
     else controller.pause(reason === 'directory' ? 'conversation' : 'account');
@@ -1919,6 +1953,10 @@ export function startMessages(
       directory = directoryHost;
       container.innerHTML = directChat();
       composer.mount(container);
+      bindInfoTrigger(
+        container.querySelector<HTMLElement>('[data-chat-info]'),
+        showContactInfo,
+      );
       bindChatOptions(container);
       mountGroups(container);
       directoryUi.bind();

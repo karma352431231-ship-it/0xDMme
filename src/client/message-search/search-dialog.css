@@ -170,3 +170,9 @@ article.search-match {
   border-radius: 8px;
   background: var(--accent-soft);
 }
+/* Search opened from a contact or group info covers that conversation only. */
+.conversation-search[data-conversation] [data-search-chats],
+.conversation-search[data-conversation] [data-search-chats] + h3,
+.conversation-search[data-conversation] .search-scope + h3 {
+  display: none;
+}

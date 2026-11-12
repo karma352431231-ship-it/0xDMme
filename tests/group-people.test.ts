@@ -37,3 +37,31 @@ await test('group authors keep the viewer nickname, otherwise show their own pro
   people.clear();
   assert.equal(people.knownName('b'), '');
 });
+
+await test('"You" and unnamed members show a person until a profile name is known', async (t) => {
+  dom(t);
+  const people = new GroupPeople((account): Promise<ProfileCard | null> =>
+    Promise.resolve(
+      account === 'self'
+        ? { name: 'Own name', revision: 1, photo: null }
+        : null,
+    ),
+  );
+  const [self, selfName] = people.sender('self', {
+    text: 'You',
+    chosen: true,
+    placeholder: true,
+  });
+  const [unknown] = people.sender('other', {
+    text: 'Member other',
+    chosen: false,
+    placeholder: true,
+  });
+  const [nickname] = people.sender('self', { text: 'Nick', chosen: true });
+  assert.equal(self?.textContent, '', 'a person glyph, not "YO"');
+  await settle();
+  assert.equal(selfName?.textContent, 'You', 'the chosen label stays');
+  assert.equal(self?.textContent, 'ON', 'initials of the own profile name');
+  assert.equal(unknown?.textContent, '', 'no card keeps the person glyph');
+  assert.equal(nickname?.textContent, 'NI', 'a nickname keeps its initials');
+});

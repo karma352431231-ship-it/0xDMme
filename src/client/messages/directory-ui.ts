@@ -98,20 +98,30 @@ export class MessageDirectoryUi {
     const list = this.options.node('[data-message-contacts]');
     if (list) releaseConversationAvatars(list);
   }
+  /** Opens the contact settings of the open private conversation. */
+  editSelected(): void {
+    const { selected } = this.options.snapshot();
+    if (!selected || this.options.groups.selected) return;
+    this.options.openContact(
+      this.options.agenda.find(selected)?.contact ?? agendaContact(selected),
+    );
+  }
+  /** The conversation settings record that keeps a contact's mute and pins. */
+  settingsId(peer: ConversationPeer): string {
+    return this.contactOrganizationId(
+      this.options.agenda.find(peer),
+      peer.accountId,
+    );
+  }
   bind(): void {
     this.options
       .node('[data-chat-edit-contact]')
       ?.addEventListener('click', () => {
-        const { selected } = this.options.snapshot();
-        if (!selected || this.options.groups.selected) return;
         this.options
           .node('[data-chat-edit-contact]')
           ?.closest('details')
           ?.removeAttribute('open');
-        this.options.openContact(
-          this.options.agenda.find(selected)?.contact ??
-            agendaContact(selected),
-        );
+        this.editSelected();
       });
     const filters: readonly ConversationFilter[] = [
       'all',

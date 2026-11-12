@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { Daily } from '../daily/index.ts';
 import type { ConversationAction } from './directory.ts';
+import { muteDurations } from '../conversation-info/index.ts';
 
 export function organizationActions(options: {
   daily: Daily;
@@ -50,14 +51,6 @@ export function organizationActions(options: {
       : []),
   ];
 }
-
-const muteDurations = [
-  ['conversation.mute-1h', 3_600_000],
-  ['conversation.mute-8h', 28_800_000],
-  ['conversation.mute-24h', 86_400_000],
-  ['conversation.mute-7d', 604_800_000],
-  ['conversation.mute-forever', Number.MAX_SAFE_INTEGER],
-] as const;
 
 /**
  * Muting moved here from Settings (16/10/2026): a muted conversation offers to
