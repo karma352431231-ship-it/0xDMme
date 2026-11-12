@@ -140,11 +140,15 @@ function start() {
     report: () => recording.report(),
     compare: (recipient: ReturnType<Recording['report']>) =>
       compareDelivery(recording.report(), recipient),
-    ready: () => ({
-      ...deliveryReadiness(recording.readiness()),
-      peerConfirmed: false,
-      expectedRevision: handleDiagnosticRevision,
-    }),
+    ready: () => {
+      const readiness = recording.readiness();
+      return {
+        ...deliveryReadiness(readiness),
+        senderPreparationAvailable: readiness.senderPreparationAvailable,
+        peerConfirmed: false,
+        expectedRevision: handleDiagnosticRevision,
+      };
+    },
     stop,
     download,
     pair,

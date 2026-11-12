@@ -206,6 +206,21 @@ function draft(peer: string, index: number): TextDraft {
   };
 }
 
+await test('ordinary encrypted FIFO inspection needs no second local vault opening before the authorized send turn', async (t) => {
+  const f = await fixture(t),
+    queue = f.create();
+  const input = draft(f.peer.accountId, 1);
+  await queue.queueText(input);
+  t.mock.method(f.access, 'withLocalVault', () =>
+    Promise.reject(new Error('Duplicate local authority')),
+  );
+  assert.deepEqual(await queue.sendPending(), { more: false });
+  assert.equal(f.turns(), 1);
+  assert.ok(f.packets.has(input.id));
+  assert.deepEqual(await queue.sendPending(), { more: false });
+  assert.equal(f.turns(), 1, 'an empty FIFO never opens the SDK');
+});
+
 await test('public text admission is encrypted, FIFO across peers, durable across owners and drained in bounded crypto turns', async (t) => {
   const f = await fixture(t),
     queue = f.create();
@@ -356,7 +371,7 @@ await test('session invalidation stops queue admission and publication and prese
   assert.equal((await outboxPage(f.scope)).length, 1);
 });
 
-await test('a warm public burst reads peer metadata once and publishes sequential texts without repeating key distribution', async (t) => {
+await test('a warm public burst shares peer metadata and uses one fresh device query per text without repeating key distribution', async (t) => {
   const f = await fixture(t),
     queue = f.create();
   await queue.queueText(draft(f.peer.accountId, 0));
@@ -369,9 +384,7 @@ await test('a warm public burst reads peer metadata once and publishes sequentia
     'directory',
     'recovery-peer',
     'matrix-query',
-    'matrix-query',
     'publish',
-    'matrix-query',
     'matrix-query',
     'publish',
   ]);

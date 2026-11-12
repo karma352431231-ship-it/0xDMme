@@ -2,6 +2,9 @@ import {
   traceSend,
   measureSend,
   traceHandleDelivery,
+  startHandleSend,
+  traceHandleSend,
+  linkHandleSend,
 } from '../chat-sync-diagnostics/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { socialPacket } from '../../shared/social-dm/index.ts';
@@ -226,6 +229,26 @@ export class SocialTextOutbox {
       legacy.length ? legacy : undefined,
     );
   }
+  /** Ordinary FIFO rows are already encrypted. Inspecting them needs no key
+   * import, checkpoint verification or second local authority turn. Legacy
+   * conversion still opens its envelopes through the authorized local path. */
+  private async pendingForSend(generation: number) {
+    this.lifetime.guard(generation);
+    const locator = this.lifetime.locator();
+    const legacy = await localPage<LocalCipher>(
+      `${locator.accountId}:${locator.deviceId}`,
+      'dm-send:',
+      null,
+    );
+    this.lifetime.guard(generation);
+    if (legacy.items.length)
+      return this.local(generation, (a) => this.pendingPage(a, generation));
+    const page = await outboxPage<TextEntry>(
+      `dm-text:${locator.accountId}:${locator.deviceId}`,
+    );
+    this.lifetime.guard(generation);
+    return page;
+  }
   private async forgetLegacy(
     a: VaultAuthority,
     entry: TextEntry,
@@ -288,12 +311,13 @@ export class SocialTextOutbox {
     options: PublicTextSendOptions,
   ): Promise<{ more: boolean }> {
     const generation = this.lifetime.current();
-    const pending = await this.local(generation, (a) =>
-      this.pendingPage(a, generation),
-    );
+    const handleSend = startHandleSend();
+    const pending = await this.pendingForSend(generation);
+    traceHandleSend(handleSend, 'outbox-ready');
     this.lifetime.guard(generation);
     if (!pending.length) return { more: false };
-    return this.crypto(async (context) => {
+    for (const { value } of pending) linkHandleSend(handleSend, value.id);
+    const transmit = async (context: SocialContext) => {
       const scope = this.scope(context.privateAuthority);
       for (const { name, value } of pending) {
         this.lifetime.guard(generation);
@@ -382,6 +406,10 @@ export class SocialTextOutbox {
       const more = await this.hasMore(context.privateAuthority);
       this.lifetime.guard(generation);
       return { more };
-    }, options);
+    };
+    return this.crypto(transmit, {
+      ...options,
+      ...(handleSend ? { handleSend } : {}),
+    });
   }
 }

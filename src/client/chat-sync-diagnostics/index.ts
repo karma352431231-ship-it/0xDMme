@@ -2,6 +2,9 @@ import { CaptureWork } from './capture-work.ts';
 import type {
   AuthorityDiagnosticContext,
   HandleReadToken,
+  HandleSendToken,
+  SendPreparationPoint,
+  HandleListCaller,
   FlowDiagnosticFields,
 } from '../../shared/chat-sync-diagnostics/flow.ts';
 import type { NativeTimingFields } from '../../shared/chat-sync-diagnostics/native.ts';
@@ -27,6 +30,7 @@ import type {
   LoadDiagnosticFields,
 } from '../../shared/chat-sync-diagnostics/load.ts';
 export type { LoadTrace } from './load.ts';
+export type { HandleSendToken } from '../../shared/chat-sync-diagnostics/flow.ts';
 export { timedLoad, timedLoadSync } from './load.ts';
 import type {
   ChatSyncDecision,
@@ -106,6 +110,7 @@ function announceCapture(host: Window): void {
     source: 0,
     conversation: 0,
     sendTimings: true,
+    sendPreparationTimings: true,
     nativeTimings: true,
     loadTimings: true,
     handleTimings: true,
@@ -495,6 +500,43 @@ export function loadingPresentation(kind: LoadKind): LoadingPresentation {
 
 export function startHandleRead(): HandleReadToken | undefined {
   return chatSyncActive() ? captureWork?.read() : undefined;
+}
+export function startHandleSend(): HandleSendToken | undefined {
+  return chatSyncActive() ? captureWork?.send() : undefined;
+}
+export function traceHandleSend(
+  token: HandleSendToken | undefined,
+  point: SendPreparationPoint,
+): void {
+  if (chatSyncActive()) captureWork?.markSend(token, point);
+}
+export function linkHandleSend(
+  token: HandleSendToken | undefined,
+  id: string,
+): void {
+  if (!chatSyncActive()) return;
+  const handleSend = captureWork?.sendSlot(token);
+  if (!handleSend) return;
+  traceChatSync(sendOwner, null, {
+    event: 'send',
+    reason: 'settled',
+    sendStage: 'flush-ready',
+    sendPhase: 'point',
+    message: sendMessage(id, 'flush-ready')!,
+    handleSend,
+  });
+}
+export function traceHandleList(
+  caller: HandleListCaller,
+  shared: boolean,
+): void {
+  if (chatSyncActive())
+    traceChatSync(sendOwner, null, {
+      event: 'handle-list',
+      reason: 'settled',
+      handleListCaller: caller,
+      listShared: shared,
+    });
 }
 export function traceHandleRead(
   token: HandleReadToken | undefined,

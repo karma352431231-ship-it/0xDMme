@@ -28,6 +28,8 @@ export const chatSyncEvents = [
   'handle-delivery',
   'handle-refresh',
   'handle-read',
+  'handle-send',
+  'handle-list',
   'authority-work',
   'send',
   'load',

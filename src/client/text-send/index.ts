@@ -36,11 +36,13 @@ export class TextSendQueue {
     return this.drafts.length > 0;
   }
   get pending(): boolean {
+    return this.working || this.quiet !== null;
+  }
+  get working(): boolean {
     return (
       (this.unsaved && !this.saveFailed) ||
       (this.dirty && !this.sendFailed) ||
-      this.sending ||
-      this.quiet !== null
+      this.sending
     );
   }
   get full(): boolean {

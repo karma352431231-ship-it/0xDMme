@@ -3,6 +3,32 @@ export interface HandleReadToken {
   slot: number;
   owner: object;
 }
+/** Capture-local linkage, never a durable message or account identifier. */
+export interface HandleSendToken {
+  slot: number;
+  owner: object;
+}
+export const handleListCallers = [
+  'directory',
+  'visible-list',
+  'identity',
+  'inbox',
+  'unspecified',
+] as const;
+export type HandleListCaller = (typeof handleListCallers)[number];
+export const sendPreparationPoints = [
+  'flush-request',
+  'outbox-ready',
+  'runtime-ready',
+  'identity-ready',
+  'authority-request',
+  'authority-ready',
+  'profile-ready',
+  'own-directory-ready',
+  'authority-assembled',
+  'engine-ready',
+] as const;
+export type SendPreparationPoint = (typeof sendPreparationPoints)[number];
 export const authorityKinds = [
   'vault',
   'handle-read',
@@ -15,6 +41,8 @@ export type AuthorityKind = (typeof authorityKinds)[number];
 export interface AuthorityDiagnosticContext {
   diagnosticOperation?: AuthorityKind;
   handleRead?: HandleReadToken;
+  handleSend?: HandleSendToken;
+  handleListCaller?: HandleListCaller;
 }
 export interface FlowDiagnosticFields {
   flowOverflow?: boolean;
@@ -25,6 +53,10 @@ export interface FlowDiagnosticFields {
   handleRead?: number;
   handleHint?: number;
   readPhase?: 'queued' | 'start' | 'complete' | 'failed';
+  handleSend?: number;
+  sendPreparation?: SendPreparationPoint;
+  handleListCaller?: HandleListCaller;
+  listShared?: boolean;
 }
 export function copyFlowDiagnostic(
   input: Record<string, unknown>,
@@ -32,7 +64,12 @@ export function copyFlowDiagnostic(
 ): void {
   if (typeof input['flowOverflow'] === 'boolean')
     output['flowOverflow'] = input['flowOverflow'];
-  for (const key of ['diagnosticWork', 'handleRead', 'handleHint'])
+  for (const key of [
+    'diagnosticWork',
+    'handleRead',
+    'handleHint',
+    'handleSend',
+  ])
     if (Number.isSafeInteger(input[key]) && Number(input[key]) > 0)
       output[key] = input[key];
   if (authorityKinds.some((kind) => kind === input['authorityKind']))
@@ -41,6 +78,19 @@ export function copyFlowDiagnostic(
     if (phases[key].has(String(input[key]))) output[key] = input[key];
   if (['interactive', 'maintenance'].includes(String(input['workPriority'])))
     output['workPriority'] = input['workPriority'];
+  copyHandlePreparation(input, output);
+}
+
+function copyHandlePreparation(
+  input: Record<string, unknown>,
+  output: Record<string, unknown>,
+): void {
+  if (handleListCallers.some((caller) => caller === input['handleListCaller']))
+    output['handleListCaller'] = input['handleListCaller'];
+  if (sendPreparationPoints.some((point) => point === input['sendPreparation']))
+    output['sendPreparation'] = input['sendPreparation'];
+  if (typeof input['listShared'] === 'boolean')
+    output['listShared'] = input['listShared'];
 }
 
 const phases = {

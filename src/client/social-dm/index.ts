@@ -1,4 +1,5 @@
 export type { AcceptedDmMedia, DmMediaAccepted } from './accepted-media.ts';
+import { SocialListReads } from './list-reads.ts';
 import type { DmMediaAccepted } from './accepted-media.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import {
@@ -7,6 +8,8 @@ import {
   measureSend,
   traceSend,
   traceHandleDelivery,
+  traceHandleSend,
+  traceHandleList,
 } from '../chat-sync-diagnostics/index.ts';
 import type {
   HandleDeliveryPoint,
@@ -223,6 +226,7 @@ export class SocialDms {
   private machine: MessageCrypto | null = null;
   private readonly audiences = new PrivateAudiences();
   private readonly texts: SocialTextOutbox;
+  private readonly lists = new SocialListReads();
   private secretReady: { profile: string; secret: string } | null = null;
   constructor(access: VaultAccess, sync: VaultSync) {
     this.access = access;
@@ -245,6 +249,7 @@ export class SocialDms {
     )
       return;
     this.generation++;
+    this.lists.clear();
     this.session = session;
     this.removals.reset();
     this.secretReady = null;
@@ -255,6 +260,7 @@ export class SocialDms {
   }
   cancel(): void {
     this.generation++;
+    this.lists.clear();
     this.secretReady = null;
     this.audiences.clear();
     this.history.reset();
@@ -295,10 +301,26 @@ export class SocialDms {
       authority.session.deviceId !== this.session.deviceId
     )
       throw new Error('Authority belongs to another account or device.');
-    return (operation, payload) =>
-      messageApi(authority, `dm-${operation}`, payload, () =>
+    return (operation, payload) => {
+      // A relationship/device mutation starts a new list snapshot even when a
+      // previous read has not settled. Publications do not change this list.
+      const changesList = [
+        'block',
+        'request',
+        'open',
+        'decide',
+        'register',
+      ].includes(operation);
+      if (changesList) this.lists.clear();
+      const work = messageApi(authority, `dm-${operation}`, payload, () =>
         this.guard(generation),
       );
+      return changesList
+        ? work.finally(() => {
+            if (generation === this.generation) this.lists.clear();
+          })
+        : work;
+    };
   }
   async request(
     operation: string,
@@ -317,7 +339,18 @@ export class SocialDms {
     );
   }
   async list(after: string | null, options: VaultWorkOptions = {}) {
-    return socialPage(await this.request('list', { after }, options));
+    const generation = this.generation;
+    this.guard(generation);
+    const page = await this.lists.read({
+      after,
+      options,
+      load: async () =>
+        socialPage(await this.request('list', { after }, options)),
+      observed: (shared) =>
+        traceHandleList(options.handleListCaller ?? 'unspecified', shared),
+    });
+    this.guard(generation);
+    return page;
   }
   async state(
     peer: string,
@@ -516,6 +549,7 @@ export class SocialDms {
           await ensureMessageRecovery(authority, api);
           await machine.prepare(authority);
         });
+        traceHandleSend(options.handleSend, 'engine-ready');
         if (receiveInbox)
           await measureDmWork(this, 'dm/inbox', () =>
             receiveSocialInbox(api, machine),
@@ -542,23 +576,26 @@ export class SocialDms {
     const generation = this.generation;
     this.guard(generation);
     await measureDmWork(this, 'dm/runtime', prepareMessageRuntime);
+    traceHandleSend(options.handleSend, 'runtime-ready');
     this.guard(generation);
     const prepared = await measureDmWork(this, 'dm/identity-secret', () =>
       this.prepareSecret(generation, options),
     );
-    const queuedAt = chatSyncActive() ? performance.now() : undefined;
+    traceHandleSend(options.handleSend, 'identity-ready');
+    traceHandleSend(options.handleSend, 'authority-request');
     return this.access.withVault(
       false,
-      (privateAuthority) =>
-        exclusive(`dm:${prepared.profile}`, async () => {
+      (privateAuthority) => {
+        traceHandleSend(options.handleSend, 'authority-ready');
+        return exclusive(`dm:${prepared.profile}`, async () => {
+          traceHandleSend(options.handleSend, 'profile-ready');
           const api = this.privateApi(privateAuthority, generation);
-          const current = await measureDmWork(
-            this,
-            'dm/own-directory',
-            () => readSocialDirectory(api, null),
-            queuedAt,
+          const current = await measureDmWork(this, 'dm/own-directory', () =>
+            readSocialDirectory(api, null),
           );
+          traceHandleSend(options.handleSend, 'own-directory-ready');
           if (current.profile !== prepared.profile) {
+            this.lists.clear();
             this.secretReady = null;
             this.audiences.clear();
             throw new Error('DM identity changed during the operation.');
@@ -570,9 +607,11 @@ export class SocialDms {
             api,
             alias: await this.alias(privateAuthority, current),
           });
+          traceHandleSend(options.handleSend, 'authority-assembled');
           this.guard(generation);
           return work({ authority, privateAuthority, api });
-        }),
+        });
+      },
       {
         ...options,
         diagnosticOperation: options.diagnosticOperation ?? 'handle-crypto',
@@ -1594,9 +1633,6 @@ function measureDmWork<T>(
   owner: SocialDms,
   operation: string,
   work: () => Promise<T>,
-  queuedAt?: number,
 ): Promise<T> {
-  return chatSyncActive()
-    ? measureWork(owner, operation, work, queuedAt)
-    : work();
+  return chatSyncActive() ? measureWork(owner, operation, work) : work();
 }

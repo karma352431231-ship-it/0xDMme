@@ -5,6 +5,78 @@ import { deliveryReadiness } from '../src/tools/chat-diagnostics/readiness.ts';
 import { CaptureWork } from '../src/client/chat-sync-diagnostics/capture-work.ts';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 import { compareDelivery } from '../src/tools/chat-diagnostics/delivery-comparison.ts';
+import { readChatSyncTrace } from '../src/shared/chat-sync-diagnostics/index.ts';
+
+await test('send preparation links encrypted FIFO, authority and engine points without pairing or private IDs', () => {
+  const recording = new Recording();
+  recording.record('reuse-ready', { sendPreparationTimings: true });
+  const capture = new CaptureWork((event, data) =>
+    recording.record(`reuse-${event}`, { ...data }),
+  );
+  const send = capture.send();
+  assert.ok(send);
+  capture.markSend(send, 'outbox-ready');
+  recording.record('reuse-send', {
+    message: 7,
+    sendStage: 'flush-ready',
+    sendPhase: 'point',
+    handleSend: send.slot,
+  });
+  const work = capture.queue(
+    { diagnosticOperation: 'handle-crypto', handleSend: send },
+    'interactive',
+  );
+  assert.ok(work);
+  work.admitted();
+  work.start();
+  capture.markSend(send, 'authority-ready');
+  capture.markSend(send, 'profile-ready');
+  capture.markSend(send, 'own-directory-ready');
+  capture.markSend(send, 'authority-assembled');
+  capture.markSend(send, 'engine-ready');
+  work.finish(true);
+  recording.record('reuse-handle-list', {
+    handleListCaller: 'directory',
+    listShared: false,
+  });
+  recording.record('reuse-handle-list', {
+    handleListCaller: 'inbox',
+    listShared: true,
+  });
+  for (let n = 0; n < 1600; n++) recording.record('request-start');
+  const report = recording.report().deliveryFlow;
+  assert.equal(report.senderPreparationAvailable, true);
+  assert.equal(report.sends[0]?.events[0]?.sendPreparation, 'flush-request');
+  assert.equal(
+    report.sends[0]?.events.find((event) => event.message === 7)?.handleSend,
+    send.slot,
+  );
+  assert.equal(report.sends[0]?.events.at(-1)?.sendPreparation, 'engine-ready');
+  assert.equal(report.authority[0]?.events[0]?.handleSend, send.slot);
+  assert.deepEqual(report.listReads, [
+    { caller: 'directory', requests: 1, shared: 0 },
+    { caller: 'inbox', requests: 1, shared: 1 },
+  ]);
+  const other = new CaptureWork(() => assert.fail('foreign or stopped trace'));
+  other.markSend(send, 'engine-ready');
+  capture.stop();
+  capture.markSend(send, 'engine-ready');
+  assert.equal(capture.send(), undefined);
+  const filtered = readChatSyncTrace({
+    version: 1,
+    source: 1,
+    conversation: 0,
+    event: 'handle-send',
+    reason: 'settled',
+    handleSend: 1,
+    sendPreparation: 'arbitrary private text',
+    handleListCaller: 'private ID',
+    content: 'secret',
+  });
+  assert.ok(filtered);
+  assert.equal(JSON.stringify(filtered).includes('private'), false);
+  assert.equal(JSON.stringify(filtered).includes('secret'), false);
+});
 
 await test('server clock calibration preserves network uncertainty and rejects inconsistent clocks', () => {
   const origin = 1800000000000,

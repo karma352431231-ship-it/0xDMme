@@ -48,7 +48,9 @@ export function createDmInbox(
   return new DmInbox(
     new DmUnreadUpdates({
       page: async (after) => {
-        const page = await controller.list(after);
+        const page = await controller.list(after, {
+          handleListCaller: 'inbox',
+        });
         return { peers: page.items.map((row) => row.peer.id), next: page.next };
       },
       prepare: () => controller.receive(),

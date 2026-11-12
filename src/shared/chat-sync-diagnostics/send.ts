@@ -5,6 +5,8 @@ export const sendStages = [
   'draft-seal',
   'draft-open',
   'draft-save',
+  'flush-ready',
+  'device-keys',
   'recipient-verify',
   'sender-keys',
   'recipient-keys',
@@ -38,6 +40,7 @@ export interface SendDiagnosticFields {
   sendMs?: number;
   sendSuccess?: boolean;
   sendTimings?: boolean;
+  sendPreparationTimings?: boolean;
   sendBlock?:
     | 'engine'
     | 'queue-full'
@@ -58,7 +61,7 @@ export function copySendDiagnostic(
   const ms = input['sendMs'];
   if (typeof ms === 'number' && Number.isSafeInteger(ms) && ms >= 0)
     result['sendMs'] = ms;
-  for (const key of ['sendSuccess', 'sendTimings'])
+  for (const key of ['sendSuccess', 'sendTimings', 'sendPreparationTimings'])
     if (typeof input[key] === 'boolean') result[key] = input[key];
   if (
     [

@@ -90,18 +90,24 @@ function activeAliases(input: unknown): string[] {
   return input.map(uuid);
 }
 async function pinSocialDirectory(result: SocialDirectoryPage): Promise<void> {
-  const old = await readCheckpoint(result.profile);
-  if (old.events.length > result.events.length)
-    throw new Error('DM directory rolled back.');
-  await pinSocialHistory(result.profile, result.events);
+  await pinHistory(result.profile, result.events, 'current');
 }
 /** Historical prefixes may be older than the current checkpoint, but never change its root or chain. */
 export async function pinSocialHistory(
   profile: string,
   events: DirectoryEvent[],
 ): Promise<void> {
+  return pinHistory(profile, events, 'historical');
+}
+async function pinHistory(
+  profile: string,
+  events: DirectoryEvent[],
+  snapshot: 'current' | 'historical',
+): Promise<void> {
   const current = await verifyHistory(events, profile),
     old = await readCheckpoint(profile);
+  if (snapshot === 'current' && old.events.length > events.length)
+    throw new Error('DM directory rolled back.');
   if (!current) {
     if (old.events.length) throw new Error('DM directory disappeared.');
     return;

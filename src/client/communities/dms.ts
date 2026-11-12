@@ -124,7 +124,9 @@ export function startSocialDmUi(
           next: page.next ? 'local:' + page.next : null,
         };
       }
-      const page = await controller.list(after);
+      const page = await controller.list(after, {
+        handleListCaller: 'directory',
+      });
       await controls.load(page.items.map((row) => row.peer.id));
       return page;
     },
@@ -236,7 +238,7 @@ export function startSocialDmUi(
       signedIn: !!session,
       mounted: !!container,
       directory: publicDirectory.available,
-      busy: busy || texts.transmitting,
+      busy: busy || texts.working,
       composing: composer.active,
     }),
     reload: () => {
@@ -394,7 +396,9 @@ export function startSocialDmUi(
     const old = generation,
       expected = verification,
       offline = localOnly || !navigator.onLine,
-      page = offline ? null : await controller.list(cursor);
+      page = offline
+        ? null
+        : await controller.list(cursor, { handleListCaller: 'visible-list' });
     if (!currentVerification(old, expected) || !container) return;
     view = null;
     viewKey = '';
@@ -485,7 +489,10 @@ export function startSocialDmUi(
     work: VaultWorkOptions = {},
   ): Promise<PublicProfile> {
     // UUID is not a directory of private contacts. Only already-approved public identities are returned.
-    const page = await controller.list(null, work);
+    const page = await controller.list(null, {
+      ...work,
+      handleListCaller: 'identity',
+    });
     const known = page.items.find((row) => row.peer.id === id);
     if (known) return known.peer;
     return publicProfile(
