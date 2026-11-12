@@ -1,7 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { paintAvatar, shortAddress } from '../appearance/index.ts';
 import { menuIcon } from '../menu-icons/index.ts';
-import { infoActionBar } from './actions.ts';
+import { infoActionBar, infoRow } from './actions.ts';
 import type { InfoAction } from './actions.ts';
 import { MuteRow } from './mute.ts';
 import type { MutePort } from './mute.ts';
@@ -14,6 +14,8 @@ export interface ContactInfo {
   photo?: (host: HTMLElement, signal: AbortSignal) => void;
   call?: () => void;
   search: () => void;
+  /** Opens this contact's starred messages. */
+  starred?: () => void;
   edit?: () => void;
   mute?: MutePort;
 }
@@ -148,13 +150,27 @@ export class ContactInfoDialog {
     return actions;
   }
   private rows(info: ContactInfo): HTMLElement[] {
-    if (!info.mute) return [];
-    this.mute = new MuteRow(info.mute);
-    void this.mute.load();
     const list = document.createElement('div');
     list.className = 'info-list';
-    list.append(this.mute.element);
-    return [list];
+    if (info.starred) {
+      const open = info.starred;
+      list.append(
+        infoRow({
+          label: t('Starred messages'),
+          icon: 'star',
+          perform: () => {
+            this.close();
+            open();
+          },
+        }),
+      );
+    }
+    if (info.mute) {
+      this.mute = new MuteRow(info.mute);
+      void this.mute.load();
+      list.append(this.mute.element);
+    }
+    return list.children.length ? [list] : [];
   }
   private secure(): HTMLElement {
     const note = document.createElement('p');

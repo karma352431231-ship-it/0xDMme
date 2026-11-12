@@ -33,6 +33,8 @@ for (const language of ['en', 'zh-CN'] as const)
       writable: () => writable,
       forward: () => {},
       forwardAllowed: () => true,
+      canPin: () => false,
+      pin: () => Promise.resolve(),
     };
     const view: GroupView = {
       id: crypto.randomUUID(),

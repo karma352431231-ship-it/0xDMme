@@ -10445,4 +10445,34 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Type to search for words in this conversation.',
     '输入以搜索此对话中的文字。',
   ],
+  Star: ['Star', '收藏'],
+  Unstar: ['Unstar', '取消收藏'],
+  'Choose how long the pin lasts': [
+    'Choose how long the pin lasts',
+    '选择置顶时长',
+  ],
+  'Everyone in this chat sees pinned messages.': [
+    'Everyone in this chat sees pinned messages.',
+    '此聊天中的所有人都能看到置顶消息。',
+  ],
+  Attachment: ['Attachment', '附件'],
+  'Pinned message': ['Pinned message', '置顶消息'],
+  'Pinned message {0} of {1}': [
+    'Pinned message {0} of {1}',
+    '置顶消息 {0}/{1}',
+  ],
+  'pin.duration-1d': ['24 hours', '24 小时'],
+  'pin.duration-7d': ['7 days', '7 天'],
+  'pin.duration-30d': ['30 days', '30 天'],
+  'pin.duration-forever': ['Until I unpin', '直到取消置顶'],
+  'Only the owner and administrators can pin.': [
+    'Only the owner and administrators can pin.',
+    '只有所有者和管理员可以置顶。',
+  ],
+  'Starred messages': ['Starred messages', '收藏的消息'],
+  'Loading…': ['Loading…', '正在加载…'],
+  'No starred messages in this chat yet.': [
+    'No starred messages in this chat yet.',
+    '此聊天中还没有收藏的消息。',
+  ],
 };

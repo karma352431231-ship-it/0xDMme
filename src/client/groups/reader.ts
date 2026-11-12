@@ -58,6 +58,7 @@ export interface GroupView {
     string,
     { emoji: string; sequence: number; own: boolean }
   >;
+  pinState?: { until: number; sequence: number; own: boolean };
   /** The sender's clock; groups messages sent before 24/10/2026 have none. */
   sentAt?: number;
   contentFormat?: 'daily';
@@ -253,7 +254,9 @@ async function preserveEdit(cache: GroupCache, view: GroupView): Promise<void> {
   const name =
     view.relation.type === 'edit'
       ? `edit:${view.relation.id}`
-      : `reaction:${view.relation.id}:${view.sender}`;
+      : view.relation.type === 'pin'
+        ? `pin:${view.relation.id}`
+        : `reaction:${view.relation.id}:${view.sender}`;
   const old = await cache.get(name);
   if (old === null || groupView(old).sequence < view.sequence)
     await cache.put(name, view);

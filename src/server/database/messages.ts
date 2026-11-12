@@ -700,6 +700,7 @@ function assertRelationTarget(
   )
     throw new AccountError(409, 'Original message does not match.');
   assertActionOwner(packet, target.body);
+  assertPinTarget(packet, target.body);
 }
 function sameParticipants(
   target: StoredMessage,
@@ -721,4 +722,9 @@ function assertActionOwner(
       original.viewOnce)
   )
     throw new AccountError(403, 'Only the author can edit text.');
+}
+/** Either participant may pin; a view-once message never stays on top. */
+function assertPinTarget(packet: MessagePacket, original: MessagePacket): void {
+  if (packet.relation?.type === 'pin' && original.viewOnce)
+    throw new AccountError(403, 'Change not allowed.');
 }

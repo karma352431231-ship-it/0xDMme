@@ -6,19 +6,39 @@ export interface MessageRelation {
   id: string;
   hash: string;
   author: string;
-  type: 'edit' | 'reaction';
+  type: 'edit' | 'reaction' | 'pin';
 }
+const relationTypes = new Set(['edit', 'reaction', 'pin']);
 export function messageRelation(input: unknown): MessageRelation {
   const d = object(input);
   keys(d, ['id', 'hash', 'author', 'type']);
-  if (d['type'] !== 'edit' && d['type'] !== 'reaction')
+  if (typeof d['type'] !== 'string' || !relationTypes.has(d['type']))
     throw new AccountError(400, 'Invalid message relationship.');
   return {
     id: uuid(d['id']),
     hash: fingerprint(d['hash']),
     author: uuid(d['author']),
-    type: d['type'],
+    type: d['type'] as MessageRelation['type'],
   };
+}
+/** A pin with no end; 0 means unpinned. */
+export const pinForever = Number.MAX_SAFE_INTEGER;
+/** The encrypted text of a pin action: `pin:<ms>`, `pin:always` or `unpin`. */
+export function pinText(until: number): string {
+  if (until === 0) return 'unpin';
+  if (until === pinForever) return 'pin:always';
+  if (!Number.isSafeInteger(until) || until < 0)
+    throw new Error('Invalid pin.');
+  return `pin:${until}`;
+}
+/** When a pin action ends: 0 for unpin; null when the text is not a pin. */
+export function pinUntil(text: string): number | null {
+  if (text === 'unpin') return 0;
+  if (text === 'pin:always') return pinForever;
+  const match = /^pin:([1-9][0-9]{0,15})$/u.exec(text);
+  if (!match) return null;
+  const until = Number(match[1]);
+  return Number.isSafeInteger(until) ? until : null;
 }
 export function optionalRelation(input: unknown): {
   relation?: MessageRelation;

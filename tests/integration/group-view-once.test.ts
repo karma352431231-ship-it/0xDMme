@@ -146,7 +146,7 @@ await test('group delivery grants exactly one opening per member account and pre
   }
   await assertReactionPages(c, { group, head, sender, members: [one, two] });
   await t.test(
-    'reactions authenticate the root and membership period while edits stay author-only',
+    'reactions authenticate the root and membership period, edits stay author-only and pins need an owner or administrator',
     () => assertActionAuthorization(c, { state, sender, member: one }),
   );
   const value = await upload('mobile');
@@ -466,10 +466,23 @@ async function assertActionAuthorization(
     }),
     { status: 403 },
   );
+  // Pins stay on top for the whole group: only the owner and administrators.
+  const pin = { ...packet, relation: { ...relation, type: 'pin' as const } },
+    asAdmin = {
+      ...state,
+      members: state.members.map((m) =>
+        m.accountId === member.session.accountId
+          ? { ...m, role: 'admin' as const }
+          : m,
+      ),
+    };
+  await assert.rejects(check(pin), { status: 403 });
+  await check(pin, asAdmin);
   await c.inspector.query(
     'UPDATE hash_talk.group_packets SET body=$2::jsonb WHERE id=$1',
     [id, JSON.stringify({ kind: 'text', viewOnce: { hash } })],
   );
+  await assert.rejects(check(pin, asAdmin), { status: 403 });
   await assert.rejects(
     check({
       ...packet,

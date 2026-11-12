@@ -82,6 +82,8 @@ export async function localGroupEdits(
   for (const view of views) {
     const edit = await cache.get(`edit:${view.id}`);
     if (edit !== null) edits.push(groupView(edit));
+    const pin = await cache.get(`pin:${view.id}`);
+    if (pin !== null) edits.push(groupView(pin));
     let after: string | null = null;
     do {
       const page = await cache.page(`reaction:${view.id}:`, after);

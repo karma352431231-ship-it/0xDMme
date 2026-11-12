@@ -55,6 +55,8 @@ import { renderViewOnce } from '../view-once-ui/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
 import type { ViewOnceContent } from '../../shared/view-once/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import { PinnedBar } from '../message-pins/index.ts';
+import { revealMessage } from '../chat-ui/index.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
 interface HistoryPresentation {
@@ -115,6 +117,15 @@ interface HistoryPresentation {
     react: (view: MessageView, emoji: string, id: string) => Promise<void>;
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
+    /** Pins for both people until the given time; 0 unpins. */
+    pin: (view: MessageView, until: number) => Promise<void>;
+  };
+  /** The person's own starred messages, kept in their vault. */
+  stars?: {
+    starred: (id: string) => boolean;
+    toggle: (view: DailyView<MessageView>) => Promise<void>;
+    /** Reads the stars of the shown messages; true when any changed. */
+    load: (conversation: string, ids: string[]) => Promise<boolean>;
   };
 }
 
@@ -130,6 +141,7 @@ export class MessageHistoryUi {
   private views: readonly MessageView[] | null = null;
   private headerPhoto: AbortController | null = null;
   private readonly avatarPhoto = new ChatAvatarPhoto();
+  private readonly pinned = new PinnedBar((id) => this.revealPinned(id));
   private readonly loading = new ChatHistoryLoading();
   private pending: HistoryUpdate | null = null;
   private older: {
@@ -172,6 +184,7 @@ export class MessageHistoryUi {
     this.forwarding?.clear();
     this.pending = null;
     this.views = null;
+    this.pinned.clear();
     this.readIds.clear();
     this.externalRows.clear();
   }
@@ -301,7 +314,10 @@ export class MessageHistoryUi {
         keys = messageRowKeys(
           views,
           this.options.context().selected?.localOnly,
+          (id) => this.options.stars?.starred(id) ?? false,
         );
+      this.showPinned(history, views);
+      this.loadStars(views);
       const menu = openMessageMenu(history);
       const rows = views.map((view) => ({
         id: view.id,
@@ -507,22 +523,87 @@ export class MessageHistoryUi {
         forwardAllowed: !!this.options.forwarding?.contacts().length,
         peers: this.options.context().peers.filter((peer) => !peer.localOnly),
         replyAllowed: !this.options.context().selected?.localOnly,
-        // A remove capability exists in composition, but is offered only for an own live row.
-        ...(!view.archived && view.own
-          ? {
-              remove: () => {
-                if (matchMedia('(max-width: 700px)').matches) {
-                  this.deletion.begin(view.id);
-                  return Promise.resolve();
-                }
-                return this.options.actions.remove(view);
-              },
-            }
-          : {}),
+        ...this.rowChanges(view),
       }),
     );
     if (!reactionPanel.parentNode) article.append(reactionPanel);
     return article;
+  }
+  /** Changes a row offers: pinning in a live chat, and removal only for an
+   * own live row (a remove capability exists in composition). */
+  private rowChanges(view: DailyView<MessageView>): {
+    pin?: (until: number) => Promise<void>;
+    remove?: () => Promise<void>;
+    star?: { starred: boolean; toggle: () => Promise<void> };
+  } {
+    const live = !this.options.context().selected?.localOnly,
+      stars = this.options.stars;
+    return {
+      ...(stars && live
+        ? {
+            star: {
+              starred: stars.starred(view.id),
+              toggle: () => stars.toggle(view),
+            },
+          }
+        : {}),
+      ...(live
+        ? { pin: (until: number) => this.options.actions.pin(view, until) }
+        : {}),
+      ...(!view.archived && view.own
+        ? {
+            remove: () => {
+              if (matchMedia('(max-width: 700px)').matches) {
+                this.deletion.begin(view.id);
+                return Promise.resolve();
+              }
+              return this.options.actions.remove(view);
+            },
+          }
+        : {}),
+    };
+  }
+  /** Star marks follow the shown rows; the menu repaints once they load. */
+  private loadStars(views: readonly DailyView<MessageView>[]): void {
+    const stars = this.options.stars,
+      peer = this.options.context().selected;
+    if (!stars || !peer || peer.localOnly) return;
+    stars
+      .load(
+        peer.accountId,
+        views.map((view) => view.id),
+      )
+      .then(
+        (changed) => {
+          if (changed && this.options.context().selected === peer)
+            this.render(this.views);
+        },
+        // An unread star only shows "Star" in the menu until the next render.
+        () => undefined,
+      );
+  }
+  /** The pinned strip sits above the history of the open conversation. */
+  private showPinned(
+    history: HTMLElement,
+    views: readonly DailyView<MessageView>[],
+  ): void {
+    const thread = history.closest('.chat-thread');
+    if (thread && this.pinned.element.nextElementSibling !== thread)
+      thread.before(this.pinned.element);
+    this.pinned.update(views);
+  }
+  private revealPinned(id: string): void {
+    const peer = this.options.context().selected?.accountId;
+    void revealMessage(id, {
+      row: (message) =>
+        this.options
+          .node('[data-message-history]')
+          ?.querySelector<HTMLElement>(
+            `article[data-message="${CSS.escape(message)}"]`,
+          ) ?? null,
+      older: { available: () => false, load: () => Promise.resolve(false) },
+      valid: () => this.options.context().selected?.accountId === peer,
+    });
   }
   private renderMessageContent(input: {
     article: HTMLElement;

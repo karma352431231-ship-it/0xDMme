@@ -242,6 +242,7 @@ const migrations = [
   '107-view-once-messages.sql',
   '108-group-message-actions.sql',
   '109-group-view-once.sql',
+  '110-group-message-pins.sql',
 ];
 
 export interface MaintenanceSnapshot {

@@ -1,0 +1,115 @@
+/* Pinned messages strip and pin length dialog (12/11/2026). */
+.pinned-bar {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.pinned-bar[hidden] {
+  display: none;
+}
+#app-shell .chat-panel .pinned-bar button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+#app-shell .chat-panel .pinned-bar button:hover {
+  background: var(--surface-2);
+}
+.pinned-bar svg {
+  flex: none;
+  color: var(--text-muted);
+}
+.pinned-marks {
+  display: grid;
+  gap: 3px;
+  align-self: stretch;
+}
+.pinned-marks i {
+  display: block;
+  width: 3px;
+  min-height: 6px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.pinned-marks i.current {
+  background: var(--accent);
+}
+.pinned-copy {
+  display: grid;
+  min-width: 0;
+}
+.pinned-copy small {
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.pinned-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-small);
+}
+dialog.pin-duration {
+  width: min(380px, calc(var(--viewport-width, 100vw) - 24px));
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+}
+dialog.pin-duration::backdrop {
+  background: var(--overlay);
+}
+.pin-duration h2 {
+  margin: 0 0 6px;
+  font-size: var(--fs-title);
+}
+.pin-duration p {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.pin-duration-choices {
+  display: grid;
+  gap: 4px;
+}
+.pin-duration-choices label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  cursor: pointer;
+}
+.pin-duration-choices input {
+  accent-color: var(--accent);
+}
+.pin-duration-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.pin-duration-buttons button {
+  padding: 9px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.pin-duration-buttons button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}

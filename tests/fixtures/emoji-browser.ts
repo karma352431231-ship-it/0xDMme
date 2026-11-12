@@ -58,6 +58,7 @@ const view: DailyView<DailyRow> = {
   kind: 'text',
   peer: 'synthetic-peer',
   content: { text: renderedText, reply: null, forwarded: false },
+  pin: null,
   edited: false,
   reactions: [],
   ownReaction: '',

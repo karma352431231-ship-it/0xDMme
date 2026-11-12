@@ -121,6 +121,7 @@ function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
       react: () => Promise.resolve(),
       forward: () => Promise.resolve(),
       remove: () => Promise.resolve(),
+      pin: () => Promise.resolve(),
       ...reactionHooks,
     },
   });

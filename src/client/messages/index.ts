@@ -36,6 +36,12 @@ import {
   ContactInfoDialog,
   bindInfoTrigger,
 } from '../conversation-info/index.ts';
+import {
+  MessageStars,
+  StarredList,
+  starredMessage,
+} from '../message-stars/index.ts';
+import type { ConversationStars } from '../message-stars/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
@@ -62,7 +68,7 @@ import {
   soundPreferenceKey,
   savePushSoundPreference,
 } from '../notification-sound/index.ts';
-import { encodeDailyText } from '../../shared/daily/index.ts';
+import { encodeDailyText, pinText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type {
@@ -121,6 +127,17 @@ export function startMessages(
   let navigatingToConversation = false;
   let directory: HTMLElement | null = null;
   const contactInfo = new ContactInfoDialog();
+  const stars = new MessageStars(sync, () => session?.accountId),
+    starredList = new StarredList();
+  const conversationStars: ConversationStars = {
+    starred: (id) => stars.starred(id),
+    load: (conversation, ids) => stars.load(conversation, ids),
+    toggle: async (message) => {
+      await stars.toggle(message);
+    },
+    showList: (conversation, open) =>
+      void starredList.show({ read: () => stars.list(conversation), open }),
+  };
   const searchPanel = new ConversationSearch(
     searchPage,
     openSearchResult,
@@ -271,6 +288,7 @@ export function startMessages(
     flushForward: () => flushForward(),
     organizationPeers: () => organizationIds(),
     searchConversation: (group) => searchPanel.openConversation(group),
+    stars: conversationStars,
     isBusy: () => synchronization.busy,
     alert: () => sound.alert('group'),
     select: selectGroup,
@@ -601,6 +619,11 @@ export function startMessages(
       title,
       address: peer.address,
       search: () => searchPanel.openConversation({ id: peer.accountId, title }),
+      starred: () =>
+        conversationStars.showList(
+          peer.accountId,
+          (message) => void revealSearchMatch(message.id, peer),
+        ),
       edit: () => directoryUi.editSelected(),
       ...(composer.canCall ? { call: () => composer.startCall() } : {}),
       ...(peer.localOnly
@@ -681,6 +704,16 @@ export function startMessages(
       textQueue.retry();
     },
     ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
+    stars: {
+      starred: conversationStars.starred,
+      load: conversationStars.load,
+      toggle: async (view) => {
+        await conversationStars.toggle(
+          starredMessage(view, view.peer, t('Message')),
+        );
+        renderHistory();
+      },
+    },
     ...(options.representatives
       ? { representatives: options.representatives }
       : {}),
@@ -701,6 +734,18 @@ export function startMessages(
       remove: async (view) => {
         await controller.remove(view);
         await synchronizeVisible();
+      },
+      pin: async (view, until) => {
+        await controller.composeAction(
+          view,
+          'pin',
+          encodeDailyText({
+            text: pinText(until),
+            reply: null,
+            forwarded: false,
+          }),
+        );
+        await transmit();
       },
     },
   });
@@ -1856,6 +1901,9 @@ export function startMessages(
         return;
       }
       generation++;
+      stars.clear();
+      starredList.close();
+      contactInfo.close();
       visits.reset();
       textQueue.reset();
       mediaSubmissions.reset();

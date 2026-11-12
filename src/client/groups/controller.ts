@@ -7,7 +7,7 @@ import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { groupMessageView } from './message-content.ts';
 import { withSigner } from '../vault-authority/index.ts';
 import { recoveryKey } from '../../shared/messages/index.ts';
-import { validReaction } from '../../shared/daily/index.ts';
+import { validReaction, pinText } from '../../shared/daily/index.ts';
 import { decryptViewOnce } from '../view-once/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
@@ -1155,6 +1155,41 @@ export class GroupController {
           hash: view.hash,
           author: view.sender,
           type: 'reaction',
+        },
+      }),
+    );
+    await this.sendPending();
+  }
+  /** Pins or unpins (until 0) a message for the whole group; the server
+   * accepts it only from the owner and administrators. */
+  async pin(view: GroupView, until: number): Promise<void> {
+    const group = this.selected,
+      account = this.session?.accountId;
+    if (
+      view.localOnly ||
+      this.historyPending ||
+      !group ||
+      group.state.groupId !== view.groupId ||
+      !account ||
+      !groupManager(group.state, account)
+    )
+      throw new Error('Group message is unavailable.');
+    await this.authority.mutate((c) =>
+      composeGroup({
+        authority: c.authority,
+        groupId: view.groupId,
+        text: encodeGroupText({
+          text: pinText(until),
+          reply: null,
+          forwarded: false,
+        }),
+        selection: null,
+        id: crypto.randomUUID(),
+        relation: {
+          id: view.id,
+          hash: view.hash,
+          author: view.sender,
+          type: 'pin',
         },
       }),
     );

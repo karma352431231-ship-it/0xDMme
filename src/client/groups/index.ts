@@ -36,6 +36,7 @@ import type { GroupChange } from './receipt.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import type { GroupProfile } from './people.ts';
+import type { ConversationStars } from '../message-stars/index.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -62,6 +63,8 @@ interface GroupOptions {
   organizationPeers?: () => readonly string[];
   /** Message search limited to one group, opened from its settings. */
   searchConversation?: (group: { id: string; title: string }) => void;
+  /** The person's own starred messages, kept in their vault. */
+  stars?: ConversationStars;
 }
 export function startGroups(
   access: VaultAccess,
@@ -106,6 +109,7 @@ export function startGroups(
     ...(options.forwarding ? { forwarding: options.forwarding } : {}),
     ...(options.forward ? { forward: options.forward } : {}),
     ...(options.flushForward ? { flushForward: options.flushForward } : {}),
+    ...(options.stars ? { stars: options.stars } : {}),
     visibleGroup,
     reconcile: (id) => reconciliation.request(id),
     operationRun: options.run,
@@ -140,6 +144,22 @@ export function startGroups(
       }),
       ...(options.searchConversation
         ? { search: options.searchConversation }
+        : {}),
+      ...(options.stars
+        ? {
+            starred: (group: { id: string }) =>
+              options.stars!.showList(group.id, (message) => {
+                const summary = controller.entries.find(
+                  (entry) => entry.state.groupId === group.id,
+                );
+                if (summary)
+                  void revealGroupMessage(
+                    summary,
+                    message.id,
+                    message.sequence,
+                  );
+              }),
+          }
         : {}),
     },
     settingsOpened: () => vault.preview(),
@@ -413,6 +433,23 @@ export function startGroups(
     notice = t('Open a group to chat.');
   }
   chat.bindBrowserLifetime();
+  /** Opens a group at one message and marks it (search results, stars). */
+  async function revealGroupMessage(
+    group: GroupSummary,
+    id: string,
+    sequence: number,
+  ): Promise<void> {
+    controller.focusMessage(group.state.groupId, sequence);
+    await open(group, { sequence });
+    await revealMessage(id, {
+      row: (target) =>
+        node('[data-group-history]')?.querySelector<HTMLElement>(
+          `article[data-group-message="${CSS.escape(target)}"]`,
+        ) ?? null,
+      older: { available: () => false, load: () => Promise.resolve(false) },
+      valid: () => controller.selected?.state.groupId === group.state.groupId,
+    });
+  }
   return {
     create: () => management.create(),
     join: (url = '') => management.join(url),
@@ -458,22 +495,7 @@ export function startGroups(
       selection: AttachmentSelection | null,
     ) => controller.composeFor(id, text, selection),
     sendGroupDrafts: (id: string) => controller.sendGroupDrafts(id),
-    async reveal(
-      group: GroupSummary,
-      id: string,
-      sequence: number,
-    ): Promise<void> {
-      controller.focusMessage(group.state.groupId, sequence);
-      await open(group, { sequence });
-      await revealMessage(id, {
-        row: (target) =>
-          node('[data-group-history]')?.querySelector<HTMLElement>(
-            `article[data-group-message="${CSS.escape(target)}"]`,
-          ) ?? null,
-        older: { available: () => false, load: () => Promise.resolve(false) },
-        valid: () => controller.selected?.state.groupId === group.state.groupId,
-      });
-    },
+    reveal: revealGroupMessage,
     unread: (id: string) => states.get(id)?.unread ?? 0,
     search: (query: string, after: string | null) =>
       controller.search(query, after),

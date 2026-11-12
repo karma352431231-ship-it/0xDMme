@@ -16,6 +16,12 @@ export interface GroupMessageActions {
   writable: () => boolean;
   forward: (view: GroupView) => void;
   forwardAllowed: () => boolean;
+  canPin: () => boolean;
+  pin: (view: GroupView, until: number) => Promise<void>;
+  /** The person's own star of a message, when stars are available. */
+  star?: (
+    view: GroupView,
+  ) => { starred: boolean; toggle: () => Promise<void> } | undefined;
 }
 /** The group supplies capabilities; the shared menu owns gestures and disposal. */
 export function groupMessageActions(input: {
@@ -46,7 +52,19 @@ export function groupMessageActions(input: {
     ...(view.own && !view.localOnly && writable
       ? { remove: () => actions.remove(view) }
       : {}),
+    ...(writable && actions.canPin()
+      ? { pin: (until: number) => actions.pin(view, until) }
+      : {}),
+    ...groupStar(view, writable, actions),
   });
+}
+function groupStar(
+  view: GroupView,
+  writable: boolean,
+  actions: GroupMessageActions,
+): { star?: { starred: boolean; toggle: () => Promise<void> } } {
+  const star = writable ? actions.star?.(view) : undefined;
+  return star ? { star } : {};
 }
 function actionButton(label: string, work: () => void): HTMLButtonElement {
   const button = document.createElement('button');

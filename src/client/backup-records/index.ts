@@ -29,6 +29,7 @@ import type { Peer } from '../../shared/contacts/index.ts';
 import {
   decodeDailyText,
   validReaction,
+  pinUntil,
   optionalRelation,
   relationKeys,
 } from '../../shared/daily/index.ts';
@@ -241,7 +242,9 @@ function validateDmAction(
   if (
     kind !== 'text' ||
     typeof text !== 'string' ||
-    (relation.type === 'reaction' && !validReaction(decodeDailyText(text).text))
+    (relation.type === 'reaction' &&
+      !validReaction(decodeDailyText(text).text)) ||
+    (relation.type === 'pin' && pinUntil(decodeDailyText(text).text) === null)
   )
     throw new Error('Invalid message reaction.');
 }

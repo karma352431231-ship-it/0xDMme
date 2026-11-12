@@ -1,5 +1,9 @@
 import { messageContentFormat } from '../../shared/message-presentation/index.ts';
-import { decodeDailyText, validReaction } from '../../shared/daily/index.ts';
+import {
+  decodeDailyText,
+  validReaction,
+  pinUntil,
+} from '../../shared/daily/index.ts';
 import type { GroupView } from './reader.ts';
 import { windowRoots } from '../history-window/index.ts';
 import type { HistoryFloor } from '../history-window/index.ts';
@@ -17,12 +21,11 @@ export function projectGroupMessages(
   )) {
     const old = views.get(view.id),
       root = preserveEdit(view, old);
-    views.set(
-      view.id,
-      old?.reactionStates
-        ? { ...root, reactionStates: old.reactionStates }
-        : root,
-    );
+    views.set(view.id, {
+      ...root,
+      ...(old?.reactionStates ? { reactionStates: old.reactionStates } : {}),
+      ...(old?.pinState ? { pinState: old.pinState } : {}),
+    });
   }
   for (const edit of changes.filter((row) => row.relation))
     applyEdit(views, edit);
@@ -59,18 +62,26 @@ function applyEdit(views: Map<string, GroupView>, edit: GroupView): void {
     root.groupId !== edit.groupId
   )
     throw new Error('Edit does not match the original group message.');
-  if (relation.type === 'reaction') {
-    views.set(root.id, applyReaction(root, edit));
-    return;
-  }
+  views.set(
+    root.id,
+    relation.type === 'reaction'
+      ? applyReaction(root, edit)
+      : relation.type === 'pin'
+        ? applyPin(root, edit)
+        : applyTextEdit(root, edit),
+  );
+}
+
+/** Only the author edits a text; an older edit never replaces a newer one. */
+function applyTextEdit(root: GroupView, edit: GroupView): GroupView {
   if (edit.sender !== root.sender || root.kind !== 'text')
     throw new Error('Edit does not match the original group message.');
-  if ((root.editedSequence ?? 0) >= edit.sequence) return;
-  views.set(root.id, {
+  if ((root.editedSequence ?? 0) >= edit.sequence) return root;
+  return {
     ...editedText(root, edit),
     edited: true,
     editedSequence: edit.sequence,
-  });
+  };
 }
 
 function applyReaction(root: GroupView, action: GroupView): GroupView {
@@ -84,6 +95,18 @@ function applyReaction(root: GroupView, action: GroupView): GroupView {
       ...root.reactionStates,
       [action.sender]: { emoji, sequence: action.sequence, own: action.own },
     },
+  };
+}
+
+/** The newest pin or unpin by an owner or administrator wins; the server
+ * admits pins only from them. */
+function applyPin(root: GroupView, action: GroupView): GroupView {
+  const until = pinUntil(decodeDailyText(action.text).text);
+  if (until === null) throw new Error('Invalid pin.');
+  if (root.pinState && root.pinState.sequence >= action.sequence) return root;
+  return {
+    ...root,
+    pinState: { until, sequence: action.sequence, own: action.own },
   };
 }
 

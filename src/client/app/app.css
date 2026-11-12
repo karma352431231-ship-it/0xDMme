@@ -32,6 +32,8 @@
 @import '../chat-ui/chat.css';
 @import '../groups/groups.css';
 @import '../conversation-info/conversation-info.css';
+@import '../message-pins/message-pins.css';
+@import '../message-stars/message-stars.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
 @import '../devices/devices.css';

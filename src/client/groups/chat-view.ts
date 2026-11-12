@@ -37,6 +37,11 @@ import {
 } from '../message-presentation/index.ts';
 
 import { GroupOutgoing } from './outgoing.ts';
+import { PinnedBar } from '../message-pins/index.ts';
+import { starredMessage } from '../message-stars/index.ts';
+import type { ConversationStars } from '../message-stars/index.ts';
+import { activePin } from '../daily-text/index.ts';
+import { groupManager } from '../../shared/groups/index.ts';
 import type { PendingGroupText } from './outgoing.ts';
 import { GroupDeliveryTrace } from './delivery-trace.ts';
 import type { GroupMemberPresentation } from './member-presentation.ts';
@@ -47,6 +52,7 @@ import {
   watchHistoryPosition,
   resetHistoryPosition,
   watchOlderHistory,
+  revealMessage,
 } from '../chat-ui/index.ts';
 import type { OlderHistory } from '../chat-ui/index.ts';
 interface ChatOptions {
@@ -64,6 +70,7 @@ interface ChatOptions {
     | 'composeText'
     | 'sendGroupDrafts'
     | 'react'
+    | 'pin'
     | 'stageMedia'
     | 'draftMedia'
     | 'openViewOnce'
@@ -89,6 +96,7 @@ interface ChatOptions {
   forwarding?: ForwardDirectory;
   forward?: (view: DailyView<GroupMessageView>, peer: string) => Promise<void>;
   flushForward?: () => Promise<void>;
+  stars?: ConversationStars;
 }
 /** Owns the mounted conversation's bubbles, composer and media resources.
  * Persistence, verified reads and group authority stay in the controller. */
@@ -98,6 +106,7 @@ export class GroupChatView {
   private readonly delivery = new GroupDeliveryTrace();
   private readonly composer: GroupComposer;
   private readonly reactions: HistoryReactions<GroupMessageView>;
+  private readonly pinned = new PinnedBar((id) => this.revealPinned(id));
   private readonly deletion: MessageDeletionSelection;
   private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
@@ -182,6 +191,38 @@ export class GroupChatView {
       },
       react: (view, emoji) =>
         this.reactions.change(groupMessageView(view), emoji),
+      // The owner and administrators pin for the whole group.
+      canPin: () => {
+        const group = options.controller.selected,
+          account = options.account();
+        return (
+          !!group &&
+          !group.localOnly &&
+          !!account &&
+          groupManager(group.state, account)
+        );
+      },
+      pin: async (view, until) => {
+        await options.controller.pin(view, until);
+        await options.reopen();
+      },
+      star: (view) => {
+        const stars = options.stars;
+        if (!stars) return undefined;
+        return {
+          starred: stars.starred(view.id),
+          toggle: async () => {
+            await stars.toggle(
+              starredMessage(
+                groupMessageView(view),
+                view.groupId,
+                t('Message'),
+              ),
+            );
+            this.renderHistory();
+          },
+        };
+      },
       remove: async (view) => {
         if (matchMedia('(max-width: 700px)').matches) {
           this.forwarding?.clear();
@@ -292,6 +333,43 @@ export class GroupChatView {
   private node<T extends HTMLElement>(selector: string): T | null {
     return this.host?.querySelector<T>(selector) ?? null;
   }
+  /** The pinned strip sits above the history of the open group. */
+  private showPinned(history: HTMLElement): void {
+    const thread = history.closest('.chat-thread');
+    if (thread && this.pinned.element.nextElementSibling !== thread)
+      thread.before(this.pinned.element);
+    this.pinned.update(this.options.controller.views.map(groupMessageView));
+  }
+  /** Star marks follow the shown rows; the menu repaints once they load. */
+  private loadStars(): void {
+    const stars = this.options.stars,
+      group = this.options.controller.selected;
+    if (!stars || !group || group.localOnly) return;
+    stars
+      .load(
+        group.state.groupId,
+        this.options.controller.views.map((view) => view.id),
+      )
+      .then(
+        (changed) => {
+          if (changed && this.options.controller.selected === group)
+            this.renderHistory();
+        },
+        // An unread star only shows "Star" in the menu until the next render.
+        () => undefined,
+      );
+  }
+  private revealPinned(id: string): void {
+    const group = this.options.controller.selected?.state.groupId;
+    void revealMessage(id, {
+      row: (target) =>
+        this.node('[data-group-history]')?.querySelector<HTMLElement>(
+          `article[data-group-message="${CSS.escape(target)}"]`,
+        ) ?? null,
+      older: { available: () => false, load: () => Promise.resolve(false) },
+      valid: () => this.options.controller.selected?.state.groupId === group,
+    });
+  }
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
@@ -303,6 +381,7 @@ export class GroupChatView {
       this.forwarding?.clear();
       this.deletion.clear();
       this.reactions.closeGate();
+      this.pinned.clear();
       return;
     }
     this.composer.reconcileContext();
@@ -326,10 +405,15 @@ export class GroupChatView {
         view.unavailableMedia,
         view.edited,
         view.sentAt,
+        // The menu offers Pin or Unpin, Star or Unstar.
+        activePin(view.pinState ?? null),
+        this.options.stars?.starred(view.id) ?? false,
       ]),
       render: (signal: AbortSignal) =>
         this.renderView(view, signal, this.startsRun(views, index)),
     }));
+    this.showPinned(history);
+    this.loadStars();
     const menu = openMessageMenu(history);
     this.externalRows.render(
       history,

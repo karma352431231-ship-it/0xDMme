@@ -117,8 +117,10 @@ export class GroupCache {
   remove(name: string): Promise<void> {
     return localDelete(this.scope, name);
   }
-  /** Explicit root deletion also erases its per-author reaction snapshots. */
+  /** Explicit root deletion also erases its per-author reaction snapshots
+   * and its pin. */
   async removeReactions(id: string): Promise<void> {
+    await this.remove(`pin:${id}`);
     let after: string | null = null;
     do {
       const page: { items: { name: string }[]; next: string | null } =

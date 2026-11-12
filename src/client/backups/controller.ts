@@ -179,7 +179,9 @@ export class Backups {
         item.relation
           ? item.relation.type === 'edit'
             ? t('Edit')
-            : t('Reaction')
+            : item.relation.type === 'pin'
+              ? t('Pin')
+              : t('Reaction')
           : names[item.kind],
         item.sequence,
         item.sender === account ? t('sent') : t('received'),

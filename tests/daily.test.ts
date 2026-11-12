@@ -9,8 +9,11 @@ import {
   pushRegistration,
   genericNotification,
   validReaction,
+  pinText,
+  pinUntil,
+  pinForever,
 } from '../src/shared/daily/index.ts';
-import { dailyViews } from '../src/client/daily-text/index.ts';
+import { dailyViews, activePin } from '../src/client/daily-text/index.ts';
 import {
   publicPushAddress,
   readPushConfiguration,
@@ -743,4 +746,35 @@ await test('public handle mute stays in its encrypted namespaced preference and 
   assert.equal(daily.conversation(key).mutedUntil, Number.MAX_SAFE_INTEGER);
   await daily.organize(key, { mutedUntil: 0 }, { mutePeer: null });
   assert.equal(daily.conversation(key).mutedUntil, 0);
+});
+
+await test('the newest pin or unpin by either person decides the pin, and only pin texts are accepted', () => {
+  const action = (sequence: number, text: string, own: boolean) => ({
+    ...original,
+    id: crypto.randomUUID(),
+    sequence,
+    own,
+    text: encodeDailyText({ text, reply: null, forwarded: false }),
+    relation: { ...relation, type: 'pin' as const },
+  });
+  assert.equal(pinUntil(pinText(pinForever)), pinForever);
+  assert.equal(pinUntil(pinText(1_800_000_000_000)), 1_800_000_000_000);
+  assert.equal(pinUntil(pinText(0)), 0);
+  for (const invalid of ['pin:', 'pin:-1', 'pin:01', 'pinned', '👍'])
+    assert.equal(pinUntil(invalid), null, invalid);
+  const [pinned] = dailyViews([
+    original,
+    action(2, pinText(pinForever), false),
+  ]);
+  assert.deepEqual(pinned?.pin, { until: pinForever, sequence: 2, own: false });
+  assert.equal(activePin(pinned?.pin ?? null), true);
+  const [unpinned] = dailyViews([
+    original,
+    action(3, pinText(0), true),
+    action(2, pinText(pinForever), false),
+  ]);
+  assert.equal(activePin(unpinned?.pin ?? null), false, 'the later unpin wins');
+  const [expired] = dailyViews([original, action(2, pinText(1000), true)]);
+  assert.equal(activePin(expired?.pin ?? null), false, 'an ended pin hides');
+  assert.throws(() => dailyViews([original, action(2, '👍', true)]));
 });

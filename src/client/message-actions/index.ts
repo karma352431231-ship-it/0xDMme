@@ -6,6 +6,8 @@ import type { EmojiPicker } from '../emoji/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 import { showToast } from '../toast/index.ts';
+import { activePin } from '../daily-text/index.ts';
+import { choosePinDuration } from '../message-pins/index.ts';
 interface MessageActionOptions<T extends DailyRow> {
   signal: AbortSignal;
   view: DailyView<T>;
@@ -20,6 +22,11 @@ interface MessageActionOptions<T extends DailyRow> {
   remove?: () => Promise<void>;
   removeLabel?: string;
   row?: HTMLElement;
+  /** Pins for everyone until the given time, or unpins with 0; absent when
+   * this person may not pin here. */
+  pin?: (until: number) => Promise<void>;
+  /** The person's own starred list, synced through their vault. */
+  star?: { starred: boolean; toggle: () => Promise<void> };
 }
 export function messageActions<T extends DailyRow>(
   c: MessageActionOptions<T>,
@@ -50,6 +57,8 @@ export function messageActions<T extends DailyRow>(
       ),
     );
   appendCopy(menu, c);
+  appendStar(menu, c);
+  appendPin(menu, c);
   const reaction = c.action(t('React…'), async () => {
     const emoji = await c.picker.choose(trigger);
     if (emoji !== null && !c.signal.aborted) await c.react(c.view, emoji);
@@ -101,6 +110,47 @@ function appendCopy<T extends DailyRow>(
     );
   });
   menu.append(withMenuIcon(copy, 'copy'));
+}
+
+/** Pinning keeps a message on top for everyone; a view-once never stays. */
+function appendPin<T extends DailyRow>(
+  menu: HTMLElement,
+  c: MessageActionOptions<T>,
+): void {
+  const pin = c.pin;
+  if (!pin || c.view.archived || c.view.content.viewOnce) return;
+  if (activePin(c.view.pin)) {
+    menu.append(
+      withMenuIcon(
+        c.action(t('Unpin'), () => pin(0)),
+        'unpin',
+      ),
+    );
+    return;
+  }
+  menu.append(
+    withMenuIcon(
+      c.action(t('Pin'), async () => {
+        const until = await choosePinDuration();
+        if (until !== null && !c.signal.aborted) await pin(until);
+      }),
+      'pin',
+    ),
+  );
+}
+
+function appendStar<T extends DailyRow>(
+  menu: HTMLElement,
+  c: MessageActionOptions<T>,
+): void {
+  const star = c.star;
+  if (!star || c.view.content.viewOnce) return;
+  menu.append(
+    withMenuIcon(
+      c.action(star.starred ? t('Unstar') : t('Star'), star.toggle),
+      star.starred ? 'unstar' : 'star',
+    ),
+  );
 }
 
 function appendForward<T extends DailyRow>(

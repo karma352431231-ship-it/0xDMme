@@ -592,3 +592,39 @@ await test('initial group window projects every page of reactions from independe
   for (const action of actions)
     assert.equal(result.views[0]!.reactionStates![action.sender]?.emoji, '👍');
 });
+
+await test('a group pin follows the newest pin or unpin, even when they arrive out of order', () => {
+  const root: GroupView = {
+    id: crypto.randomUUID(),
+    groupId: crypto.randomUUID(),
+    sequence: 1,
+    epoch: 1,
+    hash: 'a'.repeat(64),
+    sender: crypto.randomUUID(),
+    own: false,
+    kind: 'text',
+    text: 'Original',
+    unavailableMedia: [],
+  };
+  const action = (sequence: number, text: string): GroupView => ({
+    ...root,
+    id: crypto.randomUUID(),
+    sequence,
+    own: true,
+    text: encodeDailyText({ text, reply: null, forwarded: false }),
+    relation: {
+      id: root.id,
+      hash: root.hash,
+      author: root.sender,
+      type: 'pin',
+    },
+  });
+  const [pinned] = projectGroupMessages([root], [action(2, 'pin:always')]);
+  assert.equal(pinned?.pinState?.until, Number.MAX_SAFE_INTEGER);
+  const [unpinned] = projectGroupMessages(
+    [root],
+    [action(3, 'unpin'), action(2, 'pin:always')],
+  );
+  assert.equal(unpinned?.pinState?.until, 0, 'the later unpin wins');
+  assert.throws(() => projectGroupMessages([root], [action(2, '👍')]));
+});

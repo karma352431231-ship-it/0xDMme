@@ -1,5 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
-import { infoActionBar, MuteRow } from '../conversation-info/index.ts';
+import { infoActionBar, infoRow, MuteRow } from '../conversation-info/index.ts';
 import type { MutePort } from '../conversation-info/index.ts';
 
 export interface GroupShortcutPorts {
@@ -7,6 +7,8 @@ export interface GroupShortcutPorts {
   mute: (groupId: string) => MutePort;
   /** Message search limited to this group, when the chat provides one. */
   search?: (group: { id: string; title: string }) => void;
+  /** The person's starred messages in this group. */
+  starred?: (group: { id: string }) => void;
 }
 
 /** The shortcuts under a group's name in its settings. Owns only the rows of
@@ -40,9 +42,22 @@ export class GroupSettingsShortcuts {
           ]
         : [],
     );
+    host.append(bar);
+    const starred = this.ports.starred;
+    if (starred)
+      host.append(
+        infoRow({
+          label: t('Starred messages'),
+          icon: 'star',
+          perform: () => {
+            close();
+            starred({ id: group.id });
+          },
+        }),
+      );
     this.mute = new MuteRow(this.ports.mute(group.id));
     void this.mute.load();
-    host.append(bar, this.mute.element);
+    host.append(this.mute.element);
   }
   clear(host: HTMLElement | null): void {
     this.mute?.dispose();

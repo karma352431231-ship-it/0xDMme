@@ -336,7 +336,8 @@ export async function assertGroupEdit(
   );
   const root = editableRoot(rows.rows[0], relation.type);
   assertEditOwner(root, { packet, relation, state });
-  if (relation.type === 'reaction') return;
+  if (relation.type === 'pin') assertGroupPinner(packet, state);
+  if (relation.type !== 'edit') return;
   const count = await client.query<{ count: number }>(
     "SELECT count(*)::integer AS count FROM hash_talk.group_packets WHERE group_id=$1 AND relation->>'id'=$2 AND relation->>'type'='edit'",
     [packet.groupId, relation.id],
@@ -355,7 +356,7 @@ interface EditRoot {
 }
 function editableRoot(
   root: EditRoot | undefined,
-  action: 'edit' | 'reaction',
+  action: NonNullable<GroupPacket['relation']>['type'],
 ): EditRoot {
   if (!root || root.kind === 'profile' || root.relation || !root.body)
     throw new AccountError(403, 'Action is outside your authorized message.');
@@ -364,7 +365,17 @@ function editableRoot(
     (root.kind !== 'text' || object(root.body)['viewOnce'])
   )
     throw new AccountError(403, 'Edit is outside your authorized message.');
+  if (action === 'pin' && object(root.body)['viewOnce'])
+    throw new AccountError(403, 'Action is outside your authorized message.');
   return root;
+}
+/** Only the owner and administrators pin or unpin for the whole group. */
+function assertGroupPinner(packet: GroupPacket, state: GroupEvent): void {
+  const role = state.members.find(
+    (member) => member.accountId === packet.sender,
+  )?.role;
+  if (role !== 'owner' && role !== 'admin')
+    throw new AccountError(403, 'Only the owner and administrators can pin.');
 }
 function assertEditOwner(
   root: EditRoot,

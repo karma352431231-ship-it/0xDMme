@@ -25,5 +25,6 @@ export function groupMessageView(view: GroupView): DailyView<GroupMessageView> {
     edited: view.edited ?? false,
     reactions: states.map((r) => r.emoji).filter(Boolean),
     ownReaction: states.find((r) => r.own)?.emoji ?? '',
+    pin: view.pinState ?? null,
   };
 }
