@@ -124,6 +124,18 @@ visible anchor and existing new-message control. Each history presenter supplies
 its existing abort lifetime; observers and scroll listeners stop with it.
 Native viewport geometry and sending/retention rules remain with their owners.
 
+### Delayed media layout — 2026-11-12
+
+Image decoding and video metadata can enlarge a message while the history's
+viewport stays fixed. The shared position owner now observes the displayed rows
+as well as the viewport, and records content height before accepting scroll
+events or a new paint as reading intent. Readers following the latest messages
+stay at the end; readers above them keep their visible row anchor, including
+when the browser has already applied scroll anchoring. After each paint, row
+observation follows the reconciled DOM. Removed rows and the existing abort
+lifetime release their observations. This applies to private, group and handle
+chats through their existing position-restoration callbacks.
+
 The modal emoji selector initially focuses its close button, so opening reactions does
 not select search or summon the keyboard. Search receives focus on an explicit
 press or keyboard navigation. The composer attachment menu sizes its columns to

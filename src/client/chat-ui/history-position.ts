@@ -26,7 +26,9 @@ interface HistoryState {
 interface HistoryLayout {
   width: number;
   height: number;
+  contentHeight: number;
   signal: AbortSignal;
+  refresh: () => void;
   stop: () => void;
 }
 const states = new WeakMap<HTMLElement, HistoryState>();
@@ -73,11 +75,12 @@ export function historyPosition(
     }
     restorePosition(history, position);
     state.position = capture(history);
+    state.layout?.refresh();
     updateShortcut(history, state);
   };
 }
 
-/** Follow the latest messages when keyboard/composer/dock geometry changes.
+/** Follow the latest messages when viewport or delayed media geometry changes.
  * The displayed history's owner supplies its existing cancellation lifetime. */
 export function watchHistoryPosition(
   history: HTMLElement,
@@ -88,10 +91,18 @@ export function watchHistoryPosition(
   state.layout?.stop();
   if (signal.aborted) return;
   const abort = new AbortController();
+  const observedRows = new Set<Element>();
   const layout: HistoryLayout = {
     width: history.clientWidth,
     height: history.clientHeight,
+    contentHeight: history.scrollHeight,
     signal,
+    refresh: () => {
+      layout.width = history.clientWidth;
+      layout.height = history.clientHeight;
+      layout.contentHeight = history.scrollHeight;
+      observeRows(history, observer, observedRows);
+    },
     stop: () => abort.abort(),
   };
   state.layout = layout;
@@ -99,10 +110,9 @@ export function watchHistoryPosition(
     state.position = capture(history);
   const resized = () => {
     if (abort.signal.aborted || !visible(history)) return;
-    layout.width = history.clientWidth;
-    layout.height = history.clientHeight;
     restorePosition(history, state.position);
     state.position = capture(history);
+    layout.refresh();
     updateShortcut(history, state);
   };
   const observer =
@@ -119,6 +129,7 @@ export function watchHistoryPosition(
     'abort',
     () => {
       observer?.disconnect();
+      observedRows.clear();
       if (state.layout === layout) {
         delete state.layout;
         delete state.returnToLatest;
@@ -128,12 +139,35 @@ export function watchHistoryPosition(
     { once: true },
   );
   observer?.observe(history);
+  layout.refresh();
   updateShortcut(history, state);
 }
 
+/** Renderers reconcile direct message rows before restoring their position.
+ * Observe only those displayed rows, releasing replaced and removed elements.
+ */
+function observeRows(
+  history: HTMLElement,
+  observer: ResizeObserver | null,
+  observed: Set<Element>,
+): void {
+  if (!observer) return;
+  const current = new Set(history.children);
+  for (const row of observed)
+    if (!current.has(row)) {
+      observer.unobserve(row);
+      observed.delete(row);
+    }
+  for (const row of current)
+    if (!observed.has(row)) {
+      observer.observe(row);
+      observed.add(row);
+    }
+}
+
 function rememberPosition(history: HTMLElement, state: HistoryState): void {
-  // Native scroll events can precede ResizeObserver after a keyboard resize.
-  // Keep the intent captured before that resize, rather than the new geometry.
+  // Native scroll events and paints can precede media/viewport resize delivery.
+  // Preserve the preceding reading intent until the new geometry is restored.
   if (state.resetPending || !visible(history) || !sameLayout(history, state))
     return;
   state.position = capture(history);
@@ -144,7 +178,8 @@ function sameLayout(history: HTMLElement, state: HistoryState): boolean {
     !state.layout ||
     typeof ResizeObserver === 'undefined' ||
     (state.layout.width === history.clientWidth &&
-      state.layout.height === history.clientHeight)
+      state.layout.height === history.clientHeight &&
+      state.layout.contentHeight === history.scrollHeight)
   );
 }
 

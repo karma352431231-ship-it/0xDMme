@@ -9,21 +9,31 @@ import {
 import { setHistoryWindowReturn } from '../src/client/chat-ui/history-position.ts';
 
 function fixture(t: TestContext) {
-  const observers: { resize: () => void; disconnected: boolean }[] = [];
+  const observers: Observer[] = [];
   const previous = Object.getOwnPropertyDescriptor(
     globalThis,
     'ResizeObserver',
   );
   class Observer {
     disconnected = false;
-    readonly resize: () => void;
+    readonly observed = new Set<Element>();
+    private readonly notify: () => void;
     constructor(resize: () => void) {
-      this.resize = resize;
+      this.notify = resize;
       observers.push(this);
     }
-    observe() {}
+    resize(target?: Element) {
+      if (!target || this.observed.has(target)) this.notify();
+    }
+    observe(target: Element) {
+      this.observed.add(target);
+    }
+    unobserve(target: Element) {
+      this.observed.delete(target);
+    }
     disconnect() {
       this.disconnected = true;
+      this.observed.clear();
     }
   }
   Object.defineProperty(globalThis, 'ResizeObserver', {
@@ -48,6 +58,8 @@ function fixture(t: TestContext) {
     clientHeight: 400,
     scrollHeight: 1200,
     childElementCount: 12,
+    children: [] as Element[],
+    getBoundingClientRect: () => ({ top: 0 }),
     ownerDocument: { createElement: () => button },
     after: () => {
       attached++;
@@ -64,6 +76,20 @@ function fixture(t: TestContext) {
     },
   });
   const element = history as unknown as HTMLElement;
+  const heights = Array<number>(12).fill(100);
+  const offsets = heights.map((_, index) => index * 100);
+  const rows = heights.map(
+    (_, index) =>
+      ({
+        isConnected: true,
+        parentElement: element,
+        getBoundingClientRect: () => ({
+          top: offsets[index]! - top,
+          bottom: offsets[index]! + heights[index]! - top,
+        }),
+      }) as unknown as Element,
+  );
+  history.children.push(...rows);
   const lifetime = new AbortController();
   t.after(() => lifetime.abort());
   watchHistoryPosition(element, lifetime.signal);
@@ -79,9 +105,70 @@ function fixture(t: TestContext) {
     scroll,
     button,
     attributes,
+    rows,
+    grow: (index: number, amount: number) => {
+      heights[index]! += amount;
+      for (let next = index + 1; next < offsets.length; next++)
+        offsets[next]! += amount;
+      history.scrollHeight += amount;
+    },
     attached: () => attached,
   };
 }
+
+await test('delayed image and video layout keeps the latest messages visible while the history box stays fixed', (t) => {
+  const f = fixture(t);
+  f.grow(9, 900);
+  f.history.dispatchEvent(new Event('scroll'));
+  f.observers[0]!.resize(f.rows[9]);
+  assert.equal(f.element.scrollTop, 1700);
+  assert.equal(f.button.hidden, true);
+  assert.equal(f.history.clientHeight, 400);
+});
+
+await test('repainting before delayed media resize delivery retains the previous follow intent', (t) => {
+  const f = fixture(t);
+  f.grow(9, 900);
+  const restore = historyPosition(f.element);
+  restore();
+  f.observers[0]!.resize(f.rows[9]);
+  assert.equal(f.element.scrollTop, 1700);
+  assert.equal(f.button.hidden, true);
+});
+
+for (const browserAnchored of [false, true])
+  await test(`reading older messages preserves the visible row while media above it grows, browser anchored=${browserAnchored}`, (t) => {
+    const f = fixture(t);
+    f.scroll(240);
+    const anchor = f.rows[2]!;
+    const offset = anchor.getBoundingClientRect().top;
+    f.grow(0, 400);
+    if (browserAnchored) f.element.scrollTop += 400;
+    f.history.dispatchEvent(new Event('scroll'));
+    f.observers[0]!.resize(f.rows[0]);
+    assert.equal(anchor.getBoundingClientRect().top, offset);
+    assert.equal(f.element.scrollTop, 640);
+    assert.equal(f.button.hidden, false);
+  });
+
+await test('new message rows are observed after a paint and removed rows are released with their lifetime', (t) => {
+  const f = fixture(t);
+  const removed = f.rows[0]!;
+  const restore = historyPosition(f.element);
+  const added = {} as Element;
+  f.history.children.splice(0, 1, added);
+  restore();
+  assert.equal(f.observers[0]!.observed.has(removed), false);
+  assert.equal(f.observers[0]!.observed.has(added), true);
+  f.history.scrollHeight += 500;
+  f.observers[0]!.resize(added);
+  assert.equal(f.element.scrollTop, 1300);
+  f.lifetime.abort();
+  assert.equal(f.observers[0]!.observed.size, 0);
+  f.history.scrollHeight += 500;
+  f.observers[0]!.resize();
+  assert.equal(f.element.scrollTop, 1300);
+});
 
 await test('keyboard animation and growing composer retain the latest messages despite early native scroll events', (t) => {
   const f = fixture(t);
