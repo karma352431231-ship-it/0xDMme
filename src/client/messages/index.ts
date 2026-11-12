@@ -43,6 +43,12 @@ import {
   starredMessage,
 } from '../message-stars/index.ts';
 import type { ConversationStars } from '../message-stars/index.ts';
+import {
+  MediaGallery,
+  galleryCount,
+  galleryItems,
+} from '../media-gallery/index.ts';
+import { dailyViews } from '../daily-text/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
@@ -129,7 +135,8 @@ export function startMessages(
   let directory: HTMLElement | null = null;
   const contactInfo = new ContactInfoDialog();
   const stars = new MessageStars(sync, () => session?.accountId),
-    starredList = new StarredList();
+    starredList = new StarredList(),
+    gallery = new MediaGallery<MessageView>();
   const conversationStars: ConversationStars = {
     starred: (id) => stars.starred(id),
     load: (conversation, ids) => stars.load(conversation, ids),
@@ -626,6 +633,20 @@ export function startMessages(
           peer.accountId,
           (message) => void revealSearchMatch(message.id, peer),
         ),
+      media: {
+        count: galleryCount(galleryItems(dailyViews(rows ?? []))),
+        open: () =>
+          gallery.show({
+            title,
+            views: () => dailyViews(rows ?? []),
+            preview: (view) => controller.media(view, true),
+            older: {
+              available: () => controller.olderAvailable(rootsShown()),
+              load: loadOlder,
+            },
+            open: (view) => void revealSearchMatch(view.id, peer),
+          }),
+      },
       edit: () => directoryUi.editSelected(),
       ...(composer.canCall ? { call: () => composer.startCall() } : {}),
       ...(peer.localOnly
@@ -1616,6 +1637,7 @@ export function startMessages(
     stopPreload();
     menu.close();
     contactInfo.close();
+    gallery.close();
     composer.closePicker();
     if (reason === 'invalidate') controller.close();
     else controller.pause(reason === 'directory' ? 'conversation' : 'account');
@@ -1928,6 +1950,7 @@ export function startMessages(
       generation++;
       stars.clear();
       starredList.close();
+      gallery.close();
       contactInfo.close();
       visits.reset();
       textQueue.reset();

@@ -262,3 +262,8 @@ dialog.group-dialog .info-mute-choices {
     height: 96px;
   }
 }
+.info-row-end {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}

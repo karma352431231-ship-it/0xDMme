@@ -215,6 +215,7 @@ export function coordinatorFixture(
     'ContactInfoDialog',
     'MessageStars',
     'StarredList',
+    'MediaGallery',
     'AttachmentUi',
     'VoiceRecording',
     'MessageDirectoryUi',

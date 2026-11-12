@@ -3,6 +3,12 @@ import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
 import type { GroupMessageView } from './message-content.ts';
+import { groupMessageView } from './message-content.ts';
+import {
+  MediaGallery,
+  galleryCount,
+  galleryItems,
+} from '../media-gallery/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { GroupMemberPresentation } from './member-presentation.ts';
 import { GroupReconciliation } from './reconciliation.ts';
@@ -84,6 +90,7 @@ export function startGroups(
     notice = t('Open a group to chat.');
   let states = new Map<string, PeerState>();
   const loading = new ChatHistoryLoading();
+  const gallery = new MediaGallery<GroupMessageView>();
   const report = (text: string) => {
     notice = text;
   };
@@ -146,6 +153,12 @@ export function startGroups(
       ...(options.searchConversation
         ? { search: options.searchConversation }
         : {}),
+      media: (group: { id: string; title: string }) => ({
+        count: galleryCount(
+          galleryItems(controller.views.map(groupMessageView)),
+        ),
+        open: () => showGallery(group.title),
+      }),
       ...(options.stars
         ? {
             starred: (group: { id: string }) =>
@@ -406,6 +419,7 @@ export function startGroups(
   }
   function deselect(): void {
     chat.closeActions();
+    gallery.close();
     management.closeSettings();
     members.clearConversation();
     if (chat.recording)
@@ -417,10 +431,12 @@ export function startGroups(
     chat.deselect();
   }
   function leave(): void {
+    gallery.close();
     management.leave();
     chat.leave();
   }
   function clearSessionPanels(): void {
+    gallery.close();
     management.clearSession();
     for (const container of [host, aside]) {
       container?.querySelectorAll('form').forEach((form) => form.reset());
@@ -434,6 +450,25 @@ export function startGroups(
     notice = t('Open a group to chat.');
   }
   chat.bindBrowserLifetime();
+  /** Media, Links and Docs of the open group's loaded messages. */
+  function showGallery(title: string): void {
+    gallery.show({
+      title,
+      views: () => controller.views.map(groupMessageView),
+      preview: (view) => controller.media(view, true),
+      older: {
+        available: () => controller.olderAvailable,
+        load: async () => {
+          await reopen(true);
+          return true;
+        },
+      },
+      open: (view) => {
+        const group = controller.selected;
+        if (group) void revealGroupMessage(group, view.id, view.sequence);
+      },
+    });
+  }
   /** Opens a group at one message and marks it (search results, stars). */
   async function revealGroupMessage(
     group: GroupSummary,

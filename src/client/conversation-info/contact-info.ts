@@ -16,6 +16,8 @@ export interface ContactInfo {
   search: () => void;
   /** Opens this contact's starred messages. */
   starred?: () => void;
+  /** Opens Media, Links and Docs; the count covers the loaded messages. */
+  media?: { count: number; open: () => void };
   edit?: () => void;
   mute?: MutePort;
 }
@@ -152,6 +154,20 @@ export class ContactInfoDialog {
   private rows(info: ContactInfo): HTMLElement[] {
     const list = document.createElement('div');
     list.className = 'info-list';
+    if (info.media) {
+      const media = info.media;
+      list.append(
+        infoRow({
+          label: t('Media, links and docs'),
+          icon: 'image',
+          end: String(media.count),
+          perform: () => {
+            this.close();
+            media.open();
+          },
+        }),
+      );
+    }
     if (info.starred) {
       const open = info.starred;
       list.append(

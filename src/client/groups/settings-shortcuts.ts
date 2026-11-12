@@ -9,6 +9,11 @@ export interface GroupShortcutPorts {
   search?: (group: { id: string; title: string }) => void;
   /** The person's starred messages in this group. */
   starred?: (group: { id: string }) => void;
+  /** Media, Links and Docs of the loaded messages. */
+  media?: (group: { id: string; title: string }) => {
+    count: number;
+    open: () => void;
+  };
 }
 
 /** The shortcuts under a group's name in its settings. Owns only the rows of
@@ -43,6 +48,19 @@ export class GroupSettingsShortcuts {
         : [],
     );
     host.append(bar);
+    const media = this.ports.media?.({ id: group.id, title: group.title });
+    if (media)
+      host.append(
+        infoRow({
+          label: t('Media, links and docs'),
+          icon: 'image',
+          end: String(media.count),
+          perform: () => {
+            close();
+            media.open();
+          },
+        }),
+      );
     const starred = this.ports.starred;
     if (starred)
       host.append(

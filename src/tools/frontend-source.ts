@@ -169,6 +169,7 @@ const authored = [
   'src/client/message-pins',
   'src/client/message-stars',
   'src/client/focus-modality',
+  'src/client/media-gallery',
   'src/client/message-session',
   'src/client/message-runtime',
   'src/client/status',

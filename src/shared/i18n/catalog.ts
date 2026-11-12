@@ -10488,4 +10488,26 @@ export const catalog: Record<string, readonly [string, string]> = {
   'mute.choice-24h': ['24 hours', '24 小时'],
   'mute.choice-7d': ['7 days', '7 天'],
   'mute.choice-always': ['Until I turn alerts back on', '直到我重新开启提醒'],
+  'Media, links and docs': ['Media, links and docs', '媒体、链接和文档'],
+  Docs: ['Docs', '文档'],
+  Links: ['Links', '链接'],
+  'This month': ['This month', '本月'],
+  Earlier: ['Earlier', '更早'],
+  'No photos or videos in the loaded messages.': [
+    'No photos or videos in the loaded messages.',
+    '已加载的消息中没有照片或视频。',
+  ],
+  'No documents in the loaded messages.': [
+    'No documents in the loaded messages.',
+    '已加载的消息中没有文档。',
+  ],
+  'No links in the loaded messages.': [
+    'No links in the loaded messages.',
+    '已加载的消息中没有链接。',
+  ],
+  'Shows the messages loaded on this device.': [
+    'Shows the messages loaded on this device.',
+    '仅显示此设备上已加载的消息。',
+  ],
+  'Load earlier messages': ['Load earlier messages', '加载更早的消息'],
 };

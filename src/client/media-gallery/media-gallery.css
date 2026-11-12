@@ -1,0 +1,187 @@
+/* Media, Docs and Links of one conversation (12/11/2026). */
+dialog.media-gallery {
+  width: min(560px, calc(var(--viewport-width, 100vw) - 16px));
+  height: min(760px, calc(var(--viewport-height, 100dvh) - 24px));
+  box-sizing: border-box;
+  display: none;
+  flex-direction: column;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+dialog.media-gallery[open] {
+  display: flex;
+}
+dialog.media-gallery::backdrop {
+  background: var(--overlay);
+}
+.media-gallery header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0;
+}
+.media-gallery h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+dialog.media-gallery button.info-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.media-gallery-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 6px;
+  border-bottom: 1px solid var(--line);
+}
+dialog.media-gallery .media-gallery-tabs button {
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+dialog.media-gallery .media-gallery-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+.media-gallery-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 14px 14px;
+}
+.media-gallery-body h3 {
+  margin: 16px 2px 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.media-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 4px;
+}
+dialog.media-gallery button.media-gallery-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  overflow: hidden;
+  cursor: pointer;
+}
+.media-gallery-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-gallery-tile[data-video='true'] > svg {
+  position: relative;
+  z-index: 1;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--overlay);
+  color: var(--accent-ink);
+}
+.media-gallery-tile img + svg {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+}
+.media-gallery-list {
+  display: grid;
+}
+dialog.media-gallery button.media-gallery-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+dialog.media-gallery button.media-gallery-row:hover {
+  background: var(--surface-2);
+}
+.media-gallery-row > svg {
+  flex: none;
+  color: var(--accent-text);
+}
+.media-gallery-row > span {
+  display: grid;
+  min-width: 0;
+}
+.media-gallery-row strong,
+.media-gallery-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.media-gallery-row small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.media-gallery-empty,
+.media-gallery-notice {
+  margin: 24px 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+.media-gallery-notice:empty {
+  display: none;
+}
+.media-gallery-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+.media-gallery-footer small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+dialog.media-gallery .media-gallery-footer button {
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+}

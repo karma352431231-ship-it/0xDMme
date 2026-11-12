@@ -31,6 +31,8 @@ export function infoRow(input: {
   label: string;
   icon: MenuIconName;
   detail?: string;
+  /** A short value at the end of the row, such as a count. */
+  end?: string;
   danger?: boolean;
   perform: () => void;
 }): HTMLButtonElement {
@@ -48,6 +50,12 @@ export function infoRow(input: {
     copy.append(detail);
   }
   row.append(menuIcon(input.icon), copy);
+  if (input.end) {
+    const end = document.createElement('span');
+    end.className = 'info-row-end';
+    end.textContent = input.end;
+    row.append(end);
+  }
   row.addEventListener('click', input.perform);
   return row;
 }
