@@ -362,6 +362,7 @@ def backup_review(candidate, live):
 
 # Migration count → its reviewed transition module (review() and activate()).
 TRANSITIONS = {
+    110: 'deploy_group_pins',
     109: 'deploy_group_chat',
     107: 'deploy_view_once',
     106: 'deploy_visitor_retention',

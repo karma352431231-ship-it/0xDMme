@@ -212,13 +212,13 @@ def executor_code(config):
     if not any(config.get(mode) is True for mode in
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
-                'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
+                'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
-                                                 'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
+                                                 'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -234,7 +234,7 @@ def executor_code(config):
         names.append('deploy_account_engagement')
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
-    if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
+    if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
@@ -242,6 +242,8 @@ def executor_code(config):
         names.append('deploy_view_once')
     if config.get('group_chat') is True:
         names.append('deploy_group_chat')
+    if config.get('group_pins') is True:
+        names.append('deploy_group_pins')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -349,6 +351,8 @@ def main():
                         help='Apply the reviewed 106→107 single-delivery payload transition.')
     parser.add_argument('--group-chat', action='store_true',
                         help='Apply the reviewed 107→109 private group chat transition.')
+    parser.add_argument('--group-pins', action='store_true',
+                        help='Apply the owner-approved 109→110 pinned group messages.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -356,14 +360,18 @@ def main():
         LOCAL = deployment_target.profile_directory(PRIVATE_ROOT, profile) / 'deployment'
         # The owner approved 102→103 on the explicit target on 01/11/2026 and
         # 103→104 on 05/11/2026, 104→105 on 06/11/2026 and 105→106 on
-        # 08/11/2026; every other transition still needs its own review there.
+        # 08/11/2026, and 109→110 group pins on 12/11/2026; every other
+        # transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
-                               'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat']):
+                               'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
     if args.group_chat and any(vars(args)[name] for name in vars(args)
                                  if name not in ['group_chat', 'check', 'activate']):
         parser.error('Group chat requires its separate --check or --activate release.')
+    if args.group_pins and any(vars(args)[name] for name in vars(args)
+                                 if name not in ['group_pins', 'check', 'activate']):
+        parser.error('Group pins require their separate --check or --activate release.')
     if args.view_once and any(vars(args)[name] for name in vars(args)
                                 if name not in ['view_once', 'check', 'activate']):
         parser.error('View-once messages require their separate --check or --activate release.')
@@ -432,6 +440,8 @@ def main():
         config['view_once'] = True
     if args.group_chat:
         config['group_chat'] = True
+    if args.group_pins:
+        config['group_pins'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:
