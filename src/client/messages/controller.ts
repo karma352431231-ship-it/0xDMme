@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { ConversationReader } from './conversation-reader.ts';
 import type { MessageWindowRead } from './conversation-reader.ts';
@@ -229,7 +230,7 @@ export class Messages {
     const session = this.session,
       generation = this.generation;
     if (!session) return null;
-    return this.access.withVault(!navigator.onLine, async (authority) => {
+    return this.access.withVault(!networkAvailable(), async (authority) => {
       this.guard(generation);
       if (
         authority.session.accountId !== session.accountId ||
@@ -681,7 +682,7 @@ export class Messages {
       }
     };
     try {
-      if (navigator.onLine) return await this.access.withVault(false, work);
+      if (networkAvailable()) return await this.access.withVault(false, work);
       const locator = await localLocator();
       if (!locator) throw new Error('Local copy not authorized.');
       return await this.access.withLocalVault(locator, work);
@@ -748,7 +749,7 @@ export class Messages {
         thumbnail || content.image,
       );
     };
-    if (navigator.onLine) return this.access.withVault(false, work);
+    if (networkAvailable()) return this.access.withVault(false, work);
     const locator = await localLocator();
     if (!locator) throw new Error('Local history not authorized.');
     return this.access.withLocalVault(locator, work);
@@ -786,7 +787,7 @@ export class Messages {
   }
 
   async archivedPeers(after: string | null, work: VaultWorkOptions = {}) {
-    if (this.session && navigator.onLine)
+    if (this.session && networkAvailable())
       return this.access.withVault(false, (a) => historyPeers(a, after), work);
     const locator = await localLocator();
     if (!locator) return { items: [], next: null };
@@ -1517,7 +1518,7 @@ export class Messages {
       await check();
       return result;
     };
-    if (this.session && navigator.onLine)
+    if (this.session && networkAvailable())
       return this.access.withVault(false, work);
     const locator = await localLocator();
     if (!locator) throw new Error('Local history unavailable.');

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { keys, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -70,7 +71,7 @@ export class Contacts {
     payload: Record<string, unknown>,
     work: VaultWorkOptions = {},
   ): Promise<unknown> {
-    if (!this.session || !navigator.onLine)
+    if (!this.session || !networkAvailable())
       throw new Error('Sign in and connect to check current permissions.');
     const generation = this.generation;
     return this.access.withVault(

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { vaultLabel } from '../vault-labels/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -121,7 +122,7 @@ export class Backups {
   private async authority<T>(
     work: (a: VaultAuthority) => Promise<T>,
   ): Promise<T> {
-    if (this.session && navigator.onLine)
+    if (this.session && networkAvailable())
       return this.access.withVault(false, work);
     const locator = await localLocator();
     if (!locator)
@@ -131,7 +132,7 @@ export class Backups {
     return this.access.withLocalVault(locator, work);
   }
   async discover(): Promise<void> {
-    if (!navigator.onLine || !this.session)
+    if (!networkAvailable() || !this.session)
       throw new Error(
         'Connect and authorize this device to select remote content.',
       );
@@ -522,7 +523,7 @@ export class Backups {
   }
   async cleanup(): Promise<{ used: number; released: number }> {
     const reader = this.reader;
-    if (!reader || !navigator.onLine || !this.session)
+    if (!reader || !networkAvailable() || !this.session)
       throw new Error(
         'Select and validate the saved file, then connect before cleanup.',
       );

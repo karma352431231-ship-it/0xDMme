@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -105,7 +106,7 @@ export class VoiceCalls {
   }
   ready(): void {
     if (this.polling) return;
-    if (this.session && navigator.onLine && !this.timer)
+    if (this.session && networkAvailable() && !this.timer)
       this.timer = setTimeout(() => {
         this.timer = null;
         void this.poll();
@@ -113,7 +114,7 @@ export class VoiceCalls {
   }
   /** One pending hint; never overlap signing or lose a hint behind a snapshot. */
   wake(): void {
-    if (!this.session || !navigator.onLine || this.wakePending) return;
+    if (!this.session || !networkAvailable() || this.wakePending) return;
     this.wakePending = true;
     this.resumeWake();
   }
@@ -324,7 +325,7 @@ export class VoiceCalls {
     this.ack = description.sequence;
   }
   private async poll(): Promise<void> {
-    if (this.polling || !this.session || !navigator.onLine) {
+    if (this.polling || !this.session || !networkAvailable()) {
       this.schedule();
       return;
     }

@@ -1,3 +1,4 @@
+import { networkAvailable, networkOnlineEvent } from '../connectivity/index.ts';
 import {
   t,
   translatedError,
@@ -61,7 +62,7 @@ export function startVault(access: VaultAccess) {
   function canRefresh(): boolean {
     // The compact meter alone needs one successful query, not repeated ones.
     const shown = mounted !== null || (meter !== null && !known);
-    return !busy && shown && sync.session !== null && navigator.onLine;
+    return !busy && shown && sync.session !== null && networkAvailable();
   }
   function retryVisible(show: boolean): void {
     const retry = mounted?.querySelector<HTMLElement>('[data-vault-retry]');
@@ -96,7 +97,7 @@ export function startVault(access: VaultAccess) {
       render();
     }
   }
-  window.addEventListener('online', () => {
+  window.addEventListener(networkOnlineEvent, () => {
     void refresh();
   });
   window.addEventListener('0xdmme-personal-cleanup', () => {

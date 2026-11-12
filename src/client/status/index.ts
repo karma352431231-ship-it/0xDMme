@@ -1,4 +1,9 @@
 import {
+  networkAvailable,
+  networkOfflineEvent,
+  networkOnlineEvent,
+} from '../connectivity/index.ts';
+import {
   t,
   translatedError,
   currentLanguage,
@@ -110,7 +115,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     } finally {
       busy = false;
       status();
-      if (queued && host?.isConnected && session && navigator.onLine) {
+      if (queued && host?.isConnected && session && networkAvailable()) {
         queued = false;
         void run(refresh);
       }
@@ -427,18 +432,18 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
       !busy &&
       host?.isConnected &&
       session &&
-      navigator.onLine &&
+      networkAvailable() &&
       document.visibilityState === 'visible'
     )
       void run(refresh);
   }, 30000);
-  window.addEventListener('offline', () => {
+  window.addEventListener(networkOfflineEvent, () => {
     controller.hide();
     clearOpened();
     notice = t('Connect to open current statuses.');
     status();
   });
-  window.addEventListener('online', () => {
+  window.addEventListener(networkOnlineEvent, () => {
     if (host?.isConnected) void run(refresh);
   });
   document.addEventListener('visibilitychange', () => {
@@ -515,7 +520,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
       bindControls();
       renderList();
       status();
-      if (session && navigator.onLine)
+      if (session && networkAvailable())
         void run(async () => {
           await refresh();
           if (author) await openNewest(author);

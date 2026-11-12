@@ -70,6 +70,81 @@ const bundle = await build({
   ],
 });
 
+await test('controller shares list requests by generation and priority, and discards results after session replacement', async () => {
+  const session = {
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'a'.repeat(64),
+  } as AccountSession;
+  const responses: ReturnType<typeof deferred<Response>>[] = [];
+  const turns: VaultWorkOptions[] = [];
+  const authority: VaultAuthority = {
+    session,
+    directory: 'b'.repeat(64),
+    offline: false,
+    epoch: 1,
+    events: [],
+    sign: () => Promise.resolve('synthetic-signature'),
+    key: () => Promise.reject(new Error('List must not request keys')),
+  };
+  const access: VaultAccess = {
+    withVault: (_offline, work, options = {}) => {
+      turns.push(options);
+      return work(authority);
+    },
+    withLocalVault: () => Promise.reject(new Error('No local list turn')),
+  };
+  const context = runInNewContext(bundle.outputFiles[0]!.text + '\ndm;', {
+    fixture: {},
+    crypto,
+    TextEncoder,
+    TextDecoder,
+    AbortController,
+    AbortSignal,
+    DOMException,
+    URL,
+    Response,
+    Error,
+    setTimeout,
+    clearTimeout,
+    navigator: { onLine: true },
+    fetch: () => {
+      const response = deferred<Response>();
+      responses.push(response);
+      return response.promise;
+    },
+  }) as { SocialDms: typeof SocialDms };
+  const controller = new context.SocialDms(access, {} as VaultSync);
+  controller.setSession(session);
+  const first = controller.list(null, { handleListCaller: 'directory' });
+  const second = controller.list(null, { handleListCaller: 'inbox' });
+  const interactive = controller.list(null, {
+    priority: 'interactive',
+    handleListCaller: 'identity',
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(responses.length, 2);
+  assert.deepEqual(
+    turns.map((turn) => turn.priority),
+    [undefined, 'interactive'],
+  );
+  for (const response of responses)
+    response.resolve(Response.json({ items: [], next: null }));
+  const pages = await Promise.all([first, second, interactive]);
+  assert.equal(pages[0], pages[1]);
+  const stale = controller.list(null);
+  const refused = assert.rejects(stale, /Session changed/u);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.setSession({ ...session, csrf: 'c'.repeat(64) });
+  const fresh = controller.list(null);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(responses.length, 4);
+  responses[2]!.resolve(Response.json({ items: [], next: null }));
+  await refused;
+  responses[3]!.resolve(Response.json({ items: [], next: null }));
+  assert.equal((await fresh).next, null);
+});
+
 for (const interactive of [false, true])
   await test(`handle history preserves signed snapshot priority and never spends a network turn on the local cursor: interactive=${interactive}`, async (t) => {
     const session = {

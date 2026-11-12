@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
@@ -267,7 +268,7 @@ export function startGroups(
   /** Unread counts and alerts for the listed groups; no history or profiles. */
   async function refreshStates(): Promise<void> {
     const previous = states;
-    states = navigator.onLine
+    states = networkAvailable()
       ? await options.daily.groupStates()
       : new Map<string, PeerState>();
     for (const [id, state] of states) {

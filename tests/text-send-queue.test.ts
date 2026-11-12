@@ -211,9 +211,15 @@ await test('admission is bounded and typing defers background reads for one quie
   for (let n = 0; n < 32; n++) q.enqueue(draft(String(n)));
   assert.throws(() => q.enqueue(draft('overflow')), /Wait/u);
   assert.equal(q.full, true);
+  assert.equal(q.working, true);
   q.reset();
   q.deferBackground();
   assert.equal(q.pending, true);
+  assert.equal(
+    q.working,
+    false,
+    'typing alone does not block a handle refresh',
+  );
   const before = changes;
   t.mock.timers.tick(1000);
   assert.equal(q.pending, false);

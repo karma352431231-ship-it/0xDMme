@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import {
   backupMessageApi,
   messageApi,
@@ -72,7 +73,7 @@ export class GroupAuthority {
     const session = this.options.session();
     if (!session) throw new Error('Sign in and authorize this device.');
     return this.options.access.withVault(
-      !navigator.onLine,
+      !networkAvailable(),
       async (authority) => {
         guard();
         if (

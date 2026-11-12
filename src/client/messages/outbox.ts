@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -125,7 +126,7 @@ export class MessageOutbox {
     provided?: string | { id: string; relation: MessageRelation },
   ): Promise<void> {
     const generation = this.authority.current();
-    await this.access.withVault(!navigator.onLine, async (a) => {
+    await this.access.withVault(!networkAvailable(), async (a) => {
       this.authority.guard(generation);
       const id =
           (typeof provided === 'object' ? provided.id : provided) ??
@@ -612,7 +613,7 @@ export class MessageOutbox {
   }
   async discard(id: string): Promise<void> {
     const generation = this.authority.current();
-    await this.access.withVault(!navigator.onLine, async (a) => {
+    await this.access.withVault(!networkAvailable(), async (a) => {
       const row = await localGet<OutboxEntry>(
         a.session.accountId,
         `outbox:${id}`,
@@ -694,7 +695,7 @@ export class MessageOutbox {
     ids: readonly string[],
   ): Promise<TextDraft[]> {
     const generation = this.authority.current();
-    return this.access.withVault(!navigator.onLine, async (a) => {
+    return this.access.withVault(!networkAvailable(), async (a) => {
       this.authority.guard(generation);
       const page = await outboxPage<OutboxEntry>(
         a.session.accountId,

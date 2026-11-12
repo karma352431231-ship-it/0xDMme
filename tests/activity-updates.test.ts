@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../src/client/connectivity/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -195,7 +196,7 @@ await test('fallback and push refresh all sources; hidden, offline and logged-ou
   await settle();
   assert.equal(reads, 3);
   Object.defineProperty(navigator, 'onLine', { value: true });
-  f.browser.dispatchEvent(new Event('online'));
+  f.browser.dispatchEvent(new Event(networkOnlineEvent));
   t.mock.timers.tick(150);
   await settle();
   assert.equal(reads, 4);

@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { refreshContactSources } from './refresh.ts';
 import { ContactsScreenDiagnostics } from './diagnostics.ts';
 import {
@@ -828,7 +829,7 @@ export function startContacts(
     render();
   });
   function ready(): void {
-    if (mounted?.isConnected && contacts.session && navigator.onLine)
+    if (mounted?.isConnected && contacts.session && networkAvailable())
       void run(refresh);
   }
   return {
@@ -954,7 +955,7 @@ export function startContacts(
       render();
       screenDiagnostics.show(container, mode);
       void run(async () => {
-        if (navigator.onLine && contacts.session) await refresh();
+        if (networkAvailable() && contacts.session) await refresh();
         else await loadLocal();
       });
     },

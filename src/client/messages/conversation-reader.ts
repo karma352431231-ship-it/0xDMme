@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import {
   SelectionWork,
   expectedInterruption,
@@ -256,7 +257,7 @@ export class ConversationReader {
       guard: () => {
         selected();
         if (
-          navigator.onLine &&
+          networkAvailable() &&
           !view.archived &&
           (this.confirmed !== confirmed ||
             !confirmed?.views.some(
@@ -270,7 +271,7 @@ export class ConversationReader {
   /** Search keeps its captured candidate, including existing archive semantics. */
   searchSnapshot(): () => string | null {
     const confirmed = this.confirmed;
-    if (navigator.onLine && !confirmed)
+    if (networkAvailable() && !confirmed)
       throw new Error('Sync before searching; history is hidden.');
     return () => confirmed?.snapshot ?? null;
   }
@@ -658,7 +659,7 @@ export class ConversationReader {
       this.visibility.complete(token);
     };
     try {
-      if (this.authority.session() && navigator.onLine)
+      if (this.authority.session() && networkAvailable())
         await this.access.withVault(false, open);
       else {
         const locator = await localLocator();
@@ -910,7 +911,7 @@ export class ConversationReader {
     });
   }
   async openOffline(peer: string | null): Promise<void> {
-    if (navigator.onLine)
+    if (networkAvailable())
       throw new Error('Connected: sync before opening history.');
     const older = this.takeOlder(),
       floor = peer ? this.floors.floor(peer) : null,

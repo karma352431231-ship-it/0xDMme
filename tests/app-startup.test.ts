@@ -9,6 +9,12 @@ import { MessageReadiness } from '../src/client/message-live/index.ts';
 // Exercise the real entry point, routing and panels against the IDs in each
 // authored document. Feature controllers have their own behavioral tests.
 const featureExports: Record<string, string[]> = {
+  connectivity: [
+    'startConnectivity',
+    'networkAvailable',
+    'networkOnlineEvent',
+    'networkOfflineEvent',
+  ],
   language: ['startLanguage', 'mountLanguageSettings', 'applyLanguage'],
   'public-search': ['mountPublicSearch'],
   'public-traffic': ['startPublicTraffic'],
@@ -170,6 +176,9 @@ async function page(
       sessionReady: () => readied.push(name),
     });
   Object.assign(fixture, {
+    networkAvailable: () => true,
+    networkOnlineEvent: '0xdmme-network-online',
+    networkOfflineEvent: '0xdmme-network-offline',
     mountEnrollmentLogin: (node: Node) => enrollments.push(node),
     startAccount: (options: { changed: typeof changed }) => {
       changed = options.changed;

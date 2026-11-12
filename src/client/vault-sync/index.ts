@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
 import { encode, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -131,7 +132,7 @@ export class VaultSync {
       return result;
     };
     return session
-      ? this.access.withVault(!navigator.onLine, operation, request.options)
+      ? this.access.withVault(!networkAvailable(), operation, request.options)
       : this.access.withLocalVault(locator, operation);
   }
   async openLocal(): Promise<void> {
@@ -146,7 +147,7 @@ export class VaultSync {
   async refresh(options: VaultWorkOptions = {}): Promise<void> {
     if (this.session) this.localOnly = false;
     await this.refreshes.read(
-      !navigator.onLine,
+      !networkAvailable(),
       (started) =>
         this.run(
           async (authority) => {

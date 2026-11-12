@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import {
   LiveMessages,
   LiveUpdates,
@@ -77,7 +78,7 @@ export class DmRefresh {
     });
     this.continuations = new DmContinuations({
       available: () =>
-        options.state().signedIn && this.available() && navigator.onLine,
+        options.state().signedIn && this.available() && networkAvailable(),
       run: () => {
         this.traceRead('continuation');
         options.reload();

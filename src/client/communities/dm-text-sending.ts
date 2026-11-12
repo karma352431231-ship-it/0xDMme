@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../connectivity/index.ts';
 import { OutgoingTexts, TextSendQueue } from '../text-send/index.ts';
 import { traceHandleDelivery } from '../chat-sync-diagnostics/index.ts';
 import type { OutgoingText, TextDraft } from '../text-send/index.ts';
@@ -22,7 +23,6 @@ export class DmTextSending {
   });
   private readonly queue: TextSendQueue;
   private generation = 0;
-  private transferring = false;
   private restoring: Promise<void> | null = null;
   private readonly options: {
     controller: Pick<SocialDms, 'queueText' | 'pendingTexts' | 'sendPending'>;
@@ -37,7 +37,7 @@ export class DmTextSending {
     failed: (error: unknown) => void;
   }) {
     this.options = options;
-    window.addEventListener('online', () => this.resume());
+    window.addEventListener(networkOnlineEvent, () => this.resume());
     window.addEventListener('beforeunload', (event) => {
       if (!this.queue.unsaved) return;
       event.preventDefault();
@@ -52,7 +52,6 @@ export class DmTextSending {
       transmit: async () => {
         const generation = this.generation;
         this.outgoing.beginTransfer();
-        this.transferring = true;
         try {
           const result = await options.controller.sendPending({
             priority: 'interactive',
@@ -69,8 +68,6 @@ export class DmTextSending {
           if (generation === this.generation && interrupted(error))
             return { ok: true, more: true };
           throw error;
-        } finally {
-          this.transferring = false;
         }
       },
       draftChanged: (draft, phase) => this.outgoing.update(draft, phase),
@@ -96,8 +93,8 @@ export class DmTextSending {
       await this.options.controller.queueText(draft);
     }
   }
-  get transmitting(): boolean {
-    return this.transferring;
+  get working(): boolean {
+    return this.queue.working;
   }
   get full(): boolean {
     return this.queue.full;

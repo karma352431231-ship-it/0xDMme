@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../src/client/connectivity/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dmCoordinatorFixture } from './fixtures/dm-coordinator.ts';
@@ -743,7 +744,7 @@ await test('DM fallback polling stops on departure and cannot restart from lifec
   assert.ok(f.calls.length > before);
   f.ui.leave();
   const after = f.calls.length;
-  f.window.dispatchEvent(new Event('online'));
+  f.window.dispatchEvent(new Event(networkOnlineEvent));
   f.window.dispatchEvent(new Event('pageshow'));
   t.mock.timers.tick(60000);
   await turn();

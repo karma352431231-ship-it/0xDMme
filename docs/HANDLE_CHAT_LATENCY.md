@@ -108,6 +108,9 @@ refuses cross-device deltas when clock bounds cannot confirm capture from before
 the send click through the recipient frame, including a sender capture stopped
 too early. Local processing durations remain independently useful.
 
+See [handle sender preparation](HANDLE_SENDER_PREPARATION.md) for the sender-only
+comparison and the fields that break down durable draft preparation.
+
 For the owner's next run, record text and the same image several times with the
 destination visible, then test another selected conversation. Include one
 sender-only acceptance run while the recipient is offline. Report separately:

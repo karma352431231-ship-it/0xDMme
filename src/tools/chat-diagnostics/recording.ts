@@ -48,6 +48,7 @@ export class Recording {
   readiness() {
     return {
       active: this.ended === null,
+      senderPreparationAvailable: this.flows.senderPreparationAvailable,
       clock: this.clock.report(),
       handleDelivery: this.handles.state(),
     };
@@ -56,7 +57,7 @@ export class Recording {
     const comparison = this.sends.report();
     return {
       schema: 3,
-      meterRevision: 2,
+      meterRevision: 3,
       appAssets: applicationAssets(),
       active: this.ended === null,
       elapsedMs: this.elapsed(),

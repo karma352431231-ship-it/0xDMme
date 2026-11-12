@@ -1,6 +1,16 @@
 module.exports = {
   forbidden: [
     {
+      name: 'connectivity-cannot-import-domain-operations',
+      severity: 'error',
+      from: { path: '^src/client/connectivity/' },
+      to: {
+        path: '^src/client/',
+        pathNot:
+          '^src/client/(?:connectivity|api-transport|application-origin)/',
+      },
+    },
+    {
       name: 'view-once-preparation-has-no-authority-or-io',
       severity: 'error',
       from: { path: '^src/client/view-once-preparation/' },

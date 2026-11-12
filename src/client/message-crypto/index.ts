@@ -332,14 +332,21 @@ export class MessageCrypto {
     }
     const result = object(await transport(operation, payload));
     this.assertOpen();
-    if (operation === 'matrix-query') await this.verifyQuery(result);
+    if (operation === 'matrix-query')
+      await this.verifyQuery(
+        result,
+        new Set(Object.keys(object(sdk['device_keys']))),
+      );
     await this.machine.markRequestAsSent(
       request.id,
       request.type,
       JSON.stringify(result['response']),
     );
   }
-  private async verifyQuery(result: Record<string, unknown>): Promise<void> {
+  private async verifyQuery(
+    result: Record<string, unknown>,
+    requested: ReadonlySet<string>,
+  ): Promise<void> {
     if (!Array.isArray(result['bindings']))
       throw new Error('Key bindings missing.');
     const response = object(result['response']),
@@ -348,9 +355,11 @@ export class MessageCrypto {
     for (const input of result['bindings'] as unknown[]) {
       const binding = await this.checkedBinding(input);
       const user = matrixUser(binding.accountId);
+      if (!requested.has(user)) throw new Error('Unexpected Matrix user.');
       verified.set(`${user}/${binding.deviceId}`, binding);
     }
     for (const [user, value] of Object.entries(devices)) {
+      if (!requested.has(user)) throw new Error('Unexpected Matrix user.');
       for (const [device, keys] of Object.entries(object(value))) {
         const binding = verified.get(`${user}/${device}`);
         if (!binding || canonical(binding.public) !== canonical(keys))
@@ -369,22 +378,6 @@ export class MessageCrypto {
     if (!current.devices.some((d) => d.id === binding.deviceId))
       throw new Error('Key belongs to a revoked device.');
     return binding;
-  }
-  private async trustDevices(
-    history: DirectoryEvent[],
-    transport: MessageTransport = this.transport,
-  ): Promise<void> {
-    const event = history.at(-1);
-    if (!event) throw new Error('Contact directory missing.');
-    const user = matrixUser(event.accountId);
-    this.contexts.set(user, history);
-    const query = this.machine.queryKeysForUsers([new UserId(user)]);
-    try {
-      await this.dispatch(query, transport);
-    } finally {
-      query.free();
-    }
-    await this.trustKnownDevices(event);
   }
   private async trustKnownDevices(event: DirectoryEvent): Promise<void> {
     const user = matrixUser(event.accountId);
@@ -463,13 +456,12 @@ export class MessageCrypto {
     await currentRecoveryKey(input.recovery[1], peerHistory, peer.accountId);
     await this.prepare(authority);
     await measureSend(
-      'sender-keys',
-      () => this.trustDevices(authority.events),
-      id,
-    );
-    await measureSend(
-      'recipient-keys',
-      () => this.trustDevices(peerHistory),
+      'device-keys',
+      () =>
+        this.trustParticipantDevices(
+          [authority.events, peerHistory],
+          this.transport,
+        ),
       id,
     );
     const room = messageRoom(authority.session.accountId, peer.accountId);
@@ -803,17 +795,18 @@ export class MessageCrypto {
       input.authority.directory,
     ]);
     const reused = input.batch?.covers(key) ?? false;
-    if (!reused) await this.trustGroupDevices(trust.histories, trust.transport);
+    if (!reused)
+      await this.trustParticipantDevices(trust.histories, trust.transport);
     input.batch?.used(key, !reused);
   }
-  private async trustGroupDevices(
+  private async trustParticipantDevices(
     histories: DirectoryEvent[][],
     transport: MessageTransport,
   ): Promise<void> {
     const accounts = histories.map(historyAccount);
     for (const [index, history] of histories.entries()) {
       const account = accounts[index];
-      if (!account) throw new Error('Group account missing.');
+      if (!account) throw new Error('Participant account missing.');
       this.contexts.set(matrixUser(account), history);
     }
     const query = this.machine.queryKeysForUsers(
@@ -826,7 +819,7 @@ export class MessageCrypto {
     }
     for (const history of histories) {
       const current = history.at(-1);
-      if (!current) throw new Error('Group directory missing.');
+      if (!current) throw new Error('Participant directory missing.');
       await this.trustKnownDevices(current);
     }
   }

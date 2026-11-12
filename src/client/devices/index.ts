@@ -1,3 +1,4 @@
+import { networkAvailable } from '../connectivity/index.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 export { BackgroundVaultAccess } from './background.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
@@ -175,7 +176,7 @@ export function startDevices(options: {
     render();
   }
   async function poll(): Promise<void> {
-    if (busy || document.visibilityState === 'hidden' || !navigator.onLine) {
+    if (busy || document.visibilityState === 'hidden' || !networkAvailable()) {
       schedule();
       return;
     }
@@ -318,7 +319,7 @@ export function startDevices(options: {
       !controller.session ||
       busy ||
       document.visibilityState === 'hidden' ||
-      !navigator.onLine
+      !networkAvailable()
     )
       return;
     void run(async () => {

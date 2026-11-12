@@ -1,3 +1,4 @@
+import { networkOnlineEvent } from '../connectivity/index.ts';
 import { createCallAudioCheck } from './audio-check.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -162,7 +163,7 @@ export function startCalls(options: {
   function suspend(): void {
     void calls.end(t('Call ended when leaving this page.'));
   }
-  window.addEventListener('online', () => calls.ready(), {
+  window.addEventListener(networkOnlineEvent, () => calls.ready(), {
     signal: events.signal,
   });
   document.addEventListener('visibilitychange', () => calls.ready(), {
