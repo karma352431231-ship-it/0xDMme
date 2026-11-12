@@ -689,25 +689,92 @@ await test('public receipt hints update only checks while content hints still re
   assert.ok(f.calls.slice(calls).includes('read:A'));
 });
 
-await test('DM live hints wait for recording and preserve the typed draft and frame', async (t) => {
+await test('handle messages render during a recording and while its preview and caption are open', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = dmCoordinatorFixture(t, true);
   f.ui.mount(f.host, 'A');
   await turn();
   const current = f.views.at(-1)!;
-  current.text.value = 'Keep this draft';
-  await f.startRecording();
-  const before = f.calls.length;
-  f.emit('changed');
-  t.mock.timers.tick(30000);
+  const record = current.form.querySelector('[data-voice-record]')!,
+    stop = current.form.querySelector('[data-voice-stop]')!;
+  record.click();
+  assert.equal(stop.hidden, false);
+  f.data.items = [{ ...message('while-recording', 1), own: false }];
+  f.emit('handle-messages');
+  t.mock.timers.tick(150);
   await turn();
-  assert.equal(f.calls.length, before);
-  f.cancelRecording();
+  assert.equal(stop.hidden, false, 'the live refresh did not cancel recording');
+  assert.ok(
+    current.history.children.some(
+      (row) => row.dataset['message'] === 'while-recording',
+    ),
+  );
+  stop.click();
+  current.text.value = 'Keep this caption';
+  current.text.dispatchEvent(new Event('input'));
+  const preview = current.form.querySelector('[data-attachment-preview]')!;
+  const player = preview.firstChild;
+  assert.ok(player);
+  f.data.items = [
+    ...f.data.items,
+    { ...message('while-reviewing', 2), own: false },
+  ];
+  f.emit('handle-messages');
   t.mock.timers.tick(150);
   await turn();
   assert.equal(f.views.at(-1), current);
-  assert.equal(current.text.value, 'Keep this draft');
-  assert.ok(f.calls.length > before);
+  assert.equal(current.text.value, 'Keep this caption');
+  assert.equal(preview.firstChild, player);
+  assert.ok(
+    current.history.children.some(
+      (row) => row.dataset['message'] === 'while-reviewing',
+    ),
+  );
+  assert.equal(f.calls.includes('stage-media'), false);
+});
+
+await test('a handle receive leaves the microphone and voice submit usable, and submits the audio once after the read', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t, true);
+  f.ui.mount(f.host, 'A');
+  await turn();
+  const current = f.views.at(-1)!;
+  const read = deferred<void>();
+  f.data.readWait = read.promise;
+  f.data.items = [{ ...message('incoming'), own: false }];
+  const before = f.calls.length;
+  f.emit('handle-messages');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('read:A'));
+  const record = current.form.querySelector('[data-voice-record]')!,
+    stop = current.form.querySelector('[data-voice-stop]')!,
+    send = current.form.querySelector('[data-compose-send]')!,
+    preview = current.form.querySelector('[data-attachment-preview]')!;
+  assert.equal(record.disabled, false);
+  record.click();
+  assert.equal(stop.hidden, false);
+  stop.click();
+  assert.equal(send.hidden, false);
+  assert.equal(send.disabled, false);
+  const player = preview.firstChild;
+  assert.ok(player);
+  current.form.dispatchEvent(new Event('submit'));
+  current.form.dispatchEvent(new Event('submit'));
+  await turn();
+  assert.equal(send.disabled, true);
+  assert.equal(preview.firstChild, player);
+  assert.equal(f.calls.includes('stage-media'), false);
+  read.resolve();
+  await turn();
+  assert.ok(
+    current.history.children.some(
+      (row) => row.dataset['message'] === 'incoming',
+    ),
+  );
+  assert.equal(f.data.mediaKind, 'voice');
+  assert.equal(f.calls.filter((call) => call === 'stage-media').length, 1);
+  assert.equal(f.calls.filter((call) => call === 'send-media').length, 1);
 });
 
 await test('departing a DM wipes selected image bytes and releases its preview', async (t) => {
@@ -784,12 +851,16 @@ await test('a blocked DM remains unavailable for composition after a live rechec
   const f = dmCoordinatorFixture(t, true);
   f.ui.mount(f.host, 'A');
   await turn();
+  const current = f.views.at(-1)!;
+  const stop = current.form.querySelector('[data-voice-stop]')!;
+  current.form.querySelector('[data-voice-record]')!.click();
+  assert.equal(stop.hidden, false);
   f.data.blocked = true;
   f.emit('changed');
   t.mock.timers.tick(150);
   await turn();
-  const current = f.views.at(-1)!;
   assert.equal(current.form.hidden, true);
+  assert.equal(stop.hidden, true);
   current.text.value = 'Must not be sent';
   current.form.dispatchEvent(new Event('submit'));
   await turn();

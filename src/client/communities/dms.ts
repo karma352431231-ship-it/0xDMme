@@ -191,7 +191,6 @@ export function startSocialDmUi(
       );
     },
     queueFull: () => texts.full,
-    changed: () => refreshes.resumeRefresh(),
     submit: async ({
       peer: selected,
       text,
@@ -238,7 +237,7 @@ export function startSocialDmUi(
       signedIn: !!session,
       mounted: !!container,
       directory: publicDirectory.available,
-      busy: busy || texts.working,
+      busy: foreground !== null || texts.working,
       composing: composer.active,
     }),
     reload: () => {
@@ -252,7 +251,7 @@ export function startSocialDmUi(
           traceHandleRead(read, 'failed');
           throw error;
         }
-      });
+      }, 'refresh');
     },
     invalidate: () => {
       publicDirectory.invalidate();
@@ -268,7 +267,7 @@ export function startSocialDmUi(
     viewKey = '';
   let generation = 0,
     verification = 0,
-    busy = false,
+    foreground: 'refresh' | 'action' | null = null,
     peer: string | null = null,
     cursor: string | null = null;
   const depth = new DmHistoryDepth();
@@ -280,14 +279,17 @@ export function startSocialDmUi(
     else if (container)
       container.replaceChildren(communityElement('p', message, 'chat-gate'));
   }
-  async function run(work: () => Promise<void>): Promise<void> {
+  async function run(
+    work: () => Promise<void>,
+    kind: NonNullable<typeof foreground> = 'action',
+  ): Promise<void> {
     const old = generation,
       account = session,
       queuedAt = performance.now();
     await workQueue.run(async () => {
       if (old !== generation) return;
       const expected = verification;
-      busy = true;
+      foreground = kind;
       composer.update(composerState());
       try {
         await measureWork(controller, 'dm-foreground', work, queuedAt);
@@ -307,7 +309,7 @@ export function startSocialDmUi(
           );
         }
       } finally {
-        busy = false;
+        foreground = null;
         if (old === generation) composer.update(composerState());
         texts.resume();
         refreshes.resume();
@@ -344,7 +346,11 @@ export function startSocialDmUi(
       depth.focus(id, pendingReveal.sequence);
   }
   function composerState() {
-    return { writable: writable && mediaReady, pending: pendingMedia, busy };
+    return {
+      writable: writable && mediaReady,
+      pending: pendingMedia,
+      busy: foreground === 'action',
+    };
   }
   function foregroundReceives(): boolean {
     return (
@@ -1019,7 +1025,7 @@ export function startSocialDmUi(
       node?.replaceChildren();
     },
     canActivate: () =>
-      !busy &&
+      foreground === null &&
       !texts.pending &&
       !texts.unsaved &&
       !composer.active &&

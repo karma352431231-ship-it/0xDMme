@@ -103,7 +103,6 @@ export class DmRefresh {
       (state.mounted || state.directory) &&
       document.visibilityState === 'visible' &&
       !state.busy &&
-      !state.composing &&
       !this.live.connecting
     );
   }
@@ -133,7 +132,6 @@ export class DmRefresh {
       if (
         (!state.mounted && !state.directory) ||
         state.busy ||
-        state.composing ||
         this.live.connected ||
         document.visibilityState !== 'visible'
       )
@@ -193,12 +191,9 @@ export class DmRefresh {
     this.continuations.clear();
   }
   resume(): void {
-    this.resumeRefresh();
-    this.continuations.resume();
-  }
-  resumeRefresh(): void {
     if (this.refreshes.waiting) this.traceRead('refresh-wait');
     this.refreshes.resume();
+    this.continuations.resume();
   }
   clear(): void {
     this.continuations.clear();

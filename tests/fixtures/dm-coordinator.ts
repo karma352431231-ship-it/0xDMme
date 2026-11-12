@@ -22,6 +22,7 @@ import type { startDmComposer } from '../../src/client/communities/dm-composer.t
 import type { AttachmentSelection } from '../../src/client/attachments/index.ts';
 import type { TextDraft } from '../../src/client/text-send/index.ts';
 import type { SocialRelation } from '../../src/shared/social-dm/index.ts';
+import type { RecordingState } from '../../src/client/voice-recording/index.ts';
 
 const entry = 'src/client/communities/dms.ts';
 // Real coordinator, queue, lifecycle and wakeup coalescing; IO and DOM are adapters.
@@ -56,9 +57,7 @@ const adapted: Record<string, string[]> = {
 const composerAdapters: Record<string, string[]> = {
   '../chat-ui/index.ts': [
     'bindChatComposer',
-    'bindRecordGesture',
     'showRecording',
-    'updateChatComposer',
     'viewOnceEnabled',
   ],
   '../emoji/index.ts': ['EmojiPicker', 'emojiIntoComposer'],
@@ -107,10 +106,16 @@ const bundle = await build({
         builder.onLoad(
           { filter: /.*/, namespace: 'composer-fixture' },
           ({ path }) => ({
-            contents: composerAdapters[path]!.map(
-              (name) => `export const ${name} = fixture.${name};`,
-            ).join('\n'),
+            contents: [
+              ...composerAdapters[path]!.map(
+                (name) => `export const ${name} = fixture.${name};`,
+              ),
+              path === '../chat-ui/index.ts'
+                ? "export { bindRecordGesture, updateChatComposer } from './src/client/chat-ui/index.ts';"
+                : '',
+            ].join('\n'),
             loader: 'js',
+            resolveDir: process.cwd(),
           }),
         );
         // Keep real LiveUpdates but adapt the stream's transport.
@@ -212,6 +217,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     readWait: null as Promise<void> | null,
     mediaId: crypto.randomUUID(),
     mediaCaption: '',
+    mediaKind: '',
     sendWait: null as Promise<void> | null,
     saveWait: null as Promise<void> | null,
     settingsWait: null as Promise<void> | null,
@@ -301,11 +307,6 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
     createElementNS: (_namespace: string, tag: string) => new DmNode(tag),
   });
   const window = new EventTarget();
-  let record: {
-    active: boolean;
-    start: () => Promise<void>;
-    cancel: () => void;
-  };
   const fixture = {
     DmControls: class {
       setSession = noop;
@@ -425,10 +426,11 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
         stageMedia: (
           _peer: string,
           _selection: AttachmentSelection,
-          _media: string,
+          mediaKind: string,
           caption: string,
         ) => {
           data.mediaCaption = caption;
+          data.mediaKind = mediaKind;
           calls.push('stage-media');
           data.mediaPending = true;
           return Promise.resolve();
@@ -479,6 +481,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
           data.playbackClosed++;
         },
         release: noop,
+        element: () => new DmNode('button'),
       };
     },
     AttachmentUi: function () {
@@ -488,9 +491,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       return { reset: noop, close: noop };
     },
     bindChatComposer: noop,
-    bindRecordGesture: noop,
     showRecording: noop,
-    updateChatComposer: noop,
     viewOnceEnabled: () => false,
     emojiIntoComposer: asyncNoop,
     GifSearch: function () {},
@@ -504,20 +505,42 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       }));
     },
     showToast: noop,
-    VoiceRecording: function (options: { changed: (state: unknown) => void }) {
-      record = {
-        active: false,
+    VoiceRecording: function (options: {
+      changed: (state: RecordingState) => void;
+      completed: (selection: AttachmentSelection) => void;
+    }) {
+      let state: RecordingState = { phase: 'idle', samples: 0, notice: '' };
+      const update = (phase: RecordingState['phase']) => {
+        state = { ...state, phase };
+        options.changed(state);
+      };
+      return {
+        get active() {
+          return state.phase !== 'idle';
+        },
+        get state() {
+          return state;
+        },
         start: () => {
-          record.active = true;
-          options.changed({ phase: 'recording' });
+          update('recording');
           return Promise.resolve();
         },
-        cancel: () => {
-          record.active = false;
-          options.changed({ phase: 'idle' });
+        stop: () => {
+          if (state.phase === 'recording') {
+            options.completed({
+              name: 'synthetic.wav',
+              type: 'audio/wav',
+              image: false,
+              bytes: new Uint8Array([1, 2]),
+              thumbnail: null,
+              voice: { samples: 1, sampleRate: 16000 },
+            });
+            update('idle');
+          }
+          return Promise.resolve();
         },
+        cancel: () => update('idle'),
       };
-      return record;
     },
     startDmComposer: (options: Parameters<typeof startDmComposer>[0]) =>
       realComposer
@@ -582,6 +605,16 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
         'attachmentClear',
       ]) {
         const control = new DmNode(key === 'attachmentFile' ? 'input' : 'div');
+        control.dataset[key] = '';
+        current.form.append(control);
+      }
+      for (const key of [
+        'voiceRecord',
+        'voiceStop',
+        'voiceCancel',
+        'composeSend',
+      ]) {
+        const control = new DmNode('button');
         control.dataset[key] = '';
         current.form.append(control);
       }
@@ -698,8 +731,6 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
   return {
     ui,
     data,
-    startRecording: () => record.start(),
-    cancelRecording: () => record.cancel(),
     chooseImage: (selection: AttachmentSelection) => {
       data.selected = selection;
       const input = views.at(-1)!.form.querySelector('[data-attachment-file]')!;

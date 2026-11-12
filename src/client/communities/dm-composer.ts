@@ -50,7 +50,6 @@ export function startDmComposer(options: {
   queueText?: (text: string, reply: string | null) => void;
   queueFull?: () => boolean;
   discardPending: (peer: string) => Promise<void>;
-  changed: () => void;
 }) {
   let view: DmView | null = null,
     bound: string | null = null,
@@ -62,6 +61,7 @@ export function startDmComposer(options: {
     previewUrl: string | null = null;
   let draftRevision = 0,
     mediaRevision = 0;
+  let queued: Submission | null = null;
   let abort = new AbortController();
   const emoji = new EmojiPicker();
   const composition = new DmComposition();
@@ -90,7 +90,7 @@ export function startDmComposer(options: {
     if (!view) return;
     view.form.hidden = !writable;
     updateChatComposer(view.form, {
-      blocked: busy || !writable,
+      blocked: controlsBlocked(),
       recording: recording.active,
       attachment: chosen !== null || pending,
       textSendBlocked: canQueueText() ? options.queueFull?.() : undefined,
@@ -100,18 +100,28 @@ export function startDmComposer(options: {
       const control = node(selector);
       if (control) control.hidden = !recording.active;
     }
-    options.changed();
+  }
+  function controlsBlocked(): boolean {
+    return busy || queued !== null || !writable;
+  }
+  function canRecord(): boolean {
+    return (
+      !controlsBlocked() &&
+      !chosen &&
+      !pending &&
+      !recording.active &&
+      !composition.target
+    );
   }
   function syncMediaControls(): void {
+    const blocked = controlsBlocked() || composition.target !== null;
     const record = node<HTMLButtonElement>('[data-voice-record]');
-    if (record)
-      record.disabled =
-        busy || chosen !== null || pending || composition.target !== null;
+    if (record) record.disabled = !canRecord();
     const file = node<HTMLInputElement>('[data-attachment-file]');
-    if (file) file.disabled = busy || composition.target !== null;
+    if (file) file.disabled = blocked;
     node<HTMLButtonElement>('[data-chat-attachment]')?.toggleAttribute(
       'disabled',
-      busy || composition.target !== null,
+      blocked,
     );
   }
   function releasePreview(): void {
@@ -125,6 +135,7 @@ export function startDmComposer(options: {
     media?.selection.thumbnail?.fill(0);
   }
   function discardChosen(): void {
+    queued = null;
     mediaRevision++;
     wipeMedia(chosen);
     chosen = null;
@@ -186,6 +197,7 @@ export function startDmComposer(options: {
     return Boolean(
       options.queueText &&
       writable &&
+      queued === null &&
       !recording.active &&
       !chosen &&
       !pending &&
@@ -203,14 +215,12 @@ export function startDmComposer(options: {
     return true;
   }
   function captureSubmission() {
-    if (!view || !bound || !writable) return null;
+    if (!view || !bound || controlsBlocked() || recording.active) return null;
     const once = viewOnceEnabled(view.form),
       text = view.text.value,
       media = chosen;
     if (!text.trim() && !media && !pending) return null;
     assertMediaMode(once, media);
-    chosen = null;
-    mediaRevision++;
     return {
       once,
       text,
@@ -234,14 +244,23 @@ export function startDmComposer(options: {
   async function send(): Promise<void> {
     const input = captureSubmission();
     if (!input) return;
-    let started = false;
+    // The foreground read can already own the turn. Keep the preview until
+    // this submission starts, so a skipped or invalidated turn loses no draft.
+    queued = input;
+    sync();
     try {
       await options.run(async () => {
-        started = true;
+        if (queued !== input || !writable) return;
+        queued = null;
+        chosen = null;
+        mediaRevision++;
         await sendCaptured(input);
       });
     } finally {
-      if (!started) finishMedia({ ...input, admitted: false });
+      if (queued === input) {
+        queued = null;
+        sync();
+      }
     }
   }
   async function sendCaptured(input: Submission): Promise<void> {
@@ -376,19 +395,12 @@ export function startDmComposer(options: {
   function bindVoice(): void {
     bindRecordGesture(node('[data-voice-record]'), {
       start: () => {
-        if (
-          !busy &&
-          writable &&
-          !chosen &&
-          !pending &&
-          !recording.active &&
-          !composition.target
-        )
-          void recording.start();
+        if (canRecord()) void recording.start();
       },
       release: () => {
         if (recording.state.phase === 'recording') void recording.stop();
       },
+      signal: abort.signal,
     });
     node('[data-voice-stop]')?.addEventListener('click', () => {
       void recording.stop();
@@ -506,7 +518,10 @@ export function startDmComposer(options: {
     }): void {
       busy = state.busy;
       writable = state.writable;
-      if (!writable) recording.cancel();
+      if (!writable) {
+        queued = null;
+        recording.cancel();
+      }
       if (pending !== state.pending && !chosen) {
         pending = state.pending;
         releasePreview();

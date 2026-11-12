@@ -83,7 +83,6 @@ const composer = startDmComposer({
   run: (work) => work(),
   submit: () => Promise.resolve(),
   discardPending: () => Promise.resolve(),
-  changed: () => {},
 });
 composer.bind(view, peer.id);
 composer.update({ writable: true, pending: false, busy: false });

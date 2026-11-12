@@ -284,8 +284,10 @@ remain in `SocialDms`, with no new storage or protocol format.
 `dm-refresh.ts` owns the live subscription, hint coalescing, continuation tasks,
 fallback interval and browser lifecycle listeners. It reads only immutable
 availability facts and invokes the existing reload/invalidation operations.
-Refresh still waits while recording or holding a prepared selection, and
-security/lifecycle invalidation still closes content immediately. A separately
+Live refresh can run while recording or holding a prepared selection. It keeps
+the composer usable, and a media submission waits for the foreground turn with
+its preview intact. Security and lifecycle invalidation still close content
+immediately. A separately
 mounted directory keeps its subscription after the conversation leaves; an
 obsolete directory is cleaned up at the existing fallback boundary. The shell
 keeps one selected peer, session/generation/verification authority, operation
