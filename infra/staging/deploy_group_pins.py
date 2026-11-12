@@ -8,7 +8,7 @@ import deploy_remote as base
 import deploy_follow_dates as older
 
 BEFORE = '6979a630afb31a966cfc8a8928dd2d7985ad5423'
-REVIEWED = '011abafc0bd41c4d2d6eb2d2fa0a77f7dfc6cbdc'
+REVIEWED = '011abafcc345165bb381fa5ccfc7adb5863f134c'
 # State after 109 (deploy_group_chat), restated so the executor stays in
 # budget without loading that transition.
 TABLES = older.TABLES + ('view_once_payloads', 'group_view_once_payloads',
