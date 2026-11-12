@@ -54,6 +54,7 @@ import {
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
+import { startFocusModality } from '../focus-modality/index.ts';
 import {
   canonicalizeMobilePublicConversation,
   startMobileConversation,
@@ -744,6 +745,7 @@ document
       );
     });
   });
+startFocusModality();
 // "/" opens the conversation search unless the person is typing somewhere.
 document.addEventListener('keydown', (event) => {
   const target = event.target;

@@ -29,6 +29,13 @@ button:disabled {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
 }
+/* After a click or tap, a modifier key alone no longer outlines the last area
+ * used (focus-modality). Text fields keep their ring. !important because
+ * feature rules recolor rings with higher specificity; this only hides them. */
+:root[data-pointer-focus]
+  :focus-visible:not(input, textarea, select, [contenteditable='true']) {
+  outline: none !important;
+}
 :is(h1, h2, h3, h4),
 .brand,
 :is(

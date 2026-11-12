@@ -33,6 +33,7 @@ const featureExports: Record<string, string[]> = {
   'file-drop': ['keepPageOnStrayDrop'],
   'transient-menu': ['startTransientMenus'],
   scrollbars: ['startScrollbarFade'],
+  'focus-modality': ['startFocusModality'],
   'phone-viewport': ['startPhoneViewport'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
