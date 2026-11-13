@@ -407,12 +407,14 @@ try {
   editorHost.innerHTML = editorTemplate;
   check(
     !!editorHost.querySelector(
-      '[data-contact-editor] [data-contact-own-open="create"]',
+      '[data-contact-editor] [data-contact-tab="editor"][data-tab="own"]',
     ),
-    'Invite creation is available beside invitation entry',
+    'Invite creation is a tab beside invitation entry',
   );
   check(
-    !!editorHost.querySelector('[data-contact-invites]'),
+    !!editorHost.querySelector(
+      '[data-contact-editor] [data-contact-own-invite]',
+    ),
     'Invitation management is available without a Contacts page',
   );
   report.dataset['uiChecks'] = 'passed';

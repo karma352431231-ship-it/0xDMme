@@ -75,6 +75,27 @@ const paths = {
     'm12 3 2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z',
     slash,
   ],
+  wallet: [
+    'M4 6.5h14.5a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H4z',
+    'M4 6.5 15 3.5v3',
+    'M15.5 13h.01',
+  ],
+  paste: ['M8.5 4.5h-3v16h13v-16h-3', 'M8.5 3h7v3h-7z'],
+  qr: [
+    'M4 4h6v6H4z',
+    'M14 4h6v6h-6z',
+    'M4 14h6v6H4z',
+    'M14 14h2v2h-2z',
+    'M18 18h2v2h-2z',
+  ],
+  scan: [
+    'M4 8.5V4h4.5',
+    'M15.5 4H20v4.5',
+    'M20 15.5V20h-4.5',
+    'M8.5 20H4v-4.5',
+    'M7 12h10',
+  ],
+  info: [circle, 'M12 11v5.5', 'M12 7.5h.01'],
 } as const;
 export type MenuIconName = keyof typeof paths;
 

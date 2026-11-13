@@ -43,8 +43,12 @@ import {
 import { shortAddress } from '../appearance/index.ts';
 import { DiscoveryChoices } from './discovery-choices.ts';
 import { ContactSettings } from './contact-settings.ts';
-import { contactDraft } from './contact-draft.ts';
+import { contactDraft, draftChangesStored } from './contact-draft.ts';
+import { bindEditorFields, renderWalletPreview } from './editor-fields.ts';
 import { AcceptedRequest } from './accepted-request.ts';
+/** What saving a typed wallet did besides keeping the encrypted contact. */
+type WalletSaveOutcome = 'sent' | 'invite-only' | 'offline' | 'saved';
+
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,
@@ -65,21 +69,15 @@ export function startContacts(
     book,
     sync,
     run,
-    requestable: (contact) =>
-      !['approved', 'outgoing'].some((kind) =>
-        contacts.pages
-          .get(kind as ContactList)
-          ?.items.some(
-            (peer) =>
-              peer.ecosystem === contact.ecosystem &&
-              peer.address === contact.address,
-          ),
-      ),
+    requestable: (contact) => !connected(contact),
     request: async (contact) => {
       contactSettings.clear();
       startAdding();
       fillEditor({ address: contact.address, alias: contact.alias });
-      await requestWallet();
+      // The contact is already saved; only the request can be missing.
+      if (!(await requestWallet())) showInviteOnly(true);
+      else if (!requests.offered)
+        confirmed(t('Request sent. Wait for acceptance.'));
     },
     saved: async (contact) => {
       await directory.saved(contact);
@@ -172,7 +170,6 @@ export function startContacts(
   function render(): void {
     text('[data-contact-status]', busy ? t('Updating contacts…') : status);
     text('[data-contact-editor-status]', problem);
-    text('[data-contact-invite-status]', problem);
     renderNextChat();
     renderInvite();
     renderBook();
@@ -185,8 +182,6 @@ export function startContacts(
       });
     const close = node<HTMLButtonElement>('[data-contact-editor-close]');
     if (close) close.disabled = false;
-    const inviteClose = node<HTMLButtonElement>('[data-contact-invites-close]');
-    if (inviteClose) inviteClose.disabled = false;
   }
   function renderPagination(): void {
     mounted
@@ -214,14 +209,31 @@ export function startContacts(
     if (own) own.hidden = !ownLink;
     const input = node<HTMLInputElement>('[data-contact-invite]');
     if (input) input.value = ownLink ?? '';
-    for (const action of ['copy', 'revoke']) {
-      const control = node(`[data-contact-action="${action}"]`);
-      if (control) control.hidden = !ownLink;
-    }
+    editor
+      ?.querySelectorAll<HTMLElement>(
+        '[data-contact-action="copy"], [data-contact-action="revoke"]',
+      )
+      .forEach((control) => {
+        control.hidden = !ownLink;
+      });
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
-    if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
+    if (qr && ownInviteShown())
       renderQr(qr, ownLink, t('Contact invitation QR code'));
+  }
+  function ownInviteShown(): boolean {
+    const panel = node('[data-contact-panel="editor"][data-tab="own"]');
+    return (
+      !!panel &&
+      !panel.hidden &&
+      !!node<HTMLDialogElement>('[data-contact-editor]')?.open
+    );
+  }
+  /** The Create invitation tab shows the link in memory, or creates one. */
+  function showOwnInvite(): void {
+    camera?.stop();
+    renderInvite();
+    if (!invitations.link) void run(rotate);
   }
   function resetEditor(): void {
     found = null;
@@ -229,10 +241,15 @@ export function startContacts(
     const address = node<HTMLInputElement>('[data-book-address]');
     if (address) address.readOnly = false;
     text('[data-book-title]', t('Add contact'));
-    text('[data-contact-discovery]', '');
-    node('[data-contact-discovery-actions]')?.replaceChildren();
+    showInviteOnly(false);
+    if (editor) renderWalletPreview(editor);
   }
-  function openEditor(tab: 'wallet' | 'invite'): void {
+  /** After a save whose wallet accepts invitations only: say so in place. */
+  function showInviteOnly(shown: boolean): void {
+    const outcome = node('[data-contact-outcome]');
+    if (outcome) outcome.hidden = !shown;
+  }
+  function openEditor(tab: 'wallet' | 'invite' | 'own'): void {
     const dialog = node<HTMLDialogElement>('[data-contact-editor]');
     const root = editor ?? mounted;
     if (!dialog || !root) return;
@@ -249,6 +266,7 @@ export function startContacts(
       alias = node<HTMLInputElement>('[data-book-alias]');
     if (address) address.value = prefill.address;
     if (alias) alias.value = prefill.alias;
+    if (editor) renderWalletPreview(editor);
   }
   function startAdding(): void {
     resetEditor();
@@ -268,31 +286,36 @@ export function startContacts(
       received = null;
       invitePeer = null;
       node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
-      node('[data-contact-invite-peer]')?.replaceChildren();
     });
     node('[data-contact-tab="editor"][data-tab="wallet"]')?.addEventListener(
       'click',
       () => camera?.stop(),
     );
-    node('[data-contact-invites-close]')?.addEventListener('click', () =>
-      node<HTMLDialogElement>('[data-contact-invites]')?.close(),
+    node('[data-contact-tab="editor"][data-tab="own"]')?.addEventListener(
+      'click',
+      showOwnInvite,
     );
+    // A new address replaces the previous save's outcome.
+    node('[data-book-address]')?.addEventListener('input', () =>
+      showInviteOnly(false),
+    );
+    node('[data-contact-share-invite]')?.addEventListener('click', () => {
+      if (editor) selectContactTab(editor, 'editor', 'own');
+      showOwnInvite();
+    });
   }
-  /** Both the page view and the editor host hold buttons that open invitations. */
+  /** My invitation on the Contacts page opens the editor's own invitation tab. */
   function bindOwnInvite(): void {
-    const dialog = node<HTMLDialogElement>('[data-contact-invites]');
-    for (const root of [mounted, editor])
-      root?.querySelectorAll('[data-contact-own-open]').forEach((button) => {
-        if (boundInviteButtons.has(button)) return;
-        boundInviteButtons.add(button);
-        button.addEventListener('click', () => {
-          node<HTMLDialogElement>('[data-contact-editor]')?.close();
-          if (!dialog?.open) dialog?.showModal();
-          renderInvite();
-          if (button.getAttribute('data-contact-own-open') === 'create')
-            void run(rotate);
-        });
+    mounted?.querySelectorAll('[data-contact-own-open]').forEach((button) => {
+      if (boundInviteButtons.has(button)) return;
+      boundInviteButtons.add(button);
+      button.addEventListener('click', () => {
+        if (!node<HTMLDialogElement>('[data-contact-editor]')?.open)
+          resetEditor();
+        openEditor('own');
+        showOwnInvite();
       });
+    });
   }
   async function refresh(): Promise<void> {
     return loading.run(async (trace) => {
@@ -384,8 +407,19 @@ export function startContacts(
         directory.find(walletContactFromAddress(address))?.contact ?? null,
     });
   }
-  async function save(): Promise<void> {
-    const contact = draft();
+  /** Approved or pending-out wallets need no new request. */
+  function connected(contact: { ecosystem: string; address: string }): boolean {
+    return (['approved', 'outgoing'] as const).some((kind) =>
+      contacts.pages
+        .get(kind)
+        ?.items.some(
+          (peer) =>
+            peer.ecosystem === contact.ecosystem &&
+            peer.address === contact.address,
+        ),
+    );
+  }
+  async function store(contact: AddressBookEntry): Promise<void> {
     const expected = generation;
     await book.save(contact, null, undefined, () => {
       if (expected !== generation) throw new Error('Session changed.');
@@ -393,36 +427,60 @@ export function startContacts(
     if (expected !== generation) throw new Error('Session changed.');
     await directory.saved(contact);
     await options.saved?.(contact);
-    confirmed(
-      sync.pending
-        ? t(
-            'Contact saved on this device. It will be sent when the connection returns.',
-          )
-        : t(
-            'Private contact confirmed in the vault. This did not approve a conversation.',
-          ),
-    );
+  }
+  /** The dialog's single action: keep the encrypted contact and, when the
+   * wallet accepts requests by address, send the existing signed request. */
+  async function saveWallet(): Promise<void> {
+    const typed = draft();
+    const outcome = await requestTypedWallet(typed);
+    // A sent request already stored the peer with its identity; the draft is
+    // rebuilt so a nickname edit keeps that identity.
+    const stored = directory.find(walletContactFromAddress(typed.address));
+    if (draftChangesStored(stored?.contact ?? null, typed.alias))
+      await store(draft());
+    finishWalletSave(outcome);
+  }
+  async function requestTypedWallet(
+    typed: AddressBookEntry,
+  ): Promise<WalletSaveOutcome> {
+    if (!networkAvailable()) return 'offline';
+    if (connected(typed)) return 'saved';
+    return (await requestWallet()) ? 'sent' : 'invite-only';
+  }
+  function finishWalletSave(outcome: WalletSaveOutcome): void {
+    if (outcome === 'invite-only') {
+      node<HTMLFormElement>('[data-book-form]')?.reset();
+      if (editor) renderWalletPreview(editor);
+      showInviteOnly(true);
+      return;
+    }
     resetEditor();
+    // Already accepted: the editor stays open on its open-chat offer.
+    if (outcome === 'sent' && requests.offered) return;
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
+    confirmed(savedMessage(outcome));
+  }
+  function savedMessage(
+    outcome: Exclude<WalletSaveOutcome, 'invite-only'>,
+  ): string {
+    if (outcome === 'sent')
+      return t(
+        'Contact saved and request sent. You can chat once they accept.',
+      );
+    if (outcome === 'offline')
+      return t(
+        'Contact saved on this device. Connect to send the chat request.',
+      );
+    return sync.pending
+      ? t(
+          'Contact saved on this device. It will be sent when the connection returns.',
+        )
+      : t('Contact saved.');
   }
   async function discover(): Promise<void> {
     found = await contacts.discover(
       walletContactFromAddress(value('[data-book-address]')),
     );
-    text(
-      '[data-contact-discovery]',
-      found
-        ? t('{0} · user-chosen name · {1} · {2}', [
-            found.name || t('Unnamed'),
-            found.ecosystem,
-            found.address,
-          ])
-        : t(
-            'Wallet unavailable for requests by address. Save it in contacts and share your invitation.',
-          ),
-    );
-    const actions = node('[data-contact-discovery-actions]');
-    actions?.replaceChildren();
   }
   function renderLists(): void {
     for (const kind of ['incoming', 'outgoing', 'rejected'] as const) {
@@ -579,6 +637,7 @@ export function startContacts(
       alias = node<HTMLInputElement>('[data-book-alias]');
     if (a) a.value = contact.address;
     if (alias) alias.value = contact.name;
+    if (editor) renderWalletPreview(editor);
     status = t(
       'Check the private nickname and explicitly save it in contacts.',
     );
@@ -602,29 +661,11 @@ export function startContacts(
     if (link) received = readInvitation(link, applicationOrigin());
     if (!received) throw new Error('Enter a valid invitation.');
     invitePeer = await contacts.invite(received);
-    const target = node('[data-contact-invite-peer]');
-    target?.replaceChildren();
-    if (!invitePeer) {
+    // Only the link is shown before accepting: no sender name or wallet.
+    if (!invitePeer)
       failed(
         t(
           'Invitation unavailable, revoked or restricted by current privacy settings.',
-        ),
-      );
-      return;
-    }
-    const selected = invitePeer,
-      invite = received;
-    const p = document.createElement('p');
-    p.textContent = t('{0} · user-chosen name · {1} · {2}', [
-      selected.name || t('Unnamed'),
-      selected.ecosystem,
-      selected.address,
-    ]);
-    target?.append(p);
-    if (!node('[data-contact-invite-form]'))
-      target?.append(
-        button(t('Accept invitation'), () =>
-          requestInvite(selected, invite.token),
         ),
       );
   }
@@ -649,7 +690,6 @@ export function startContacts(
     // The invitation is used up: clear its link so the form does not offer
     // the same request again.
     node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
-    node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
     requests.approved(selected);
     confirmed(t('Invitation accepted. You can start the conversation.'));
@@ -658,32 +698,31 @@ export function startContacts(
     await inspectInvite();
     if (invitePeer && received) await requestInvite(invitePeer, received.token);
   }
-  async function requestWallet(): Promise<void> {
+  /** Sends the signed request when the wallet accepts requests by address. */
+  async function requestWallet(): Promise<boolean> {
     await contacts.refresh();
     await discover();
-    if (found) {
-      const expected = generation;
-      requests.wait(found.accountId);
-      const contact = await requestContact({
-        contacts,
-        book,
-        sync,
-        peer: found,
-        token: null,
-        alias: value('[data-book-alias]'),
-        guard: () => {
-          if (expected !== generation) throw new Error('Session changed.');
-        },
-      });
-      await directory.saved(contact);
-      await options.saved?.(contact);
-      await refresh();
-      if (!requests.offered) confirmed(t('Request sent. Wait for acceptance.'));
-    }
+    if (!found) return false;
+    const expected = generation;
+    requests.wait(found.accountId);
+    const contact = await requestContact({
+      contacts,
+      book,
+      sync,
+      peer: found,
+      token: null,
+      alias: value('[data-book-alias]'),
+      guard: () => {
+        if (expected !== generation) throw new Error('Session changed.');
+      },
+    });
+    await directory.saved(contact);
+    await options.saved?.(contact);
+    await refresh();
+    return true;
   }
   const actions: Record<string, () => Promise<void>> = {
     refresh,
-    discover: requestWallet,
     rotate,
     revoke: async () => {
       await invitations.revoke();
@@ -725,7 +764,6 @@ export function startContacts(
     contactSettings.clear();
     camera?.stop();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
-    node<HTMLDialogElement>('[data-contact-invites]')?.close();
     contacts.clear();
     directory.clear();
     invitations.clear();
@@ -733,8 +771,7 @@ export function startContacts(
     invitePeer = null;
     requests.clear();
     clearInputs();
-    node('[data-contact-invite-peer]')?.replaceChildren();
-    node('[data-contact-discovery-actions]')?.replaceChildren();
+    showInviteOnly(false);
     for (const selector of ['[data-contact-invite-qr]']) {
       const qr = node(selector);
       qr?.replaceChildren();
@@ -781,10 +818,10 @@ export function startContacts(
         failed(message);
         render();
       },
+      // The scanned link fills the field; accepting stays an explicit tap.
       decoded: (link) => {
         const input = node<HTMLInputElement>('[data-contact-received]');
         if (input) input.value = link;
-        void run(inspectInvite);
       },
     });
   }
@@ -812,7 +849,7 @@ export function startContacts(
         }),
       );
     for (const [selector, action] of [
-      ['[data-book-form]', save],
+      ['[data-book-form]', saveWallet],
       ['[data-contact-settings]', configure],
       ['[data-contact-invite-form]', sendInvite],
     ] as const)
@@ -884,7 +921,10 @@ export function startContacts(
       host.innerHTML = editorTemplate;
       bindContactTabs(host);
       bindEditor();
-      bindOwnInvite();
+      bindEditorFields(host, (message) => {
+        failed(message);
+        render();
+      });
       bindControls(host);
       mountCamera();
       render();
@@ -902,7 +942,6 @@ export function startContacts(
       !contactSettings.active &&
       !camera?.active &&
       !node<HTMLDialogElement>('[data-contact-editor]')?.open &&
-      !node<HTMLDialogElement>('[data-contact-invites]')?.open &&
       !value('[data-book-address]') &&
       !value('[data-contact-received]'),
     mount(

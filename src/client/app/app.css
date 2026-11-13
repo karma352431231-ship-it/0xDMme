@@ -76,6 +76,7 @@
 @import '../contacts/contact-settings.css';
 @import '../wallet/wallet-picker.css';
 @import '../devices/device-cards.css';
+@import '../contacts/add-contact.css';
 @import './card-forms.css';
 @import '../vault-ui/vault-card.css';
 @import '../chat-ui/chat-layout.css';

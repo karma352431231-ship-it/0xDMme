@@ -82,11 +82,11 @@ async function requestByWallet({
   click('[data-contact-add]');
   click('[data-contact-tab=editor][data-tab=wallet]');
   field('[data-book-address]', value);
-  click('[data-contact-action=discover]');
+  submit('[data-book-form]');
   await until(
     () =>
       node('[data-contact-status]').textContent?.startsWith(
-        'Solicitação enviada.',
+        'Contact saved and request sent.',
       ) === true,
     signal,
     'The real exact-wallet contact request',

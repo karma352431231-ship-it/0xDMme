@@ -212,11 +212,8 @@ function inviteDialogs(): void {
   const editorDialog = page.querySelector<HTMLDialogElement>(
     '[data-contact-editor]',
   )!;
-  const invites = page.querySelector<HTMLDialogElement>(
-    '[data-contact-invites]',
-  )!;
   editorDialog.showModal();
-  const tabs = [...editorDialog.querySelectorAll('.contact-subtabs button')];
+  const tabs = [...editorDialog.querySelectorAll('.contact-add-tabs button')];
   const tops = tabs.map((tab) => tab.getBoundingClientRect().top);
   check(
     Math.max(...tops) - Math.min(...tops) < 1,
@@ -227,12 +224,17 @@ function inviteDialogs(): void {
       editorDialog.getBoundingClientRect().right,
     'The add-contact row fits inside the dialog',
   );
-  editorDialog.close();
-  invites.showModal();
-  invites.querySelector<HTMLElement>('[data-contact-own-invite]')!.hidden =
+  // Create invitation is the third tab of the same dialog.
+  for (const panel of editorDialog.querySelectorAll<HTMLElement>(
+    '[data-contact-panel="editor"]',
+  ))
+    panel.hidden = panel.dataset['tab'] !== 'own';
+  editorDialog.querySelector<HTMLElement>('[data-contact-own-invite]')!.hidden =
     false;
   const actions = [
-    ...invites.querySelectorAll<HTMLElement>('[data-contact-action]'),
+    ...editorDialog.querySelectorAll<HTMLElement>(
+      '.contact-add-row [data-contact-action]',
+    ),
   ];
   for (const action of actions) action.hidden = false;
   const actionTops = actions.map((node) => node.getBoundingClientRect().top);
@@ -242,14 +244,14 @@ function inviteDialogs(): void {
   );
   check(
     actions.at(-1)!.getBoundingClientRect().right <=
-      invites.getBoundingClientRect().right,
+      editorDialog.getBoundingClientRect().right,
     'The invitation actions fit inside the dialog',
   );
   check(
-    invites.querySelectorAll('.contact-hint').length === 1,
-    'The invitation dialog keeps only its expiry note',
+    tabs.every((tab) => tab.getBoundingClientRect().height > 0),
+    'The other ways to add a contact stay reachable from Create invitation',
   );
-  const box = invites.getBoundingClientRect();
+  const box = editorDialog.getBoundingClientRect();
   check(box.top >= 0, 'The invitation dialog starts on the screen');
   check(box.bottom <= innerHeight, 'The invitation dialog ends on the screen');
 }

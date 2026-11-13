@@ -149,14 +149,14 @@ for (const withInvite of [false, true])
     }
   });
 
-await test('save and request by full address identify EVM/Solana without an ecosystem selector', async (t) => {
+await test('saving a full address sends the request and identifies EVM/Solana without an ecosystem selector', async (t) => {
   browserEnvironment(t);
   t.mock.method(Contacts.prototype, 'refresh', () => Promise.resolve());
   const access: VaultAccess = {
     withVault: () =>
-      Promise.reject(new Error('Autoridade não usada nesta UI.')),
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
     withLocalVault: () =>
-      Promise.reject(new Error('Autoridade não usada nesta UI.')),
+      Promise.reject(new Error('Authority not used by this UI fixture.')),
   };
   const sync = new VaultSync(access);
   sync.complete = true;
@@ -169,9 +169,12 @@ await test('save and request by full address identify EVM/Solana without an ecos
     stored: AddressBookEntry[] = [],
     requested: string[] = [];
   const target = crypto.randomUUID();
+  let inviteOnly = false;
   t.mock.method(Contacts.prototype, 'discover', (wallet: WalletContact) => {
     discovered.push(wallet);
-    return Promise.resolve({ ...wallet, accountId: target, name: 'Contact' });
+    return Promise.resolve(
+      inviteOnly ? null : { ...wallet, accountId: target, name: 'Contact' },
+    );
   });
   t.mock.method(
     Contacts.prototype,
@@ -188,8 +191,9 @@ await test('save and request by full address identify EVM/Solana without an ecos
   });
   const address = { value: '', readOnly: false },
     title = { textContent: '' },
-    alias = { value: 'Contato particular' },
-    status = { textContent: '' };
+    alias = { value: 'Private friend' },
+    status = { textContent: '' },
+    outcome = { hidden: true };
   const form = Object.assign(new EventTarget(), {
     reset: () => {
       address.value = '';
@@ -197,7 +201,7 @@ await test('save and request by full address identify EVM/Solana without an ecos
   });
   const request = Object.assign(new EventTarget(), {
     disabled: false,
-    dataset: { contactAction: 'discover' },
+    dataset: { contactAction: 'refresh' },
   });
   const nodes = new Map<string, unknown>([
     ['[data-book-address]', address],
@@ -206,6 +210,7 @@ await test('save and request by full address identify EVM/Solana without an ecos
     ['[data-book-form]', form],
     ['[data-contact-status]', status],
     ['[data-contact-editor-status]', status],
+    ['[data-contact-outcome]', outcome],
   ]);
   const container = {
     isConnected: true,
@@ -234,25 +239,24 @@ await test('save and request by full address identify EVM/Solana without an ecos
     },
   ] as const) {
     address.value = ` ${wallet.address} `;
-    request.dispatchEvent(new Event('click'));
+    // One action: saving also discovers the wallet and sends the request.
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
     await finished();
     assert.deepEqual(discovered.at(-1), wallet);
     assert.equal(requested.at(-1), target);
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-    await finished();
     assert.equal(stored.at(-1)?.ecosystem, wallet.ecosystem);
     assert.equal(stored.at(-1)?.address, wallet.address);
     assert.equal(stored.at(-1)?.alias, alias.value);
+    assert.equal(stored.at(-1)?.accountId, target);
   }
-  address.value = 'endereço inválido';
-  request.dispatchEvent(new Event('click'));
-  await finished();
+  address.value = 'invalid address';
   form.dispatchEvent(new Event('submit', { cancelable: true }));
   await finished();
   assert.match(status.textContent, /Invalid wallet/u);
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
-  assert.equal(stored.length, 4);
+  // The request stored each peer once; the same nickname is not written again.
+  assert.equal(stored.length, 2);
   const contact: AddressBookEntry = {
     version: 1,
     ecosystem: 'evm',
@@ -276,10 +280,20 @@ await test('save and request by full address identify EVM/Solana without an ecos
   contacts.showContact(contact);
   await finished();
   assert.deepEqual(opened, contact);
-  assert.equal(address.value, 'endereço inválido');
+  assert.equal(address.value, 'invalid address');
   assert.equal(address.readOnly, false);
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
+  // A wallet that accepts invitations only is still saved, without a request.
+  inviteOnly = true;
+  address.value = '0x' + 'c'.repeat(40);
+  form.dispatchEvent(new Event('submit', { cancelable: true }));
+  await finished();
+  assert.equal(discovered.length, 3);
+  assert.equal(requested.length, 2);
+  assert.equal(stored.length, 3);
+  assert.equal(stored.at(-1)?.accountId, null);
+  assert.equal(outcome.hidden, false);
 });
 
 await test('foreground approved-contact loading retains queue priority and refuses unavailable fresh authority', async (t) => {
@@ -305,7 +319,7 @@ await test('foreground approved-contact loading retains queue priority and refus
   assert.equal(contacts.pages.size, 0);
 });
 
-await test('Create invitation works from the editor before Contacts ever opened', async (t) => {
+await test('Create invitation is a tab of the add editor and works before Contacts ever opened', async (t) => {
   browserEnvironment(t);
   const access: VaultAccess = {
     withVault: () =>
@@ -325,29 +339,24 @@ await test('Create invitation works from the editor before Contacts ever opened'
     querySelector: () => null,
   });
   const editorDialog = opener(true),
-    invites = opener(),
     status = { textContent: '' };
-  const create = Object.assign(new EventTarget(), {
-    getAttribute: () => 'create',
-    disabled: false,
-  });
+  const create = Object.assign(new EventTarget(), { disabled: false });
   const fields = new Map<string, unknown>([
     ['[data-contact-editor]', editorDialog],
-    ['[data-contact-invites]', invites],
-    ['[data-contact-invite-status]', status],
+    ['[data-contact-tab="editor"][data-tab="own"]', create],
+    ['[data-contact-editor-status]', status],
   ]);
   const host = {
     isConnected: true,
     innerHTML: '',
     querySelector: (selector: string) => fields.get(selector) ?? null,
-    querySelectorAll: (selector: string) =>
-      selector === '[data-contact-own-open]' ? [create] : [],
+    querySelectorAll: () => [],
   } as unknown as HTMLElement;
   const contacts = startContacts(access, new VaultSync(access));
   contacts.mountEditor(host);
   create.dispatchEvent(new Event('click'));
-  assert.equal(editorDialog.open, false);
-  assert.equal(invites.open, true);
+  // The tab keeps the same dialog open, so the other two ways stay reachable.
+  assert.equal(editorDialog.open, true);
   // Reaching the signed-out refusal proves the click started the creation.
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(status.textContent, translatedError('Sign in first.'));
@@ -376,7 +385,11 @@ await test('sidebar add opens the editor over any view and reads saved contacts 
     addEventListener: () => undefined,
     querySelector: () => null,
   };
-  const address = { value: '', readOnly: false },
+  const address = {
+      value: '',
+      readOnly: false,
+      addEventListener: () => undefined,
+    },
     alias = { value: '' };
   const fields = new Map<string, unknown>([
     ['[data-contact-editor]', dialog],
