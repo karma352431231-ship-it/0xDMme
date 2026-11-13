@@ -62,6 +62,7 @@ const authored = [
   'src/client/conversation-menu',
   'src/shared/dm-deletion',
   'src/client/menu-icons',
+  'src/client/message-inline-editor',
   'src/client/message-forward',
   'src/client/message-presentation',
   'src/shared/message-presentation',
