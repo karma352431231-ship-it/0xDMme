@@ -17,6 +17,10 @@ export function applyMessageAvailability(
 function localControl(control: HTMLElement): boolean {
   return (
     !!control.closest('[data-message-form], [data-group-compose]') ||
+    // Showing a photo or playing a video only presents media; its loading has
+    // its own queue. Disabling them dimmed every image while any operation,
+    // such as a deletion, ran (owner, 13/11/2026).
+    !!control.closest('.chat-attachment-preview, .chat-attachment-video') ||
     control.matches(
       '[data-chat-back], [data-conversation], [data-draft-action], [data-message-text], [data-group-text]',
     )

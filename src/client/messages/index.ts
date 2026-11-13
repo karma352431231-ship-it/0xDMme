@@ -696,6 +696,7 @@ export function startMessages(
       loadMore: () => directoryData.refresh(true, networkAvailable()),
     },
     mediaPreviews: (view) => controller.mediaPreviews(view),
+    mediaReady: (message, variant) => controller.mediaReady(message, variant),
     media: (view, thumbnail, diagnostic) =>
       controller.media(view, thumbnail, diagnostic),
     run,
@@ -817,8 +818,9 @@ export function startMessages(
       // The notice carries no message: it may be this tab's own deletion
       // coming back. The probe requested next verifies it, with any other
       // removal, before publishing; the open chat stays shown meanwhile.
-      previews.clear();
-      renderContacts();
+      // The list refreshes its previews in place: clearing them first
+      // reordered every contact until they returned (owner, 13/11/2026).
+      refreshDirectoryPreviews();
       controller.hint();
     } else if (event === 'removed') {
       previews.clear();

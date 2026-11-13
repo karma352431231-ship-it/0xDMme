@@ -89,6 +89,7 @@ interface HistoryPresentation {
   attachments: Pick<AttachmentUi, 'clearMedia' | 'render'>;
   media: Messages['media'];
   mediaPreviews?: Messages['mediaPreviews'];
+  mediaReady?: Messages['mediaReady'];
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
   searchFocus?: { active: () => boolean; latest: () => void };
@@ -674,6 +675,8 @@ export class MessageHistoryUi {
         signal,
         load: this.options.media,
         previews: this.options.mediaPreviews?.(view),
+        ready: (variant) =>
+          this.options.mediaReady?.(view.id, variant) ?? false,
         run: this.options.run,
       });
     } else if (gifUrls(view.content.text).length)

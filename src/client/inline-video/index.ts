@@ -123,6 +123,9 @@ export function mountInlineVideo(
       caption.textContent = '';
       retry.textContent = t('Play video');
       retry.hidden = false;
+      // The poster is a small preview: the full source follows quietly and
+      // its first frame replaces it at full quality (owner, 13/11/2026).
+      void loadQuietly();
     } catch {
       if (usable(signal)) {
         caption.textContent = t('Video unavailable. Try again.');
@@ -132,13 +135,28 @@ export function mountInlineVideo(
       if (posterWork === controller) posterWork = null;
     }
   }
-  async function load(): Promise<void> {
-    if (stopped || !visible || current || resultUrl) return;
-    const controller = new AbortController();
-    current = controller;
-    const signal = AbortSignal.any([options.signal, controller.signal]);
+  function announceLoading(): void {
     caption.textContent = t('Loading video…');
     retry.hidden = true;
+  }
+  async function load(): Promise<void> {
+    const controller = beginLoad();
+    if (!controller) return;
+    announceLoading();
+    await fetchSource(controller);
+  }
+  /** Upgrades a shown poster without a loading notice. */
+  async function loadQuietly(): Promise<void> {
+    const controller = beginLoad();
+    if (controller) await fetchSource(controller);
+  }
+  function beginLoad(): AbortController | null {
+    if (stopped || !visible || current || resultUrl) return null;
+    current = new AbortController();
+    return current;
+  }
+  async function fetchSource(controller: AbortController): Promise<void> {
+    const signal = AbortSignal.any([options.signal, controller.signal]);
     if (!options.deferSource) loadPoster(signal);
     try {
       const source = await options.load(signal);
@@ -179,6 +197,12 @@ export function mountInlineVideo(
     if (!resultUrl || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
       return;
     caption.textContent = '';
+    if (posterUrl && video.hasAttribute('poster')) {
+      // The decoded source now shows its own first frame at full quality.
+      video.removeAttribute('poster');
+      retry.hidden = true;
+      showFirstFrame(video);
+    }
     const notify = decoded;
     decoded = undefined;
     notify?.(video);

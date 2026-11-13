@@ -298,6 +298,7 @@ export class AttachmentUi {
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
     previews?: MediaPreviews | undefined;
+    ready?: ((variant: 'original' | 'thumbnail') => boolean) | undefined;
     /** Visible caption already interpreted by the conversation format owner. */
     caption?: string;
     imageOverlay?: HTMLElement;

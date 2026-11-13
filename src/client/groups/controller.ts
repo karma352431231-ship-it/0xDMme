@@ -1,4 +1,6 @@
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import { MediaMemory } from '../media-memory/index.ts';
+import type { MediaVariant } from '../media-memory/index.ts';
 import { OwnRemovals, removalFailure } from '../own-removals/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
@@ -135,6 +137,8 @@ export class GroupController {
   historyPending = false;
   /** This tab's own deletions, hidden in place while the history stays shown. */
   private readonly ownRemovals = new OwnRemovals();
+  /** Media opened in this session; see media-memory for its lifetime. */
+  private readonly mediaMemory = new MediaMemory();
   private readonly access: VaultAccess;
   private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
@@ -219,12 +223,15 @@ export class GroupController {
   close(): void {
     this.deselect();
     this.ownRemovals.clear();
+    this.mediaMemory.clear();
     this.historyPending = false;
     this.pauseSynchronization();
     this.resetSynchronization();
     this.generation++;
   }
+  /** Someone else's deletion: media of deleted messages must not linger. */
   removed(): void {
+    this.mediaMemory.clear();
     this.selection.invalidate('removal');
     this.messageWindows.clear();
     this.pauseSynchronization();
@@ -233,6 +240,7 @@ export class GroupController {
   }
   hide(): void {
     this.ownRemovals.clear();
+    this.mediaMemory.clear();
     this.previews.clear();
     this.resetSynchronization();
     this.selection.invalidate('authorization');
@@ -1362,6 +1370,7 @@ export class GroupController {
    * switching groups only marks it, for when that group is read again. */
   private withdrawRemoved(view: GroupView): void {
     this.ownRemovals.accepted(view.id);
+    this.mediaMemory.forget(view.id);
     if (this.selected?.state.groupId !== view.groupId) return;
     this.views = this.ownRemovals.visible(this.views);
     if (!this.searchFocused) this.rememberPreview(view.groupId, this.views);
@@ -1501,6 +1510,21 @@ export class GroupController {
       !this.views.some((v) => v.id === view.id && v.hash === view.hash)
     )
       throw new Error('Group message changed.');
+    return this.mediaMemory.read(
+      view.id,
+      thumbnail ? 'thumbnail' : 'original',
+      () => this.readMedia(selected, view, thumbnail),
+    );
+  }
+  /** Whether this message's media was already opened in this session. */
+  mediaReady(message: string, variant: MediaVariant): boolean {
+    return this.mediaMemory.has(message, variant);
+  }
+  private readMedia(
+    selected: GroupSummary,
+    view: GroupView,
+    thumbnail: boolean,
+  ): Promise<Uint8Array<ArrayBuffer>> {
     const generation = this.generation;
     return this.withAuthority(async (c) => {
       if (selected.localOnly || !networkAvailable())

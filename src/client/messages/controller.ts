@@ -1,4 +1,6 @@
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import { MediaMemory } from '../media-memory/index.ts';
+import type { MediaVariant } from '../media-memory/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
@@ -172,6 +174,8 @@ export class Messages {
   private prefetchAbort: AbortController | null = null;
   private readonly outbox: MessageOutbox;
   private readonly reader: ConversationReader;
+  /** Media opened in this session; see media-memory for its lifetime. */
+  private readonly mediaMemory = new MediaMemory();
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -342,20 +346,24 @@ export class Messages {
     this.pauseSynchronization();
     this.audiences.clear();
     this.generation++;
+    this.mediaMemory.clear();
     this.reader.close();
   }
   pause(scope: 'account' | 'conversation' = 'account'): void {
     if (scope === 'account') {
       this.previewGeneration++;
       this.audiences.clear();
+      this.mediaMemory.clear();
     }
     this.pinsGeneration = -1;
     if (scope === 'account') this.pauseSynchronization();
     this.reader.pause(scope);
   }
+  /** Someone else's deletion: media of deleted messages must not linger. */
   removed(): void {
     this.previewGeneration++;
     this.pauseSynchronization();
+    this.mediaMemory.clear();
     this.reader.removed();
   }
   hideFailedRead(error: unknown): void {
@@ -370,6 +378,7 @@ export class Messages {
     this.previewGeneration++;
     this.pinsGeneration = -1;
     this.pauseSynchronization();
+    this.mediaMemory.clear();
     this.reader.hide();
   }
   hint(): void {
@@ -651,14 +660,24 @@ export class Messages {
       const reading = this.reader.captureMedia(view);
       return this.historicalMedia(view, thumbnail, reading.guard);
     }
-    return this.withMedia(view, thumbnail, (a, input) =>
-      downloadAttachment({
-        diagnostic,
-        account: a.session.accountId,
-        message: view.id,
-        ...input,
-      }),
+    // The row must still be in the verified history before any reuse.
+    const generation = this.generation;
+    this.guard(generation);
+    this.reader.captureMedia(view).guard();
+    return this.mediaMemory.read(view.id, mediaVariant(thumbnail), () =>
+      this.withMedia(view, thumbnail, (a, input) =>
+        downloadAttachment({
+          diagnostic,
+          account: a.session.accountId,
+          message: view.id,
+          ...input,
+        }),
+      ),
     );
+  }
+  /** Whether this message's media was already opened in this session. */
+  mediaReady(message: string, variant: MediaVariant): boolean {
+    return this.mediaMemory.has(message, variant);
   }
   mediaPreviews(view: MessageView): MediaPreviews {
     return {
@@ -1552,6 +1571,7 @@ export class Messages {
       throw error;
     }
     this.reader.ownRemovalAccepted(view.id);
+    this.mediaMemory.forget(view.id);
     notifyMessageControls('other-tabs');
   }
   /** A bare removal notice may be this tab's own deletion coming back. */
@@ -1611,4 +1631,8 @@ export class Messages {
   pending(): Promise<{ id: string; peer: string; text?: boolean }[]> {
     return this.outbox.pending();
   }
+}
+
+function mediaVariant(thumbnail: boolean): MediaVariant {
+  return thumbnail ? 'thumbnail' : 'original';
 }

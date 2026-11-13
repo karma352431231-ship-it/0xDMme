@@ -72,6 +72,7 @@ interface ChatOptions {
     | 'edit'
     | 'removeMessage'
     | 'ownRemovalDone'
+    | 'mediaReady'
     | 'compose'
     | 'sendPending'
     | 'composeText'
@@ -578,6 +579,8 @@ export class GroupChatView {
         load: (_media, thumbnail) =>
           this.options.controller.media(view, thumbnail),
         previews: this.options.controller.mediaPreviews(view),
+        ready: (variant) =>
+          this.options.controller.mediaReady(view.id, variant),
         run: this.options.run,
       });
       if (view.unavailableMedia.length) {

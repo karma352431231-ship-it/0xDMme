@@ -74,6 +74,14 @@ class MediaNode {
   contains(): boolean {
     return false;
   }
+  querySelector(selector: string): MediaNode | null {
+    for (const child of this.children) {
+      if (child.tag === selector) return child;
+      const found = child.querySelector(selector);
+      if (found) return found;
+    }
+    return null;
+  }
 }
 function environment(t: TestContext, playback?: Partial<VoicePlayback>) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -86,9 +94,23 @@ function environment(t: TestContext, playback?: Partial<VoicePlayback>) {
       body,
     },
   });
+  // Decoding the original before it replaces a preview.
+  const previousImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+  Object.defineProperty(globalThis, 'Image', {
+    configurable: true,
+    value: class {
+      src = '';
+      decode(): Promise<void> {
+        return Promise.resolve();
+      }
+    },
+  });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
     else Reflect.deleteProperty(globalThis, 'document');
+    if (previousImage)
+      Object.defineProperty(globalThis, 'Image', previousImage);
+    else Reflect.deleteProperty(globalThis, 'Image');
   });
   const blobs: Blob[] = [],
     revoked: string[] = [];
@@ -537,7 +559,7 @@ await test('conversation-supplied attachment captions preserve legacy literals a
   }
 });
 
-await test('an authenticated thumbnail loads the bubble and opening it reads and saves the original format', async (t) => {
+await test('an authenticated thumbnail shows first, then the original replaces it; opening reuses that original', async (t) => {
   const { ui, blobs, body } = environment(t);
   const article = new MediaNode('article'),
     media = content('image/png', true);
@@ -557,15 +579,17 @@ await test('an authenticated thumbnail loads the bubble and opening it reads and
     run: (work) => work(),
   });
   await flush();
-  assert.deepEqual(loads, [true]);
-  assert.equal(blobs.length, 1);
+  // Quick preview, then full quality (owner, 13/11/2026).
+  assert.deepEqual(loads, [true, false]);
+  assert.equal(blobs.length, 2);
+  assert.equal(article.querySelector('img')?.src, 'blob:synthetic-2');
   article.children[0]!.children[0]!.click();
   await flush();
-  assert.deepEqual(loads, [true, false]);
+  assert.deepEqual(loads, [true, false], 'the original was read again');
   assert.equal(viewerSaveLink(body)?.href, 'blob:synthetic-2');
   assert.equal(viewerSaveLink(body)?.download, media.name);
 });
-await test('a warm derived image reads zero original bytes and a detached row cannot present a late preview', async (t) => {
+await test('a warm derived image shows at once and is replaced by its original; a detached row presents nothing late', async (t) => {
   const { ui, blobs } = environment(t);
   const article = new MediaNode('article');
   let originals = 0;
@@ -584,8 +608,9 @@ await test('a warm derived image reads zero original bytes and a detached row ca
     run: (work) => work(),
   });
   await flush();
-  assert.equal(originals, 0);
-  assert.equal(blobs.length, 1);
+  assert.equal(originals, 1, 'one background read reaches full quality');
+  assert.equal(blobs.length, 2);
+  assert.equal(article.querySelector('img')?.src, 'blob:synthetic-2');
   let finish: (bytes: Uint8Array<ArrayBuffer>) => void = () => {};
   const pending = new Promise<Uint8Array<ArrayBuffer>>((resolve) => {
     finish = resolve;
@@ -607,11 +632,11 @@ await test('a warm derived image reads zero original bytes and a detached row ca
   const bytes = png();
   finish(bytes);
   await flush();
-  assert.equal(blobs.length, 1);
+  assert.equal(blobs.length, 2);
   assert.ok(bytes.every((byte) => byte === 0));
-  assert.equal(originals, 0);
+  assert.equal(originals, 1, 'the detached row read no original');
 });
-await test('a chat video with a warm poster reads no original until the first tap on its normal play surface', async (t) => {
+await test('a chat video shows its warm poster first, then loads its source quietly without playing', async (t) => {
   const { ui, blobs, revoked } = environment(t);
   let visible: (entries: { isIntersecting: boolean }[]) => void = () => {};
   const previous = Object.getOwnPropertyDescriptor(
@@ -675,14 +700,17 @@ await test('a chat video with a warm poster reads no original until the first ta
   const figure = article.children[0]!,
     stage = figure.children[0]!,
     video = stage.children[0]!;
-  assert.equal(originals, 0);
-  assert.equal(video.src, '');
-  assert.equal(blobs.length, 1);
-  stage.children[1]!.click();
-  await flush();
+  // The poster shows at once; the source follows for full quality (owner,
+  // 13/11/2026), without starting playback.
   assert.equal(originals, 1);
   assert.equal(video.src, 'blob:synthetic-2');
-  assert.equal(video.paused, false);
+  assert.equal(video.paused, true);
+  assert.equal(blobs.length, 2);
+  // Becoming visible again reads nothing more.
+  visible([{ isIntersecting: false }]);
+  visible([{ isIntersecting: true }]);
+  await flush();
+  assert.equal(originals, 1);
   signal.abort();
   assert.equal(revoked.length, 2);
 });

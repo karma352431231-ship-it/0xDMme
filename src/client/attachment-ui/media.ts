@@ -25,6 +25,9 @@ interface MediaInput<V extends MediaView> {
   signal: AbortSignal;
   content?: AttachmentContent;
   previews?: MediaPreviews | undefined;
+  /** Whether the media owner already holds this variant from earlier in the
+   * session; such media shows at full quality at once. */
+  ready?: ((variant: 'original' | 'thumbnail') => boolean) | undefined;
   /** Visible caption already interpreted by the conversation format owner. */
   caption?: string;
   imageOverlay?: HTMLElement;
@@ -285,7 +288,7 @@ function renderVideo<V extends MediaView>(
       input.article.append(fallback);
     },
     load: (signal) => loadVideo(input, signal),
-    ...(input.previews
+    ...(input.previews && !input.ready?.('original')
       ? {
           deferSource: true,
           poster: {
@@ -387,6 +390,15 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   );
   button.hidden = image;
   let pending = false;
+  // One original read per row, shared by the quality upgrade and the viewer.
+  let original: Promise<string> | null = null;
+  const openOriginal = (): Promise<string> => {
+    original ??= originalPhoto(input, content).catch((error: unknown) => {
+      original = null;
+      throw error;
+    });
+    return original;
+  };
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
     const diagnostic = startLoad(attachmentLoadKind(content), input.view.peer);
@@ -403,7 +415,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
           name: content.name,
           ...(previewOnly
             ? {
-                original: () => originalPhoto(input, content),
+                original: openOriginal,
                 run: input.run,
                 current: input.current,
               }
@@ -420,6 +432,12 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
             : {}),
         });
         readyMedia(preview, diagnostic, input.current);
+        upgradeToOriginal(preview, {
+          content,
+          previewOnly,
+          original: openOriginal,
+          current: input.current,
+        });
         return;
       }
       if (image)
@@ -463,6 +481,35 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     );
   }
 }
+/**
+ * The small preview shows first; the original follows in the background and
+ * replaces it once decoded, so the bubble ends at full quality (owner,
+ * 13/11/2026). Failure keeps the preview; zoom still opens the original.
+ */
+function upgradeToOriginal(
+  preview: HTMLElement,
+  input: {
+    content: AttachmentContent;
+    previewOnly: boolean;
+    original: () => Promise<string>;
+    current: () => boolean;
+  },
+): void {
+  // An original is already shown; an animated GIF plays from its original.
+  if (!input.previewOnly || input.content.type === 'image/gif') return;
+  const { original, current } = input;
+  void original()
+    .then(async (url) => {
+      const full = new Image();
+      full.src = url;
+      await full.decode();
+      const shown = preview.querySelector('img');
+      if (current() && shown) shown.src = url;
+    })
+    .catch(() => {
+      /* The preview stays; opening the image retries the original. */
+    });
+}
 function admitVisiblePreview<V extends MediaView>(
   input: MediaInput<V>,
   work: () => Promise<void>,
@@ -496,6 +543,11 @@ async function loadPhoto<V extends MediaView>(
       previewOnly: false,
     };
   const animated = content.type === 'image/gif';
+  if (input.ready?.('original'))
+    return {
+      bytes: await loadMediaBytes(input, diagnostic),
+      previewOnly: false,
+    };
   if (!animated && content.thumbnail)
     return {
       bytes: await input.load(input.view, true, diagnostic),
