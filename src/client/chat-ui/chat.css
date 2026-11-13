@@ -77,6 +77,7 @@
   min-width: 0;
 }
 .chat-panel .chat-header {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   flex-wrap: nowrap;
@@ -146,6 +147,14 @@
   position: relative;
   flex: 0 0 auto;
   margin: 0;
+}
+/* Header menus use the conversation width, including narrow desktop columns. */
+.chat-panel .chat-header .chat-options {
+  position: static;
+}
+.chat-header .chat-options > .chat-popover {
+  right: 12px;
+  width: min(300px, calc(100% - 24px));
 }
 .chat-options > summary {
   list-style: none;

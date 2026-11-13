@@ -136,3 +136,15 @@
     }
   }
 }
+
+/* The whole bubble remains selectable; mouse checkboxes need only a compact mark. */
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+  #app-shell .chat-history input.message-select[type='checkbox'] {
+    left: -26px;
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    min-height: 16px;
+    padding: 0;
+  }
+}

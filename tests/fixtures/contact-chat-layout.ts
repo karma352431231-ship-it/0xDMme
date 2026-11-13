@@ -116,7 +116,37 @@ try {
     Math.abs(box(view.title).left - box(view.state).left) < 1,
     'Handle and subtitle align',
   );
+  const previousWidth = view.panel.style.maxWidth;
+  view.panel.style.maxWidth = '280px';
+  const headerOptions = view.options.parentElement as HTMLDetailsElement;
+  headerOptions.open = true;
+  check(
+    box(view.options).left >= box(header).left &&
+      box(view.options).right <= box(header).right,
+    'Header options fit inside a narrow conversation column',
+  );
+  headerOptions.open = false;
+  view.panel.style.maxWidth = previousWidth;
   const bubble = view.history.querySelector<HTMLElement>('article')!;
+  const selectionChoice = document.createElement('input');
+  selectionChoice.type = 'checkbox';
+  selectionChoice.className = 'message-select';
+  bubble.prepend(selectionChoice);
+  const expectedChoice = matchMedia(
+    '(min-width: 701px) and (hover: hover) and (pointer: fine)',
+  ).matches
+    ? 16
+    : 24;
+  check(
+    Math.abs(
+      parseFloat(getComputedStyle(selectionChoice).width) - expectedChoice,
+    ) < 0.1 &&
+      Math.abs(
+        parseFloat(getComputedStyle(selectionChoice).height) - expectedChoice,
+      ) < 0.1,
+    'Deletion marks stay compact for a mouse and retain their touch size',
+  );
+  selectionChoice.remove();
   const menuLifetime = new AbortController();
   const menu = anchoredMessageMenu({
     signal: menuLifetime.signal,

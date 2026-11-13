@@ -195,3 +195,12 @@ needed for the next selection; in-flight targets remain limited to 64.
 No database schema, dependency, retention, cryptographic format or deployment
 change is required. Web and installed mobile builds share these modules; native
 binary delivery and physical Android/iPhone acceptance remain separate steps.
+
+## Header menu bounds and desktop selection marks — 2026-11-13
+
+Header option menus use the conversation header as their containing block and
+keep 12 px side insets, so narrow desktop columns and phone layouts retain the
+whole menu. Fine-pointer browser selection checkboxes use 16 px marks; touch
+layouts retain 24 px marks and the existing whole-bubble selection behavior.
+The assembled conversation fixture checks both geometry contracts. This is a
+presentation correction only; message selection and deletion rules are unchanged.
