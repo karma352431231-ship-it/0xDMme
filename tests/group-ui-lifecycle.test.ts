@@ -352,7 +352,7 @@ await test('co-member contact actions keep invitation-only wallets private', asy
   f.ui.setSession(null);
 });
 
-await test('reply replacement preserves typing and editing survives a temporary history gate until its original disappears', async () => {
+await test('reply preserves typing and inline editing leaves the composer draft through a temporary history gate', async () => {
   const f = groupUiFixture();
   const view: GroupView = {
     id: crypto.randomUUID(),
@@ -375,18 +375,20 @@ await test('reply replacement preserves typing and editing survives a temporary 
   assert.match(f.nodes['composeContext']!.textContent, /Original/);
   f.nodes['composeCancel']!.click();
   assert.equal(f.nodes['composeBar']!.hidden, true);
+  // Editing happens inside the message row; the new-message composer keeps
+  // its own draft and never shows an edit context.
   menu.children.find((b) => b.textContent === 'Edit')!.click();
   await turn();
-  f.nodes['groupText']!.value = 'Unsent edit draft';
+  assert.equal(f.nodes['groupText']!.value, 'Unsent reply draft');
+  assert.equal(f.nodes['composeBar']!.hidden, true);
   f.controller.historyPending = true;
   f.ui.removed();
   f.controller.historyPending = false;
   await f.refresh();
-  assert.equal(f.nodes['groupText']!.value, 'Unsent edit draft');
-  assert.equal(f.nodes['composeBar']!.hidden, false);
+  assert.equal(f.nodes['groupText']!.value, 'Unsent reply draft');
+  assert.equal(f.nodes['composeBar']!.hidden, true);
   f.controller.views = [];
   await f.refresh();
-  assert.equal(f.nodes['groupText']!.value, 'Unsent edit draft');
-  assert.equal(f.nodes['composeBar']!.hidden, true);
+  assert.equal(f.nodes['groupText']!.value, 'Unsent reply draft');
   f.ui.setSession(null);
 });
