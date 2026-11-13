@@ -1,7 +1,71 @@
 /*
  * Phones: top bar, page headings and bottom bar.
+ * Since 13/11/2026 the private profile and settings open from the avatar in
+ * the Conversations top bar; the bottom bar's last tab is the public profile.
  */
+#app-shell :is(.private-account-entry, .header-search-open) {
+  display: none;
+}
 @media (max-width: 700px) {
+  #app-shell[data-page='conversas']:not([data-account='guest'])
+    .private-account-entry {
+    display: grid;
+    flex: none;
+    place-items: center;
+    text-decoration: none;
+  }
+  #app-shell .private-account-entry .mobile-profile-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+  #app-shell .brand-bar .mobile-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* Settings and the pages they open belong to the Conversations area,
+   * except public profile setup, which the profile tab marks itself. */
+  #app-shell:is(
+      [data-page='perfil'],
+      [data-page='contatos'],
+      [data-page='status'],
+      [data-page='cofre']
+    ):not(:has([data-own-profile-tab][aria-current]))
+    .mobile-nav
+    a[data-route='conversas'] {
+    color: var(--text);
+  }
+  #app-shell:is(
+      [data-page='perfil'],
+      [data-page='contatos'],
+      [data-page='status'],
+      [data-page='cofre']
+    ):not(:has([data-own-profile-tab][aria-current]))
+    .mobile-nav
+    a[data-route='conversas']
+    svg {
+    color: var(--accent);
+  }
+  #app-shell .own-profile-tab-avatar svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  #app-shell .own-profile-tab-avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #app-shell .own-profile-tab-avatar [role='status'] {
+    display: none;
+  }
+  #app-shell .mobile-nav a[aria-current='page'] .own-profile-tab-avatar {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
   #app-shell .brand-bar {
     gap: 10px;
     padding: max(12px, env(safe-area-inset-top)) 16px 10px;

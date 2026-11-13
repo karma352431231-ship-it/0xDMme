@@ -6,6 +6,7 @@ import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { PublicSearchRequests, publicSearchQuery } from './query.ts';
 import { appendPostSearch } from './posts.ts';
+export { startHeaderSearch } from './header-toggle.ts';
 
 const searchIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';

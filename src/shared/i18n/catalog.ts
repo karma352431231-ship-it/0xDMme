@@ -9590,6 +9590,11 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Search chats, contacts and messages',
     '搜索聊天、联系人和消息',
   ],
+  'Search posts, users and communities': [
+    'Search posts, users and communities',
+    '搜索帖子、用户与社区',
+  ],
+  'Close search': ['Close search', '关闭搜索'],
   'Add contact or create group': [
     'Add contact or create group',
     '添加联系人或创建群组',

@@ -41,3 +41,40 @@ await test('a profile setup link leads back once, and leaving setup forgets it',
   forgetProfileReturn();
   assert.equal(takeProfileReturn(), null);
 });
+
+await test('the bottom profile tab is current only on the viewer’s own profile or its setup', async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  const place = { hash: '', pathname: '/', search: '' };
+  Object.defineProperty(globalThis, 'location', {
+    value: place,
+    configurable: true,
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'location', previous);
+    else Reflect.deleteProperty(globalThis, 'location');
+  });
+  const { ownProfileOpen } =
+    await import('../src/client/public-profile/own-profile-tab.ts');
+  const own = {
+    id: '10000000-0000-4000-8000-000000000002',
+    handle: 'Atlas',
+    avatar: null,
+  };
+  const cases: [string, typeof own | null, boolean][] = [
+    ['#users?handle=atlas', own, true],
+    ['#users?handle=someone', own, false],
+    ['#users?handle=atlas', null, false],
+    ['#settings?section=profile', null, true],
+    ['#settings?section=profile', own, false],
+    ['#settings', null, false],
+    ['#communities', own, false],
+  ];
+  for (const [hash, profile, expected] of cases) {
+    place.hash = hash;
+    assert.equal(
+      ownProfileOpen(profile),
+      expected,
+      `${hash} ${profile?.handle ?? 'none'}`,
+    );
+  }
+});

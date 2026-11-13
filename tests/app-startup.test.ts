@@ -16,7 +16,7 @@ const featureExports: Record<string, string[]> = {
     'networkOfflineEvent',
   ],
   language: ['startLanguage', 'mountLanguageSettings', 'applyLanguage'],
-  'public-search': ['mountPublicSearch'],
+  'public-search': ['mountPublicSearch', 'startHeaderSearch'],
   'public-traffic': ['startPublicTraffic'],
   'pull-refresh': ['startPullRefresh'],
   appearance: ['startAppearance', 'paintAvatar'],

@@ -4,6 +4,11 @@ import { ownPublicProfile } from '../../shared/public-profile/index.ts';
 import type { OwnPublicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import {
+  markOwnProfileTabs,
+  ownProfileOpen,
+  paintOwnProfileTabs,
+} from './own-profile-tab.ts';
 export function startOwnProfileShortcut(controller: PublicProfiles) {
   let generation = 0;
   let lifetime = new AbortController();
@@ -13,7 +18,8 @@ export function startOwnProfileShortcut(controller: PublicProfiles) {
   function paint(): void {
     lifetime.abort();
     lifetime = new AbortController();
-    const own = (controller.profile ?? fetched)?.profile;
+    const own = current();
+    paintOwnProfileTabs(own, lifetime.signal);
     document
       .querySelectorAll<HTMLAnchorElement>('[data-own-public-profile]')
       .forEach((link) => {
@@ -35,9 +41,17 @@ export function startOwnProfileShortcut(controller: PublicProfiles) {
           });
       });
   }
+  function current() {
+    return (controller.profile ?? fetched)?.profile ?? null;
+  }
   watchProfileShortcuts(paint);
+  window.addEventListener('hashchange', () => markOwnProfileTabs(current()));
+  // The bottom bar tab is static markup: show its setup state until known.
+  paint();
   return {
     paint,
+    /** Whether the open page is this viewer's own profile (or its setup). */
+    ownProfileOpen: () => ownProfileOpen(current()),
     clear(): void {
       generation++;
       loaded = false;

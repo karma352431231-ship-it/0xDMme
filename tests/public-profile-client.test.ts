@@ -294,8 +294,10 @@ await test('public-photo shortcut never mixes initials; no photo keeps fallback 
     await import('./fixtures/community-dom.ts');
   const links = [new CommunityNode('a'), new CommunityNode('a')];
   for (const link of links) Object.assign(link, { isConnected: true });
+  // Only the community shortcuts exist here; no bottom-bar profile tab.
   const document = Object.assign(communityDocument(), {
-    querySelectorAll: () => links,
+    querySelectorAll: (selector: string) =>
+      selector === '[data-own-public-profile]' ? links : [],
   });
   for (const [name, value] of Object.entries({
     document,

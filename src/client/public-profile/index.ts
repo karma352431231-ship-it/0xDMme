@@ -266,6 +266,8 @@ export function startPublicProfile(
     async exists(): Promise<boolean> {
       return controller.exists();
     },
+    /** The phone bottom bar marks its own-profile tab instead of Communities. */
+    ownProfileOpen: () => shortcut.ownProfileOpen(),
     setSession(session: AccountSession | null): void {
       activity.setSession(session);
       notices.setAccount(session?.accountId ?? null);

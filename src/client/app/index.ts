@@ -16,7 +16,10 @@ import {
   canonicalAppHash,
   routeParams,
 } from '../../shared/app-routes/index.ts';
-import { mountPublicSearch } from '../public-search/index.ts';
+import {
+  mountPublicSearch,
+  startHeaderSearch,
+} from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
@@ -103,6 +106,8 @@ publicChat.innerHTML = t('html.6b9c4f752db1');
 document
   .querySelectorAll<HTMLElement>('[data-public-search]')
   .forEach((host) => mountPublicSearch(host, new AbortController().signal));
+const topBar = document.querySelector<HTMLElement>('.sidebar > .brand-bar');
+if (topBar) startHeaderSearch(topBar);
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 const navigationVisits = new NavigationVisits();
@@ -498,8 +503,12 @@ function route(): void {
   document
     .querySelectorAll<HTMLAnchorElement>('nav a[data-route]')
     .forEach((link) => {
-      // A public profile is part of the Communities area.
-      const area = key === 'publico' ? 'comunidades' : key;
+      // Another person's public profile is part of the Communities area;
+      // the viewer's own one belongs to the bottom bar's profile tab.
+      const area =
+        key === 'publico' && !publicProfiles.ownProfileOpen()
+          ? 'comunidades'
+          : key;
       if (link.dataset['route'] === area)
         link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');

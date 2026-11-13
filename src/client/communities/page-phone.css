@@ -43,7 +43,8 @@
     :has(> .community-feed-filters)
     > .community-tools {
     position: absolute;
-    top: 52px;
+    /* Centered on the filter row, which is the first row of the bar. */
+    top: 5px;
     right: 0;
     z-index: 2;
     margin: 0;
@@ -63,7 +64,8 @@
   }
   #app-shell[data-page='comunidades'] .community-feed-filter-row {
     display: flex;
-    flex: 0 0 100%;
+    /* Leaves room for the "more" button at the end of the row. */
+    flex: 0 0 calc(100% - 42px);
     align-items: center;
     gap: 6px;
     min-width: 0;
@@ -87,22 +89,9 @@
     width: 168px;
     min-width: 0;
   }
+  /* The search lives in the fixed top bar (13/11/2026). */
   #app-shell[data-page='comunidades'] .community-feed-filters > .public-search {
-    flex: 0 1 calc(100% - 46px);
-    width: calc(100% - 46px);
-    min-width: 0;
-    margin: 0;
-  }
-  #app-shell[data-page='comunidades']
-    .community-feed-filters
-    .public-search-field {
-    min-height: 40px;
-  }
-  #app-shell[data-page='comunidades']
-    .community-feed-filters
-    .public-search
-    input {
-    font-size: 16px;
+    display: none;
   }
   #app-shell[data-page='comunidades'] .community-feed-filters > p {
     flex-basis: 100%;

@@ -171,3 +171,45 @@
     line-height: 20px;
   }
 }
+
+/* Phones: the top bar's search button opens this field over the title. */
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] .header-search-open {
+    display: inline-flex;
+  }
+  #app-shell .header-search {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  #app-shell .header-search[hidden],
+  #app-shell:not([data-page='comunidades']) .header-search {
+    display: none;
+  }
+  #app-shell
+    .brand-bar[data-header-search='open']
+    > :is(.mobile-title, .header-search-open) {
+    display: none;
+  }
+  /* Results span the whole bar, under the back button too. */
+  #app-shell .header-search .public-search {
+    position: static;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  #app-shell .header-search .public-search-field {
+    min-height: 40px;
+  }
+  #app-shell .header-search .public-search input {
+    font-size: 16px;
+  }
+  #app-shell .header-search .public-search-results {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}

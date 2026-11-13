@@ -100,6 +100,17 @@
             ><img class="brand-mark" src="/logo.svg" alt="" /><span
               >0xDMme</span
             ></a
+          ><a
+            class="private-account-entry"
+            href="#settings"
+            aria-label="Profile and settings"
+            title="Profile and settings"
+            ><span
+              class="mobile-profile-avatar"
+              data-private-avatar
+              aria-hidden="true"
+              >#</span
+            ></a
           ><span class="mobile-title" data-mobile-title aria-hidden="true"
             >Conversations</span
           >
@@ -124,6 +135,33 @@
               <path d="m16 16 5 5" />
             </svg>
           </button>
+          <button
+            class="icon-button header-search-open"
+            type="button"
+            data-header-search-open
+            aria-expanded="false"
+            aria-label="Search posts, users and communities"
+            title="Search posts, users and communities"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+          </button>
+          <div class="header-search" data-header-search hidden>
+            <button
+              class="icon-button"
+              type="button"
+              data-header-search-close
+              aria-label="Close search"
+              title="Close search"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 12H5M11 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <div data-public-search></div>
+          </div>
         </div>
         <nav class="area-nav" aria-label="App workspace">
           <a href="#chats" data-route="conversas">Conversations</a>
@@ -536,12 +574,15 @@
           ><span>Activity</span
           ><span class="activity-badge" data-activity-count hidden></span
         ></a>
-        <a href="#settings" data-route="perfil"
+        <a
+          href="#settings?section=profile"
+          data-own-profile-tab
+          aria-label="Create public profile"
           ><span
-            class="mobile-profile-avatar"
-            data-private-avatar
+            class="mobile-profile-avatar own-profile-tab-avatar"
+            data-own-profile-avatar
             aria-hidden="true"
-            >#</span
+          ></span
           ><span>Profile</span></a
         >
       </nav>

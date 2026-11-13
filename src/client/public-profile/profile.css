@@ -632,12 +632,10 @@
 #app-shell .feed-panel .community-own-profile-shortcut {
   display: none;
 }
+/* Phones reach the own public profile from the bottom bar (13/11/2026). */
 @media (max-width: 700px) {
   #app-shell[data-page='comunidades'] .community-own-profile-shortcut {
-    position: fixed;
-    right: 82px;
-    bottom: calc(90px + env(safe-area-inset-bottom));
-    z-index: 20;
+    display: none;
   }
 }
 
