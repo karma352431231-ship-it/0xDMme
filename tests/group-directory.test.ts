@@ -14,6 +14,14 @@ import {
 import { GroupController } from '../src/client/groups/controller.ts';
 import type { GroupSummary } from '../src/client/groups/controller.ts';
 import { GroupCache } from '../src/client/groups/cache.ts';
+import { GroupCatalog } from '../src/client/groups/catalog.ts';
+import type { CatalogGroup } from '../src/client/groups/catalog.ts';
+import { GroupGovernance } from '../src/client/groups/governance.ts';
+import { readGroupDirectory } from '../src/client/groups/directory-refresh.ts';
+import { groupEventHash } from '../src/shared/groups/index.ts';
+import { PeerIdentity } from '../src/client/peer-identity/index.ts';
+import type { MessageCrypto } from '../src/client/message-crypto/index.ts';
+import { deferred } from './fixtures/deferred.ts';
 import type { AddressBookEntry } from '../src/shared/contacts/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type {
@@ -50,6 +58,192 @@ function group(): GroupSummary {
     profileSequence: 7,
   };
 }
+
+function directoryReadFixture(t: TestContext) {
+  const raw = { ...group().state, signature: 'A'.repeat(86) + '==' };
+  const authority: VaultAuthority = {
+    session: {
+      accountId: raw.actor,
+      deviceId: raw.deviceId,
+      csrf: 'synthetic',
+    },
+    directory: raw.directory,
+    offline: false,
+    epoch: 1,
+    events: [],
+    key: () =>
+      Promise.reject(new Error('No encrypted records in this IO fixture')),
+    sign: () =>
+      Promise.reject(new Error('No signed network in this IO fixture')),
+  };
+  const access: VaultAccess = {
+    withVault: (_offline, work) => work(authority),
+    withLocalVault: () => Promise.reject(new Error('No offline reads')),
+  };
+  const identities = new PeerIdentity(new VaultSync(access));
+  const governance = new GroupGovernance(
+    identities,
+    () => Promise.reject(new Error('Unexpected governance IO')),
+    authority,
+  );
+  let page: unknown = { items: [raw], next: null };
+  const calls: string[] = [],
+    saved: string[] = [];
+  t.mock.method(governance, 'verify', async () => ({
+    state: raw,
+    head: await groupEventHash(raw),
+  }));
+  t.mock.method(GroupCache.prototype, 'get', () =>
+    Promise.resolve({
+      version: 1,
+      title: 'Synthetic verified group',
+      sequence: 1,
+      epoch: 1,
+    }),
+  );
+  t.mock.method(GroupCatalog.prototype, 'save', (value: CatalogGroup) => {
+    saved.push(value.state.groupId);
+    return Promise.resolve();
+  });
+  const input = {
+    identities,
+    after: null,
+    machine: <T>(work: (machine: MessageCrypto) => Promise<T>) =>
+      work({} as MessageCrypto),
+    context: {
+      authority,
+      governance,
+      api: (operation: string) => {
+        calls.push(operation);
+        if (operation === 'group-mode')
+          return Promise.resolve({ mode: 'configured' });
+        if (operation === 'group-list') return Promise.resolve(page);
+        if (operation === 'group-profile')
+          return Promise.resolve({ items: [], keys: [] });
+        return Promise.reject(
+          new Error('Unrelated maintenance must not gate directory rows'),
+        );
+      },
+    },
+  };
+  return {
+    input,
+    calls,
+    saved,
+    raw,
+    access,
+    page: (value: unknown) => {
+      page = value;
+    },
+  };
+}
+
+await test('bounded current group summaries verify governance/head and profile without outbox or invitations', async (t) => {
+  const f = directoryReadFixture(t);
+  const result = await readGroupDirectory(f.input);
+  assert.equal(result.entries[0]?.title, 'Synthetic verified group');
+  assert.equal(result.entries[0]?.localOnly, undefined);
+  assert.deepEqual(f.saved, [f.raw.groupId]);
+  assert.deepEqual(f.calls, ['group-mode', 'group-list', 'group-profile']);
+});
+
+await test('empty group pages are verified without opening an SDK store', async (t) => {
+  const f = directoryReadFixture(t);
+  f.page({ items: [], next: null });
+  f.input.machine = () =>
+    Promise.reject(new Error('An empty directory needs no SDK'));
+  assert.deepEqual(await readGroupDirectory(f.input), {
+    entries: [],
+    next: null,
+  });
+});
+
+await test('changed group heads and failed profiles cannot publish cached summaries as current', async (t) => {
+  const f = directoryReadFixture(t);
+  t.mock.method(f.input.context.governance, 'verify', () =>
+    Promise.resolve({ state: f.raw, head: 'b'.repeat(64) }),
+  );
+  await assert.rejects(readGroupDirectory(f.input), /group list changed/u);
+  assert.deepEqual(f.saved, []);
+  t.mock.method(f.input.context.governance, 'verify', async () => ({
+    state: f.raw,
+    head: await groupEventHash(f.raw),
+  }));
+  const api = f.input.context.api;
+  f.input.context.api = (operation) =>
+    operation === 'group-profile'
+      ? Promise.reject(new Error('Synthetic profile denied'))
+      : api(operation);
+  await assert.rejects(readGroupDirectory(f.input), /profile denied/u);
+  assert.deepEqual(f.saved, []);
+});
+
+await test('oversized pages and invalid cursors reject before any summary is opened', async (t) => {
+  const f = directoryReadFixture(t);
+  for (const page of [
+    { items: Array.from({ length: 17 }, () => f.raw), next: null },
+    { items: [f.raw], next: 'invalid' },
+  ]) {
+    f.page(page);
+    await assert.rejects(readGroupDirectory(f.input));
+  }
+  assert.deepEqual(f.saved, []);
+});
+
+await test('online group startup reads the bounded catalog without rebuilding it from saved history', async (t) => {
+  const f = directoryReadFixture(t);
+  t.mock.method(PeerIdentity.prototype, 'load', () => Promise.resolve());
+  t.mock.method(GroupCatalog.prototype, 'creation', () =>
+    Promise.resolve(null),
+  );
+  const next = crypto.randomUUID();
+  t.mock.method(GroupCatalog.prototype, 'page', () =>
+    Promise.resolve({
+      items: [{ state: f.raw, title: 'Synthetic local copy' }],
+      next,
+    }),
+  );
+  t.mock.method(f.input.context.authority, 'sign', () =>
+    Promise.resolve('synthetic'),
+  );
+  t.mock.method(globalThis, 'fetch', (path: string) => {
+    const operation = path.split('/').at(-1);
+    if (operation === 'group-mode')
+      return Promise.resolve(Response.json({ mode: 'configured' }));
+    if (operation === 'group-list')
+      return Promise.resolve(Response.json({ items: [], next: null }));
+    throw new Error('Unexpected network request');
+  });
+  const controller = new GroupController(
+    f.access,
+    new VaultSync(f.access),
+    () => false,
+  );
+  controller.setSession(f.input.context.authority.session as AccountSession);
+  await controller.refreshDirectory();
+  assert.deepEqual(
+    controller.entries.map((entry) => [entry.title, entry.localOnly]),
+    [['Synthetic local copy', true]],
+  );
+  assert.equal(controller.next, next);
+});
+
+await test('logout while group identities load cannot publish rows into the next session', async (t) => {
+  const f = directoryReadFixture(t),
+    held = deferred<void>();
+  t.mock.method(PeerIdentity.prototype, 'load', () => held.promise);
+  const controller = new GroupController(
+    f.access,
+    new VaultSync(f.access),
+    () => false,
+  );
+  controller.setSession(f.input.context.authority.session as AccountSession);
+  const read = controller.refreshDirectory();
+  controller.setSession(null);
+  held.resolve();
+  await assert.rejects(read);
+  assert.deepEqual(controller.entries, []);
+});
 function dom(t: TestContext) {
   const globals = { document: communityDocument(), window: new EventTarget() };
   const saved = Object.keys(globals).map(

@@ -36,7 +36,7 @@ type Groups = Pick<
   | 'reveal'
 >;
 interface DirectoryView {
-  presented?: (host: HTMLElement) => void;
+  presented?: (host: HTMLElement, rows: readonly ConversationEntry[]) => void;
   snapshot: () => {
     peers: readonly ConversationPeer[];
     selected: ConversationPeer | null;
@@ -355,7 +355,7 @@ export class MessageDirectoryUi {
       menu: this.options.menu,
       ...this.emptyState(),
     });
-    this.options.presented?.(list);
+    this.options.presented?.(list, entries);
   }
   private contactLabel(peer: Peer, settingsId: string): string {
     const state = this.options.snapshot().states.get(peer.accountId),

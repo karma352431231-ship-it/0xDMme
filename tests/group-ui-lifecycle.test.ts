@@ -5,8 +5,42 @@ import { groupUiFixture } from './fixtures/group-ui.ts';
 import type { GroupView } from '../src/client/groups/reader.ts';
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
 import type { CommunityNode } from './fixtures/community-dom.ts';
+import { deferred } from './fixtures/deferred.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+await test('verified group rows publish before invitations, settings and selected-history maintenance settle', async () => {
+  const f = groupUiFixture(),
+    held = deferred<void>();
+  let finishing = false;
+  f.controller.finishDirectoryRefresh = () => {
+    finishing = true;
+    return held.promise;
+  };
+  const previous = f.state.directoryPublications;
+  await f.ui.refreshDirectory();
+  assert.ok(f.state.directoryPublications > previous);
+  assert.equal(finishing, false);
+  assert.equal(f.ui.entries.length, 1);
+  const maintenance = f.ui.finishDirectoryRefresh();
+  await turn();
+  assert.equal(finishing, true);
+  assert.equal(f.ui.entries.length, 1);
+  held.resolve();
+  await maintenance;
+});
+
+await test('session change during deferred group maintenance cannot publish old settings or directory state', async () => {
+  const f = groupUiFixture(),
+    held = deferred<void>();
+  f.controller.finishDirectoryRefresh = () => held.promise;
+  const work = f.ui.finishDirectoryRefresh();
+  f.ui.setSession(null);
+  const publications = f.state.directoryPublications;
+  held.resolve();
+  await assert.rejects(work);
+  assert.equal(f.state.directoryPublications, publications);
+});
 
 await test('group settings track owner/admin/member roles and keep local copies read-only', async () => {
   const f = groupUiFixture();

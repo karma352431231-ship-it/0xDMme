@@ -11,6 +11,7 @@ type Fields = Pick<
   | 'loadOutcome'
   | 'loadPresentation'
   | 'loadStageMs'
+  | 'loadInitial'
   | 'loadTransferBytes'
   | 'loadTransferBlocks'
   | 'loadTransferPlannedBytes'

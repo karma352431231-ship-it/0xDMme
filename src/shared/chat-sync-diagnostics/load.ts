@@ -12,6 +12,9 @@ export const loadKinds = [
   'conversation-list',
   'directory-startup',
   'conversation-previews',
+  'useful-directory',
+  'group-directory',
+  'optional-maintenance',
   'history',
   'handle-history',
   'text',
@@ -33,6 +36,8 @@ const startupKinds = new Set<unknown>([
   'conversation-list',
   'directory-startup',
   'conversation-previews',
+  'useful-directory',
+  'group-directory',
 ]);
 export function startupLoadKind(value: unknown): value is LoadKind {
   return startupKinds.has(value);
@@ -52,6 +57,9 @@ export const loadStages = [
   'runtime',
   'pins',
   'previews',
+  'groups',
+  'scheduler',
+  'work',
   'start',
   'verified',
   'dom',
@@ -118,6 +126,7 @@ export interface LoadDiagnosticFields extends NativeTimingFields {
   nativeMs?: number;
   nativeTimings?: boolean;
   loadTimings?: boolean;
+  loadInitial?: boolean;
 }
 export function copyLoadDiagnostic(
   input: Record<string, unknown>,
@@ -186,6 +195,7 @@ export function copyLoadDiagnostic(
     'earlyTimings',
     'earlyLongTasks',
     'bootAvailable',
+    'loadInitial',
   ])
     if (typeof input[key] === 'boolean') output[key] = input[key];
 }

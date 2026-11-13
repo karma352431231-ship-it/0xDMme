@@ -105,6 +105,20 @@ No content, identifiers or response bodies are retained by this buffer.
 - `conversation-previews`: latest-message retrieval/verification, measured
   separately from the directory. Permission, vault and account read endpoints
   have fixed native request categories for status/header/body timing.
+- `group-directory`: verified group summaries, including an empty page, through
+  DOM publication and a visible-frame opportunity. Invitations, pending profile
+  publications and selected-history maintenance are outside this operation.
+- `useful-directory`: the bounded preview/group startup workflow, separate from
+  all-background-work completion. `initial` identifies its first pass after a
+  session/reset. Admission wait, preview work and group work are separate stages.
+- `optional-maintenance`: deliberate scheduler interval and admitted work,
+  retained outside the critical path of useful directory startup.
+
+Preview operations now include verified row counts and DOM/frame opportunities;
+completion no longer means only that the network/verification read returned.
+Hidden lists remain incomplete until presented. See
+[useful conversation startup](USEFUL_CONVERSATION_STARTUP.md) for ownership and
+the owner-run physical acceptance scope.
 
 Returning from the background and opening conversations can also be measured
 after capture starts. Time before `Activity.onCreate` and sender-to-recipient

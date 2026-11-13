@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'useful startup cannot acquire vault or controller ownership',
+    files: {
+      'src/client/messages/useful-startup.ts':
+        "import { read } from '../vault-authority/index.ts'; export const run = read;\n",
+      'src/client/vault-authority/index.ts': 'export const read = () => {};\n',
+    },
+    diagnostic: /useful-startup-coordinates-without-domain-io/u,
+  },
+  {
     name: 'encrypted reopen caches cannot acquire conversation or UI ownership',
     files: {
       'src/client/reopen-cache/index.ts':

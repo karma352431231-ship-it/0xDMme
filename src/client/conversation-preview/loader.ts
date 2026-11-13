@@ -1,4 +1,7 @@
-import { measuredLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
+import {
+  loadingPresentation,
+  timedLoad,
+} from '../chat-sync-diagnostics/index.ts';
 import type { DeliveryState } from '../message-status/index.ts';
 
 export interface ConversationPreview {
@@ -13,10 +16,12 @@ export interface ConversationPreview {
 
 /** One refresh in flight and one pending refresh; no cleartext persistence. */
 export class ConversationPreviewLoader {
+  private readonly loading = loadingPresentation('conversation-previews');
   readonly values = new Map<string, ConversationPreview>();
   private generation = 0;
   private revision = 0;
   private active = false;
+  private completion: Promise<void> | undefined;
   private pending: readonly string[] | null = null;
   failed = false;
   private readonly load: (
@@ -37,6 +42,7 @@ export class ConversationPreviewLoader {
     this.exclude = options.exclude ?? (() => []);
   }
   clear(): void {
+    this.loading.cancel();
     this.generation++;
     this.revision++;
     this.pending = null;
@@ -58,24 +64,43 @@ export class ConversationPreviewLoader {
     this.pending = peers;
     await this.drain();
   }
+  /** Startup waits for an existing/coalesced read without bypassing admission. */
+  async prepare(peers: readonly string[]): Promise<boolean> {
+    await this.refresh(peers);
+    await this.completion;
+    return this.pending === null;
+  }
   /** Resume one coalesced list read after foreground verification settles. */
   resume(): void {
     void this.drain();
+  }
+  presented(host: HTMLElement, matchingRows = true): void {
+    this.loading.presented(host, matchingRows);
   }
   private async drain(): Promise<void> {
     if (this.active || this.pending === null || !this.available()) return;
     const peers = this.pending;
     this.pending = null;
     this.active = true;
+    let finished = () => {};
+    const completion = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    this.completion = completion;
     this.failed = false;
     const generation = this.generation,
       revision = this.revision;
     try {
-      const values = await measuredLoad('conversation-previews', (trace) =>
-        timedLoad(trace, 'previews', () => this.loadEligible(peers)),
-      );
+      let values = new Map<string, ConversationPreview>();
+      await this.loading.run(async (trace) => {
+        values = await timedLoad(trace, 'previews', () =>
+          this.loadEligible(peers),
+        );
+        return values.size;
+      });
       if (generation !== this.generation) return;
       if (revision !== this.revision) {
+        this.loading.cancel();
         this.pending ??= peers;
         return;
       }
@@ -89,7 +114,12 @@ export class ConversationPreviewLoader {
       }
     } finally {
       this.active = false;
-      await this.drain();
+      try {
+        await this.drain();
+      } finally {
+        finished();
+        if (this.completion === completion) this.completion = undefined;
+      }
     }
   }
   private loadEligible(

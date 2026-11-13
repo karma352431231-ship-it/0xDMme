@@ -608,18 +608,16 @@ for (const outcome of ['logout', 'failure', 'navigation'] as const)
     assert.ok(!f.calls.includes('groups'));
   });
 
-await test('a user opening waits for one current maintenance step, not every startup task', async (t) => {
+await test('startup admits a group page without a timer and a requested chat runs after that page settles', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.state.holdGroups = true;
   f.messages.ready();
   t.mock.timers.tick(150);
   await turn();
-  t.mock.timers.tick(1000);
-  await turn();
-  t.mock.timers.tick(1000);
-  await turn();
-  assert.ok(f.calls.includes('groups'));
+  assert.ok(f.calls.includes('group-directory'));
+  assert.ok(!f.calls.includes('initialize'));
+  assert.ok(!f.calls.includes('groups'));
   const opening = f.messages.openContact(peer('chosen'));
   await turn();
   assert.ok(!f.calls.includes('select:chosen'));

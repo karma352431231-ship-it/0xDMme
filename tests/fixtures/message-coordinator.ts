@@ -56,6 +56,7 @@ const real = new Set([
   './live-updates.ts',
   './preview-admission.ts',
   './startup.ts',
+  './useful-startup.ts',
   './continuity.ts',
   './warmup.ts',
   '../text-send/index.ts',
@@ -493,6 +494,15 @@ export function coordinatorFixture(
       calls.push('groups');
       return state.holdGroups ? groupLoad.promise : Promise.resolve();
     },
+    refreshDirectory: () => {
+      calls.push('group-directory');
+      return state.holdGroups ? groupLoad.promise : Promise.resolve();
+    },
+    finishDirectoryRefresh: () => {
+      calls.push('groups');
+      return state.holdGroups ? groupLoad.promise : Promise.resolve();
+    },
+    directoryPresented: noop,
     // A general wakeup refreshes the directory like `refresh`.
     changed: (change: 'content' | 'receipts' | 'all') => {
       calls.push(change === 'all' ? 'groups' : 'group-' + change);
@@ -661,6 +671,7 @@ export function coordinatorFixture(
     window: { addEventListener: noop },
     navigator: { onLine: true },
     Date,
+    performance,
     AbortController,
     AbortSignal,
     Event,

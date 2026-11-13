@@ -18,6 +18,85 @@ import { FixtureBridge, chunk } from './fixtures/native-api-bridge.ts';
 import { protectedPresentation } from '../src/client/view-once-ui/diagnostics.ts';
 import type { ProtectedDisplay } from '../src/client/view-once-ui/display.ts';
 import { deferred } from './fixtures/deferred.ts';
+import { ConversationPreviewLoader } from '../src/client/conversation-preview/index.ts';
+
+await test('verified group and preview publication include a visible-frame opportunity and honest empty states', async (t) => {
+  const { recording } = fixture(t);
+  const previousDocument = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'document',
+  );
+  const previousFrame = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'requestAnimationFrame',
+  );
+  const frames: FrameRequestCallback[] = [];
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { visibilityState: 'visible' },
+  });
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    configurable: true,
+    value: (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  });
+  t.after(() => {
+    if (previousDocument)
+      Object.defineProperty(globalThis, 'document', previousDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+    if (previousFrame)
+      Object.defineProperty(globalThis, 'requestAnimationFrame', previousFrame);
+    else Reflect.deleteProperty(globalThis, 'requestAnimationFrame');
+  });
+  const host = {
+    isConnected: true,
+    closest: () => null,
+    getClientRects: () => [{}],
+  } as unknown as HTMLElement;
+  const groups = loadingPresentation('group-directory');
+  await groups.run(() => Promise.resolve(0));
+  const previews = new ConversationPreviewLoader({
+    load: () => Promise.resolve(new Map()),
+    changed() {},
+  });
+  await previews.prepare([]);
+  assert.equal(
+    recording
+      .report()
+      .loading.operations.every(
+        (operation) => operation.presentation === 'unavailable',
+      ),
+    true,
+  );
+  groups.presented(host);
+  previews.presented(host);
+  for (const frame of frames.splice(0)) frame(0);
+  const operations = recording.report().loading.operations;
+  assert.deepEqual(
+    operations.map((operation) => operation.kind),
+    ['group-directory', 'conversation-previews'],
+  );
+  assert.equal(
+    operations.every(
+      (operation) =>
+        operation.rows === 0 &&
+        operation.outcome === 'complete' &&
+        operation.presentation === 'dom-frame-opportunity',
+    ),
+    true,
+  );
+  assert.equal(
+    operations.every(
+      (operation) =>
+        operation.stages.verified &&
+        operation.stages.dom &&
+        operation.stages.frame,
+    ),
+    true,
+  );
+});
 
 function fixture(t: TestContext, prepare?: () => void) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');

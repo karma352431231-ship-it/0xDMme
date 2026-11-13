@@ -1,6 +1,16 @@
 module.exports = {
   forbidden: [
     {
+      name: 'useful-startup-coordinates-without-domain-io',
+      severity: 'error',
+      from: { path: '^src/client/messages/useful-startup\\.ts$' },
+      to: {
+        path: '^src/client/',
+        pathNot:
+          '^src/client/(?:messages/useful-startup\\.ts$|chat-sync-diagnostics/)',
+      },
+    },
+    {
       name: 'encrypted-reopen-caches-use-persistence-only',
       severity: 'error',
       from: { path: '^src/client/(?:reopen-cache|media-preview)/' },

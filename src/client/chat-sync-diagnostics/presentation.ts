@@ -3,7 +3,7 @@ import type { LoadTrace } from './load.ts';
 
 /** Owns one data-to-visible-frame attempt. The feature retains all data authority. */
 export class LoadingPresentation {
-  private attempt: { trace: LoadTrace; ready: boolean } | undefined;
+  private attempt: { trace: LoadTrace; rows: number | null } | undefined;
   private readonly begin: () => LoadTrace | undefined;
   constructor(begin: () => LoadTrace | undefined) {
     this.begin = begin;
@@ -17,12 +17,14 @@ export class LoadingPresentation {
   ): Promise<void> {
     this.cancel();
     const trace = this.begin();
-    const attempt = trace ? { trace, ready: false } : undefined;
+    const attempt: LoadingPresentation['attempt'] = trace
+      ? { trace, rows: null }
+      : undefined;
     this.attempt = attempt;
     try {
       const rows = await work(trace);
       if (attempt && this.attempt === attempt) {
-        attempt.ready = true;
+        attempt.rows = rows;
         trace?.point('verified', { loadRows: rows });
       }
     } catch (error: unknown) {
@@ -30,9 +32,10 @@ export class LoadingPresentation {
       throw error;
     }
   }
-  presented(host: HTMLElement | null): void {
+  presented(host: HTMLElement | null, matchingRows = true): void {
     const attempt = this.attempt;
-    if (!host || !attempt?.ready) return;
+    if (!host || !attempt || attempt.rows === null) return;
+    if (attempt.rows > 0 && !matchingRows) return;
     if (!loadHostVisible(host)) return;
     attempt.trace.point('dom');
     attempt.trace.frame(host, () => this.attempt === attempt);

@@ -1,5 +1,12 @@
 # 0xDMme mobile apps: decisions and implementation handoff
 
+The owner approved shared useful-directory startup corrections on 2026-11-13:
+verified group rows and private last-message previews no longer wait for optional
+outbox, invitation or daily-maintenance completion. Authority, pin and snapshot
+checks remain required; no new persistent projection or cached online permission
+is approved. Manual startup-speed acceptance remains with the owner. See
+[implementation and diagnostics](USEFUL_CONVERSATION_STARTUP.md).
+
 Last updated: 2026-11-09
 
 Status: full product packages and native HTTPS/session owners are implemented locally. Installed Android emulator flows and physical iPhone flows passed individually; their coverage is not identical or complete. The earlier iPhone simulator/startup blocks do not describe current physical-phone availability. The owner has taken over the remaining interactive tests, including real wallets. Native remote push, unresolved Android storage/recovery failures, unexecuted feature/security variants, final distribution licensing and store readiness remain unfinished; source integration is recorded below.

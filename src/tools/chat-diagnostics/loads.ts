@@ -44,6 +44,7 @@ interface LoadSummary {
   rows: number | null;
   transfer: Record<string, number>;
   stages: Partial<Record<LoadStage, StageTiming>>;
+  initial?: boolean;
 }
 /** Bounded operation summaries outlive detailed timeline eviction. */
 export class ComparisonLoads {
@@ -107,6 +108,8 @@ export class ComparisonLoads {
     event: TraceEvent,
     stage: LoadStage,
   ): void {
+    if (typeof event['loadInitial'] === 'boolean')
+      summary.initial = event['loadInitial'];
     if (typeof event['loadBytes'] === 'number')
       summary.bytes = event['loadBytes'];
     if (typeof event['loadRows'] === 'number') summary.rows = event['loadRows'];
