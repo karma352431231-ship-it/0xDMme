@@ -1246,6 +1246,9 @@
 .chat-history[data-selecting-messages='true'] {
   padding-inline-start: 44px;
 }
+.chat-history[data-selecting-messages='true'] .message-actions {
+  visibility: hidden;
+}
 .chat-history .message-select {
   position: absolute;
   top: 50%;

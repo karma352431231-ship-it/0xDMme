@@ -1,3 +1,4 @@
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { placeVideoMessageMeta } from '../chat-video/index.ts';
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
@@ -124,7 +125,9 @@ interface HistoryPresentation {
   actions: Pick<Actions, 'action' | 'picker' | 'choose'> & {
     react: (view: MessageView, emoji: string, id: string) => Promise<void>;
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
-    remove: (view: MessageView) => Promise<void>;
+    remove: (
+      views: readonly MessageView[],
+    ) => Promise<readonly MessageRemovalResult[]>;
     /** Pins for both people until the given time; 0 unpins. */
     pin: (view: MessageView, until: number) => Promise<void>;
   };
@@ -139,7 +142,7 @@ interface HistoryPresentation {
 
 /** Consumes only verified windows. Never opens storage or bypasses the gate. */
 export class MessageHistoryUi {
-  private readonly deletion: MessageDeletionSelection;
+  private readonly deletion: MessageDeletionSelection<MessageView>;
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
   private readonly reactions: HistoryReactions<MessageView>;
@@ -163,7 +166,9 @@ export class MessageHistoryUi {
     outgoing: new WindowReceipts<boolean>((read) => read),
   };
   constructor(options: HistoryPresentation) {
-    this.deletion = new MessageDeletionSelection(options.run);
+    this.deletion = new MessageDeletionSelection(options.run, {
+      remove: options.actions.remove,
+    });
     this.options = options;
     this.reactions = new HistoryReactions({
       action: options.actions.action,
@@ -216,6 +221,7 @@ export class MessageHistoryUi {
     update: HistoryUpdate = 'history',
   ): void {
     if (rows === null) {
+      this.deletion.clear();
       this.forwarding?.clear();
       this.reactions.closeGate();
     }
@@ -268,9 +274,8 @@ export class MessageHistoryUi {
           return row
             ? [
                 {
-                  id: view.id,
+                  message: view,
                   row,
-                  remove: () => this.options.actions.remove(view),
                 },
               ]
             : [];
@@ -589,11 +594,9 @@ export class MessageHistoryUi {
       ...(!view.archived && view.own
         ? {
             remove: () => {
-              if (matchMedia('(max-width: 700px)').matches) {
-                this.deletion.begin(view.id);
-                return Promise.resolve();
-              }
-              return this.options.actions.remove(view);
+              this.forwarding?.clear();
+              this.deletion.begin(view.id);
+              return Promise.resolve();
             },
           }
         : {}),

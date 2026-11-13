@@ -55,7 +55,11 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
       close();
       return;
     }
-    if (options.signal.aborted) return;
+    if (
+      options.signal.aborted ||
+      options.row?.closest('[data-selecting-messages="true"]')
+    )
+      return;
     activeMenu?.();
     activeMenu = close;
     activeHost = host;

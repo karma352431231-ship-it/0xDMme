@@ -161,6 +161,7 @@ await test('a hold on a photo or video opens the options; other embedded control
       this.hold = hold;
     }
     override closest(selector?: string): Bubble | null {
+      if (selector === '[data-selecting-messages="true"]') return null;
       if (selector === '[data-message-hold]') return this.hold ? this : null;
       return this;
     }
@@ -184,4 +185,42 @@ await test('a hold on a photo or video opens the options; other embedded control
     assert.equal(menus, expected, hold ? 'media hold' : 'plain control');
     stop.abort();
   }
+});
+
+await test('selection suppresses hold, swipe and context menus, including gestures that began before selection', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: new EventTarget(),
+  });
+  t.after(() => {
+    if (saved) Object.defineProperty(globalThis, 'window', saved);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  let selecting = false,
+    actions = 0;
+  const row = new Bubble();
+  row.closest = () => (selecting ? row : null);
+  const stop = new AbortController();
+  t.after(() => stop.abort());
+  messageGestures(row as unknown as HTMLElement, {
+    signal: stop.signal,
+    menu: () => {
+      actions++;
+    },
+    reply: () => {
+      actions++;
+    },
+  });
+  pointer(row, 'pointerdown', { x: 0, y: 0 });
+  pointer(row, 'pointermove', { x: 50, y: 0 });
+  selecting = true;
+  pointer(row, 'pointerup', { x: 50, y: 0 });
+  pointer(row, 'pointerdown', { x: 0, y: 0 });
+  t.mock.timers.tick(600);
+  const context = new Event('contextmenu', { cancelable: true });
+  row.dispatchEvent(context);
+  assert.equal(context.defaultPrevented, true);
+  assert.equal(actions, 0);
 });

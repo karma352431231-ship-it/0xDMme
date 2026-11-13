@@ -58,6 +58,7 @@ const authored = [
   'src/client/api-response',
   'src/client/message-menu',
   'src/client/message-selection',
+  'src/client/message-removal-batch',
   'src/client/conversation-menu',
   'src/shared/dm-deletion',
   'src/client/menu-icons',

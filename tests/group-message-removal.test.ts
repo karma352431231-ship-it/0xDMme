@@ -4,6 +4,7 @@ import type { TestContext } from 'node:test';
 import { GroupController } from '../src/client/groups/controller.ts';
 import type { GroupSummary } from '../src/client/groups/controller.ts';
 import { GroupAuthority } from '../src/client/groups/authority.ts';
+import type { GroupContext } from '../src/client/groups/authority.ts';
 import type { GroupView } from '../src/client/groups/reader.ts';
 import { ApiResponseError } from '../src/client/api-response/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
@@ -53,10 +54,18 @@ function setup(t: TestContext, reply: () => Promise<void>) {
   });
   controller.views = [view('one', 1), view('two', 2), view('three', 3)];
   const calls: number[] = [];
-  t.mock.method(GroupAuthority.prototype, 'mutate', () => {
-    calls.push(1);
-    return reply();
-  });
+  t.mock.method(
+    GroupAuthority.prototype,
+    'mutate',
+    (work: (context: GroupContext) => Promise<unknown>) => {
+      calls.push(1);
+      return work({
+        authority: { events: [] },
+        governance: { verify: () => Promise.resolve({ head: selected.head }) },
+        api: reply,
+      } as unknown as GroupContext);
+    },
+  );
   return { controller, calls };
 }
 
@@ -118,4 +127,60 @@ await test('a lost reply leaves the row until the next verified group read decid
   assert.equal(controller.views.length, 3);
   assert.equal(controller.expectingOwnRemoval, true);
   assert.equal(controller.ownRemovalDone(target.id), false);
+});
+
+await test('a group selection shares governance and removes its accepted bubbles together after concurrent replies', async (t) => {
+  const answer = deferred<void>();
+  let requests = 0;
+  const { controller, calls } = setup(t, () => {
+    requests++;
+    return answer.promise;
+  });
+  const before = controller.views;
+  const removing = controller.removeMessages([before[0]!, before[2]!]);
+  await Promise.resolve();
+  assert.equal(
+    calls.length,
+    1,
+    'one authority/governance turn for the selection',
+  );
+  assert.equal(
+    requests,
+    2,
+    'the second request did not wait for the first reply',
+  );
+  assert.equal(controller.views, before);
+  answer.resolve();
+  const results = await removing;
+  assert.deepEqual(
+    results.map((result) => result.status),
+    ['fulfilled', 'fulfilled'],
+  );
+  assert.deepEqual(controller.views, [before[1]]);
+  assert.equal(controller.historyPending, false);
+});
+
+await test('losing authorization conceals the group immediately while other deletion replies are still pending', async (t) => {
+  const pending = deferred<void>();
+  let requests = 0;
+  const { controller } = setup(t, () =>
+    ++requests === 1
+      ? Promise.reject(
+          new ApiResponseError({
+            operation: 'group-message-delete',
+            status: 403,
+            failure: 'http',
+          }),
+        )
+      : pending.promise,
+  );
+  const work = controller.removeMessages([...controller.views]);
+  for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+  assert.deepEqual(
+    controller.views,
+    [],
+    'other in-flight replies cannot delay concealment',
+  );
+  pending.resolve();
+  await work;
 });

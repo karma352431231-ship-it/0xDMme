@@ -1,3 +1,8 @@
+import {
+  assertRemovalBatch,
+  removeMessageBatch,
+} from '../message-removal-batch/index.ts';
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
 import { MediaMemory } from '../media-memory/index.ts';
 import type { MediaVariant } from '../media-memory/index.ts';
@@ -1335,27 +1340,64 @@ export class GroupController {
    * which verifies the removal through the group's change index.
    */
   async removeMessage(view: GroupView): Promise<void> {
-    this.assertRemovable(view);
-    if (!this.ownRemovals.begin(view.groupId, view.id)) return;
+    const results = await this.removeMessages([view]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+  }
+  /** Resolve governance once; every request retains its individual signed proof. */
+  async removeMessages(
+    views: readonly GroupView[],
+  ): Promise<MessageRemovalResult[]> {
+    assertRemovalBatch(views);
+    for (const view of views) this.assertRemovable(view);
+    const targets = views.filter((view) =>
+      this.ownRemovals.begin(view.groupId, view.id),
+    );
+    if (!targets.length) return [];
     this.pauseSynchronization();
+    const generation = this.generation;
+    let accessLost: { reason: unknown } | null = null;
+    let results: MessageRemovalResult[];
     try {
-      await this.authority.mutate(async (c) => {
-        const group = await c.governance.verify(view.groupId);
-        await c.api('group-message-delete', {
-          groupId: view.groupId,
-          head: group.head,
-          id: view.id,
-          hash: view.hash,
-          revision: c.authority.events.length,
+      results = await this.authority.mutate(async (c) => {
+        const group = await c.governance.verify(targets[0]!.groupId);
+        return removeMessageBatch(targets, async (view) => {
+          if (accessLost) throw accessLost.reason;
+          try {
+            await c.api('group-message-delete', {
+              groupId: view.groupId,
+              head: group.head,
+              id: view.id,
+              hash: view.hash,
+              revision: c.authority.events.length,
+            });
+          } catch (reason: unknown) {
+            if (removalFailure(reason) === 'unauthorized' && !accessLost) {
+              accessLost = { reason };
+              this.hide();
+            }
+            throw reason;
+          }
         });
       });
-    } catch (error: unknown) {
-      const failure = removalFailure(error);
-      this.ownRemovals.failed(view.id, failure === 'uncertain');
-      if (failure === 'unauthorized') this.hide();
-      throw error;
+    } catch (reason: unknown) {
+      results = targets.map(({ id }) => ({ id, status: 'rejected', reason }));
     }
-    this.withdrawRemoved(view);
+    const accepted = new Set(
+      results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.id),
+    );
+    this.withdrawRemovals(targets.filter((view) => accepted.has(view.id)));
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        const failure = removalFailure(result.reason);
+        this.ownRemovals.failed(result.id, failure === 'uncertain');
+        if (failure === 'unauthorized' && generation === this.generation)
+          this.hide();
+      }
+    }
+    return results;
   }
   private assertRemovable(view: GroupView): void {
     if (
@@ -1368,12 +1410,15 @@ export class GroupController {
   }
   /** The accepted row leaves the open group's views; a late reply after
    * switching groups only marks it, for when that group is read again. */
-  private withdrawRemoved(view: GroupView): void {
-    this.ownRemovals.accepted(view.id);
-    this.mediaMemory.forget(view.id);
-    if (this.selected?.state.groupId !== view.groupId) return;
+  private withdrawRemovals(views: readonly GroupView[]): void {
+    for (const view of views) {
+      this.ownRemovals.accepted(view.id);
+      this.mediaMemory.forget(view.id);
+    }
+    const groupId = views[0]?.groupId;
+    if (!groupId || this.selected?.state.groupId !== groupId) return;
     this.views = this.ownRemovals.visible(this.views);
-    if (!this.searchFocused) this.rememberPreview(view.groupId, this.views);
+    if (!this.searchFocused) this.rememberPreview(groupId, this.views);
   }
   async sendPending(): Promise<void> {
     const selected = this.selected;

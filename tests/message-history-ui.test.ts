@@ -28,7 +28,7 @@ function row(id: string, own = false): MessageView {
 type ReactionHooks = Partial<
   Pick<
     ConstructorParameters<typeof MessageHistoryUi>[0]['actions'],
-    'picker' | 'react'
+    'picker' | 'react' | 'remove'
   >
 >;
 function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
@@ -120,7 +120,7 @@ function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
       choose() {},
       react: () => Promise.resolve(),
       forward: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
+      remove: () => Promise.resolve([]),
       pin: () => Promise.resolve(),
       ...reactionHooks,
     },
@@ -810,4 +810,35 @@ await test('an own message the server accepted shows one gray check instead of t
   assert.match(icon.getAttribute('class')!, /gray/u);
   // Only the check remains; its accessible label is not visible text.
   assert.equal(meta.textContent, icon.textContent);
+});
+
+await test('desktop delete enters the same author-only selection and confirms all selected messages once', async (t) => {
+  const batches: string[][] = [];
+  const f = fixture(t, {
+    remove: (views) => {
+      batches.push(views.map((view) => view.id));
+      return Promise.resolve(
+        views.map(({ id }) => ({ id, status: 'fulfilled', value: undefined })),
+      );
+    },
+  });
+  t.after(() => f.ui.clear());
+  const parent = new ChatNode();
+  parent.append(f.history);
+  f.ui.render([row('first', true), row('second', true), row('incoming')]);
+  const remove = f.history
+    .querySelectorAll('button')
+    .find((button) => button.textContent === 'Delete for both')!;
+  remove.click();
+  await f.lastAction();
+  assert.deepEqual(batches, [], 'opening selection must not delete on desktop');
+  const choices = f.history.querySelectorAll('.message-select');
+  assert.equal(choices.length, 2, 'incoming messages cannot be selected');
+  choices[1]!.checked = true;
+  choices[1]!.dispatchEvent(new Event('change'));
+  parent
+    .querySelector('.message-selection-toolbar')!
+    .querySelectorAll('button')[1]!
+    .click();
+  assert.deepEqual(batches, [['first', 'second']]);
 });

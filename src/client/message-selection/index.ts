@@ -1,43 +1,58 @@
 import { t } from '../../shared/i18n/index.ts';
-interface SelectableMessage {
-  id: string;
+import { closeMessageMenu } from '../message-menu/index.ts';
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
+interface SelectableMessage<T extends { id: string }> {
+  message: T;
   row: HTMLElement;
-  remove: () => Promise<void>;
 }
 /** One displayed conversation's explicit author-deletion selection. It never grants deletion authority. */
-export class MessageDeletionSelection {
+export class MessageDeletionSelection<T extends { id: string }> {
   private history: HTMLElement | null = null;
-  private rows: readonly SelectableMessage[] = [];
+  private rows: readonly SelectableMessage<T>[] = [];
   private selected = new Set<string>();
   private toolbar: HTMLElement | null = null;
   private active = false;
   private busy = false;
   private readonly run: (work: () => Promise<void>) => Promise<void>;
-  private readonly options: { group?: boolean };
+  private lifetime = new AbortController();
+  private generation = 0;
+  private readonly options: {
+    group?: boolean;
+    remove: (
+      messages: readonly T[],
+    ) => Promise<readonly MessageRemovalResult[]>;
+  };
   constructor(
     run: (work: () => Promise<void>) => Promise<void>,
-    options: { group?: boolean } = {},
+    options: MessageDeletionSelection<T>['options'],
   ) {
     this.options = options;
     this.run = run;
   }
-  update(history: HTMLElement, rows: readonly SelectableMessage[]): void {
+  update(history: HTMLElement, rows: readonly SelectableMessage<T>[]): void {
     if (this.history && this.history !== history) this.clear();
+    if (this.history !== history) this.bind(history);
     this.history = history;
     this.rows = rows;
-    const valid = new Set(rows.map((row) => row.id));
+    const valid = new Set(rows.map((row) => row.message.id));
     if (!this.busy)
       this.selected = new Set([...this.selected].filter((id) => valid.has(id)));
     this.render();
   }
   begin(id: string): void {
-    if (!this.rows.some((row) => row.id === id)) return;
+    if (!this.rows.some((row) => row.message.id === id)) return;
     if (!this.selected.has(id) && this.selected.size >= 64) return;
+    if (this.busy) return;
+    closeMessageMenu(this.history);
     this.active = true;
     this.selected.add(id);
     this.render();
   }
   clear(): void {
+    this.generation++;
+    this.lifetime.abort();
+    this.lifetime = new AbortController();
+    this.busy = false;
     this.active = false;
     this.selected.clear();
     this.toolbar?.remove();
@@ -50,6 +65,39 @@ export class MessageDeletionSelection {
     }
     this.rows = [];
     this.history = null;
+  }
+  /** Capture before bubble gestures and embedded media/link actions. Native
+   * vertical scrolling remains available; selection owns activation only. */
+  private bind(history: HTMLElement): void {
+    const listen = { capture: true, signal: this.lifetime.signal };
+    history.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (this.active) event.stopImmediatePropagation();
+      },
+      listen,
+    );
+    for (const type of ['click', 'dblclick', 'contextmenu'])
+      history.addEventListener(
+        type,
+        (event) => {
+          if (!this.active) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (type !== 'click' || this.busy) return;
+          const target = event.target as Node | null;
+          const message = this.rows.find((message) =>
+            target ? message.row.contains(target) : false,
+          );
+          if (message) this.toggle(message.message.id);
+        },
+        listen,
+      );
+  }
+  private toggle(id: string): void {
+    if (this.selected.has(id)) this.selected.delete(id);
+    else if (this.selected.size < 64) this.selected.add(id);
+    this.render();
   }
   private render(): void {
     const history = this.history;
@@ -64,17 +112,24 @@ export class MessageDeletionSelection {
     this.renderToolbar(history);
     for (const message of this.rows) this.renderChoice(message);
   }
-  private renderChoice(message: SelectableMessage): void {
+  private renderChoice(message: SelectableMessage<T>): void {
     const choice = document.createElement('input');
     choice.type = 'checkbox';
     choice.className = 'message-select';
-    choice.checked = this.selected.has(message.id);
+    choice.checked = this.selected.has(message.message.id);
     choice.disabled =
       this.busy || (!choice.checked && this.selected.size >= 64);
     choice.setAttribute('aria-label', t('Select message for deletion'));
     choice.addEventListener('change', () => {
-      if (choice.checked) this.selected.add(message.id);
-      else this.selected.delete(message.id);
+      if (
+        this.busy ||
+        (choice.checked &&
+          this.selected.size >= 64 &&
+          !this.selected.has(message.message.id))
+      )
+        return;
+      if (choice.checked) this.selected.add(message.message.id);
+      else this.selected.delete(message.message.id);
       this.render();
     });
     message.row.prepend(choice);
@@ -106,20 +161,30 @@ export class MessageDeletionSelection {
   }
   private async removeSelected(): Promise<void> {
     if (this.busy) return;
-    const targets = this.rows.filter((row) => this.selected.has(row.id));
-    if (targets.length > 64)
-      throw new Error('Select up to 64 messages at a time.');
+    const targets = this.rows
+      .filter((row) => this.selected.has(row.message.id))
+      .map((row) => row.message);
+    if (!targets.length) return;
+    const generation = this.generation;
     this.busy = true;
     this.render();
     try {
-      for (const target of targets) {
-        await target.remove();
-        this.selected.delete(target.id);
-      }
-      this.active = this.selected.size > 0;
+      const results = await this.options.remove(targets);
+      if (generation !== this.generation) return;
+      for (const result of results)
+        if (result.status === 'fulfilled') this.selected.delete(result.id);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
     } finally {
-      this.busy = false;
-      this.render();
+      if (generation === this.generation) {
+        this.busy = false;
+        const valid = new Set(this.rows.map((row) => row.message.id));
+        this.selected = new Set(
+          [...this.selected].filter((id) => valid.has(id)),
+        );
+        this.active = this.selected.size > 0;
+        this.render();
+      }
     }
   }
 }

@@ -91,3 +91,19 @@ await test('failures split into refusal, lost access and an unknown outcome', ()
   );
   assert.equal(removalFailure(new TypeError('Failed to fetch')), 'uncertain');
 });
+
+await test('a completed selection does not block a subsequent selection during its echo window', () => {
+  const removals = new OwnRemovals();
+  for (let i = 0; i < 64; i++) {
+    assert.equal(removals.begin('chat', String(i)), true);
+    removals.accepted(String(i));
+  }
+  removals.settle('chat', []);
+  for (let i = 64; i < 128; i++)
+    assert.equal(removals.begin('chat', String(i)), true);
+  assert.equal(
+    removals.begin('chat', 'overflow'),
+    false,
+    'in-flight requests remain bounded',
+  );
+});

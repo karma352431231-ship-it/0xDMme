@@ -23,6 +23,7 @@ export function messageGestures(
   let swiping = false;
   let reached = false;
   const listen = { signal: options.signal };
+  const selecting = () => !!row.closest('[data-selecting-messages="true"]');
   function cancel(): void {
     clearTimeout(timer);
     timer = undefined;
@@ -42,12 +43,16 @@ export function messageGestures(
     if (event.pointerId !== origin?.id) return;
     const reply = event.type === 'pointerup' && swiping && reached;
     end();
-    if (reply) {
+    if (reply && !selecting()) {
       handled = true;
       options.reply?.();
     }
   }
   function start(event: PointerEvent): void {
+    if (selecting()) {
+      end();
+      return;
+    }
     if (event.pointerType !== 'touch' || !event.isPrimary) return;
     handled = false;
     cancelActiveTouch?.();
@@ -68,7 +73,7 @@ export function messageGestures(
     window.addEventListener('blur', end, active);
     timer = setTimeout(() => {
       handled = true;
-      options.menu();
+      if (!selecting()) options.menu();
     }, 500);
   }
   function move(event: PointerEvent): void {
@@ -105,6 +110,10 @@ export function messageGestures(
   row.addEventListener(
     'contextmenu',
     (event) => {
+      if (selecting()) {
+        event.preventDefault();
+        return;
+      }
       if (
         !embeddedControl(event.target) &&
         matchMedia('(pointer: coarse)').matches

@@ -1,3 +1,8 @@
+import {
+  assertRemovalBatch,
+  removeMessageBatch,
+} from '../message-removal-batch/index.ts';
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import { readReopen, writeReopen } from '../reopen-cache/index.ts';
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
@@ -712,34 +717,45 @@ export class SocialDms {
     peer: string,
     item: Extract<BackupRecord, { type: 'dm-message' }>,
   ): Promise<void> {
-    if (!item.own || item.relation) throw new Error('Own message unavailable.');
-    await this.withCrypto(
-      async ({ authority, api }) => {
-        const payload = {
-          id: item.id,
-          hash: item.hash,
-          recipient: peer,
-          revision: authority.events.length,
-        };
-        const proof = {
-          deviceId: authority.session.deviceId,
-          directory: authority.directory,
-          payload,
-        };
-        await api('delete', {
-          proof: {
-            ...proof,
-            signature: await authority.sign(
-              messageBody(
-                authority.session.accountId,
-                proof.deviceId,
-                'dm-delete',
-                proof,
+    const results = await this.removeMany(peer, [item]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+  }
+  async removeMany(
+    peer: string,
+    items: readonly Extract<BackupRecord, { type: 'dm-message' }>[],
+  ): Promise<MessageRemovalResult[]> {
+    assertRemovalBatch(items);
+    if (items.some((item) => !item.own || item.relation))
+      throw new Error('Own message unavailable.');
+    return this.withCrypto(
+      ({ authority, api }) =>
+        removeMessageBatch(items, async (item) => {
+          const payload = {
+            id: item.id,
+            hash: item.hash,
+            recipient: peer,
+            revision: authority.events.length,
+          };
+          const proof = {
+            deviceId: authority.session.deviceId,
+            directory: authority.directory,
+            payload,
+          };
+          await api('delete', {
+            proof: {
+              ...proof,
+              signature: await authority.sign(
+                messageBody(
+                  authority.session.accountId,
+                  proof.deviceId,
+                  'dm-delete',
+                  proof,
+                ),
               ),
-            ),
-          },
-        });
-      },
+            },
+          });
+        }),
       { priority: 'interactive' },
     );
   }

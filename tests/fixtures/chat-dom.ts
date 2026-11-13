@@ -70,7 +70,7 @@ export class ChatNode extends CommunityNode {
   }
   override querySelectorAll(selector: string): CommunityNode[] {
     const key =
-      selector === '[data-message]'
+      selector === '[data-message]' || selector === 'article[data-message]'
         ? 'message'
         : selector === '[data-outgoing-media]'
           ? 'outgoingMedia'

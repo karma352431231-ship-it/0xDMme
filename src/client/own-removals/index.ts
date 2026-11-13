@@ -54,7 +54,14 @@ export class OwnRemovals {
   /** False for a repeated tap on a message already being deleted. */
   begin(scope: string, id: string): boolean {
     this.prune();
-    if (this.targets.has(id) || this.targets.size >= limit) return false;
+    if (this.targets.has(id)) return false;
+    if (this.targets.size >= limit) {
+      const settled = [...this.targets].find(
+        ([, target]) => target.phase === 'settled',
+      );
+      if (!settled) return false;
+      this.targets.delete(settled[0]);
+    }
     this.targets.set(id, { scope, phase: 'sending', settledAt: 0 });
     return true;
   }

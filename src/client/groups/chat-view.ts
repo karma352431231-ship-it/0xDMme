@@ -1,3 +1,4 @@
+import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
 import { decodeGroupText } from '../../shared/group-messages/index.ts';
 import type { DailyText } from '../../shared/daily/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
@@ -17,7 +18,6 @@ import {
   closeMessageMenu,
 } from '../message-menu/index.ts';
 import { MessageDeletionSelection } from '../message-selection/index.ts';
-import { removalFailure } from '../own-removals/index.ts';
 import { MessageForwardSelection } from '../message-forward/index.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
@@ -70,7 +70,7 @@ interface ChatOptions {
     | 'mediaPreviews'
     | 'media'
     | 'edit'
-    | 'removeMessage'
+    | 'removeMessages'
     | 'ownRemovalDone'
     | 'mediaReady'
     | 'compose'
@@ -116,7 +116,7 @@ export class GroupChatView {
   private readonly reactions: HistoryReactions<GroupMessageView>;
   private readonly pinned = new PinnedBar((id) => this.revealLoaded(id));
   private readonly pendingPins = new PendingPins();
-  private readonly deletion: MessageDeletionSelection;
+  private readonly deletion: MessageDeletionSelection<GroupView>;
   private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
   private readonly attachments: Pick<AttachmentUi, 'render'>;
@@ -163,7 +163,10 @@ export class GroupChatView {
       },
     });
     this.attachments = this.composer.media;
-    this.deletion = new MessageDeletionSelection(options.run, { group: true });
+    this.deletion = new MessageDeletionSelection(options.run, {
+      group: true,
+      remove: (views) => this.removeAndVerify(views),
+    });
     this.reactions = new HistoryReactions<GroupMessageView>({
       action: (label, work) => this.button(label, work),
       send: async (view, emoji, id) => {
@@ -244,17 +247,10 @@ export class GroupChatView {
           },
         };
       },
-      remove: async (view) => {
-        if (matchMedia('(max-width: 700px)').matches) {
-          this.forwarding?.clear();
-          this.deletion.begin(view.id);
-          return;
-        }
-        try {
-          await this.removeAndVerify(view);
-        } finally {
-          this.renderHistory();
-        }
+      remove: (view) => {
+        this.forwarding?.clear();
+        this.deletion.begin(view.id);
+        return Promise.resolve();
       },
     };
   }
@@ -398,21 +394,21 @@ export class GroupChatView {
     });
   }
   /**
-   * Deletes one own message in place, then reads the group as usual so the
+   * Deletes the selected own messages in place, then reads the group so the
    * change index verifies the removal; the history stays shown throughout
    * (owner, 13/11/2026). A lost reply is settled by that read first.
    */
-  private async removeAndVerify(view: GroupView): Promise<void> {
+  private async removeAndVerify(views: readonly GroupView[]) {
     try {
-      await this.options.controller.removeMessage(view);
-    } catch (error: unknown) {
-      if (removalFailure(error) !== 'uncertain') throw error;
-      await this.options.reopen().catch(() => undefined);
-      if (!this.options.controller.ownRemovalDone(view.id)) throw error;
-      return;
+      const results = await this.options.controller.removeMessages(views);
+      this.renderHistory();
+      return await verifyMessageRemovals(results, {
+        refresh: () => this.options.reopen(),
+        done: (id) => this.options.controller.ownRemovalDone(id),
+      });
+    } finally {
+      this.renderHistory();
     }
-    this.renderHistory();
-    await this.options.reopen();
   }
   renderHistory(): void {
     const history = this.node('[data-group-history]');
@@ -520,9 +516,8 @@ export class GroupChatView {
           return row
             ? [
                 {
-                  id: view.id,
+                  message: view,
                   row,
-                  remove: () => this.removeAndVerify(view),
                 },
               ]
             : [];

@@ -243,11 +243,16 @@ export class ConversationReader {
    * leaves the shown history. Reused windows still hold it, so they need a
    * fresh confirmation; the next verified read applies the removal itself.
    */
-  ownRemovalAccepted(id: string): void {
-    this.ownRemovals.accepted(id);
+  ownRemovalsAccepted(ids: readonly string[]): void {
+    if (!ids.length) return;
+    const removed = new Set(ids);
+    for (const id of ids) this.ownRemovals.accepted(id);
     this.conversations.hint();
     this.probedSnapshot = null;
-    this.visibility.withdraw((row) => row.id === id || row.relation?.id === id);
+    this.visibility.withdraw(
+      (row) =>
+        removed.has(row.id) || !!(row.relation && removed.has(row.relation.id)),
+    );
   }
   ownRemovalFailed(id: string, uncertain: boolean): void {
     this.ownRemovals.failed(id, uncertain);

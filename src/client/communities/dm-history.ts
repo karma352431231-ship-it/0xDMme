@@ -1,3 +1,4 @@
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
   chatSyncActive,
@@ -41,7 +42,9 @@ interface HistoryOptions {
   react: (item: DmItem, emoji: string) => Promise<void>;
   edit: (item: DmItem) => void;
   reply?: (item: DmItem) => void;
-  remove?: (item: DmItem) => Promise<void>;
+  remove?: (
+    items: readonly DmItem[],
+  ) => Promise<readonly MessageRemovalResult[]>;
   outgoingMedia?: Pick<DmOutgoingMedia, 'rows' | 'take'>;
   outgoing?: (peer: string) => readonly OutgoingText[];
   retryOutgoing?: () => void;
@@ -50,7 +53,7 @@ interface HistoryOptions {
  * Authority, verified reading and conversation selection remain with their existing owners. */
 export class DmHistory {
   private readonly options: HistoryOptions;
-  private readonly deletion: MessageDeletionSelection;
+  private readonly deletion: MessageDeletionSelection<DmItem>;
   private readonly emoji = new EmojiPicker();
   private readonly mediaUi: AttachmentUi;
   private abort = new AbortController();
@@ -61,7 +64,12 @@ export class DmHistory {
   private readonly headings = new Map<string, HTMLElement>();
   constructor(options: HistoryOptions) {
     this.options = options;
-    this.deletion = new MessageDeletionSelection(options.run);
+    this.deletion = new MessageDeletionSelection(options.run, {
+      remove: (items) => {
+        if (!options.remove) throw new Error('Own message unavailable.');
+        return options.remove(items);
+      },
+    });
     this.mediaUi = new AttachmentUi(options.playback, () => {});
   }
   get signal(): AbortSignal {
@@ -143,9 +151,8 @@ export class DmHistory {
         : page.items
             .filter((item) => item.own && !item.relation && this.options.remove)
             .map((item) => ({
-              id: item.id,
+              message: item,
               row: this.rows.get(item.id)!.row,
-              remove: () => this.options.remove!(item),
             })),
     );
     current.history.hidden = false;
@@ -358,9 +365,7 @@ export class DmHistory {
       ...(item.own && this.options.remove
         ? {
             remove: () => {
-              if (matchMedia('(max-width: 700px)').matches)
-                this.deletion.begin(item.id);
-              else void this.options.run(() => this.options.remove!(item));
+              this.deletion.begin(item.id);
             },
           }
         : {}),

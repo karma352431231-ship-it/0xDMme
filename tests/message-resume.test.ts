@@ -1215,3 +1215,68 @@ await test('a refused deletion keeps the message and the history; losing access 
     } else assert.equal(data.frames.at(-1), null);
   }
 });
+
+await test('a private deletion batch shares authority, sends concurrently and withdraws accepted bubbles in one publication', async () => {
+  const { controller, data, add, peer } = resumeFixture();
+  await add('First synthetic', peer, undefined, true);
+  await add('Kept synthetic', peer, undefined, true);
+  await add('Last synthetic', peer, undefined, true);
+  await controller.synchronize();
+  const shown = data.frames.at(-1)!;
+  const replies = [deferred<Response>(), deferred<Response>()];
+  let requests = 0;
+  data.deletion = () => replies[requests++]!.promise;
+  const reads = data.authorityReads,
+    from = data.frames.length;
+  const removing = controller.removeMany([shown[0]!, shown[2]!]);
+  for (let turn = 0; turn < 50 && requests < 2; turn++) await setImmediate();
+  assert.equal(
+    requests,
+    2,
+    'the second deletion starts before the first reply',
+  );
+  assert.equal(data.authorityReads - reads, 1);
+  assert.equal(data.frames.length, from, 'the server has not accepted yet');
+  for (const reply of replies) reply.resolve(Response.json({}));
+  const results = await removing;
+  assert.deepEqual(
+    Array.from(results, (result) => result.status),
+    ['fulfilled', 'fulfilled'],
+  );
+  assert.equal(
+    data.frames.length - from,
+    1,
+    'batch withdrawal must publish only once',
+  );
+  assert.deepEqual(
+    data.frames.at(-1)?.map((view) => view.text),
+    ['Kept synthetic'],
+  );
+});
+
+await test('a private batch conceals unauthorized history without waiting for other deletion replies', async () => {
+  const { controller, data, add, peer } = resumeFixture();
+  await add('First synthetic', peer, undefined, true);
+  await add('Second synthetic', peer, undefined, true);
+  await controller.synchronize();
+  const shown = data.frames.at(-1)!;
+  const reply = deferred<Response>();
+  let requests = 0;
+  data.deletion = () =>
+    ++requests === 1
+      ? Promise.resolve(
+          Response.json({ error: 'Not authorized' }, { status: 403 }),
+        )
+      : reply.promise;
+  const removing = controller.removeMany(shown);
+  for (let turn = 0; turn < 50 && data.frames.at(-1) !== null; turn++)
+    await setImmediate();
+  assert.equal(data.frames.at(-1), null);
+  reply.resolve(Response.json({}));
+  await removing;
+  assert.equal(
+    data.frames.at(-1),
+    null,
+    'late success cannot reopen unauthorized history',
+  );
+});

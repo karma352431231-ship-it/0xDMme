@@ -1,5 +1,5 @@
+import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
-import { removalFailure } from '../own-removals/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { stageForwardedMessage } from '../message-forward/index.ts';
@@ -763,20 +763,12 @@ export function startMessages(
         );
         await transmit();
       },
-      // The chat stays shown while deleting; the verified read that follows
-      // applies the removal (owner, 13/11/2026). A lost reply is settled by
-      // that read before the error is reported.
-      remove: async (view) => {
-        try {
-          await controller.remove(view);
-        } catch (error: unknown) {
-          if (removalFailure(error) !== 'uncertain') throw error;
-          await synchronizeVisible().catch(() => undefined);
-          if (!controller.ownRemovalDone(view.id)) throw error;
-          return;
-        }
-        await synchronizeVisible();
-      },
+      // One verified read after the selection's requests have all settled.
+      remove: async (views) =>
+        verifyMessageRemovals(await controller.removeMany(views), {
+          refresh: synchronizeVisible,
+          done: (id) => controller.ownRemovalDone(id),
+        }),
       // Stored locally first; sending never rereads the open history, which
       // emptied the chat while it ran (12/11/2026).
       pin: async (view, until) => {

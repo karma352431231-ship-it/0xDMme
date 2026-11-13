@@ -147,13 +147,14 @@ export function startSocialDmUi(
     reply: (item) => composer.reply(item),
     outgoing: (selected) => texts.forPeer(selected),
     retryOutgoing: () => texts.retry(),
-    remove: async (item) => {
+    remove: async (items) => {
       const selected = peer;
-      if (!selected || !writable || !item.own)
+      if (!selected || !writable || items.some((item) => !item.own))
         throw new Error('Own message unavailable.');
-      await controller.remove(selected, item);
+      const results = await controller.removeMany(selected, items);
       projections.clear();
       await conversation();
+      return results;
     },
   });
   const sending = new DmSending(controller, outgoingMedia);

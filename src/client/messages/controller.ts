@@ -1,3 +1,8 @@
+import {
+  assertRemovalBatch,
+  removeMessageBatch,
+} from '../message-removal-batch/index.ts';
+import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
 import { MediaMemory } from '../media-memory/index.ts';
 import type { MediaVariant } from '../media-memory/index.ts';
@@ -1549,30 +1554,59 @@ export class Messages {
    * (owner, 13/11/2026). The caller then runs the usual verified read.
    */
   async remove(view: MessageView): Promise<void> {
-    if (!this.reader.beginOwnRemoval(view)) return;
+    const results = await this.removeMany([view]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+  }
+  /** Share the vault turn and synchronization pause for the whole selection. */
+  async removeMany(
+    views: readonly MessageView[],
+  ): Promise<MessageRemovalResult[]> {
+    assertRemovalBatch(views);
+    const targets = views.filter((view) => this.reader.beginOwnRemoval(view));
+    if (!targets.length) return [];
     this.previewGeneration++;
     this.pauseSynchronization();
     notifyMessageControls('other-tabs');
     const generation = this.generation;
+    let results: MessageRemovalResult[];
     try {
-      await this.access.withVault(false, (a) =>
-        messageApi(
-          a,
-          'delete',
-          { id: view.id, hash: view.hash, revision: a.events.length },
-          () => this.guard(generation),
+      results = await this.access.withVault(false, (a) =>
+        removeMessageBatch(targets, (view) =>
+          messageApi(
+            a,
+            'delete',
+            { id: view.id, hash: view.hash, revision: a.events.length },
+            () => this.guard(generation),
+          ).catch((error: unknown) => {
+            if (
+              removalFailure(error) === 'unauthorized' &&
+              generation === this.generation
+            )
+              this.hide();
+            throw error;
+          }),
         ),
       );
-    } catch (error: unknown) {
-      const failure = removalFailure(error);
-      this.reader.ownRemovalFailed(view.id, failure === 'uncertain');
-      if (failure === 'unauthorized' && generation === this.generation)
-        this.hide();
-      throw error;
+    } catch (reason: unknown) {
+      results = targets.map(({ id }) => ({ id, status: 'rejected', reason }));
     }
-    this.reader.ownRemovalAccepted(view.id);
-    this.mediaMemory.forget(view.id);
+    const accepted = results.filter((result) => result.status === 'fulfilled');
+    for (const result of accepted) this.mediaMemory.forget(result.id);
+    this.reader.ownRemovalsAccepted(accepted.map((result) => result.id));
+    for (const result of results) this.finishRemoval(result, generation);
     notifyMessageControls('other-tabs');
+    return results;
+  }
+  private finishRemoval(
+    result: MessageRemovalResult,
+    generation: number,
+  ): void {
+    if (result.status === 'fulfilled') return;
+    const failure = removalFailure(result.reason);
+    this.reader.ownRemovalFailed(result.id, failure === 'uncertain');
+    if (failure === 'unauthorized' && generation === this.generation)
+      this.hide();
   }
   /** A bare removal notice may be this tab's own deletion coming back. */
   get expectingOwnRemoval(): boolean {

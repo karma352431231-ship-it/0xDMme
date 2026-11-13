@@ -163,3 +163,35 @@ window rather than merely its oldest search page's bottom. Scrolling does not
 fetch pages or change a reader's window. Scroll listeners and resize observation
 share the displayed history's existing abort lifetime. No persistence, transport,
 retention or dependency changes are introduced.
+
+## Message selection and batch deletion — 2026-11-13
+
+The owner requested the same deletion selection on Android, iPhone and web
+browsers, activation of bubbles solely to select/deselect while it is open, and
+removal without waiting for each message's complete deletion/sync cycle.
+
+`message-selection` owns capture listeners for the displayed history, the
+checkboxes, the 64-message selection limit and one confirmation. Bubble, media,
+link and menu activation toggles eligible author messages; incoming messages
+cannot gain a deletion capability. Holds and reply swipes cannot open other
+message actions during selection. Cancel, history concealment, navigation and
+session cleanup dispose the selection; late completion cannot modify a new
+selection. Desktop uses this same flow instead of immediate single deletion.
+
+`message-removal-batch` owns bounded execution and result reconciliation. Each
+conversation controller acquires its existing authority once for the selection;
+groups verify governance once. Up to four existing individually signed deletion
+requests run concurrently, followed by one ordinary verified conversation read.
+The server's per-message authorization, hash binding, transaction, signed
+confirmation and idempotency remain unchanged. This is a client batch, not a
+new atomic multi-message server operation. Partial failure remains possible:
+confirmed successes leave selection, while failures remain available to retry.
+Private/group lost replies become success only when verified reading proves
+the deletion. Pending requests still use their existing cancellation and time
+bounds. Confirmed private/group bubbles withdraw together without hiding the
+rest of the conversation. Completed deletion echoes cannot exhaust the budget
+needed for the next selection; in-flight targets remain limited to 64.
+
+No database schema, dependency, retention, cryptographic format or deployment
+change is required. Web and installed mobile builds share these modules; native
+binary delivery and physical Android/iPhone acceptance remain separate steps.
