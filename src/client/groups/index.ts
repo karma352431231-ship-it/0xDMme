@@ -1,3 +1,4 @@
+import type { IdentityPreparation } from '../peer-identity/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
@@ -274,10 +275,13 @@ export function startGroups(
     guardSession(current);
     await finishDirectoryRefresh();
   }
-  async function refreshDirectory(more = false): Promise<void> {
+  async function refreshDirectory(
+    more = false,
+    preparation?: IdentityPreparation,
+  ): Promise<void> {
     const current = session;
     const previous = controller.selected;
-    await controller.refreshDirectory(more);
+    await controller.refreshDirectory(more, preparation);
     guardSession(current);
     updateOwnerNotice(previous);
     publishGroupHeads();

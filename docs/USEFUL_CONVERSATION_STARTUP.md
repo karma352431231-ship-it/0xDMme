@@ -146,3 +146,64 @@ keeps its original exclusive lifecycle. Existing broader controller/UI coupling
 remains preexisting. A later structural task can extract selected-window operations
 from GroupController before its mutation workflows, preserving window, admission,
 removal and history-lifecycle tests.
+
+## Same-pass identity preparation reuse
+
+The revision 5 capture attributed 2,564 of the 2,566 ms before the first group-list
+request. Identity preparation took 2,232 ms, including 1,340 ms queued and 890 ms
+executing. The 1,102 ms direct-preview overlap establishes contention, not a
+promised saving. Contacts and groups own different PeerIdentity instances.
+
+PeerIdentity now offers one disposable, in-process startup preparation containing
+only parsed, persisted pins indexed by their verified immutable vault commits.
+The message controller owns the unclaimed preparation, replaces it on a new
+startup and disposes it on close/account changes. The group directory consumes
+it once and disposes it after that pass. Pending remembered pins are never shared;
+the receiving owner keeps its own conflict checks, loaded index and pending writes.
+The retained map is bounded by the current identity heads already loaded in that
+pass. No new persisted plaintext, authorization cache, timer or telemetry is added.
+
+VaultSync owns the evidence contract. A successful verified operation binds the
+local complete heads to session generation, account, device, CSRF, device directory,
+vault sequence/head and personal-removal cursor. Evidence is unavailable for local
+copies, incomplete heads, failed/in-progress vault work or an outstanding draft.
+Consumption acquires the ordinary GroupAuthority turn first. It checks those
+bindings, reads the current remote vault checkpoint, and refreshes the authenticated
+removal index. Changed evidence uses normal full identity synchronization and pin
+opening after releasing the turn. Authorization/network/removal failures reject;
+they never become a successful cache result. Session changes after an asynchronous
+check reject before hydration. The ordinary server-side session/device checks
+remain on every request; the evidence is not an offline permission grant.
+
+With valid evidence, the group owner hydrates its own persisted pins without a
+second vault refresh, block decryption or separate identity authority admission.
+Governance, current membership, profile reads and message confirmations are kept.
+After the last profile, the same vault-head/removal check runs again inside that
+entry's existing turn, before returning any current directory rows. Changed evidence
+there rejects the page rather than publishing rows from stale preparation. An empty
+page has no rows to authorize. Directory reads continue to release authority between
+entries, and queued previews and interactive chat opening keep their original lanes.
+
+The revision 5 meter is unchanged. On reuse, identity execution is within the
+already-required group-directory turn; its queue is therefore attributed to that
+turn, not to a separate group-identities request. Final publication validation adds
+two bounded remote reads (checkpoint and removal page, with the existing bounded
+removal pagination), and is intentionally outside the pre-list interval. Comparing
+only the first list request would miss that cost. Compare group rows/previews,
+contacts/direct-preview frames and identity/pre-list queue and execution together.
+Always verify both the collector commit and the app asset/build manifest.
+
+Automated regressions exercise real encrypted pins and vault evidence, stale local
+and remote heads, directory changes, drafts, removal changes/errors, revocation,
+session/device replacement, disposal and pending-pin isolation. Directory tests
+cover full fallback, verification, publication rejection and interactive/preview
+admission. Physical matched-run medians and ranges remain owner-run acceptance,
+consistent with the earlier instruction not to conduct manual boot-speed tests.
+No Android/iPhone/browser speedup is inferred from synthetic test timing.
+
+Structural review: evidence validation stays in VaultSync, pin provenance and
+handoff validity stay in PeerIdentity, and directory verification stays in the group
+reader. Existing message/group controllers only transfer and cancel the capability.
+The startup scheduler and exclusive queue have no new domain dependency or policy.
+The diagnostic clock now resolves lazily after the opt-in guard, preserving startup
+without browser diagnostics (covered by the existing startup regression tests).

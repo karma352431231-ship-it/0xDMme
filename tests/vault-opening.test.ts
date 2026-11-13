@@ -15,13 +15,19 @@ import type {
   VaultWorkOptions,
 } from '../src/client/vault-authority/index.ts';
 import type { VaultDraft } from '../src/client/vault-storage/index.ts';
+import type { Messages } from '../src/client/messages/controller.ts';
+import type { PeerIdentity } from '../src/client/peer-identity/index.ts';
+import { commitHash } from '../src/shared/vault/index.ts';
+import { pinFor } from '../src/client/peer-identity/index.ts';
 import { deferred, waitForBoundary } from './fixtures/deferred.ts';
 
 const bundle = await build({
   stdin: {
     contents: `export { VaultSync } from './src/client/vault-sync/index.ts';
       export { AddressBook } from './src/client/contacts/agenda.ts';
-      export { RemovalIndex } from './src/client/personal-removals/index.ts';`,
+      export { RemovalIndex } from './src/client/personal-removals/index.ts';
+      export { PeerIdentity } from './src/client/peer-identity/index.ts';
+      export { Messages } from './src/client/messages/controller.ts';`,
     resolveDir: process.cwd(),
   },
   bundle: true,
@@ -29,6 +35,11 @@ const bundle = await build({
   platform: 'browser',
   format: 'iife',
   globalName: 'opening',
+  define: {
+    'import.meta.url': JSON.stringify(
+      'https://synthetic.invalid/vault-test.js',
+    ),
+  },
   plugins: [
     {
       name: 'isolated-encrypted-vault-storage',
@@ -63,7 +74,27 @@ const bundle = await build({
   ],
 });
 
-async function fixture(t: TestContext, count = 16) {
+async function contactPin(
+  owner: Awaited<ReturnType<typeof groupParticipant>>,
+  pinned: boolean,
+) {
+  if (!pinned)
+    return {
+      accountId: null,
+      identity: null,
+      directory: null,
+      identityRevision: 0,
+    };
+  const pin = await pinFor([owner.directory]);
+  return {
+    accountId: owner.accountId,
+    identity: pin.fingerprint,
+    directory: pin.directory,
+    identityRevision: pin.revision,
+  };
+}
+
+async function fixture(t: TestContext, count = 16, pinned = false) {
   const owner = await groupParticipant(),
     key = await owner.authority.key(1);
   const cached = new Map<string, Uint8Array>(),
@@ -73,6 +104,9 @@ async function fixture(t: TestContext, count = 16) {
     authorities = 0,
     removalChecks = 0;
   const context = {
+    URL,
+    AbortController,
+    performance,
     crypto,
     TextEncoder,
     TextDecoder,
@@ -132,6 +166,8 @@ async function fixture(t: TestContext, count = 16) {
     VaultSync: typeof VaultSync;
     AddressBook: typeof AddressBook;
     RemovalIndex: typeof RemovalIndex;
+    PeerIdentity: typeof PeerIdentity;
+    Messages: typeof Messages;
   };
   t.mock.method(module.RemovalIndex.prototype, 'load', () => {
     removalChecks++;
@@ -155,16 +191,14 @@ async function fixture(t: TestContext, count = 16) {
     VaultSync['setSession']
   >[0];
   sync.setSession(session);
+  const identityFields = await contactPin(owner, pinned);
   for (let i = 0; i < count; i++) {
     const contact = {
       version: 1,
       ecosystem: 'evm',
       address: '0x' + (i + 1).toString(16).padStart(40, '0'),
       alias: 'Synthetic ' + i,
-      accountId: null,
-      identity: null,
-      directory: null,
-      identityRevision: 0,
+      ...identityFields,
       removed: false,
     };
     const identity = {
@@ -590,4 +624,193 @@ await test('interactive pin persistence retains authority priority and cannot wr
   );
   assert.equal(f.counts().requests, 0);
   assert.equal(f.sync.pending, null);
+});
+
+async function verifiedIdentityFixture(t: TestContext) {
+  const f = await fixture(t, 1, true);
+  const commit = f.sync.latest()!.commit;
+  const checkpoint = { sequence: 1, head: await commitHash(commit), used: 256 };
+  const storage = f.context.fixture.storage;
+  t.mock.method(
+    f.context.fixture,
+    'storage',
+    (name: string, args: unknown[]) => {
+      if (name === 'checkpoint') return Promise.resolve(checkpoint);
+      if (name === 'cachedPage')
+        return Promise.resolve(args[1] === 0 ? [commit] : []);
+      return storage(name, args);
+    },
+  );
+  t.mock.method(f.context, 'fetch', () =>
+    Promise.resolve(Response.json({ ...checkpoint, commits: [], pending: [] })),
+  );
+  const source = new f.module.PeerIdentity(f.sync);
+  await source.synchronize();
+  await source.loadCurrent();
+  return { ...f, source, checkpoint };
+}
+
+await test('startup transfers verified immutable pins into a different owner without another vault authority or decryption', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const preparation = f.source.prepareStartup();
+  assert.ok(preparation);
+  const target = new f.module.PeerIdentity(f.sync);
+  const before = f.counts();
+  const open = t.mock.method(f.sync, 'openMany', () =>
+    Promise.reject(new Error('Reused pins must not be decrypted again')),
+  );
+  assert.equal(await preparation.hydrate(target, f.owner.authority), true);
+  assert.deepEqual(
+    target.get(f.owner.accountId),
+    f.source.get(f.owner.accountId),
+  );
+  assert.equal(f.counts().authorities, before.authorities);
+  assert.equal(f.counts().removalChecks, before.removalChecks + 1);
+  assert.equal(open.mock.callCount(), 0);
+  assert.equal(await preparation.confirm(f.owner.authority), true);
+  preparation.dispose();
+  assert.equal(await preparation.hydrate(target, f.owner.authority), false);
+});
+
+for (const change of [
+  'local-head',
+  'remote-head',
+  'directory',
+  'removal',
+  'pending',
+] as const)
+  await test(`startup identity handoff rejects a changed ${change}`, async (t) => {
+    const f = await verifiedIdentityFixture(t);
+    const prepared = f.source.prepareStartup()!;
+    const target = new f.module.PeerIdentity(f.sync);
+    let authority = f.owner.authority;
+    if (change === 'local-head')
+      f.sync.state = { ...f.checkpoint, head: 'a'.repeat(64) };
+    if (change === 'remote-head')
+      t.mock.method(f.context, 'fetch', () =>
+        Promise.resolve(
+          Response.json({
+            ...f.checkpoint,
+            sequence: 2,
+            head: 'a'.repeat(64),
+            commits: [],
+            pending: [],
+          }),
+        ),
+      );
+    if (change === 'directory')
+      authority = { ...authority, directory: 'a'.repeat(64) };
+    if (change === 'removal')
+      t.mock.getter(f.module.RemovalIndex.prototype, 'cursor', () => 1);
+    if (change === 'pending')
+      f.sync.pending = {
+        commit: f.sync.latest()!.commit,
+        bytes: new Uint8Array(),
+      };
+    assert.equal(await prepared.hydrate(target, authority), false);
+    assert.equal(target.get(f.owner.accountId), null);
+  });
+
+for (const change of [
+  'logout',
+  'device',
+  'csrf',
+  'revoked',
+  'removal-failure',
+] as const)
+  await test(`startup handoff preserves the rejection path for ${change}`, async (t) => {
+    const f = await verifiedIdentityFixture(t);
+    const prepared = f.source.prepareStartup()!;
+    const target = new f.module.PeerIdentity(f.sync);
+    if (change === 'logout') f.sync.setSession(null);
+    if (change === 'device')
+      f.sync.setSession({ ...f.sync.session!, deviceId: crypto.randomUUID() });
+    if (change === 'csrf')
+      f.sync.setSession({ ...f.sync.session!, csrf: 'different' });
+    if (change === 'revoked')
+      t.mock.method(f.context, 'fetch', () =>
+        Promise.resolve(Response.json({ error: 'Revoked' }, { status: 403 })),
+      );
+    if (change === 'removal-failure')
+      t.mock.method(f.module.RemovalIndex.prototype, 'load', () =>
+        Promise.reject(new Error('Removal check denied')),
+      );
+    await assert.rejects(prepared.hydrate(target, f.owner.authority));
+    assert.equal(target.get(f.owner.accountId), null);
+  });
+
+await test('handoff rechecks removal and session state after asynchronous confirmation and excludes pending pins', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const prepared = f.source.prepareStartup()!;
+  const target = new f.module.PeerIdentity(f.sync);
+  const peer = await groupParticipant();
+  await f.source.remember(peer.accountId, [peer.directory]);
+  assert.equal(await prepared.hydrate(target, f.owner.authority), true);
+  assert.equal(target.get(peer.accountId), null);
+  const changed = deferred<void>(),
+    release = deferred<void>();
+  t.mock.method(f.context, 'fetch', async () => {
+    changed.resolve();
+    await release.promise;
+    return Response.json({ ...f.checkpoint, commits: [], pending: [] });
+  });
+  const confirmation = prepared.confirm(f.owner.authority);
+  await changed.promise;
+  f.sync.setSession(null);
+  release.resolve();
+  await assert.rejects(confirmation, /Session changed/u);
+});
+
+for (const cancelled of ['source', 'target', 'device'] as const)
+  await test(`queued startup evidence cannot hydrate after ${cancelled} changes during confirmation`, async (t) => {
+    const f = await verifiedIdentityFixture(t);
+    const prepared = f.source.prepareStartup()!;
+    const target = new f.module.PeerIdentity(f.sync);
+    const entered = deferred<void>(),
+      release = deferred<void>();
+    t.mock.method(f.context, 'fetch', async () => {
+      entered.resolve();
+      await release.promise;
+      return Response.json({ ...f.checkpoint, commits: [], pending: [] });
+    });
+    const hydration = prepared.hydrate(target, f.owner.authority);
+    await entered.promise;
+    if (cancelled === 'source') f.source.clear();
+    if (cancelled === 'target') target.clear();
+    if (cancelled === 'device')
+      f.sync.setSession({ ...f.sync.session!, deviceId: crypto.randomUUID() });
+    release.resolve();
+    await assert.rejects(hydration, /Session changed/u);
+    assert.equal(target.get(f.owner.accountId), null);
+  });
+
+await test('a newly observed removal invalidates prepared pins before publication', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const prepared = f.source.prepareStartup()!;
+  const target = new f.module.PeerIdentity(f.sync);
+  assert.equal(await prepared.hydrate(target, f.owner.authority), true);
+  let cursor = 0;
+  t.mock.getter(f.module.RemovalIndex.prototype, 'cursor', () => cursor);
+  t.mock.method(f.module.RemovalIndex.prototype, 'load', () => {
+    cursor++;
+    return Promise.resolve();
+  });
+  assert.equal(await prepared.confirm(f.owner.authority), false);
+});
+
+await test('message startup offers prepared pins once and closing cancels an unclaimed preparation', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const messages = new f.module.Messages(f.access, f.sync, () => {});
+  messages.setSession(f.sync.session);
+  await messages.synchronizeIdentities();
+  await messages.loadSynchronizedPins();
+  const preparation = messages.takeStartupIdentities();
+  assert.ok(preparation);
+  assert.equal(messages.takeStartupIdentities(), undefined);
+  const target = new f.module.PeerIdentity(f.sync);
+  assert.equal(await preparation.hydrate(target, f.owner.authority), true);
+  preparation.dispose();
+  await messages.loadSynchronizedPins();
+  messages.close();
+  assert.equal(messages.takeStartupIdentities(), undefined);
 });

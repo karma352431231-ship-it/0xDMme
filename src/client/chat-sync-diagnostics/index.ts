@@ -257,9 +257,10 @@ export function traceHandleFrame(): (
 export function startLoad(
   kind: LoadKind,
   peer: string | null = null,
-  started = performance.now(),
+  started?: number,
 ): LoadTrace | undefined {
   if (!chatSyncActive()) return;
+  const origin = started ?? performance.now();
   const generation = capture,
     load = ++nextLoad;
   let ended = false;
@@ -274,12 +275,12 @@ export function startLoad(
         loadKind: kind,
         ...fields,
       });
-  }, started);
+  }, origin);
   let dispatched = false;
   if (kind === 'group-directory') {
     const token = captureWork?.load({
       slot: load,
-      startedMs: Math.round(started),
+      startedMs: Math.round(origin),
       active: () => !dispatched && !ended,
       point: (stage) => {
         if (dispatched || generation !== capture) return;

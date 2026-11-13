@@ -1,6 +1,9 @@
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { loadingPresentation } from '../chat-sync-diagnostics/index.ts';
-import { readGroupDirectory, readGroupSummary } from './directory-refresh.ts';
+import {
+  readPreparedGroupDirectory,
+  readGroupSummary,
+} from './directory-refresh.ts';
 import type { GroupSummary } from './directory-refresh.ts';
 export type { GroupSummary } from './directory-refresh.ts';
 import {
@@ -68,6 +71,7 @@ import { attachmentContent } from '../../shared/attachments/index.ts';
 import { messageApi } from '../message-api/index.ts';
 import { memberWalletPage } from './member-wallets.ts';
 import type { MemberWallet } from './member-wallets.ts';
+import type { IdentityPreparation } from '../peer-identity/index.ts';
 import { PeerIdentity } from '../peer-identity/index.ts';
 import { openMessageMachine } from '../message-session/index.ts';
 import { ensureMessageRecovery } from '../message-recovery/index.ts';
@@ -347,22 +351,31 @@ export class GroupController {
     this.directoryLoading.presented(host, matchingRows);
   }
   /** Publish verified rows before optional profile/outbox/history maintenance. */
-  async refreshDirectory(more = false): Promise<void> {
+  async refreshDirectory(
+    more = false,
+    preparation?: IdentityPreparation,
+  ): Promise<void> {
     const generation = this.generation;
     try {
       await this.directoryLoading.run(async (trace) => {
-        await this.loadDirectory(more, trace);
+        await this.loadDirectory(more, trace, preparation);
         this.guard(generation);
         return this.entries.length;
       });
     } catch (error: unknown) {
       if (generation === this.generation) this.directoryProfiles = null;
       throw error;
+    } finally {
+      preparation?.dispose();
     }
     this.guard(generation);
     this.previews.queue(this.entries);
   }
-  private async loadDirectory(more: boolean, trace?: LoadTrace): Promise<void> {
+  private async loadDirectory(
+    more: boolean,
+    trace?: LoadTrace,
+    preparation?: IdentityPreparation,
+  ): Promise<void> {
     const generation = this.generation;
     this.directoryProfiles = null;
     if (!networkAvailable()) return this.refreshLocal(more);
@@ -371,24 +384,22 @@ export class GroupController {
       diagnosticOperation: 'group-identities',
       diagnosticLoad: trace?.token,
     };
-    trace?.point('identities-start');
-    try {
-      await this.identities.load(diagnostic);
-    } finally {
-      trace?.point('identities-end');
-    }
-    this.guard(generation);
-    const data = await readGroupDirectory({
-      identities: this.identities,
-      after: more ? this.remoteNext : null,
-      authority: (read) =>
-        this.withAuthority(read, undefined, {
-          ...diagnostic,
-          diagnosticOperation: 'group-directory',
-        }),
-      trace,
-      machine: (context, read) => this.machine(context, read),
-    });
+    const data = await readPreparedGroupDirectory(
+      {
+        preparation,
+        guard: () => this.guard(generation),
+        identities: this.identities,
+        after: more ? this.remoteNext : null,
+        authority: (read) =>
+          this.withAuthority(read, undefined, {
+            ...diagnostic,
+            diagnosticOperation: 'group-directory',
+          }),
+        trace,
+        machine: (context, read) => this.machine(context, read),
+      },
+      diagnostic,
+    );
     this.guard(generation);
     this.mode = 'configured';
     this.entries = more

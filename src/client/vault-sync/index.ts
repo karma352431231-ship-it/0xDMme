@@ -1,3 +1,5 @@
+import { sameVaultRead } from './verified-read.ts';
+import type { VerifiedVaultRead, VaultReadVersion } from './verified-read.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
 import { encode, object } from '../../shared/account/index.ts';
@@ -66,6 +68,7 @@ export class VaultSync {
   remotePending: VaultCommit[] = [];
   private readonly access: VaultAccess;
   private generation = 0;
+  private verifiedDirectory: string | null = null;
   private locator: VaultLocator | null = null;
   private localOnly = false;
   private readonly removals = new RemovalIndex();
@@ -94,6 +97,7 @@ export class VaultSync {
   clear(): void {
     this.refreshes.barrier();
     this.generation++;
+    this.verifiedDirectory = null;
     this.entries.clear();
     this.removals.reset();
     this.pending = null;
@@ -123,12 +127,14 @@ export class VaultSync {
       request.started?.();
       let result: T;
       try {
+        this.verifiedDirectory = null;
         result = await work(authority);
       } finally {
         if (generation !== this.generation) this.clear();
       }
       if (generation !== this.generation)
         throw new Error('Session changed during synchronization.');
+      this.verifiedDirectory = authority.directory;
       return result;
     };
     return session
@@ -158,6 +164,59 @@ export class VaultSync {
         ),
       options.priority,
     );
+  }
+  /** Evidence is consumed only under a separately acquired, current authority.
+   * It permits sharing verified immutable values, never sharing authorization. */
+  verifiedRead(): VerifiedVaultRead | undefined {
+    const version = this.readVersion();
+    if (!version) return;
+    return { confirm: (authority) => this.confirmRead(version, authority) };
+  }
+  private readVersion(): VaultReadVersion | null {
+    if (!this.complete || !this.session || this.pending || this.localOnly)
+      return null;
+    if (!this.verifiedDirectory || !networkAvailable()) return null;
+    return {
+      generation: this.generation,
+      accountId: this.session.accountId,
+      deviceId: this.session.deviceId,
+      csrf: this.session.csrf,
+      directory: this.verifiedDirectory,
+      sequence: this.state.sequence,
+      head: this.state.head,
+      removal: this.removalCursor,
+    };
+  }
+  private async confirmRead(
+    version: VaultReadVersion,
+    authority: VaultAuthority,
+  ): Promise<boolean> {
+    const guard = () => {
+      if (version.generation !== this.generation)
+        throw new Error('Session changed during synchronization.');
+    };
+    guard();
+    if (!sameVaultRead(version, this.readVersion())) return false;
+    const current = authority.session;
+    if (
+      current.accountId !== version.accountId ||
+      current.deviceId !== version.deviceId ||
+      current.csrf !== version.csrf
+    )
+      throw new Error('Session changed during synchronization.');
+    if (authority.offline || authority.directory !== version.directory)
+      return false;
+    const page = readPage(
+      await api(authority, 'read', { after: version.sequence }),
+    );
+    guard();
+    // No decryption or checkpoint mutation. Changed heads take the full path.
+    if (page.sequence !== version.sequence || page.head !== version.head)
+      return false;
+    if (page.commits.length) return false;
+    await this.removals.load(authority, guard);
+    guard();
+    return sameVaultRead(version, this.readVersion());
   }
   private async readEntry(
     authority: VaultAuthority,

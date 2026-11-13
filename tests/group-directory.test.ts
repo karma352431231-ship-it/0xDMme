@@ -1,3 +1,4 @@
+import type { IdentityPreparation } from '../src/client/peer-identity/index.ts';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
 import { installChatSyncDiagnostics } from '../src/client/chat-sync-diagnostics/index.ts';
@@ -22,7 +23,10 @@ import { GroupCache } from '../src/client/groups/cache.ts';
 import { GroupCatalog } from '../src/client/groups/catalog.ts';
 import type { CatalogGroup } from '../src/client/groups/catalog.ts';
 import { GroupGovernance } from '../src/client/groups/governance.ts';
-import { readGroupDirectory } from '../src/client/groups/directory-refresh.ts';
+import {
+  readPreparedGroupDirectory,
+  readGroupDirectory,
+} from '../src/client/groups/directory-refresh.ts';
 import type { GroupContext } from '../src/client/groups/authority.ts';
 import { groupEventHash } from '../src/shared/groups/index.ts';
 import { PeerIdentity } from '../src/client/peer-identity/index.ts';
@@ -659,134 +663,295 @@ for (const language of ['en', 'zh-CN'] as const)
     ui.leave();
   });
 
-await test('actual group-directory wiring links identities, exclusive admission and signed group-list dispatch on one clock', async (t) => {
-  const f = directoryReadFixture(t),
-    held = deferred<void>(),
-    started = deferred<void>();
-  let now = 7060,
-    signed = 0,
-    blocked = false;
-  t.mock.method(performance, 'now', () => now);
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const host = new EventTarget();
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: host,
-  });
-  installChatSyncDiagnostics(host as Window);
-  const recording = new Recording(),
-    stop = observeReuseDecisions(recording.record);
-  t.after(() => {
-    stop();
-    held.resolve();
-    if (previousWindow)
-      Object.defineProperty(globalThis, 'window', previousWindow);
-    else Reflect.deleteProperty(globalThis, 'window');
-  });
-  const queue = new AuthorityWork(async (key, body) => {
-    assert.equal(key, 'synthetic-resource');
-    await body();
-  });
-  let blocker: Promise<void> | undefined;
-  const access: VaultAccess = {
-    withLocalVault: () => Promise.reject(new Error('No offline work')),
-    withVault: <T>(
-      _offline: boolean,
-      work: (authority: VaultAuthority) => Promise<T>,
-      options: VaultWorkOptions = {},
-    ) => {
-      if (options.diagnosticOperation === 'group-directory' && !blocked) {
-        blocked = true;
-        blocker = queue.hold(
+for (const reuse of [false, true])
+  await test(`actual group-directory wiring links identities, admission and group-list dispatch: reuse=${reuse}`, async (t) => {
+    const f = directoryReadFixture(t),
+      held = deferred<void>(),
+      started = deferred<void>();
+    let now = 7060,
+      signed = 0,
+      blocked = false;
+    t.mock.method(performance, 'now', () => now);
+    const previousWindow = Object.getOwnPropertyDescriptor(
+      globalThis,
+      'window',
+    );
+    const host = new EventTarget();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: host,
+    });
+    installChatSyncDiagnostics(host as Window);
+    const recording = new Recording(),
+      stop = observeReuseDecisions(recording.record);
+    t.after(() => {
+      stop();
+      held.resolve();
+      if (previousWindow)
+        Object.defineProperty(globalThis, 'window', previousWindow);
+      else Reflect.deleteProperty(globalThis, 'window');
+    });
+    const queue = new AuthorityWork(async (key, body) => {
+      assert.equal(key, 'synthetic-resource');
+      await body();
+    });
+    let blocker: Promise<void> | undefined;
+    const access: VaultAccess = {
+      withLocalVault: () => Promise.reject(new Error('No offline work')),
+      withVault: <T>(
+        _offline: boolean,
+        work: (authority: VaultAuthority) => Promise<T>,
+        options: VaultWorkOptions = {},
+      ) => {
+        if (options.diagnosticOperation === 'group-directory' && !blocked) {
+          blocked = true;
+          blocker = queue.hold(
+            'synthetic-resource',
+            () => {
+              started.resolve();
+              return held.promise;
+            },
+            undefined,
+            { diagnosticOperation: 'conversation-previews' },
+          );
+        }
+        return queue.hold(
           'synthetic-resource',
           () => {
-            started.resolve();
-            return held.promise;
+            if (options.diagnosticOperation === 'group-directory') now += 380;
+            return work(f.input.context.authority);
           },
-          undefined,
-          { diagnosticOperation: 'conversation-previews' },
+          options.priority,
+          options,
         );
-      }
-      return queue.hold(
-        'synthetic-resource',
+      },
+    };
+    t.mock.method(PeerIdentity.prototype, 'load', (options: VaultWorkOptions) =>
+      access.withVault(
+        false,
         () => {
-          if (options.diagnosticOperation === 'group-directory') now += 380;
-          return work(f.input.context.authority);
+          now += 700;
+          return Promise.resolve();
         },
-        options.priority,
         options,
+      ),
+    );
+    t.mock.method(GroupCatalog.prototype, 'creation', () =>
+      Promise.resolve(null),
+    );
+    t.mock.method(GroupCatalog.prototype, 'page', () =>
+      Promise.resolve({ items: [], next: null }),
+    );
+    t.mock.method(f.input.context.authority, 'sign', () => {
+      now += ++signed === 1 ? 50 : 100;
+      return Promise.resolve('synthetic-private-signature');
+    });
+    t.mock.method(globalThis, 'fetch', (path: string, options: RequestInit) => {
+      assert.ok(typeof options.body === 'string');
+      assert.doesNotMatch(
+        options.body,
+        /diagnosticLoad|loadClockMs|authorityQueue|workClockMs/u,
       );
+      if (path.endsWith('/group-mode')) {
+        now += 150;
+        return Promise.resolve(Response.json({ mode: 'configured' }));
+      }
+      assert.ok(path.endsWith('/group-list'));
+      return Promise.resolve(Response.json({ items: [], next: null }));
+    });
+    const controller = new GroupController(
+      access,
+      new VaultSync(access),
+      () => false,
+    );
+    controller.setSession(f.input.context.authority.session as AccountSession);
+    const preparation = reuse
+      ? {
+          hydrate: () => {
+            now += 140;
+            return Promise.resolve(true);
+          },
+          confirm: () => Promise.resolve(true),
+          dispose: () => {},
+        }
+      : undefined;
+    const loading = controller.refreshDirectory(false, preparation);
+    await waitForBoundary(started.promise);
+    now += 1170;
+    held.resolve();
+    await loading;
+    await blocker;
+    const summary = recording
+      .report()
+      .loading.operations.find(
+        (operation) => operation.kind === 'group-directory',
+      );
+    assert.ok(summary?.preList?.available);
+    assert.equal(summary.preList.firstGroupListSentMs, reuse ? 1990 : 2550);
+    assert.equal(summary.preList.accounting.queueMs, 1170);
+    assert.equal(summary.preList.accounting.executionMs, reuse ? 820 : 1380);
+    assert.equal(summary.preList.accounting.unattributedMs, 0);
+    assert.equal(summary.preList.durationsMs.vaultAuthorization, 380);
+    assert.equal(summary.preList.durationsMs.groupMode, 200);
+    assert.equal(summary.preList.durationsMs.groupListPreparation, 100);
+    assert.ok(
+      summary.preList.work.some((work) =>
+        work.blockers.some(
+          (blocker) =>
+            blocker.category === 'conversation-previews' &&
+            blocker.elapsedMs === 1170,
+        ),
+      ),
+    );
+    assert.equal(summary.preList.durationsMs.identities, reuse ? 140 : 700);
+    assert.equal(
+      summary.preList.work.filter(
+        (work) => work.category === 'group-identities',
+      ).length,
+      reuse ? 0 : 1,
+    );
+    const exported = JSON.stringify(recording.report());
+    assert.ok(!exported.includes(f.raw.groupId));
+    assert.ok(!exported.includes(f.raw.actor));
+    assert.ok(!exported.includes('synthetic-private-signature'));
+  });
+
+for (const evidence of ['valid', 'stale', 'revoked'] as const)
+  await test(`group directory ${evidence} startup evidence preserves verification and full fallback`, async (t) => {
+    const f = directoryReadFixture(t);
+    let loaded = 0,
+      hydrated = 0,
+      confirmed = 0,
+      disposed = 0;
+    t.mock.method(f.input.identities, 'load', () => {
+      loaded++;
+      return Promise.resolve();
+    });
+    const preparation: IdentityPreparation = {
+      hydrate: (target, authority) => {
+        assert.equal(target, f.input.identities);
+        assert.equal(authority, f.input.context.authority);
+        assert.equal(
+          f.calls.length,
+          0,
+          'No group request precedes identity validation',
+        );
+        hydrated++;
+        if (evidence === 'revoked') return Promise.reject(new Error('Revoked'));
+        return Promise.resolve(evidence === 'valid');
+      },
+      confirm: () => {
+        confirmed++;
+        return Promise.resolve(true);
+      },
+      dispose: () => {
+        disposed++;
+      },
+    };
+    const loading = readPreparedGroupDirectory({ ...f.input, preparation }, {});
+    if (evidence === 'revoked') {
+      await assert.rejects(loading, /Revoked/u);
+      assert.equal(loaded, 0);
+      assert.deepEqual(f.calls, []);
+    } else {
+      const result = await loading;
+      assert.equal(result.entries[0]?.state.groupId, f.raw.groupId);
+      assert.equal(loaded, evidence === 'valid' ? 0 : 1);
+      assert.equal(confirmed, evidence === 'valid' ? 1 : 0);
+      assert.deepEqual(f.calls, ['group-mode', 'group-list', 'group-profile']);
+    }
+    assert.equal(hydrated, 1);
+    assert.equal(disposed, 1);
+  });
+
+await test('a removal before startup publication rejects the entire verified group page', async (t) => {
+  const f = directoryReadFixture(t);
+  let published = false,
+    disposed = false;
+  const preparation: IdentityPreparation = {
+    hydrate: () => Promise.resolve(true),
+    confirm: () => Promise.resolve(false),
+    dispose: () => {
+      disposed = true;
     },
   };
-  t.mock.method(PeerIdentity.prototype, 'load', (options: VaultWorkOptions) =>
-    access.withVault(
-      false,
-      () => {
-        now += 700;
-        return Promise.resolve();
+  await assert.rejects(
+    readPreparedGroupDirectory({ ...f.input, preparation }, {}).then(() => {
+      published = true;
+    }),
+    /not synchronized/u,
+  );
+  assert.equal(published, false);
+  assert.equal(disposed, true);
+});
+
+await test('reuse retains queued direct preview admission and interactive chat precedence between group turns', async (t) => {
+  const f = directoryReadFixture(t);
+  const gate = deferred<void>(),
+    entered = deferred<void>();
+  const queue = new AuthorityWork(async (_key, work) => work());
+  const order: string[] = [];
+  let turn = 0;
+  const input = {
+    ...f.input,
+    preparation: {
+      hydrate: () => Promise.resolve(true),
+      confirm: () => Promise.resolve(true),
+      dispose: () => {},
+    },
+    authority: <T>(work: (context: GroupContext) => Promise<T>) =>
+      queue.hold('synthetic', async () => {
+        order.push('group-' + ++turn);
+        if (turn === 1) {
+          entered.resolve();
+          await gate.promise;
+        }
+        return work(f.input.context);
+      }),
+  };
+  const loading = readPreparedGroupDirectory(input, {});
+  await entered.promise;
+  const preview = queue.hold('synthetic', () => {
+    order.push('preview');
+    return Promise.resolve();
+  });
+  const chat = queue.hold(
+    'synthetic',
+    () => {
+      order.push('chat');
+      return Promise.resolve();
+    },
+    'interactive',
+  );
+  gate.resolve();
+  await Promise.all([loading, preview, chat]);
+  assert.deepEqual(order, ['group-1', 'chat', 'preview', 'group-2']);
+});
+
+await test('a changed directory generation during full fallback cannot query the next account', async (t) => {
+  const f = directoryReadFixture(t);
+  let current = true;
+  t.mock.method(f.input.identities, 'load', () => {
+    current = false;
+    return Promise.resolve();
+  });
+  const preparation: IdentityPreparation = {
+    hydrate: () => Promise.resolve(false),
+    confirm: () => Promise.resolve(true),
+    dispose: () => {},
+  };
+  await assert.rejects(
+    readPreparedGroupDirectory(
+      {
+        ...f.input,
+        preparation,
+        guard: () => {
+          if (!current) throw new Error('Session changed');
+        },
       },
-      options,
+      {},
     ),
+    /Session changed/u,
   );
-  t.mock.method(GroupCatalog.prototype, 'creation', () =>
-    Promise.resolve(null),
-  );
-  t.mock.method(GroupCatalog.prototype, 'page', () =>
-    Promise.resolve({ items: [], next: null }),
-  );
-  t.mock.method(f.input.context.authority, 'sign', () => {
-    now += ++signed === 1 ? 50 : 100;
-    return Promise.resolve('synthetic-private-signature');
-  });
-  t.mock.method(globalThis, 'fetch', (path: string, options: RequestInit) => {
-    assert.ok(typeof options.body === 'string');
-    assert.doesNotMatch(
-      options.body,
-      /diagnosticLoad|loadClockMs|authorityQueue|workClockMs/u,
-    );
-    if (path.endsWith('/group-mode')) {
-      now += 150;
-      return Promise.resolve(Response.json({ mode: 'configured' }));
-    }
-    assert.ok(path.endsWith('/group-list'));
-    return Promise.resolve(Response.json({ items: [], next: null }));
-  });
-  const controller = new GroupController(
-    access,
-    new VaultSync(access),
-    () => false,
-  );
-  controller.setSession(f.input.context.authority.session as AccountSession);
-  const loading = controller.refreshDirectory();
-  await waitForBoundary(started.promise);
-  now += 1170;
-  held.resolve();
-  await loading;
-  await blocker;
-  const summary = recording
-    .report()
-    .loading.operations.find(
-      (operation) => operation.kind === 'group-directory',
-    );
-  assert.ok(summary?.preList?.available);
-  assert.equal(summary.preList.firstGroupListSentMs, 2550);
-  assert.equal(summary.preList.accounting.queueMs, 1170);
-  assert.equal(summary.preList.accounting.executionMs, 1380);
-  assert.equal(summary.preList.accounting.unattributedMs, 0);
-  assert.equal(summary.preList.durationsMs.vaultAuthorization, 380);
-  assert.equal(summary.preList.durationsMs.groupMode, 200);
-  assert.equal(summary.preList.durationsMs.groupListPreparation, 100);
-  assert.ok(
-    summary.preList.work.some((work) =>
-      work.blockers.some(
-        (blocker) =>
-          blocker.category === 'conversation-previews' &&
-          blocker.elapsedMs === 1170,
-      ),
-    ),
-  );
-  const exported = JSON.stringify(recording.report());
-  assert.ok(!exported.includes(f.raw.groupId));
-  assert.ok(!exported.includes(f.raw.actor));
-  assert.ok(!exported.includes('synthetic-private-signature'));
+  assert.deepEqual(f.calls, []);
 });

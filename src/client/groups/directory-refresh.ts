@@ -4,6 +4,8 @@ import { integer } from '../../shared/vault/index.ts';
 import { groupEvent, groupEventHash } from '../../shared/groups/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
+import type { IdentityPreparation } from '../peer-identity/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
 import type { GroupContext } from './authority.ts';
 import type { GroupState } from './governance.ts';
@@ -18,8 +20,10 @@ export interface GroupSummary extends GroupState {
 }
 interface DirectoryRead {
   trace?: LoadTrace | undefined;
+  guard?: () => void;
   authority: <T>(work: (context: GroupContext) => Promise<T>) => Promise<T>;
   identities: PeerIdentity;
+  preparation?: IdentityPreparation | undefined;
   after: string | null;
   machine: <T>(
     context: GroupContext,
@@ -29,26 +33,84 @@ interface DirectoryRead {
 /** Bounded, currently authorized summaries only. No outbox, invitations or
  * selected-history work is part of reading a directory page. */
 export async function readGroupDirectory(input: DirectoryRead) {
+  input.guard?.();
   input.trace?.point('vault-request');
-  const page = await input.authority((context) => {
+  const page = await input.authority(async (context) => {
     input.trace?.point('vault-ready');
+    if (input.preparation) {
+      const ready = await preparedIdentities(input, context);
+      if (!ready) throw new StaleIdentityPreparation();
+    }
     return readGroupDirectoryPage(context, input.after, input.trace);
   });
   const entries: GroupSummary[] = [];
-  for (const raw of page.groups)
+  for (const [index, raw] of page.groups.entries())
     entries.push(
-      await input.authority((context) =>
-        input.machine(context, (machine) =>
+      await input.authority(async (context) => {
+        const entry = await input.machine(context, (machine) =>
           readGroupDirectoryEntry({
             context,
             identities: input.identities,
             machine,
             raw,
           }),
-        ),
-      ),
+        );
+        // Reuse does not authorize publication. Confirm after the last profile,
+        // in its existing exclusive turn, before returning any current rows.
+        if (input.preparation && index === page.groups.length - 1) {
+          if (!(await input.preparation.confirm(context.authority)))
+            throw new Error('Identities are not synchronized yet.');
+        }
+        return entry;
+      }),
     );
+  input.guard?.();
   return { entries, next: page.next };
+}
+
+class StaleIdentityPreparation extends Error {}
+
+async function preparedIdentities(input: DirectoryRead, context: GroupContext) {
+  input.trace?.point('identities-start');
+  try {
+    return await input.preparation!.hydrate(
+      input.identities,
+      context.authority,
+    );
+  } finally {
+    input.trace?.point('identities-end');
+  }
+}
+
+/** A missing/stale handoff uses the ordinary full verification path. A failed
+ * authority request is never converted into a cache hit or a stale fallback. */
+export async function readPreparedGroupDirectory(
+  input: DirectoryRead,
+  work: VaultWorkOptions,
+) {
+  try {
+    if (!input.preparation) await loadDirectoryIdentities(input, work);
+    try {
+      return await readGroupDirectory(input);
+    } catch (error: unknown) {
+      if (!(error instanceof StaleIdentityPreparation)) throw error;
+      await loadDirectoryIdentities(input, work);
+      return await readGroupDirectory({ ...input, preparation: undefined });
+    }
+  } finally {
+    input.preparation?.dispose();
+  }
+}
+async function loadDirectoryIdentities(
+  input: DirectoryRead,
+  work: VaultWorkOptions,
+) {
+  input.trace?.point('identities-start');
+  try {
+    await input.identities.load(work);
+  } finally {
+    input.trace?.point('identities-end');
+  }
 }
 
 /** List transport and validation have no SDK dependency. Each entry may then

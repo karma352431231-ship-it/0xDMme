@@ -10,6 +10,7 @@ import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { addressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
+import type { VaultAuthority } from '../vault-authority/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 export interface PeerPin {
   fingerprint: string;
@@ -70,10 +71,29 @@ export async function pinFor(history: DirectoryEvent[]): Promise<PeerPin> {
 type IdentitySync = Pick<
   VaultSync,
   'refresh' | 'complete' | 'currentHeads' | 'openMany' | 'save' | 'isRemoved'
->;
+> &
+  Partial<Pick<VaultSync, 'verifiedRead'>>;
+interface StoredIdentity {
+  account: string;
+  pin: PeerPin;
+}
+function copyStoredIdentity(
+  identity: StoredIdentity | null,
+): StoredIdentity | null {
+  return identity && { account: identity.account, pin: { ...identity.pin } };
+}
+/** One startup pass; only persisted pins cross owners, never pending writes. */
+export interface IdentityPreparation {
+  hydrate: (
+    target: PeerIdentity,
+    authority: VaultAuthority,
+  ) => Promise<boolean>;
+  confirm: (authority: VaultAuthority) => Promise<boolean>;
+  dispose: () => void;
+}
 /** All conversation types share the existing encrypted contact identity records. */
 export class PeerIdentity {
-  private loaded = new Set<string>();
+  private loaded = new Map<string, StoredIdentity | null>();
   private readonly sync: IdentitySync;
   private readonly pins = new Map<string, PeerPin>();
   private readonly pending = new Map<string, PeerPin>();
@@ -134,41 +154,106 @@ export class PeerIdentity {
       );
       this.guard(generation);
       for (const [index, entry] of page.entries())
-        this.loadEntry(entry, values[index]!, generation);
+        this.loaded.set(
+          entry.commit.id,
+          this.loadEntry(entry, values[index]!, generation),
+        );
     }
     this.guard(generation);
-    this.loaded = new Set(entries.map((entry) => entry.commit.id));
+    const current = new Set(entries.map((entry) => entry.commit.id));
+    for (const id of this.loaded.keys())
+      if (!current.has(id)) this.loaded.delete(id);
   }
   private loadEntry(
     entry: VaultEntry,
     content: string,
     generation: number,
-  ): void {
-    if (this.sync.isRemoved(entry.commit.id)) return;
+  ): StoredIdentity | null {
+    if (this.sync.isRemoved(entry.commit.id)) return null;
     if (entry.change.kind === 'address-book') {
       const stored = addressBookEntry(JSON.parse(content) as unknown);
       this.guard(generation);
-      if (stored.accountId && stored.identity && stored.directory)
-        this.accept(stored.accountId, {
+      if (!stored.accountId || !stored.identity || !stored.directory)
+        return null;
+      const identity = {
+        account: stored.accountId,
+        pin: {
           fingerprint: stored.identity,
           directory: stored.directory,
           revision: stored.identityRevision,
-        });
-      return;
+        },
+      };
+      this.accept(identity.account, identity.pin);
+      return identity;
     }
     if (
       entry.change.kind !== 'contact' ||
       entry.change.label !== 'Identidade para mensagens'
     )
-      return;
+      return null;
     const value = object(JSON.parse(content) as unknown),
       pin = object(value['pin']);
     this.guard(generation);
-    this.accept(uuid(value['accountId']), {
-      fingerprint: fingerprint(pin['fingerprint']),
-      directory: fingerprint(pin['directory']),
-      revision: integer(pin['revision'], 128),
-    });
+    const identity = {
+      account: uuid(value['accountId']),
+      pin: {
+        fingerprint: fingerprint(pin['fingerprint']),
+        directory: fingerprint(pin['directory']),
+        revision: integer(pin['revision'], 128),
+      },
+    };
+    this.accept(identity.account, identity.pin);
+    return identity;
+  }
+  /** The receiving owner keeps its own pins, loaded commits and pending writes.
+   * A fresh signed vault-head/removal check is required at both consumption and
+   * publication. The capability is cancelled after this startup directory pass. */
+  prepareStartup(): IdentityPreparation | undefined {
+    const read = this.sync.verifiedRead?.();
+    if (!read) return;
+    const entries = [...this.sync.currentHeads().values()]
+      .flat()
+      .filter(
+        (entry) =>
+          entry.change.kind === 'address-book' ||
+          (entry.change.kind === 'contact' &&
+            entry.change.label === 'Identidade para mensagens'),
+      );
+    if (entries.some((entry) => !this.loaded.has(entry.commit.id))) return;
+    const loaded = new Map(
+      entries.map((entry) => [
+        entry.commit.id,
+        copyStoredIdentity(this.loaded.get(entry.commit.id)!),
+      ]),
+    );
+    const generation = this.generation;
+    let active = true;
+    const confirm = async (authority: VaultAuthority) => {
+      this.guard(generation);
+      if (!active) return false;
+      const valid = await read.confirm(authority);
+      this.guard(generation);
+      return active && valid;
+    };
+    return {
+      confirm,
+      hydrate: async (target, authority) => {
+        if (target.sync !== this.sync) return false;
+        const receiving = target.generation;
+        if (!(await confirm(authority))) return false;
+        target.guard(receiving);
+        for (const [id, identity] of loaded) {
+          const copy = copyStoredIdentity(identity);
+          if (copy) target.accept(copy.account, copy.pin);
+          target.loaded.set(id, copy);
+        }
+        return true;
+      },
+      dispose: () => {
+        active = false;
+        loaded.clear();
+      },
+    };
   }
   private accept(account: string, next: PeerPin): void {
     const old = this.pins.get(account);

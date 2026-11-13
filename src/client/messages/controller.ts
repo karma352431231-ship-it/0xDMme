@@ -1,3 +1,4 @@
+import type { IdentityPreparation } from '../peer-identity/index.ts';
 import {
   assertRemovalBatch,
   removeMessageBatch,
@@ -164,6 +165,7 @@ export class Messages {
   private readonly identities: PeerIdentity;
   private initializedDirectory = '';
   private pinsGeneration = -1;
+  private startupIdentities: IdentityPreparation | undefined;
   private readonly histories = new Map<
     string,
     import('../../shared/devices/index.ts').DirectoryEvent[]
@@ -360,6 +362,8 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.startupIdentities?.dispose();
+    this.startupIdentities = undefined;
     this.synchronizationIssues = [];
     this.recoveryAlarm.clear();
     this.previewGeneration++;
@@ -514,6 +518,8 @@ export class Messages {
    * verified heads; identity pins are opened afterwards from that same state,
    * still before any history read or send can use them. */
   async synchronizeIdentities(options: VaultWorkOptions = {}): Promise<void> {
+    this.startupIdentities?.dispose();
+    this.startupIdentities = undefined;
     const generation = this.generation;
     await this.identities.synchronize(options);
     this.guard(generation);
@@ -523,6 +529,13 @@ export class Messages {
     await this.identities.loadCurrent(options);
     this.guard(generation);
     this.pinsGeneration = generation;
+    this.startupIdentities?.dispose();
+    this.startupIdentities = this.identities.prepareStartup();
+  }
+  takeStartupIdentities(): IdentityPreparation | undefined {
+    const prepared = this.startupIdentities;
+    this.startupIdentities = undefined;
+    return prepared;
   }
   async savePins(options: VaultWorkOptions = {}): Promise<void> {
     await this.identities.save(undefined, options);

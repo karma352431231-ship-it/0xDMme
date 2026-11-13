@@ -583,7 +583,8 @@ export function startMessages(
       if (previews.failed) throw new Error('Could not complete the operation.');
       return admitted;
     },
-    groups: () => groups.refreshDirectory(),
+    groups: () =>
+      groups.refreshDirectory(false, controller.takeStartupIdentities()),
     groupPreviews: () => groups.prepareDirectoryPreviews(),
     settled: () => {
       options.directorySettled?.(session);
