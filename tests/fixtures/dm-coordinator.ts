@@ -525,13 +525,12 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
         : {
             active: false,
             unsent: false,
-            editing: null,
             bind: noop,
             update: (state: { pending: boolean }) =>
               composerStates.push({ ...state }),
             restoreDraft: noop,
             leave: noop,
-            cancelEdit: noop,
+            cancelReply: noop,
             forgetDrafts: noop,
           },
     LiveMessages: function (options: {

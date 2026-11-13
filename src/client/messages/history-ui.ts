@@ -1,3 +1,4 @@
+import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { placeVideoMessageMeta } from '../chat-video/index.ts';
@@ -122,7 +123,9 @@ interface HistoryPresentation {
     signal: AbortSignal,
     ready?: (url: string | null) => void,
   ) => void;
-  actions: Pick<Actions, 'action' | 'picker' | 'choose'> & {
+  actions: Pick<Actions, 'action' | 'picker'> & {
+    choose: (mode: 'reply', view: MessageView) => void;
+    edit: (view: DailyView<MessageView>, text: string) => Promise<void>;
     react: (view: MessageView, emoji: string, id: string) => Promise<void>;
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (
@@ -142,6 +145,7 @@ interface HistoryPresentation {
 
 /** Consumes only verified windows. Never opens storage or bypasses the gate. */
 export class MessageHistoryUi {
+  private readonly editor: InlineMessageEditor<DailyView<MessageView>>;
   private readonly deletion: MessageDeletionSelection<MessageView>;
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
@@ -170,6 +174,10 @@ export class MessageHistoryUi {
       remove: options.actions.remove,
     });
     this.options = options;
+    this.editor = new InlineMessageEditor({
+      run: options.run,
+      save: options.actions.edit,
+    });
     this.reactions = new HistoryReactions({
       action: options.actions.action,
       send: options.actions.react,
@@ -188,6 +196,7 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.editor.clear();
     this.loadingDiagnostics.reset();
     this.receipts.incoming.clear();
     this.receipts.outgoing.clear();
@@ -204,6 +213,7 @@ export class MessageHistoryUi {
     this.externalRows.clear();
   }
   clearMedia(): void {
+    this.editor.clear();
     this.avatarPhoto.clear();
     this.headerPhoto?.abort();
     this.externalRows.clear();
@@ -221,6 +231,7 @@ export class MessageHistoryUi {
     update: HistoryUpdate = 'history',
   ): void {
     if (rows === null) {
+      this.editor.clear();
       this.deletion.clear();
       this.forwarding?.clear();
       this.reactions.closeGate();
@@ -244,6 +255,7 @@ export class MessageHistoryUi {
     this.renderContent(history, update);
     this.renderSubmittedMediaStates(history);
     renderSearchReturn(history, this.options.searchFocus);
+    this.updateEditor(history);
     this.updateDeletion(history, this.views);
     this.forwarding?.update();
     this.renderGate(history);
@@ -258,6 +270,34 @@ export class MessageHistoryUi {
     restoreScroll();
     this.watchOlder(history)?.check();
     this.options.composerChanged();
+  }
+  private updateEditor(history: HTMLElement): void {
+    const live = !this.options.context().selected?.localOnly;
+    const rows = new Map(
+      [...history.querySelectorAll<HTMLElement>('article[data-message]')].map(
+        (row) => [row.dataset['message'], row],
+      ),
+    );
+    const targets = dailyViews(this.views ?? [])
+      .filter(
+        (view) =>
+          live &&
+          view.own &&
+          !view.archived &&
+          view.kind === 'text' &&
+          !view.content.viewOnce,
+      )
+      .flatMap((view) => {
+        const row = rows.get(view.id);
+        return row ? [{ message: view, text: view.content.text, row }] : [];
+      });
+    this.editor.update(targets);
+  }
+  private choose(mode: 'reply' | 'edit', view: MessageView): void {
+    if (mode === 'reply') return this.options.actions.choose(mode, view);
+    this.deletion.clear();
+    this.forwarding?.clear();
+    this.editor.begin(view.id);
   }
   private updateDeletion(
     history: HTMLElement,
@@ -521,7 +561,7 @@ export class MessageHistoryUi {
     run: RunPlace = 'single',
   ): HTMLElement {
     const article = document.createElement('article');
-    const { action, picker, choose } = this.options.actions;
+    const { action, picker } = this.options.actions;
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['message'] = view.id;
     article.dataset['run'] = run;
@@ -547,12 +587,15 @@ export class MessageHistoryUi {
       messageActions({
         action,
         picker,
-        choose,
+        choose: (mode, target) => this.choose(mode, target),
         react: (target, emoji) => this.reactions.change(target, emoji),
         row: article,
         signal,
         view,
-        forward: () => this.forwarding?.start(view),
+        forward: () => {
+          this.editor.dismiss();
+          this.forwarding?.start(view);
+        },
         forwardAllowed: !!this.options.forwarding?.contacts().length,
         peers: this.options.context().peers.filter((peer) => !peer.localOnly),
         replyAllowed: !this.options.context().selected?.localOnly,
@@ -594,6 +637,7 @@ export class MessageHistoryUi {
       ...(!view.archived && view.own
         ? {
             remove: () => {
+              this.editor.dismiss();
               this.forwarding?.clear();
               this.deletion.begin(view.id);
               return Promise.resolve();

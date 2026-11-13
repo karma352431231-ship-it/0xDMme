@@ -1,6 +1,15 @@
 module.exports = {
   forbidden: [
     {
+      name: 'inline-editor-has-no-domain-authority',
+      severity: 'error',
+      from: { path: '^src/client/message-inline-editor/' },
+      to: {
+        path: '^src/(?:client|server)/',
+        pathNot: '^src/client/message-inline-editor/',
+      },
+    },
+    {
       name: 'encrypted-reopen-caches-use-persistence-only',
       severity: 'error',
       from: { path: '^src/client/(?:reopen-cache|media-preview)/' },

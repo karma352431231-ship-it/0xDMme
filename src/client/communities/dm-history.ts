@@ -1,3 +1,4 @@
+import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
@@ -40,7 +41,7 @@ interface HistoryOptions {
     Partial<Pick<SocialDms, 'openViewOnce' | 'mediaPreviews'>>;
   run: (work: () => Promise<void>) => Promise<void>;
   react: (item: DmItem, emoji: string) => Promise<void>;
-  edit: (item: DmItem) => void;
+  edit: (item: DmItem, text: string) => Promise<void>;
   reply?: (item: DmItem) => void;
   remove?: (
     items: readonly DmItem[],
@@ -53,6 +54,7 @@ interface HistoryOptions {
  * Authority, verified reading and conversation selection remain with their existing owners. */
 export class DmHistory {
   private readonly options: HistoryOptions;
+  private readonly editor: InlineMessageEditor<DmItem>;
   private readonly deletion: MessageDeletionSelection<DmItem>;
   private readonly emoji = new EmojiPicker();
   private readonly mediaUi: AttachmentUi;
@@ -64,6 +66,10 @@ export class DmHistory {
   private readonly headings = new Map<string, HTMLElement>();
   constructor(options: HistoryOptions) {
     this.options = options;
+    this.editor = new InlineMessageEditor({
+      run: options.run,
+      save: options.edit,
+    });
     this.deletion = new MessageDeletionSelection(options.run, {
       remove: (items) => {
         if (!options.remove) throw new Error('Own message unavailable.');
@@ -80,6 +86,7 @@ export class DmHistory {
     return this.rows.size;
   }
   clear(): void {
+    this.editor.clear();
     this.deletion.clear();
     this.abort.abort();
     this.abort = new AbortController();
@@ -144,6 +151,7 @@ export class DmHistory {
     this.reconcile(current.history, wanted);
     markRuns(current.history, runOf);
     this.emptyState(current.gate, wanted.length === 0);
+    this.updateEditor(page, input.localMedia);
     this.deletion.update(
       current.history,
       input.localMedia
@@ -166,6 +174,22 @@ export class DmHistory {
         signal: this.abort.signal,
         previous,
       });
+  }
+  private updateEditor(page: DmPage, localMedia: boolean): void {
+    this.editor.update(
+      localMedia
+        ? []
+        : page.items
+            .filter(
+              (item) =>
+                this.editable(item) && !item.relation && !messageViewOnce(item),
+            )
+            .map((item) => ({
+              message: item,
+              text: item.displayText,
+              row: this.rows.get(item.id)!.row,
+            })),
+    );
   }
   private pending(
     page: DmPage,
@@ -360,11 +384,15 @@ export class DmHistory {
   private mutationCapabilities(item: DmItem) {
     return {
       react: (emoji: string) => this.options.react(item, emoji),
-      edit: () => this.options.edit(item),
+      edit: () => {
+        this.deletion.clear();
+        this.editor.begin(item.id);
+      },
       editable: this.editable(item),
       ...(item.own && this.options.remove
         ? {
             remove: () => {
+              this.editor.dismiss();
               this.deletion.begin(item.id);
             },
           }

@@ -49,6 +49,7 @@ export function messageGestures(
     }
   }
   function start(event: PointerEvent): void {
+    if (row.dataset['editingMessage'] === 'true') return;
     if (selecting()) {
       end();
       return;
@@ -110,6 +111,7 @@ export function messageGestures(
   row.addEventListener(
     'contextmenu',
     (event) => {
+      if (row.dataset['editingMessage'] === 'true') return;
       if (selecting()) {
         event.preventDefault();
         return;

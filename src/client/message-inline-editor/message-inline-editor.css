@@ -1,0 +1,98 @@
+/* The selected bubble owns the editor; the normal composer stays independent. */
+#app-shell .chat-panel .chat-message[data-editing-message='true'] {
+  box-sizing: border-box;
+  width: min(420px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--editor-line);
+  border-radius: 16px;
+  background: var(--editor-bg);
+  color: var(--text);
+}
+#app-shell
+  .chat-message[data-editing-message='true']
+  > :not(.message-inline-editor) {
+  display: none;
+}
+#app-shell .chat-panel .message-inline-editor {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  color: var(--text);
+}
+#app-shell .message-inline-editor label {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+#app-shell .message-inline-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  max-height: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--editor-line);
+  border-radius: 10px;
+  background: var(--editor-field);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  resize: vertical;
+}
+#app-shell .message-inline-editor textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+#app-shell .message-inline-editor > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#app-shell .message-inline-editor details {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-block: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+#app-shell .message-inline-editor summary {
+  padding: 0;
+  cursor: pointer;
+}
+#app-shell .chat-panel .message-inline-editor details p {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#app-shell .message-inline-editor button {
+  flex: none;
+  margin: 0;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#app-shell .message-inline-editor button[type='submit'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+#app-shell .message-inline-editor button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#app-shell .chat-panel .message-inline-editor > p {
+  color: var(--text-muted);
+  font-size: 12px;
+}

@@ -204,3 +204,48 @@ whole menu. Fine-pointer browser selection checkboxes use 16 px marks; touch
 layouts retain 24 px marks and the existing whole-bubble selection behavior.
 The assembled conversation fixture checks both geometry contracts. This is a
 presentation correction only; message selection and deletion rules are unchanged.
+
+## Editing inside the selected message — 2026-11-13
+
+Owner-approved UI: the selected outgoing text bubble becomes a compact inline
+editor. It uses graphite and near-black surfaces with a blue Save button in dark
+themes; the light theme retains readable light surfaces. View original expands
+locally. Cancel or Escape restores the bubble; Enter inserts a line break and
+Ctrl/Cmd+Enter saves. The new-message draft, reply context and attachments remain
+independent throughout editing. No dialog or additional chat bubble is created.
+
+`message-inline-editor` owns one ephemeral draft, form, pending-save state,
+conflict feedback and event disposal. Private, group and handle history owners
+supply eligible verified rows and their existing authenticated edit capabilities.
+The editor imports no domain operations, storage or authority; dependency-cruiser
+and the existing quality-gate fixtures enforce that boundary. Normal composers
+now own new messages and replies only. Encryption, signing, outbox delivery,
+authorization and relation metadata stay with their existing owners.
+
+History refreshes retain the edit draft and reattach its form when a row changes.
+A text change observed in the verified history blocks Save and asks the person
+to reopen and review the latest message. A failed save retains the draft for an explicit retry. A pending
+save cannot be submitted twice; a completed save cannot clear a newer editor.
+Closing the gate, removing the target, changing conversation or ending the session
+discards the ephemeral edit. Already-started authenticated operations keep their
+existing lifecycle; clearing the UI does not promise to undo a submitted edit.
+Deletion or forwarding selection dismisses the editor before taking the row.
+
+This changes client presentation only and adds no persistence or dependency.
+The earlier H01 refactoring notes describe the historical composer ownership;
+inline editing now owns the edit responsibility described here.
+
+Validation: focused edit/history, composer, reply, coordinator, deletion/menu and
+appearance tests passed, along with the new dependency-boundary regression.
+ESLint, strict types, dependency-cruiser, formatting and localization checks
+passed. A local browser check used the real component and app stylesheet with
+synthetic messages: Save changed one existing bubble, retained the new-message
+draft, and kept controls within the bubble at 280 px and 390 px. This is not a
+physical Android/iPhone validation; no installed builds or services were updated.
+
+Structural review: the shared editor owns edit state and disposal, history
+owners supply current rows, and coordinators only connect existing edit and
+refresh operations. The previous composer editing paths were removed. Existing
+coordinator coupling remains outside this UI change; further work can move
+operation-capability composition out of `messages/index.ts` and `dms.ts`, one
+workflow at a time, protected by coordinator and history lifecycle tests.

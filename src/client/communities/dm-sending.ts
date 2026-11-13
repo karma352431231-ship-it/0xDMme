@@ -11,7 +11,7 @@ export class DmSending {
   private generation = 0;
   private readonly controller: Pick<
     SocialDms,
-    'send' | 'edit' | 'stageMedia' | 'sendMedia'
+    'send' | 'stageMedia' | 'sendMedia'
   >;
   private readonly outgoing: Pick<DmOutgoingMedia, 'acceptance'> | undefined;
   constructor(
@@ -45,15 +45,12 @@ export class DmSending {
       text: string;
       media: ChosenMedia | null;
       pending: boolean;
-      editing: Parameters<SocialDms['edit']>[1] | null;
       replying?: string | null;
     },
   ): Promise<void> {
-    const { text, media, pending, editing } = input;
+    const { text, media, pending } = input;
     const operation = this.capture(media);
-    if (editing) {
-      await this.controller.edit(selected, editing, text);
-    } else if (media) {
+    if (media) {
       await this.controller.stageMedia(
         selected,
         media.selection,

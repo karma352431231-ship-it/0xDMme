@@ -5877,6 +5877,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     '退出群组？你将失去访问远程保险库的权限。',
   ],
   Save: ['Save', '保存'],
+  'Saving…': ['Saving…', '正在保存…'],
   'Saving stores the contact; requesting a conversation still requires acceptance.':
     [
       'Saving stores the contact; requesting a conversation still requires acceptance.',
@@ -9800,6 +9801,15 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Delete for everyone': ['Delete for everyone', '为所有人删除'],
   'Edit message': ['Edit message', '编辑消息'],
+  'View original': ['View original', '查看原文'],
+  'This message changed. Cancel and reopen the editor to review it.': [
+    'This message changed. Cancel and reopen the editor to review it.',
+    '此消息已更改。请取消并重新打开编辑器以查看最新内容。',
+  ],
+  'Finish the pending media before sending a view-once message.': [
+    'Finish the pending media before sending a view-once message.',
+    '请先完成待发送的媒体，再发送阅后即焚消息。',
+  ],
   'Save change': ['Save change', '保存更改'],
   'Verify deletions before searching.': [
     'Verify deletions before searching.',

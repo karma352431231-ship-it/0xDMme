@@ -37,7 +37,6 @@ interface Options {
     | 'composeText'
     | 'sendGroupDrafts'
     | 'stageMedia'
-    | 'edit'
     | 'media'
     | 'draftMedia'
   >;
@@ -56,7 +55,7 @@ interface Options {
     phase: 'admitted' | 'saved' | 'save-failed',
   ) => void;
 }
-/** Owns the draft, reply/edit context, previews and immutable admitted sends. */
+/** Owns the draft, reply context, previews and immutable admitted sends. */
 export class GroupComposer {
   private readonly attachments: AttachmentUi;
   get media(): Pick<AttachmentUi, 'render'> {
@@ -68,7 +67,7 @@ export class GroupComposer {
   private readonly texts: ReturnType<typeof groupTextQueue>;
   private readonly submissions: AttachmentSubmissions;
   private host: HTMLElement | null = null;
-  private context: { mode: 'reply' | 'edit'; view: GroupView } | null = null;
+  private context: { view: GroupView } | null = null;
   private lifetime = new AbortController();
   private draftGeneration = 0;
   private readonly options: Options;
@@ -181,41 +180,25 @@ export class GroupComposer {
       signal: this.lifetime.signal,
     });
   }
-  choose(mode: 'reply' | 'edit', view: GroupView): void {
+  reply(view: GroupView): void {
     if (
       !this.options.controller.selected ||
       this.options.controller.selected.localOnly
     )
       return;
-    this.context = { mode, view };
+    this.context = { view };
     const bar = this.node('[data-compose-bar]'),
       label = this.node('[data-compose-context]'),
       input = this.node<HTMLTextAreaElement>('[data-group-text]');
     if (bar) bar.hidden = false;
     if (label)
       label.textContent = t('{0}: {1}', [
-        mode === 'edit' ? t('Editing') : t('Replying'),
+        t('Replying'),
         groupMessageView(view).content.text.slice(0, 120),
       ]);
-    if (mode === 'edit' && input)
-      input.value = groupMessageView(view).content.text;
     input?.dispatchEvent(new Event('input'));
     input?.focus({ preventScroll: true });
     this.draftGeneration++;
-  }
-  reconcileContext(): void {
-    const context = this.context;
-    if (context?.mode !== 'edit' || this.options.controller.historyPending)
-      return;
-    if (
-      !this.options.controller.views.some(
-        (view) =>
-          view.id === context.view.id &&
-          view.hash === context.view.hash &&
-          !view.localOnly,
-      )
-    )
-      this.clearContext();
   }
   clearContext(): void {
     this.context = null;
@@ -262,8 +245,6 @@ export class GroupComposer {
   private full(): boolean {
     if (this.attachments.preparing) return true;
     if (this.voice.active || !this.options.controller.selected) return true;
-    if (this.context?.mode === 'edit')
-      return this.options.isBusy() || this.options.controller.historyPending;
     return this.isMedia() ? this.submissions.full : this.texts.full;
   }
   private isMedia(): boolean {
@@ -276,10 +257,6 @@ export class GroupComposer {
     const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
       group = this.options.controller.selected;
     if (!input || !group || group.localOnly || this.full()) return;
-    if (this.context?.mode === 'edit') {
-      void this.options.run(() => this.saveEdit());
-      return;
-    }
     if (!input.value.trim() && !this.attachments.selected) return;
     this.admit(input, group.state.groupId);
   }
@@ -311,31 +288,6 @@ export class GroupComposer {
     } catch (error: unknown) {
       this.failure(error);
     }
-  }
-  private async saveEdit(): Promise<void> {
-    const context = this.context,
-      input = this.node<HTMLTextAreaElement>('[data-group-text]'),
-      generation = this.draftGeneration;
-    if (!context || !input) return;
-    if (this.attachments.selected)
-      throw new Error(
-        'Editing changes text only; remove the selected attachment.',
-      );
-    if (viewOnceEnabled(this.node('[data-group-compose]')))
-      throw new Error('Cancel editing before sending a view-once message.');
-    await this.options.controller.edit(
-      context.view,
-      encodeGroupText({
-        ...groupMessageView(context.view).content,
-        text: input.value,
-      }),
-    );
-    if (this.draftGeneration === generation) {
-      input.value = '';
-      this.clearContext();
-      input.dispatchEvent(new Event('input'));
-    }
-    await this.options.reopen();
   }
   private async transmit(group: string): Promise<boolean> {
     let sent = false;

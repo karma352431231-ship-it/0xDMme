@@ -223,8 +223,7 @@ export function startMessages(
       authenticated: session !== null,
       busy: synchronization.busy,
       draftAvailable: canCompose(),
-      mediaFull:
-        mediaSubmissions.full || (composer.editing && synchronization.busy),
+      mediaFull: mediaSubmissions.full,
       historyReady: rows !== null,
       callActive: !!options.calls?.active(),
       textSendBlocked: canQueueText() ? textQueue.full : undefined,
@@ -753,6 +752,20 @@ export function startMessages(
       action,
       picker: composer.picker,
       choose,
+      edit: async (view, text) => {
+        if (
+          selected?.accountId !== view.peer ||
+          selected.localOnly ||
+          rows === null
+        )
+          throw new Error('Own message unavailable.');
+        await controller.composeAction(
+          view,
+          'edit',
+          encodeDailyText({ ...view.content, text }),
+        );
+        await transmit();
+      },
       forward,
       react: async (view, reaction, id) => {
         await controller.composeAction(
@@ -1061,8 +1074,8 @@ export function startMessages(
   function renderHistory(update: HistoryUpdate = 'history'): void {
     historyUi.render(rows, update);
   }
-  function choose(mode: 'reply' | 'edit', view: MessageView): void {
-    composer.choose(mode, view, rows ?? []);
+  function choose(_mode: 'reply', view: MessageView): void {
+    composer.reply(view, rows ?? []);
   }
   function clearSessionPanels(): void {
     forwardedGroups.clear();

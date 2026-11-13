@@ -35,7 +35,7 @@ interface ComposerOptions {
   playback: VoicePlayback;
   controller: Pick<
     Messages,
-    'compose' | 'composeAction' | 'composeAttachment' | 'composeViewOnce'
+    'compose' | 'composeAttachment' | 'composeViewOnce'
   >;
   availability: () => ComposerAvailability;
   signal: () => AbortSignal;
@@ -56,8 +56,7 @@ export class MessageComposer {
   private readonly emoji = new EmojiPicker();
   private readonly gifs: GifSearch;
   private host: HTMLElement | null = null;
-  private composing: { mode: 'reply' | 'edit'; view: MessageView } | null =
-    null;
+  private composing: { view: MessageView } | null = null;
   private focusRequested = false;
   private recordingPeer: string | null = null;
   private generation = 0;
@@ -101,16 +100,12 @@ export class MessageComposer {
   get hasAttachment(): boolean {
     return this.attachments.selected !== null;
   }
-  get editing(): boolean {
-    return this.composing?.mode === 'edit';
-  }
   get acceptsQueuedText(): boolean {
     return (
       !this.voice.active &&
       !this.attachments.preparing &&
       !this.attachments.selected &&
-      !viewOnceEnabled(this.node('[data-message-form]')) &&
-      this.composing?.mode !== 'edit'
+      !viewOnceEnabled(this.node('[data-message-form]'))
     );
   }
   get text(): string {
@@ -188,26 +183,21 @@ export class MessageComposer {
     this.focusRequested = false;
     input.focus({ preventScroll: true });
   }
-  choose(
-    mode: 'reply' | 'edit',
-    view: MessageView,
-    visible: readonly MessageView[],
-  ): void {
+  reply(view: MessageView, visible: readonly MessageView[]): void {
     this.generation++;
-    this.composing = { mode, view };
+    this.composing = { view };
     const original =
       dailyViews(visible).find((row) => row.id === view.id)?.content.text ??
       decodeDailyText(view.text).text;
     const label = this.node('[data-compose-context]');
     if (label)
       label.textContent = t('{0}: {1}', [
-        mode === 'edit' ? t('Editing') : t('Replying'),
+        t('Replying'),
         original.slice(0, 120),
       ]);
     const bar = this.node('[data-compose-bar]');
     if (bar) bar.hidden = false;
     const input = this.node<HTMLTextAreaElement>('[data-message-text]');
-    if (mode === 'edit' && input) input.value = original;
     input?.dispatchEvent(new Event('input'));
     this.focusRequested = true;
     this.focus();
@@ -264,10 +254,6 @@ export class MessageComposer {
   private checkMediaSubmission(): void {
     if (this.voice.active)
       throw new Error('Stop recording and check the preview before sending.');
-    if (this.editing)
-      throw new Error(
-        'Editing changes text only; remove the selected attachment.',
-      );
   }
   /** Stages the text, with the first chosen file when there is one. Each file
    * is its own message: callers repeat while `hasAttachment` stays true, and
@@ -298,8 +284,7 @@ export class MessageComposer {
     const { controller } = this.options;
     if (viewOnceEnabled(this.node('[data-message-form]')))
       return this.saveOnce(peer, text);
-    if (this.composing?.mode === 'edit') await this.saveEdit(text);
-    else if (this.attachments.selected)
+    if (this.attachments.selected)
       await controller.composeAttachment(
         peer,
         this.attachments.selected,
@@ -320,30 +305,10 @@ export class MessageComposer {
       );
   }
   private async saveOnce(peer: string, text: string): Promise<void> {
-    if (this.composing?.mode === 'edit')
-      throw new Error('Cancel editing before sending a view-once message.');
     await this.options.controller.composeViewOnce(
       peer,
       text,
       this.attachments.selected,
-    );
-  }
-  private async saveEdit(text: string): Promise<void> {
-    const { controller } = this.options;
-    if (this.composing?.mode !== 'edit')
-      throw new Error('Choose a message to edit.');
-    if (this.attachments.selected)
-      throw new Error(
-        'Editing changes text only; remove the selected attachment.',
-      );
-    await controller.composeAction(
-      this.composing.view,
-      'edit',
-      encodeDailyText({
-        text,
-        reply: decodeDailyText(this.composing.view.text).reply,
-        forwarded: decodeDailyText(this.composing.view.text).forwarded,
-      }),
     );
   }
   async saveGif(
@@ -449,16 +414,7 @@ export class MessageComposer {
         this.update();
       });
     this.bind('[data-message-emoji]', () => this.openEmoji());
-    this.bind('[data-compose-cancel]', () => {
-      if (this.composing?.mode === 'edit') {
-        const input = this.node<HTMLTextAreaElement>('[data-message-text]');
-        if (input) {
-          input.value = '';
-          input.dispatchEvent(new Event('input'));
-        }
-      }
-      this.clearContext();
-    });
+    this.bind('[data-compose-cancel]', () => this.clearContext());
     this.bind('[data-attachment-clear]', () => {
       if (!this.voice.active) this.voice.cancel();
     });

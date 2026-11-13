@@ -43,7 +43,6 @@ export function startDmComposer(options: {
     text: string;
     media: ChosenMedia | null;
     pending: boolean;
-    editing: DmComposition['target'];
     replying: string | null;
     viewOnce?: boolean;
   }) => Promise<void>;
@@ -104,14 +103,12 @@ export function startDmComposer(options: {
   }
   function syncMediaControls(): void {
     const record = node<HTMLButtonElement>('[data-voice-record]');
-    if (record)
-      record.disabled =
-        busy || chosen !== null || pending || composition.target !== null;
+    if (record) record.disabled = busy || chosen !== null || pending;
     const file = node<HTMLInputElement>('[data-attachment-file]');
-    if (file) file.disabled = busy || composition.target !== null;
+    if (file) file.disabled = busy;
     node<HTMLButtonElement>('[data-chat-attachment]')?.toggleAttribute(
       'disabled',
-      busy || composition.target !== null,
+      busy,
     );
   }
   function releasePreview(): void {
@@ -189,8 +186,7 @@ export function startDmComposer(options: {
       !recording.active &&
       !chosen &&
       !pending &&
-      !viewOnceEnabled(view?.form ?? null) &&
-      !composition.target,
+      !viewOnceEnabled(view?.form ?? null),
     );
   }
   function queueText(): boolean {
@@ -219,7 +215,6 @@ export function startDmComposer(options: {
       recipient: bound,
       revision: draftRevision,
       pending: pending && !media,
-      editing: composition.target,
       replying: composition.replying?.id ?? null,
     };
   }
@@ -253,7 +248,6 @@ export function startDmComposer(options: {
         media: input.media,
         pending: input.pending,
         viewOnce: input.once,
-        editing: input.editing,
         replying: input.replying,
       });
       admitted = true;
@@ -288,7 +282,6 @@ export function startDmComposer(options: {
   }
   function hasUnsent(): boolean {
     return (
-      composition.target !== null ||
       composition.replying !== null ||
       Boolean(view?.text.value.trim()) ||
       drafts.size > 0
@@ -318,7 +311,7 @@ export function startDmComposer(options: {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       input.value = '';
-      if (!file || composition.target) return;
+      if (!file) return;
       const recipient = bound,
         preparationRevision = ++mediaRevision;
       const preparation = viewOnceEnabled(current.form)
@@ -376,14 +369,7 @@ export function startDmComposer(options: {
   function bindVoice(): void {
     bindRecordGesture(node('[data-voice-record]'), {
       start: () => {
-        if (
-          !busy &&
-          writable &&
-          !chosen &&
-          !pending &&
-          !recording.active &&
-          !composition.target
-        )
+        if (!busy && writable && !chosen && !pending && !recording.active)
           void recording.start();
       },
       release: () => {
@@ -419,7 +405,6 @@ export function startDmComposer(options: {
                   if (view === current && writable && bound === recipient)
                     await options.submit({
                       peer: recipient,
-                      editing: null,
                       replying,
                       text: '',
                       media: { selection, media: 'gif', viewOnceOnly: true },
@@ -447,7 +432,6 @@ export function startDmComposer(options: {
               void options.run(() =>
                 options.submit({
                   peer: recipient,
-                  editing: null,
                   replying,
                   text: url,
                   media: null,
@@ -524,16 +508,13 @@ export function startDmComposer(options: {
     get active(): boolean {
       return recording.active || chosen !== null;
     },
-    /** Typed text, an edit in progress or a kept draft of another conversation. */
+    /** Typed text, reply context or a kept draft of another conversation. */
     get unsent(): boolean {
       return hasUnsent();
     },
     /** Drafts belong to the session that typed them. */
     forgetDrafts(): void {
       drafts.clear();
-    },
-    get editing() {
-      return composition.target;
     },
     get replying() {
       return composition.replying?.id ?? null;
@@ -544,12 +525,7 @@ export function startDmComposer(options: {
       composition.reply(target);
       sync();
     },
-    edit(target: Parameters<DmComposition['choose']>[0]): void {
-      if (!writable || busy || recording.active || chosen || pending) return;
-      composition.choose(target);
-      sync();
-    },
-    cancelEdit(): void {
+    cancelReply(): void {
       draftRevision++;
       composition.cancel();
     },

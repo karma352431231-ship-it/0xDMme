@@ -1,3 +1,5 @@
+import { InlineMessageEditor } from '../message-inline-editor/index.ts';
+import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
 import { decodeGroupText } from '../../shared/group-messages/index.ts';
 import type { DailyText } from '../../shared/daily/index.ts';
@@ -116,6 +118,7 @@ export class GroupChatView {
   private readonly reactions: HistoryReactions<GroupMessageView>;
   private readonly pinned = new PinnedBar((id) => this.revealLoaded(id));
   private readonly pendingPins = new PendingPins();
+  private readonly editor: InlineMessageEditor<GroupView>;
   private readonly deletion: MessageDeletionSelection<GroupView>;
   private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
@@ -163,6 +166,16 @@ export class GroupChatView {
       },
     });
     this.attachments = this.composer.media;
+    this.editor = new InlineMessageEditor({
+      run: options.run,
+      save: async (view, text) => {
+        await options.controller.edit(
+          view,
+          encodeGroupText({ ...groupMessageView(view).content, text }),
+        );
+        await options.reopen();
+      },
+    });
     this.deletion = new MessageDeletionSelection(options.run, {
       group: true,
       remove: (views) => this.removeAndVerify(views),
@@ -191,13 +204,19 @@ export class GroupChatView {
         : null;
     this.messageActions = {
       run: options.run,
-      choose: (mode, view) => this.composer.choose(mode, view),
+      choose: (mode, view) => {
+        if (mode === 'reply') return this.composer.reply(view);
+        this.deletion.clear();
+        this.forwarding?.clear();
+        this.editor.begin(view.id);
+      },
       picker: this.composer.picker,
       peers: options.peers ?? (() => []),
       forwardAllowed: () => !!options.forwarding?.contacts().length,
       writable: () =>
         !!options.controller.selected && !options.controller.selected.localOnly,
       forward: (view) => {
+        this.editor.dismiss();
         this.deletion.clear();
         this.forwarding?.start(groupMessageView(view));
       },
@@ -248,6 +267,7 @@ export class GroupChatView {
         };
       },
       remove: (view) => {
+        this.editor.dismiss();
         this.forwarding?.clear();
         this.deletion.begin(view.id);
         return Promise.resolve();
@@ -265,6 +285,7 @@ export class GroupChatView {
     return this.composer.canActivate();
   }
   closeActions(): void {
+    this.editor.dismiss();
     closeMessageMenu(this.node('[data-group-history]'));
     this.deletion.clear();
     this.forwarding?.clear();
@@ -290,6 +311,7 @@ export class GroupChatView {
     if (this.host) this.host.hidden = true;
   }
   invalidateHistory(): void {
+    this.editor.clear();
     this.externalRows.clear();
     this.externalAbort.abort();
     this.externalAbort = new AbortController();
@@ -415,6 +437,7 @@ export class GroupChatView {
     if (!history) return;
     watchHistoryPosition(history, this.externalAbort.signal);
     if (this.options.controller.historyPending) {
+      this.editor.clear();
       historyPosition(history);
       history.hidden = true;
       closeMessageMenu(this.node('[data-group-history]'));
@@ -424,7 +447,6 @@ export class GroupChatView {
       this.pinned.clear();
       return;
     }
-    this.composer.reconcileContext();
     const restoreScroll = historyPosition(
       history,
       this.options.controller.views,
@@ -505,6 +527,7 @@ export class GroupChatView {
       [],
     );
     this.forwarding?.update();
+    this.updateEditor(history);
     this.deletion.update(
       history,
       this.options.controller.views
@@ -527,6 +550,32 @@ export class GroupChatView {
     reopenMessageMenu(history, menu);
     restoreScroll();
     this.older?.watch.check();
+  }
+  private updateEditor(history: HTMLElement): void {
+    const writable =
+      !!this.options.controller.selected &&
+      !this.options.controller.selected.localOnly;
+    const rows = new Map(
+      [...history.querySelectorAll<HTMLElement>('[data-group-message]')].map(
+        (row) => [row.dataset['groupMessage'], row],
+      ),
+    );
+    const targets = this.options.controller.views
+      .filter(
+        (view) =>
+          writable &&
+          view.own &&
+          !view.localOnly &&
+          view.kind === 'text' &&
+          !groupMessageView(view).content.viewOnce,
+      )
+      .flatMap((view) => {
+        const row = rows.get(view.id);
+        return row
+          ? [{ message: view, text: groupMessageView(view).content.text, row }]
+          : [];
+      });
+    this.editor.update(targets);
   }
   private renderView(
     view: GroupView,

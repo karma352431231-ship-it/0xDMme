@@ -7,7 +7,7 @@ import { DmSending } from '../src/client/communities/dm-sending.ts';
 import { DmComposition } from '../src/client/communities/dm-composition.ts';
 import { CommunityNode } from './fixtures/community-dom.ts';
 
-await test('a handle reply preserves typed text and cancellation, and is exclusive with editing', (t) => {
+await test('a handle reply preserves typed text and cancellation', (t) => {
   const saved = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -41,7 +41,6 @@ await test('a handle reply preserves typed text and cancellation, and is exclusi
   };
   composition.reply(message);
   assert.equal(composition.replying, message);
-  assert.equal(composition.target, null);
   assert.equal(text.value, 'Existing draft');
   const next = {
     ...message,
@@ -56,11 +55,6 @@ await test('a handle reply preserves typed text and cancellation, and is exclusi
   assert.equal(composition.replying, null);
   assert.equal(text.value, 'Existing draft');
   composition.reply(message);
-  composition.choose({ ...message, own: true });
-  assert.equal(composition.replying, null);
-  assert.equal(text.value, 'Original');
-  composition.reply(message);
-  assert.equal(composition.target, null);
   assert.equal(text.value, 'Existing draft');
 });
 
@@ -80,7 +74,6 @@ await test('handle reply sends the existing encrypted reply envelope and retries
     text: 'A reply',
     media: null,
     pending: false,
-    editing: null,
     replying: original,
   };
   await assert.rejects(sender.send('peer', input), /Synthetic send failure/u);
@@ -107,13 +100,11 @@ await test('a staged media send cannot resume under a new conversation or sessio
       publications++;
       return Promise.resolve();
     },
-    edit: () => Promise.resolve(),
     send: () => Promise.resolve(),
   });
   const pending = sending.send('original-peer', {
     text: 'Caption',
     pending: false,
-    editing: null,
     media: {
       media: 'photo',
       selection: {

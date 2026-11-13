@@ -103,6 +103,7 @@
 @import '../status/status-row-phone.css';
 @import '../chat-ui/chat-phone.css';
 @import '../chat-ui/bubbles.css';
+@import '../message-inline-editor/message-inline-editor.css';
 @import '../activity/activity-phone.css';
 @import '../pull-refresh/pull-refresh.css';
 @import '../toast/toast.css';

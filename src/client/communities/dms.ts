@@ -143,7 +143,14 @@ export function startSocialDmUi(
     controller,
     run,
     react,
-    edit: (item) => composer.edit(item),
+    edit: async (item, text) => {
+      const selected = peer;
+      if (!selected || selected !== item.peer.id || !writable)
+        throw new Error('Own message unavailable.');
+      await controller.edit(selected, item, text);
+      projections.clear();
+      if (selected === peer) await conversation();
+    },
     reply: (item) => composer.reply(item),
     outgoing: (selected) => texts.forPeer(selected),
     retryOutgoing: () => texts.retry(),
@@ -200,14 +207,13 @@ export function startSocialDmUi(
       media,
       pending,
       viewOnce,
-      editing,
       replying,
     }) => {
       if (!selected) return;
       if (viewOnce) {
-        if (pending || composer.editing)
+        if (pending)
           throw new Error(
-            'Finish the pending media or edit before sending a view-once message.',
+            'Finish the pending media before sending a view-once message.',
           );
         await controller.composeViewOnce(
           selected,
@@ -222,7 +228,6 @@ export function startSocialDmUi(
         text,
         media,
         pending,
-        editing,
         replying,
       });
       if (selected !== peer) return;
@@ -333,7 +338,7 @@ export function startSocialDmUi(
       view.history.hidden = true;
       clearDmChecks(view.history);
     }
-    composer.cancelEdit();
+    composer.cancelReply();
     playback.close();
     composer.update(composerState());
   }

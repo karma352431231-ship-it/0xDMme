@@ -7,7 +7,7 @@ class CompositionNode extends CommunityNode {
   focus() {}
 }
 
-await test('canceling public DM editing gives back the composer text without changing the original or unrelated drafts', (t) => {
+await test('public DM replies preserve the new-message draft when chosen or canceled', (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -20,19 +20,12 @@ await test('canceling public DM editing gives back the composer text without cha
   const form = new CompositionNode('form'),
     text = new CompositionNode('textarea');
   const composition = new DmComposition();
-  let inputs = 0,
-    changed = 0;
-  text.addEventListener('input', () => {
-    inputs++;
-  });
   composition.bind(
     form as unknown as HTMLElement,
     text as unknown as HTMLTextAreaElement,
-    () => {
-      changed++;
-    },
+    () => {},
   );
-  const original: Parameters<DmComposition['choose']>[0] = {
+  const original: Parameters<DmComposition['reply']>[0] = {
     type: 'dm-message',
     id: 'original',
     hash: 'synthetic',
@@ -45,30 +38,17 @@ await test('canceling public DM editing gives back the composer text without cha
     text: 'Original message',
     displayText: 'Original message',
   };
-  composition.choose(original);
-  assert.equal(text.value, original.displayText);
-  text.value = 'Unsaved change';
+  text.value = 'A new draft';
+  composition.reply(original);
+  assert.equal(text.value, 'A new draft');
+  assert.equal(composition.replying?.id, original.id);
   form.querySelector('button')!.click();
-  assert.equal(text.value, '');
-  assert.equal(composition.target, null);
+  assert.equal(text.value, 'A new draft');
+  assert.equal(composition.replying, null);
   assert.equal(form.querySelector('div')!.hidden, true);
   assert.equal(original.text, 'Original message');
-  assert.equal(inputs, 2);
-  assert.equal(changed, 1);
-  text.value = 'A new draft';
-  composition.cancel();
-  assert.equal(text.value, 'A new draft');
-  composition.choose(original);
-  assert.equal(text.value, original.displayText);
-  assert.equal(composition.unsent(), 'A new draft', 'the draft is set aside');
-  composition.cancel();
-  assert.equal(text.value, 'A new draft', 'cancel gives the draft back');
-  composition.choose(original);
-  assert.equal(
-    composition.finish(),
-    'A new draft',
-    'a sent edit gives it back',
-  );
-  assert.equal(composition.target, null);
-  assert.equal(composition.unsent(), text.value);
+  composition.reply(original);
+  assert.equal(composition.unsent(), 'A new draft');
+  assert.equal(composition.finish(), '');
+  assert.equal(composition.replying, null);
 });

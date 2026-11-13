@@ -365,63 +365,31 @@ await test('mobile directory and app tabs retain previews; authority loss and pe
   assert.equal(f.previews().size, 0);
 });
 
-await test('an edit completing after session replacement does not clear the new account draft', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+await test('canceling a private reply preserves the draft and original', async (t) => {
   const f = coordinatorFixture(t);
   f.state.probeChanged = true;
-  await f.messages.openContact(peer('old-recipient'));
-  f.choose('edit', {
+  await f.messages.openContact(peer('cancel-edit'));
+  const original = {
     id: 'original',
-    peer: 'old-recipient',
+    peer: 'cancel-edit',
     own: true,
-    kind: 'text',
-    text: encodeDailyText({ text: 'Original', reply: null, forwarded: false }),
+    kind: 'text' as const,
+    text: encodeDailyText({
+      text: 'Original message',
+      reply: null,
+      forwarded: false,
+    }),
     state: 'received',
     hash: 'synthetic-hash',
-  });
-  f.input.value = 'Edit in progress';
-  f.state.holdEdit = true;
-  f.submit();
-  await turn();
-  assert.ok(f.calls.includes('edit:old-recipient'));
-  f.messages.setSession(null);
-  f.input.value = 'New account draft';
-  f.editing.resolve();
-  await turn();
-  assert.equal(f.input.value, 'New account draft');
+  };
+  f.choose('reply', original);
+  assert.equal(f.compositionBar.hidden, false);
+  f.input.value = 'Unsaved change';
+  f.cancelComposition();
+  assert.equal(f.input.value, 'Unsaved change');
+  assert.equal(f.compositionBar.hidden, true);
+  assert.equal(decodeDailyText(original.text).text, 'Original message');
 });
-
-for (const mode of ['edit', 'reply'] as const)
-  await test(`canceling a private ${mode} clears only an edit draft and preserves the original`, async (t) => {
-    const f = coordinatorFixture(t);
-    f.state.probeChanged = true;
-    await f.messages.openContact(peer('cancel-edit'));
-    const original = {
-      id: 'original',
-      peer: 'cancel-edit',
-      own: true,
-      kind: 'text' as const,
-      text: encodeDailyText({
-        text: 'Original message',
-        reply: null,
-        forwarded: false,
-      }),
-      state: 'received',
-      hash: 'synthetic-hash',
-    };
-    f.choose(mode, original);
-    assert.equal(f.compositionBar.hidden, false);
-    f.input.value = 'Unsaved change';
-    f.cancelComposition();
-    assert.equal(f.input.value, mode === 'edit' ? '' : 'Unsaved change');
-    assert.equal(f.compositionBar.hidden, true);
-    assert.equal(decodeDailyText(original.text).text, 'Original message');
-    if (mode === 'edit') {
-      f.submit();
-      await turn();
-      assert.deepEqual(f.drafts, []);
-    }
-  });
 
 await test('opening a verified conversation does not await speculative SDK initialization', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });

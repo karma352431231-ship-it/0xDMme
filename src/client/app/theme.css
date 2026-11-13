@@ -8,6 +8,9 @@
 :root[data-theme='navy'] {
   color-scheme: dark;
   --bg: #0a0f22;
+  --editor-bg: #101116;
+  --editor-field: #08090c;
+  --editor-line: #292b33;
   --surface: #0f1630;
   /* Column background (rail, contacts, chat, ranking). Preto paints it black. */
   --panel: var(--surface);
@@ -46,6 +49,9 @@
 :root[data-theme='black'] {
   color-scheme: dark;
   --bg: #000000;
+  --editor-bg: #101116;
+  --editor-field: #08090c;
+  --editor-line: #292b33;
   --surface: #0b0b0c;
   --panel: var(--bg);
   --surface-2: #151517;
@@ -83,6 +89,9 @@
   --shared-post-bg: #e9e9ed;
   color-scheme: light;
   --bg: #f4f6fb;
+  --editor-bg: var(--surface);
+  --editor-field: var(--surface-2);
+  --editor-line: var(--line);
   --surface: #ffffff;
   --panel: var(--surface);
   --surface-2: #f0f3fa;

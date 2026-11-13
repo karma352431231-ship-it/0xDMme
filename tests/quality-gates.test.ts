@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'inline editors cannot import message or vault operations',
+    files: {
+      'src/client/message-inline-editor/index.ts':
+        "export { controller } from '../messages/index.ts';\n",
+      'src/client/messages/index.ts': 'export const controller = {};\n',
+    },
+    diagnostic: /inline-editor-has-no-domain-authority/,
+  },
+  {
     name: 'encrypted reopen caches cannot acquire conversation or UI ownership',
     files: {
       'src/client/reopen-cache/index.ts':

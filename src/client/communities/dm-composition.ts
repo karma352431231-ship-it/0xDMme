@@ -4,18 +4,12 @@ import type { BackupRecord } from '../backup-records/index.ts';
 type Message = Extract<BackupRecord, { type: 'dm-message' }> & {
   displayText: string;
 };
-/**
- * Editing context owns no authority or keys; sending remains with SocialDms.
- * Editing borrows the composer: the unsent text in it is set aside and comes
- * back when the edit is canceled or sent.
- */
+/** Owns reply context without borrowing or replacing the new-message draft. */
 export class DmComposition {
-  target: Message | null = null;
   replying: Message | null = null;
   private bar: HTMLElement | null = null;
   private label: HTMLElement | null = null;
   private text: HTMLTextAreaElement | null = null;
-  private setAside = '';
   bind(
     form: HTMLElement,
     text: HTMLTextAreaElement,
@@ -39,25 +33,6 @@ export class DmComposition {
     this.bar = bar;
     this.label = label;
   }
-  choose(target: Message): void {
-    if (!target.own || target.kind !== 'text' || target.relation)
-      throw new Error('Edit by another author.');
-    // Switching to another edit keeps the text set aside by the first one.
-    if (!this.target) this.setAside = this.text?.value ?? '';
-    this.replying = null;
-    this.target = target;
-    if (this.bar) this.bar.hidden = false;
-    if (this.label)
-      this.label.textContent = t('{0}: {1}', [
-        t('Editing'),
-        target.displayText.slice(0, 120),
-      ]);
-    if (this.text) {
-      this.text.value = target.displayText;
-      this.text.dispatchEvent(new Event('input'));
-      this.text.focus({ preventScroll: true });
-    }
-  }
   reply(target: Message): void {
     if (target.relation) throw new Error('Invalid message relationship.');
     this.cancel();
@@ -70,26 +45,19 @@ export class DmComposition {
     this.text?.focus({ preventScroll: true });
   }
   cancel(): void {
-    if (this.target && this.text) {
-      this.text.value = this.setAside;
-      this.text.dispatchEvent(new Event('input'));
-    }
     this.clear();
   }
-  /** After a send: the text set aside by an edit, or nothing. */
+  /** A sent reply clears its context and the submitted text. */
   finish(): string {
-    const text = this.setAside;
     this.clear();
-    return text;
+    return '';
   }
-  /** The conversation's unsent text, even while an edit borrows the composer. */
+  /** The conversation's unsent text. */
   unsent(): string {
-    return this.target ? this.setAside : (this.text?.value ?? '');
+    return this.text?.value ?? '';
   }
   clear(): void {
-    this.target = null;
     this.replying = null;
-    this.setAside = '';
     if (this.bar) this.bar.hidden = true;
     if (this.label) this.label.textContent = '';
   }

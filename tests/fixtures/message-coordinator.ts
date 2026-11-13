@@ -130,7 +130,6 @@ export function coordinatorFixture(
   const contactLoad = deferred<void>();
   const history = deferred<void>();
   const saving = deferred<void>();
-  const editing = deferred<void>();
   const sending = deferred<void>();
   const profile = deferred<void>();
   const drafts: { id: string; peer: string; text: string }[] = [];
@@ -147,7 +146,6 @@ export function coordinatorFixture(
     historyFailure: null as Error | null,
     historyRows: [] as MessageView[],
     holdSave: false,
-    holdEdit: false,
     holdSend: false,
     selections: [] as AttachmentSelection[],
     viewOnce: false,
@@ -178,7 +176,7 @@ export function coordinatorFixture(
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
   let selectedPeer: string | null = null;
-  let choose: (mode: 'reply' | 'edit', view: MessageView) => void = () => {};
+  let choose: (mode: 'reply', view: MessageView) => void = () => {};
   let clickPeer: (
     peer: Parameters<ReturnType<typeof startMessages>['openContact']>[0],
   ) => void = () => {};
@@ -419,9 +417,9 @@ export function coordinatorFixture(
         calls.push('compose:' + peer);
         return Promise.resolve();
       },
-      composeAction: async (view: MessageView) => {
+      composeAction: (view: MessageView) => {
         calls.push('edit:' + view.peer);
-        if (state.holdEdit) await editing.promise;
+        return Promise.resolve();
       },
       stageSubmission: (item: SubmissionItem) => {
         stagedMedia.push({ ...item });
@@ -717,7 +715,6 @@ export function coordinatorFixture(
     contactLoad,
     history,
     saving,
-    editing,
     sending,
     profile,
     drafts,
@@ -729,7 +726,7 @@ export function coordinatorFixture(
     statusFrames,
     feedback,
     refreshButton,
-    choose: (mode: 'reply' | 'edit', view: MessageView) => choose(mode, view),
+    choose: (mode: 'reply', view: MessageView) => choose(mode, view),
     retry: () => refreshButton.dispatchEvent(new Event('click')),
     cancelComposition: () =>
       cancelComposition.dispatchEvent(new Event('click')),

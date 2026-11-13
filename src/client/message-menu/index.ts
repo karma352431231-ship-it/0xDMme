@@ -57,7 +57,9 @@ export function anchoredMessageMenu(options: MessageMenuOptions): {
     }
     if (
       options.signal.aborted ||
-      options.row?.closest('[data-selecting-messages="true"]')
+      options.row?.closest(
+        '[data-selecting-messages="true"], [data-editing-message="true"]',
+      )
     )
       return;
     activeMenu?.();

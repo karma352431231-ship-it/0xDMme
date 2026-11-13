@@ -28,11 +28,12 @@ function row(id: string, own = false): MessageView {
 type ReactionHooks = Partial<
   Pick<
     ConstructorParameters<typeof MessageHistoryUi>[0]['actions'],
-    'picker' | 'react' | 'remove'
+    'picker' | 'react' | 'remove' | 'edit'
   >
 >;
 function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
-  const create = (tag: string) => new ChatNode(tag);
+  const create = (tag: string) =>
+    Object.assign(new ChatNode(tag), { style: { height: '' }, focus() {} });
   const document = Object.assign(new ChatNode('#document'), {
     createElement: create,
     createElementNS: (_ns: string, tag: string) => create(tag),
@@ -118,6 +119,7 @@ function fixture(t: TestContext, reactionHooks: ReactionHooks = {}) {
       },
       picker: {} as EmojiPicker,
       choose() {},
+      edit: () => Promise.resolve(),
       react: () => Promise.resolve(),
       forward: () => Promise.resolve(),
       remove: () => Promise.resolve([]),
@@ -841,4 +843,70 @@ await test('desktop delete enters the same author-only selection and confirms al
     .querySelectorAll('button')[1]!
     .click();
   assert.deepEqual(batches, [['first', 'second']]);
+});
+
+await test('private Edit targets the latest verified text and preserves its draft through refresh and gate closure', async (t) => {
+  const edits: { id: string; text: string; reply: string | null }[] = [];
+  const f = fixture(t, {
+    edit: (view, text) => {
+      edits.push({ id: view.id, text, reply: view.content.reply });
+      return Promise.resolve();
+    },
+  });
+  const quoted = crypto.randomUUID();
+  const original = {
+    ...row(crypto.randomUUID(), true),
+    author: 'self',
+    text: encodeDailyText({
+      text: 'Original text',
+      reply: quoted,
+      forwarded: false,
+    }),
+  };
+  const edit = {
+    ...row(crypto.randomUUID(), true),
+    author: 'self',
+    sequence: 2,
+    text: encodeDailyText({
+      text: 'Latest text',
+      reply: quoted,
+      forwarded: false,
+    }),
+    relation: {
+      type: 'edit' as const,
+      id: original.id,
+      hash: original.hash,
+      author: 'self',
+    },
+  };
+  f.ui.render([original, edit]);
+  const bubble = f.history.children.find(
+    (node) => node.dataset['message'] === original.id,
+  )!;
+  bubble
+    .querySelectorAll('button')
+    .find((button) => button.textContent === translate('Edit'))!
+    .click();
+  await f.lastAction();
+  const input = bubble.querySelector('textarea')!;
+  assert.equal(input.value, 'Latest text');
+  input.value = 'New edit';
+  input.dispatchEvent(new Event('input'));
+  f.ui.render([original, edit, row('incoming')]);
+  assert.equal(bubble.querySelector('textarea')!.value, 'New edit');
+  bubble
+    .querySelector('form')!
+    .dispatchEvent(new Event('submit', { cancelable: true }));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(edits, [
+    { id: original.id, text: 'New edit', reply: quoted },
+  ]);
+  bubble
+    .querySelectorAll('button')
+    .find((button) => button.textContent === translate('Edit'))!
+    .click();
+  await f.lastAction();
+  f.ui.render(null);
+  assert.equal(bubble.querySelector('textarea'), null);
+  assert.equal(f.history.querySelector('textarea'), null);
 });

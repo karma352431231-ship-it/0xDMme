@@ -4,6 +4,7 @@ import {
   dmConversationView,
   dmBubble,
 } from '../../src/client/communities/dm-chat.ts';
+import { InlineMessageEditor } from '../../src/client/message-inline-editor/index.ts';
 import { startDmComposer } from '../../src/client/communities/dm-composer.ts';
 import {
   conversationPreview,
@@ -108,12 +109,22 @@ const bubble = dmBubble(message, {
   signal: lifetime.signal,
 });
 view.history.append(bubble.row);
-composer.edit(message);
+const editor = new InlineMessageEditor<typeof message>({
+  run: (work) => work(),
+  save: (_target, text) => {
+    const content = bubble.row.querySelector('p');
+    if (content) content.textContent = text;
+    return Promise.resolve();
+  },
+});
+editor.update([{ message, text: message.displayText, row: bubble.row }]);
+editor.begin(message.id);
 document.documentElement.dataset['fixtureReady'] = 'true';
 window.addEventListener(
   'pagehide',
   () => {
     lifetime.abort();
+    editor.clear();
     composer.leave();
     bubble.stop();
   },
