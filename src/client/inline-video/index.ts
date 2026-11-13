@@ -15,9 +15,14 @@ interface InlineVideoOptions {
   load: (signal: AbortSignal) => Promise<InlineVideoSource>;
   size?: VideoSize;
   label?: string;
-  poster?: { bytes: number; load: (signal: AbortSignal) => Promise<Blob> };
+  poster?: {
+    bytes: number;
+    load: (signal: AbortSignal) => Promise<Blob | null>;
+  };
+  deferSource?: boolean;
+  previewFrame?: (video: HTMLVideoElement) => Promise<void>;
   downloadFallback?: (url: string | null) => void;
-  stage?: (video: HTMLVideoElement) => HTMLElement;
+  stage?: (video: HTMLVideoElement, requestPlay: () => void) => HTMLElement;
   play?: () => void;
 }
 
@@ -46,7 +51,7 @@ export function mountInlineVideo(
   retry.type = 'button';
   retry.textContent = t('Try loading video');
   retry.hidden = true;
-  slot.append(options.stage?.(video) ?? video, caption, retry);
+  slot.append(options.stage?.(video, requestPlay) ?? video, caption, retry);
   let visible = false,
     stopped = false,
     current: AbortController | null = null,
@@ -55,12 +60,17 @@ export function mountInlineVideo(
     retained: RetainedMedia | null = null,
     decoded: InlineVideoSource['decoded'],
     position = 0;
+  let posterWork: AbortController | null = null;
+  let captured = false;
+  let playRequested = false;
   function unload(): void {
     retained?.release();
     retained = null;
     decoded = undefined;
     current?.abort();
     current = null;
+    posterWork?.abort();
+    posterWork = null;
     if (resultUrl && Number.isFinite(video.currentTime))
       position = video.currentTime;
     video.pause();
@@ -81,13 +91,46 @@ export function mountInlineVideo(
       void poster
         .load(signal)
         .then((blob) => {
-          if (!usable(signal)) return;
+          if (!usable(signal) || !blob) return;
           posterUrl = URL.createObjectURL(blob);
           video.poster = posterUrl;
         })
         .catch(() => {
           /* The full player remains usable without its poster. */
         });
+  }
+  async function prepareVisible(): Promise<void> {
+    if (!options.deferSource || !poster) {
+      await load();
+      return;
+    }
+    if (stopped || resultUrl || posterUrl || posterWork || current) return;
+    await preparePoster();
+  }
+  async function preparePoster(): Promise<void> {
+    const controller = new AbortController();
+    posterWork = controller;
+    const signal = AbortSignal.any([options.signal, controller.signal]);
+    try {
+      const blob = await poster!.load(signal);
+      if (!usable(signal)) return;
+      if (!blob) {
+        await load();
+        return;
+      }
+      posterUrl = URL.createObjectURL(blob);
+      video.poster = posterUrl;
+      caption.textContent = '';
+      retry.textContent = t('Play video');
+      retry.hidden = false;
+    } catch {
+      if (usable(signal)) {
+        caption.textContent = t('Video unavailable. Try again.');
+        retry.hidden = false;
+      }
+    } finally {
+      if (posterWork === controller) posterWork = null;
+    }
   }
   async function load(): Promise<void> {
     if (stopped || !visible || current || resultUrl) return;
@@ -96,7 +139,7 @@ export function mountInlineVideo(
     const signal = AbortSignal.any([options.signal, controller.signal]);
     caption.textContent = t('Loading video…');
     retry.hidden = true;
-    loadPoster(signal);
+    if (!options.deferSource) loadPoster(signal);
     try {
       const source = await options.load(signal);
       if (usable(signal)) present(source);
@@ -124,6 +167,7 @@ export function mountInlineVideo(
     decoded = source.decoded;
     video.src = resultUrl;
     video.load();
+    if (playRequested) startPlayback();
   }
   video.addEventListener('loadedmetadata', () => {
     if (!size)
@@ -138,6 +182,10 @@ export function mountInlineVideo(
     const notify = decoded;
     decoded = undefined;
     notify?.(video);
+    if (!captured && options.previewFrame) {
+      captured = true;
+      void options.previewFrame(video).catch(() => {});
+    }
   }
   video.addEventListener('loadeddata', firstData);
   video.addEventListener('seeked', firstData);
@@ -147,15 +195,27 @@ export function mountInlineVideo(
     options.downloadFallback?.(resultUrl);
   }
   video.addEventListener('error', unavailable);
-  retry.addEventListener('click', () => {
-    void load();
+  function startPlayback(): void {
+    playRequested = false;
+    void video.play().catch(() => {
+      if (!stopped) retry.hidden = false;
+    });
+  }
+  function requestPlay(): void {
+    playRequested = true;
+    if (resultUrl) startPlayback();
+    else void load();
+  }
+  retry.addEventListener('click', requestPlay);
+  video.addEventListener('click', () => {
+    if (options.deferSource && !resultUrl) requestPlay();
   });
   const observer = new IntersectionObserver(
     (entries) => {
       visible =
         entries.some((entry) => entry.isIntersecting) || isFullscreen(video);
       retained?.visibility(visible);
-      if (visible) void load();
+      if (visible) void prepareVisible();
       else {
         current?.abort();
         current = null;

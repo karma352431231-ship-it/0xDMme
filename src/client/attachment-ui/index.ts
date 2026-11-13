@@ -1,3 +1,4 @@
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
@@ -296,6 +297,7 @@ export class AttachmentUi {
   }
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
+    previews?: MediaPreviews | undefined;
     /** Visible caption already interpreted by the conversation format owner. */
     caption?: string;
     imageOverlay?: HTMLElement;

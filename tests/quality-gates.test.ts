@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'encrypted reopen caches cannot acquire conversation or UI ownership',
+    files: {
+      'src/client/reopen-cache/index.ts':
+        "export { reader } from '../messages/index.ts';\n",
+      'src/client/messages/index.ts': 'export const reader = {};\n',
+    },
+    diagnostic: /encrypted-reopen-caches-use-persistence-only/,
+  },
+  {
     name: 'connectivity cannot acquire account or vault authority',
     files: {
       'src/client/connectivity/index.ts':

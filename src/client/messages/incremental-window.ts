@@ -32,9 +32,15 @@ export async function readIncrementalWindow<T extends DeltaView>(input: {
   read: (items: MessageItem[]) => Promise<T[]>;
   delivery: (views: T[]) => Promise<T[]>;
 }) {
-  if (!input.candidate || !eligible(input)) return null;
+  if (!input.candidate || input.peer === null) return null;
   const from: unknown = JSON.parse(input.candidate.snapshot);
-  if (canonical(from) === canonical(input.snapshot)) return null;
+  if (canonical(from) === canonical(input.snapshot))
+    return {
+      views: await input.delivery(input.candidate.views),
+      from,
+      changes: [] as MessageItem[],
+    };
+  if (!eligible(input)) return null;
   const items = await readMessageDelta(input.api, from, input.snapshot);
   if (items === null) return null;
   // Validate all removals, including other conversations, before any projection

@@ -377,6 +377,12 @@ export function groupUiFixture() {
       calls.push('send');
       return Promise.resolve();
     },
+    mediaPreviews() {
+      return {
+        read: () => Promise.resolve(null),
+        save: () => Promise.resolve(),
+      };
+    },
     media() {
       return Promise.resolve(new Uint8Array());
     },

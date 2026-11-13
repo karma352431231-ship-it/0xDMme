@@ -36,7 +36,7 @@ interface HistoryOptions {
   playback: VoicePlayback;
   privacy: ExternalMediaConsent;
   controller: Pick<SocialDms, 'media'> &
-    Partial<Pick<SocialDms, 'openViewOnce'>>;
+    Partial<Pick<SocialDms, 'openViewOnce' | 'mediaPreviews'>>;
   run: (work: () => Promise<void>) => Promise<void>;
   react: (item: DmItem, emoji: string) => Promise<void>;
   edit: (item: DmItem) => void;
@@ -384,6 +384,7 @@ export class DmHistory {
         'The saved copy is outside the vault and personal cleanup. Only open files from sources you trust.',
       ),
       content,
+      previews: this.options.controller.mediaPreviews?.(item, input.localMedia),
       load: (_view, thumbnail) => {
         const local =
           !input.localMedia && item.own

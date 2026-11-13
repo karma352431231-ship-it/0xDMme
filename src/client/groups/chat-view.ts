@@ -66,6 +66,7 @@ interface ChatOptions {
     | 'historyPending'
     | 'views'
     | 'olderAvailable'
+    | 'mediaPreviews'
     | 'media'
     | 'edit'
     | 'removeMessage'
@@ -563,6 +564,7 @@ export class GroupChatView {
         signal: mediaSignal,
         load: (_media, thumbnail) =>
           this.options.controller.media(view, thumbnail),
+        previews: this.options.controller.mediaPreviews(view),
         run: this.options.run,
       });
       if (view.unavailableMedia.length) {

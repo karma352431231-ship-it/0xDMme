@@ -1,3 +1,4 @@
+import { forgetMediaPreview } from '../media-preview/index.ts';
 import { readCryptoTimings } from '../../shared/chat-sync-diagnostics/crypto.ts';
 import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import { base64, encode, object } from '../../shared/account/index.ts';
@@ -142,6 +143,13 @@ async function saveParts(
   }
 }
 export async function forgetAttachment(
+  account: string,
+  message: string,
+): Promise<void> {
+  await forgetMediaPreview(account, message);
+  await evictAttachment(account, message);
+}
+async function evictAttachment(
   account: string,
   message: string,
 ): Promise<void> {
@@ -406,7 +414,7 @@ export async function retainAttachment(
       (await localGet(account, `outbox:${row.value.id}`))
     )
       continue;
-    await forgetAttachment(account, row.value.id);
+    await evictAttachment(account, row.value.id);
     return;
   }
   throw new Error(

@@ -1,3 +1,5 @@
+import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { ConversationReader } from './conversation-reader.ts';
@@ -644,6 +646,60 @@ export class Messages {
     thumbnail: boolean,
     diagnostic?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
   ): Promise<Uint8Array<ArrayBuffer>> {
+    if (view.archived) {
+      const reading = this.reader.captureMedia(view);
+      return this.historicalMedia(view, thumbnail, reading.guard);
+    }
+    return this.withMedia(view, thumbnail, (a, input) =>
+      downloadAttachment({
+        diagnostic,
+        account: a.session.accountId,
+        message: view.id,
+        ...input,
+      }),
+    );
+  }
+  mediaPreviews(view: MessageView): MediaPreviews {
+    return {
+      read: () =>
+        this.withMedia(view, false, (a, input) =>
+          readMediaPreview(a, {
+            scope: a.session.accountId,
+            message: view.id,
+            file: input.file,
+            context: view.hash,
+          }),
+        ),
+      save: (bytes) =>
+        this.withMedia(view, false, (a, input) =>
+          saveMediaPreview(
+            a,
+            {
+              scope: a.session.accountId,
+              message: view.id,
+              file: input.file,
+              context: view.hash,
+            },
+            bytes,
+          ),
+        ),
+    };
+  }
+  private async withMedia<T>(
+    view: MessageView,
+    thumbnail: boolean,
+    work: (
+      a: VaultAuthority,
+      input: {
+        file: import('../../shared/attachments/index.ts').PrivateFile;
+        thumbnail: boolean;
+        image: boolean;
+        api: import('../attachments/index.ts').AttachmentApi | null;
+        snapshot: unknown;
+        guard: () => void;
+      },
+    ) => Promise<T>,
+  ): Promise<T> {
     const generation = this.generation,
       reading = this.reader.captureMedia(view);
     const guard = () => {
@@ -654,17 +710,14 @@ export class Messages {
     const content = attachmentContent(JSON.parse(view.text) as unknown),
       file = thumbnail ? content.thumbnail : content.file;
     if (!file) throw new Error('Thumbnail missing.');
-    if (view.archived) return this.historicalMedia(view, thumbnail, guard);
-    const work = async (a: VaultAuthority) => {
+    const execute = async (a: VaultAuthority) => {
       const snapshot = reading.snapshot();
-      const api = a.offline
-        ? null
-        : (op: string, d: Record<string, unknown>) =>
-            messageApi(a, op, d, guard);
-      const bytes = await downloadAttachment({
-        diagnostic,
-        account: a.session.accountId,
-        message: view.id,
+      const api =
+        a.offline || view.archived
+          ? null
+          : (op: string, data: Record<string, unknown>) =>
+              messageApi(a, op, data, guard);
+      const result = await work(a, {
         file,
         thumbnail,
         image: thumbnail || content.image,
@@ -675,17 +728,18 @@ export class Messages {
       try {
         if (api) await api('confirm', { snapshot });
         guard();
-        return bytes;
+        return result;
       } catch (error: unknown) {
-        bytes.fill(0);
+        if (result instanceof Uint8Array) result.fill(0);
         throw error;
       }
     };
     try {
-      if (networkAvailable()) return await this.access.withVault(false, work);
+      if (networkAvailable())
+        return await this.access.withVault(false, execute);
       const locator = await localLocator();
       if (!locator) throw new Error('Local copy not authorized.');
-      return await this.access.withLocalVault(locator, work);
+      return await this.access.withLocalVault(locator, execute);
     } catch (error: unknown) {
       if (
         error instanceof AccountError &&
@@ -695,6 +749,7 @@ export class Messages {
       throw error;
     }
   }
+
   async submissionMedia(
     row: import('./attachment-submissions.ts').StagedMedia,
     thumbnail: boolean,

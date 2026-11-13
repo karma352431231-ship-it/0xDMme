@@ -1,3 +1,5 @@
+import { captureMediaPreview } from '../media-preview/index.ts';
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
@@ -22,6 +24,7 @@ export interface MediaView {
 interface MediaInput<V extends MediaView> {
   signal: AbortSignal;
   content?: AttachmentContent;
+  previews?: MediaPreviews | undefined;
   /** Visible caption already interpreted by the conversation format owner. */
   caption?: string;
   imageOverlay?: HTMLElement;
@@ -97,7 +100,13 @@ const defaultSaveNotice = t(
 function showImage(
   preview: HTMLElement,
   url: string,
-  input: { name: string },
+  input: {
+    name: string;
+    original?: (() => Promise<string>) | undefined;
+    run?: ((work: () => Promise<void>) => Promise<void>) | undefined;
+    current?: (() => boolean) | undefined;
+    capture?: ((image: HTMLImageElement) => void) | undefined;
+  },
 ): void {
   const open = document.createElement('button');
   open.type = 'button';
@@ -106,6 +115,7 @@ function showImage(
   open.dataset['messageHold'] = 'true';
   open.setAttribute('aria-label', t('Zoom in on image {0}', [input.name]));
   const image = document.createElement('img');
+  image.addEventListener('load', () => input.capture?.(image), { once: true });
   image.src = url;
   image.alt = input.name;
   image.loading = 'lazy';
@@ -119,7 +129,14 @@ function showImage(
   });
   open.append(image);
   open.addEventListener('click', () => {
-    openImageViewer(url, input);
+    if (!input.original) {
+      openImageViewer(url, input);
+      return;
+    }
+    void input.run?.(async () => {
+      const original = await input.original!();
+      if (input.current?.()) openImageViewer(original, input);
+    });
   });
   preview.replaceChildren(open);
 }
@@ -251,8 +268,13 @@ function renderVideo<V extends MediaView>(
   mountInlineVideo(slot, {
     signal: input.signal,
     label: content.name,
-    stage: (video) =>
-      chatVideoStage({ video, signal: input.signal, filename: content.name }),
+    stage: (video, requestPlay) =>
+      chatVideoStage({
+        video,
+        signal: input.signal,
+        filename: content.name,
+        requestPlay: input.previews ? requestPlay : undefined,
+      }),
     play: () => input.playback.pause(),
     downloadFallback: (url) => {
       fallback?.remove();
@@ -263,6 +285,29 @@ function renderVideo<V extends MediaView>(
       input.article.append(fallback);
     },
     load: (signal) => loadVideo(input, signal),
+    ...(input.previews
+      ? {
+          deferSource: true,
+          poster: {
+            bytes: 64 * 1024,
+            load: async () => {
+              const bytes = await input.previews!.read();
+              try {
+                return bytes && input.current()
+                  ? new Blob([bytes], { type: 'image/jpeg' })
+                  : null;
+              } finally {
+                bytes?.fill(0);
+              }
+            },
+          },
+          previewFrame: (video: HTMLVideoElement) =>
+            persistPreview(input, video, {
+              width: video.videoWidth,
+              height: video.videoHeight,
+            }),
+        }
+      : {}),
   });
 }
 async function loadVideo<V extends MediaView>(
@@ -345,7 +390,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
     const diagnostic = startLoad(attachmentLoadKind(content), input.view.peer);
-    const bytes = await loadMediaBytes(input, diagnostic);
+    const loaded = await loadPhoto(input, content, diagnostic);
+    const { bytes, previewOnly } = loaded;
     try {
       if (!input.current()) return;
       const type = displayType(bytes, content);
@@ -353,7 +399,26 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       input.retain(url);
       button.hidden = true;
       if (image && type !== 'application/octet-stream') {
-        showImage(preview, url, { name: content.name });
+        showImage(preview, url, {
+          name: content.name,
+          ...(previewOnly
+            ? {
+                original: () => originalPhoto(input, content),
+                run: input.run,
+                current: input.current,
+              }
+            : {}),
+          ...(input.previews && !previewOnly && content.type !== 'image/gif'
+            ? {
+                capture: (image: HTMLImageElement) => {
+                  void persistPreview(input, image, {
+                    width: image.naturalWidth,
+                    height: image.naturalHeight,
+                  });
+                },
+              }
+            : {}),
+        });
         readyMedia(preview, diagnostic, input.current);
         return;
       }
@@ -384,16 +449,97 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   if (image) {
     preview.textContent = t('Loading image…');
     // Rendering precedes DOM insertion; the serial queue starts after insertion.
-    void Promise.resolve()
-      .then(() => withAutomaticRetries(request, input.current))
-      .catch(() => {
-        if (!input.current()) return;
-        preview.textContent = t(
-          'Image unavailable. Connect or tap to try again.',
-        );
-        button.textContent = t('Try loading image');
-        button.hidden = false;
-      });
+    admitVisiblePreview(input, () =>
+      Promise.resolve()
+        .then(() => withAutomaticRetries(request, input.current))
+        .catch(() => {
+          if (!input.current()) return;
+          preview.textContent = t(
+            'Image unavailable. Connect or tap to try again.',
+          );
+          button.textContent = t('Try loading image');
+          button.hidden = false;
+        }),
+    );
+  }
+}
+function admitVisiblePreview<V extends MediaView>(
+  input: MediaInput<V>,
+  work: () => Promise<void>,
+): void {
+  if (typeof IntersectionObserver === 'undefined') {
+    void work();
+    return;
+  }
+  const stop = () => observer.disconnect();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      stop();
+      input.signal.removeEventListener('abort', stop);
+      if (input.current()) void work();
+    },
+    { rootMargin: '200px' },
+  );
+  observer.observe(input.article);
+  input.signal.addEventListener('abort', stop, { once: true });
+  if (input.signal.aborted) stop();
+}
+async function loadPhoto<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+  diagnostic: LoadTrace | undefined,
+) {
+  if (!imageCandidate(content))
+    return {
+      bytes: await loadMediaBytes(input, diagnostic),
+      previewOnly: false,
+    };
+  const animated = content.type === 'image/gif';
+  if (!animated && content.thumbnail)
+    return {
+      bytes: await input.load(input.view, true, diagnostic),
+      previewOnly: true,
+    };
+  if (!animated && input.previews) {
+    const bytes = await input.previews.read();
+    if (bytes) return { bytes, previewOnly: true };
+  }
+  return { bytes: await loadMediaBytes(input, diagnostic), previewOnly: false };
+}
+async function originalPhoto<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+): Promise<string> {
+  return input.enqueue(async () => {
+    const bytes = await input.load(input.view, false);
+    try {
+      if (!input.current())
+        throw new DOMException('Image row closed.', 'AbortError');
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: displayType(bytes, content) }),
+      );
+      input.retain(url);
+      return url;
+    } finally {
+      bytes.fill(0);
+    }
+  });
+}
+async function persistPreview<V extends MediaView>(
+  input: MediaInput<V>,
+  source: CanvasImageSource,
+  size: { width: number; height: number },
+): Promise<void> {
+  if (!input.previews || !input.current()) return;
+  let bytes: Uint8Array<ArrayBuffer> | null = null;
+  try {
+    bytes = await captureMediaPreview(source, size, input.signal);
+    if (bytes && input.current()) await input.previews.save(bytes);
+  } catch {
+    // Unsupported canvas/codec or unavailable cache leaves the original usable.
+  } finally {
+    bytes?.fill(0);
   }
 }
 /** Waits before each automatic retry of a preview; then the person decides. */

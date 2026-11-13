@@ -1114,3 +1114,52 @@ await test('scrolling up adds one verified page under the shown window, which st
   assert.equal(texts().length, 21);
   assert.equal(controller.olderAvailable(texts().length), false);
 });
+
+await test('cold reader reconstructs a confirmed recent window without replaying the index or unchanged packets', async () => {
+  const f = resumeFixture(true, { persistWindows: true });
+  await f.add('Synthetic text retained across restart');
+  await f.controller.synchronize();
+  const reader = f.restart();
+  f.data.requests.length = 0;
+  f.data.frames.length = 0;
+  await reader.synchronize();
+  assert.equal(
+    f.data.frames.at(-1)?.[0]?.text,
+    'Synthetic text retained across restart',
+  );
+  assert.equal(f.data.requests.includes('sync-peer-window'), false);
+  assert.equal(f.data.requests.includes('backup-window'), false);
+  assert.ok(f.data.requests.includes('confirm'));
+});
+await test('a removal fence changing before final cold-reopen confirmation never publishes its saved text', async () => {
+  const f = resumeFixture(true, { persistWindows: true });
+  await f.add('Synthetic removed while reopening');
+  await f.controller.synchronize();
+  const reader = f.restart();
+  f.data.frames.length = 0;
+  f.data.confirmation = () =>
+    Promise.resolve(Response.json({ error: 'Changed' }, { status: 409 }));
+  await assert.rejects(reader.synchronize());
+  assert.equal(
+    f.data.frames.some((frame) =>
+      frame?.some((row) => row.text === 'Synthetic removed while reopening'),
+    ),
+    false,
+  );
+});
+
+await test('cold reopen bridges new messages through the existing delta without replaying the recent window', async () => {
+  const f = resumeFixture(true, { persistWindows: true });
+  await f.add('Synthetic earlier text');
+  await f.controller.synchronize();
+  const next = await f.add('Synthetic new text while closed');
+  f.data.changes = [next];
+  const reader = f.restart();
+  f.data.requests.length = 0;
+  await reader.synchronize();
+  assert.deepEqual(
+    f.data.frames.at(-1)?.map((row) => row.text),
+    ['Synthetic earlier text', 'Synthetic new text while closed'],
+  );
+  assert.equal(f.data.requests.includes('sync-peer-window'), false);
+});

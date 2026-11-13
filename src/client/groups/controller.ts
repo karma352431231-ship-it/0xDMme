@@ -1,3 +1,5 @@
+import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import {
   encodeGroupText,
@@ -1492,6 +1494,77 @@ export class GroupController {
         return bytes;
       } catch (error: unknown) {
         bytes.fill(0);
+        throw error;
+      }
+    });
+  }
+  mediaPreviews(view: GroupView): MediaPreviews {
+    return {
+      read: () =>
+        this.withPreview(view, (authority, scope, file) =>
+          readMediaPreview(authority, {
+            scope,
+            message: view.id,
+            file,
+            maximum: groupQuota,
+            context: [view.groupId, view.epoch, view.hash],
+          }),
+        ),
+      save: (bytes) =>
+        this.withPreview(view, (authority, scope, file) =>
+          saveMediaPreview(
+            authority,
+            {
+              scope,
+              message: view.id,
+              file,
+              maximum: groupQuota,
+              context: [view.groupId, view.epoch, view.hash],
+            },
+            bytes,
+          ),
+        ),
+    };
+  }
+  private async withPreview<T>(
+    view: GroupView,
+    work: (
+      authority: VaultAuthority,
+      scope: string,
+      file: import('../../shared/attachments/index.ts').PrivateFile,
+    ) => Promise<T>,
+  ): Promise<T> {
+    const selected = this.selected,
+      generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      if (
+        this.selected !== selected ||
+        this.historyPending ||
+        !this.views.some((row) => row.id === view.id && row.hash === view.hash)
+      )
+        throw new Error('Group message changed.');
+    };
+    guard();
+    return this.withAuthority(async (c) => {
+      guard();
+      const group =
+        selected!.localOnly || !networkAvailable()
+          ? null
+          : await c.governance.verify(view.groupId);
+      if (group) await this.confirmMedia(c.api, group, view);
+      const file = attachmentContent(JSON.parse(view.text) as unknown).file;
+      const result = await work(
+        c.authority,
+        groupCacheScope(c.authority.session.accountId, view.groupId),
+        file,
+      );
+      try {
+        if (group) await this.confirmMedia(c.api, group, view);
+        guard();
+        return result;
+      } catch (error: unknown) {
+        if (result instanceof Uint8Array) result.fill(0);
         throw error;
       }
     });

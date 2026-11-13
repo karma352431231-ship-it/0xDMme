@@ -694,6 +694,7 @@ export function startMessages(
       more: () => directoryData.hasMore(networkAvailable()),
       loadMore: () => directoryData.refresh(true, networkAvailable()),
     },
+    mediaPreviews: (view) => controller.mediaPreviews(view),
     media: (view, thumbnail, diagnostic) =>
       controller.media(view, thumbnail, diagnostic),
     run,

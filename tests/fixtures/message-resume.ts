@@ -1,3 +1,4 @@
+import { recordDatabase } from './record-database.ts';
 import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
@@ -102,6 +103,7 @@ export function resumeFixture(
   incremental = false,
   options: {
     indexSearch?: typeof import('../../src/client/message-search/index.ts').indexSearch;
+    persistWindows?: boolean;
   } = {},
 ) {
   const session: AccountSession = {
@@ -117,6 +119,13 @@ export function resumeFixture(
     historyAuthorized: false,
   };
   const peer = crypto.randomUUID();
+  const cacheKey = options.persistWindows
+    ? crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+        'encrypt',
+        'decrypt',
+      ])
+    : Promise.resolve(null);
+  const durable = recordDatabase();
   const data = {
     snapshot: {
       revision: 1,
@@ -168,7 +177,11 @@ export function resumeFixture(
     events: [],
     offline: false,
     sign: () => Promise.resolve('synthetic-signature'),
-    key: () => Promise.reject(new Error('Sem chave real na fixture.')),
+    key: async () => {
+      const key = await cacheKey;
+      if (!key) throw new Error('No cache key in this fixture.');
+      return key;
+    },
   };
   const access: VaultAccess = {
     withVault: (_offline, work) => {
@@ -468,6 +481,8 @@ export function resumeFixture(
   };
   const context = {
     fixture,
+    indexedDB: options.persistWindows ? durable.factory : undefined,
+    IDBKeyRange: durable.range,
     crypto,
     TextEncoder,
     TextDecoder,
@@ -493,19 +508,28 @@ export function resumeFixture(
   };
   runInNewContext(source, context);
   assert.ok(context.messageController);
-  const controller = new context.messageController.Messages(
-    access,
-    {} as VaultSync,
-    (rows, _update, projection) => {
-      data.frames.push(
-        rows === null ? null : Array.from(rows, (row) => ({ ...row })),
-      );
-      data.publication?.(rows, projection);
-    },
-    { receipt: (receipt) => data.receipts.push(receipt) },
-  );
-  controller.setSession(session);
-  controller.select(peer);
+  const createController = () => {
+    const reader = new context.messageController!.Messages(
+      access,
+      {} as VaultSync,
+      (rows, _update, projection) => {
+        data.frames.push(
+          rows === null ? null : Array.from(rows, (row) => ({ ...row })),
+        );
+        data.publication?.(rows, projection);
+      },
+      { receipt: (receipt) => data.receipts.push(receipt) },
+    );
+    reader.setSession(session);
+    reader.select(peer);
+    return reader;
+  };
+  let controller = createController();
+  const restart = () => {
+    controller.close();
+    controller = createController();
+    return controller;
+  };
   const add = async (
     text: string,
     from = peer,
@@ -576,6 +600,7 @@ export function resumeFixture(
   };
   return {
     controller,
+    restart,
     data,
     session,
     peer,

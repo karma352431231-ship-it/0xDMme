@@ -1,3 +1,6 @@
+import { readReopen, writeReopen } from '../reopen-cache/index.ts';
+import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 export type { AcceptedDmMedia, DmMediaAccepted } from './accepted-media.ts';
 import { SocialListReads } from './list-reads.ts';
@@ -1124,6 +1127,7 @@ export class SocialDms {
       this.cached(peer, before, options),
     );
   }
+
   async receive(): Promise<void> {
     await this.synchronizeHistory();
   }
@@ -1134,9 +1138,73 @@ export class SocialDms {
     const generation = this.generation;
     let snapshot: DmHistorySnapshot | null = null;
     let page: Awaited<ReturnType<SocialDms['cached']>> | undefined;
+    let pendingWindow: {
+      snapshot: DmHistorySnapshot;
+      peer: string;
+      page: Awaited<ReturnType<SocialDms['cached']>>;
+    } | null = null;
     if (networkAvailable()) {
       snapshot = await this.history.run({
-        snapshot: () => this.request('personal-snapshot', {}, options),
+        snapshot: () => {
+          const window = pendingWindow;
+          if (!window) return this.request('personal-snapshot', {}, options);
+          return this.access.withVault(
+            false,
+            async (a) => {
+              const api = this.privateApi(a, generation);
+              await api('message-status', {
+                peer: window.peer,
+                read: [],
+                own: [],
+              });
+              const current = await api('personal-snapshot', {});
+              confirmDmHistory(window.snapshot, current);
+              await writeRecentDmPage(
+                a,
+                window.peer,
+                window.snapshot,
+                window.page,
+              );
+              this.guard(generation);
+              page = window.page;
+              return current;
+            },
+            options,
+          );
+        },
+        prepare: async (expected) => {
+          if (
+            !projection ||
+            projection.before !== null ||
+            page ||
+            expected.anchor === 0
+          )
+            return 'unchanged';
+          const candidate = await this.localWork(generation, async (a) => {
+            const held = await readReopen<
+              Awaited<ReturnType<SocialDms['cached']>>
+            >(a, dmReopenLocation(a, projection.peer, expected));
+            await this.removals.load(a, () => this.guard(generation));
+            return (
+              held ??
+              this.cachedPage({ a, ...projection, generation, maximum: 16 })
+            );
+          });
+          if (
+            candidate.items.some(
+              (item) =>
+                item.self !== expected.profile ||
+                item.peer.id !== projection.peer,
+            )
+          )
+            throw new Error('Cached conversation identity does not match.');
+          pendingWindow = {
+            snapshot: expected,
+            peer: projection.peer,
+            page: candidate,
+          };
+          return 'prepared';
+        },
         guard: () => this.guard(generation),
         page: async (snapshot, after) => {
           const result = await this.historyPage(
@@ -1172,6 +1240,19 @@ export class SocialDms {
               row,
               row.bytes.length + 512,
             );
+            if (
+              page &&
+              projection?.before === null &&
+              cursor.after === cursor.anchor
+            ) {
+              const { anchor, removals, directory, profile } = cursor;
+              await writeRecentDmPage(
+                a,
+                projection.peer,
+                { anchor, removals, directory, profile },
+                page,
+              );
+            }
           }),
       });
     }
@@ -1519,6 +1600,81 @@ export class SocialDms {
       },
     );
   }
+  mediaPreviews(
+    row: Extract<BackupRecord, { type: 'dm-message' }>,
+    localOnly = false,
+  ): MediaPreviews {
+    const expected = this.confirmedHistory;
+    if (!localOnly && (!expected || row.sequence > expected.anchor))
+      return {
+        read: () => Promise.resolve(null),
+        save: () => Promise.resolve(),
+      };
+    return {
+      read: () =>
+        this.withPreview({ row, localOnly, expected }, (a, file) =>
+          readMediaPreview(a, {
+            scope: dmMediaScope(a.session.accountId),
+            message: row.id,
+            file,
+            context: [row.self, row.peer.id, row.hash],
+          }),
+        ),
+      save: (bytes) =>
+        this.withPreview({ row, localOnly, expected }, (a, file) =>
+          saveMediaPreview(
+            a,
+            {
+              scope: dmMediaScope(a.session.accountId),
+              message: row.id,
+              file,
+              context: [row.self, row.peer.id, row.hash],
+            },
+            bytes,
+          ),
+        ),
+    };
+  }
+  private async withPreview<T>(
+    input: {
+      row: Extract<BackupRecord, { type: 'dm-message' }>;
+      localOnly: boolean;
+      expected: DmHistorySnapshot | null;
+    },
+    work: (a: VaultAuthority, file: PrivateFile) => Promise<T>,
+  ): Promise<T> {
+    const generation = this.generation,
+      { row, localOnly, expected } = input;
+    return this.access.withVault(
+      localOnly || !networkAvailable(),
+      async (a) => {
+        this.guard(generation);
+        const api = this.privateApi(a, generation);
+        const snapshot = a.offline
+          ? null
+          : readDmHistorySnapshot(await api('personal-snapshot', {}));
+        confirmPreviewIdentity(snapshot, expected, row.self);
+        if (snapshot)
+          await api('message-status', { peer: row.peer.id, read: [], own: [] });
+        if (!(await filterDeletedDmRoots(a, [row])).length)
+          throw new Error('Message was deleted.');
+        const content = socialAttachment(
+          JSON.parse(row.text) as unknown,
+          row.media!,
+        );
+        const result = await work(a, content.file);
+        try {
+          if (snapshot)
+            confirmDmHistory(snapshot, await api('personal-snapshot', {}));
+          this.guard(generation);
+          return result;
+        } catch (error: unknown) {
+          if (result instanceof Uint8Array) result.fill(0);
+          throw error;
+        }
+      },
+    );
+  }
   private async mediaCipher(
     a: VaultAuthority,
     input: {
@@ -1639,4 +1795,42 @@ function measureDmWork<T>(
   work: () => Promise<T>,
 ): Promise<T> {
   return chatSyncActive() ? measureWork(owner, operation, work) : work();
+}
+
+/** A local preview cannot adopt a newer removal fence as its own authority. */
+function confirmPreviewIdentity(
+  snapshot: DmHistorySnapshot | null,
+  expected: DmHistorySnapshot | null,
+  self: string,
+): void {
+  if (!snapshot) return;
+  if (!expected || snapshot.profile !== self)
+    throw new Error('Public profile changed.');
+  confirmDmHistory(expected, snapshot);
+}
+
+function dmReopenLocation(
+  a: VaultAuthority,
+  peer: string,
+  snapshot: DmHistorySnapshot,
+) {
+  return {
+    scope: a.session.accountId,
+    name: `reopen:public:${peer}`,
+    binding: { peer, snapshot },
+  };
+}
+async function writeRecentDmPage(
+  a: VaultAuthority,
+  peer: string,
+  snapshot: DmHistorySnapshot,
+  page: Awaited<ReturnType<SocialDms['cached']>>,
+): Promise<void> {
+  if (
+    page.items.some(
+      (row) => row.kind === 'text' && decodeDailyText(row.text).viewOnce,
+    )
+  )
+    return;
+  await writeReopen(a, dmReopenLocation(a, peer, snapshot), page);
 }

@@ -1,3 +1,4 @@
+import { recordDatabase } from './fixtures/record-database.ts';
 import { WorkInterruption } from '../src/client/synchronization-work/index.ts';
 import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
@@ -627,4 +628,80 @@ await test('a group pin follows the newest pin or unpin, even when they arrive o
   );
   assert.equal(unpinned?.pinState?.until, 0, 'the later unpin wins');
   assert.throws(() => projectGroupMessages([root], [action(2, '👍')]));
+});
+
+await test('a restarted group reader confirms its encrypted window without reading the recent page or unchanged objects', async (t) => {
+  const store = recordDatabase();
+  for (const [name, value] of Object.entries({
+    indexedDB: store.factory,
+    IDBKeyRange: store.range,
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+  const f = await fixture();
+  f.add('Synthetic group text');
+  await new GroupMessageWindows().read(f.c, null);
+  f.data.calls.length = 0;
+  f.data.decoded.length = 0;
+  const result = await new GroupMessageWindows().read(f.c, null);
+  assert.equal(result.views[0]?.text, 'Synthetic group text');
+  assert.equal(
+    f.data.calls.some((call) =>
+      [
+        'group-message-recent',
+        'group-message-index',
+        'group-message-objects',
+      ].includes(call.op),
+    ),
+    false,
+  );
+  assert.ok(f.data.calls.some((call) => call.op === 'group-message-confirm'));
+  f.data.fail = true;
+  await assert.rejects(
+    new GroupMessageWindows().read(f.c, null),
+    /Confirmation rejected/,
+  );
+});
+
+await test('a persisted group window reconciles new rows and unavailable media and propagates current membership rejection', async (t) => {
+  const store = recordDatabase();
+  for (const [name, value] of Object.entries({
+    indexedDB: store.factory,
+    IDBKeyRange: store.range,
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+  const f = await fixture();
+  const previous = f.add('Synthetic retained group message');
+  await new GroupMessageWindows().read(f.c, null);
+  const incoming = f.add('Synthetic group arrival while closed');
+  f.data.revision++;
+  f.data.changed = [
+    { ...previous, unavailableMedia: [crypto.randomUUID()] },
+    incoming,
+  ];
+  const result = await new GroupMessageWindows().read(f.c, null);
+  assert.deepEqual(
+    result.views.map((row) => row.text),
+    [
+      'Synthetic retained group message',
+      'Synthetic group arrival while closed',
+    ],
+  );
+  assert.equal(result.views[0]?.unavailableMedia.length, 1);
+  f.data.failure = 'group-message-delta';
+  await assert.rejects(
+    new GroupMessageWindows().read(f.c, null),
+    /Check rejected/,
+  );
 });

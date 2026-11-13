@@ -1,6 +1,16 @@
 module.exports = {
   forbidden: [
     {
+      name: 'encrypted-reopen-caches-use-persistence-only',
+      severity: 'error',
+      from: { path: '^src/client/(?:reopen-cache|media-preview)/' },
+      to: {
+        path: '^src/client/',
+        pathNot:
+          '^src/client/(?:reopen-cache|media-preview|message-storage|vault-authority)/',
+      },
+    },
+    {
       name: 'connectivity-cannot-import-domain-operations',
       severity: 'error',
       from: { path: '^src/client/connectivity/' },

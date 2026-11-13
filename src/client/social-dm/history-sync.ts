@@ -85,6 +85,8 @@ interface HistoryPorts {
     unavailable: readonly string[];
     confirmation?: unknown;
   }>;
+  /** Local reconstruction must finish before its final online confirmation. */
+  prepare?: (snapshot: DmHistorySnapshot) => Promise<'prepared' | 'unchanged'>;
   guard: () => void;
 }
 interface Progress {
@@ -126,10 +128,13 @@ export class DmHistorySynchronization {
   private async read(ports: HistoryPorts): Promise<DmHistorySnapshot> {
     ports.guard();
     const progress = this.progress ?? (await this.target(ports));
-    const confirmation =
+    let confirmation =
       progress.pending === null && progress.after < progress.snapshot.anchor
         ? await this.advance(ports, progress)
         : null;
+    if ((await ports.prepare?.(progress.snapshot)) === 'prepared')
+      confirmation = null;
+    ports.guard();
     confirmDmHistory(
       progress.snapshot,
       confirmation ? confirmation.value : await ports.snapshot(),

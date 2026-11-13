@@ -17,6 +17,7 @@ interface ChatVideoOptions {
   video: HTMLVideoElement;
   signal: AbortSignal;
   filename: string;
+  requestPlay?: (() => void) | undefined;
 }
 
 /** Owns the chat controls and their timer. The inline loader still owns the media. */
@@ -24,6 +25,7 @@ export function chatVideoStage({
   video,
   signal,
   filename,
+  requestPlay,
 }: ChatVideoOptions): HTMLElement {
   const stage = document.createElement('div');
   stage.className = 'chat-video-stage';
@@ -54,6 +56,7 @@ export function chatVideoStage({
     visibility,
     signal,
     filename,
+    requestPlay,
   });
   return stage;
 }
@@ -123,7 +126,8 @@ function bindControls(input: Controls): void {
         return;
       }
       visibility.show();
-      if (!toolbar.play.disabled) play(video);
+      if (!video.src && input.requestPlay) input.requestPlay();
+      else if (!toolbar.play.disabled) play(video);
     },
     events,
   );

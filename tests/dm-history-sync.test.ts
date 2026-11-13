@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DmHistorySynchronization } from '../src/client/social-dm/history-sync.ts';
+import {
+  DmHistorySynchronization,
+  type DmHistorySnapshot,
+} from '../src/client/social-dm/history-sync.ts';
 import {
   expectedInterruption,
   WorkInterruption,
@@ -8,7 +11,7 @@ import {
 import { deferred } from './fixtures/deferred.ts';
 
 function fixture() {
-  const snapshot = {
+  const snapshot: DmHistorySnapshot = {
     anchor: 12,
     removals: 0,
     directory: 'a'.repeat(64),
@@ -203,5 +206,29 @@ await test('inline final confirmation still rejects changed removals before expo
       confirmation: { ...f.snapshot, removals: 1 },
     });
   await assert.rejects(f.sync.run(f.options), /DM history changed/u);
+  assert.equal(f.saved.length, 0);
+});
+
+await test('local window preparation cannot reuse a confirmation obtained before a removal changed', async () => {
+  const f = fixture();
+  const originalPage = f.options.page;
+  let checks = 0;
+  const options = {
+    ...f.options,
+    snapshot: () => {
+      checks++;
+      return Promise.resolve({ ...f.snapshot });
+    },
+    page: async (snapshot: typeof f.snapshot, after: number) => ({
+      ...(await originalPage(snapshot, after)),
+      confirmation: { ...snapshot },
+    }),
+    prepare: () => {
+      f.snapshot.removals++;
+      return Promise.resolve('prepared' as const);
+    },
+  };
+  await assert.rejects(f.sync.run(options), /DM history changed/);
+  assert.equal(checks, 2, 'prepared content requires a new final snapshot');
   assert.equal(f.saved.length, 0);
 });

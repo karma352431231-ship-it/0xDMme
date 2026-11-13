@@ -45,6 +45,10 @@ class MediaNode {
   readyState = 0;
   currentTime = 0;
   load(): void {}
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
+  }
   pause(): void {}
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
@@ -531,4 +535,154 @@ await test('conversation-supplied attachment captions preserve legacy literals a
     });
     assert.ok(article.children[0]!.textContent.endsWith(' · ' + caption));
   }
+});
+
+await test('an authenticated thumbnail loads the bubble and opening it reads and saves the original format', async (t) => {
+  const { ui, blobs, body } = environment(t);
+  const article = new MediaNode('article'),
+    media = content('image/png', true);
+  media.thumbnail = {
+    ...media.file,
+    ref: { ...media.file.ref, id: crypto.randomUUID() },
+  };
+  const loads: boolean[] = [];
+  ui.render({
+    article: article as unknown as HTMLElement,
+    content: media,
+    view: { id: 'photo', peer: 'peer', text: '' },
+    load: (_view, thumbnail) => {
+      loads.push(thumbnail);
+      return Promise.resolve(png());
+    },
+    run: (work) => work(),
+  });
+  await flush();
+  assert.deepEqual(loads, [true]);
+  assert.equal(blobs.length, 1);
+  article.children[0]!.children[0]!.click();
+  await flush();
+  assert.deepEqual(loads, [true, false]);
+  assert.equal(viewerSaveLink(body)?.href, 'blob:synthetic-2');
+  assert.equal(viewerSaveLink(body)?.download, media.name);
+});
+await test('a warm derived image reads zero original bytes and a detached row cannot present a late preview', async (t) => {
+  const { ui, blobs } = environment(t);
+  const article = new MediaNode('article');
+  let originals = 0;
+  ui.render({
+    article: article as unknown as HTMLElement,
+    content: content('image/png', true),
+    view: { id: 'photo', peer: 'peer', text: '' },
+    previews: {
+      read: () => Promise.resolve(png()),
+      save: () => Promise.resolve(),
+    },
+    load: () => {
+      originals++;
+      return Promise.resolve(png());
+    },
+    run: (work) => work(),
+  });
+  await flush();
+  assert.equal(originals, 0);
+  assert.equal(blobs.length, 1);
+  let finish: (bytes: Uint8Array<ArrayBuffer>) => void = () => {};
+  const pending = new Promise<Uint8Array<ArrayBuffer>>((resolve) => {
+    finish = resolve;
+  });
+  const other = new MediaNode('article');
+  ui.render({
+    article: other as unknown as HTMLElement,
+    content: content('image/png', true),
+    view: { id: 'closed', peer: 'peer', text: '' },
+    previews: { read: () => pending, save: () => Promise.resolve() },
+    load: () => {
+      originals++;
+      return Promise.resolve(png());
+    },
+    run: (work) => work(),
+  });
+  await flush();
+  other.isConnected = false;
+  const bytes = png();
+  finish(bytes);
+  await flush();
+  assert.equal(blobs.length, 1);
+  assert.ok(bytes.every((byte) => byte === 0));
+  assert.equal(originals, 0);
+});
+await test('a chat video with a warm poster reads no original until the first tap on its normal play surface', async (t) => {
+  const { ui, blobs, revoked } = environment(t);
+  let visible: (entries: { isIntersecting: boolean }[]) => void = () => {};
+  const previous = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'IntersectionObserver',
+  );
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    value: class {
+      constructor(callback: typeof visible) {
+        visible = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  });
+  t.after(() => {
+    if (previous)
+      Object.defineProperty(globalThis, 'IntersectionObserver', previous);
+    else Reflect.deleteProperty(globalThis, 'IntersectionObserver');
+  });
+  const article = new MediaNode('article'),
+    signal = new AbortController();
+  let originals = 0;
+  ui.render({
+    article: article as unknown as HTMLElement,
+    signal: signal.signal,
+    content: content('video/mp4'),
+    view: { id: 'video', peer: 'peer', text: '' },
+    previews: {
+      read: () => Promise.resolve(png()),
+      save: () => Promise.resolve(),
+    },
+    load: () => {
+      originals++;
+      return Promise.resolve(
+        Uint8Array.of(
+          0,
+          0,
+          0,
+          16,
+          102,
+          116,
+          121,
+          112,
+          105,
+          115,
+          111,
+          109,
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
+    },
+    run: (work) => work(),
+  });
+  visible([{ isIntersecting: true }]);
+  await flush();
+  const figure = article.children[0]!,
+    stage = figure.children[0]!,
+    video = stage.children[0]!;
+  assert.equal(originals, 0);
+  assert.equal(video.src, '');
+  assert.equal(blobs.length, 1);
+  stage.children[1]!.click();
+  await flush();
+  assert.equal(originals, 1);
+  assert.equal(video.src, 'blob:synthetic-2');
+  assert.equal(video.paused, false);
+  signal.abort();
+  assert.equal(revoked.length, 2);
 });

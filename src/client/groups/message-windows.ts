@@ -1,3 +1,7 @@
+import { decodeDailyText } from '../../shared/daily/index.ts';
+import { readReopen, writeReopen } from '../reopen-cache/index.ts';
+import { groupCacheScope } from './cache.ts';
+import { groupQuota } from '../../shared/group-quota/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 import {
   GroupMessageIndex,
@@ -95,6 +99,8 @@ export class GroupMessageWindows {
     older: boolean,
   ): Promise<Window> {
     c.guard?.();
+    await this.restoreCheckpoint(c);
+    c.guard?.();
     const { scope, snapshot, read } = await this.target(c),
       key = canonical([snapshot.groupId, before]);
     const previous = this.previousState(snapshot, scope),
@@ -126,8 +132,69 @@ export class GroupMessageWindows {
     c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
     this.index.confirmed(snapshot);
-    if (before === null) this.floors.update(snapshot.groupId, reached);
+    if (before === null) {
+      this.floors.update(snapshot.groupId, reached);
+      await this.saveCheckpoint(c, result);
+    }
     return result;
+  }
+  private async saveCheckpoint(c: ReadContext, result: Window): Promise<void> {
+    if (
+      result.views.some(
+        (view) =>
+          view.kind === 'text' &&
+          view.contentFormat === 'daily' &&
+          decodeDailyText(view.text).viewOnce,
+      )
+    )
+      return;
+    await writeReopen(c.authority, this.checkpointLocation(c), {
+      ...result,
+      views: projectGroupMessages([], result.views),
+      before: result.views[0]?.sequence ?? null,
+    });
+    c.guard?.();
+  }
+  private checkpointLocation(c: ReadContext) {
+    return {
+      scope: groupCacheScope(
+        c.authority.session.accountId,
+        c.group.state.groupId,
+      ),
+      name: 'reopen:group',
+      binding: c.group.head,
+      maximum: groupQuota,
+    };
+  }
+  private async restoreCheckpoint(c: ReadContext): Promise<void> {
+    const group = c.group.state.groupId;
+    if (this.states.has(group)) return;
+    const value = await readReopen<Window>(
+      c.authority,
+      this.checkpointLocation(c),
+    );
+    c.guard?.();
+    const scope = canonical([
+      c.authority.session.accountId,
+      c.authority.session.deviceId,
+      c.authority.directory,
+      c.group.head,
+    ]);
+    if (
+      !value ||
+      value.scope !== scope ||
+      value.snapshot.groupId !== group ||
+      !Array.isArray(value.views) ||
+      value.views.length > 16 ||
+      value.views.some((view) => view.groupId !== group)
+    )
+      return;
+    this.states.set(group, {
+      scope,
+      snapshot: value.snapshot,
+      prepared: false,
+    });
+    this.remember(canonical([group, null]), value);
   }
   /** The snapshot to read and the reader serving it. */
   private async target(c: ReadContext) {

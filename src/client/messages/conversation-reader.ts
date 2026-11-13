@@ -1,3 +1,7 @@
+import {
+  loadConversationCheckpoint,
+  saveConversationCheckpoint,
+} from './checkpoint.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import {
   SelectionWork,
@@ -415,6 +419,8 @@ export class ConversationReader {
       const staged = await this.access.withVault(
         false,
         async (a) => {
+          await this.restoreCheckpoint(a, selected, guard);
+          guard();
           const api = (op: string, d: Record<string, unknown>) =>
               messageApi(a, op, d, () => guard()),
             snapshot = this.readTarget.take(
@@ -463,7 +469,11 @@ export class ConversationReader {
       guard();
       const views = staged.views;
       this.visibility.stage(token, views);
-      await this.confirmVisible(token, staged.snapshot, generation, options);
+      await this.confirmVisible(token, staged.snapshot, generation, {
+        options,
+        views,
+        peer: selected,
+      });
       guard();
       if (selected) this.floors.update(selected, staged.reach);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
@@ -518,6 +528,16 @@ export class ConversationReader {
       this.visibility.fail(token);
       throw error;
     }
+  }
+  private async restoreCheckpoint(
+    a: VaultAuthority,
+    peer: string | null,
+    guard: () => void,
+  ): Promise<void> {
+    if (this.confirmed || this.searchBefore !== null) return;
+    const checkpoint = await loadConversationCheckpoint(a, peer);
+    guard();
+    this.confirmed = checkpoint;
   }
   /** One verified remote page before `before` (the latest page when null),
    * joined with the archived local history of the same span. */
@@ -611,18 +631,35 @@ export class ConversationReader {
     token: number,
     snapshot: unknown,
     generation: number,
-    options: VaultWorkOptions = {},
+    input: {
+      options: VaultWorkOptions;
+      views: MessageView[];
+      peer: string | null;
+    },
   ): Promise<void> {
+    const guard = this.selection.capture(() =>
+      this.authority.guard(generation),
+    );
+    const peer = this.searchBefore === null ? input.peer : null;
     const confirm = isSyncSnapshot(snapshot)
       ? this.visibility.confirmCut.bind(this.visibility)
       : this.visibility.confirm.bind(this.visibility);
     await confirm(token, async () => {
-      const check = (a: VaultAuthority) =>
-        messageApi(a, 'confirm', { snapshot }, () =>
-          this.authority.guard(generation),
-        );
-      await this.access.withVault(false, check, options);
-      this.authority.guard(generation);
+      await this.access.withVault(
+        false,
+        async (a) => {
+          await messageApi(a, 'confirm', { snapshot }, guard);
+          guard();
+          if (peer)
+            await saveConversationCheckpoint(a, peer, {
+              snapshot: JSON.stringify(snapshot),
+              views: input.views,
+            });
+          guard();
+        },
+        input.options,
+      );
+      guard();
     });
   }
   private historicalView(

@@ -23,6 +23,9 @@ await test('portable package preserves exact sources and licenses without privat
     temporary = await mkdtemp(join(tmpdir(), '0xdmme-source-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const sources = [
+    'src/client/reopen-cache/index.ts',
+    'src/client/media-preview/index.ts',
+    'src/client/messages/checkpoint.ts',
     'src/client/public-search/index.ts',
     'src/client/public-search/query.ts',
     'src/client/message-runtime/index.ts',
