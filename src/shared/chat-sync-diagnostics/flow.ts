@@ -1,3 +1,4 @@
+import type { LoadToken, LoadDiagnosticFields } from './load.ts';
 /** In-process capability only. Never serialized or sent to the server. */
 export interface HandleReadToken {
   slot: number;
@@ -36,15 +37,25 @@ export const authorityKinds = [
   'handle-request',
   'handle-media-stage',
   'group',
+  'group-identities',
+  'group-directory',
+  'conversation-previews',
+  'archived-peers',
 ] as const;
 export type AuthorityKind = (typeof authorityKinds)[number];
 export interface AuthorityDiagnosticContext {
   diagnosticOperation?: AuthorityKind;
+  diagnosticLoad?: LoadToken | undefined;
   handleRead?: HandleReadToken;
   handleSend?: HandleSendToken;
   handleListCaller?: HandleListCaller;
 }
-export interface FlowDiagnosticFields {
+export interface FlowDiagnosticFields extends Pick<
+  LoadDiagnosticFields,
+  'load' | 'loadMs'
+> {
+  authorityQueue?: number;
+  workClockMs?: number;
   flowOverflow?: boolean;
   diagnosticWork?: number;
   workPhase?: 'queued' | 'admitted' | 'start' | 'complete' | 'failed';
@@ -64,12 +75,7 @@ export function copyFlowDiagnostic(
 ): void {
   if (typeof input['flowOverflow'] === 'boolean')
     output['flowOverflow'] = input['flowOverflow'];
-  for (const key of [
-    'diagnosticWork',
-    'handleRead',
-    'handleHint',
-    'handleSend',
-  ])
+  for (const key of ['handleRead', 'handleHint', 'handleSend'])
     if (Number.isSafeInteger(input[key]) && Number(input[key]) > 0)
       output[key] = input[key];
   if (authorityKinds.some((kind) => kind === input['authorityKind']))
@@ -78,7 +84,22 @@ export function copyFlowDiagnostic(
     if (phases[key].has(String(input[key]))) output[key] = input[key];
   if (['interactive', 'maintenance'].includes(String(input['workPriority'])))
     output['workPriority'] = input['workPriority'];
+  copyAuthorityTiming(input, output);
   copyHandlePreparation(input, output);
+}
+
+function copyAuthorityTiming(
+  input: Record<string, unknown>,
+  output: Record<string, unknown>,
+): void {
+  for (const key of ['diagnosticWork', 'authorityQueue'])
+    if (Number.isSafeInteger(input[key]) && Number(input[key]) > 0)
+      output[key] = input[key];
+  if (
+    Number.isSafeInteger(input['workClockMs']) &&
+    Number(input['workClockMs']) >= 0
+  )
+    output['workClockMs'] = input['workClockMs'];
 }
 
 function copyHandlePreparation(

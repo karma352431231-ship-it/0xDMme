@@ -249,3 +249,72 @@ await test('cross-device comparison joins the same tag and uses clock bounds ins
   b.clock.available = false;
   assert.equal(compareDelivery(a, b).reason, 'server-clock-unavailable');
 });
+
+await test('load capabilities link only their capture and expire before later authority work', () => {
+  const fields: Record<string, unknown>[] = [];
+  const capture = new CaptureWork((_event, data) => fields.push({ ...data }));
+  let active = true;
+  const points: string[] = [];
+  const token = capture.load({
+    slot: 2,
+    startedMs: 0,
+    active: () => active,
+    point: (stage) => points.push(stage),
+  });
+  assert.ok(token);
+  const owner = {};
+  const linked = capture.queue(
+    { diagnosticLoad: token, diagnosticOperation: 'group-directory' },
+    undefined,
+    owner,
+  );
+  linked?.admitted();
+  linked?.start();
+  linked?.finish(true);
+  assert.ok(fields.every((field) => field['load'] === 2));
+  assert.ok(fields.every((field) => field['authorityQueue'] === 1));
+  assert.deepEqual(points, ['vault-acquired']);
+  active = false;
+  capture.queue({ diagnosticLoad: token }, undefined, owner);
+  assert.equal(fields.at(-1)?.['load'], undefined);
+  const other = new CaptureWork((_event, data) => fields.push({ ...data }));
+  active = true;
+  other.queue({ diagnosticLoad: token });
+  assert.equal(fields.at(-1)?.['load'], undefined);
+  const late = capture.queue({
+    diagnosticLoad: token,
+    diagnosticOperation: 'group-directory',
+  });
+  capture.stop();
+  late?.start();
+  assert.deepEqual(points, ['vault-acquired']);
+  assert.equal(capture.loadSlot(token), undefined);
+});
+
+await test('startup linkage exports anonymous slots and clocks and rejects arbitrary categories and capabilities', () => {
+  const trace = readChatSyncTrace({
+    version: 1,
+    source: 1,
+    conversation: 0,
+    event: 'authority-work',
+    reason: 'settled',
+    load: 2,
+    loadMs: 1170,
+    authorityQueue: 3,
+    workClockMs: 1870,
+    authorityKind: 'sensitive-account-label',
+    diagnosticLoad: { owner: 'private-key' },
+    accountId: 'private-account',
+    loadClockMs: NaN,
+  });
+  assert.ok(trace);
+  assert.equal(trace.authorityQueue, 3);
+  assert.equal(trace.workClockMs, 1870);
+  assert.equal(trace.load, 2);
+  assert.equal(trace.authorityKind, undefined);
+  assert.equal(trace.loadClockMs, undefined);
+  assert.doesNotMatch(
+    JSON.stringify(trace),
+    /private|sensitive|diagnosticLoad/u,
+  );
+});

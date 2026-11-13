@@ -1,3 +1,4 @@
+import type { LoadToken } from '../../shared/chat-sync-diagnostics/load.ts';
 import type {
   FlowDiagnosticFields,
   AuthorityDiagnosticContext,
@@ -18,6 +19,8 @@ export class CaptureWork {
   private sends = 0;
   private hint = 0;
   private readonly emit: Emit;
+  private readonly resources = new WeakMap<object, number>();
+  private resourceCount = 0;
   constructor(emit: Emit) {
     this.emit = emit;
   }
@@ -71,10 +74,32 @@ export class CaptureWork {
         ...(this.hint ? { handleHint: this.hint } : {}),
       });
   }
-  queue(context: AuthorityDiagnosticContext, priority?: 'interactive') {
+  load(input: Omit<LoadToken, 'owner'>): LoadToken | undefined {
+    if (!this.ended) return { ...input, owner: this };
+  }
+  loadSlot(token: LoadToken | undefined): number | undefined {
+    return !this.ended && token?.owner === this && token.active()
+      ? token.slot
+      : undefined;
+  }
+  private resourceSlot(resource: object): number {
+    let slot = this.resources.get(resource);
+    if (!slot) {
+      slot = ++this.resourceCount;
+      this.resources.set(resource, slot);
+    }
+    return slot;
+  }
+  queue(
+    context: AuthorityDiagnosticContext,
+    priority?: 'interactive',
+    resource: object = this,
+  ) {
     if (this.ended) return;
     if (this.works >= 512) return this.full();
     const diagnosticWork = ++this.works;
+    const authorityQueue = this.resourceSlot(resource);
+    const load = this.loadSlot(context.diagnosticLoad);
     const handleRead = this.slot(context.handleRead);
     const handleSend = this.sendSlot(context.handleSend);
     let settled = false;
@@ -82,8 +107,20 @@ export class CaptureWork {
       workPhase: NonNullable<FlowDiagnosticFields['workPhase']>,
     ) => {
       if (this.ended || settled) return;
+      const workClockMs = Math.round(performance.now());
       this.emit('authority-work', {
         diagnosticWork,
+        authorityQueue,
+        workClockMs,
+        ...(load
+          ? {
+              load,
+              loadMs: Math.max(
+                0,
+                workClockMs - context.diagnosticLoad!.startedMs,
+              ),
+            }
+          : {}),
         workPhase,
         authorityKind: context.diagnosticOperation ?? 'vault',
         workPriority: priority ?? 'maintenance',
@@ -98,7 +135,15 @@ export class CaptureWork {
     point('queued');
     return {
       admitted: () => point('admitted'),
-      start: () => point('start'),
+      start: () => {
+        if (this.ended || settled) return;
+        point('start');
+        if (
+          this.loadSlot(context.diagnosticLoad) &&
+          context.diagnosticOperation === 'group-directory'
+        )
+          context.diagnosticLoad?.point('vault-acquired');
+      },
       finish: (ok: boolean) => point(ok ? 'complete' : 'failed'),
     };
   }

@@ -1,3 +1,8 @@
+import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
+import { observeReuseDecisions } from '../src/tools/chat-diagnostics/reuse.ts';
+import { installChatSyncDiagnostics } from '../src/client/chat-sync-diagnostics/index.ts';
+import { AuthorityWork } from '../src/client/devices/authority-work.ts';
+import { waitForBoundary } from './fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -28,6 +33,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 import type {
   VaultAccess,
   VaultAuthority,
+  VaultWorkOptions,
 } from '../src/client/vault-authority/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
@@ -652,3 +658,135 @@ for (const language of ['en', 'zh-CN'] as const)
     );
     ui.leave();
   });
+
+await test('actual group-directory wiring links identities, exclusive admission and signed group-list dispatch on one clock', async (t) => {
+  const f = directoryReadFixture(t),
+    held = deferred<void>(),
+    started = deferred<void>();
+  let now = 7060,
+    signed = 0,
+    blocked = false;
+  t.mock.method(performance, 'now', () => now);
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const host = new EventTarget();
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: host,
+  });
+  installChatSyncDiagnostics(host as Window);
+  const recording = new Recording(),
+    stop = observeReuseDecisions(recording.record);
+  t.after(() => {
+    stop();
+    held.resolve();
+    if (previousWindow)
+      Object.defineProperty(globalThis, 'window', previousWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  });
+  const queue = new AuthorityWork(async (key, body) => {
+    assert.equal(key, 'synthetic-resource');
+    await body();
+  });
+  let blocker: Promise<void> | undefined;
+  const access: VaultAccess = {
+    withLocalVault: () => Promise.reject(new Error('No offline work')),
+    withVault: <T>(
+      _offline: boolean,
+      work: (authority: VaultAuthority) => Promise<T>,
+      options: VaultWorkOptions = {},
+    ) => {
+      if (options.diagnosticOperation === 'group-directory' && !blocked) {
+        blocked = true;
+        blocker = queue.hold(
+          'synthetic-resource',
+          () => {
+            started.resolve();
+            return held.promise;
+          },
+          undefined,
+          { diagnosticOperation: 'conversation-previews' },
+        );
+      }
+      return queue.hold(
+        'synthetic-resource',
+        () => {
+          if (options.diagnosticOperation === 'group-directory') now += 380;
+          return work(f.input.context.authority);
+        },
+        options.priority,
+        options,
+      );
+    },
+  };
+  t.mock.method(PeerIdentity.prototype, 'load', (options: VaultWorkOptions) =>
+    access.withVault(
+      false,
+      () => {
+        now += 700;
+        return Promise.resolve();
+      },
+      options,
+    ),
+  );
+  t.mock.method(GroupCatalog.prototype, 'creation', () =>
+    Promise.resolve(null),
+  );
+  t.mock.method(GroupCatalog.prototype, 'page', () =>
+    Promise.resolve({ items: [], next: null }),
+  );
+  t.mock.method(f.input.context.authority, 'sign', () => {
+    now += ++signed === 1 ? 50 : 100;
+    return Promise.resolve('synthetic-private-signature');
+  });
+  t.mock.method(globalThis, 'fetch', (path: string, options: RequestInit) => {
+    assert.ok(typeof options.body === 'string');
+    assert.doesNotMatch(
+      options.body,
+      /diagnosticLoad|loadClockMs|authorityQueue|workClockMs/u,
+    );
+    if (path.endsWith('/group-mode')) {
+      now += 150;
+      return Promise.resolve(Response.json({ mode: 'configured' }));
+    }
+    assert.ok(path.endsWith('/group-list'));
+    return Promise.resolve(Response.json({ items: [], next: null }));
+  });
+  const controller = new GroupController(
+    access,
+    new VaultSync(access),
+    () => false,
+  );
+  controller.setSession(f.input.context.authority.session as AccountSession);
+  const loading = controller.refreshDirectory();
+  await waitForBoundary(started.promise);
+  now += 1170;
+  held.resolve();
+  await loading;
+  await blocker;
+  const summary = recording
+    .report()
+    .loading.operations.find(
+      (operation) => operation.kind === 'group-directory',
+    );
+  assert.ok(summary?.preList?.available);
+  assert.equal(summary.preList.firstGroupListSentMs, 2550);
+  assert.equal(summary.preList.accounting.queueMs, 1170);
+  assert.equal(summary.preList.accounting.executionMs, 1380);
+  assert.equal(summary.preList.accounting.unattributedMs, 0);
+  assert.equal(summary.preList.durationsMs.vaultAuthorization, 380);
+  assert.equal(summary.preList.durationsMs.groupMode, 200);
+  assert.equal(summary.preList.durationsMs.groupListPreparation, 100);
+  assert.ok(
+    summary.preList.work.some((work) =>
+      work.blockers.some(
+        (blocker) =>
+          blocker.category === 'conversation-previews' &&
+          blocker.elapsedMs === 1170,
+      ),
+    ),
+  );
+  const exported = JSON.stringify(recording.report());
+  assert.ok(!exported.includes(f.raw.groupId));
+  assert.ok(!exported.includes(f.raw.actor));
+  assert.ok(!exported.includes('synthetic-private-signature'));
+});

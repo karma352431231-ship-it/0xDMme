@@ -100,7 +100,7 @@ export class AuthorityWork {
       return Promise.reject(
         new Error('Wait for conversations to update, then try again.'),
       );
-    const trace = startAuthorityWork(diagnostic, priority);
+    const trace = startAuthorityWork(diagnostic, priority, this);
     const queuedAt = performance.now();
     const deadline = queuedAt + 8000;
     return new Promise<T>((resolve, reject) => {

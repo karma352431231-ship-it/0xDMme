@@ -57,9 +57,10 @@ export class Recording {
   }
   report() {
     const comparison = this.sends.report();
+    const flow = this.flows.report();
     return {
       schema: 3,
-      meterRevision: 4,
+      meterRevision: 5,
       collectorCommit:
         typeof CHAT_DIAGNOSTIC_COMMIT === 'string'
           ? CHAT_DIAGNOSTIC_COMMIT
@@ -90,11 +91,11 @@ export class Recording {
       },
       events: this.events.map((event) => ({ ...event })),
       comparison,
-      loading: this.loads.report(),
+      loading: this.loads.report(flow),
       nativeRequests: this.nativeRequests.report(),
       clock: this.clock.report(),
       handleDelivery: this.handles.report(comparison.sends),
-      deliveryFlow: this.flows.report(),
+      deliveryFlow: flow,
     };
   }
 }

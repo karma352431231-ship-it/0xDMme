@@ -44,7 +44,27 @@ const startupKinds = new Set<unknown>([
 export function startupLoadKind(value: unknown): value is LoadKind {
   return startupKinds.has(value);
 }
+/** Capture-local capability. It is never serialized or sent to an API. */
+export interface LoadToken {
+  owner: object;
+  slot: number;
+  startedMs: number;
+  active: () => boolean;
+  point: (stage: LoadStage) => void;
+}
+export const groupStartupStages = [
+  'identities-start',
+  'identities-end',
+  'vault-request',
+  'vault-acquired',
+  'vault-ready',
+  'group-mode-start',
+  'group-mode-end',
+  'group-list-send',
+] as const;
+export type GroupStartupStage = (typeof groupStartupStages)[number];
 export const loadStages = [
+  ...groupStartupStages,
   'entry',
   'bridge-ready',
   'document-response',
@@ -111,6 +131,7 @@ export interface LoadDiagnosticFields extends NativeTimingFields {
   loadKind?: LoadKind;
   loadStage?: LoadStage;
   loadMs?: number;
+  loadClockMs?: number;
   loadStageMs?: number;
   loadRows?: number;
   loadBytes?: number;
@@ -147,6 +168,7 @@ export function copyLoadDiagnostic(
     'bootTaskMs',
     'load',
     'loadMs',
+    'loadClockMs',
     'loadStageMs',
     'loadRows',
     'loadBytes',

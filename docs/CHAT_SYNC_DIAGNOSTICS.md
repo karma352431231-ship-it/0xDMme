@@ -451,3 +451,15 @@ attribution and the next two-device capture, follow
 [Handle delivery instrumentation](HANDLE_DELIVERY_INSTRUMENTATION.md). Complete
 delivery requires matching updated app hooks and server/native transports;
 pasting the new script into an older app cannot provide the missing stages.
+
+## Group directory startup linkage
+
+Collector revision 5 adds group-directory pre-list attribution through the first
+group-list dispatch. Group identity loading, authority admission, verified
+context preparation and group-mode share the load slot and document clock.
+The summary intersects explicitly linked waits with observed holders in the same
+anonymous authority queue and retains overlaps and unattributed intervals.
+The field and coverage contract is documented in
+[Mobile loading diagnostics](MOBILE_LOAD_DIAGNOSTICS.md#group-directory-pre-list-attribution-collector-revision-5).
+This increment instruments the existing flow. Performance changes require the
+next capture and attribution against this shared-clock evidence.

@@ -8,6 +8,8 @@ export class StartupDetails {
   observe(event: TraceEvent): void {
     const milestone =
       event.kind === 'reuse-boot' ||
+      (event.kind === 'reuse-authority-work' &&
+        typeof event['load'] === 'number') ||
       (event.kind === 'reuse-load' && startupLoadKind(event['loadKind']));
     if (!milestone && typeof event['beforeCaptureMs'] !== 'number') return;
     const lane = milestone ? this.milestones : this.timeline;

@@ -269,28 +269,44 @@ export class Messages {
     const generation = this.generation,
       previewGeneration = this.previewGeneration,
       guard = () => this.guardPreviews(previewGeneration);
+    const diagnostic: VaultWorkOptions = {
+      diagnosticOperation: 'conversation-previews',
+    };
     let snapshot: unknown;
-    const previews = await this.access.withVault(false, async (a) => {
-      const api = async (
-        operation: string,
-        payload: Record<string, unknown>,
-      ) => {
-        const value = await messageApi(a, operation, payload, guard);
-        if (operation === 'snapshot') snapshot = value;
-        return value;
-      };
-      return readDirectoryPreviews({
-        peers,
-        api,
-        guard,
-        read: (snapshot, items) =>
-          this.readPreviewViews({ a, generation, api, snapshot, items, guard }),
-      });
-    });
-    await this.savePins();
+    const previews = await this.access.withVault(
+      false,
+      async (a) => {
+        const api = async (
+          operation: string,
+          payload: Record<string, unknown>,
+        ) => {
+          const value = await messageApi(a, operation, payload, guard);
+          if (operation === 'snapshot') snapshot = value;
+          return value;
+        };
+        return readDirectoryPreviews({
+          peers,
+          api,
+          guard,
+          read: (snapshot, items) =>
+            this.readPreviewViews({
+              a,
+              generation,
+              api,
+              snapshot,
+              items,
+              guard,
+            }),
+        });
+      },
+      diagnostic,
+    );
+    await this.savePins(diagnostic);
     guard();
-    await this.access.withVault(false, (a) =>
-      messageApi(a, 'confirm', { snapshot }, guard),
+    await this.access.withVault(
+      false,
+      (a) => messageApi(a, 'confirm', { snapshot }, guard),
+      diagnostic,
     );
     guard();
     return previews;
@@ -868,7 +884,10 @@ export class Messages {
 
   async archivedPeers(after: string | null, work: VaultWorkOptions = {}) {
     if (this.session && networkAvailable())
-      return this.access.withVault(false, (a) => historyPeers(a, after), work);
+      return this.access.withVault(false, (a) => historyPeers(a, after), {
+        diagnosticOperation: 'archived-peers',
+        ...work,
+      });
     const locator = await localLocator();
     if (!locator) return { items: [], next: null };
     return this.access.withLocalVault(locator, (a) => historyPeers(a, after));

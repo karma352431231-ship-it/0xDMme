@@ -555,5 +555,5 @@ await test('group preview index continuations retain one summary and presentatio
     'group-directory',
     'group-previews',
   ]);
-  assert.equal(report.meterRevision, 4);
+  assert.equal(report.meterRevision, 5);
 });

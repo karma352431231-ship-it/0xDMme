@@ -7,7 +7,11 @@ import {
 } from '../message-api/index.ts';
 import type { AttachmentApi } from '../attachments/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
-import type { VaultAccess, VaultAuthority } from '../vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultAuthority,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import { GroupGovernance } from './governance.ts';
 
 export interface GroupContext {
@@ -49,11 +53,16 @@ export class GroupAuthority {
   async run<T>(
     guard: () => void,
     work: (context: GroupContext) => Promise<T>,
+    diagnostic: VaultWorkOptions = {},
   ): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.once(guard, work, (authority, op, payload) =>
-          messageApi(authority, op, payload, guard),
+        return await this.once(
+          guard,
+          work,
+          (authority, op, payload) =>
+            messageApi(authority, op, payload, { guard, ...diagnostic }),
+          diagnostic,
         );
       } catch (error: unknown) {
         if (!rateLimited(error) || attempt >= 2) throw error;
@@ -69,6 +78,7 @@ export class GroupAuthority {
       op: string,
       payload: Record<string, unknown>,
     ) => Promise<unknown>,
+    diagnostic: VaultWorkOptions = {},
   ): Promise<T> {
     const session = this.options.session();
     if (!session) throw new Error('Sign in and authorize this device.');
@@ -93,7 +103,7 @@ export class GroupAuthority {
         guard();
         return result;
       },
-      { diagnosticOperation: 'group' },
+      { diagnosticOperation: 'group', ...diagnostic },
     );
   }
 }

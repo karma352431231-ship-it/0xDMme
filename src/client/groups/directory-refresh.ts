@@ -1,3 +1,4 @@
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { groupEvent, groupEventHash } from '../../shared/groups/index.ts';
@@ -16,6 +17,7 @@ export interface GroupSummary extends GroupState {
   localOnly?: boolean;
 }
 interface DirectoryRead {
+  trace?: LoadTrace | undefined;
   authority: <T>(work: (context: GroupContext) => Promise<T>) => Promise<T>;
   identities: PeerIdentity;
   after: string | null;
@@ -27,9 +29,11 @@ interface DirectoryRead {
 /** Bounded, currently authorized summaries only. No outbox, invitations or
  * selected-history work is part of reading a directory page. */
 export async function readGroupDirectory(input: DirectoryRead) {
-  const page = await input.authority((context) =>
-    readGroupDirectoryPage(context, input.after),
-  );
+  input.trace?.point('vault-request');
+  const page = await input.authority((context) => {
+    input.trace?.point('vault-ready');
+    return readGroupDirectoryPage(context, input.after, input.trace);
+  });
   const entries: GroupSummary[] = [];
   for (const raw of page.groups)
     entries.push(
@@ -52,8 +56,15 @@ export async function readGroupDirectory(input: DirectoryRead) {
 export async function readGroupDirectoryPage(
   context: GroupContext,
   after: string | null,
+  trace?: LoadTrace,
 ) {
-  const mode = object(await context.api('group-mode', {}))['mode'];
+  trace?.point('group-mode-start');
+  let mode: unknown;
+  try {
+    mode = object(await context.api('group-mode', {}))['mode'];
+  } finally {
+    trace?.point('group-mode-end');
+  }
   if (mode !== 'configured') throw new Error('Invalid group mode.');
   const page = object(await context.api('group-list', { after }));
   if (!Array.isArray(page['items']) || page['items'].length > 16)

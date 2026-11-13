@@ -1,5 +1,9 @@
 import type { TraceEvent } from './events.ts';
 import { handleListCallers } from '../../shared/chat-sync-diagnostics/flow.ts';
+export interface AuthorityWorkSummary {
+  slot: number;
+  events: TraceEvent[];
+}
 /** Separate bounded summaries survive eviction of the detailed network log. */
 export class FlowSummaries {
   private readonly reads = new Map<number, TraceEvent[]>();

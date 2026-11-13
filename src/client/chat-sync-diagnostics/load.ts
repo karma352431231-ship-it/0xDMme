@@ -1,6 +1,7 @@
 import type {
   LoadDiagnosticFields,
   LoadStage,
+  LoadToken,
 } from '../../shared/chat-sync-diagnostics/load.ts';
 
 type Fields = Pick<
@@ -19,6 +20,7 @@ type Fields = Pick<
 >;
 /** One capture-local attempt. Its caller owns completion/cancellation. */
 export interface LoadTrace {
+  token?: LoadToken;
   point: (stage: LoadStage, fields?: Fields) => void;
   measure: <T>(stage: LoadStage, work: () => Promise<T>) => Promise<T>;
   frame: (host: HTMLElement, current: () => boolean) => void;
@@ -38,9 +40,11 @@ export function createLoadTrace(
   let framePending = false;
   const point: LoadTrace['point'] = (stage, fields = {}) => {
     if (ended) return;
+    const at = Math.round(performance.now());
     emit({
       loadStage: stage,
-      loadMs: Math.max(0, Math.round(performance.now() - started)),
+      loadClockMs: at,
+      loadMs: Math.max(0, at - Math.round(started)),
       ...fields,
     });
     ended = ['complete', 'failed', 'cancelled'].includes(stage);

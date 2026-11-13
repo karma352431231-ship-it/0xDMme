@@ -48,6 +48,7 @@ export class EarlyCapture {
     if (!trace) return;
     const important =
       trace.event === 'boot' ||
+      (trace.event === 'authority-work' && trace.load !== undefined) ||
       (trace.event === 'load' && startupLoadKind(trace.loadKind));
     const lane = important ? this.milestones : this.timeline;
     const limit = important ? 512 : 988;

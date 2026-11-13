@@ -178,3 +178,67 @@ Missing or dropped events still require checking capture coverage and overflow.
 Available document-response and script-response resource durations complement the
 entry, bridge-ready and modules stages. They do not isolate CPU evaluation or
 measure time before Activity.onCreate.
+
+## Group directory pre-list attribution, collector revision 5
+
+The requested window starts at group-directory start and ends at the first
+client transport dispatch of group-list. The installed app and collector both
+need this instrumentation. An older app produces explicit missing-clock or
+not-dispatched coverage, while collector revision 5 preserves the new fields.
+Collector commit and dirty state continue identifying the exact console build.
+
+Each group-directory operation records identities-start/end, vault-request,
+vault-acquired, vault-ready, group-mode-start/end and group-list-send. Every
+point uses the document's performance.now clock and the same anonymous load
+slot. Vault-acquired is actual entry to the exclusive authority turn. Vault-ready
+follows device/directory/key preparation and the group authority checks. Group-mode
+covers signing, transport, response/body decoding and its existing API guards.
+Group-list-send marks client transport dispatch after signing. It does not measure
+when a native socket first sends bytes.
+
+The load capability stays in process. Identity loading and directory authority
+requests carry it into the existing authority queue without changing admission,
+priority, fairness, retries, authorization or persistence. Authority phases carry
+that load slot, a capture-local anonymous queue slot and workClockMs from the same
+performance clock. Capabilities and timing fields never enter API payloads.
+The first group-list dispatch closes the pre-list capability. Later group/profile
+turns cannot add pre-list work to it. Stop, expiry and capture replacement also
+invalidate capabilities.
+
+Read loading.operations[].preList on the group-directory summary. Milestones and
+interval endpoints are relative to that operation's start. The existing startedMs
+places it on the capture timeline, including negative early-startup values.
+
+- durationsMs reports identity loading, linked vault queue, linked vault execution,
+  authority preparation, group-mode and preparation of the first group-list request.
+- intervals and overlaps retain which stages overlap. Identity loading can contain
+  its own vault waits. Group-mode and signing can run inside vault execution.
+  These stage durations must not be added together.
+- accounting partitions the pre-list wall time into queueMs, executionMs and
+  unattributedMs. Queue intervals are unioned first. Execution is covered stage
+  wall time outside explicitly linked vault queue waits and includes I/O and
+  dependency waits within observed stages. It is not CPU time. The uncovered
+  remainder is reported with explicit unattributedIntervals.
+- work preserves queued/admitted/acquired/finished points for linked requests.
+  Scheduler wait and native admission wait remain separate. Occupant categories
+  come from the overlap of observed holder execution with that wait in the same
+  anonymous authority queue. They are never inferred from a nearby unlinked
+  request. Replaced occupants produce separate category durations.
+- An unobserved holder, another document's native lock owner or missing boundaries
+  remain unobserved. Contradictory overlapping holders are ambiguous. Generic
+  vault is a valid fixed category when an existing caller has no finer label.
+- coverage reports missing milestones, milestone overflow and authority-summary
+  overflow. Missing evidence does not establish a zero queue wait or completion.
+
+The existing ten-minute duration, 1,500-event timeline, 512/988 early lanes,
+64 load summaries, 512 authority summaries and eight points per authority work
+stay bounded. Each existing group-directory load slot retains at most 32 pre-list
+milestones. Linked authority points share the existing startup milestone lane.
+Anonymous counts, categories and timings are retained, with no automatic upload.
+
+The synthetic source-wiring regression reproduces a 2,550 ms interval, including
+700 ms of identity work, an explicitly linked 1,170 ms vault wait, 380 ms of
+verified-authority preparation, 200 ms of group-mode and 100 ms of request
+preparation. Separate aggregation tests reject attribution of an unrelated
+1,170 ms wait and retain missing/overlapping evidence. These are test inputs;
+they do not establish the cause of the owner's earlier 7.06-to-9.61-second capture.

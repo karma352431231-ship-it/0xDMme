@@ -1,3 +1,5 @@
+import { GroupDirectoryPrelude } from './group-startup.ts';
+import type { AuthorityWorkSummary } from './flow.ts';
 import { StartupDetails } from './startup.ts';
 import { bootMilestones } from '../../shared/chat-sync-diagnostics/boot.ts';
 import {
@@ -45,12 +47,14 @@ interface LoadSummary {
   transfer: Record<string, number>;
   stages: Partial<Record<LoadStage, StageTiming>>;
   initial?: boolean;
+  preList?: ReturnType<GroupDirectoryPrelude['report']>;
 }
 /** Bounded operation summaries outlive detailed timeline eviction. */
 export class ComparisonLoads {
   private readonly details = new StartupDetails();
   private readonly loads = new Map<number, LoadSummary>();
   private overflow = 0;
+  private readonly groupPreludes = new Map<number, GroupDirectoryPrelude>();
   private native = false;
   private coverage = false;
   private early = false;
@@ -68,6 +72,9 @@ export class ComparisonLoads {
     }
     if (event.kind === 'reuse-boot') this.observeBoot(event);
     if (event.kind === 'long-task') this.longTask(event);
+    this.observeLoad(event);
+  }
+  private observeLoad(event: TraceEvent): void {
     if (event.kind !== 'reuse-load' || typeof event['load'] !== 'number')
       return;
     const stage = loadStages.find((value) => value === event['loadStage']);
@@ -76,6 +83,7 @@ export class ComparisonLoads {
     const summary = this.get(event, kind);
     if (!summary) return;
     this.update(summary, event, stage);
+    this.groupPreludes.get(summary.slot)?.observe(event);
   }
   private observeBoot(event: TraceEvent): void {
     const milestone = event['bootMilestone'];
@@ -156,9 +164,16 @@ export class ComparisonLoads {
       stages: {},
     };
     this.loads.set(slot, summary);
+    if (kind === 'group-directory')
+      this.groupPreludes.set(slot, new GroupDirectoryPrelude());
     return summary;
   }
-  report() {
+  report(
+    flow: { authority: readonly AuthorityWorkSummary[]; overflow: boolean } = {
+      authority: [],
+      overflow: false,
+    },
+  ) {
     return {
       groupStartupKinds: [
         'useful-directory',
@@ -182,7 +197,12 @@ export class ComparisonLoads {
           'document-relative JavaScript; Android activity-relative milestones include bridge notification delay; no time before Activity.onCreate',
         timeline: 'negative ms precedes Mac console installation',
       },
-      operations: structuredClone([...this.loads.values()]),
+      operations: structuredClone([...this.loads.values()]).map((summary) => {
+        const prelude = this.groupPreludes.get(summary.slot);
+        return prelude
+          ? { ...summary, preList: prelude.report(summary.slot, flow) }
+          : summary;
+      }),
     };
   }
 }

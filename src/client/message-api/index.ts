@@ -1,3 +1,5 @@
+import { traceLoadPoint } from '../chat-sync-diagnostics/index.ts';
+import type { LoadToken } from '../../shared/chat-sync-diagnostics/load.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
@@ -6,11 +8,16 @@ import type {
   SigningAuthority,
   VaultAuthority,
 } from '../vault-authority/index.ts';
+interface MessageRequestControl {
+  guard: () => void;
+  signal?: AbortSignal;
+  diagnosticLoad?: LoadToken | undefined;
+}
 async function requestMessage(
   authority: SigningAuthority,
   operation: string,
   payload: Record<string, unknown>,
-  control: (() => void) | { guard: () => void; signal: AbortSignal },
+  control: (() => void) | MessageRequestControl,
 ): Promise<unknown> {
   const guard = typeof control === 'function' ? control : control.guard;
   // This one-shot response can contain the complete encrypted 10 MB file.
@@ -19,12 +26,14 @@ async function requestMessage(
     operation === 'view-once-open' ? 60000 : 15000,
   );
   const signal =
-    typeof control === 'function'
+    typeof control === 'function' || !control.signal
       ? timeout
       : AbortSignal.any([timeout, control.signal]);
   guard();
   const options = await prepareMessageRequest(authority, operation, payload);
   guard();
+  if (operation === 'group-list' && typeof control !== 'function')
+    traceLoadPoint(control.diagnosticLoad, 'group-list-send');
   const response = await fetchApi(
     `messages/${operation}`,
     `/api/account/messages/${operation}`,
@@ -41,7 +50,7 @@ export function messageApi(
   authority: SigningAuthority,
   operation: string,
   payload: Record<string, unknown>,
-  control: (() => void) | { guard: () => void; signal: AbortSignal },
+  control: (() => void) | MessageRequestControl,
 ): Promise<unknown> {
   return measureWork(authority, `messages/${operation}`, () =>
     requestMessage(authority, operation, payload, control),

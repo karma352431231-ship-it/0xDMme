@@ -28,6 +28,8 @@ import type { LoadTrace } from './load.ts';
 import type {
   LoadKind,
   LoadDiagnosticFields,
+  LoadToken,
+  LoadStage,
 } from '../../shared/chat-sync-diagnostics/load.ts';
 export type { LoadTrace } from './load.ts';
 export type { HandleSendToken } from '../../shared/chat-sync-diagnostics/flow.ts';
@@ -255,12 +257,15 @@ export function traceHandleFrame(): (
 export function startLoad(
   kind: LoadKind,
   peer: string | null = null,
-  started?: number,
+  started = performance.now(),
 ): LoadTrace | undefined {
   if (!chatSyncActive()) return;
   const generation = capture,
     load = ++nextLoad;
-  return createLoadTrace((fields) => {
+  let ended = false;
+  const trace = createLoadTrace((fields) => {
+    if (['complete', 'failed', 'cancelled'].includes(fields.loadStage ?? ''))
+      ended = true;
     if (generation === capture)
       traceChatSync(loadOwner, peer, {
         event: 'load',
@@ -270,6 +275,21 @@ export function startLoad(
         ...fields,
       });
   }, started);
+  let dispatched = false;
+  if (kind === 'group-directory') {
+    const token = captureWork?.load({
+      slot: load,
+      startedMs: Math.round(started),
+      active: () => !dispatched && !ended,
+      point: (stage) => {
+        if (dispatched || generation !== capture) return;
+        trace.point(stage);
+        if (stage === 'group-list-send') dispatched = true;
+      },
+    });
+    if (token) trace.token = token;
+  }
+  return trace;
 }
 
 /** Transport timings include the guarded native bridge, headers and body demand.
@@ -550,8 +570,19 @@ export function traceHandleRead(
 export function startAuthorityWork(
   context: AuthorityDiagnosticContext = {},
   priority?: 'interactive',
+  resource?: object,
 ) {
-  return chatSyncActive() ? captureWork?.queue(context, priority) : undefined;
+  return chatSyncActive()
+    ? captureWork?.queue(context, priority, resource)
+    : undefined;
+}
+
+/** The capability remains local; only its validated anonymous slot is emitted. */
+export function traceLoadPoint(
+  token: LoadToken | undefined,
+  stage: LoadStage,
+): void {
+  if (chatSyncActive() && captureWork?.loadSlot(token)) token?.point(stage);
 }
 
 export function diagnosticCaptureSignal(): AbortSignal | undefined {

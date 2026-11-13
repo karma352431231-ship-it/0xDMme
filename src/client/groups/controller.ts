@@ -1,3 +1,4 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { loadingPresentation } from '../chat-sync-diagnostics/index.ts';
 import { readGroupDirectory, readGroupSummary } from './directory-refresh.ts';
 import type { GroupSummary } from './directory-refresh.ts';
@@ -285,12 +286,17 @@ export class GroupController {
   private withAuthority<T>(
     work: (context: GroupContext) => Promise<T>,
     selection?: () => void,
+    diagnostic: VaultWorkOptions = {},
   ): Promise<T> {
     const generation = this.generation;
-    return this.authority.run(() => {
-      this.guard(generation);
-      selection?.();
-    }, work);
+    return this.authority.run(
+      () => {
+        this.guard(generation);
+        selection?.();
+      },
+      work,
+      diagnostic,
+    );
   }
   private async machine<T>(
     c: GroupContext,
@@ -344,8 +350,8 @@ export class GroupController {
   async refreshDirectory(more = false): Promise<void> {
     const generation = this.generation;
     try {
-      await this.directoryLoading.run(async () => {
-        await this.loadDirectory(more);
+      await this.directoryLoading.run(async (trace) => {
+        await this.loadDirectory(more, trace);
         this.guard(generation);
         return this.entries.length;
       });
@@ -356,17 +362,31 @@ export class GroupController {
     this.guard(generation);
     this.previews.queue(this.entries);
   }
-  private async loadDirectory(more: boolean): Promise<void> {
+  private async loadDirectory(more: boolean, trace?: LoadTrace): Promise<void> {
     const generation = this.generation;
     this.directoryProfiles = null;
     if (!networkAvailable()) return this.refreshLocal(more);
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
-    await this.identities.load();
+    const diagnostic: VaultWorkOptions = {
+      diagnosticOperation: 'group-identities',
+      diagnosticLoad: trace?.token,
+    };
+    trace?.point('identities-start');
+    try {
+      await this.identities.load(diagnostic);
+    } finally {
+      trace?.point('identities-end');
+    }
     this.guard(generation);
     const data = await readGroupDirectory({
       identities: this.identities,
       after: more ? this.remoteNext : null,
-      authority: (read) => this.withAuthority(read),
+      authority: (read) =>
+        this.withAuthority(read, undefined, {
+          ...diagnostic,
+          diagnosticOperation: 'group-directory',
+        }),
+      trace,
       machine: (context, read) => this.machine(context, read),
     });
     this.guard(generation);
