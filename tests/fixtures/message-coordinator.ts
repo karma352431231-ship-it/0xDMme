@@ -389,6 +389,7 @@ export function coordinatorFixture(
         calls.push('pins');
         return Promise.resolve();
       },
+      takeStartupIdentities: () => undefined,
       savePins: asyncNoop,
       shareProfile: (peer: string) => {
         calls.push('profile:' + peer);
