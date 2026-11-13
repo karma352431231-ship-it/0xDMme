@@ -166,3 +166,15 @@ base64 conversion separately from `native-append`. `native-transfer` encompasses
 the operation and records planned bytes/blocks and acknowledged bytes/blocks.
 Partial failure preserves the last successful acknowledgement. The temporary
 binary copy is wiped on both success and failure; no viewer input is exported.
+
+## Startup collector revision 4
+
+Build the collector with the same reviewed source commit as the diagnostic APK.
+Reports now include collectorCommit and collectorDirty alongside meterRevision 4.
+The groupStartupKinds field lists useful-directory, group-directory and
+group-previews. Each group preview keeps one operation across bounded index turns,
+with verified, published, DOM and frame stages when the row is actually presented.
+Missing or dropped events still require checking capture coverage and overflow.
+Available document-response and script-response resource durations complement the
+entry, bridge-ready and modules stages. They do not isolate CPU evaluation or
+measure time before Activity.onCreate.

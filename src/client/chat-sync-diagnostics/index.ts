@@ -494,8 +494,11 @@ async function finishMeasuredLoad<T>(
 }
 
 /** The capture owner supplies trace creation; the presentation owns its lifetime. */
-export function loadingPresentation(kind: LoadKind): LoadingPresentation {
-  return new LoadingPresentation(() => startLoad(kind));
+export function loadingPresentation(
+  kind: LoadKind,
+  conversation: string | null = null,
+): LoadingPresentation {
+  return new LoadingPresentation(() => startLoad(kind, conversation));
 }
 
 export function startHandleRead(): HandleReadToken | undefined {

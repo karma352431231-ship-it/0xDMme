@@ -272,6 +272,8 @@ export function groupUiFixture() {
     async refreshDirectory() {},
     async finishDirectoryRefresh() {},
     directoryPresented() {},
+    previewPresented() {},
+    prepareDirectoryPreviews: () => Promise.resolve(false),
     open(id: string, _older: boolean, localOnly: boolean) {
       state.historyReads++;
       this.selected = {

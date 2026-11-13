@@ -1,3 +1,5 @@
+import { withSigner } from '../vault-authority/index.ts';
+import type { SigningAuthority } from '../vault-authority/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { keys, object, uuid } from '../../shared/account/index.ts';
@@ -55,6 +57,7 @@ export class Contacts {
   setSession(session: AccountSession | null): void {
     if (
       session?.accountId !== this.session?.accountId ||
+      session?.deviceId !== this.session?.deviceId ||
       session?.csrf !== this.session?.csrf
     ) {
       this.clear();
@@ -74,56 +77,58 @@ export class Contacts {
     if (!this.session || !networkAvailable())
       throw new Error('Sign in and connect to check current permissions.');
     const generation = this.generation;
-    return this.access.withVault(
-      false,
-      async (authority) => {
-        if (
-          authority.session.accountId !== this.session?.accountId ||
-          generation !== this.generation
-        )
-          throw new Error('Session changed.');
-        const proof = { directory: authority.directory, payload };
-        const signature = await authority.sign(
-          contactBody(
-            authority.session.accountId,
-            authority.session.deviceId,
-            operation,
-            proof,
-          ),
-        );
-        const mutation = [
-          'configure',
-          'request',
-          'respond',
-          'cancel',
-          'block',
-          'unblock',
-        ].includes(operation);
-        if (mutation) notifyMessageControls();
-        const response = await fetchApi(
-          `contacts/${operation}`,
-          `/api/account/contacts/${operation}`,
-          {
-            method: 'POST',
-            credentials: 'same-origin',
-            cache: 'no-store',
-            redirect: 'error',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Hash-Talk-CSRF': authority.session.csrf,
-            },
-            body: JSON.stringify({ ...proof, signature }),
-            signal: AbortSignal.timeout(8000),
+    const request = async (authority: SigningAuthority) => {
+      if (
+        authority.session.accountId !== this.session?.accountId ||
+        generation !== this.generation
+      )
+        throw new Error('Session changed.');
+      const proof = { directory: authority.directory, payload };
+      const signature = await authority.sign(
+        contactBody(
+          authority.session.accountId,
+          authority.session.deviceId,
+          operation,
+          proof,
+        ),
+      );
+      const mutation = [
+        'configure',
+        'request',
+        'respond',
+        'cancel',
+        'block',
+        'unblock',
+      ].includes(operation);
+      if (mutation) notifyMessageControls();
+      const response = await fetchApi(
+        `contacts/${operation}`,
+        `/api/account/contacts/${operation}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Hash-Talk-CSRF': authority.session.csrf,
           },
-        );
-        const data = await readApiJson(response, `contacts/${operation}`);
-        if (generation !== this.generation)
-          throw new Error('Session changed during the operation.');
-        if (mutation) notifyMessageControls();
-        return data;
-      },
-      work,
-    );
+          body: JSON.stringify({ ...proof, signature }),
+          signal: AbortSignal.timeout(8000),
+        },
+      );
+      const data = await readApiJson(response, `contacts/${operation}`);
+      if (generation !== this.generation)
+        throw new Error('Session changed during the operation.');
+      if (mutation) notifyMessageControls();
+      return data;
+    };
+    // Listing signs an authorized request and touches no vault, secret or SDK.
+    // The signing lane checks the current directory before the server checks
+    // permission. Vault-backed callers retain their original exclusive turn.
+    return operation === 'list'
+      ? withSigner(this.access, request, work)
+      : this.access.withVault(false, request, work);
   }
   async refresh(): Promise<void> {
     this.acceptState(await this.api('state', {}));

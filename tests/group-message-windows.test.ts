@@ -705,3 +705,21 @@ await test('a persisted group window reconciles new rows and unavailable media a
     /Check rejected/,
   );
 });
+
+await test('latest group preview waits for a complete index, reuses the verified window and never sends read acknowledgements', async () => {
+  const { c, data, add } = await fixture();
+  add('Latest verified message');
+  const windows = new GroupMessageWindows();
+  await assert.rejects(
+    windows.latest({ ...c, indexPages: 1 }),
+    IncompleteGroupIndex,
+  );
+  assert.ok(!data.calls.some((call) => call.op === 'group-message-recent'));
+  const result = await windows.latest({ ...c, indexPages: 1 });
+  assert.equal(result.views.at(-1)?.text, 'Latest verified message');
+  const decoded = data.decoded.length;
+  await windows.read(c, null);
+  assert.equal(data.decoded.length, decoded);
+  assert.ok(data.calls.some((call) => call.op === 'group-message-confirm'));
+  assert.ok(!data.calls.some((call) => call.op === 'group-message-read'));
+});

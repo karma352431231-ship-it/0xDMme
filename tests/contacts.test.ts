@@ -422,3 +422,50 @@ await test('own public identity matches the contact-verified reference; tampered
   controller.setSession(null);
   await assert.rejects(controller.ownIdentity());
 });
+
+await test('approved-contact listing uses verified signing without waiting for an unrelated vault owner and rejects invalidated results', async (t) => {
+  const { Contacts } = await import('../src/client/contacts/controller.ts');
+  const { deferred } = await import('./fixtures/deferred.ts');
+  const session = {
+    accountId,
+    deviceId,
+    csrf: 'a'.repeat(64),
+    ecosystem: 'evm' as const,
+    address: wallet.address,
+    name: '',
+    deviceState: 'pending' as const,
+    historyAuthorized: false as const,
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+    profileRevision: 0,
+  };
+  let signed = 0;
+  const controller = new Contacts({
+    withVault: () => Promise.reject(new Error('Unrelated vault owner is held')),
+    withLocalVault: () => Promise.reject(new Error('No offline access')),
+    withSigner: (work) =>
+      work({
+        session,
+        directory: 'b'.repeat(64),
+        sign: () => {
+          signed++;
+          return Promise.resolve('synthetic');
+        },
+      }),
+  });
+  controller.setSession(session);
+  const response = deferred<Response>();
+  t.mock.method(globalThis, 'fetch', () => response.promise);
+  const listing = controller.list('approved');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(signed, 1);
+  response.resolve(Response.json({ items: [], next: null }));
+  assert.deepEqual((await listing).items, []);
+  const stale = deferred<Response>();
+  t.mock.method(globalThis, 'fetch', () => stale.promise);
+  const invalidated = controller.list('approved');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  controller.setSession(null);
+  stale.resolve(Response.json({ items: [], next: null }));
+  await assert.rejects(invalidated, /Session changed/u);
+  assert.equal(controller.pages.size, 0);
+});

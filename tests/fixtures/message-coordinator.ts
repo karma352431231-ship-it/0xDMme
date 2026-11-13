@@ -501,6 +501,8 @@ export function coordinatorFixture(
       return state.holdGroups ? groupLoad.promise : Promise.resolve();
     },
     directoryPresented: noop,
+    previewPresented: noop,
+    prepareDirectoryPreviews: () => Promise.resolve(false),
     // A general wakeup refreshes the directory like `refresh`.
     changed: (change: 'content' | 'receipts' | 'all') => {
       calls.push(change === 'all' ? 'groups' : 'group-' + change);

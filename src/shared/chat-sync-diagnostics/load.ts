@@ -14,6 +14,7 @@ export const loadKinds = [
   'conversation-previews',
   'useful-directory',
   'group-directory',
+  'group-previews',
   'optional-maintenance',
   'history',
   'handle-history',
@@ -38,6 +39,7 @@ const startupKinds = new Set<unknown>([
   'conversation-previews',
   'useful-directory',
   'group-directory',
+  'group-previews',
 ]);
 export function startupLoadKind(value: unknown): value is LoadKind {
   return startupKinds.has(value);
@@ -45,6 +47,8 @@ export function startupLoadKind(value: unknown): value is LoadKind {
 export const loadStages = [
   'entry',
   'bridge-ready',
+  'document-response',
+  'script-response',
   'modules',
   'session',
   'keys',
@@ -62,6 +66,7 @@ export const loadStages = [
   'work',
   'start',
   'verified',
+  'published',
   'dom',
   'frame',
   'queue',

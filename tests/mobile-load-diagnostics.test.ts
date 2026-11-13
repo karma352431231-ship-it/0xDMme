@@ -56,6 +56,8 @@ await test('verified group and preview publication include a visible-frame oppor
     getClientRects: () => [{}],
   } as unknown as HTMLElement;
   const groups = loadingPresentation('group-directory');
+  const groupPreviews = loadingPresentation('group-previews');
+  await groupPreviews.run(() => Promise.resolve(0));
   await groups.run(() => Promise.resolve(0));
   const previews = new ConversationPreviewLoader({
     load: () => Promise.resolve(new Map()),
@@ -71,12 +73,13 @@ await test('verified group and preview publication include a visible-frame oppor
     true,
   );
   groups.presented(host);
+  groupPreviews.presented(host);
   previews.presented(host);
   for (const frame of frames.splice(0)) frame(0);
   const operations = recording.report().loading.operations;
   assert.deepEqual(
     operations.map((operation) => operation.kind),
-    ['group-directory', 'conversation-previews'],
+    ['group-previews', 'group-directory', 'conversation-previews'],
   );
   assert.equal(
     operations.every(
@@ -91,6 +94,7 @@ await test('verified group and preview publication include a visible-frame oppor
     operations.every(
       (operation) =>
         operation.stages.verified &&
+        operation.stages.published &&
         operation.stages.dom &&
         operation.stages.frame,
     ),
@@ -526,4 +530,30 @@ await test('validated viewer bytes bypass base64 conversion and are wiped after 
   const late = new Uint8Array([1]);
   assert.throws(() => closed.adopt(late), { name: 'AbortError' });
   assert.equal(late[0], 0);
+});
+
+await test('group preview index continuations retain one summary and presentation after more than 64 turns', async (t) => {
+  const { recording } = fixture(t);
+  const loading = loadingPresentation('group-previews');
+  const continuation = new Error('Synthetic continuation');
+  for (let turn = 0; turn < 80; turn++)
+    await assert.rejects(
+      loading.run(
+        () => Promise.reject(continuation),
+        (error) => error === continuation,
+      ),
+      continuation,
+    );
+  await loading.run(() => Promise.resolve(1));
+  const report = recording.report();
+  assert.equal(report.loading.operations.length, 1);
+  assert.equal(report.loading.overflow, 0);
+  assert.equal(report.loading.operations[0]?.rows, 1);
+  assert.ok(report.loading.operations[0]?.stages.verified);
+  assert.deepEqual(report.loading.groupStartupKinds, [
+    'useful-directory',
+    'group-directory',
+    'group-previews',
+  ]);
+  assert.equal(report.meterRevision, 4);
 });

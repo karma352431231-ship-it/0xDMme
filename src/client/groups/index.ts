@@ -575,6 +575,9 @@ export function startGroups(
     refresh,
     refreshDirectory,
     finishDirectoryRefresh,
+    prepareDirectoryPreviews: () => controller.prepareDirectoryPreviews(),
+    previewPresented: (host: HTMLElement, groups: readonly string[]) =>
+      controller.previewPresented(host, groups),
     directoryPresented: (host: HTMLElement, matchingRows: boolean) =>
       controller.directoryPresented(host, matchingRows),
     /** A categorized change; only a general wakeup refreshes the directory. */

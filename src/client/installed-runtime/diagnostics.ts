@@ -23,6 +23,7 @@ export function startInstalledDiagnostics(
   trace?.point('bridge-ready', {
     loadStageMs: Math.round(performance.now() - entryMs),
   });
+  documentAvailability(trace);
   const abort = new AbortController();
   const reported = new Set<BootMilestone>();
   const report = (milestone: BootMilestone) => {
@@ -82,3 +83,30 @@ const presentationMilestones: Partial<Record<LoadKind, BootMilestone>> = {
   'contacts-screen': 'contacts-screen-frame',
   'conversation-list': 'conversations-frame',
 };
+
+/** Browser resource clocks separate document/script availability from entry
+ * and bridge waits. WebViews that omit these entries leave the stages absent. */
+function documentAvailability(trace: ReturnType<typeof startLoad>): void {
+  if (!trace || typeof performance.getEntriesByType !== 'function') return;
+  const navigation = performance.getEntriesByType('navigation')[0];
+  if (
+    typeof PerformanceNavigationTiming !== 'undefined' &&
+    navigation instanceof PerformanceNavigationTiming
+  )
+    trace.point('document-response', {
+      loadStageMs: Math.round(navigation.responseEnd - navigation.startTime),
+    });
+  const app = [...document.scripts].find((script) =>
+    /\/app-[a-f0-9]+\.js$/u.test(script.src),
+  );
+  if (!app) return;
+  const resource = performance.getEntriesByName(app.src)[0];
+  if (
+    typeof PerformanceResourceTiming !== 'undefined' &&
+    resource instanceof PerformanceResourceTiming
+  )
+    trace.point('script-response', {
+      loadStageMs: Math.round(resource.responseEnd - resource.startTime),
+      loadBytes: resource.encodedBodySize,
+    });
+}

@@ -1074,3 +1074,14 @@ The owner authorized completing the private-group interaction gaps and extending
 view-once delivery to one opening per eligible recipient account, including local
 Android and iPhone builds ready for installation. This supersedes the earlier
 exclusion of groups from view-once messages. See [the implementation contract](PRIVATE_GROUP_CHAT_PARITY.md).
+
+### Useful startup second pass, 2026-11-13
+
+The owner approved section 14 of the temporary startup brief, main/VPS publication
+and preparation of Android/iPhone artifacts. Approved-contact reads use the
+existing verified signing lane. Direct previews and group-directory work are
+independently eligible, and visible group previews receive bounded verified turns
+before optional maintenance. Preview projection stays in memory. Existing
+permission, retention, cryptographic and read-acknowledgement policies apply.
+The implementation and remaining physical timing acceptance are recorded in
+[Useful conversation startup](USEFUL_CONVERSATION_STARTUP.md).

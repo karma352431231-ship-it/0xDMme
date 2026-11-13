@@ -18,6 +18,7 @@ import { GroupCatalog } from '../src/client/groups/catalog.ts';
 import type { CatalogGroup } from '../src/client/groups/catalog.ts';
 import { GroupGovernance } from '../src/client/groups/governance.ts';
 import { readGroupDirectory } from '../src/client/groups/directory-refresh.ts';
+import type { GroupContext } from '../src/client/groups/authority.ts';
 import { groupEventHash } from '../src/shared/groups/index.ts';
 import { PeerIdentity } from '../src/client/peer-identity/index.ts';
 import type { MessageCrypto } from '../src/client/message-crypto/index.ts';
@@ -108,8 +109,15 @@ function directoryReadFixture(t: TestContext) {
   const input = {
     identities,
     after: null,
-    machine: <T>(work: (machine: MessageCrypto) => Promise<T>) =>
-      work({} as MessageCrypto),
+    machine: <T>(
+      _context: GroupContext,
+      work: (machine: MessageCrypto) => Promise<T>,
+    ) =>
+      _context.authority === authority
+        ? work({} as MessageCrypto)
+        : Promise.reject(new Error('Wrong authority')),
+    authority: <T>(work: (context: GroupContext) => Promise<T>) =>
+      work(input.context),
     context: {
       authority,
       governance,

@@ -335,6 +335,12 @@ export function startMessages(
         host,
         entries.some((entry) => entry.kind === 'group'),
       );
+      groups.previewPresented(
+        host,
+        entries
+          .filter((entry) => entry.kind === 'group' && !!entry.preview)
+          .map((entry) => entry.id),
+      );
     },
     previews: previews.values,
     previewsFailed: () => previews.failed,
@@ -578,6 +584,7 @@ export function startMessages(
       return admitted;
     },
     groups: () => groups.refreshDirectory(),
+    groupPreviews: () => groups.prepareDirectoryPreviews(),
     settled: () => {
       options.directorySettled?.(session);
       startupWarmup.resume();

@@ -1,3 +1,5 @@
+declare const CHAT_DIAGNOSTIC_COMMIT: string;
+declare const CHAT_DIAGNOSTIC_DIRTY: boolean;
 import { ClockCalibration } from './clock.ts';
 import { FlowSummaries } from './flow.ts';
 import { ComparisonSends } from './sends.ts';
@@ -57,7 +59,15 @@ export class Recording {
     const comparison = this.sends.report();
     return {
       schema: 3,
-      meterRevision: 3,
+      meterRevision: 4,
+      collectorCommit:
+        typeof CHAT_DIAGNOSTIC_COMMIT === 'string'
+          ? CHAT_DIAGNOSTIC_COMMIT
+          : 'unbundled',
+      collectorDirty:
+        typeof CHAT_DIAGNOSTIC_DIRTY === 'boolean'
+          ? CHAT_DIAGNOSTIC_DIRTY
+          : null,
       appAssets: applicationAssets(),
       active: this.ended === null,
       elapsedMs: this.elapsed(),

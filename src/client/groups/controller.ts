@@ -17,9 +17,8 @@ import {
   encodeGroupText,
   decodeGroupText,
 } from '../../shared/group-messages/index.ts';
-import { conversationPreview } from '../conversation-preview/index.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
-import { groupMessageView } from './message-content.ts';
+import { GroupPreviews } from './previews.ts';
 import { withSigner } from '../vault-authority/index.ts';
 import { recoveryKey } from '../../shared/messages/index.ts';
 import { validReaction, pinText } from '../../shared/daily/index.ts';
@@ -123,7 +122,17 @@ export class GroupController {
   private directoryProfiles: readonly string[] | null = null;
   private readonly directoryChanged: () => void;
   private focus: { group: string; sequence: number } | null = null;
-  private readonly previews = new Map<string, ConversationPreview>();
+  private readonly previews = new GroupPreviews({
+    read: (group, guard) => this.readDirectoryPreview(group, guard),
+    selected: () => this.selected?.state.groupId ?? null,
+    changed: () => this.directoryChanged(),
+    failed: (error) => {
+      this.warning =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Could not complete the operation.');
+    },
+  });
   preview(group: string): ConversationPreview | undefined {
     return this.previews.get(group);
   }
@@ -233,7 +242,7 @@ export class GroupController {
     this.focus = null;
   }
   close(): void {
-    this.directoryLoading.cancel();
+    this.directoryLoading.reset();
     this.directoryProfiles = null;
     this.deselect();
     this.ownRemovals.clear();
@@ -253,7 +262,7 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
-    this.directoryLoading.cancel();
+    this.directoryLoading.reset();
     this.directoryProfiles = null;
     this.ownRemovals.clear();
     this.mediaMemory.clear();
@@ -345,6 +354,7 @@ export class GroupController {
       throw error;
     }
     this.guard(generation);
+    this.previews.queue(this.entries);
   }
   private async loadDirectory(more: boolean): Promise<void> {
     const generation = this.generation;
@@ -353,14 +363,12 @@ export class GroupController {
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
     await this.identities.load();
     this.guard(generation);
-    const data = await this.withAuthority((context) =>
-      readGroupDirectory({
-        context,
-        identities: this.identities,
-        after: more ? this.remoteNext : null,
-        machine: (work) => this.machine(context, work),
-      }),
-    );
+    const data = await readGroupDirectory({
+      identities: this.identities,
+      after: more ? this.remoteNext : null,
+      authority: (read) => this.withAuthority(read),
+      machine: (context, read) => this.machine(context, read),
+    });
     this.guard(generation);
     this.mode = 'configured';
     this.entries = more
@@ -755,16 +763,45 @@ export class GroupController {
     return true;
   }
   private rememberPreview(group: string, views: readonly GroupView[]): void {
-    const latest = views.at(-1);
-    if (latest)
-      this.previews.set(
+    this.previews.publish(group, views);
+  }
+  /** One latest-window turn; complete indexes and relations remain mandatory.
+   * Delivery processing is allowed, while read acknowledgement stays in open(). */
+  private async readDirectoryPreview(summary: GroupSummary, guard: () => void) {
+    const views = await this.withAuthority(async (c) => {
+      guard();
+      const group = await c.governance.verify(summary.state.groupId);
+      if (group.head !== summary.head)
+        throw new Error('The group list changed. Refresh it.');
+      const lease = new GroupMessageLease({
+        ...c,
         group,
-        conversationPreview({
-          ...latest,
-          displayText: groupMessageView(latest).content.text,
-        }),
-      );
-    else this.previews.delete(group);
+        identities: this.identities,
+      });
+      try {
+        const page = await this.messageWindows.latest({
+          ...c,
+          group,
+          guard,
+          identities: this.identities,
+          indexPages: 1,
+          read: (raw) => lease.read(raw),
+        });
+        guard();
+        return page.views;
+      } finally {
+        lease.close();
+      }
+    }, guard);
+    await this.identities.save(guard);
+    guard();
+    return views;
+  }
+  prepareDirectoryPreviews(): Promise<boolean> {
+    return this.previews.step();
+  }
+  previewPresented(host: HTMLElement, groups: readonly string[]): void {
+    this.previews.presented(host, groups);
   }
   private async openLocal(groupId: string, older: boolean): Promise<void> {
     this.selection.invalidate('replacement');

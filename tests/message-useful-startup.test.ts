@@ -24,6 +24,7 @@ function fixture() {
       calls.push('groups');
       return Promise.resolve();
     },
+    groupPreviews: undefined as undefined | (() => Promise<boolean>),
     settled: () => {
       settled++;
     },
@@ -109,21 +110,57 @@ await test('foreground/hidden/disconnected admission retains a pending startup u
   assert.equal(f.settled(), 1);
 });
 
-await test('a selected-chat request between startup steps runs first without losing the directory request', async () => {
+await test('an unresolved direct preview does not prevent group admission', async () => {
   const f = fixture(),
     preview = deferred<boolean>();
   f.options.previews = () => preview.promise;
   f.startup.request();
   await turn();
-  f.available(false);
+  assert.deepEqual(f.calls, ['groups']);
+  assert.equal(f.settled(), 0);
+  assert.equal(f.startup.pending, true);
   preview.resolve(true);
   await turn();
-  assert.equal(f.calls.includes('groups'), false);
+  assert.equal(f.settled(), 1);
+});
+
+await test('a held group read leaves direct previews independently eligible', async () => {
+  const f = fixture(),
+    group = deferred<void>();
+  f.options.groups = () => group.promise;
+  f.startup.request();
+  await turn();
+  assert.deepEqual(f.calls, ['previews']);
+  assert.equal(f.startup.pending, true);
+  group.resolve();
+  await turn();
+  assert.equal(f.settled(), 1);
+});
+
+await test('selected-chat admission defers the next bounded preview turn until resume', async () => {
+  const f = fixture(),
+    group = deferred<void>(),
+    preview = deferred<void>();
+  f.options.groups = () => group.promise;
+  let reads = 0;
+  f.options.groupPreviews = () => {
+    reads++;
+    preview.resolve();
+    return Promise.resolve(false);
+  };
+  f.startup.request();
+  await turn();
+  f.available(false);
+  group.resolve();
+  await turn();
+  assert.equal(reads, 0);
   assert.equal(f.startup.pending, true);
   f.available(true);
   f.startup.resume();
+  await preview.promise;
   await turn();
-  assert.deepEqual(f.calls, ['groups']);
+  assert.equal(reads, 1);
+  assert.equal(f.settled(), 1);
 });
 
 await test('lost admission is retained without polling or a retry loop', async () => {
@@ -158,7 +195,7 @@ await test('logout during an admitted read drops stale continuation; a new sessi
   f.startup.request();
   held.resolve(true);
   await turn();
-  assert.deepEqual(f.calls, ['groups']);
+  assert.deepEqual(f.calls, ['groups', 'groups']);
   assert.equal(f.settled(), 1);
   assert.equal(f.startup.pending, false);
 });

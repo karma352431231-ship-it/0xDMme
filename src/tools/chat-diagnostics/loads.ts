@@ -160,6 +160,11 @@ export class ComparisonLoads {
   }
   report() {
     return {
+      groupStartupKinds: [
+        'useful-directory',
+        'group-directory',
+        'group-previews',
+      ],
       limit: 64,
       overflow: this.overflow,
       internalStagesAvailable: this.coverage,

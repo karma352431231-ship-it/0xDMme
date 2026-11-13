@@ -16,7 +16,7 @@ module.exports = {
       to: {
         path: '^src/client/',
         pathNot:
-          '^src/client/(?:messages/useful-startup\\.ts$|chat-sync-diagnostics/)',
+          '^src/client/(?:messages/useful-startup\\.ts$|chat-sync-diagnostics/|synchronization-work/)',
       },
     },
     {

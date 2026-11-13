@@ -87,6 +87,20 @@ export class GroupMessageWindows {
       throw error;
     }
   }
+  /** The list needs the complete latest window, without extending a history
+   * floor or writing a reopen checkpoint just to decorate a directory row. */
+  async latest(c: ReadContext): Promise<Window> {
+    try {
+      return await this.readCurrent(c, null, false, true);
+    } catch (error: unknown) {
+      if (
+        !(error instanceof IncompleteGroupIndex) &&
+        !expectedInterruption(error)
+      )
+        this.discard(c.group.state.groupId);
+      throw error;
+    }
+  }
   private discard(group: string): void {
     this.states.delete(group);
     this.index.clear(group);
@@ -97,6 +111,7 @@ export class GroupMessageWindows {
     c: ReadContext,
     before: number | null,
     older: boolean,
+    latest = false,
   ): Promise<Window> {
     c.guard?.();
     await this.restoreCheckpoint(c);
@@ -109,7 +124,8 @@ export class GroupMessageWindows {
         snapshot,
         previous?.snapshot ?? null,
       ),
-      floor = before === null ? this.floors.floor(snapshot.groupId) : null;
+      history = this.historyRequest(snapshot.groupId, before, latest),
+      floor = history.floor;
     const loaded = await this.loadWindow(read, {
       snapshot,
       scope,
@@ -132,11 +148,19 @@ export class GroupMessageWindows {
     c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
     this.index.confirmed(snapshot);
-    if (before === null) {
+    if (history.remember) {
       this.floors.update(snapshot.groupId, reached);
       await this.saveCheckpoint(c, result);
     }
     return result;
+  }
+  private historyRequest(
+    group: string,
+    before: number | null,
+    latest: boolean,
+  ) {
+    const remember = before === null && !latest;
+    return { remember, floor: remember ? this.floors.floor(group) : null };
   }
   private async saveCheckpoint(c: ReadContext, result: Window): Promise<void> {
     if (

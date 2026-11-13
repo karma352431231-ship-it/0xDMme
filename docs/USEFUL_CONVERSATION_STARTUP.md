@@ -2,8 +2,9 @@
 
 The owner requested the shared directory corrections in the temporary startup
 brief on 2026-11-13. Manual startup timing and physical-device acceptance belong
-to the owner. This implementation introduces no new persistence policy, native
-startup change, cryptography, API, migration or deployment.
+to the owner. The shared frontend scheduling and opt-in diagnostics use existing
+authority and persistence contracts. The owner separately authorized integration,
+VPS activation and preparation of native artifacts for this second pass.
 
 ## Workflow and ownership
 
@@ -11,12 +12,11 @@ The existing vault, contact-page and identity-pin prerequisites remain in
 `messages/startup.ts`. Authorized contact rows still publish before pins finish;
 histories, previews and group work retain their own verified prerequisites.
 
-`messages/useful-startup.ts` owns one bounded visible-directory pass: private
-previews followed by the verified group directory. It starts after the initial
-directory/pin preparation, without any maintenance timer. The order avoids
-putting group profile, invitation, outbox or daily maintenance before previews.
-It does not enable concurrent SDK access. Existing authority turns still own
-verification and serialized cryptographic state.
+`messages/useful-startup.ts` owns one visible-directory pass with independently
+eligible direct previews and group-directory work. Verified group previews receive
+bounded turns after their summaries are available. The pass starts after initial
+directory/pin preparation. Existing authority turns retain verification and
+serialized cryptographic state. Optional maintenance follows useful work.
 
 The startup owner retains a step when admission is unavailable, coalesces bursts
 into one follow-up pass, cancels stale continuations by generation and resumes
@@ -78,3 +78,71 @@ made. The next owner-run capture should check first contact rows, group rows,
 previews, empty/error states and foreground chat/sending behavior. Further
 authority/snapshot reuse requires that evidence; no permission cache or removed
 confirmation is part of this correction.
+
+## Second pass on opening, contacts and group previews
+
+The owner approved the second-pass work order in section 14 of the temporary
+startup brief, integration into main, VPS activation and ready-to-install native
+builds. The latest integrated baseline includes the first useful-startup pass
+and subsequent contact-dialog and inline-editor work.
+
+Approved-contact listing now uses the existing SigningLane. The operation only
+signs and sends a permission-checked request. It opens no secret or SDK state.
+The lane checks the current device directory, and the server validates the
+session, directory and contact permissions. Vault-backed implementations preserve
+the supplied priority. This removes a confirmed queue dependency between the
+contact endpoint and archived-peer/vault reads. Agenda, approved and archived
+sources still settle together, with the existing generation, merge, failure,
+ordering and identity-preparation contract. A network response can still be slow.
+
+UsefulStartup admits independent direct-preview and group sources before awaiting
+either source. Source completion, failure, reset and follow-up requests stay in
+this coordinator. Group operations use the existing MessageSynchronization
+maintenance owner. The group directory releases authority between its bounded
+list read and each verified group/profile read, allowing already queued direct
+preview confirmations to proceed between entries. The page still publishes only
+when all its summaries are verified. Optional maintenance starts after useful
+sources settle, and selected-chat work and urgent receiving retain precedence.
+
+GroupPreviews owns one page of at most 16 eligible groups and a round-robin
+continuation queue. Each admitted turn uses GroupMessageWindows.latest with the
+existing authorization, full change-index, relations/removals, packet validation
+and final confirmation. A large first index can need several turns; other groups
+get their turns before it continues. Latest preview work never walks older
+message-body pages to satisfy a retained history floor and does not write a new
+reopen checkpoint. The existing window owner shares verified candidates with
+selected and background history work. Delivery processing remains possible;
+read acknowledgement and view-once opening are outside this path.
+
+The preview owner retains at most 128 small projections in memory and clears them
+on existing account, authorization and removal boundaries. Selected/background
+publications supersede delayed list reads. Failed verification clears the affected
+projection; an authorization denial clears the page and projections. Per-group
+presentation lifetimes survive subsequent group publications. Index continuations
+retain one diagnostic operation per group, preserving the 64-operation budget.
+
+Collector revision 4 records its source commit and dirty state, supported group
+startup categories, per-operation initial state, verification, publication and
+frame opportunity. Installed diagnostics also report available document/script
+resource timings alongside entry, bridge and module durations. These clocks
+cannot independently attribute parse/evaluation CPU time or physical tap-to-pixel
+latency. The inspected shared definitions and collector accept useful-directory
+and group-directory events. The supplied capture lacks collector provenance and
+has dropped events, so their earlier absence has no established single cause.
+The updated aggregation regression covers group categories and long continuations.
+
+The source evidence supports the queue and scheduling changes above. It does not
+attribute the two unmatched captures' pre-entry difference to a particular native
+or JavaScript component. The owner's earlier instruction reserves manual startup
+testing for the owner. No matched three-cold/three-warm physical comparison or
+before/after speed claim is made for Android, iPhone or browser/PWA. The prepared
+Android diagnostic build and exact collector support that acceptance capture.
+Native installation and real-device acceptance remain separate from packaging.
+
+The directory/controller integration composes existing operations. Queue state
+and plaintext projection stay in UsefulStartup and GroupPreviews respectively;
+GroupMessageWindows owns candidates and verification, and the authority owner
+keeps its original exclusive lifecycle. Existing broader controller/UI coupling
+remains preexisting. A later structural task can extract selected-window operations
+from GroupController before its mutation workflows, preserving window, admission,
+removal and history-lifecycle tests.

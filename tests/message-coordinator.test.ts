@@ -1166,6 +1166,7 @@ await test('first visible directory startup preserves its priority through conta
   f.emit('authorization');
   t.mock.timers.tick(150);
   await turn();
+  await advanceMaintenanceUntil(t, () => f.directoryWork.length > 0);
   assert.equal(f.directoryWork.length, 1);
   assert.equal(f.directoryWork[0]?.priority, undefined);
 });
@@ -1185,7 +1186,7 @@ await test('returning to visibility resumes pending startup maintenance without 
   await turn();
   t.mock.timers.tick(1000);
   await turn();
-  assert.ok(f.calls.includes('initialize'));
+  await advanceMaintenanceUntil(t, () => f.calls.includes('initialize'));
 });
 
 await test('a reply after a verified live check is not trapped behind contacts or groups', async (t) => {

@@ -45,8 +45,9 @@ export interface VaultLocator {
 export function withSigner<T>(
   access: VaultAccess,
   work: (authority: SigningAuthority) => Promise<T>,
+  options: VaultWorkOptions = {},
 ): Promise<T> {
   return access.withSigner
     ? access.withSigner(work)
-    : access.withVault(false, work);
+    : access.withVault(false, work, options);
 }
