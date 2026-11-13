@@ -1,3 +1,4 @@
+import { UsefulStartup } from './useful-startup.ts';
 import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
@@ -324,7 +325,17 @@ export function startMessages(
     ready?: (url: string | null) => void,
   ) => peerPhotos.show(host, peer, signal, ready);
   const directoryUi = new MessageDirectoryUi({
-    presented: (host) => directoryData.presented(host),
+    presented: (host, entries) => {
+      directoryData.presented(host);
+      previews.presented(
+        host,
+        entries.some((entry) => entry.kind === 'contact' && !!entry.preview),
+      );
+      groups.directoryPresented(
+        host,
+        entries.some((entry) => entry.kind === 'group'),
+      );
+    },
     previews: previews.values,
     previewsFailed: () => previews.failed,
     peerPhoto: showPeerPhoto,
@@ -454,7 +465,7 @@ export function startMessages(
       visible: document.visibilityState === 'visible',
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
-      startupPending: startupWarmup.pending,
+      startupPending: usefulStartup.pending || startupWarmup.pending,
       textPending: textQueue.pending || mediaSubmissions.ready,
     }),
     status: () => {
@@ -462,11 +473,16 @@ export function startMessages(
       previews.resume();
     },
     visibleSettled: () => previews.resume(),
+    resumeDirectory: () => usefulStartup.resume(),
     notice: (value) => {
       message = value;
     },
     complete: () => {
-      if (!startupWarmup.pending && !textQueue.pending)
+      if (
+        !usefulStartup.pending &&
+        !startupWarmup.pending &&
+        !textQueue.pending
+      )
         refreshDirectoryPreviews();
       announceSynchronized();
     },
@@ -546,8 +562,31 @@ export function startMessages(
     },
     failed: reportTextSaveError,
   });
+  const usefulStartup = new UsefulStartup({
+    available: () =>
+      synchronization.backgroundReady &&
+      !synchronization.visibleUpdatePending &&
+      !live.connecting,
+    run: (step) => synchronization.directory(step),
+    previews: async () => {
+      const admitted = await previews.prepare(
+        directoryData.peers
+          .filter((peer) => !peer.localOnly)
+          .map((peer) => peer.accountId),
+      );
+      if (previews.failed) throw new Error('Could not complete the operation.');
+      return admitted;
+    },
+    groups: () => groups.refreshDirectory(),
+    settled: () => {
+      options.directorySettled?.(session);
+      startupWarmup.resume();
+      synchronization.resume();
+    },
+    failed: reportTextSaveError,
+  });
   const startupWarmup: MessageWarmup = new MessageWarmup({
-    available: () => synchronization.backgroundReady,
+    available: () => !usefulStartup.pending && synchronization.backgroundReady,
     run: (step) => synchronization.background(step),
     changed: () => {
       synchronization.resume();
@@ -564,7 +603,7 @@ export function startMessages(
       // Speculative SDK/store preparation must yield to a requested history.
       () => controller.initialize(),
       async () => {
-        await groups.refresh();
+        await groups.finishDirectoryRefresh();
         contactsMore();
       },
       async () => {
@@ -573,15 +612,6 @@ export function startMessages(
         if (current === generation) await controller.savePins();
       },
       dailyTick,
-      async () => {
-        const current = generation;
-        await previews.refresh(
-          directoryData.peers
-            .filter((peer) => !peer.localOnly)
-            .map((peer) => peer.accountId),
-        );
-        if (current === generation) options.directorySettled?.(session);
-      },
     ],
   });
   const continuity = new MessageContinuity({
@@ -1504,15 +1534,7 @@ export function startMessages(
           if (current !== generation) throw new Error('Session changed.');
         },
       });
-      if (!synchronization.openingRequested) await refreshSelected(requested);
-      await controller.savePins(work);
-      startupWarmup.request();
-      if (
-        session &&
-        networkAvailable() &&
-        (document.visibilityState === 'visible' || playback.open)
-      )
-        live.start();
+      await finishDirectoryStartup(current, requested, work);
     } catch (error: unknown) {
       if (current === generation) {
         controller.hideFailedRead(error);
@@ -1520,6 +1542,23 @@ export function startMessages(
       }
       throw error;
     }
+  }
+  async function finishDirectoryStartup(
+    current: number,
+    requested: VaultWorkOptions,
+    work: VaultWorkOptions,
+  ): Promise<void> {
+    if (!synchronization.openingRequested) await refreshSelected(requested);
+    await controller.savePins(work);
+    if (current !== generation) return;
+    usefulStartup.request();
+    startupWarmup.request();
+    if (
+      session &&
+      networkAvailable() &&
+      (document.visibilityState === 'visible' || playback.open)
+    )
+      live.start();
   }
   async function refreshChangedSelected(
     work: VaultWorkOptions = {},
@@ -1815,6 +1854,7 @@ export function startMessages(
   }
   function pageHide(event: PageTransitionEvent): void {
     continuity.freeze();
+    usefulStartup.reset();
     synchronization.reset();
     startupWarmup.pause();
     if (composer.recording)
@@ -1999,6 +2039,7 @@ export function startMessages(
       playback.close();
       live.stop();
       composer.resetPicker();
+      usefulStartup.reset();
       synchronization.reset();
       startupWarmup.reset();
       session = value;

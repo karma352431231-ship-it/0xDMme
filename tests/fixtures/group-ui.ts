@@ -227,6 +227,7 @@ export function groupUiFixture() {
     media: AbortSignal[] = [],
     photo = deferred<GroupPhoto | null>();
   const state = {
+    directoryPublications: 0,
     aliases: new Map<string, string>([[other, 'Synthetic member']]),
     confirm: true,
     deferPhoto: false,
@@ -268,7 +269,9 @@ export function groupUiFixture() {
       this.selected = null;
       this.views = [];
     },
-    async refresh() {},
+    async refreshDirectory() {},
+    async finishDirectoryRefresh() {},
+    directoryPresented() {},
     open(id: string, _older: boolean, localOnly: boolean) {
       state.historyReads++;
       this.selected = {
@@ -545,7 +548,9 @@ export function groupUiFixture() {
           errors.push(error);
         }
       },
-      changed() {},
+      changed() {
+        state.directoryPublications++;
+      },
       select() {
         calls.push('select');
       },

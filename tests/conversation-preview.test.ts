@@ -15,6 +15,45 @@ import { readDmDirectoryPreviews } from '../src/client/social-dm/directory-previ
 import { ChatNode } from './fixtures/chat-dom.ts';
 import { deferred } from './fixtures/deferred.ts';
 
+await test('startup waits for an active preview and its coalesced successor before starting maintenance', async () => {
+  const held = deferred<Map<string, ReturnType<typeof conversationPreview>>>();
+  let reads = 0,
+    settled = false;
+  const loader = new ConversationPreviewLoader({
+    load: () => (++reads === 1 ? held.promise : Promise.resolve(new Map())),
+    changed() {},
+  });
+  const old = loader.refresh(['old']);
+  const startup = loader.prepare(['current']).then((admitted) => {
+    settled = admitted;
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(settled, false);
+  held.resolve(new Map());
+  await Promise.all([old, startup]);
+  assert.equal(reads, 2);
+  assert.equal(settled, true);
+});
+
+await test('startup preview admission keeps a request while foreground work is active', async () => {
+  let available = false,
+    reads = 0;
+  const loader = new ConversationPreviewLoader({
+    available: () => available,
+    load: () => {
+      reads++;
+      return Promise.resolve(new Map());
+    },
+    changed() {},
+  });
+  assert.equal(await loader.prepare(['current']), false);
+  assert.equal(reads, 0);
+  available = true;
+  loader.resume();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(reads, 1);
+});
+
 await test('last message shows text and checkmarks only when sent; AM/PM is language-independent', (t) => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document'),
     language = currentLanguage();

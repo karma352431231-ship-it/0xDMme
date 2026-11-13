@@ -1,3 +1,7 @@
+import { loadingPresentation } from '../chat-sync-diagnostics/index.ts';
+import { readGroupDirectory, readGroupSummary } from './directory-refresh.ts';
+import type { GroupSummary } from './directory-refresh.ts';
+export type { GroupSummary } from './directory-refresh.ts';
 import {
   assertRemovalBatch,
   removeMessageBatch,
@@ -86,7 +90,6 @@ import {
 } from './outbox.ts';
 import type { GroupSendProgress } from './outbox.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
-import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
 import { GroupCatalog } from './catalog.ts';
@@ -108,11 +111,6 @@ import {
   reachFloor,
 } from '../history-window/index.ts';
 
-export interface GroupSummary extends GroupState {
-  title: string;
-  profileSequence?: number;
-  localOnly?: boolean;
-}
 interface GroupPrefetch {
   after: string | null;
   groups: GroupEvent[];
@@ -121,6 +119,9 @@ interface GroupPrefetch {
   complete: boolean;
 }
 export class GroupController {
+  private readonly directoryLoading = loadingPresentation('group-directory');
+  private directoryProfiles: readonly string[] | null = null;
+  private readonly directoryChanged: () => void;
   private focus: { group: string; sequence: number } | null = null;
   private readonly previews = new Map<string, ConversationPreview>();
   preview(group: string): ConversationPreview | undefined {
@@ -180,7 +181,13 @@ export class GroupController {
       (state) => state.read === true,
     ),
   };
-  constructor(access: VaultAccess, sync: VaultSync, visible: () => boolean) {
+  constructor(
+    access: VaultAccess,
+    sync: VaultSync,
+    visible: () => boolean,
+    directoryChanged = () => {},
+  ) {
+    this.directoryChanged = directoryChanged;
     this.access = access;
     this.visible = visible;
     this.identities = new PeerIdentity(sync);
@@ -226,6 +233,8 @@ export class GroupController {
     this.focus = null;
   }
   close(): void {
+    this.directoryLoading.cancel();
+    this.directoryProfiles = null;
     this.deselect();
     this.ownRemovals.clear();
     this.mediaMemory.clear();
@@ -244,6 +253,8 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
+    this.directoryLoading.cancel();
+    this.directoryProfiles = null;
     this.ownRemovals.clear();
     this.mediaMemory.clear();
     this.previews.clear();
@@ -317,108 +328,133 @@ export class GroupController {
       }),
     );
   }
-  async refresh(more = false): Promise<void> {
+  directoryPresented(host: HTMLElement, matchingRows: boolean): void {
+    this.directoryLoading.presented(host, matchingRows);
+  }
+  /** Publish verified rows before optional profile/outbox/history maintenance. */
+  async refreshDirectory(more = false): Promise<void> {
+    const generation = this.generation;
+    try {
+      await this.directoryLoading.run(async () => {
+        await this.loadDirectory(more);
+        this.guard(generation);
+        return this.entries.length;
+      });
+    } catch (error: unknown) {
+      if (generation === this.generation) this.directoryProfiles = null;
+      throw error;
+    }
+    this.guard(generation);
+  }
+  private async loadDirectory(more: boolean): Promise<void> {
+    const generation = this.generation;
+    this.directoryProfiles = null;
     if (!networkAvailable()) return this.refreshLocal(more);
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
     await this.identities.load();
-    const data = await this.withAuthority(async (c) => {
-      const mode = object(await c.api('group-mode', {}))['mode'];
-      if (mode !== 'configured') throw new Error('Invalid group mode.');
-      this.mode = mode;
-      const page = object(
-        await c.api('group-list', { after: more ? this.remoteNext : null }),
-      );
-      if (!Array.isArray(page['items']) || page['items'].length > 16)
-        throw new Error('Invalid group list.');
-      const values: unknown[] = page['items'],
-        entries: GroupSummary[] = [];
-      if (values.length)
-        await this.machine(c, async (machine) => {
-          for (const input of values) {
-            const raw = groupEvent(input),
-              group = await c.governance.verify(raw.groupId);
-            if ((await groupEventHash(raw)) !== group.head)
-              throw new Error('The group list changed. Refresh it.');
-            const profile = await c.api('group-profile', {
-              groupId: raw.groupId,
-              head: group.head,
-            });
-            await readGroupPage(
-              { ...c, group, machine, identities: this.identities },
-              profile,
-            );
-            if (
-              (await stageCurrentProfile(c.authority, group)) &&
-              this.retry.take(raw.groupId)
-            ) {
-              await sendGroupPending({
-                ...c,
-                group,
-                machine,
-                identities: this.identities,
-              });
-              await readGroupPage(
-                { ...c, group, machine, identities: this.identities },
-                await c.api('group-profile', {
-                  groupId: raw.groupId,
-                  head: group.head,
-                }),
-              );
-              this.retry.reset(raw.groupId);
-            }
-            const cached = await new GroupCache(c.authority, raw.groupId).get(
-              'profile',
-            );
-            const summary: GroupSummary = {
-              ...group,
-              profileSequence:
-                cached === null
-                  ? 0
-                  : integer(
-                      object(cached)['sequence'],
-                      Number.MAX_SAFE_INTEGER,
-                    ),
-              title:
-                cached === null
-                  ? t('Group {0}', [raw.groupId.slice(0, 8)])
-                  : groupTitle(cached),
-            };
-            entries.push(summary);
-            await new GroupCatalog(c.authority).save(summary);
-            if (this.selected?.state.groupId === raw.groupId) {
-              this.selected = summary;
-              if (this.visible())
-                await this.openVerified(c, group, false, machine).catch(
-                  (error: unknown) => {
-                    if (!expectedInterruption(error)) throw error;
-                  },
-                );
-            }
-          }
-        });
-      return {
-        entries,
-        next: page['next'] === null ? null : uuid(page['next']),
-      };
-    });
+    this.guard(generation);
+    const data = await this.withAuthority((context) =>
+      readGroupDirectory({
+        context,
+        identities: this.identities,
+        after: more ? this.remoteNext : null,
+        machine: (work) => this.machine(context, work),
+      }),
+    );
+    this.guard(generation);
+    this.mode = 'configured';
     this.entries = more
       ? [
           ...this.entries,
           ...data.entries.filter(
-            (e) =>
+            (entry) =>
               !this.entries.some(
-                (old) => old.state.groupId === e.state.groupId,
+                (old) => old.state.groupId === entry.state.groupId,
               ),
           ),
         ]
       : data.entries;
+    this.directoryProfiles = data.entries.map((entry) => entry.state.groupId);
     this.remoteNext = data.next;
-    await this.refreshLocal(more, true);
+    // Read an existing bounded catalog page. Rebuilding the catalog from
+    // history may scan many pages, so only the later maintenance imports it.
+    await this.refreshLocal(more, true, more);
+    this.guard(generation);
+  }
+  /** The latest bounded page owns this deferred maintenance, never row authority. */
+  async finishDirectoryRefresh(): Promise<void> {
+    if (!networkAvailable() || this.directoryProfiles === null) return;
+    const generation = this.generation;
+    const groups = this.directoryProfiles;
+    this.directoryProfiles = null;
+    if (!this.historyLoaded) {
+      await this.refreshLocal(false, true);
+      this.guard(generation);
+      this.directoryChanged();
+    }
+    if (groups.length)
+      await this.withAuthority(async (context) => {
+        for (const id of groups) {
+          this.guard(generation);
+          await this.maintainDirectoryGroup(context, id);
+        }
+      });
+    this.guard(generation);
     await this.reconcileSelected();
+    this.guard(generation);
     await this.refreshIncoming();
-    await this.identities.save();
+    this.guard(generation);
+    await this.identities.save(() => this.guard(generation));
+    this.guard(generation);
+  }
+  private async maintainDirectoryGroup(
+    c: GroupContext,
+    id: string,
+  ): Promise<void> {
+    const generation = this.generation;
+    const group = await c.governance.verify(id);
+    this.guard(generation);
+    const staged = await stageCurrentProfile(c.authority, group);
+    this.guard(generation);
+    const pending = staged && this.retry.take(id);
+    if (!pending && !(this.selected?.state.groupId === id && this.visible()))
+      return;
+    await this.machine(c, async (machine) => {
+      if (pending)
+        await sendGroupPending({
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+        });
+      if (pending || this.selected?.state.groupId === id) {
+        const summary = await readGroupSummary({
+          context: c,
+          group,
+          machine,
+          identities: this.identities,
+        });
+        this.guard(generation);
+        this.replaceVerifiedSummary(summary);
+        if (pending) this.retry.reset(id);
+      }
+      if (this.selected?.state.groupId === id && this.visible())
+        await this.openVerified(c, group, false, machine).catch(
+          (error: unknown) => {
+            if (!expectedInterruption(error)) throw error;
+          },
+        );
+    });
+  }
+  private replaceVerifiedSummary(summary: GroupSummary): void {
+    const id = summary.state.groupId;
+    this.entries = this.entries.map((entry) =>
+      entry.state.groupId === id ? summary : entry,
+    );
+    if (this.selected?.state.groupId === id) this.selected = summary;
   }
   private async reconcileSelected(): Promise<void> {
+    const generation = this.generation;
     const selected = this.selected;
     if (
       !this.visible() ||
@@ -432,9 +468,11 @@ export class GroupController {
       // A selected group can be outside the first list page. Verify it directly
       // rather than treating pagination as removal from the group.
       const next = await this.open(selected.state.groupId);
+      this.guard(generation);
       if (next) this.historyPending = true;
     } catch (error: unknown) {
       if (!(error instanceof AccountError) || error.status !== 403) throw error;
+      this.guard(generation);
       this.selected = { ...selected, localOnly: true };
     }
     this.entries = this.entries.filter(
@@ -442,17 +480,23 @@ export class GroupController {
     );
     if (this.selected) this.entries.push(this.selected);
   }
-  private async refreshLocal(more: boolean, combine = false): Promise<void> {
+  private async refreshLocal(
+    more: boolean,
+    combine = false,
+    importHistory = true,
+  ): Promise<void> {
+    const generation = this.generation;
     if (!networkAvailable()) this.remoteNext = null;
     const result = await this.withLocalAuthority(async (authority) => {
-      if (!this.historyLoaded) {
-        const generation = this.generation;
+      if (importHistory && !this.historyLoaded) {
         await importGroupCatalog(authority, () => this.guard(generation));
+        this.guard(generation);
         this.historyLoaded = true;
       }
       const catalog = new GroupCatalog(authority);
-      this.creationPending = (await catalog.creation()) !== null;
-      return catalog.page(more ? this.localNext : null);
+      const creation = await catalog.creation();
+      const page = await catalog.page(more ? this.localNext : null);
+      return { ...page, creationPending: creation !== null };
     });
     const rows: GroupSummary[] = [];
     for (const item of result.items)
@@ -461,6 +505,8 @@ export class GroupController {
         head: await groupEventHash(item.state),
         localOnly: true,
       });
+    this.guard(generation);
+    this.creationPending = result.creationPending;
     const existing = combine || more ? this.entries : [];
     this.entries = [
       ...existing,
@@ -472,11 +518,13 @@ export class GroupController {
     this.next = this.remoteNext ?? this.localNext;
   }
   async refreshIncoming(more = false): Promise<void> {
+    const generation = this.generation;
     const page = object(
       await this.withAuthority((c) =>
         c.api('group-incoming', { after: more ? this.incomingNext : null }),
       ),
     );
+    this.guard(generation);
     if (!Array.isArray(page['items']) || page['items'].length > 16)
       throw new Error('Invalid group invitations.');
     const values: unknown[] = page['items'],

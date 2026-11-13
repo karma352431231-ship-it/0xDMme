@@ -60,6 +60,7 @@ interface SynchronizationOperations {
   pending: () => Promise<readonly unknown[]>;
   sendPending: () => Promise<void>;
   visibleSettled?: () => void;
+  resumeDirectory?: () => void;
 }
 
 /** Scheduling and cancellation only. Authority and crypto stay in their owners. */
@@ -148,6 +149,7 @@ export class MessageSynchronization {
     this.updates.resume();
     this.followup.resume();
     this.inbox.resume();
+    this.options.resumeDirectory?.();
   }
   prepareHistory(scope?: HistoryKind): void {
     this.inbox.request(scope);
@@ -329,6 +331,18 @@ export class MessageSynchronization {
     await this.maintain(work, (error) => {
       this.report(error, t('Could not complete the operation.'));
     });
+  }
+  /** Visible directory reads yield to openings, sends and urgent receipts.
+   * Report admission separately so the startup owner never loses a queued step. */
+  async directory(work: () => Promise<void>): Promise<boolean> {
+    if (!this.backgroundReady || this.options.state().liveConnecting)
+      return false;
+    let failure: { error: unknown } | undefined;
+    const completed = await this.maintain(work, (error) => {
+      failure = { error };
+    });
+    if (failure) throw failure.error;
+    return completed;
   }
   async run(work: () => Promise<void>): Promise<boolean> {
     if (this.closed || this.busy) return false;
@@ -563,14 +577,16 @@ export class MessageSynchronization {
   private async maintain(
     work: () => Promise<void>,
     failure: (error: unknown) => void,
-  ): Promise<void> {
-    if (!this.canSynchronize()) return;
+  ): Promise<boolean> {
+    if (!this.canSynchronize()) return false;
     const current = this.options.state().generation;
+    let completed = false;
     this.stopPreload();
     this.maintenance = Promise.resolve()
-      .then(() => {
-        if (this.current(current))
-          return measureWork(this, 'maintenance', work);
+      .then(async () => {
+        if (!this.current(current)) return;
+        await measureWork(this, 'maintenance', work);
+        completed = this.current(current);
       })
       .catch((error: unknown) => {
         if (!this.current(current)) return;
@@ -583,6 +599,7 @@ export class MessageSynchronization {
         this.resume();
       });
     await this.maintenance;
+    return completed;
   }
   private pendingRetryAllowed(): boolean {
     return (

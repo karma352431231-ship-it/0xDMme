@@ -71,6 +71,64 @@ function fixture(
     projections: () => projections,
   };
 }
+await test('directory admission yields to a selected opening and reports skipped work instead of losing it', async (t) => {
+  const f = fixture(t),
+    held = deferred<void>();
+  const opening = f.sync.open(() => held.promise);
+  await turn();
+  let reads = 0;
+  assert.equal(
+    await f.sync.directory(() => {
+      reads++;
+      return Promise.resolve();
+    }),
+    false,
+  );
+  assert.equal(reads, 0);
+  held.resolve();
+  await opening;
+  assert.equal(
+    await f.sync.directory(() => {
+      reads++;
+      return Promise.resolve();
+    }),
+    true,
+  );
+  assert.equal(reads, 1);
+});
+
+await test('an admitted directory read settles before a requested foreground owner; failures still propagate', async (t) => {
+  const f = fixture(t),
+    held = deferred<void>();
+  const read = f.sync.directory(() => held.promise);
+  let opened = false;
+  const opening = f.sync.open(() => {
+    opened = true;
+    return Promise.resolve();
+  });
+  await turn();
+  assert.equal(opened, false);
+  held.resolve();
+  assert.equal(await read, true);
+  await opening;
+  assert.equal(opened, true);
+  const failed = deferred<void>();
+  const nextRead = f.sync.directory(() => failed.promise);
+  let nextOpened = false;
+  const nextOpening = f.sync.open(() => {
+    nextOpened = true;
+    return Promise.resolve();
+  });
+  failed.reject(new Error('Synthetic confirmation failure'));
+  await assert.rejects(nextRead, /Synthetic confirmation failure/u);
+  await nextOpening;
+  assert.equal(
+    nextOpened,
+    true,
+    'A failed directory must not reject the shared engine-settlement promise',
+  );
+  assert.equal(f.sync.foregroundReady, true);
+});
 await test('user operation waits for maintenance and stays exclusive through pending projection', async (t) => {
   const f = fixture(t),
     presence = deferred<void>(),

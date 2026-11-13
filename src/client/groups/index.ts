@@ -14,7 +14,10 @@ import { GroupMemberPresentation } from './member-presentation.ts';
 import { GroupReconciliation } from './reconciliation.ts';
 import { GroupHistoryWork } from './history-work.ts';
 import type { MessageWork } from '../synchronization-work/index.ts';
-import { expectedInterruption } from '../synchronization-work/index.ts';
+import {
+  expectedInterruption,
+  WorkInterruption,
+} from '../synchronization-work/index.ts';
 export { readGroupNotification } from './notification.ts';
 import {
   t,
@@ -83,6 +86,7 @@ export function startGroups(
     sync,
     () =>
       document.visibilityState === 'visible' && !!host?.getClientRects().length,
+    () => options.changed(),
   );
   let session: AccountSession | null = null,
     host: HTMLElement | null = null,
@@ -256,22 +260,52 @@ export function startGroups(
         ])
       : '';
   }
+  function guardSession(current: AccountSession | null): void {
+    if (
+      current?.accountId !== session?.accountId ||
+      current?.deviceId !== session?.deviceId ||
+      current?.csrf !== session?.csrf
+    )
+      throw new WorkInterruption('session');
+  }
   async function refresh(more = false): Promise<void> {
-    const previousGroup = controller.selected,
-      selected = previousGroup?.state.groupId;
-    await controller.refresh(more);
-    updateOwnerNotice(previousGroup);
+    const current = session;
+    await refreshDirectory(more);
+    guardSession(current);
+    await finishDirectoryRefresh();
+  }
+  async function refreshDirectory(more = false): Promise<void> {
+    const current = session;
+    const previous = controller.selected;
+    await controller.refreshDirectory(more);
+    guardSession(current);
+    updateOwnerNotice(previous);
+    publishGroupHeads();
+    options.changed();
+  }
+  function publishGroupHeads(): void {
     options.daily.setGroups(
       controller.entries
         .filter((g) => !g.localOnly)
         .map((g) => ({ id: g.state.groupId, head: g.head })),
     );
+  }
+  async function finishDirectoryRefresh(): Promise<void> {
+    const current = session;
+    const previous = controller.selected;
+    const selected = previous?.state.groupId;
+    await controller.finishDirectoryRefresh();
+    guardSession(current);
+    updateOwnerNotice(previous);
+    publishGroupHeads();
     await options.daily.loadSettings([
       ...(options.organizationPeers?.() ??
         options.peers().map((p) => p.accountId)),
       ...controller.entries.map((g) => g.state.groupId),
     ]);
+    guardSession(current);
     await refreshStates();
+    guardSession(current);
     management.renderIncoming();
     management.renderCreation();
     options.changed();
@@ -280,10 +314,13 @@ export function startGroups(
   }
   /** Unread counts and alerts for the listed groups; no history or profiles. */
   async function refreshStates(): Promise<void> {
+    const current = session;
     const previous = states;
-    states = networkAvailable()
+    const next = networkAvailable()
       ? await options.daily.groupStates()
       : new Map<string, PeerState>();
+    guardSession(current);
+    states = next;
     for (const [id, state] of states) {
       const old = previous.get(id);
       if (old && state.unread > old.unread && state.mutedUntil <= Date.now())
@@ -536,6 +573,10 @@ export function startGroups(
     search: (query: string, after: string | null) =>
       controller.search(query, after),
     refresh,
+    refreshDirectory,
+    finishDirectoryRefresh,
+    directoryPresented: (host: HTMLElement, matchingRows: boolean) =>
+      controller.directoryPresented(host, matchingRows),
     /** A categorized change; only a general wakeup refreshes the directory. */
     changed: (change: GroupChange) => {
       if (change === 'content') chat.hint();
