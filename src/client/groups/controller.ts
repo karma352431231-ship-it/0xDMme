@@ -1,4 +1,5 @@
 import { readMediaPreview, saveMediaPreview } from '../media-preview/index.ts';
+import { OwnRemovals, removalFailure } from '../own-removals/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import {
@@ -132,6 +133,8 @@ export class GroupController {
   private readonly retry = new GroupRetry();
   private readonly messageWindows = new GroupMessageWindows();
   historyPending = false;
+  /** This tab's own deletions, hidden in place while the history stays shown. */
+  private readonly ownRemovals = new OwnRemovals();
   private readonly access: VaultAccess;
   private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
@@ -215,6 +218,7 @@ export class GroupController {
   }
   close(): void {
     this.deselect();
+    this.ownRemovals.clear();
     this.historyPending = false;
     this.pauseSynchronization();
     this.resetSynchronization();
@@ -228,6 +232,7 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
+    this.ownRemovals.clear();
     this.previews.clear();
     this.resetSynchronization();
     this.selection.invalidate('authorization');
@@ -661,7 +666,8 @@ export class GroupController {
         older,
       );
       guard();
-      this.views = page.views;
+      this.ownRemovals.settle(group.state.groupId, page.views);
+      this.views = this.ownRemovals.visible(page.views);
       if (!this.searchFocused)
         this.rememberPreview(group.state.groupId, this.views);
       this.historyPending = false;
@@ -1306,15 +1312,24 @@ export class GroupController {
       });
     });
   }
+  /** A bare removal notice may be this tab's own deletion coming back. */
+  get expectingOwnRemoval(): boolean {
+    return this.ownRemovals.expecting();
+  }
+  /** A verified read showed this deletion done, even if its reply was lost. */
+  ownRemovalDone(id: string): boolean {
+    return this.ownRemovals.done(id);
+  }
+  /**
+   * Deletes one of the author's messages for everyone. The open history and
+   * its verified windows stay; only this bubble leaves once the server
+   * accepts (owner, 13/11/2026). The caller then runs the usual group read,
+   * which verifies the removal through the group's change index.
+   */
   async removeMessage(view: GroupView): Promise<void> {
-    if (
-      this.selected?.state.groupId !== view.groupId ||
-      !view.own ||
-      view.localOnly ||
-      this.historyPending
-    )
-      throw new Error('Only your own synced messages can be deleted.');
-    this.removed();
+    this.assertRemovable(view);
+    if (!this.ownRemovals.begin(view.groupId, view.id)) return;
+    this.pauseSynchronization();
     try {
       await this.authority.mutate(async (c) => {
         const group = await c.governance.verify(view.groupId);
@@ -1327,9 +1342,29 @@ export class GroupController {
         });
       });
     } catch (error: unknown) {
-      this.hide();
+      const failure = removalFailure(error);
+      this.ownRemovals.failed(view.id, failure === 'uncertain');
+      if (failure === 'unauthorized') this.hide();
       throw error;
     }
+    this.withdrawRemoved(view);
+  }
+  private assertRemovable(view: GroupView): void {
+    if (
+      this.selected?.state.groupId !== view.groupId ||
+      !view.own ||
+      view.localOnly ||
+      this.historyPending
+    )
+      throw new Error('Only your own synced messages can be deleted.');
+  }
+  /** The accepted row leaves the open group's views; a late reply after
+   * switching groups only marks it, for when that group is read again. */
+  private withdrawRemoved(view: GroupView): void {
+    this.ownRemovals.accepted(view.id);
+    if (this.selected?.state.groupId !== view.groupId) return;
+    this.views = this.ownRemovals.visible(this.views);
+    if (!this.searchFocused) this.rememberPreview(view.groupId, this.views);
   }
   async sendPending(): Promise<void> {
     const selected = this.selected;

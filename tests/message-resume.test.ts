@@ -1163,3 +1163,55 @@ await test('cold reopen bridges new messages through the existing delta without 
   );
   assert.equal(f.data.requests.includes('sync-peer-window'), false);
 });
+
+await test('deleting one own message never hides the verified history; only that row leaves once accepted (13/11/2026)', async () => {
+  const { controller, data, add, peer } = resumeFixture();
+  await add('Primeira', peer, undefined, true);
+  const target = await add('Apagar', peer, undefined, true);
+  await add('Terceira', peer, undefined, true);
+  await controller.synchronize();
+  const shown = data.frames.at(-1)!;
+  assert.deepEqual(
+    shown.map((row) => row.text),
+    ['Primeira', 'Apagar', 'Terceira'],
+  );
+  const reply = deferred<Response>();
+  data.deletion = () => reply.promise;
+  const from = data.frames.length;
+  const view = shown.find((row) => row.id === target.id)!;
+  const removing = controller.remove(view);
+  const deletes = () => data.requests.filter((op) => op === 'delete').length;
+  for (let turn = 0; turn < 50 && deletes() === 0; turn++) await setImmediate();
+  // A repeated tap while the request runs sends nothing more.
+  await controller.remove(view);
+  assert.equal(deletes(), 1);
+  assert.equal(controller.expectingOwnRemoval, true);
+  reply.resolve(Response.json({}));
+  await removing;
+  const frames = data.frames.slice(from);
+  assert.ok(
+    frames.every((rows) => rows !== null),
+    'The history was hidden while deleting.',
+  );
+  assert.deepEqual(
+    data.frames.at(-1)!.map((row) => row.text),
+    ['Primeira', 'Terceira'],
+  );
+});
+
+await test('a refused deletion keeps the message and the history; losing access still conceals it', async () => {
+  for (const status of [409, 403]) {
+    const { controller, data, add, peer } = resumeFixture();
+    const target = await add('Mantida', peer, undefined, true);
+    await controller.synchronize();
+    const view = data.frames.at(-1)!.find((row) => row.id === target.id)!;
+    const from = data.frames.length;
+    data.deletion = () =>
+      Promise.resolve(Response.json({ error: 'No.' }, { status }));
+    await assert.rejects(controller.remove(view));
+    if (status === 409) {
+      assert.equal(data.frames.length, from, 'Nothing was republished.');
+      assert.equal(controller.expectingOwnRemoval, false);
+    } else assert.equal(data.frames.at(-1), null);
+  }
+});

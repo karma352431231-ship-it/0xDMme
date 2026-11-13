@@ -16,7 +16,9 @@
   color: var(--accent-ink);
 }
 /* One's own bubbles need no author line; the side already says it. */
-#app-shell .chat-message.own > strong:first-child {
+#app-shell
+  .chat-message.own
+  > :is(strong:first-child, input.message-select:first-child + strong) {
   display: none;
 }
 #app-shell .chat-panel .chat-message p {

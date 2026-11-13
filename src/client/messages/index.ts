@@ -1,4 +1,5 @@
 import { networkAvailable } from '../connectivity/index.ts';
+import { removalFailure } from '../own-removals/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { stageForwardedMessage } from '../message-forward/index.ts';
@@ -761,8 +762,18 @@ export function startMessages(
         );
         await transmit();
       },
+      // The chat stays shown while deleting; the verified read that follows
+      // applies the removal (owner, 13/11/2026). A lost reply is settled by
+      // that read before the error is reported.
       remove: async (view) => {
-        await controller.remove(view);
+        try {
+          await controller.remove(view);
+        } catch (error: unknown) {
+          if (removalFailure(error) !== 'uncertain') throw error;
+          await synchronizeVisible().catch(() => undefined);
+          if (!controller.ownRemovalDone(view.id)) throw error;
+          return;
+        }
         await synchronizeVisible();
       },
       // Stored locally first; sending never rereads the open history, which
@@ -802,7 +813,14 @@ export function startMessages(
     }
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
       suspend('invalidate');
-    else if (event === 'removed') {
+    else if (event === 'removed' && expectingOwnRemoval()) {
+      // The notice carries no message: it may be this tab's own deletion
+      // coming back. The probe requested next verifies it, with any other
+      // removal, before publishing; the open chat stays shown meanwhile.
+      previews.clear();
+      renderContacts();
+      controller.hint();
+    } else if (event === 'removed') {
       previews.clear();
       renderContacts();
       // Cancel the history token immediately without cancelling an in-flight
@@ -812,6 +830,9 @@ export function startMessages(
       menu.close();
       searchPanel.close();
     } else suspend();
+  }
+  function expectingOwnRemoval(): boolean {
+    return controller.expectingOwnRemoval || groups.expectingOwnRemoval;
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));

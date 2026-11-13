@@ -3,6 +3,8 @@ export type HistoryUpdate = 'history' | 'delivery' | 'pending';
 export class MessageVisibility<T> {
   private generation = 0;
   private staged: T[] = [];
+  /** The rows of the last complete publication, while it stays visible. */
+  private shown: T[] = [];
   private token: number | null = null;
   private update: HistoryUpdate = 'history';
   private changeVersion = 0;
@@ -25,6 +27,7 @@ export class MessageVisibility<T> {
     this.update = update;
     this.retained = update === 'pending';
     this.visible = false;
+    this.shown = [];
     this.publish(null, update);
   }
   begin(update: HistoryUpdate = 'history'): number {
@@ -62,6 +65,7 @@ export class MessageVisibility<T> {
     this.staged = [];
     this.visible = false;
     this.retained = false;
+    this.shown = [];
     this.publish(null, 'history');
   }
   /** A probe found new content; drop its staged work before the full read. */
@@ -91,7 +95,21 @@ export class MessageVisibility<T> {
     this.token = null;
     this.visible = true;
     this.retained = false;
+    this.shown = rows;
     this.publish(rows, this.update);
+    return true;
+  }
+  /**
+   * Takes rows out of the visible publication, such as a message its author
+   * just deleted, without hiding the rest or cancelling work in progress. It
+   * adds nothing and confirms nothing; the next verified read stays in charge.
+   */
+  withdraw(remove: (row: T) => boolean): boolean {
+    if (!this.visible) return false;
+    const rows = this.shown.filter((row) => !remove(row));
+    if (rows.length === this.shown.length) return false;
+    this.shown = rows;
+    this.publish(rows, 'history');
     return true;
   }
   /** The caller checks the same authenticated snapshot. Hints received during

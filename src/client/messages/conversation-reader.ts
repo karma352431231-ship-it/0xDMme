@@ -8,7 +8,10 @@ import {
   expectedInterruption,
   guardProjectionFailure,
 } from '../synchronization-work/index.ts';
-import { isSyncSnapshot } from '../../shared/message-sync/index.ts';
+import {
+  isSyncSnapshot,
+  sameSyncAuthority,
+} from '../../shared/message-sync/index.ts';
 import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { object } from '../../shared/account/index.ts';
@@ -55,6 +58,7 @@ import type {
 import { openLocal } from '../message-storage/index.ts';
 import { indexSearch } from '../message-search/index.ts';
 import { MessageVisibility } from '../message-visibility/index.ts';
+import { OwnRemovals } from '../own-removals/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import {
@@ -149,6 +153,8 @@ export class ConversationReader {
   private readonly staleWindow = new StaleWindowReport();
   private readonly verified = new VerifiedWindow<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
+  /** This tab's own deletions, hidden in place while the history stays shown. */
+  private readonly ownRemovals = new OwnRemovals();
   private readonly verifiedProjection: (
     peer: string,
     views: MessageView[],
@@ -172,7 +178,7 @@ export class ConversationReader {
     this.events = input.events;
     this.verifiedProjection = input.events.verified ?? (() => {});
     this.visibility = new MessageVisibility((rows, update) =>
-      input.publish(rows, update, {
+      input.publish(rows && this.ownRemovals.visible(rows), update, {
         peer: this.selected,
         latest: true,
       }),
@@ -192,6 +198,7 @@ export class ConversationReader {
     this.receiverCut = null;
     this.staleWindow.clear();
     this.verified.clear();
+    this.ownRemovals.clear();
     this.visibility.close();
     this.resetIndex();
     this.offlineIndex.reset();
@@ -214,6 +221,7 @@ export class ConversationReader {
     this.visibility.close('pending');
   }
   hide(): void {
+    this.ownRemovals.clear();
     this.selection.invalidate('authorization');
     this.readTarget.reset();
     this.conversations.clear('hidden');
@@ -222,6 +230,39 @@ export class ConversationReader {
     this.confirmed = null;
     this.verified.clear();
     this.visibility.close();
+  }
+  /**
+   * The author deletes one shown message. The history stays mounted while the
+   * request runs; false when that message is already being deleted.
+   */
+  beginOwnRemoval(view: MessageView): boolean {
+    return this.ownRemovals.begin(view.peer, view.id);
+  }
+  /**
+   * The server accepted the deletion: only that bubble (and what points at it)
+   * leaves the shown history. Reused windows still hold it, so they need a
+   * fresh confirmation; the next verified read applies the removal itself.
+   */
+  ownRemovalAccepted(id: string): void {
+    this.ownRemovals.accepted(id);
+    this.conversations.hint();
+    this.probedSnapshot = null;
+    this.visibility.withdraw((row) => row.id === id || row.relation?.id === id);
+  }
+  ownRemovalFailed(id: string, uncertain: boolean): void {
+    this.ownRemovals.failed(id, uncertain);
+  }
+  /** A verified read showed this deletion done, even if its reply was lost. */
+  ownRemovalDone(id: string): boolean {
+    return this.ownRemovals.done(id);
+  }
+  /** A completed verified read decides this conversation's own deletions. */
+  private settleOwnRemovals(peer: string | null, views: MessageView[]): void {
+    if (peer) this.ownRemovals.settle(peer, views);
+  }
+  /** A bare removal notice may be this tab's own deletion coming back. */
+  get expectingOwnRemoval(): boolean {
+    return this.ownRemovals.expecting();
   }
   /** Retain the last complete view while requiring fresh confirmation. */
   hint(): void {
@@ -386,7 +427,25 @@ export class ConversationReader {
     )
       return;
     this.conversations.invalidateReuse('snapshot-changed');
+    if (this.ownRemovalFence(snapshot)) return;
     this.visibility.conceal(token);
+  }
+  /**
+   * This tab's own deletion moves the account's removal fence as well. With
+   * the same authority, the read continuing from here verifies that change
+   * (and any other removal in it) before publishing; the other rows stay
+   * shown meanwhile. Any other fence change still conceals the old view.
+   */
+  private ownRemovalFence(snapshot: unknown): boolean {
+    const from: unknown = this.confirmed
+      ? JSON.parse(this.confirmed.snapshot)
+      : null;
+    return (
+      this.ownRemovals.expecting() &&
+      isSyncSnapshot(from) &&
+      isSyncSnapshot(snapshot) &&
+      sameSyncAuthority(from, snapshot)
+    );
   }
   private rememberConversation(): void {
     if (this.confirmed)
@@ -497,6 +556,7 @@ export class ConversationReader {
         );
       this.confirmConversationChanges(staged.snapshot);
       if (this.searchBefore === null) this.rememberConversation();
+      this.settleOwnRemovals(selected, views);
       this.readTarget.reset();
     } catch (error: unknown) {
       guardProjectionFailure(error, guard, () => this.visibility.close());

@@ -17,6 +17,7 @@ import {
   closeMessageMenu,
 } from '../message-menu/index.ts';
 import { MessageDeletionSelection } from '../message-selection/index.ts';
+import { removalFailure } from '../own-removals/index.ts';
 import { MessageForwardSelection } from '../message-forward/index.ts';
 import type { ForwardDirectory } from '../message-forward/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
@@ -70,6 +71,7 @@ interface ChatOptions {
     | 'media'
     | 'edit'
     | 'removeMessage'
+    | 'ownRemovalDone'
     | 'compose'
     | 'sendPending'
     | 'composeText'
@@ -247,11 +249,8 @@ export class GroupChatView {
           this.deletion.begin(view.id);
           return;
         }
-        const pending = options.controller.removeMessage(view);
-        this.renderHistory();
         try {
-          await pending;
-          await options.reopen();
+          await this.removeAndVerify(view);
         } finally {
           this.renderHistory();
         }
@@ -397,6 +396,23 @@ export class GroupChatView {
       valid: () => this.options.controller.selected?.state.groupId === group,
     });
   }
+  /**
+   * Deletes one own message in place, then reads the group as usual so the
+   * change index verifies the removal; the history stays shown throughout
+   * (owner, 13/11/2026). A lost reply is settled by that read first.
+   */
+  private async removeAndVerify(view: GroupView): Promise<void> {
+    try {
+      await this.options.controller.removeMessage(view);
+    } catch (error: unknown) {
+      if (removalFailure(error) !== 'uncertain') throw error;
+      await this.options.reopen().catch(() => undefined);
+      if (!this.options.controller.ownRemovalDone(view.id)) throw error;
+      return;
+    }
+    this.renderHistory();
+    await this.options.reopen();
+  }
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
@@ -505,10 +521,7 @@ export class GroupChatView {
                 {
                   id: view.id,
                   row,
-                  remove: async () => {
-                    await this.options.controller.removeMessage(view);
-                    await this.options.reopen();
-                  },
+                  remove: () => this.removeAndVerify(view),
                 },
               ]
             : [];

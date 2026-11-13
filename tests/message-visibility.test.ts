@@ -261,3 +261,33 @@ await test('deletion notice keeps candidates hidden during probing; failure disc
   );
   assert.deepEqual(frames.at(-1), { rows: null, update: 'history' });
 });
+await test('withdrawing a deleted row republishes the rest without hiding it or cancelling the read in progress', () => {
+  const frames: (readonly string[] | null)[] = [];
+  const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
+  assert.equal(
+    visibility.withdraw(() => true),
+    false,
+    'nothing shown yet',
+  );
+  const token = visibility.begin();
+  visibility.stage(token, ['a', 'b', 'c']);
+  visibility.complete(token);
+  const next = visibility.refresh();
+  assert.equal(
+    visibility.withdraw((row) => row === 'b'),
+    true,
+  );
+  assert.deepEqual(frames.at(-1), ['a', 'c']);
+  assert.equal(
+    visibility.withdraw((row) => row === 'b'),
+    false,
+  );
+  visibility.stage(next, ['a', 'c']);
+  assert.equal(visibility.complete(next), true);
+  assert.ok(frames.every((rows, index) => index === 0 || rows !== null));
+  visibility.close();
+  assert.equal(
+    visibility.withdraw(() => true),
+    false,
+  );
+});

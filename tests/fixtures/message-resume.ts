@@ -153,6 +153,8 @@ export function resumeFixture(
     pageFailure: null as number | null,
     failure: null as string | null,
     confirmation: null as (() => Promise<Response>) | null,
+    /** The server's answer to an author deletion; accepted when unset. */
+    deletion: null as (() => Promise<Response>) | null,
     frames: [] as (MessageView[] | null)[],
     publication: undefined as
       | ((
@@ -468,6 +470,7 @@ export function resumeFixture(
     relations: relationsResponse,
     delivery: deliveryResponse,
     confirm: confirmResponse,
+    delete: () => data.deletion?.() ?? Promise.resolve(Response.json({})),
   };
   const respond = (path: string, input?: RequestInit): Promise<Response> => {
     // This fixture intentionally retains legacy snapshots to exercise compatibility.

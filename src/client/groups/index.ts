@@ -571,6 +571,10 @@ export function startGroups(
       vault.reset();
       render();
     },
+    /** A bare removal notice may be this tab's own deletion coming back. */
+    get expectingOwnRemoval(): boolean {
+      return controller.expectingOwnRemoval;
+    },
     removed(): void {
       controller.removed();
       chat.pauseActions();

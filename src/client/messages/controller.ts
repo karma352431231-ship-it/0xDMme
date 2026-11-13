@@ -58,6 +58,7 @@ import type { AttachmentSelection } from '../attachments/index.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { openMessageMachine } from '../message-session/index.ts';
 import { AccountError, object } from '../../shared/account/index.ts';
+import { removalFailure } from '../own-removals/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   canonical,
@@ -1523,8 +1524,15 @@ export class Messages {
     }
     return views;
   }
+  /**
+   * Deletes one of the author's messages for both sides. The open history
+   * stays shown throughout; only this bubble leaves once the server accepts
+   * (owner, 13/11/2026). The caller then runs the usual verified read.
+   */
   async remove(view: MessageView): Promise<void> {
-    this.removed();
+    if (!this.reader.beginOwnRemoval(view)) return;
+    this.previewGeneration++;
+    this.pauseSynchronization();
     notifyMessageControls('other-tabs');
     const generation = this.generation;
     try {
@@ -1537,10 +1545,22 @@ export class Messages {
         ),
       );
     } catch (error: unknown) {
-      if (generation === this.generation) this.hide();
+      const failure = removalFailure(error);
+      this.reader.ownRemovalFailed(view.id, failure === 'uncertain');
+      if (failure === 'unauthorized' && generation === this.generation)
+        this.hide();
       throw error;
     }
+    this.reader.ownRemovalAccepted(view.id);
     notifyMessageControls('other-tabs');
+  }
+  /** A bare removal notice may be this tab's own deletion coming back. */
+  get expectingOwnRemoval(): boolean {
+    return this.reader.expectingOwnRemoval;
+  }
+  /** A verified read showed this deletion done, even if its reply was lost. */
+  ownRemovalDone(id: string): boolean {
+    return this.reader.ownRemovalDone(id);
   }
   async search(query: string, after: string | null) {
     const generation = this.generation,
