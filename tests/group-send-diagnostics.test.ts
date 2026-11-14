@@ -406,3 +406,96 @@ await test('a group send joining an existing batch excludes pre-gesture mileston
   assert.equal(window.executionCoverage.messageLinkedMs, 10);
   assert.equal(window.executionCoverage.sharedContextOnlyMs, 10);
 });
+
+for (const known of [true, false])
+  await test(`real durable queue decisions preserve a 2163 ms interval with known gate=${known}`, async (t) => {
+    const { TextSendQueue } = await import('../src/client/text-send/index.ts');
+    const { tracePrivateTextQueue, traceTextQueue } =
+      await import('../src/client/chat-sync-diagnostics/index.ts');
+    const f = privateSendCapture(t);
+    const send = f.send('gap', 'group');
+    let enabled = false;
+    const observed = deferred<void>();
+    const q = new TextSendQueue({
+      save: () => Promise.resolve(),
+      available: () => enabled,
+      blockedBy: () => (known ? 'maintenance' : 'unknown'),
+      timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
+      observe: traceTextQueue,
+      transmit: (admitted) => {
+        admitted();
+        traceSend('outbox-dispatch', send.id);
+        send.accepted();
+        observed.resolve();
+        return Promise.resolve({ ok: true, more: false });
+      },
+      changed() {},
+      failed: (error) => {
+        throw error;
+      },
+    });
+    f.at(100);
+    q.enqueue({ id: send.id, peer: 'local-group', text: 'fixture' });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    f.at(2263);
+    enabled = true;
+    q.resume('maintenance-released');
+    await observed.promise;
+    q.reset();
+    const detail = f.recording.report().comparison.privateLatency.sends[0]!;
+    assert.equal(detail.textQueue.blockedMs, known ? 2163 : 0);
+    assert.equal(detail.textQueue.unknown[0]?.endMs, known ? undefined : 2263);
+    const window = detail.windows.toAcceptance;
+    assert.ok(window.available);
+    assert.equal(window.queueWaitMs, known ? 2163 : 0);
+    assert.equal(window.unattributedMs, known ? 100 : 2263);
+  });
+
+await test('stopped and truncated queue observations preserve unknown coverage and terminal acceptance', async (t) => {
+  const { traceTextQueue } =
+    await import('../src/client/chat-sync-diagnostics/index.ts');
+  const f = privateSendCapture(t),
+    send = f.send('bounded-queue', 'group');
+  f.at(10);
+  traceTextQueue(send.id, {
+    phase: 'durable',
+    generation: 1,
+    trigger: 'save-complete',
+  });
+  for (let i = 0; i < 60; i++) {
+    f.at(20 + i);
+    traceTextQueue(send.id, {
+      phase: 'decision',
+      generation: 1,
+      trigger: 'status',
+      gate: i % 2 ? 'maintenance' : 'unknown',
+    });
+  }
+  f.at(500);
+  send.accepted();
+  f.recording.stop();
+  const report = f.recording.report().comparison.privateLatency.sends[0]!;
+  assert.equal(report.textQueue.points.length, 48);
+  assert.equal(report.textQueue.dropped, 13);
+  assert.ok(report.textQueue.unknown.some((span) => span.endMs === 500));
+  assert.equal(report.textQueue.missingDispatch, true);
+  assert.equal(report.outcome, 'accepted');
+});
+
+await test('capture that misses durable queue entry does not invent the start of an observed wait', (t) => {
+  const f = privateSendCapture(t),
+    send = f.send('late-decision', 'group');
+  privateSendPoint(send.context, 'text-queue', {
+    queuePhase: 'decision',
+    queueTrigger: 'maintenance-released',
+    queueGeneration: 1,
+    queueGate: 'maintenance',
+  });
+  f.at(100);
+  f.recording.stop();
+  const trace =
+    f.recording.report().comparison.privateLatency.sends[0]!.textQueue;
+  assert.equal(trace.missingBegin, true);
+  assert.equal(trace.durableReadyMs, null);
+  assert.equal(trace.blockedMs, 0);
+});

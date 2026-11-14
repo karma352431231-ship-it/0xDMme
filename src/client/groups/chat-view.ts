@@ -1,3 +1,4 @@
+import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
 import type {
   PrivateSendContext,
@@ -96,6 +97,7 @@ interface ChatOptions {
   externalMedia?: ExternalMediaConsent | undefined;
   isBusy: () => boolean;
   sendReady?: (() => boolean) | undefined;
+  textGate?: (() => QueueGate) | undefined;
   sendChanged?: (() => void) | undefined;
   sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
   members: Pick<
@@ -107,7 +109,7 @@ interface ChatOptions {
   operationRun: (
     work: () => Promise<void>,
     diagnostic?: PrivateSendContext,
-  ) => Promise<void>;
+  ) => Promise<boolean | 'deferred'>;
   run: (work: () => Promise<void>) => Promise<void>;
   reopen: (older?: boolean) => Promise<void>;
   select: () => void;
@@ -148,6 +150,7 @@ export class GroupChatView {
       account: options.account,
       isBusy: options.isBusy,
       sendReady: options.sendReady,
+      textGate: options.textGate,
       sendChanged: options.sendChanged,
       sendBlockers: options.sendBlockers,
       run: options.run,
@@ -282,8 +285,8 @@ export class GroupChatView {
     };
   }
 
-  status(): void {
-    this.composer.status();
+  status(trigger?: QueueWakeup): void {
+    this.composer.status(trigger);
   }
   private accepted(id: string): void {
     this.delivery.step('accepted', id);

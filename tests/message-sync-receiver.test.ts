@@ -465,3 +465,33 @@ for (const failure of [
     assert.ok(!turn.points.some((p) => p.stage === 'receipt-commit'));
   });
 }
+
+await test('a waiting durable save defers optional old recovery once but commits new receipt work', async () => {
+  const old = item(1),
+    fresh = item(2);
+  const h = harness([old]);
+  const read = h.ports.read;
+  h.ports.read = (snapshot, rows) => {
+    if (rows.some((row) => row.id === old.id))
+      throw new Error('Synthetic missing key');
+    return read(snapshot, rows);
+  };
+  await new MessageSyncReceiver().step(h.ports);
+  assert.equal(h.state().pending.length, 1);
+  const state = h.state();
+  state.pending[0]!.retryAt = 0;
+  h.replace(state);
+  h.rows.push(fresh);
+  h.ports.read = read;
+  h.ports.draftWaiting = () => true;
+  h.calls.length = 0;
+  const receiver = new MessageSyncReceiver();
+  assert.equal(await receiver.step(h.ports), true);
+  assert.ok(h.cached.has(fresh.id));
+  assert.equal(h.state().discovered?.anchor, 2);
+  assert.equal(h.state().pending[0]?.peer, old.sender);
+  assert.equal(h.calls.includes('sync-peer-page'), false);
+  await receiver.step(h.ports);
+  assert.ok(h.cached.has(old.id));
+  assert.equal(h.state().pending.length, 0);
+});

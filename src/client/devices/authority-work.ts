@@ -54,8 +54,13 @@ export class AuthorityWork {
   private running = false;
   private interactiveTurns = 0;
   private readonly turn: NativeTurn | null;
-  constructor(turn: NativeTurn | null = null) {
+  private readonly localSaveWaiting: (key: string) => boolean;
+  constructor(
+    turn: NativeTurn | null = null,
+    localSaveWaiting: (key: string) => boolean = () => false,
+  ) {
     this.turn = turn;
+    this.localSaveWaiting = localSaveWaiting;
   }
 
   run<T>(
@@ -221,6 +226,7 @@ export class AuthorityWork {
   /** Maintenance never holds back waiting interactive work, and interactive
    * batches keep the existing four-to-one maintenance share. */
   private follower(leader: WaitingWork, key: string): number {
+    if (this.localSaveWaiting(key)) return -1;
     const background = this.waiting.some((work) => !work.interactive);
     if (leader.interactive && background && this.interactiveTurns >= 4)
       return -1;

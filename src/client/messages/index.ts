@@ -1,8 +1,10 @@
+import type { QueueWakeup } from '../text-send/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
   beginPrivateSend,
   traceSend,
   tracePrivateTextQueue,
+  traceTextQueue,
   tracePrivateScheduler,
   privateSendBatch,
   resetPrivateSendDiagnostics,
@@ -281,6 +283,7 @@ export function startMessages(
     run,
     runSend: runGroupSend,
     sendReady: () => synchronization.sendTurnReady,
+    textGate: () => synchronization.textSendGate(),
     sendChanged: () => synchronization.resume(),
     sendBlockers: () =>
       synchronization.sendBlockers().filter((reason) => reason !== 'offline'),
@@ -492,8 +495,8 @@ export function startMessages(
         mediaSubmissions.ready ||
         groups.interactiveSendPending,
     }),
-    status: () => {
-      status();
+    status: (trigger) => {
+      status(trigger);
       previews.resume();
     },
     visibleSettled: () => previews.resume(),
@@ -520,7 +523,8 @@ export function startMessages(
       controller.pauseSynchronization();
       groups.pauseSynchronization();
     },
-    preloadDirect: (signal, work) => controller.synchronizeAll(signal, work),
+    preloadDirect: (signal, work) =>
+      controller.synchronizeAll(signal, work, () => textQueue.awaitingSave),
     preloadGroups: (signal, work) => groups.synchronizeAll(signal, work),
     unread: () => activity.refresh(),
     groupProjection: () => groups.counters(),
@@ -584,17 +588,23 @@ export function startMessages(
       networkAvailable() &&
       synchronization.sendTurnReady &&
       !mediaSubmissions.ready,
-    transmit: async () => {
+    observe: traceTextQueue,
+    blockedBy: () =>
+      mediaSubmissions.ready
+        ? 'media-submission'
+        : synchronization.textSendGate(),
+    transmit: async (admitted) => {
       const privateSend = privateSendBatch();
-      const ok = await synchronization.runSend(
-        () =>
-          sendPending(
-            { priority: 'interactive', privateSend },
-            () => textQueue.awaitingSave,
-          ),
-        privateSend,
-      );
-      return { ok, more: (await controller.pending()).length > 0 };
+      const result = await synchronization.admitSend(() => {
+        admitted();
+        return sendPending(
+          { priority: 'interactive', privateSend },
+          () => textQueue.awaitingSave,
+        );
+      }, privateSend);
+      if (result === 'deferred')
+        return { ok: false, deferred: true, more: true };
+      return { ok: result, more: (await controller.pending()).length > 0 };
     },
     changed: () => {
       renderHistory();
@@ -1003,7 +1013,7 @@ export function startMessages(
         ? t('Some sends are still pending. They will resume automatically.')
         : t('Conversations updated.');
   }
-  function status(): void {
+  function status(trigger?: QueueWakeup): void {
     tracePrivateScheduler(
       [
         ...synchronization.sendBlockers(),
@@ -1013,7 +1023,7 @@ export function startMessages(
     );
     mediaSubmissions.resume();
     sendFollowup.resume();
-    textQueue.resume();
+    textQueue.resume(trigger);
     startupWarmup.resume();
     groupDirectoryMaintenance.resume();
     visits.resume();
@@ -1024,7 +1034,7 @@ export function startMessages(
     renderSoundSettings();
     applyMessageAvailability([mounted, directory], synchronization.busy);
     composer.update();
-    groups.status();
+    groups.status(trigger);
   }
   function renderSoundSettings(): void {
     const toggle = settingsHost?.querySelector<HTMLButtonElement>(
@@ -1066,8 +1076,8 @@ export function startMessages(
   async function runGroupSend(
     work: () => Promise<void>,
     diagnostic?: PrivateSendContext,
-  ): Promise<void> {
-    await synchronization.runSend(work, diagnostic);
+  ): Promise<boolean | 'deferred'> {
+    return synchronization.admitSend(work, diagnostic);
   }
   function action(label: string, work: () => Promise<void>): HTMLButtonElement {
     const button = document.createElement('button');
@@ -1846,13 +1856,14 @@ export function startMessages(
     suspend();
     message = t('Offline. Saved history remains available on this device.');
     void run(refreshLocalContacts);
-    status();
+    status('connectivity');
   }
   function online(): void {
     if (session && (document.visibilityState === 'visible' || playback.open))
       live.start();
     suspend();
     requestRefresh();
+    status('connectivity');
   }
   function visibilityChanged(): void {
     const visible = document.visibilityState === 'visible',
@@ -1864,6 +1875,7 @@ export function startMessages(
         ),
       );
     continuity.visibility(visible);
+    status('session-view');
     synchronization.resume({ priority: 'interactive' });
     void daily.heartbeat(visible).catch(() => {
       if (current !== generation) return;
@@ -2123,7 +2135,6 @@ export function startMessages(
       gallery.close();
       contactInfo.close();
       visits.reset();
-      resetPrivateSendDiagnostics();
       textQueue.reset();
       mediaSubmissions.reset();
       sendFollowup.reset();
@@ -2151,6 +2162,7 @@ export function startMessages(
       pushSettings?.reset();
       controller.setSession(value);
       groups.setSession(value);
+      resetPrivateSendDiagnostics();
       selected = null;
       states.clear();
       composer.clearContext();
@@ -2162,7 +2174,7 @@ export function startMessages(
         : t('Sign in and authorize this device to chat.');
       renderContacts();
       renderHistory();
-      status();
+      status('session-view');
     },
     ready(): void {
       if (selected) mountRepresentativeChat(selected);

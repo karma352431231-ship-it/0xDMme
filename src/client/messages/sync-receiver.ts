@@ -29,6 +29,7 @@ export interface SyncReceiverPorts<T extends View> {
   account: string;
   device: string;
   wakeRecovery?: boolean;
+  draftWaiting?: (() => boolean) | undefined;
   failureReason?: (error: unknown) => 'key' | 'verification';
   invalidate?: () => void;
   status?: (pending: PendingConversation[]) => void;
@@ -65,6 +66,7 @@ export interface SyncReceiverPorts<T extends View> {
  * ranges instead of an unbounded failed-packet queue. Network/SDK ownership is
  * supplied by the caller and never overlaps another receiver turn. */
 export class MessageSyncReceiver {
+  private deferredRecovery = false;
   private readonly manifest = new JournalManifest();
   async step<T extends View>(p: SyncReceiverPorts<T>): Promise<boolean> {
     const state = await p.load();
@@ -262,6 +264,8 @@ export class MessageSyncReceiver {
     if (limit < 1) return { views: [], items: [], peers: [] };
     const pending = state.pending.find((item) => item.retryAt <= Date.now());
     if (!pending) return { views: [], items: [], peers: [] };
+    if (this.skipOptionalRecovery(p.draftWaiting))
+      return { views: [], items: [], peers: [] };
     state.pending = [
       ...state.pending.filter((item) => item !== pending),
       pending,
@@ -288,6 +292,12 @@ export class MessageSyncReceiver {
       pending.retryAt = Date.now() + 30000;
       return { views: [], items: [], peers: [] };
     }
+  }
+  /** An older pending conversation is independent of confirming the current
+   * discovery page. At most one consecutive due recovery opportunity yields. */
+  private skipOptionalRecovery(waiting: (() => boolean) | undefined): boolean {
+    this.deferredRecovery = !this.deferredRecovery && !!waiting?.();
+    return this.deferredRecovery;
   }
   private async recoveryPage<T extends View>(
     p: SyncReceiverPorts<T>,

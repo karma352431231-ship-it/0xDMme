@@ -1,3 +1,5 @@
+import { copyTextQueueDiagnostic } from './text-queue.ts';
+import type { TextQueueObservation } from './text-queue.ts';
 import { diagnosticRequestCategory } from './network.ts';
 /** Local capability; never persisted, signed or passed to a request payload. */
 export interface PrivateSendContext {
@@ -9,7 +11,7 @@ export interface PrivateSendContext {
   readonly receipt?: number;
   readonly receiptAttempt?: number;
 }
-export const privateSendRevision = 3;
+export const privateSendRevision = 4;
 export const retainedSendLimit = 32;
 export const sendMaintenanceKinds = [
   'background',
@@ -38,6 +40,12 @@ export const sendWaitReasons = [
 ] as const;
 export type SendWaitReason = (typeof sendWaitReasons)[number];
 export interface PrivateSendFields {
+  queuePhase?: TextQueueObservation['phase'];
+  queueTrigger?: TextQueueObservation['trigger'];
+  queueGeneration?: number;
+  queueBatch?: number;
+  queueGate?: NonNullable<TextQueueObservation['gate']>;
+
   sendMediaMode?: 'text' | 'ordinary' | 'view-once' | 'unknown';
   sendGroupMessage?: number;
   sendScope?: 'private' | 'group';
@@ -113,6 +121,7 @@ export function copyPrivateSendDiagnostic(
   for (const key of ['receiptLive', 'receiptMore'])
     if (typeof input[key] === 'boolean') output[key] = input[key];
   copySendIdentity(input, output);
+  copyTextQueueDiagnostic(input, output);
   copyReceiptLabels(input, output);
   copySendLabels(input, output);
 }

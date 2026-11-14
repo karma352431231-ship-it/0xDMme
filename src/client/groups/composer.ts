@@ -1,7 +1,9 @@
+import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import {
   beginPrivateSend,
   traceSend,
   tracePrivateTextQueue,
+  traceTextQueue,
   privateSendBatch,
 } from '../chat-sync-diagnostics/index.ts';
 import type {
@@ -55,13 +57,14 @@ interface Options {
   account: () => string | undefined;
   isBusy: () => boolean;
   sendReady?: (() => boolean) | undefined;
+  textGate?: (() => QueueGate) | undefined;
   sendChanged?: (() => void) | undefined;
   sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
   run: (work: () => Promise<void>) => Promise<void>;
   operationRun: (
     work: () => Promise<void>,
     diagnostic?: PrivateSendContext,
-  ) => Promise<void>;
+  ) => Promise<boolean | 'deferred'>;
   changed: () => void;
   reopen: () => Promise<void>;
   report: (notice: string) => void;
@@ -114,7 +117,9 @@ export class GroupComposer {
     );
     this.texts = groupTextQueue({
       save: (groupId, draft) => options.controller.composeText(groupId, draft),
-      send: (id) => this.transmit(id),
+      send: (id, admitted) => this.transmit(id, admitted),
+      observe: traceTextQueue,
+      blockedBy: () => this.textGate(),
       available: () => this.sendReady() && networkAvailable(),
       changed: () => {
         this.status();
@@ -147,6 +152,11 @@ export class GroupComposer {
       !!this.options.account() &&
       (this.options.sendReady?.() ?? !this.options.isBusy())
     );
+  }
+  private textGate(): QueueGate {
+    if (!this.options.account()) return 'session';
+    if (!networkAvailable()) return 'offline';
+    return this.options.textGate?.() ?? 'unknown';
   }
   get sendPending(): boolean {
     return this.texts.working || this.submissions.ready;
@@ -242,7 +252,7 @@ export class GroupComposer {
     const label = this.node('[data-compose-context]');
     if (label) label.textContent = '';
   }
-  status(): void {
+  status(trigger?: QueueWakeup): void {
     const controller = this.options.controller,
       form = this.node('[data-group-compose]');
     if (form) form.hidden = !!controller.selected?.localOnly;
@@ -262,7 +272,7 @@ export class GroupComposer {
         !controller.selected,
     );
     this.submissions.resume();
-    this.texts.resume();
+    this.texts.resume(trigger);
   }
   private recordingControls(blocked: boolean): void {
     const stop = this.node('[data-voice-stop]'),
@@ -338,10 +348,14 @@ export class GroupComposer {
       this.failure(error);
     }
   }
-  private async transmit(group: string): Promise<boolean> {
+  private async transmit(
+    group: string,
+    admitted: () => void,
+  ): Promise<boolean | 'deferred'> {
     let sent = false;
     const diagnostic = privateSendBatch();
-    await this.options.operationRun(async () => {
+    const result = await this.options.operationRun(async () => {
+      admitted();
       await this.options.controller.sendGroupDrafts(
         group,
         this.progress(group),
@@ -349,7 +363,7 @@ export class GroupComposer {
       );
       sent = true;
     }, diagnostic);
-    return sent;
+    return result === 'deferred' ? result : result && sent;
   }
   private progress(group: string): GroupSendProgress {
     return {

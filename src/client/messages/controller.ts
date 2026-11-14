@@ -1,5 +1,8 @@
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
-import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import {
+  measurePrivateSend,
+  privateSendSpan,
+} from '../chat-sync-diagnostics/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import {
   assertRemovalBatch,
@@ -1441,6 +1444,7 @@ export class Messages {
   async synchronizeAll(
     signal: AbortSignal,
     work: VaultWorkOptions = {},
+    draftWaiting?: () => boolean,
   ): Promise<boolean> {
     const generation = this.generation,
       abort = new AbortController();
@@ -1499,6 +1503,7 @@ export class Messages {
           try {
             const more = await this.receiver.step({
               diagnostic: work.privateSend,
+              draftWaiting,
               account: a.session.accountId,
               device: a.session.deviceId,
               wakeRecovery: recoveryWake !== this.recoveryHandled,
@@ -1556,7 +1561,7 @@ export class Messages {
             this.recoveryHandled = recoveryWake;
             return more;
           } finally {
-            turn.close();
+            closeReceiptTurn(turn, work.privateSend);
           }
         },
         work,
@@ -1757,4 +1762,18 @@ export class Messages {
 
 function mediaVariant(thumbnail: boolean): MediaVariant {
   return thumbnail ? 'thumbnail' : 'original';
+}
+
+function closeReceiptTurn(
+  turn: MessageReceiveTurn<MessageView>,
+  context: PrivateSendContext | undefined,
+): void {
+  const finish = privateSendSpan(context, 'receipt-sdk-close');
+  let ok = false;
+  try {
+    turn.close();
+    ok = true;
+  } finally {
+    finish?.(ok);
+  }
 }

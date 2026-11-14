@@ -1,3 +1,19 @@
+import type {
+  QueueGate,
+  QueueWakeup,
+  TextQueueObservation,
+} from '../../shared/chat-sync-diagnostics/text-queue.ts';
+import { TextQueueTrace } from './observation.ts';
+import type { ObserveTextQueue } from './observation.ts';
+export type {
+  QueueGate,
+  QueueWakeup,
+} from '../../shared/chat-sync-diagnostics/text-queue.ts';
+export type TextTransmitResult = {
+  ok: boolean;
+  more: boolean;
+  deferred?: true;
+};
 import type { TextDraft } from './draft.ts';
 export type { TextDraft } from './draft.ts';
 export { OutgoingTexts, outgoingTextRows } from './outgoing.ts';
@@ -15,16 +31,24 @@ export class TextSendQueue {
   private sendFailed = false;
   private dirty = false;
   private version = 0;
+  private batch = 0;
+  private wakeVersion = 0;
+  private notifying = false;
+  private activeTrace: readonly string[] = [];
+  private readonly trace: TextQueueTrace | undefined;
   private quiet: ReturnType<typeof setTimeout> | null = null;
   private readonly options: {
     timing?: (
       draft: TextDraft,
       stage: 'enqueued' | 'save-start' | 'ready' | 'save-failed' | 'cancelled',
     ) => void;
+    observe?: ObserveTextQueue;
+    blockedBy?: () => QueueGate;
+    reset?: () => void;
     maximumTextBytes?: number;
     maximumQueuedBytes?: number;
     save: (draft: TextDraft) => Promise<void>;
-    transmit: () => Promise<{ ok: boolean; more: boolean }>;
+    transmit: (admitted: () => void) => Promise<TextTransmitResult>;
     available: () => boolean;
     changed: () => void;
     failed: (error: unknown) => void;
@@ -35,6 +59,9 @@ export class TextSendQueue {
   };
   constructor(options: TextSendQueue['options']) {
     this.options = options;
+    this.trace = options.observe
+      ? new TextQueueTrace(options.observe)
+      : undefined;
   }
   get unsaved(): boolean {
     return this.drafts.length > 0;
@@ -71,25 +98,32 @@ export class TextSendQueue {
     this.options.draftChanged?.(captured, 'admitted');
     this.deferBackground();
     this.sendFailed = false;
-    this.options.changed();
-    this.resume();
+    this.changed('input');
   }
   retry(): void {
     this.saveFailed = false;
     this.sendFailed = false;
     this.dirty = true;
-    this.options.changed();
-    this.resume();
+    this.changed('retry');
   }
   deferBackground(): void {
     if (this.quiet !== null) clearTimeout(this.quiet);
     this.quiet = setTimeout(() => {
       this.quiet = null;
-      this.options.changed();
+      this.changed('quiet-timer');
     }, 1000);
   }
   reset(): void {
+    this.trace?.reset(this.generation, 'session-view');
+    this.trace?.mark(this.activeTrace, {
+      phase: 'cancelled',
+      trigger: 'session-view',
+      generation: this.generation,
+      batch: this.batch,
+    });
+    this.activeTrace = [];
     this.generation++;
+    this.options.reset?.();
     if (this.quiet !== null) clearTimeout(this.quiet);
     this.quiet = null;
     for (const draft of this.drafts) this.options.timing?.(draft, 'cancelled');
@@ -99,15 +133,39 @@ export class TextSendQueue {
     this.saveFailed = false;
     this.sendFailed = false;
   }
-  resume(): void {
+  resume(trigger: QueueWakeup = 'status'): void {
+    if (this.notifying) return;
+    this.wakeVersion++;
     if (!this.saving && !this.saveFailed && this.unsaved) void this.saveNext();
-    if (
-      !this.sending &&
-      !this.sendFailed &&
-      this.dirty &&
-      this.options.available()
-    )
-      void this.flush();
+    if (this.observeGate(trigger) === 'available') void this.flush(trigger);
+  }
+  private observeGate(trigger: QueueWakeup): QueueGate {
+    const gate = this.gate();
+    this.trace?.decision({
+      phase: 'decision',
+      trigger,
+      generation: this.generation,
+      gate,
+      ...(this.sending ? { batch: this.batch } : {}),
+    });
+    return gate;
+  }
+  private gate(): QueueGate {
+    if (this.sending) return 'active-transmission';
+    if (this.sendFailed) return 'send-failed';
+    if (!this.dirty) return 'no-dirty-work';
+    return this.options.available()
+      ? 'available'
+      : (this.options.blockedBy?.() ?? 'unknown');
+  }
+  private changed(trigger: QueueWakeup, resume = true): void {
+    this.notifying = true;
+    try {
+      this.options.changed();
+    } finally {
+      this.notifying = false;
+    }
+    if (resume) this.resume(trigger);
   }
   private async saveNext(): Promise<void> {
     const current = this.generation,
@@ -123,6 +181,7 @@ export class TextSendQueue {
       this.dirty = true;
       this.version++;
       this.options.timing?.(draft, 'ready');
+      this.trace?.durable(draft.id, current);
     } catch (error: unknown) {
       if (current !== this.generation) return;
       this.saveFailed = true;
@@ -131,27 +190,89 @@ export class TextSendQueue {
       this.options.failed(error);
     } finally {
       this.saving = false;
-      this.options.changed();
-      this.resume();
+      this.changed('save-complete');
     }
   }
-  private async flush(): Promise<void> {
+  private async flush(trigger: QueueWakeup): Promise<void> {
     this.sending = true;
-    const current = this.generation,
-      version = this.version;
+    const turn = {
+      generation: this.generation,
+      version: this.version,
+      batch: ++this.batch,
+      wakeVersion: this.wakeVersion,
+    };
+    const ids = this.trace?.flush({ ...turn, phase: 'flush', trigger }) ?? [];
+    this.activeTrace = ids;
+    let result: TextTransmitResult | undefined;
     try {
-      const result = await this.options.transmit();
-      if (current !== this.generation) return;
-      this.sendFailed = !result.ok;
-      this.dirty = !result.ok || result.more || version !== this.version;
+      result = await this.options.transmit(() =>
+        this.markTurn(ids, turn, 'admitted', trigger),
+      );
+      if (turn.generation === this.generation)
+        this.transmitted(result, turn, ids);
     } catch (error: unknown) {
-      if (current !== this.generation) return;
+      if (turn.generation !== this.generation) return;
       this.sendFailed = true;
+      this.trace?.restore(ids);
+      this.markTurn(ids, turn, 'failed', 'transmission-complete');
       this.options.failed(error);
     } finally {
+      this.activeTrace = [];
       this.sending = false;
-      this.options.changed();
-      this.resume();
+      const deferred = this.awaitingAdmission(result, turn);
+      this.changed('transmission-complete', !deferred);
+      if (deferred) this.observeGate('transmission-complete');
     }
   }
+  private awaitingAdmission(
+    result: TextTransmitResult | undefined,
+    turn: TextQueueTurn,
+  ): boolean {
+    return (
+      result?.deferred === true &&
+      turn.generation === this.generation &&
+      turn.wakeVersion === this.wakeVersion
+    );
+  }
+  private transmitted(
+    result: TextTransmitResult,
+    turn: TextQueueTurn,
+    ids: readonly string[],
+  ): void {
+    this.sendFailed = !result.ok && result.deferred !== true;
+    this.dirty = !result.ok || result.more || turn.version !== this.version;
+    this.markTurn(
+      ids,
+      turn,
+      transmissionPhase(result),
+      'transmission-complete',
+    );
+    if (!result.ok || result.more) this.trace?.restore(ids);
+  }
+  private markTurn(
+    ids: readonly string[],
+    turn: TextQueueTurn,
+    phase: TextQueueObservation['phase'],
+    trigger: QueueWakeup,
+  ): void {
+    if (turn.generation === this.generation)
+      this.trace?.mark(ids, {
+        generation: turn.generation,
+        batch: turn.batch,
+        phase,
+        trigger,
+      });
+  }
+}
+interface TextQueueTurn {
+  wakeVersion: number;
+  generation: number;
+  version: number;
+  batch: number;
+}
+function transmissionPhase(
+  result: TextTransmitResult,
+): 'deferred' | 'complete' | 'failed' {
+  if (result.deferred) return 'deferred';
+  return result.ok ? 'complete' : 'failed';
 }

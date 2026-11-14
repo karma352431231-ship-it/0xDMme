@@ -1,3 +1,4 @@
+import type { TextTransmitResult } from '../src/client/text-send/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TextSendQueue } from '../src/client/text-send/index.ts';
@@ -275,3 +276,68 @@ await test('public text limits preserve large messages while bounding total unsa
   await turn();
   assert.equal(queue.unsaved, false);
 });
+
+await test('a synchronous resume in changed observes one transmission, and deferred admission does not spin', async (t) => {
+  let calls = 0;
+  let ready = true;
+  const q = new TextSendQueue({
+    save: () => Promise.resolve(),
+    available: () => ready,
+    transmit: () => {
+      calls++;
+      ready = false;
+      return Promise.resolve({ ok: false, deferred: true, more: true });
+    },
+    changed: () => q.resume(),
+    failed: (error) => {
+      throw error;
+    },
+  });
+  t.after(() => q.reset());
+  q.enqueue(draft('deferred'));
+  await turn();
+  assert.equal(calls, 1);
+  assert.equal(q.working, true);
+  ready = true;
+  q.resume('receipt-settled');
+  await turn();
+  assert.equal(calls, 2);
+});
+
+for (const reset of [false, true]) {
+  await test(`a wakeup before deferred admission settles is retained across reset=${reset}`, async (t) => {
+    const gate = deferred<TextTransmitResult>();
+    let available = true,
+      calls = 0;
+    const q = new TextSendQueue({
+      save: () => Promise.resolve(),
+      available: () => available,
+      changed: () => q.resume(),
+      failed: (error) => {
+        throw error;
+      },
+      transmit: () => {
+        calls++;
+        if (calls === 1) {
+          available = false;
+          return gate.promise;
+        }
+        return Promise.resolve({ ok: true, more: false });
+      },
+    });
+    t.after(() => q.reset());
+    q.enqueue(draft('first'));
+    await turn();
+    assert.equal(calls, 1);
+    if (reset) {
+      q.reset();
+      q.enqueue(draft('new-account'));
+    }
+    available = true;
+    q.resume('maintenance-released');
+    gate.resolve({ ok: false, deferred: true, more: true });
+    await turn();
+    assert.equal(calls, 2);
+    assert.equal(q.working, false);
+  });
+}

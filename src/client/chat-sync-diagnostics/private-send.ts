@@ -144,7 +144,7 @@ export class PrivateSendCapture {
     if (stage === 'ready') {
       this.point(context, 'staging-complete');
       this.point(context, 'flush-ready');
-      this.ready(id);
+      this.ready(id, false);
     } else
       this.point(
         context,
@@ -152,8 +152,9 @@ export class PrivateSendCapture {
         { sendOutcome: stage === 'cancelled' ? 'cancelled' : 'failed' },
       );
   }
-  ready(id: string): void {
+  ready(id: string, eligible = true): void {
     if (!this.context(id) || this.accepted.has(id)) return;
+    if (!eligible) this.eligible.add(id);
     this.waiting.set(id, new Map());
     this.scheduler(this.reasons);
   }

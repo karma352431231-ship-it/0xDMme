@@ -235,3 +235,37 @@ await test('a failure ends the batch and maintenance never holds back waiting in
     ['maintenance', false],
   ]);
 });
+
+await test('a waiting local vault save prevents a held authority follower from extending the active storage turn', async () => {
+  const gate = deferred<void>();
+  const order: string[] = [];
+  let waitingLocal = false;
+  const queue = new AuthorityWork(
+    async (_account, work) => {
+      order.push('acquired');
+      await work();
+      order.push('released');
+      waitingLocal = false;
+    },
+    () => waitingLocal,
+  );
+  const first = queue.hold('account', () => gate.promise, 'interactive');
+  const next = queue.hold(
+    'account',
+    ({ follower }) => {
+      assert.equal(follower, false);
+      order.push('next');
+      return Promise.resolve();
+    },
+    'interactive',
+  );
+  waitingLocal = true;
+  gate.resolve();
+  await Promise.all([first, next]);
+  assert.deepEqual(order.slice(0, 4), [
+    'acquired',
+    'released',
+    'acquired',
+    'next',
+  ]);
+});

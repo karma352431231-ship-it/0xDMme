@@ -211,8 +211,10 @@ export class DeviceController {
     enrollmentCandidate: (id) =>
       this.run((session) => api(session, 'devices/enrollment-pending', { id })),
   });
-  private readonly authorityWork = new AuthorityWork((key, body, options) =>
-    authorityTurn(key, body, options),
+  private readonly waitingLocalSaves = new Map<string, number>();
+  private readonly authorityWork = new AuthorityWork(
+    (key, body, options) => authorityTurn(key, body, options),
+    (account) => this.waitingLocalSaves.has(account),
   );
   /** When this controller last completed an online directory read, for
    * operations that follow it inside the same native turn. */
@@ -534,11 +536,13 @@ export class DeviceController {
     );
     trace?.admitted();
     trace?.platform('storage-queued');
+    this.trackLocalSave(locator.accountId, 1);
     let ok = false,
       acquired = false;
     try {
       const result = await exclusive(locator.accountId, async () => {
         acquired = true;
+        this.trackLocalSave(locator.accountId, -1);
         trace?.platform('storage-acquired');
         trace?.start();
         const checkpoint = await measurePrivateSend(
@@ -581,9 +585,22 @@ export class DeviceController {
       ok = true;
       return result;
     } finally {
-      if (acquired) trace?.platform('released');
+      this.finishLocalAuthority(locator.accountId, acquired, trace);
       trace?.finish(ok);
     }
+  }
+  private trackLocalSave(account: string, change: 1 | -1): void {
+    const count = (this.waitingLocalSaves.get(account) ?? 0) + change;
+    if (count > 0) this.waitingLocalSaves.set(account, count);
+    else this.waitingLocalSaves.delete(account);
+  }
+  private finishLocalAuthority(
+    account: string,
+    acquired: boolean,
+    trace: ReturnType<typeof startAuthorityWork>,
+  ): void {
+    if (acquired) trace?.platform('released');
+    else this.trackLocalSave(account, -1);
   }
   private async restoreOffline(session: AccountSession): Promise<void> {
     this.directoryReadAt = null;

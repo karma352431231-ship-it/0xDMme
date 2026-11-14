@@ -189,3 +189,68 @@ await test('accepted texts are bounded: a crowded open group asks for a readback
     'The oldest closed-group texts went first',
   );
 });
+
+await test('deferred group admission resumes on the gate owner notification without an explicit retry', async (t) => {
+  let open = true,
+    sends = 0;
+  const notices: string[] = [];
+  const subject = groupTextQueue({
+    save: () => Promise.resolve(),
+    available: () => open,
+    blockedBy: () => 'maintenance',
+    changed: () => subject.resume(),
+    observe: (_id, entry) => notices.push(entry.phase),
+    failed: (error) => {
+      throw error;
+    },
+    send: (_group, admitted) => {
+      sends++;
+      if (sends === 1) {
+        open = false;
+        return Promise.resolve('deferred');
+      }
+      admitted();
+      return Promise.resolve(true);
+    },
+  });
+  t.after(() => subject.reset());
+  subject.enqueue({ id: 'pending-draft', peer: 'g', text: 'synthetic' });
+  await settle();
+  assert.equal(sends, 1);
+  assert.ok(notices.includes('deferred'));
+  assert.ok(!notices.includes('failed'));
+  open = true;
+  subject.resume('maintenance-released');
+  await settle();
+  assert.equal(sends, 2);
+  assert.equal(subject.working, false);
+  assert.ok(notices.includes('admitted'));
+});
+
+await test('a failed outgoing batch and a late save cannot queue an old group after reset', async (t) => {
+  const save = deferred<void>(),
+    sending = deferred<boolean>();
+  const calls: string[] = [];
+  const subject = groupTextQueue({
+    save: (group) => (group === 'old-save' ? save.promise : Promise.resolve()),
+    send: (group) => {
+      calls.push(group);
+      return group === 'old-send' ? sending.promise : Promise.resolve(true);
+    },
+    available: () => true,
+    changed: () => subject.resume(),
+    failed: (error) => {
+      throw error;
+    },
+  });
+  t.after(() => subject.reset());
+  subject.enqueue({ id: 'a', peer: 'old-send', text: 'one' });
+  await settle();
+  subject.enqueue({ id: 'b', peer: 'old-save', text: 'two' });
+  subject.reset();
+  subject.enqueue({ id: 'c', peer: 'new', text: 'three' });
+  save.resolve();
+  sending.resolve(false);
+  await settle();
+  assert.deepEqual(calls, ['old-send', 'new']);
+});

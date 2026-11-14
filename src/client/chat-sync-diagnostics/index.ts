@@ -1,3 +1,4 @@
+import type { TextQueueObservation } from '../../shared/chat-sync-diagnostics/text-queue.ts';
 import { PrivateSendCapture } from './private-send.ts';
 import { privateSendRevision } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import type {
@@ -764,6 +765,18 @@ export function tracePrivateTextQueue(
   stage: 'enqueued' | 'save-start' | 'ready' | 'save-failed' | 'cancelled',
 ): void {
   if (chatSyncActive()) privateSends?.queue(id, stage);
+}
+
+export function traceTextQueue(id: string, entry: TextQueueObservation): void {
+  const context = privateSendContext(id);
+  if (!context) return;
+  privateSendPoint(context, 'text-queue', {
+    queuePhase: entry.phase,
+    queueTrigger: entry.trigger,
+    queueGeneration: entry.generation,
+    ...(entry.batch === undefined ? {} : { queueBatch: entry.batch }),
+    ...(entry.gate ? { queueGate: entry.gate } : {}),
+  });
 }
 
 /** The inbox owns this turn's lifecycle; the capture only numbers its capability. */

@@ -1,3 +1,5 @@
+import { AuthorityWork } from '../src/client/devices/authority-work.ts';
+import { exclusive } from '../src/client/device-storage/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
@@ -400,4 +402,55 @@ await test('linked acquisition distinguishes platform storage wait from schedule
     ),
   );
   assert.ok(after.events.some((e) => e['lockPhase'] === 'released'));
+});
+
+await test('a local save already waiting on the native storage lock runs before a same-controller authority follower', async (t) => {
+  const account = crypto.randomUUID(),
+    entered = deferred<void>(),
+    release = deferred<void>();
+  const order: string[] = [];
+  let localWaiting = false;
+  const queue = new AuthorityWork(
+    (key, work, options) => authorityTurn(key, work, options),
+    () => localWaiting,
+  );
+  const first = queue.hold(
+    account,
+    async () => {
+      order.push('receipt');
+      entered.resolve();
+      await release.promise;
+    },
+    'interactive',
+  );
+  const jobs = [first];
+  t.after(async () => {
+    release.resolve();
+    await Promise.allSettled(jobs);
+  });
+  await waitForBoundary(entered.promise);
+  jobs.push(
+    queue.hold(
+      account,
+      ({ follower }) => {
+        assert.equal(follower, false);
+        order.push('next-authority');
+        return Promise.resolve();
+      },
+      'interactive',
+    ),
+  );
+  localWaiting = true;
+  jobs.push(
+    exclusive(account, () => {
+      localWaiting = false;
+      order.push('durable-save');
+      return Promise.resolve();
+    }),
+  );
+  await pending(account, 1);
+  release.resolve();
+  await Promise.all(jobs);
+  assert.deepEqual(order, ['receipt', 'durable-save', 'next-authority']);
+  await released(account);
 });

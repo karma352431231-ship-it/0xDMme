@@ -1,3 +1,4 @@
+import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import type { SendMaintenanceKind as MaintenanceKind } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import {
   privateSendSpan,
@@ -39,7 +40,7 @@ interface SynchronizationState {
 }
 interface SynchronizationOperations {
   state: () => SynchronizationState;
-  status: () => void;
+  status: (trigger?: QueueWakeup) => void;
   notice: (message: string) => void;
   complete: () => void;
   /** A receiver page settled; defaults to `complete`. */
@@ -117,7 +118,7 @@ export class MessageSynchronization {
       groups: (signal, work) => options.preloadGroups(signal, work),
       pause: () => options.pause(),
       changed: () => {
-        options.status();
+        options.status('receipt-settled');
         this.resume();
       },
       startingLive: () => {
@@ -403,6 +404,17 @@ export class MessageSynchronization {
       this.sendsBeforeReceipt++;
     return this.run(work, diagnostic);
   }
+  async admitSend(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<boolean | 'deferred'> {
+    if (!this.sendTurnReady) return 'deferred';
+    return this.runSend(work, diagnostic);
+  }
+  textSendGate(): QueueGate {
+    if (this.receiptOwed) return 'receipt-fairness';
+    return this.sendBlockers().find(isTextGate) ?? 'unknown';
+  }
   /** Active segments keep their exclusion; optional work checks this between segments. */
   get shouldYieldMaintenance(): boolean {
     return (
@@ -488,7 +500,7 @@ export class MessageSynchronization {
     if (this.current(current) && this.failed) this.opening.clear();
     this.busy = false;
     await this.openNext();
-    this.options.status();
+    this.options.status('foreground-released');
     this.resume();
   }
   admitDraft(): void {
@@ -703,7 +715,7 @@ export class MessageSynchronization {
       .finally(() => {
         this.maintenance = null;
         this.maintenanceKind = undefined;
-        if (this.current(current)) this.options.status();
+        if (this.current(current)) this.options.status('maintenance-released');
         this.resume();
       });
     await this.maintenance;
@@ -776,5 +788,18 @@ function settleSendWait(
       finish(false);
       throw error;
     },
+  );
+}
+
+function isTextGate(
+  reason: SendWaitReason,
+): reason is Extract<SendWaitReason, QueueGate> {
+  return (
+    reason === 'closed' ||
+    reason === 'foreground-operation' ||
+    reason === 'maintenance' ||
+    reason === 'session' ||
+    reason === 'offline' ||
+    reason === 'suspended'
   );
 }

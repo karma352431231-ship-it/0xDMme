@@ -1,7 +1,8 @@
 # Private and group send accounting
 
-Current collector: **8**, send protocol **3**. The revision 8 section below
-supersedes the earlier budget and coverage descriptions.
+Current collector: **10**, send protocol **4**. The revision 10 section below
+supersedes the earlier queue coverage description. Revision 8 defines the
+retained send and operation budgets.
 
 The original revision 6 change implements the private-send instrumentation assignment. It preserves
 send admission, priority, cryptographic checks, pinned preflight retries, upload
@@ -402,3 +403,97 @@ texts, group image, live receipt, speculative receipt and active maintenance.
 Record individual values, median and range, failures, incoming progress and
 interval residuals. The idle group acceptance-to-DOM investigation target is
 100 ms. Collect runtime results separately for Android, browser and iPhone.
+
+## Revision 10: durable text queue gates and receipt storage boundaries
+
+The supplied revision 9 Android sample uses collector source `94cd9b56` and
+application asset `app-8184653d2faead66.js`. All eight sends are retained.
+Group text 2 has 2,163 ms from durable-ready to the next recorded wait and
+2,172 ms total residual. The earlier `scheduler-eligible` mark observed an
+empty sampled blocker list. The text queue had not established that its
+own sending/failure/dirty gates and network/admission predicates allowed
+a new flush. The historical cause remains unknown.
+
+### Queue ownership and runtime corrections
+
+The text queue now reports durable-ready, its actual processed gate,
+flush and transmit admission/result through a typed optional hook.
+Capture-local queue generation and batch numbers link a later draft to an
+already active transmission. The hook records changes in gate state,
+including the trigger that processed them. The application scheduler
+provides its reason, while the group composer supplies account and network
+availability. The queue owns saving, dirty/version, sending and failed
+state. It suppresses synchronous reentry through its own changed callback.
+
+An admission that could not start returns `deferred` through the actual group
+and direct adapters. It retains durable work and awaits a notification from
+the gate owner. An operation that ran and failed still requires the existing
+retry. A queue wakeup version retains a gate-release notification that arrives
+before deferred admission settles, including after account reset. Reset clears the group adapter's unsent set and invalidates late save
+or transmission continuations, protecting the next account from old groups.
+The connectivity and foreground lifecycle paths explicitly reevaluate queues.
+No new polling timer is introduced.
+
+The legacy durable-ready mark no longer advertises full queue eligibility.
+`textQueue.points` contains the actual decision, gate, trigger, generation
+and active batch. Protocol acceptance and visible DOM observations retain
+their separate milestones. Revisions 3 and 4 retain comparable existing
+latency windows. Revision 3 reports absent text-queue coverage.
+
+### Receipt-held storage
+
+`withLocalVault` and online authority acquire the exclusive
+`0xdmme-device-authority` platform resource. A native authority turn could
+append another already queued authority operation after the receipt completed.
+The authority owner now releases that turn when a local save is already
+waiting, so the platform can grant that existing save request. Local-save
+registration is removed on acquisition or acquisition failure. The next
+authority operation verifies its directory again in its own turn.
+
+A direct receipt may process a new discovery page and then attempt recovery
+of an older pending conversation. That recovery is an independent durable
+obligation. When a draft is waiting, the receiver can leave the old range
+pending for the next page, then flush acknowledgments, confirm and persist
+the current discovery progress through the existing commit sequence. At most
+one consecutive due recovery opportunity yields. The next due recovery
+opportunity proceeds even while sends continue.
+
+The existing active discovery page still owns authority, SDK access and
+storage until its consistency boundary completes. Request and SDK work
+inside that page remains exclusive. SDK close has its own receipt span,
+followed by the actual platform-release evidence. The supplied 689/889 ms
+local waits include 654/855 ms of linked vault overlap. The 75/76 ms
+commit-to-release tails explain only a fraction of those waits. Neither
+correction establishes that the entire observed wait disappears, and a
+sample with no due old recovery cannot benefit from deferring that recovery.
+
+### Bounded accounting and validation
+
+Each retained logical send has at most 48 queue points, independent of its
+ordinary 128 detail and 16 terminal points. The emitting queue tracks at most
+32 waiting draft IDs and exports truncation when that budget is exhausted.
+The collector exports dropped queue points, missing durable/dispatch
+boundaries, cancellation and capture-stop coverage. Accepted outcome stays
+in the existing reserved terminal space.
+
+The queue report separates known blocked intervals, observed available time
+before flush, and unknown intervals. Only closed gate intervals enter the
+queue union. A missing end, unknown gate or exhausted detail budget leaves
+unknown time visible. Terminal acceptance can bound the report but cannot
+invent a gate decision. Capture-level receipt context never determines a
+queue gate by temporal proximity.
+
+Deterministic regressions exercise save during an active batch, deferred
+admission, reentrant status, reset with pending save/transmission, a synthetic
+2,163 ms known wait and an unknown counterpart, truncation/capture stop,
+the native-turn release before another follower and old-recovery deferral
+with current-page commit. Existing live/group receipt, stale directory,
+lost-publication reply and acceptance-render tests remain applicable.
+
+Matched runtime trials remain owner-operated. Record durable-ready to first
+decision, gate wait, available-to-dispatch, protocol acceptance, visible DOM,
+local acquisition and actual resource release with incoming progress. Five
+matched runs per affected scenario, the same 100,578-byte image and separate
+Android/browser/iPhone results are required to establish physical improvement.
+The retrospective 2.16-second cause remains unresolved until the new capture
+provides the retained queue transitions.

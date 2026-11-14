@@ -1,3 +1,4 @@
+import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import type {
   PrivateSendContext,
   SendWaitReason,
@@ -72,9 +73,13 @@ interface GroupOptions {
   select: () => void;
   isBusy: () => boolean;
   sendReady?: (() => boolean) | undefined;
+  textGate?: (() => QueueGate) | undefined;
   sendChanged?: (() => void) | undefined;
   sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
-  runSend?: GroupOptions['run'];
+  runSend?: (
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ) => Promise<boolean | 'deferred'>;
   alert: () => void;
   peers: () => readonly Peer[];
   alias: (account: string) => string;
@@ -130,6 +135,7 @@ export function startGroups(
     externalMedia: options.externalMedia,
     isBusy: options.isBusy,
     sendReady: options.sendReady,
+    textGate: options.textGate,
     sendChanged: options.sendChanged,
     sendBlockers: options.sendBlockers,
     members,
@@ -140,7 +146,12 @@ export function startGroups(
     ...(options.stars ? { stars: options.stars } : {}),
     visibleGroup,
     reconcile: (id) => reconciliation.request(id),
-    operationRun: options.runSend ?? options.run,
+    operationRun:
+      options.runSend ??
+      (async (work, diagnostic) => {
+        await options.run(work, diagnostic);
+        return true;
+      }),
     run,
     reopen,
     select: options.select,
@@ -209,7 +220,7 @@ export function startGroups(
   function node<T extends HTMLElement>(selector: string): T | null {
     return host?.querySelector<T>(selector) ?? null;
   }
-  function status(): void {
+  function status(trigger?: QueueWakeup): void {
     const settingsNotice = node('[data-group-settings-notice]');
     if (settingsNotice)
       settingsNotice.textContent = [
@@ -232,7 +243,7 @@ export function startGroups(
         (notice === t('Syncing…') && !initialLoading)
           ? ''
           : notice;
-    chat.status();
+    chat.status(trigger);
     management.renderCreation();
   }
   async function run(work: () => Promise<void>): Promise<void> {

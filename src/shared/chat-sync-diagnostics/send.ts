@@ -1,4 +1,6 @@
 export const sendStages = [
+  'text-queue',
+  'receipt-sdk-close',
   'group-message-slot',
   'start-not-observed',
   'started-before-capture',

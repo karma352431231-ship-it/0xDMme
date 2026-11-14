@@ -1,5 +1,5 @@
 import { TextSendQueue } from '../text-send/index.ts';
-import type { TextDraft } from '../text-send/index.ts';
+import type { TextDraft, TextTransmitResult } from '../text-send/index.ts';
 
 /** Group texts leave the composer at once, as private ones do: each is saved
  * in admission order to its own group's encrypted outbox under its queue ID,
@@ -14,10 +14,15 @@ export function groupTextQueue(options: {
     draft: { id: string; text: string; order: number },
   ) => Promise<void>;
   /** Sends one group's drafts; false when the send did not run. */
-  send: (groupId: string) => Promise<boolean>;
+  send: (
+    groupId: string,
+    admitted: () => void,
+  ) => Promise<boolean | 'deferred'>;
   available: () => boolean;
   changed: () => void;
   failed: (error: unknown) => void;
+  observe?: ConstructorParameters<typeof TextSendQueue>[0]['observe'];
+  blockedBy?: ConstructorParameters<typeof TextSendQueue>[0]['blockedBy'];
   timing?: ConstructorParameters<typeof TextSendQueue>[0]['timing'];
   draftChanged?: (
     draft: TextDraft,
@@ -31,41 +36,59 @@ export function groupTextQueue(options: {
   const order = (createdAt: number): number =>
     (last = Math.max(last + 1, createdAt * 1000));
   /** A send that fails or throws keeps its group and the rest unsent. */
+  let generation = 0;
   const attempt = async (
     groupId: string,
-    remaining: string[],
-  ): Promise<boolean> => {
-    let ok = false;
+    turn: { remaining: string[]; generation: number },
+    admitted: () => void,
+  ) => {
+    let result: boolean | 'deferred' = false;
     try {
-      ok = await options.send(groupId);
+      result = await options.send(groupId, admitted);
+      return result;
     } finally {
-      if (!ok) for (const left of remaining) unsent.add(left);
+      if (result !== true && turn.generation === generation)
+        for (const left of turn.remaining) unsent.add(left);
     }
-    return ok;
   };
   return new TextSendQueue({
+    reset: () => {
+      generation++;
+      unsent.clear();
+    },
     save: async (draft) => {
+      const current = generation;
       await options.save(draft.peer, {
         id: draft.id,
         text: draft.text,
         order: order(draft.createdAt ?? Date.now()),
       });
-      unsent.add(draft.peer);
+      if (current === generation) unsent.add(draft.peer);
     },
     // Texts saved while a send runs mark their group again for the next one.
-    transmit: async () => {
+    transmit: async (admitted): Promise<TextTransmitResult> => {
+      const current = generation;
       const groups = [...unsent];
       unsent.clear();
       for (const [index, groupId] of groups.entries()) {
+        if (current !== generation) break;
         if (!options.available()) {
           for (const left of groups.slice(index)) unsent.add(left);
-          return { ok: true, more: true };
+          return { ok: false, deferred: true, more: true };
         }
-        if (!(await attempt(groupId, groups.slice(index))))
-          return { ok: false, more: true };
+        const result = await attempt(
+          groupId,
+          { remaining: groups.slice(index), generation: current },
+          admitted,
+        );
+        if (result === 'deferred')
+          return { ok: false, deferred: true, more: true };
+        if (!result) return { ok: false, more: true };
       }
       return { ok: true, more: unsent.size > 0 };
     },
+    ...(options.observe ? { observe: options.observe } : {}),
+    ...(options.blockedBy ? { blockedBy: options.blockedBy } : {}),
     ...(options.timing ? { timing: options.timing } : {}),
     available: options.available,
     changed: options.changed,
