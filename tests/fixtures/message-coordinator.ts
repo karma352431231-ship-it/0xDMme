@@ -497,9 +497,10 @@ export function coordinatorFixture(
       calls.push('group-directory');
       return state.holdGroups ? groupLoad.promise : Promise.resolve();
     },
-    finishDirectoryRefresh: () => {
+    finishDirectoryRefresh: async () => {
       calls.push('groups');
-      return state.holdGroups ? groupLoad.promise : Promise.resolve();
+      if (state.holdGroups) await groupLoad.promise;
+      return true;
     },
     directoryPresented: noop,
     previewPresented: noop,

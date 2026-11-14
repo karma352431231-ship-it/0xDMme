@@ -1096,7 +1096,7 @@ await test('a text saved during a live recheck transmits before unrelated mainte
     f.calls.slice(before).includes('send-pending'),
     'A saved user message must not wait for another maintenance owner.',
   );
-  assert.ok(!f.calls.slice(before).includes('groups'));
+  assert.ok(!f.calls.slice(before).includes('group-directory'));
   assert.equal(
     f.priorities.findLast((entry) => entry.operation === 'send')?.priority,
     'interactive',
@@ -1108,11 +1108,14 @@ await test('a text saved during a live recheck transmits before unrelated mainte
   t.mock.timers.tick(1000);
   await turn();
   await advanceMaintenanceUntil(t, () =>
-    f.calls.slice(before).includes('groups'),
+    f.calls.slice(before).includes('group-directory'),
   );
   f.state.holdGroups = false;
   f.groupLoad.resolve();
   await turn();
+  await advanceMaintenanceUntil(t, () =>
+    f.calls.slice(before).includes('groups'),
+  );
 });
 
 await test('a newer visible live hint yields after current contacts before unrelated groups, without aborting current work', async (t) => {
