@@ -697,3 +697,89 @@ caller observations are kept separately with pause overhead. The same
 100,578-byte image is hashed and selected from the Android's existing files.
 Matched performance acceptance must be reported separately from these passing
 regressions; browser and iPhone runtime performance remains unverified.
+
+### Physical Android results
+
+The candidate is clean source `325736cb17febab9c9bc0ec66f9ddef787d2f30a`,
+Android 20261135, asset `app-bc0dc72ae255d19c.js`. Both test builds used the
+same frozen collector 12/protocol 5 file. That test collector truthfully reports
+baseline source plus uncommitted candidate changes, rather than clean release
+provenance. The deliverable collector was separately built from clean candidate
+source. Installed APK manifests and packaged assets were checked independently.
+
+Five strict pairs alternated A/B and B/A on the same Android, account, group and
+verified image. During setup the debugger identified the existing group owner;
+it was disabled before timing. The test requests that owner's real uncached
+`readMedia()` operation exactly when `pins-load` completes, while the ordinary
+public composer sends the message. Governance, availability, storage and media
+verification still execute, and the returned media bytes are wiped. This is a
+controlled source-level workload, rather than a claim that every normal gesture
+launches an image read at that exact instant.
+
+| Pair | Order | Baseline acceptance | Candidate acceptance | Reduction |
+| ---- | ----- | ------------------: | -------------------: | --------: |
+| 1    | A/B   |            3,091 ms |             2,103 ms |    988 ms |
+| 2    | B/A   |            2,695 ms |             1,738 ms |    957 ms |
+| 3    | A/B   |            2,736 ms |             1,649 ms |  1,087 ms |
+| 4    | B/A   |            2,666 ms |             1,655 ms |  1,011 ms |
+| 5    | A/B   |            2,802 ms |             1,935 ms |    867 ms |
+
+Median acceptance falls from **2,736 ms** (2,666–3,091) to **1,738 ms**
+(1,649–2,103), a **36.48%** reduction in this controlled scenario. The median
+identity-confirmation-to-group-verification interval falls from 969 ms
+(526–976) to 2 ms (1–3). Queue/lock union falls from 892 ms to 121 ms; observed
+execution from 1,891 ms to 1,594 ms. These are overlapping wall-time summaries,
+not CPU totals or additive per-stage costs. Median residual stays 23 ms.
+Acceptance-to-observed-DOM remains 39–64 ms across both builds. All strict sends
+are accepted, all controlled media operations complete, and no private summary
+overflows.
+
+The optional image pays a visible scheduling cost: its median queue wait rises
+from 1 ms to 1,068 ms, and completion after the send gesture rises from 1,467.4 ms
+to 2,619.2 ms. Its intrinsic median execution is 782 ms versus 845 ms. It no
+longer interrupts the middle of this logical send, but it is not made faster.
+One baseline selection also lets other work precede that image. These operation
+and platform-release details remain in the private trial report. Optional-image
+progress is not evidence of cross-device incoming-message latency; that remains
+physically unmeasured, with receiving/maintenance invariants covered by regression
+tests.
+
+A separate broad series retained five trials per scenario per build, including
+rapid and overlapping sends and the same hashed 100,578-byte image. It ran in
+baseline-then-candidate blocks. History grew and nominally idle gestures could
+still encounter later history/receipt work. Its median observations are:
+
+| Scenario                                         | Baseline | Candidate |
+| ------------------------------------------------ | -------: | --------: |
+| Nominal idle group text                          | 3,790 ms |  2,687 ms |
+| Three rapid group texts, maximum per trial       | 3,835 ms |  4,432 ms |
+| Nominal idle direct text                         | 2,226 ms |  2,741 ms |
+| Direct overlapping prior send, maximum per trial | 2,708 ms |  2,716 ms |
+| Direct image                                     | 3,832 ms |  3,839 ms |
+| Group image                                      | 4,538 ms |  3,749 ms |
+
+These descriptive samples do **not** establish general improvement. Earlier
+scroll-triggered contention samples are retained but excluded from controlled
+acceptance because some intended holders finished before the candidate gesture.
+Driver/setup failures and ADB package-switch interruptions are retained separately,
+not converted into successful, failed-delivery or zero-latency samples. The
+Android exit record identified package replacement during the install-related
+interruptions, rather than an application crash. No data reset or message deletion
+was used to manufacture matching history.
+
+The remaining rapid-send case can queue a third local save after the previous
+group publisher has already started, then require a subsequent verified batch.
+That indivisible work and remaining direct preparation are not eliminated by
+this patch. The evidence supports the scoped group boundary correction, not a
+claim that the app's overall sending latency is solved. Five pairs do not provide
+a reliable p95.
+
+Two targeted automated runs passed: 66 tests, then 88 tests including a repeat
+of the authority suite after its final edit. Lint, strict types, dependency
+boundaries, formatting, diff checks, web/mobile builds and the signed Android
+build passed. The 49 packaged assets and matching installed signer were checked.
+Raw captures, every per-message result, acquisition/holder/release records,
+incoming/maintenance coverage, retries/failures, fixture and collector hashes,
+and the detailed English report remain exclusively in
+`.local/private-send-revision12-release/`. The candidate remains installed after
+the final pair; browser and iPhone performance is not claimed.
