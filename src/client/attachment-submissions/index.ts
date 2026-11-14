@@ -48,6 +48,7 @@ export class AttachmentSubmissions {
   private running = false;
   private admitting = false;
   private readonly options: {
+    diagnosticScope?: 'private' | 'group';
     available: () => boolean;
     blockers?: () => readonly SendWaitReason[];
     run: (
@@ -122,7 +123,11 @@ export class AttachmentSubmissions {
         phase: 'queued',
         progress: null,
       });
-      beginPrivateSend(item.id, event);
+      beginPrivateSend(
+        item.id,
+        event,
+        this.options.diagnosticScope ?? 'private',
+      );
       traceSend('draft-admitted', item.id);
       traceSend('submit', item.id);
       traceSend('ui-available', item.id);

@@ -14,6 +14,7 @@ type Emit = (
   },
 ) => void;
 interface Gesture {
+  mediaMode: NonNullable<PrivateSendFields['sendMediaMode']>;
   composer: number;
   gesture: number;
   clock: number;
@@ -58,18 +59,31 @@ export class PrivateSendCapture {
     )
       return;
     this.gestures.set(v['event'], {
+      mediaMode: ['text', 'ordinary', 'view-once'].includes(
+        String(v['mediaMode']),
+      )
+        ? (v['mediaMode'] as Gesture['mediaMode'])
+        : 'unknown',
       composer: Number(v['composer']),
       gesture: Number(v['gesture']),
       clock: Number(v['clock']),
     });
   }
-  begin(id: string, slot: number, event?: Event): void {
+  begin(
+    id: string,
+    slot: number,
+    event?: Event,
+    scope: 'private' | 'group' = 'private',
+  ): void {
     if (this.ended || this.drafts.has(id)) return;
     if (this.drafts.size >= 256) {
-      this.point(undefined, 'logical-submit', { privateOverflow: true });
+      this.point(undefined, 'logical-submit', {
+        privateOverflow: true,
+        sendScope: scope,
+      });
       return;
     }
-    const context = { owner: this.tokenOwner, message: slot };
+    const context = { owner: this.tokenOwner, message: slot, scope };
     this.drafts.set(id, context);
     const gesture = event && this.gestures.get(event);
     this.point(
@@ -77,6 +91,7 @@ export class PrivateSendCapture {
       'logical-submit',
       gesture
         ? {
+            sendMediaMode: gesture.mediaMode,
             sendComposer: gesture.composer,
             sendGesture: gesture.gesture,
             sendGestureClockMs: gesture.clock,
@@ -211,6 +226,7 @@ export class PrivateSendCapture {
   fields(context: PrivateSendContext | undefined): PrivateSendFields {
     if (this.ended || context?.owner !== this.tokenOwner) return {};
     return {
+      ...(context.scope ? { sendScope: context.scope } : {}),
       ...(context.receipt ? { receiptTurn: context.receipt } : {}),
       ...(context.receiptAttempt
         ? { receiptAttempt: context.receiptAttempt }
@@ -247,7 +263,10 @@ export class PrivateSendCapture {
   ): ((ok?: boolean) => void) | undefined {
     if (this.ended || context?.owner !== this.tokenOwner) return;
     if (this.spans >= 4096) {
-      this.point(context, stage, { privateOverflow: true });
+      this.point(context, stage, {
+        privateOverflow: true,
+        privateOverflowKind: 'operation',
+      });
       return;
     }
     const sendSpan = ++this.spans,

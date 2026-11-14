@@ -167,7 +167,7 @@ await test('all five summaries survive busy background traffic and distinguish a
       assert.equal(send.upload.completedParts, 2);
     }
   }
-  submit(r, 6);
+  for (let gesture = 6; gesture <= 33; gesture++) submit(r, gesture);
   assert.equal(r.report().comparison.overflow, 1);
   report.comparison.sends[0]!.stages['draft-seal']!.count = 99;
   assert.equal(r.report().comparison.sends[0]!.stages['draft-seal']!.count, 1);

@@ -1,3 +1,5 @@
+import { privateSendCapture } from './fixtures/private-send-capture.ts';
+import { privateSendBatch } from '../src/client/chat-sync-diagnostics/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -249,6 +251,9 @@ await test('a lost acceptance answer settles on the next send, after a reload, w
   const state = period(2),
     encrypted = await machine.encryptGroup(message(transport)),
     name = `outbox:${encrypted.packet.id}`;
+  const captured = privateSendCapture(t);
+  captured.send(encrypted.packet.id, 'group');
+  const diagnostic = privateSendBatch();
   const stored = storedDraft(t, encrypted);
   const server = new Set<string>(),
     published: string[] = [],
@@ -267,6 +272,7 @@ await test('a lost acceptance answer settles on the next send, after a reload, w
   };
   const send = async () =>
     sendGroupPending({
+      diagnostic,
       authority: owner.authority,
       group: { state, head: await groupEventHash(state) },
       identities: new PeerIdentity(new VaultSync(access)),
@@ -288,4 +294,13 @@ await test('a lost acceptance answer settles on the next send, after a reload, w
   ]);
   assert.deepEqual(progress.accepted, [encrypted.packet.id]);
   assert.equal(stored.has(name), false);
+  const trace = captured.recording.report().comparison.privateLatency;
+  assert.equal(trace.sends.length, 1);
+  assert.equal(trace.sends[0]?.scope, 'group');
+  assert.equal(trace.sends[0]?.outcome, 'accepted');
+  assert.ok(
+    trace.sends[0]?.milestones.some(
+      (point) => point.stage === 'accepted-check',
+    ),
+  );
 });

@@ -485,3 +485,12 @@ submission admission are separately observed. Milestone completeness does not
 imply zero residual time. The existing outgoing group diagnostic remains
 available; the full private-send accounting is scoped to private sends.
 See [revision 7 details and optimization limits](PRIVATE_SEND_DIAGNOSTICS.md#revision-7-receipt-turns-local-admission-and-attachment-staging).
+
+## Mixed direct/group capture — collector revision 8
+
+Send protocol 3 links actual group submit events, drafts, group-message numbers,
+batches and accepted checks through the existing collector. The shared summary
+retains 32 sends with separate detail and terminal budgets, fixed group request
+categories, per-scope coverage and windows to durable save, pending row, dispatch,
+acceptance and check. Missing starts, partial modes and overflow remain explicit.
+See [revision 8 ownership, limits and runtime change](PRIVATE_SEND_DIAGNOSTICS.md#revision-8-speculative-admission-and-private-group-sends).

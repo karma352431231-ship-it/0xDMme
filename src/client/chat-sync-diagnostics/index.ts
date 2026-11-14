@@ -460,29 +460,53 @@ export function measureSendSync<T>(
 
 /** Observe a check only after authoritative acceptance for this capture's
  * own message. Decorative pending checks cannot satisfy it. No paint claim. */
-export function traceSendChecks(history: HTMLElement): void {
+export function traceSendChecks(
+  history: HTMLElement,
+  scope: 'private' | 'group' = 'private',
+): void {
   if (!chatSyncActive()) return;
   if (!sendHistoryVisible(history)) {
-    for (const [id, send] of [...sends])
-      if (send.accepted && !send.rendered) traceSend('check-limit', id);
+    hiddenSendChecks(scope);
     return;
   }
   for (const row of history.querySelectorAll<HTMLElement>(
-    'article[data-message]',
+    scope === 'group'
+      ? 'article[data-group-message], article[data-group-pending], article[data-message]'
+      : 'article[data-message]',
   )) {
     observeSendRow(row);
   }
 }
+function hiddenSendChecks(scope: 'private' | 'group'): void {
+  for (const [id, send] of [...sends])
+    if (
+      send.accepted &&
+      !send.rendered &&
+      privateSends?.context(id)?.scope === scope
+    )
+      traceSend('check-limit', id);
+}
 function observeSendRow(row: HTMLElement): void {
-  const id = row.dataset['message'];
+  const id =
+    row.dataset['groupMessage'] ??
+    row.dataset['groupPending'] ??
+    row.dataset['message'];
   if (!id || !sends.has(id)) return;
   traceSend('pending-render', id);
-  if (sends.get(id)?.accepted && row.querySelector('.message-checks')) {
+  if (acceptedSendRow(row, id)) {
     traceSend('check-render', id);
     traceHandleDelivery(id, 'sender-check');
   }
 }
 
+function acceptedSendRow(row: HTMLElement, id: string): boolean {
+  return (
+    !!sends.get(id)?.accepted &&
+    (!row.dataset['groupPending'] ||
+      row.dataset['groupAccepted'] !== undefined) &&
+    !!row.querySelector('.message-checks')
+  );
+}
 function sendHistoryVisible(history: HTMLElement): boolean {
   return (
     history.isConnected &&
@@ -511,8 +535,14 @@ export function traceGroupMessage(
     messages.set(id, message);
     if (messages.size > 256) messages.delete(messages.keys().next().value!);
   }
+  const context = id ? privateSendContext(id) : undefined;
+  if (message !== undefined)
+    privateSendPoint(context, 'group-message-slot', {
+      sendGroupMessage: message,
+    });
   traceChatSync(owner, null, {
     ...decision,
+    ...privateSends?.fields(context),
     ...(message === undefined ? {} : { message }),
   });
 }
@@ -653,9 +683,13 @@ export function diagnosticGeneration(): number | undefined {
 }
 
 /** Explicit logical submission; gesture linkage is by the exact DOM event. */
-export function beginPrivateSend(id: string, event?: Event): void {
+export function beginPrivateSend(
+  id: string,
+  event?: Event,
+  scope: 'private' | 'group' = 'private',
+): void {
   if (chatSyncActive())
-    privateSends?.begin(id, sendMessage(id, 'submit')!, event);
+    privateSends?.begin(id, sendMessage(id, 'submit')!, event, scope);
 }
 export function privateSendContext(id: string): PrivateSendContext | undefined {
   return chatSyncActive() ? privateSends?.context(id) : undefined;
@@ -715,6 +749,8 @@ export function tracePrivateScheduler(
 }
 export function resetPrivateSendDiagnostics(): void {
   privateSends?.reset();
+  sends.clear();
+  messages.clear();
 }
 
 export function tracePrivateTextQueue(
@@ -735,4 +771,10 @@ export function releaseReceiptDiagnostic(
   context: PrivateSendContext | undefined,
 ): void {
   if (chatSyncActive()) privateSends?.releaseReceipt(context);
+}
+
+export function resumeGroupSendDiagnostic(id: string): void {
+  if (!chatSyncActive() || privateSendContext(id)) return;
+  beginPrivateSend(id, undefined, 'group');
+  privateSendPoint(privateSendContext(id), 'start-not-observed');
 }

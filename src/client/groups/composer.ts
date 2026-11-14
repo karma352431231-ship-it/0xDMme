@@ -1,3 +1,10 @@
+import {
+  beginPrivateSend,
+  traceSend,
+  tracePrivateTextQueue,
+  privateSendBatch,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
@@ -45,7 +52,10 @@ interface Options {
   account: () => string | undefined;
   isBusy: () => boolean;
   run: (work: () => Promise<void>) => Promise<void>;
-  operationRun: (work: () => Promise<void>) => Promise<void>;
+  operationRun: (
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ) => Promise<void>;
   changed: () => void;
   reopen: () => Promise<void>;
   report: (notice: string) => void;
@@ -103,12 +113,15 @@ export class GroupComposer {
       changed: () => this.status(),
       failed: (error) => this.failure(error),
       draftChanged: options.draftChanged,
+      timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
     });
     this.submissions = new AttachmentSubmissions({
+      diagnosticScope: 'group',
       available: () => !!options.account() && !options.isBusy(),
-      run: (work) => this.runSubmission(work),
+      blockers: () => (options.isBusy() ? ['foreground-operation'] : []),
+      run: (work, diagnostic) => this.runSubmission(work, diagnostic),
       stage: (item) => options.controller.stageMedia(item),
-      send: () => this.sendSubmissions(),
+      send: (diagnostic) => this.sendSubmissions(diagnostic),
       changed: () => {
         this.status();
         options.changed();
@@ -138,7 +151,7 @@ export class GroupComposer {
       'submit',
       (event) => {
         event.preventDefault();
-        this.submit();
+        this.submit(event);
       },
       { signal: this.lifetime.signal },
     );
@@ -253,27 +266,37 @@ export class GroupComposer {
       viewOnceEnabled(this.node('[data-group-compose]'))
     );
   }
-  private submit(): void {
+  private submit(event: Event): void {
     const input = this.node<HTMLTextAreaElement>('[data-group-text]'),
       group = this.options.controller.selected;
     if (!input || !group || group.localOnly || this.full()) return;
     if (!input.value.trim() && !this.attachments.selected) return;
-    this.admit(input, group.state.groupId);
+    this.admit(input, group.state.groupId, event);
   }
-  private admit(input: HTMLTextAreaElement, groupId: string): void {
+  private admit(
+    input: HTMLTextAreaElement,
+    groupId: string,
+    event: Event,
+  ): void {
+    let admitted: string | undefined;
     try {
       if (this.isMedia()) {
-        this.submissions.enqueue({
-          peer: groupId,
-          text: input.value,
-          reply: this.context?.view.id ?? null,
-          viewOnce: viewOnceEnabled(this.node('[data-group-compose]')),
-          selections: [...this.attachments.selectedBatch],
-        });
+        this.submissions.enqueue(
+          {
+            peer: groupId,
+            text: input.value,
+            reply: this.context?.view.id ?? null,
+            viewOnce: viewOnceEnabled(this.node('[data-group-compose]')),
+            selections: [...this.attachments.selectedBatch],
+          },
+          event,
+        );
         this.attachments.takeSelection();
-      } else
+      } else {
+        const id = crypto.randomUUID();
+        beginPrivateSend(id, event, 'group');
         this.texts.enqueue({
-          id: crypto.randomUUID(),
+          id,
           peer: groupId,
           text: encodeGroupText({
             text: input.value,
@@ -281,23 +304,29 @@ export class GroupComposer {
             forwarded: false,
           }),
         });
+        traceSend('draft-admitted', id);
+        admitted = id;
+      }
       input.value = '';
       this.clearContext();
       input.dispatchEvent(new Event('input'));
       input.focus({ preventScroll: true });
+      if (admitted) traceSend('ui-available', admitted);
     } catch (error: unknown) {
       this.failure(error);
     }
   }
   private async transmit(group: string): Promise<boolean> {
     let sent = false;
+    const diagnostic = privateSendBatch();
     await this.options.operationRun(async () => {
       await this.options.controller.sendGroupDrafts(
         group,
         this.progress(group),
+        diagnostic,
       );
       sent = true;
-    });
+    }, diagnostic);
     return sent;
   }
   private progress(group: string): GroupSendProgress {
@@ -309,7 +338,10 @@ export class GroupComposer {
       },
     };
   }
-  private async runSubmission(work: () => Promise<void>): Promise<boolean> {
+  private async runSubmission(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<boolean> {
     let completed = false;
     let failure: { error: unknown } | null = null;
     await this.options.operationRun(async () => {
@@ -320,15 +352,18 @@ export class GroupComposer {
         failure = { error };
         throw error;
       }
-    });
+    }, diagnostic);
     if (failure) throw (failure as { error: unknown }).error;
     return completed;
   }
-  private async sendSubmissions(): Promise<void> {
+  private async sendSubmissions(
+    diagnostic?: PrivateSendContext,
+  ): Promise<void> {
     for (const group of new Set(this.submissionGroups()))
       await this.options.controller.sendGroupDrafts(
         group,
         this.progress(group),
+        diagnostic,
       );
   }
   private submissionGroups(): string[] {

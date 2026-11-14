@@ -26,6 +26,7 @@ interface Turn {
 const number = (v: unknown): number | null =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
 const terminal = new Set([
+  'receipt-yield',
   'receipt-start',
   'receipt-commit',
   'receipt-release',
@@ -245,6 +246,7 @@ function readReceiptPoint(
     items: number(event['receiptItems']),
     pages: number(event['receiptPages']),
     reason: [
+      'draft-admission',
       'snapshot-changed',
       'failed',
       'cancelled',

@@ -1,4 +1,9 @@
 import {
+  privateSendContext,
+  privateSendBatch,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import {
   measurePrivateSend,
   privateSendPoint,
 } from '../chat-sync-diagnostics/index.ts';
@@ -312,12 +317,16 @@ export class GroupController {
       machine: import('../message-crypto/index.ts').MessageCrypto,
     ) => Promise<T>,
   ): Promise<T> {
-    await ensureMessageRecovery(c.authority, c.api);
-    const machine = await openMessageMachine(c.authority, (op, data) =>
-      c.api(op, data),
+    await measurePrivateSend(c.diagnostic, 'recovery', () =>
+      ensureMessageRecovery(c.authority, c.api),
+    );
+    const machine = await measurePrivateSend(c.diagnostic, 'sdk-open', () =>
+      openMessageMachine(c.authority, (op, data) => c.api(op, data)),
     );
     try {
-      await machine.prepare(c.authority);
+      await measurePrivateSend(c.diagnostic, 'sdk-prepare', () =>
+        machine.prepare(c.authority),
+      );
       return await work(machine);
     } finally {
       machine.close();
@@ -325,17 +334,22 @@ export class GroupController {
   }
   private async withLocalAuthority<T>(
     work: (authority: VaultAuthority) => Promise<T>,
+    diagnostic?: PrivateSendContext,
   ): Promise<T> {
     const generation = this.generation;
     if (!this.session) throw new Error('Sign in and authorize this device.');
-    return this.access.withVault(true, async (authority) => {
-      this.guard(generation);
-      if (authority.session.accountId !== this.session?.accountId)
-        throw new Error('Account changed.');
-      const result = await work(authority);
-      this.guard(generation);
-      return result;
-    });
+    return this.access.withVault(
+      true,
+      async (authority) => {
+        this.guard(generation);
+        if (authority.session.accountId !== this.session?.accountId)
+          throw new Error('Account changed.');
+        const result = await work(authority);
+        this.guard(generation);
+        return result;
+      },
+      { privateSend: diagnostic },
+    );
   }
   async search(query: string, after: string | null) {
     if (this.historyPending && networkAvailable())
@@ -1230,16 +1244,19 @@ export class GroupController {
     groupId: string,
     draft: { id: string; text: string; order: number },
   ): Promise<void> {
-    await this.withLocalAuthority((authority) =>
-      composeGroup({
-        authority,
-        groupId,
-        text: draft.text,
-        contentFormat: 'daily',
-        selection: null,
-        id: draft.id,
-        order: draft.order,
-      }),
+    await this.withLocalAuthority(
+      (authority) =>
+        composeGroup({
+          authority,
+          diagnostic: privateSendContext(draft.id),
+          groupId,
+          text: draft.text,
+          contentFormat: 'daily',
+          selection: null,
+          id: draft.id,
+          order: draft.order,
+        }),
+      privateSendContext(draft.id),
     );
   }
   async composeFor(
@@ -1370,10 +1387,12 @@ export class GroupController {
     selection: AttachmentSelection | null;
     createdAt: number;
   }) {
+    const diagnostic = privateSendContext(input.id);
     return this.withLocalAuthority(async (authority) => {
       if (input.viewOnce) {
         const ids = await composeGroupOnce({
           authority,
+          diagnostic,
           groupId: input.peer,
           ...input,
         });
@@ -1384,11 +1403,12 @@ export class GroupController {
           content: null,
         }));
       }
-      const cache = new GroupCache(authority, input.peer),
+      const cache = new GroupCache(authority, input.peer, diagnostic),
         old = await cache.get(`outbox:${input.id}`);
       if (!old)
         await composeGroup({
           authority,
+          diagnostic,
           groupId: input.peer,
           id: input.id,
           contentFormat: 'daily',
@@ -1411,7 +1431,7 @@ export class GroupController {
           ),
         },
       ];
-    });
+    }, diagnostic);
   }
   async openViewOnce(
     view: GroupView,
@@ -1574,6 +1594,7 @@ export class GroupController {
   async sendGroupDrafts(
     groupId: string,
     progress?: GroupSendProgress,
+    diagnostic?: PrivateSendContext,
   ): Promise<void> {
     const group =
       this.selected?.state.groupId === groupId
@@ -1581,7 +1602,7 @@ export class GroupController {
         : this.entries.find((entry) => entry.state.groupId === groupId);
     if (!group || group.localOnly) return;
     this.retry.reset(groupId);
-    await this.sendSelectedPending(group, progress);
+    await this.sendSelectedPending(group, progress, diagnostic);
   }
   async pendingWork(): Promise<boolean> {
     const selected = this.selected;
@@ -1610,34 +1631,57 @@ export class GroupController {
   private async sendSelectedPending(
     selected: GroupSummary,
     progress?: GroupSendProgress,
+    diagnostic?: PrivateSendContext,
   ): Promise<void> {
+    const batch = diagnostic ?? privateSendBatch();
     try {
-      await this.sendPreparedPending(selected, progress);
+      await this.sendPreparedPending(
+        selected,
+        progress,
+        batch ? { ...batch, attempt: 1 } : undefined,
+      );
     } catch (error: unknown) {
       if (!staleGroupSend(error)) throw error;
-      await this.sendPreparedPending(selected, progress);
+      await this.sendPreparedPending(
+        selected,
+        progress,
+        batch ? { ...batch, attempt: 2 } : undefined,
+      );
     }
   }
   private async sendPreparedPending(
     selected: GroupSummary,
     progress?: GroupSendProgress,
+    diagnostic?: PrivateSendContext,
   ): Promise<void> {
-    await measureWork(this, 'group/identities', () => this.identities.load());
-    await this.withAuthority(async (c) => {
-      const group = await measureWork(this, 'group/verify', () =>
-        c.governance.verify(selected.state.groupId),
-      );
-      await this.machine(c, (machine) =>
-        sendGroupPending({
-          ...c,
-          group,
-          machine,
-          identities: this.identities,
-          progress,
-        }),
-      );
-    });
-    await this.identities.save();
+    await measurePrivateSend(diagnostic, 'pins-load', () =>
+      measureWork(this, 'group/identities', () =>
+        this.identities.load({ privateSend: diagnostic }),
+      ),
+    );
+    await this.withAuthority(
+      async (c) => {
+        const group = await measurePrivateSend(diagnostic, 'group-verify', () =>
+          measureWork(this, 'group/verify', () =>
+            c.governance.verify(selected.state.groupId),
+          ),
+        );
+        await this.machine(c, (machine) =>
+          sendGroupPending({
+            ...c,
+            group,
+            machine,
+            identities: this.identities,
+            progress,
+          }),
+        );
+      },
+      undefined,
+      { privateSend: diagnostic },
+    );
+    await measurePrivateSend(diagnostic, 'pins-save', () =>
+      this.identities.save(undefined, { privateSend: diagnostic }),
+    );
   }
   async pending(): Promise<{ id: string; text: string }[]> {
     const selected = this.selected;

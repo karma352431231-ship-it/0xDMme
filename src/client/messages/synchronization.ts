@@ -430,6 +430,9 @@ export class MessageSynchronization {
     this.options.status();
     this.resume();
   }
+  admitDraft(): void {
+    this.inbox.admitDraft();
+  }
   stopPreload(): void {
     this.inbox.pause();
   }

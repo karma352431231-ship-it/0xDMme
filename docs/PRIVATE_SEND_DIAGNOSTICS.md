@@ -1,6 +1,9 @@
-# Private send accounting — collector revision 6
+# Private and group send accounting
 
-This change implements the private-send instrumentation assignment. It preserves
+Current collector: **8**, send protocol **3**. The revision 8 section below
+supersedes the earlier budget and coverage descriptions.
+
+The original revision 6 change implements the private-send instrumentation assignment. It preserves
 send admission, priority, cryptographic checks, pinned preflight retries, upload
 ordering and acceptance behavior. It does not change a performance policy.
 
@@ -207,3 +210,128 @@ progress and duplicate/lost sends as specified in the work order. Capture
 collector revision 7/private protocol 2 plus collector commit and app asset.
 Candidate latency, instrumentation overhead and before/after improvement remain
 unmeasured. Browser and iOS acceptance are separate from Android measurements.
+
+## Revision 8: speculative admission and private-group sends
+
+The supplied Android baseline used clean collector source
+`fac25fd90f6fe1975ae31454d750ddcce3171228` and reported asset
+`app-5d98666c626dc724.js`. Collector and application provenance are separate.
+The direct texts took 4,565 / 3,601 / 1,990 ms to acceptance; the ordinary
+100,578-byte image took 4,207 ms. Text 1 waited 1,708 ms for the storage lock
+held by a non-live group receipt. Text 2 explicitly awaited a live direct
+receipt for approximately 1,535 ms. These supplied observations identify two
+different dependencies; the 84 ms after direct receipt commit does not explain
+its whole wait. No matched candidate latency is inferred from the tests below.
+
+### Runtime change and remaining constraints
+
+Private text admission now asks the inbox to yield before local saving queues
+for authority. Previously only foreground transmission made that request, after
+local saving had already waited for the same lock. `MessageInbox.admitDraft`
+uses the existing speculative cancellation path and domain generation/signal
+guards. The domain still cleans up and releases its native resource; the save
+uses the same exclusive lock and strict transaction. It cannot bypass either.
+A pending hint and unfinished page remain in `HistoryPreparation`. After four
+speculative interruptions, the next active speculative turn is protected from
+further draft interruption until it completes; session reset clears the count.
+Live receipt is never cancelled by this operation and retains existing durable
+settlement. Existing authority queue fairness and receipt continuations remain.
+
+The group work holding storage is `GroupController.synchronizeAll` plus its
+message-window/lease collaborators. `groups/receipt.ts` owns selected updates and
+counters, rather than this locked prefetch operation. Group head/membership,
+snapshot confirmation, cache writes, SDK persistence, ACKs and identity pin saves
+retain their existing boundaries. No network read or cryptographic operation is
+moved outside authority and no snapshot is reused with weaker validation.
+The live direct receipt and the low-contention text's packet preparation remain
+runtime costs requiring further measured, safe optimization. This change does
+not claim to eliminate either cost or the whole observed storage wait.
+
+### Group correlation and stage ownership
+
+Group composer submission passes the actual DOM submit event to the same capture
+owner as direct sends. The console observer deduplicates click/Enter/submit and
+passes that exact event capability. The queued draft keeps its own anonymous
+slot through local save, navigation, publication retry and batch processing.
+`GroupDeliveryTrace` links its existing group-message number to that send slot.
+Adopting an outbox draft without its original admission explicitly marks
+`start-not-observed` with missing gesture/admission coverage. Whether admission
+predated capture or used an uninstrumented entry remains unknown.
+
+The existing group text queue emits local-save lifecycle marks. `GroupCache`
+measures sealing and passes the narrow context into atomic batch persistence;
+the storage owner marks opening, transaction, issued writes and actual strict
+commit. Group authority receives the batch capability, and per-message request
+capabilities are explicit operations on that authority, without ambient async
+state. Identity loading, group verification, member directories, recovery/SDK,
+device trust, packet creation/persistence, send entry, media transfer and publish
+retain their actual boundaries. A retained packet or accepted retry explicitly
+skips device-key work where applicable. Existing accepted-packet recovery is
+unchanged and never treats HTTP success as validated acceptance.
+
+The group chat view observes pending rows and authoritative accepted checks in
+the visible DOM. Missing/hidden observations remain missing; later visibility
+records the later observation and does not invent an earlier paint time. Text,
+ordinary media and view-once selections have distinct mode labels. Ordinary
+media and text have the linked send path. View-once remains partial when one
+logical submission creates multiple drafts: those extra drafts have explicit
+missing-start coverage rather than an invented gesture link. GIF/voice paths
+without a matched logical submit also remain incomplete. Recipient events and
+clocks are independent and are not a delivery proof for the sender's message.
+
+Named request categories come from the actual group callers, including group
+message snapshot/delta/index/objects/recent/confirm/accepted/publish, governance,
+directories, group media and wrapped Matrix operations. Shared preparation is
+linked once to actual batch members; a per-message request uses that message's
+capability. No nearest-timestamp or last-click attribution is used.
+
+### Retention and accounting
+
+The existing collector and interval engine now retain **32** logical sends
+across direct and group scopes. Application queue limits are unchanged.
+`privateLatency.scopeCounts` reports observed, retained, milestone-complete,
+incomplete and overflowed counts by scope. Each send has 128 detail points plus
+16 reserved terminal points, so noisy detail cannot evict acceptance or failure.
+The bounded shape permits at most 4,608 send points plus 4,096 shared operation
+records. Active request attribution remains limited to 64 entries; there are at
+most 128 batches, 256 members per batch, two attempts per batch and eight retained
+batch-attempt links per send. Other receipt and authority limits remain as
+specified in revision 7. These are diagnostic memory budgets, not outbox quotas.
+
+Send, detail, attempt, operation and batch overflow remain separate, with affected
+send slots where known. Missing linked work/authority coverage is explicit.
+The 1,500-event global ring is unchanged. Completed summaries and reserved
+outcomes survive wrap. No diagnostic mapping is persisted; session/capture
+invalidation makes old capabilities inert.
+
+Both scopes expose windows to durable save, first pending bubble, dispatch,
+first device-key stage, acceptance and visible check. Queue/lock waits,
+execution including I/O and residual are clipped and unioned within each
+window. Shared work is stored once and referenced by send. Legacy stage-duration
+detail is also clipped to submit/acceptance; later receipt or cleanup activity
+cannot inflate click-to-acceptance. Milestone completeness remains separate
+from residual accounting and mode/platform limitations.
+
+### Verification and platform acceptance
+
+Automated coverage includes mixed overlapping sends and ring wrap, send/detail
+budgets, terminal retention, group category validation, accepted retry after a
+lost publication response, stale/revoked packet retry, native lock cleanup before
+local save, pending hints, protected live receipt and the interruption bound.
+Existing group cache/crypto, UI lifecycle, text queue, window, authority,
+preparation, direct receiver and strict outbox tests remain applicable.
+
+The controlled admission test demonstrates that saving can proceed after the
+speculative operation's real cleanup instead of requiring its full remaining
+network operation. It does not establish a physical-device millisecond speedup,
+instrumentation overhead or unchanged incoming latency under continuous load.
+The owner's five matched trials per affected scenario remain required for the
+performance objective, including direct sends during both kinds of receipt,
+group text/image and an eight-send mixed capture. Report median/range, failures,
+receipt progress and remaining residual; keep diagnostics-off overhead separate.
+
+Web and installed-product builds plus shared-path tests validate source/build
+correctness only. Android, browser and iPhone runtime performance must be
+accepted separately. No manual message flow is exercised by this implementation;
+new Android package preparation/installation follows the owner's existing
+in-place update authorization, preserving app data and signing identity.

@@ -1,3 +1,5 @@
+import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object } from '../../shared/account/index.ts';
@@ -28,7 +30,13 @@ export function groupMessageRecordName(row: {
 export class GroupCache {
   private readonly authority: VaultAuthority;
   private readonly scope: string;
-  constructor(authority: VaultAuthority, group: string) {
+  private readonly diagnostic: PrivateSendContext | undefined;
+  constructor(
+    authority: VaultAuthority,
+    group: string,
+    diagnostic?: PrivateSendContext,
+  ) {
+    this.diagnostic = diagnostic;
     this.authority = authority;
     this.scope = groupCacheScope(authority.session.accountId, group);
   }
@@ -50,10 +58,12 @@ export class GroupCache {
         let end = Math.min(text.length, offset + 65536);
         if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
         chunks.push(
-          await sealLocal(
-            this.authority,
-            crypto.randomUUID(),
-            text.slice(offset, end),
+          await measurePrivateSend(this.diagnostic, 'draft-seal', () =>
+            sealLocal(
+              this.authority,
+              crypto.randomUUID(),
+              text.slice(offset, end),
+            ),
           ),
         );
         offset = end;
@@ -69,6 +79,7 @@ export class GroupCache {
       scope: this.scope,
       records: sealed,
       maximum: groupQuota,
+      diagnostic: this.diagnostic,
     });
   }
   private async open(

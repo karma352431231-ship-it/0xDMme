@@ -17,6 +17,7 @@ import { GroupGovernance } from './governance.ts';
 
 export interface GroupContext {
   diagnostic?: PrivateSendContext | undefined;
+  apiFor?: (diagnostic: PrivateSendContext | undefined) => AttachmentApi;
   authority: VaultAuthority;
   api: AttachmentApi;
   governance: GroupGovernance;
@@ -101,7 +102,14 @@ export class GroupAuthority {
           api,
           authority,
         );
-        const result = await work({ authority, api, governance });
+        const result = await work({
+          authority,
+          api,
+          governance,
+          diagnostic: diagnostic.privateSend,
+          apiFor: (privateSend) => (op, payload) =>
+            messageApi(authority, op, payload, { guard, privateSend }),
+        });
         guard();
         return result;
       },

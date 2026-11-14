@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
@@ -56,7 +57,10 @@ interface GroupOptions {
   externalMedia?: ExternalMediaConsent | undefined;
   playback: VoicePlayback;
   daily: Daily;
-  run: (work: () => Promise<void>) => Promise<void>;
+  run: (
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ) => Promise<void>;
   history?: (
     work: MessageWork,
     settled?: () => Promise<void>,

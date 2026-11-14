@@ -69,12 +69,17 @@ export function observeSubmissions(record: RecordEvent): () => void {
     changed();
     const current = gestureFor(form, cause);
     const composition = metadata.read(form);
-    if (scope === 'private' && typeof window !== 'undefined')
+    if (['private', 'group'].includes(scope) && typeof window !== 'undefined')
       window.dispatchEvent(
         new CustomEvent(chatSyncControl, {
           detail: {
             privateSubmission: {
               event,
+              mediaMode: composition.viewOnce
+                ? 'view-once'
+                : composition.mediaKind === 'text'
+                  ? 'text'
+                  : 'ordinary',
               composer: composition.composer,
               gesture: current.id,
               clock: current.clock,

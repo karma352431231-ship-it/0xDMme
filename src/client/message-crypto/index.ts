@@ -551,7 +551,11 @@ export class MessageCrypto {
     input: GroupEncryptionInput,
   ): Promise<GroupEncryptedMessage> {
     this.assertOpen();
-    await this.prepare(input.authority);
+    await measureSend(
+      'sdk-prepare',
+      () => this.prepare(input.authority),
+      input.id,
+    );
     const histories = await this.groupHistories(input);
     const transport = groupTransport(input.transport);
     const room = groupRoom(input.state.groupId, input.state.epoch);
@@ -566,7 +570,11 @@ export class MessageCrypto {
         };
       }),
     );
-    await this.trustForBatch(input, { histories, transport, destinations });
+    await measureSend(
+      'device-keys',
+      () => this.trustForBatch(input, { histories, transport, destinations }),
+      input.id,
+    );
     const membership = canonical([
       destinations,
       input.recovery.map((key) => key.id),

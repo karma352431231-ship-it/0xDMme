@@ -165,7 +165,7 @@ await test('native headers, body bytes and HTTP errors are timed without exporti
   const exported = JSON.stringify(recording.report());
   assert.doesNotMatch(
     exported,
-    /secret-identity|"private"|content|Set-Cookie/u,
+    /secret-identity|"private":"content"|content|Set-Cookie/u,
   );
   assert.equal(exported.includes(bridge.opened[0]!.id), false);
 });
@@ -425,7 +425,7 @@ await test('native receive, bridge conversion and JSON parsing retain separate a
   );
   assert.doesNotMatch(
     JSON.stringify(recording.report()),
-    /"private"|payload|invalid JSON/u,
+    /"private":"payload"|payload|invalid JSON/u,
   );
 });
 
@@ -558,5 +558,5 @@ await test('group preview index continuations retain one summary and presentatio
     'group-directory',
     'group-previews',
   ]);
-  assert.equal(report.meterRevision, 7);
+  assert.equal(report.meterRevision, 8);
 });

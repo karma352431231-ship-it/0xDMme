@@ -1,4 +1,12 @@
 export const sendStages = [
+  'group-message-slot',
+  'start-not-observed',
+  'started-before-capture',
+  'group-send-entry',
+  'group-verify',
+  'group-directories',
+  'group-packet',
+  'receipt-yield',
   'receipt-start',
   'receipt-at-submit',
   'receipt-awaited',

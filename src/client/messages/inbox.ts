@@ -56,6 +56,7 @@ export class MessageInbox {
     done: Promise<void>;
     diagnostic: PrivateSendContext | undefined;
   } | null = null;
+  private draftInterruptions = 0;
   running = false;
 
   constructor(ports: InboxPorts) {
@@ -75,6 +76,7 @@ export class MessageInbox {
     return [...this.demanded].some((kind) => this.retryAt[kind] <= now);
   }
   reset(): void {
+    this.draftInterruptions = 0;
     this.pause();
     for (const kind of historyKinds) this.retryAt[kind] = 0;
     this.continuing.clear();
@@ -104,6 +106,25 @@ export class MessageInbox {
     const linked = active.diagnostic && { ...active.diagnostic, ...diagnostic };
     privateSendPoint(linked, 'receipt-awaited');
     await active.done;
+  }
+  /** Local draft admission is interactive too: stop speculative IO before its
+   * encrypted save queues behind that owner's native lock. Live receipt keeps
+   * its existing durable settlement; domain guards/cleanup release the lock. */
+  admitDraft(): boolean {
+    this.defer();
+    if (
+      !this.active ||
+      this.active.live ||
+      this.abort?.signal.aborted ||
+      this.draftInterruptions >= 4
+    )
+      return false;
+    this.draftInterruptions++;
+    privateSendPoint(this.active.diagnostic, 'receipt-yield', {
+      receiptReason: 'draft-admission',
+    });
+    this.pause();
+    return true;
   }
   resume(): void {
     if (
@@ -268,6 +289,7 @@ export class MessageInbox {
         }),
     );
     if (signal.aborted || !this.ports.current(generation)) return false;
+    this.draftInterruptions = 0;
     this.preparation.complete(turn, more);
     if (more) this.continuing.add(turn.kind);
     else this.continuing.delete(turn.kind);

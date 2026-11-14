@@ -68,6 +68,7 @@ for (const scope of ['direct', 'groups'] as const) {
     inbox.demand(scope);
     inbox.resume();
     await waitForBoundary(entered.promise);
+    inbox.admitDraft();
     f.at(100);
     const one = f.send('first');
     f.at(120);

@@ -1,3 +1,5 @@
+import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
@@ -96,7 +98,10 @@ interface ChatOptions {
   >;
   visibleGroup: () => string | null;
   reconcile: (group: string) => Promise<void>;
-  operationRun: (work: () => Promise<void>) => Promise<void>;
+  operationRun: (
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ) => Promise<void>;
   run: (work: () => Promise<void>) => Promise<void>;
   reopen: (older?: boolean) => Promise<void>;
   select: () => void;
@@ -547,6 +552,7 @@ export class GroupChatView {
         }),
     );
     this.composer.observed(history, this.options.controller.views);
+    traceSendChecks(history, 'group');
     reopenMessageMenu(history, menu);
     restoreScroll();
     this.older?.watch.check();
@@ -726,7 +732,12 @@ export class GroupChatView {
       )
       .map((text) => ({
         id: `pending:${text.id}`,
-        key: JSON.stringify(['pending', text.text, text.failed]),
+        key: JSON.stringify([
+          'pending',
+          text.text,
+          text.failed,
+          text.accepted !== null,
+        ]),
         render: () => this.renderPendingText(text),
       }));
   }
@@ -734,6 +745,7 @@ export class GroupChatView {
     const article = document.createElement('article');
     article.className = 'chat-message own';
     article.dataset['groupPending'] = text.id;
+    if (text.accepted !== null) article.dataset['groupAccepted'] = '';
     const sender = document.createElement('strong');
     sender.textContent = t('You');
     const body = document.createElement('p');

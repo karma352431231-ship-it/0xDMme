@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
   beginPrivateSend,
   traceSend,
@@ -561,7 +562,10 @@ export function startMessages(
     ],
   });
   const textQueue: TextSendQueue = new TextSendQueue({
-    timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
+    timing: (draft, stage) => {
+      if (stage === 'enqueued') synchronization.admitDraft();
+      tracePrivateTextQueue(draft.id, stage);
+    },
     draftChanged: (draft, phase) => outgoing.update(draft, phase),
     save: (draft) => controller.queueText(draft),
     available: () => synchronization.foregroundReady && !mediaSubmissions.ready,
@@ -1026,8 +1030,14 @@ export function startMessages(
     });
     return button;
   }
-  async function run(work: () => Promise<void>): Promise<void> {
-    if (!(await synchronization.run(work)) && !synchronization.failed)
+  async function run(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<void> {
+    if (
+      !(await synchronization.run(work, diagnostic)) &&
+      !synchronization.failed
+    )
       reportTextSaveError(
         new Error('Wait for conversations to update, then try again.'),
       );

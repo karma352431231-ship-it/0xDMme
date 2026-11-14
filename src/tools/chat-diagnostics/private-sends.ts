@@ -4,6 +4,7 @@ import type { SendStage } from '../../shared/chat-sync-diagnostics/send.ts';
 import {
   sendWaitReasons,
   privateSendRevision,
+  retainedSendLimit,
 } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import { authorityKinds } from '../../shared/chat-sync-diagnostics/flow.ts';
 import type { TraceEvent } from './events.ts';
@@ -12,6 +13,7 @@ import { union, clip, subtract, duration } from './send-intervals.ts';
 import type { Interval } from './send-intervals.ts';
 
 interface Point {
+  groupMessage?: number;
   receipt?: number;
   attempt?: number;
   batch?: number;
@@ -20,6 +22,12 @@ interface Point {
   outcome?: string;
 }
 interface Send {
+  scope: 'private' | 'group';
+  mediaMode: string;
+  terminal: Point[];
+  droppedPoints: number;
+  attempts: Set<string>;
+  attemptOverflow: number;
   slot: number;
   gestureMs: number | null;
   points: Point[];
@@ -79,6 +87,14 @@ export class PrivateSendBreakdowns {
   private revision = 0;
   private offset: number | undefined;
   private overflow = 0;
+  private operationOverflow = 0;
+  private batchOverflow = 0;
+  private batchPointOverflow = 0;
+  private batchMemberOverflow = 0;
+  private batchAttemptOverflow = 0;
+  private readonly operationOverflowSends = new Set<number>();
+  private readonly observed = { private: 0, group: 0 };
+  private readonly omitted = { private: 0, group: 0 };
   private readonly sends = new Map<number, Send>();
   private readonly batches = new Map<number, Batch>();
   private readonly batchPoints = new Map<number, Point[]>();
@@ -87,7 +103,10 @@ export class PrivateSendBreakdowns {
   observe(event: TraceEvent): void {
     if (event.kind === 'reuse-ready')
       this.revision = Number(event['privateRevision']) || 0;
-    if (event['privateOverflow'] === true) this.overflow++;
+    if (event['privateOverflow'] === true) {
+      this.emitterOverflow(event);
+      return;
+    }
     if (event.kind !== 'reuse-send') return;
     const clock = number(event['sendClockMs']);
     if (clock !== null) this.offset ??= event.ms - clock;
@@ -95,6 +114,18 @@ export class PrivateSendBreakdowns {
     const stage = sendStages.find((s) => s === event['sendStage']);
     if (!stage) return;
     this.sendEvent(stage, event);
+  }
+  private emitterOverflow(event: TraceEvent): void {
+    if (event['privateOverflowKind'] === 'operation') {
+      this.dropOperation(event);
+      return;
+    }
+    this.overflow++;
+    if (event['sendStage'] === 'logical-submit') {
+      const scope = sendScope(event);
+      this.observed[scope]++;
+      this.omitted[scope]++;
+    }
   }
   private sendEvent(stage: SendStage, event: TraceEvent): void {
     const message = number(event['privateSend']),
@@ -121,11 +152,13 @@ export class PrivateSendBreakdowns {
   }
   private batchPoint(slot: number, stage: SendStage, event: TraceEvent): void {
     if (!this.batchPoints.has(slot) && this.batchPoints.size >= 128) {
+      this.batchPointOverflow++;
       this.overflow++;
       return;
     }
     const points = this.batchPoints.get(slot) ?? [];
     if (points.length >= 64) {
+      this.batchPointOverflow++;
       this.overflow++;
       return;
     }
@@ -133,7 +166,9 @@ export class PrivateSendBreakdowns {
     const receiptField = receipt === null ? {} : { receipt };
     const result = outcome(event['sendOutcome']);
     const attempt = number(event['privateAttempt']);
+    const groupMessage = number(event['sendGroupMessage']);
     points.push({
+      ...(groupMessage === null ? {} : { groupMessage }),
       stage,
       ...receiptField,
       batch: slot,
@@ -149,20 +184,36 @@ export class PrivateSendBreakdowns {
   }
   private admit(slot: number, event: TraceEvent): void {
     if (this.sends.has(slot)) return;
-    if (this.sends.size >= 5) {
+    const scope = sendScope(event);
+    this.observed[scope]++;
+    if (this.sends.size >= retainedSendLimit) {
       this.overflow++;
+      this.omitted[scope]++;
       return;
     }
     const gesture = number(event['sendGestureClockMs']);
     this.sends.set(slot, {
       slot,
+      scope,
+      mediaMode: ['text', 'ordinary', 'view-once'].includes(
+        String(event['sendMediaMode']),
+      )
+        ? String(event['sendMediaMode'])
+        : 'unknown',
+      terminal: [],
+      droppedPoints: 0,
+      attempts: new Set(),
+      attemptOverflow: 0,
       gestureMs: gesture === null ? null : gesture + (this.offset ?? 0),
       points: [],
     });
   }
   private point(send: Send, stage: SendStage, event: TraceEvent): void {
-    if (send.points.length >= 128) {
-      this.overflow++;
+    const terminal = terminalSendStage(stage);
+    const points = terminal ? send.terminal : send.points;
+    if (points.some((p) => p.stage === stage) && terminal) return;
+    if (points.length >= (terminal ? 16 : 128)) {
+      send.droppedPoints++;
       return;
     }
     if (
@@ -178,7 +229,8 @@ export class PrivateSendBreakdowns {
     const receipt = number(event['receiptTurn']);
     const receiptField = receipt === null ? {} : { receipt };
     const result = outcome(event['sendOutcome']);
-    send.points.push({
+    points.push({
+      ...pointMessageSlot(event),
       stage,
       ...receiptField,
       ms: this.at(event),
@@ -187,6 +239,7 @@ export class PrivateSendBreakdowns {
   }
   private member(slot: number, message: number, attempt: number | null): void {
     if (!this.batches.has(slot) && this.batches.size >= 128) {
+      this.batchOverflow++;
       this.overflow++;
       return;
     }
@@ -195,21 +248,42 @@ export class PrivateSendBreakdowns {
       members: new Set<number>(),
       attempts: new Map<number, Set<number>>(),
     };
-    if (batch.members.size >= 32 && !batch.members.has(message)) {
+    if (batch.members.size >= 256 && !batch.members.has(message)) {
+      this.batchMemberOverflow++;
       this.overflow++;
       return;
     }
+    const send = this.sends.get(message);
+    if (send && attempt !== null && !this.retainAttempt(send, slot, attempt))
+      return;
     batch.members.add(message);
-    if (attempt !== null) {
-      if (!batch.attempts.has(attempt) && batch.attempts.size >= 2) {
-        this.overflow++;
-        return;
-      }
-      const members = batch.attempts.get(attempt) ?? new Set<number>();
-      members.add(message);
-      batch.attempts.set(attempt, members);
-    }
+    this.attemptMember(batch, message, attempt);
     this.batches.set(slot, batch);
+  }
+  private attemptMember(
+    batch: Batch,
+    message: number,
+    attempt: number | null,
+  ): void {
+    if (attempt === null) return;
+    if (!batch.attempts.has(attempt) && batch.attempts.size >= 2) {
+      this.batchAttemptOverflow++;
+      this.overflow++;
+      return;
+    }
+    const members = batch.attempts.get(attempt) ?? new Set<number>();
+    members.add(message);
+    batch.attempts.set(attempt, members);
+  }
+  private retainAttempt(send: Send, batch: number, attempt: number): boolean {
+    const key = `${batch}/${attempt}`;
+    if (send.attempts.has(key)) return true;
+    if (send.attempts.size >= 8) {
+      send.attemptOverflow++;
+      return false;
+    }
+    send.attempts.add(key);
+    return true;
   }
   private operation(stage: SendStage, event: TraceEvent): void {
     const key = operationKey(stage, event);
@@ -228,8 +302,8 @@ export class PrivateSendBreakdowns {
     event: TraceEvent,
     key: string,
   ): void {
-    if (this.operations.length >= 1024) {
-      this.overflow++;
+    if (this.operations.length >= 4096) {
+      this.dropOperation(event);
       return;
     }
     const op: Operation = {
@@ -252,6 +326,13 @@ export class PrivateSendBreakdowns {
       pending.push(op);
       this.open.set(key, pending);
     }
+  }
+  private dropOperation(event: TraceEvent): void {
+    this.overflow++;
+    this.operationOverflow++;
+    const slot = number(event['privateSend']);
+    if (slot !== null && this.sends.has(slot))
+      this.operationOverflowSends.add(slot);
   }
   private linked(
     send: Send,
@@ -297,9 +378,29 @@ export class PrivateSendBreakdowns {
       revision: this.revision,
       expectedRevision: privateSendRevision,
       receipts: receiptReport,
-      limits: { sends: 5, batches: 128, operations: 1024, pointsPerSend: 128 },
+      scopeCounts: scopeCounts(sends, this.observed, this.omitted),
+      limits: {
+        sends: retainedSendLimit,
+        batches: 128,
+        membersPerBatch: 256,
+        pointsPerBatch: 64,
+        attemptsPerBatch: 2,
+        operations: 4096,
+        pointsPerSend: 128,
+        terminalPointsPerSend: 16,
+        attemptsPerSend: 8,
+      },
       overflow: this.overflow,
       authorityOverflow: flow.overflow,
+      overflowCategories: {
+        sends: this.omitted.private + this.omitted.group,
+        operations: this.operationOverflow,
+        batches: this.batchOverflow,
+        batchPoints: this.batchPointOverflow,
+        batchMembers: this.batchMemberOverflow,
+        batchAttempts: this.batchAttemptOverflow,
+        operationSendSlots: [...this.operationOverflowSends],
+      },
       automaticTimingCoverage: this.revision === privateSendRevision,
       manualMarkerRequired: false,
       clock: 'capture-relative-performance.now',
@@ -349,7 +450,9 @@ export class PrivateSendBreakdowns {
       );
     const send = {
       ...original,
-      points: [...original.points, ...shared].sort((a, b) => a.ms - b.ms),
+      points: [...original.points, ...original.terminal, ...shared].sort(
+        (a, b) => a.ms - b.ms,
+      ),
     };
     const operations = this.operations.filter((op) => this.linked(send, op));
     const work = {
@@ -360,6 +463,19 @@ export class PrivateSendBreakdowns {
     const coverage = this.coverage(send, operations, authorityOverflow);
     return {
       slot: send.slot,
+      scope: send.scope,
+      attempts: [...send.attempts],
+      attemptOverflow: send.attemptOverflow,
+      ...startCoverage(send),
+      mode: send.mediaMode,
+      mediaCoverage:
+        send.mediaMode === 'text'
+          ? 'not-applicable'
+          : send.mediaMode === 'view-once'
+            ? 'partial; multi-draft gesture linkage not available'
+            : send.mediaMode === 'unknown'
+              ? 'unsupported; submission mode not observed'
+              : 'observed-stages-only',
       gestureMs: send.gestureMs,
       milestones: send.points.map((p) => ({ ...p })),
       operations: operations.map((op) => op.slot),
@@ -367,6 +483,25 @@ export class PrivateSendBreakdowns {
       deviceKeys: keys.state,
       outcome: sendOutcome(send, operations),
       windows: {
+        toDurableSave: this.window(
+          send,
+          firstPoint(send, 'outbox-commit') ??
+            firstPoint(send, 'staging-complete'),
+          operations,
+          work,
+        ),
+        toPendingBubble: this.window(
+          send,
+          firstPoint(send, 'pending-render'),
+          operations,
+          work,
+        ),
+        toDispatch: this.window(
+          send,
+          firstPoint(send, 'outbox-dispatch'),
+          operations,
+          work,
+        ),
         beforeDeviceKeys: this.window(send, keys.ms, operations, work),
         toAcceptance: this.window(
           send,
@@ -414,6 +549,16 @@ export class PrivateSendBreakdowns {
     if (keys.state === 'not-observed') missing.push('device-keys');
     return {
       missing,
+      droppedPoints: send.droppedPoints,
+      missingLinkedWork:
+        authorityOverflow ||
+        this.operationOverflow > 0 ||
+        this.batchOverflow > 0 ||
+        this.batchPointOverflow > 0 ||
+        this.batchMemberOverflow > 0 ||
+        this.batchAttemptOverflow > 0 ||
+        send.attemptOverflow > 0,
+      milestoneComplete: missing.length === 0 && send.droppedPoints === 0,
       ambiguousGesture: send.gestureMs === null,
       overflow: this.overflow,
       authorityOverflow,
@@ -667,4 +812,74 @@ function platformWait(work: Work, window: Interval) {
       'same-document-authority-slots-only; other-documents-have-no-holder-identity',
     follower: work.platform.some((p) => p.coverage === 'held-turn-follower'),
   };
+}
+
+function terminalSendStage(stage: SendStage): boolean {
+  return [
+    'group-message-slot',
+    'logical-submit',
+    'draft-admitted',
+    'ui-available',
+    'pending-render',
+    'staging-complete',
+    'outbox-commit',
+    'outbox-dispatch',
+    'accepted',
+    'check-render',
+    'check-limit',
+    'send-failed',
+    'send-cancelled',
+    'start-not-observed',
+    'started-before-capture',
+  ].includes(stage);
+}
+function scopeCounts(
+  sends: {
+    scope: 'private' | 'group';
+    coverage: { milestoneComplete: boolean };
+  }[],
+  observed: Record<'private' | 'group', number>,
+  omitted: Record<'private' | 'group', number>,
+) {
+  return Object.fromEntries(
+    (['private', 'group'] as const).map((scope) => {
+      const retained = sends.filter((send) => send.scope === scope);
+      const complete = retained.filter(
+        (send) => send.coverage.milestoneComplete,
+      ).length;
+      return [
+        scope,
+        {
+          observed: observed[scope],
+          retained: retained.length,
+          complete,
+          incomplete: retained.length - complete,
+          overflowed: omitted[scope],
+        },
+      ];
+    }),
+  );
+}
+
+function pointMessageSlot(event: TraceEvent): Pick<Point, 'groupMessage'> {
+  const groupMessage = number(event['sendGroupMessage']);
+  return groupMessage === null ? {} : { groupMessage };
+}
+
+function startCoverage(send: Send) {
+  if (firstPoint(send, 'started-before-capture') !== null)
+    return {
+      startedBeforeCapture: true,
+      startCoverage: 'started-before-capture',
+    };
+  if (
+    firstPoint(send, 'start-not-observed') !== null ||
+    send.gestureMs === null
+  )
+    return { startedBeforeCapture: null, startCoverage: 'missing-start' };
+  return { startedBeforeCapture: false, startCoverage: 'gesture-observed' };
+}
+
+function sendScope(event: TraceEvent): Send['scope'] {
+  return event['sendScope'] === 'group' ? 'group' : 'private';
 }

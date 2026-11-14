@@ -1,3 +1,4 @@
+import { retainedSendLimit } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import { PrivateSendBreakdowns } from './private-sends.ts';
 import type { AuthorityWorkSummary } from './flow.ts';
 import { mediaKinds } from './composition.ts';
@@ -62,6 +63,7 @@ const partOperations = new Set([
   'attachment-part',
   'view-once-part',
   'dm-attachment-part',
+  'group-attachment-part',
 ]);
 const pointFields = {
   submit: 'submitMs',
@@ -76,10 +78,13 @@ const sendOperations = new Set([
   'attachment-reserve',
   'attachment-finish',
   'dm-attachment-reserve',
+  'group-attachment-reserve',
+  'group-attachment-finish',
   'dm-attachment-finish',
   'view-once-create',
   'publish',
   'dm-publish',
+  'group-message-publish',
 ]);
 type RequestTiming = {
   send: SendSummary;
@@ -88,8 +93,8 @@ type RequestTiming = {
   ok: boolean;
 };
 
-/** Five comparison cases outlive timeline eviction. No payload or durable ID
- * enters this owner; network attribution requires one send at a time. */
+/** Bounded comparison cases outlive timeline eviction. Explicit capture slots
+ * link direct/group sends; older captures keep conservative attribution. */
 export class ComparisonSends {
   private readonly privateBreakdowns = new PrivateSendBreakdowns();
   private privateRevision = 0;
@@ -107,17 +112,24 @@ export class ComparisonSends {
       this.pending = newSummary(event.ms);
     applyComposition(this.pending, event);
   }
+  private explicitScope(scope: unknown): boolean {
+    return (
+      (this.privateRevision >= 1 && scope === 'private') ||
+      (this.privateRevision >= 3 && scope === 'group')
+    );
+  }
   private explicitPrivate(event: TraceEvent): boolean {
-    return this.privateRevision >= 1 && event['scope'] === 'private';
+    return this.explicitScope(event['scope']);
   }
   private automaticMarker(send: SendSummary): boolean {
     return (
       (this.handleTimings && send.scope === 'handle') ||
-      (this.privateRevision >= 1 && send.scope === 'private')
+      (this.privateRevision >= 1 && send.scope === 'private') ||
+      (this.privateRevision >= 3 && send.scope === 'group')
     );
   }
   private begin(event: TraceEvent): SendSummary | undefined {
-    if (this.sends.length === 5) {
+    if (this.sends.length === retainedSendLimit) {
       this.overflow++;
       this.pending = this.active = undefined;
       return undefined;
@@ -211,6 +223,12 @@ export class ComparisonSends {
     this.duration(send, event, stage);
   }
   private duration(send: SendSummary, event: TraceEvent, stage: string): void {
+    if (
+      send.acceptedMs !== null &&
+      event.ms > send.acceptedMs &&
+      !send.stages[stage]
+    )
+      return;
     const timing = (send.stages[stage] ??= {
       count: 0,
       durationMs: 0,
@@ -227,7 +245,7 @@ export class ComparisonSends {
     if (event['sendPhase'] !== 'end' || typeof event['sendMs'] !== 'number')
       return;
     timing.count++;
-    timing.durationMs += event['sendMs'];
+    timing.durationMs += clippedStageDuration(send, event.ms, event['sendMs']);
     timing.failed ||= event['sendSuccess'] === false;
     timing.lastEndMs = event.ms;
     timing.inFlight = Math.max(0, timing.inFlight - 1);
@@ -243,9 +261,7 @@ export class ComparisonSends {
     if (known) return known;
     if (event['sendStage'] !== 'submit') return;
     const unbound = this.sends.filter(
-      (send) =>
-        send.message === null &&
-        !(this.privateRevision >= 1 && send.scope === 'private'),
+      (send) => send.message === null && !this.explicitScope(send.scope),
     );
     if (unbound.length === 1) {
       unbound[0]!.message = message;
@@ -262,7 +278,8 @@ export class ComparisonSends {
     if (event['sendStage'] !== 'logical-submit') return;
     const candidates = this.sends.filter(
       (send) =>
-        send.scope === 'private' &&
+        ['private', 'group'].includes(send.scope) &&
+        send.scope === (event['sendScope'] ?? 'private') &&
         send.composer === event['sendComposer'] &&
         send.gesture === event['sendGesture'] &&
         send.message === null,
@@ -320,7 +337,12 @@ export class ComparisonSends {
     linked?: SendSummary,
   ): SendSummary | undefined {
     const send = linked ?? this.active;
-    if (!linked && send?.scope === 'private' && this.privateRevision >= 1)
+    if (
+      !linked &&
+      send &&
+      this.automaticMarker(send) &&
+      send.scope !== 'handle'
+    )
       return;
     if (
       typeof event['category'] !== 'string' ||
@@ -343,7 +365,9 @@ export class ComparisonSends {
     this.requests.set(String(event['id']), {
       send,
       part,
-      publish: operation === 'publish' || operation === 'dm-publish',
+      publish: ['publish', 'dm-publish', 'group-message-publish'].includes(
+        operation,
+      ),
       ok: false,
     });
     if (part) {
@@ -394,7 +418,7 @@ export class ComparisonSends {
     send: SendSummary,
     report: ReturnType<PrivateSendBreakdowns['report']>,
   ): boolean {
-    if (this.privateRevision < 1 || send.scope !== 'private') return true;
+    if (!this.automaticMarker(send) || send.scope === 'handle') return true;
     const coverage = report.sends.find(
       (s) => s.slot === send.message,
     )?.coverage;
@@ -415,7 +439,7 @@ export class ComparisonSends {
     const privateLatency = this.privateBreakdowns.report(flow);
     return {
       privateLatency,
-      limit: 5,
+      limit: retainedSendLimit,
       overflow: this.overflow,
       requestOverflow: this.requestOverflow,
       internalStagesAvailable: this.internal,
@@ -592,4 +616,17 @@ function caseLabel(kind: MediaKind, once: boolean | null): SendCase {
   if (once === null) return 'unknown';
   if (kind === 'text' && !once) return 'text';
   return once ? `view-once-${kind}` : `ordinary-${kind}`;
+}
+
+/** A late end preserves the shared span, but a send owns only its own window. */
+function clippedStageDuration(
+  send: SendSummary,
+  end: number,
+  duration: number,
+): number {
+  return Math.max(
+    0,
+    Math.min(end, send.acceptedMs ?? end) -
+      Math.max(end - duration, send.submitMs ?? 0),
+  );
 }

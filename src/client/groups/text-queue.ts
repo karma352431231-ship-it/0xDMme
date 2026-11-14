@@ -18,6 +18,7 @@ export function groupTextQueue(options: {
   available: () => boolean;
   changed: () => void;
   failed: (error: unknown) => void;
+  timing?: ConstructorParameters<typeof TextSendQueue>[0]['timing'];
   draftChanged?: (
     draft: TextDraft,
     phase: 'admitted' | 'saved' | 'save-failed',
@@ -61,6 +62,7 @@ export function groupTextQueue(options: {
       }
       return { ok: true, more: unsent.size > 0 };
     },
+    ...(options.timing ? { timing: options.timing } : {}),
     available: options.available,
     changed: options.changed,
     failed: options.failed,

@@ -1,3 +1,12 @@
+import {
+  measurePrivateSend,
+  privateSendContext,
+  privateSendPoint,
+  linkPrivateBatch,
+  traceSend,
+  resumeGroupSendDiagnostic,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { messageContentFormat } from '../../shared/message-presentation/index.ts';
 import { prepareViewOnceContents } from '../view-once/index.ts';
 import type { ViewOnceContent } from '../../shared/view-once/index.ts';
@@ -70,6 +79,8 @@ export interface GroupSendProgress {
   accepted: (id: string) => void;
 }
 interface SendContext {
+  apiFor?: (diagnostic: PrivateSendContext | undefined) => AttachmentApi;
+  diagnostic?: PrivateSendContext | undefined;
   authority: VaultAuthority;
   group: GroupState;
   identities: PeerIdentity;
@@ -79,6 +90,7 @@ interface SendContext {
 }
 export async function composeGroup(input: {
   authority: VaultAuthority;
+  diagnostic?: PrivateSendContext | undefined;
   groupId: string;
   text: string;
   selection: AttachmentSelection | null;
@@ -89,21 +101,27 @@ export async function composeGroup(input: {
   order?: number;
 }): Promise<string> {
   const id = input.id ?? crypto.randomUUID(),
-    cache = new GroupCache(input.authority, input.groupId);
+    cache = new GroupCache(input.authority, input.groupId, input.diagnostic);
   let text = input.text,
     kind = input.kind ?? 'text';
   if (input.selection) {
-    const content = await stageAttachment({
-      account: groupCacheScope(
-        input.authority.session.accountId,
-        input.groupId,
-      ),
-      id,
-      selection: input.selection,
-      caption: text,
-      budget: groupQuota,
-      maximum: chatFileLimit,
-    });
+    const selection = input.selection;
+    const content = await measurePrivateSend(
+      input.diagnostic,
+      'attachment-stage',
+      () =>
+        stageAttachment({
+          account: groupCacheScope(
+            input.authority.session.accountId,
+            input.groupId,
+          ),
+          id,
+          selection,
+          caption: text,
+          budget: groupQuota,
+          maximum: chatFileLimit,
+        }),
+    );
     text = JSON.stringify(content);
     kind = 'attachment';
   }
@@ -126,9 +144,18 @@ export async function composeGroup(input: {
 /** Sends the group's drafts in admission order. The participant directories
  * are read once for the batch, when the first draft needs encryption. */
 export async function sendGroupPending(c: SendContext): Promise<void> {
-  const cache = new GroupCache(c.authority, c.group.state.groupId);
+  const cache = new GroupCache(
+    c.authority,
+    c.group.state.groupId,
+    c.diagnostic,
+  );
   const drafts = (await outboxDrafts(cache)).sort(
     (a, b) => (a.value.order ?? 0) - (b.value.order ?? 0),
+  );
+  for (const { value } of drafts) resumeGroupSendDiagnostic(value.id);
+  linkPrivateBatch(
+    c.diagnostic,
+    drafts.map((draft) => draft.value.id),
   );
   let directories: ReturnType<typeof readDirectories> | null = null;
   const participants = () =>
@@ -136,15 +163,31 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
       accounts: c.group.state.members.map((m) => m.accountId),
       identities: c.identities,
       load: (requests) =>
-        c.api('group-directory', {
-          groupId: c.group.state.groupId,
-          head: c.group.head,
-          accounts: requests,
-        }),
+        measurePrivateSend(c.diagnostic, 'group-directories', () =>
+          c.api('group-directory', {
+            groupId: c.group.state.groupId,
+            head: c.group.head,
+            accounts: requests,
+          }),
+        ),
     }));
   const batch = new GroupSendBatch();
-  for (const draft of drafts)
-    await sendGroupOne(c, { cache, ...draft, participants, batch });
+  for (const draft of drafts) {
+    traceSend('outbox-dispatch', draft.value.id);
+    const message = privateSendContext(draft.value.id);
+    const diagnostic = message ? { ...c.diagnostic, ...message } : c.diagnostic;
+    await measurePrivateSend(diagnostic, 'group-send-entry', () =>
+      sendGroupOne(
+        { ...c, diagnostic, api: groupSendApi(c, diagnostic) },
+        {
+          cache: new GroupCache(c.authority, c.group.state.groupId, diagnostic),
+          ...draft,
+          participants,
+          batch,
+        },
+      ),
+    );
+  }
 }
 /** The server rejected a packet prepared for an older membership, participant
  * directory or recovery key; its draft was cleared for a fresh encryption. */
@@ -184,6 +227,7 @@ async function sendGroupOne(
   const { cache, name, value } = entry,
     scope = { groupId: c.group.state.groupId, head: c.group.head };
   c.progress?.sending(value.id);
+  privateSendPoint(c.diagnostic, 'group-send-entry');
   // A packet kept from an attempt whose answer was lost is never published
   // twice: the server's copy is the durable record from here on.
   if (
@@ -194,45 +238,59 @@ async function sendGroupOne(
       hash: await digest(canonical(value.packet)),
     })) === true
   ) {
+    privateSendPoint(c.diagnostic, 'accepted-check', {
+      sendOutcome: 'accepted',
+    });
+    privateSendPoint(c.diagnostic, 'device-keys', { sendOutcome: 'skipped' });
+    traceSend('accepted', value.id);
     await cache.remove(name);
     c.progress?.accepted(value.id);
     return;
   }
   await prepareGroupOnceDraft(c, { cache, name, value }, entry.participants);
-  await uploadGroupDraft(c, { cache, name, value });
+  await transmitGroupMedia(c, { cache, name, value });
   if (!currentPacket(value, c)) {
     const accounts = c.group.state.members.map((m) => m.accountId);
     const directories = await entry.participants();
     const saved = await cache.get(
       `session:${c.authority.session.deviceId}:${c.group.state.epoch}`,
     );
-    const encrypted = await measureWork(c.machine, 'sdk/group-encrypt', () =>
-      c.machine.encryptGroup({
-        authority: c.authority,
-        state: c.group.state,
-        histories: accounts.map((account) => {
-          const d = directories.get(account);
-          if (!d) throw new Error('Participant has no directory.');
-          return d.events;
-        }),
-        recovery: accounts.map((account) =>
-          recoveryKey(directories.get(account)?.recovery),
+    const encrypted = await measurePrivateSend(
+      c.diagnostic,
+      'group-packet',
+      () =>
+        measureWork(c.machine, 'sdk/group-encrypt', () =>
+          c.machine.encryptGroup({
+            authority: c.authority,
+            state: c.group.state,
+            histories: accounts.map((account) => {
+              const d = directories.get(account);
+              if (!d) throw new Error('Participant has no directory.');
+              return d.events;
+            }),
+            recovery: accounts.map((account) =>
+              recoveryKey(directories.get(account)?.recovery),
+            ),
+            transport: (op, payload) =>
+              op === 'matrix-upload'
+                ? c.api(op, payload)
+                : c.api('group-' + op, { ...scope, payload }),
+            id: value.id,
+            text: value.text,
+            kind: value.kind,
+            ...messageContentFormat(value.once ? 'daily' : value.contentFormat),
+            ...(value.relation ? { relation: value.relation } : {}),
+            ...(value.once?.payload
+              ? {
+                  viewOnce: {
+                    hash: decodeDailyText(value.text).viewOnce!.hash,
+                  },
+                }
+              : {}),
+            ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
+            batch: entry.batch,
+          }),
         ),
-        transport: (op, payload) =>
-          op === 'matrix-upload'
-            ? c.api(op, payload)
-            : c.api('group-' + op, { ...scope, payload }),
-        id: value.id,
-        text: value.text,
-        kind: value.kind,
-        ...messageContentFormat(value.once ? 'daily' : value.contentFormat),
-        ...(value.relation ? { relation: value.relation } : {}),
-        ...(value.once?.payload
-          ? { viewOnce: { hash: decodeDailyText(value.text).viewOnce!.hash } }
-          : {}),
-        ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
-        batch: entry.batch,
-      }),
     );
     value.packet = encrypted.packet;
     value.keys = encrypted.keys;
@@ -240,9 +298,16 @@ async function sendGroupOne(
       `session:${c.authority.session.deviceId}:${c.group.state.epoch}`,
       encrypted.keys,
     );
-    await cache.put(name, value);
-  }
-  const result = object(await publish(c, entry));
+    await measurePrivateSend(c.diagnostic, 'packet-save', () =>
+      cache.put(name, value),
+    );
+  } else
+    privateSendPoint(c.diagnostic, 'device-keys', { sendOutcome: 'skipped' });
+  const result = object(
+    await measurePrivateSend(c.diagnostic, 'server-publish', () =>
+      publish(c, entry),
+    ),
+  );
   if (
     result['status'] !== 'accepted' ||
     result['hash'] !== (await digest(canonical(value.packet)))
@@ -250,6 +315,7 @@ async function sendGroupOne(
     throw new Error('Group send not confirmed.');
   // The draft keeps its packet until here, so a crash before the removal
   // leaves a draft the next attempt settles through `group-message-accepted`.
+  traceSend('accepted', value.id);
   await cache.remove(name);
   c.progress?.accepted(value.id);
 }
@@ -298,12 +364,21 @@ function currentPacket(value: GroupDraft, c: SendContext): boolean {
     packet.deviceId === c.authority.session.deviceId
   );
 }
+async function transmitGroupMedia(
+  c: SendContext,
+  entry: { cache: GroupCache; name: string; value: GroupDraft },
+): Promise<void> {
+  if (entry.value.kind !== 'attachment') return;
+  await measurePrivateSend(c.diagnostic, 'upload', () =>
+    uploadGroupDraft(c, entry),
+  );
+  traceSend('transfer-complete', entry.value.id);
+}
 async function uploadGroupDraft(
   c: SendContext,
   entry: { cache: GroupCache; name: string; value: GroupDraft },
 ): Promise<void> {
   const { value, cache, name } = entry;
-  if (value.kind !== 'attachment') return;
   const account = groupCacheScope(
     c.authority.session.accountId,
     c.group.state.groupId,
@@ -387,13 +462,18 @@ function parseOnce(input: unknown): NonNullable<GroupDraft['once']> {
 }
 export async function composeGroupOnce(input: {
   authority: VaultAuthority;
+  diagnostic?: PrivateSendContext | undefined;
   groupId: string;
   id: string;
   text: string;
   selection: AttachmentSelection | null;
   createdAt: number;
 }) {
-  const cache = new GroupCache(input.authority, input.groupId),
+  const cache = new GroupCache(
+      input.authority,
+      input.groupId,
+      input.diagnostic,
+    ),
     old = await cache.get(`outbox:${input.id}`);
   if (old) return outbox(old).once!.batch;
   const contents = await prepareViewOnceContents(
@@ -468,4 +548,11 @@ async function prepareGroupOnceDraft(
 
 function optionalOnce(input: unknown): Pick<GroupDraft, 'once'> {
   return input === undefined ? {} : { once: parseOnce(input) };
+}
+
+function groupSendApi(
+  c: SendContext,
+  diagnostic: PrivateSendContext | undefined,
+): AttachmentApi {
+  return c.apiFor?.(diagnostic) ?? c.api;
 }

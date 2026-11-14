@@ -1,6 +1,7 @@
 import {
   chatSyncActive,
   traceGroupMessage,
+  traceSend,
 } from '../chat-sync-diagnostics/index.ts';
 
 type SendStep =
@@ -17,6 +18,7 @@ export class GroupDeliveryTrace {
   private readonly shown = new Set<string>();
   step(reason: SendStep, id: string): void {
     traceGroupMessage(this, { event: 'group-send', reason }, id);
+    if (reason === 'accepted') traceSend('accepted', id);
   }
   hint(): void {
     traceGroupMessage(this, { event: 'group-receive', reason: 'live-hint' });
