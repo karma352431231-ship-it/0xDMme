@@ -463,3 +463,15 @@ The field and coverage contract is documented in
 [Mobile loading diagnostics](MOBILE_LOAD_DIAGNOSTICS.md#group-directory-pre-list-attribution-collector-revision-5).
 This increment instruments the existing flow. Performance changes require the
 next capture and attribution against this shared-clock evidence.
+
+## Private send accounting — collector revision 6
+
+Private revision 1 replaces temporal association with exact submit-event, draft,
+batch-attempt and request linkage. Five bounded send summaries retain durable
+staging, scheduling, authority, crypto, transport and DOM milestones independently
+of the global timeline. Queue wait, execution including I/O and residual are
+clipped and unioned for the pre-device-key, acceptance and check windows. The
+optional manual marker is independent of automatic coverage. Sequential-only
+network attribution above still applies to legacy clients and other chat scopes.
+See [the private accounting contract](PRIVATE_SEND_DIAGNOSTICS.md) for fields,
+limits, observation semantics and the pending owner-run comparative capture.

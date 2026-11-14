@@ -16,7 +16,7 @@ import {
   attachmentBatchLimit,
   chatFileLimit,
 } from '../../shared/attachments/index.ts';
-import { traceSend } from '../chat-sync-diagnostics/index.ts';
+import { traceSend, beginPrivateSend } from '../chat-sync-diagnostics/index.ts';
 
 interface Batch {
   cancel: AbortController;
@@ -64,7 +64,7 @@ export class AttachmentSubmissions {
   get unsaved(): boolean {
     return this.batches.some((batch) => batch.next < batch.items.length);
   }
-  enqueue(input: MediaSubmission): void {
+  enqueue(input: MediaSubmission, event?: Event): void {
     if (
       this.full ||
       input.selections.length > attachmentBatchLimit ||
@@ -105,6 +105,8 @@ export class AttachmentSubmissions {
         phase: 'queued',
         progress: null,
       });
+      beginPrivateSend(item.id, event);
+      traceSend('draft-admitted', item.id);
       traceSend('submit', item.id);
       traceSend('ui-available', item.id);
       if (!this.options.available())
@@ -179,6 +181,7 @@ export class AttachmentSubmissions {
       this.wipe(item);
       batch.next++;
       traceSend('staging-complete', item.id);
+      traceSend('flush-ready', item.id);
       this.options.changed();
     }
   }

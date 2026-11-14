@@ -1,3 +1,5 @@
+import { copyPrivateSendDiagnostic } from './private-send.ts';
+import type { PrivateSendFields } from './private-send.ts';
 import { copyFlowDiagnostic } from './flow.ts';
 import type { FlowDiagnosticFields } from './flow.ts';
 import { copyWorkDiagnostic } from './work.ts';
@@ -92,6 +94,7 @@ const failures = [
 ] as const;
 export interface ChatSyncDecision
   extends
+    PrivateSendFields,
     WorkDiagnosticFields,
     SendDiagnosticFields,
     LoadDiagnosticFields,
@@ -150,6 +153,7 @@ export function readChatSyncTrace(value: unknown): ChatSyncTrace | null {
   copyState(input, result);
   copyWorkDiagnostic(input, result);
   copySendDiagnostic(input, result);
+  copyPrivateSendDiagnostic(input, result);
   copyLoadDiagnostic(input, result);
   copyHandleDiagnostic(input, result);
   copyFlowDiagnostic(input, result);

@@ -1,3 +1,9 @@
+import {
+  privateSendSpan,
+  privateSendPoint,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import { diagnosticRequestCategory } from '../../shared/chat-sync-diagnostics/network.ts';
 import { traceLoadPoint } from '../chat-sync-diagnostics/index.ts';
 import type { LoadToken } from '../../shared/chat-sync-diagnostics/load.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
@@ -9,6 +15,7 @@ import type {
   VaultAuthority,
 } from '../vault-authority/index.ts';
 interface MessageRequestControl {
+  privateSend?: PrivateSendContext | undefined;
   guard: () => void;
   signal?: AbortSignal;
   diagnosticLoad?: LoadToken | undefined;
@@ -34,17 +41,29 @@ async function requestMessage(
   guard();
   if (operation === 'group-list' && typeof control !== 'function')
     traceLoadPoint(control.diagnosticLoad, 'group-list-send');
-  const response = await fetchApi(
-    `messages/${operation}`,
-    `/api/account/messages/${operation}`,
-    {
-      ...options,
-      signal,
-    },
-  );
-  const data = await readApiJson(response, `messages/${operation}`);
-  guard();
-  return data;
+  const diagnostic =
+    typeof control === 'function' ? undefined : control.privateSend;
+  const fields = {
+    sendRequest: diagnosticRequestCategory(
+      `/api/account/messages/${operation}`,
+    ),
+  };
+  const finish = privateSendSpan(diagnostic, 'request-dispatch', fields);
+  let ok = false;
+  try {
+    const response = await fetchApi(
+      `messages/${operation}`,
+      `/api/account/messages/${operation}`,
+      { ...options, signal },
+    );
+    privateSendPoint(diagnostic, 'request-response', fields);
+    const data = await readApiJson(response, `messages/${operation}`);
+    guard();
+    ok = true;
+    return data;
+  } finally {
+    finish?.(ok);
+  }
 }
 export function messageApi(
   authority: SigningAuthority,

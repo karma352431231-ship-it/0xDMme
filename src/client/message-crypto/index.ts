@@ -454,7 +454,7 @@ export class MessageCrypto {
       authority.session.accountId,
     );
     await currentRecoveryKey(input.recovery[1], peerHistory, peer.accountId);
-    await this.prepare(authority);
+    await measureSend('sdk-prepare', () => this.prepare(authority), id);
     await measureSend(
       'device-keys',
       () =>

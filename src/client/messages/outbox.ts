@@ -1,3 +1,12 @@
+import {
+  privateSendContext,
+  privateSendBatch,
+  privateSendPoint,
+  privateSendSpan,
+  measurePrivateSend,
+  linkPrivateBatch,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
@@ -74,6 +83,7 @@ interface SendAuthority {
   encryption: (
     authority: VaultAuthority,
     generation: number,
+    diagnostic?: PrivateSendContext,
   ) => Promise<{ own: RecoveryKey; machine: MessageCrypto }>;
 }
 interface OutboxEntry {
@@ -90,6 +100,7 @@ interface OutboxEntry {
   transferStarted?: boolean;
 }
 interface SendContext {
+  diagnostic?: PrivateSendContext | undefined;
   a: VaultAuthority;
   api: (op: string, d: Record<string, unknown>) => Promise<unknown>;
   own: RecoveryKey;
@@ -161,7 +172,13 @@ export class MessageOutbox {
     // opens fresh online authority and verifies the intended recipient.
     await this.access.withLocalVault({ accountId, deviceId }, async (a) => {
       this.authority.guard(generation);
-      const draft = [await sealLocal(a, input.id, input.text)];
+      const draft = [
+        await measureSend(
+          'draft-seal',
+          () => sealLocal(a, input.id, input.text),
+          input.id,
+        ),
+      ];
       this.authority.guard(generation);
       await enqueueOutbox({
         scope: accountId,
@@ -370,33 +387,65 @@ export class MessageOutbox {
   }
 
   async sendPending(options: VaultWorkOptions = {}): Promise<void> {
-    if (!(await this.pending()).length) return;
+    const batchContext = options.privateSend ?? privateSendBatch();
+    privateSendPoint(batchContext, 'outbox-dispatch');
+    const pending = await measurePrivateSend(batchContext, 'pending-page', () =>
+      this.pending(),
+    );
+    if (!pending.length) return;
     const generation = this.authority.current();
-    // Opening a retained window defers the vault read, not identity validation
-    // before distributing keys or publishing new ciphertext.
+    const initial = { ...options, privateSend: batchContext };
     if (!this.authority.pinsLoaded(generation))
-      await this.authority.loadPins(options);
+      await measurePrivateSend(batchContext, 'pins-load', () =>
+        this.authority.loadPins(initial),
+      );
     this.authority.guard(generation);
-    // Persist the first trusted identity before distributing a room key or
-    // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
+    let attempt = 0;
+    let diagnostic = batchContext;
     await sendPinnedBatch({
       prepare: () => {
+        attempt++;
+        diagnostic = batchContext ? { ...batchContext, attempt } : undefined;
         this.authority.guard(generation);
-        return this.access.withVault(
-          false,
-          async (a) => {
-            this.authority.guard(generation);
-            return PinnedSendBatch.prepare({
-              authority: a,
-              entries: await outboxPage<OutboxEntry>(a.session.accountId),
-              history: (peer) => this.authority.history(a, generation, peer),
-            });
-          },
-          options,
+        return measurePrivateSend(diagnostic, 'preflight', () =>
+          this.access.withVault(
+            false,
+            async (a) => {
+              this.authority.guard(generation);
+              const entries = await measurePrivateSend(
+                diagnostic,
+                'pending-page',
+                () => outboxPage<OutboxEntry>(a.session.accountId),
+              );
+              linkPrivateBatch(
+                diagnostic,
+                entries.map(({ value }) => value.id),
+              );
+              for (const { value } of entries)
+                traceSend('outbox-dispatch', value.id);
+              return PinnedSendBatch.prepare({
+                authority: a,
+                entries,
+                history: (peer) =>
+                  measurePrivateSend(diagnostic, 'target-directory', () =>
+                    this.authority.history(a, generation, peer),
+                  ),
+              });
+            },
+            { ...options, privateSend: diagnostic },
+          ),
         );
       },
-      preserve: () => this.authority.savePins(options),
-      transmit: (batch) => this.transmitBatch({ batch, generation, options }),
+      preserve: () =>
+        measurePrivateSend(diagnostic, 'pins-save', () =>
+          this.authority.savePins({ ...options, privateSend: diagnostic }),
+        ),
+      transmit: (batch) =>
+        this.transmitBatch({
+          batch,
+          generation,
+          options: { ...options, privateSend: diagnostic },
+        }),
     });
   }
   private transmitBatch(input: {
@@ -405,42 +454,89 @@ export class MessageOutbox {
     options: VaultWorkOptions;
   }): Promise<boolean> {
     const { batch, generation, options } = input;
+    const diagnostic = options.privateSend;
     this.authority.guard(generation);
-    return this.access.withVault(
-      false,
-      async (a) => {
-        this.authority.guard(generation);
-        if (!batch.current(a)) return false;
-        const api = (op: string, d: Record<string, unknown>) =>
-          messageApi(a, op, d, () => this.authority.guard(generation));
-        const { own, machine } = await this.authority.encryption(a, generation);
-        try {
-          const page = await outboxPage<OutboxEntry>(
-            a.session.accountId,
-            batch.names,
-          );
-          for (const { name, value } of page)
-            await this.sendOne({
-              a,
-              api,
-              own,
-              machine,
-              generation,
-              name,
-              value,
-              history: batch.history(name, value),
+    return measurePrivateSend(diagnostic, 'transmit-admission', () =>
+      this.access.withVault(
+        false,
+        async (a) => {
+          this.authority.guard(generation);
+          const current = batch.current(a);
+          privateSendPoint(diagnostic, 'authority-compare', {
+            sendOutcome: current ? 'current' : 'changed',
+          });
+          if (!current) return false;
+          const api = (op: string, d: Record<string, unknown>) =>
+            messageApi(a, op, d, {
+              guard: () => this.authority.guard(generation),
+              privateSend: diagnostic,
             });
-        } finally {
-          machine.close();
-        }
-        return true;
-      },
-      options,
+          const { own, machine } = await this.authority.encryption(
+            a,
+            generation,
+            diagnostic,
+          );
+          try {
+            const page = await measurePrivateSend(
+              diagnostic,
+              'pending-page',
+              () => outboxPage<OutboxEntry>(a.session.accountId, batch.names),
+            );
+            const earlier = page.map(({ value }) =>
+              privateSendSpan(privateSendContext(value.id), 'scheduler-wait', {
+                sendWait: 'earlier-draft',
+              }),
+            );
+            try {
+              for (const [index, { name, value }] of page.entries()) {
+                earlier[index]?.();
+                const linked = privateSendContext(value.id);
+                const context = linked
+                  ? { ...diagnostic, ...linked }
+                  : diagnostic;
+                const message = (op: string, d: Record<string, unknown>) =>
+                  messageApi(a, op, d, {
+                    guard: () => this.authority.guard(generation),
+                    privateSend: context,
+                  });
+                await this.sendOne({
+                  a,
+                  api: context ? message : api,
+                  own,
+                  machine,
+                  generation,
+                  name,
+                  value,
+                  diagnostic: context,
+                  history: batch.history(name, value),
+                });
+              }
+            } finally {
+              for (const finish of earlier) finish?.();
+            }
+          } finally {
+            machine.close();
+          }
+          return true;
+        },
+        options,
+      ),
     );
   }
   private async sendOne(context: SendContext): Promise<void> {
     const { a, api, generation, name, value } = context;
-    if (await this.alreadyAccepted(api, value)) {
+    const known = await measurePrivateSend(
+      context.diagnostic,
+      'accepted-check',
+      () => this.alreadyAccepted(api, value),
+    );
+    privateSendPoint(context.diagnostic, 'accepted-check', {
+      sendOutcome: known ? 'accepted' : 'not-accepted',
+    });
+    if (known) {
+      privateSendPoint(context.diagnostic, 'device-keys', {
+        sendOutcome: 'skipped',
+      });
       this.notifyPublished(value, generation);
       await removeOutbox(a.session.accountId, name);
       await this.retainOutbox(a, value);
@@ -455,19 +551,38 @@ export class MessageOutbox {
       value.packet.senderDirectory !== a.directory ||
       value.packet.recipientRevision !== last.revision
     ) {
-      value.packet = await this.preparePacket(context);
-      await localPut(a.session.accountId, name, value, this.entrySize(value));
-    }
+      value.packet = await measurePrivateSend(
+        context.diagnostic,
+        'packet-prepare',
+        () => this.preparePacket(context),
+      );
+      await measureSend(
+        'packet-save',
+        () => localPut(a.session.accountId, name, value, this.entrySize(value)),
+        value.id,
+      );
+    } else
+      privateSendPoint(context.diagnostic, 'device-keys', {
+        sendOutcome: 'skipped',
+      });
     await this.transferOutbox(a, api, value);
     traceSend('transfer-complete', value.id);
-    await this.publishOutbox(api, value);
+    await measureSend(
+      'server-publish',
+      () => this.publishOutbox(api, value),
+      value.id,
+    );
     this.notifyPublished(value, generation);
     await this.retainOutbox(a, value);
     await removeOutbox(a.session.accountId, name);
   }
   private async preparePacket(context: SendContext): Promise<MessagePacket> {
     const { a, api, own, machine, value, history } = context;
-    const raw = await api('recovery-peer', { accountId: value.peer });
+    const raw = await measureSend(
+      'recovery',
+      () => api('recovery-peer', { accountId: value.peer }),
+      value.id,
+    );
     if (raw === null)
       throw new Error(
         'Your contact must open the app to prepare recovery before the first message.',

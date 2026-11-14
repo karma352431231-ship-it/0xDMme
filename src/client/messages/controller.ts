@@ -1,3 +1,4 @@
+import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import {
   assertRemovalBatch,
@@ -232,9 +233,18 @@ export class Messages {
         savePins: (options) => this.savePins(options),
         history: (a, generation, peer) =>
           this.history({ a, generation }, peer, null),
-        encryption: async (a, generation) => {
-          const own = await this.recoverable(a, generation);
-          const machine = await this.machine(a, generation);
+        encryption: async (a, generation, diagnostic) => {
+          const api = (op: string, data: Record<string, unknown>) =>
+            messageApi(a, op, data, {
+              guard: () => this.guard(generation),
+              privateSend: diagnostic,
+            });
+          const own = await measurePrivateSend(diagnostic, 'recovery', () =>
+            this.recoverable(a, generation),
+          );
+          const machine = await measurePrivateSend(diagnostic, 'sdk-open', () =>
+            this.machine(a, generation, api),
+          );
           return { own, machine };
         },
       },

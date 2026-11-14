@@ -56,11 +56,11 @@ export class Recording {
     };
   }
   report() {
-    const comparison = this.sends.report();
     const flow = this.flows.report();
+    const comparison = this.sends.report(flow);
     return {
       schema: 3,
-      meterRevision: 5,
+      meterRevision: 6,
       collectorCommit:
         typeof CHAT_DIAGNOSTIC_COMMIT === 'string'
           ? CHAT_DIAGNOSTIC_COMMIT

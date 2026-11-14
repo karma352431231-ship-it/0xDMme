@@ -1,3 +1,11 @@
+import {
+  privateSendSpan,
+  privateSendPoint,
+} from '../chat-sync-diagnostics/index.ts';
+import type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../chat-sync-diagnostics/index.ts';
 import { expectedInterruption } from '../synchronization-work/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { MessageContinuationQueue, afterMessageWork } from './continuation.ts';
@@ -344,7 +352,10 @@ export class MessageSynchronization {
     if (failure) throw failure.error;
     return completed;
   }
-  async run(work: () => Promise<void>): Promise<boolean> {
+  async run(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<boolean> {
     if (this.closed || this.busy) return false;
     this.busy = true;
     // A live receipt page commits first; speculative preparation is interrupted.
@@ -353,11 +364,12 @@ export class MessageSynchronization {
     const current = this.options.state().generation;
     this.options.status();
     try {
-      await receipt;
+      await settleSendWait(diagnostic, 'receipt-page', receipt);
       // A user action waits for automatic maintenance instead of being dropped.
-      await this.maintenance;
+      await settleSendWait(diagnostic, 'maintenance', this.maintenance);
       if (!this.current(current)) return false;
       this.failed = false;
+      privateSendPoint(diagnostic, 'foreground-acquired');
       await measureWork(this, 'foreground', work);
       if (!this.current(current)) return false;
       if (
@@ -441,6 +453,19 @@ export class MessageSynchronization {
   get presentationReady(): boolean {
     const state = this.options.state();
     return !this.closed && state.session && state.online && !state.suspended;
+  }
+  /** Observed predicates only; this does not claim why another tab holds a lock. */
+  sendBlockers(): SendWaitReason[] {
+    const state = this.options.state();
+    const flags: [boolean, SendWaitReason][] = [
+      [this.closed, 'closed'],
+      [this.busy, 'foreground-operation'],
+      [this.maintenance !== null, 'maintenance'],
+      [!state.session, 'session'],
+      [!state.online, 'offline'],
+      [state.suspended, 'suspended'],
+    ];
+    return flags.filter(([blocked]) => blocked).map(([, reason]) => reason);
   }
   get foregroundReady(): boolean {
     const state = this.options.state();
@@ -648,4 +673,23 @@ export class MessageSynchronization {
       error instanceof Error ? translatedError(error.message) : fallback,
     );
   }
+}
+
+function settleSendWait(
+  context: PrivateSendContext | undefined,
+  reason: SendWaitReason,
+  work: Promise<void> | null,
+): Promise<void> {
+  const promise = work ?? Promise.resolve();
+  const finish = privateSendSpan(context, 'scheduler-wait', {
+    sendWait: reason,
+  });
+  if (!finish) return promise;
+  return promise.then(
+    () => finish(),
+    (error: unknown) => {
+      finish(false);
+      throw error;
+    },
+  );
 }

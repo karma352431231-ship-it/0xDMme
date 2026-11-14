@@ -1,3 +1,13 @@
+import { PrivateSendCapture } from './private-send.ts';
+import { privateSendRevision } from '../../shared/chat-sync-diagnostics/private-send.ts';
+import type {
+  PrivateSendContext,
+  PrivateSendFields,
+} from '../../shared/chat-sync-diagnostics/private-send.ts';
+export type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../../shared/chat-sync-diagnostics/private-send.ts';
 import { CaptureWork } from './capture-work.ts';
 import type {
   AuthorityDiagnosticContext,
@@ -62,12 +72,15 @@ let nextLoad = 0,
 let early: EarlyCapture | undefined;
 let handleDelivery: HandleDeliveryCapture | undefined;
 let captureWork: CaptureWork | undefined;
+let privateSends: PrivateSendCapture | undefined;
 let captureAbort: AbortController | undefined;
 const handleOwner = {};
 
 function stop(): void {
   captureAbort?.abort();
   captureAbort = undefined;
+  privateSends?.stop();
+  privateSends = undefined;
   captureWork?.stop();
   captureWork = undefined;
   handleDelivery?.stop();
@@ -95,11 +108,18 @@ export function installChatSyncDiagnostics(host: Window): void {
   installed.add(host);
   host.addEventListener(chatSyncControl, (event) => {
     if (!(event instanceof CustomEvent)) return;
+    privateSubmission(event.detail);
     const pair = readHandlePair(event.detail);
     if (pair && chatSyncActive()) handleDelivery?.pair(pair);
     if (event.detail === 'stop') stop();
     if (event.detail === 'start') announceCapture(host);
   });
+}
+function privateSubmission(value: unknown): void {
+  if (typeof value === 'object' && value !== null && chatSyncActive())
+    privateSends?.gesture(
+      (value as Record<string, unknown>)['privateSubmission'],
+    );
 }
 function announceCapture(host: Window): void {
   const replay = early;
@@ -111,6 +131,7 @@ function announceCapture(host: Window): void {
     reason: 'capture-started',
     source: 0,
     conversation: 0,
+    privateRevision: privateSendRevision,
     sendTimings: true,
     sendPreparationTimings: true,
     nativeTimings: true,
@@ -126,6 +147,14 @@ function announceCapture(host: Window): void {
 function beginCapture(): void {
   stop();
   captureAbort = new AbortController();
+  privateSends = new PrivateSendCapture((sendStage, fields) =>
+    traceChatSync(sendOwner, null, {
+      event: 'send',
+      reason: 'settled',
+      sendStage,
+      ...fields,
+    }),
+  );
   handleDelivery = new HandleDeliveryCapture((fields) =>
     traceChatSync(handleOwner, null, {
       event: 'handle-delivery',
@@ -333,11 +362,14 @@ export function traceSend(
   > = {},
 ): void {
   if (!chatSyncActive()) return;
+  const linkage = privateSendFields(stage, id);
   const message = id === undefined ? undefined : sendMessage(id, stage);
   if (message === null) return;
   traceChatSync(sendOwner, null, {
     event: 'send',
     reason: 'settled',
+    ...linkage,
+    sendClockMs: Math.round(performance.now()),
     sendStage: stage,
     sendPhase: 'point',
     ...fields,
@@ -345,6 +377,16 @@ export function traceSend(
   });
 }
 
+function privateSendFields(
+  stage: SendStage,
+  id: string | undefined,
+): PrivateSendFields {
+  if (!id || !privateSends) return {};
+  if (stage === 'flush-ready') privateSends.ready(id);
+  if (stage === 'outbox-dispatch') privateSends.dispatch(id);
+  if (stage === 'accepted') privateSends.accept(id);
+  return privateSends.fields(privateSends.context(id));
+}
 function sendMessage(id: string, stage: SendStage): number | null {
   let send = sends.get(id);
   if (stage === 'check-render' && (!send || send.rendered)) return null;
@@ -419,15 +461,25 @@ export function measureSendSync<T>(
 /** Observe a check only after authoritative acceptance for this capture's
  * own message. Decorative pending checks cannot satisfy it. No paint claim. */
 export function traceSendChecks(history: HTMLElement): void {
-  if (!chatSyncActive() || !sendHistoryVisible(history)) return;
+  if (!chatSyncActive()) return;
+  if (!sendHistoryVisible(history)) {
+    for (const [id, send] of [...sends])
+      if (send.accepted && !send.rendered) traceSend('check-limit', id);
+    return;
+  }
   for (const row of history.querySelectorAll<HTMLElement>(
     'article[data-message]',
   )) {
-    const id = row.dataset['message'];
-    if (id && sends.get(id)?.accepted && row.querySelector('.message-checks')) {
-      traceSend('check-render', id);
-      traceHandleDelivery(id, 'sender-check');
-    }
+    observeSendRow(row);
+  }
+}
+function observeSendRow(row: HTMLElement): void {
+  const id = row.dataset['message'];
+  if (!id || !sends.has(id)) return;
+  traceSend('pending-render', id);
+  if (sends.get(id)?.accepted && row.querySelector('.message-checks')) {
+    traceSend('check-render', id);
+    traceHandleDelivery(id, 'sender-check');
   }
 }
 
@@ -574,7 +626,12 @@ export function startAuthorityWork(
   resource?: object,
 ) {
   return chatSyncActive()
-    ? captureWork?.queue(context, priority, resource)
+    ? captureWork?.queue(
+        context,
+        priority,
+        resource,
+        privateSends?.fields(context.privateSend),
+      )
     : undefined;
 }
 
@@ -593,4 +650,76 @@ export function diagnosticCaptureSignal(): AbortSignal | undefined {
 /** Async diagnostic owners capture this value before starting work. */
 export function diagnosticGeneration(): number | undefined {
   return chatSyncActive() ? capture : undefined;
+}
+
+/** Explicit logical submission; gesture linkage is by the exact DOM event. */
+export function beginPrivateSend(id: string, event?: Event): void {
+  if (chatSyncActive())
+    privateSends?.begin(id, sendMessage(id, 'submit')!, event);
+}
+export function privateSendContext(id: string): PrivateSendContext | undefined {
+  return chatSyncActive() ? privateSends?.context(id) : undefined;
+}
+export function privateSendBatch(): PrivateSendContext | undefined {
+  return chatSyncActive() ? privateSends?.batch() : undefined;
+}
+export function linkPrivateBatch(
+  context: PrivateSendContext | undefined,
+  ids: readonly string[],
+): void {
+  if (chatSyncActive()) for (const id of ids) privateSends?.member(context, id);
+}
+export function privateSendPoint(
+  context: PrivateSendContext | undefined,
+  stage: SendStage,
+  fields: PrivateSendFields = {},
+): void {
+  if (chatSyncActive()) privateSends?.point(context, stage, fields);
+}
+export function privateSendSpan(
+  context: PrivateSendContext | undefined,
+  stage: SendStage,
+  fields: PrivateSendFields = {},
+) {
+  return chatSyncActive()
+    ? privateSends?.span(context, stage, fields)
+    : undefined;
+}
+export function measurePrivateSend<T>(
+  context: PrivateSendContext | undefined,
+  stage: SendStage,
+  work: () => Promise<T>,
+): Promise<T> {
+  const finish = privateSendSpan(context, stage);
+  if (!finish) return work();
+  return finishPrivateSend(work, finish);
+}
+async function finishPrivateSend<T>(
+  work: () => Promise<T>,
+  finish: (ok?: boolean) => void,
+): Promise<T> {
+  let ok = false;
+  try {
+    const result = await work();
+    ok = true;
+    return result;
+  } finally {
+    finish(ok);
+  }
+}
+
+export function tracePrivateScheduler(
+  reasons: readonly import('../../shared/chat-sync-diagnostics/private-send.ts').SendWaitReason[],
+): void {
+  if (chatSyncActive()) privateSends?.scheduler(reasons);
+}
+export function resetPrivateSendDiagnostics(): void {
+  privateSends?.reset();
+}
+
+export function tracePrivateTextQueue(
+  id: string,
+  stage: 'enqueued' | 'save-start' | 'ready' | 'save-failed' | 'cancelled',
+): void {
+  if (chatSyncActive()) privateSends?.queue(id, stage);
 }

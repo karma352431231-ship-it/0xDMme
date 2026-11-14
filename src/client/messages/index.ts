@@ -1,3 +1,11 @@
+import {
+  beginPrivateSend,
+  traceSend,
+  tracePrivateTextQueue,
+  tracePrivateScheduler,
+  privateSendBatch,
+  resetPrivateSendDiagnostics,
+} from '../chat-sync-diagnostics/index.ts';
 import { UsefulStartup } from './useful-startup.ts';
 import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
@@ -550,12 +558,15 @@ export function startMessages(
     ],
   });
   const textQueue: TextSendQueue = new TextSendQueue({
+    timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
     draftChanged: (draft, phase) => outgoing.update(draft, phase),
     save: (draft) => controller.queueText(draft),
     available: () => synchronization.foregroundReady && !mediaSubmissions.ready,
     transmit: async () => {
-      const ok = await synchronization.run(() =>
-        sendPending({ priority: 'interactive' }),
+      const privateSend = privateSendBatch();
+      const ok = await synchronization.run(
+        () => sendPending({ priority: 'interactive', privateSend }),
+        privateSend,
       );
       return { ok, more: (await controller.pending()).length > 0 };
     },
@@ -948,6 +959,10 @@ export function startMessages(
         : t('Conversations updated.');
   }
   function status(): void {
+    tracePrivateScheduler([
+      ...synchronization.sendBlockers(),
+      ...(mediaSubmissions.ready ? ['media-submission' as const] : []),
+    ]);
     mediaSubmissions.resume();
     sendFollowup.resume();
     textQueue.resume();
@@ -1290,17 +1305,23 @@ export function startMessages(
   function canQueueText(): boolean {
     return canCompose() && composer.acceptsQueuedText;
   }
-  function queueText(): boolean {
+  function queueText(event: Event): boolean {
     if (!canQueueText() || !selected) return false;
     const peer = selected.accountId;
     try {
-      return composer.queueText((text, reply) =>
+      let id: string | undefined;
+      const admitted = composer.queueText((text, reply) => {
+        id = crypto.randomUUID();
+        beginPrivateSend(id, event);
         textQueue.enqueue({
-          id: crypto.randomUUID(),
+          id,
           peer,
           text: encodeDailyText({ text, reply, forwarded: false }),
-        }),
-      );
+        });
+        traceSend('draft-admitted', id);
+      });
+      if (admitted && id) traceSend('ui-available', id);
+      return admitted;
     } catch (error: unknown) {
       reportTextSaveError(error);
       return true;
@@ -1872,6 +1893,7 @@ export function startMessages(
         ),
       );
     if (!event.persisted) {
+      resetPrivateSendDiagnostics();
       textQueue.reset();
       mediaSubmissions.reset();
       sendFollowup.reset();
@@ -1942,7 +1964,7 @@ export function startMessages(
       'submit',
       (event) => {
         event.preventDefault();
-        if (queueText()) return;
+        if (queueText(event)) return;
         try {
           if (!canCompose()) {
             if (selected?.localOnly)
@@ -1956,7 +1978,7 @@ export function startMessages(
           if (
             selected &&
             composer.takeSubmission(selected.accountId, (input) =>
-              mediaSubmissions.enqueue(input),
+              mediaSubmissions.enqueue(input, event),
             )
           )
             return;
@@ -2030,6 +2052,7 @@ export function startMessages(
       gallery.close();
       contactInfo.close();
       visits.reset();
+      resetPrivateSendDiagnostics();
       textQueue.reset();
       mediaSubmissions.reset();
       sendFollowup.reset();

@@ -1,3 +1,4 @@
+import type { PrivateSendFields } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import type { LoadToken } from '../../shared/chat-sync-diagnostics/load.ts';
 import type {
   FlowDiagnosticFields,
@@ -8,7 +9,10 @@ import type {
 } from '../../shared/chat-sync-diagnostics/flow.ts';
 export type FlowEvent =
   'authority-work' | 'handle-read' | 'handle-refresh' | 'handle-send';
-type Emit = (event: FlowEvent, fields: FlowDiagnosticFields) => void;
+type Emit = (
+  event: FlowEvent,
+  fields: FlowDiagnosticFields & PrivateSendFields,
+) => void;
 /** Owns capture-local correlation capabilities. It never coordinates or changes
  * application scheduling. Closures become inert when their capture ends. */
 export class CaptureWork {
@@ -94,6 +98,7 @@ export class CaptureWork {
     context: AuthorityDiagnosticContext,
     priority?: 'interactive',
     resource: object = this,
+    linked: PrivateSendFields = {},
   ) {
     if (this.ended) return;
     if (this.works >= 512) return this.full();
@@ -109,6 +114,7 @@ export class CaptureWork {
       if (this.ended || settled) return;
       const workClockMs = Math.round(performance.now());
       this.emit('authority-work', {
+        ...linked,
         diagnosticWork,
         authorityQueue,
         workClockMs,

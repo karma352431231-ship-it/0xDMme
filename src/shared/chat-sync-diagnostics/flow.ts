@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from './private-send.ts';
 import type { LoadToken, LoadDiagnosticFields } from './load.ts';
 /** In-process capability only. Never serialized or sent to the server. */
 export interface HandleReadToken {
@@ -44,6 +45,7 @@ export const authorityKinds = [
 ] as const;
 export type AuthorityKind = (typeof authorityKinds)[number];
 export interface AuthorityDiagnosticContext {
+  privateSend?: PrivateSendContext | undefined;
   diagnosticOperation?: AuthorityKind;
   diagnosticLoad?: LoadToken | undefined;
   handleRead?: HandleReadToken;

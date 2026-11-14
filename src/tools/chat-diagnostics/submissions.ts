@@ -1,3 +1,4 @@
+import { chatSyncControl } from '../../shared/chat-sync-diagnostics/index.ts';
 import type { RecordEvent } from './recording.ts';
 import { CompositionMetadata } from './composition.ts';
 
@@ -34,10 +35,11 @@ export function observeSubmissions(record: RecordEvent): () => void {
     if (gesture?.form === form && followsGesture(gesture, cause)) {
       gesture.clicked ||= cause === 'button';
       gesture.submitted ||= cause === 'submit';
-      return gesture.id;
+      return gesture;
     }
     const current: Gesture = {
       form,
+      clock: Math.round(performance.now()),
       id: ++sequence,
       cause,
       clicked: cause === 'button',
@@ -48,7 +50,7 @@ export function observeSubmissions(record: RecordEvent): () => void {
     gestureTimer = setTimeout(() => {
       gesture = undefined;
     }, 0);
-    return current.id;
+    return current;
   };
   const changed = () => {
     for (const [scope, selector] of scopes) {
@@ -60,17 +62,32 @@ export function observeSubmissions(record: RecordEvent): () => void {
       record('send-state', { scope, ...state });
     }
   };
-  const action = (target: EventTarget | null, cause: string) => {
+  const action = (target: EventTarget | null, cause: string, event: Event) => {
     const context = compositionForm(target);
     if (!context) return;
     const { form, scope } = context;
     changed();
+    const current = gestureFor(form, cause);
+    const composition = metadata.read(form);
+    if (scope === 'private' && typeof window !== 'undefined')
+      window.dispatchEvent(
+        new CustomEvent(chatSyncControl, {
+          detail: {
+            privateSubmission: {
+              event,
+              composer: composition.composer,
+              gesture: current.id,
+              clock: current.clock,
+            },
+          },
+        }),
+      );
     record('send-action', {
       scope,
       cause,
-      gesture: gestureFor(form, cause),
+      gesture: current.id,
       ...sendState(form),
-      ...metadata.read(form),
+      ...composition,
     });
   };
   const clearSelection = (target: EventTarget | null) => {
@@ -92,7 +109,7 @@ export function observeSubmissions(record: RecordEvent): () => void {
     (event) => {
       if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
       if (event.target instanceof Element && event.target.matches('textarea'))
-        action(event.target, 'enter');
+        action(event.target, 'enter', event);
     },
     { signal, capture: true },
   );
@@ -119,13 +136,13 @@ export function observeSubmissions(record: RecordEvent): () => void {
         event.target instanceof Element &&
         event.target.closest('[data-compose-send]')
       )
-        action(event.target, 'button');
+        action(event.target, 'button', event);
     },
     { signal, capture: true },
   );
   document.addEventListener(
     'submit',
-    (event) => action(event.target, 'submit'),
+    (event) => action(event.target, 'submit', event),
     {
       signal,
       capture: true,
@@ -159,6 +176,7 @@ function compositionForm(target: EventTarget | null) {
 }
 
 interface Gesture {
+  clock: number;
   form: Element;
   id: number;
   cause: string;

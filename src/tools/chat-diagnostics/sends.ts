@@ -1,3 +1,5 @@
+import { PrivateSendBreakdowns } from './private-sends.ts';
+import type { AuthorityWorkSummary } from './flow.ts';
 import { mediaKinds } from './composition.ts';
 import type { MediaKind } from './composition.ts';
 import { sendStages } from '../../shared/chat-sync-diagnostics/index.ts';
@@ -16,6 +18,7 @@ type StageTiming = {
 };
 interface SendSummary {
   slot: number;
+  gesture: number;
   label: SendCase;
   composer: number;
   scope: string;
@@ -88,6 +91,8 @@ type RequestTiming = {
 /** Five comparison cases outlive timeline eviction. No payload or durable ID
  * enters this owner; network attribution requires one send at a time. */
 export class ComparisonSends {
+  private readonly privateBreakdowns = new PrivateSendBreakdowns();
+  private privateRevision = 0;
   private readonly sends: SendSummary[] = [];
   private readonly requests = new Map<string, RequestTiming>();
   private active: SendSummary | undefined;
@@ -102,15 +107,25 @@ export class ComparisonSends {
       this.pending = newSummary(event.ms);
     applyComposition(this.pending, event);
   }
+  private explicitPrivate(event: TraceEvent): boolean {
+    return this.privateRevision === 1 && event['scope'] === 'private';
+  }
+  private automaticMarker(send: SendSummary): boolean {
+    return (
+      (this.handleTimings && send.scope === 'handle') ||
+      (this.privateRevision === 1 && send.scope === 'private')
+    );
+  }
   private begin(event: TraceEvent): SendSummary | undefined {
     if (this.sends.length === 5) {
       this.overflow++;
       this.pending = this.active = undefined;
       return undefined;
     }
-    const ambiguous = this.active
-      ? unfinished(this.active, this.internal)
-      : false;
+    const ambiguous =
+      this.active && !this.explicitPrivate(event)
+        ? unfinished(this.active, this.internal)
+        : false;
     if (this.active) this.active.ambiguous ||= ambiguous;
     const send =
       this.pending &&
@@ -124,6 +139,7 @@ export class ComparisonSends {
     send.slot = this.sends.length + 1;
     send.ambiguous = ambiguous;
     send.submitMs = event.ms;
+    send.gesture = Number(event['gesture']);
     this.sends.push(send);
     this.active = send;
     return send;
@@ -161,12 +177,16 @@ export class ComparisonSends {
     }
   }
   observe(event: TraceEvent): void {
+    this.privateBreakdowns.observe(event);
+    if (event.kind === 'reuse-ready')
+      this.privateRevision = Number(event['privateRevision']) || 0;
     this.automatic(event);
     if (event.kind === 'reuse-coverage') {
       this.internal = event['sendTimings'] === true;
       this.handleTimings = event['handleTimings'] === true;
     }
     if (event.kind === 'reuse-send') this.stage(event);
+    this.linkedRequest(event);
     if (event.kind === 'request-start') this.startRequest(event);
     this.finishRequest(event);
     this.presentation(event);
@@ -214,19 +234,75 @@ export class ComparisonSends {
   }
 
   private forMessage(event: TraceEvent): SendSummary | undefined {
+    if (typeof event['privateSend'] === 'number')
+      return this.privateMessage(event);
+    if (typeof event['privateBatch'] === 'number') return;
     const message = event['message'];
     if (typeof message !== 'number') return this.pending ?? this.active;
     const known = this.sends.find((send) => send.message === message);
     if (known) return known;
-    if (event['sendStage'] !== 'submit') return undefined;
-    const unbound = this.sends.filter((send) => send.message === null);
+    if (event['sendStage'] !== 'submit') return;
+    const unbound = this.sends.filter(
+      (send) =>
+        send.message === null &&
+        !(this.privateRevision === 1 && send.scope === 'private'),
+    );
     if (unbound.length === 1) {
       unbound[0]!.message = message;
       return unbound[0];
     }
-    // A background retry or concurrent case must never steal another send.
     for (const send of unbound) send.ambiguous = true;
-    return undefined;
+    return;
+  }
+  private privateMessage(event: TraceEvent): SendSummary | undefined {
+    const known = this.sends.find(
+      (send) => send.message === event['privateSend'],
+    );
+    if (known) return known;
+    if (event['sendStage'] !== 'logical-submit') return;
+    const candidates = this.sends.filter(
+      (send) =>
+        send.scope === 'private' &&
+        send.composer === event['sendComposer'] &&
+        send.gesture === event['sendGesture'] &&
+        send.message === null,
+    );
+    if (candidates.length !== 1) {
+      for (const send of candidates) send.ambiguous = true;
+      return;
+    }
+    candidates[0]!.message = Number(event['privateSend']);
+    return candidates[0];
+  }
+  private linkedRequest(event: TraceEvent): void {
+    if (
+      event.kind !== 'reuse-send' ||
+      event['sendStage'] !== 'request-dispatch' ||
+      typeof event['sendSpan'] !== 'number'
+    )
+      return;
+    const send = this.forMessage(event);
+    if (!send) return;
+    const id = `private-${event['sendSpan']}`;
+    if (event['sendPhase'] === 'start')
+      this.startRequest(
+        { ...event, id, category: String(event['sendRequest']) },
+        send,
+      );
+    if (event['sendPhase'] === 'end') {
+      this.finishRequest({
+        ...event,
+        id,
+        kind: 'response-headers',
+        status: event['sendSuccess'] === true ? 200 : 500,
+      });
+      this.finishRequest({
+        ...event,
+        id,
+        kind:
+          event['sendSuccess'] === true ? 'response-body' : 'request-failed',
+      });
+    }
   }
   private point(send: SendSummary, event: TraceEvent, stage: SendStage): void {
     const field = pointFields[stage as keyof typeof pointFields];
@@ -239,14 +315,24 @@ export class ComparisonSends {
     )
       send.blockingReasons.push(reason);
   }
-  private startRequest(event: TraceEvent): void {
-    const category = event['category'];
+  private requestSend(
+    event: TraceEvent,
+    linked?: SendSummary,
+  ): SendSummary | undefined {
+    const send = linked ?? this.active;
+    if (!linked && send?.scope === 'private' && this.privateRevision === 1)
+      return;
     if (
-      !this.active ||
-      typeof category !== 'string' ||
+      typeof event['category'] !== 'string' ||
       typeof event['id'] !== 'string'
     )
       return;
+    return send;
+  }
+  private startRequest(event: TraceEvent, linked?: SendSummary): void {
+    const send = this.requestSend(event, linked);
+    if (!send) return;
+    const category = String(event['category']);
     const operation = category.replace(/^messages\//u, '');
     if (!sendOperations.has(operation)) return;
     if (this.requests.size === 64) {
@@ -254,14 +340,14 @@ export class ComparisonSends {
       return;
     }
     const part = partOperations.has(operation);
-    this.requests.set(event['id'], {
-      send: this.active,
+    this.requests.set(String(event['id']), {
+      send,
       part,
       publish: operation === 'publish' || operation === 'dm-publish',
       ok: false,
     });
     if (part) {
-      const upload = this.active.upload;
+      const upload = send.upload;
       upload.firstPartMs ??= event.ms;
       upload.startedParts++;
       upload.peakInFlight = Math.max(upload.peakInFlight, ++upload.inFlight);
@@ -291,8 +377,44 @@ export class ComparisonSends {
     if (ok) upload.completedParts++;
     else upload.failedParts++;
   }
-  report() {
+  private complete(
+    send: SendSummary,
+    missing: string[],
+    privateLatency: ReturnType<PrivateSendBreakdowns['report']>,
+  ): boolean {
+    return (
+      missing.length === 0 &&
+      !send.ambiguous &&
+      send.upload.failedParts === 0 &&
+      this.requestOverflow === 0 &&
+      this.privateComplete(send, privateLatency)
+    );
+  }
+  private privateComplete(
+    send: SendSummary,
+    report: ReturnType<PrivateSendBreakdowns['report']>,
+  ): boolean {
+    if (this.privateRevision !== 1 || send.scope !== 'private') return true;
+    const coverage = report.sends.find(
+      (s) => s.slot === send.message,
+    )?.coverage;
+    if (!coverage) return false;
+    return (
+      coverage.missing.length === 0 &&
+      coverage.truncatedSpans.length === 0 &&
+      coverage.overflow === 0 &&
+      !coverage.authorityOverflow
+    );
+  }
+  report(
+    flow: { authority: readonly AuthorityWorkSummary[]; overflow: boolean } = {
+      authority: [],
+      overflow: false,
+    },
+  ) {
+    const privateLatency = this.privateBreakdowns.report(flow);
     return {
+      privateLatency,
       limit: 5,
       overflow: this.overflow,
       requestOverflow: this.requestOverflow,
@@ -307,16 +429,15 @@ export class ComparisonSends {
         fileSlots: 128,
       },
       networkAttribution:
-        'one-send-at-a-time-in-this-tab; HTTP-success-is-not-acceptance',
+        'explicit-private-request-slots-with-revision-1; legacy-one-send-at-a-time; HTTP-success-is-not-acceptance',
       checkMeaning:
         'accepted-own-check-in-visible-DOM; not-physical-paint-or-recipient-receipt',
       sends: this.sends.map((send) => {
-        const missing = missingStages(
-          send,
-          this.handleTimings && send.scope === 'handle',
-        );
+        const missing = missingStages(send, this.automaticMarker(send));
         return {
           ...send,
+          privateLatency:
+            privateLatency.sends.find((s) => s.slot === send.message) ?? null,
           fileSlots: [...send.fileSlots],
           blockingReasons: [...send.blockingReasons],
           acceptance: send.acceptedMs === null ? 'not-observed' : 'accepted',
@@ -336,11 +457,7 @@ export class ComparisonSends {
                 : send.upload.lastPartMs - send.upload.firstPartMs,
           },
           missingStages: missing,
-          complete:
-            missing.length === 0 &&
-            !send.ambiguous &&
-            send.upload.failedParts === 0 &&
-            this.requestOverflow === 0,
+          complete: this.complete(send, missing, privateLatency),
           clickToAcceptanceMs: difference(send.acceptedMs, send.submitMs),
           clickToCheckMs: difference(send.checkRenderMs, send.submitMs),
           clickToUiAvailableMs: difference(send.uiAvailableMs, send.submitMs),
@@ -384,6 +501,7 @@ function unfinished(send: SendSummary, internal: boolean): boolean {
 function newSummary(ms: number): SendSummary {
   return {
     slot: 0,
+    gesture: 0,
     label: 'unknown',
     composer: 0,
     scope: 'unknown',

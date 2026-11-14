@@ -1,9 +1,11 @@
+import { chatSyncControl } from '../src/shared/chat-sync-diagnostics/index.ts';
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 import type { MediaKind } from '../src/tools/chat-diagnostics/composition.ts';
 import {
   installChatSyncDiagnostics,
+  beginPrivateSend,
   measureSend,
   measureSendSync,
   traceSend,
@@ -336,6 +338,20 @@ await test('the opt-in bridge preserves failures, isolates captures and marks th
   stop = observeReuseDecisions(r.record);
   submit(r, 1);
   const id = 'private-message-id';
+  const event = new Event('submit');
+  window.dispatchEvent(
+    new CustomEvent(chatSyncControl, {
+      detail: {
+        privateSubmission: {
+          event,
+          composer: 1,
+          gesture: 1,
+          clock: Math.round(performance.now()),
+        },
+      },
+    }),
+  );
+  beginPrivateSend(id, event);
   traceSend('submit', id);
   let laidOut = false;
   const history = {
