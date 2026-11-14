@@ -3,12 +3,14 @@ import { test } from 'node:test';
 import {
   PeerIdentity,
   readDirectories,
+  currentPeerHistory,
 } from '../src/client/peer-identity/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type { VaultWorkOptions } from '../src/client/vault-authority/index.ts';
 import type { VaultEntry } from '../src/client/vault-sync/index.ts';
 import { pinFor } from '../src/client/peer-identity/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
+import { eventHash } from '../src/shared/devices/index.ts';
 function identities(): PeerIdentity {
   const access = {
     withVault: () => Promise.reject(new Error('Sem rede neste teste.')),
@@ -16,6 +18,24 @@ function identities(): PeerIdentity {
   };
   return new PeerIdentity(new VaultSync(access));
 }
+await test('an inconsistent incremental directory is read in full and still checked against its pin', async () => {
+  const peer = await groupParticipant();
+  const events = [peer.directory];
+  const head = await eventHash(peer.directory);
+  const scope = { account: peer.accountId, pin: await pinFor(events) };
+  const offsets: unknown[] = [];
+  const api = (_operation: string, payload: Record<string, unknown>) => {
+    offsets.push(payload['after']);
+    return Promise.resolve(
+      payload['after'] === 0
+        ? { head, revision: 1, events }
+        : { head: '0'.repeat(64), revision: 1, events: [] },
+    );
+  };
+  assert.deepEqual(await currentPeerHistory(api, scope, events), events);
+  assert.deepEqual(offsets, [1, 0]);
+});
+
 await test('repeated notices check the index without downloading authenticated identities again; new record is validated', async () => {
   const peer = await groupParticipant();
   const entry: VaultEntry = {

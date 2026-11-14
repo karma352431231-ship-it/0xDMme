@@ -130,6 +130,8 @@ export async function sendFixture() {
     authorityReads: 0,
     expectedPriority: 'interactive' as 'interactive' | undefined,
     losePublishResponse: false,
+    combinedPreparation: true,
+    preparationOffsets: [] as number[],
     failPublish: false,
     closedMachines: 0,
     events: [] as { id: string; peer: string }[],
@@ -256,6 +258,24 @@ export async function sendFixture() {
       ),
     );
   };
+  const prepareDirectory = async (operation: string, after: number) => {
+    if (operation === 'send-preparation' && !state.combinedPreparation)
+      return Response.json(
+        { error: 'Message operation unavailable.' },
+        { status: 404 },
+      );
+    const directory = {
+      events: state.peerEvents.slice(after, after + 8),
+      revision: state.peerEvents.length,
+      head: await eventHash(state.peerEvents.at(-1)!),
+    };
+    if (operation === 'peer-directory') return Response.json(directory);
+    state.preparationOffsets.push(after);
+    return Response.json({
+      directory,
+      recovery: { own: recovery, peer: peerRecovery },
+    });
+  };
   const respond = async (path: string, input: RequestInit) => {
     const operation = path.split('/').at(-1)!;
     requests.push(operation);
@@ -263,12 +283,8 @@ export async function sendFixture() {
       throw new Error('Missing sender request.');
     const body = object(JSON.parse(input.body) as unknown),
       payload = object(body['payload']);
-    if (operation === 'peer-directory')
-      return Response.json({
-        events: state.peerEvents,
-        revision: state.peerEvents.length,
-        head: await eventHash(state.peerEvents.at(-1)!),
-      });
+    if (operation === 'peer-directory' || operation === 'send-preparation')
+      return prepareDirectory(operation, Number(payload['after']));
     if (operation === 'recovery-current') return Response.json(recovery);
     if (operation === 'recovery-peer') return Response.json(peerRecovery);
     if (operation.startsWith('matrix-'))

@@ -181,6 +181,7 @@ const authored = [
   'src/client/status',
   'src/client/status-crypto',
   'src/client/peer-identity',
+  'src/client/send-preparation',
   'src/client/message-api',
   'src/shared/backups',
   'src/client/attachment-crypto',

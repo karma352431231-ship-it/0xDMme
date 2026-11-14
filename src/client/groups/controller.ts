@@ -1,3 +1,4 @@
+import { GroupSendPreparation } from './send-preparation.ts';
 import {
   privateSendContext,
   privateSendBatch,
@@ -177,6 +178,7 @@ export class GroupController {
   private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
   private readonly authority: GroupAuthority;
+  private sendPreparation = new GroupSendPreparation();
   private session: AccountSession | null = null;
   private generation = 0;
   private readonly selection = new SelectionWork();
@@ -240,6 +242,7 @@ export class GroupController {
       this.entries = [];
       this.incoming = [];
       this.identities.clear();
+      this.sendPreparation = new GroupSendPreparation();
       this.next = null;
       this.incomingNext = null;
       this.mode = 'unavailable';
@@ -1695,15 +1698,23 @@ export class GroupController {
     await this.authority.send(
       () => this.guard(generation),
       async (c) => {
-        const group = await measurePrivateSend(diagnostic, 'group-verify', () =>
-          measureWork(this, 'group/verify', () =>
-            c.governance.verify(selected.state.groupId),
-          ),
+        const { group, directoryApi } = await measurePrivateSend(
+          diagnostic,
+          'group-verify',
+          () =>
+            measureWork(this, 'group/verify', () =>
+              this.sendPreparation.prepare({
+                groupId: selected.state.groupId,
+                governance: c.governance,
+                api: c.api,
+              }),
+            ),
         );
         await this.machine(c, (machine) =>
           sendGroupPending({
             ...c,
             group,
+            directoryApi,
             machine,
             identities: this.identities,
             progress,

@@ -87,6 +87,7 @@ interface SendContext {
   group: GroupState;
   identities: PeerIdentity;
   api: AttachmentApi;
+  directoryApi?: AttachmentApi;
   machine: MessageCrypto;
   progress?: GroupSendProgress | undefined;
 }
@@ -166,7 +167,7 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
       identities: c.identities,
       load: (requests) =>
         measurePrivateSend(c.diagnostic, 'group-directories', () =>
-          c.api('group-directory', {
+          (c.directoryApi ?? c.api)('group-directory', {
             groupId: c.group.state.groupId,
             head: c.group.head,
             accounts: requests,

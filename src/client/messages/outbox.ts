@@ -16,7 +16,6 @@ import {
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
-import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type {
   MessagePacket,
   RecoveryKey,
@@ -57,6 +56,7 @@ import { WorkInterruption } from '../synchronization-work/index.ts';
 import { encodeProfileCard, profileCard } from '../message-profile/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 import { PinnedSendBatch, sendPinnedBatch } from './send-batch.ts';
+import type { SendPreparation } from './send-batch.ts';
 import { syncMessageApi as messageApi } from './sync-transport.ts';
 import { sealProfileChunks } from './profile-chunks.ts';
 import {
@@ -79,15 +79,19 @@ interface SendAuthority {
   pinsLoaded: (generation: number) => boolean;
   loadPins: (options?: VaultWorkOptions) => Promise<void>;
   savePins: (options?: VaultWorkOptions) => Promise<void>;
-  history: (
+  preparation: (
     authority: VaultAuthority,
     generation: number,
     peer: string,
-  ) => Promise<DirectoryEvent[]>;
+    diagnostic?: PrivateSendContext,
+  ) => Promise<SendPreparation>;
   encryption: (
     authority: VaultAuthority,
     generation: number,
-    diagnostic?: PrivateSendContext,
+    options: {
+      diagnostic: PrivateSendContext | undefined;
+      recovery: { raw: unknown } | undefined;
+    },
   ) => Promise<{ own: RecoveryKey; machine: MessageCrypto }>;
 }
 interface OutboxEntry {
@@ -118,7 +122,7 @@ interface SendContext {
   generation: number;
   name: string;
   value: OutboxEntry;
-  history: import('../../shared/devices/index.ts').DirectoryEvent[];
+  preparation: SendPreparation;
 }
 /** Owns encrypted outgoing records from admission through transfer, retry,
  * reconciliation and removal. Session/identity verification and SDK opening
@@ -448,9 +452,9 @@ export class MessageOutbox {
               return PinnedSendBatch.prepare({
                 authority: a,
                 entries,
-                history: (peer) =>
+                preparation: (peer) =>
                   measurePrivateSend(diagnostic, 'target-directory', () =>
-                    this.authority.history(a, generation, peer),
+                    this.authority.preparation(a, generation, peer, diagnostic),
                   ),
               });
             },
@@ -503,11 +507,10 @@ export class MessageOutbox {
         guard: () => this.authority.guard(generation),
         privateSend: diagnostic,
       });
-    const { own, machine } = await this.authority.encryption(
-      a,
-      generation,
+    const { own, machine } = await this.authority.encryption(a, generation, {
       diagnostic,
-    );
+      recovery: batch.ownRecovery(),
+    });
     try {
       const page = await measurePrivateSend(diagnostic, 'pending-page', () =>
         outboxPage<OutboxEntry>(a.session.accountId, batch.names),
@@ -550,7 +553,7 @@ export class MessageOutbox {
           name,
           value,
           diagnostic: context,
-          history: batch.history(name, value),
+          preparation: batch.preparation(name, value),
         });
         // This message is settled. Unvisited records stay durable and
         // enter a newly verified batch on the next foreground turn.
@@ -579,7 +582,7 @@ export class MessageOutbox {
       await this.retainOutbox(a, value);
       return;
     }
-    const history = context.history,
+    const history = context.preparation.history,
       last = history.at(-1);
     if (!last) throw new Error('Contact directory missing.');
     if (
@@ -614,12 +617,21 @@ export class MessageOutbox {
     await removeOutbox(a.session.accountId, name);
   }
   private async preparePacket(context: SendContext): Promise<MessagePacket> {
-    const { a, api, own, machine, value, history } = context;
-    const raw = await measureSend(
-      'recovery',
-      () => api('recovery-peer', { accountId: value.peer }),
-      value.id,
-    );
+    const {
+      a,
+      api,
+      own,
+      machine,
+      value,
+      preparation: { history, recovery },
+    } = context;
+    const raw = recovery
+      ? recovery.peer
+      : await measureSend(
+          'recovery',
+          () => api('recovery-peer', { accountId: value.peer }),
+          value.id,
+        );
     if (raw === null)
       throw new Error(
         'Your contact must open the app to prepare recovery before the first message.',

@@ -19,6 +19,7 @@ import type { ObjectStore } from '../object-store/index.ts';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
+import { sendPreparationAction } from './send-preparation.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
 
 import type { Database, DeviceStore } from '../database/index.ts';
@@ -97,6 +98,7 @@ export class MessageService {
     this.groupMedia = this.mediaService(objects);
     this.statuses = this.statusService(objects);
     this.actions = {
+      'send-preparation': sendPreparationAction(db.messageRecovery),
       'call-context': callContext(db),
       ...directMessageOperations({
         messages: db.messages,

@@ -551,8 +551,44 @@ await test('persistent messages: Olm/Megolm, recovery, idempotence, deletion, bl
       key: await createRecoveryKey(await authority(user)),
     })) as RecoveryKey;
   }
+  await t.test(
+    'private send preparation returns the authorized directory and recovery snapshot',
+    async () => {
+      const accountId = bob.session.accountId;
+      const read = (after: number) =>
+        op(alice, 'send-preparation', { accountId, after });
+      for (const after of [0, bob.events.length]) {
+        assert.deepEqual(await read(after), {
+          directory: await op(alice, 'peer-directory', { accountId, after }),
+          recovery: { own: null, peer: null },
+        });
+      }
+      await assert.rejects(
+        op(outsider, 'send-preparation', { accountId, after: 0 }),
+        { status: 404 },
+      );
+    },
+  );
   const aliceKey = await recovery(alice),
     bobKey = await recovery(bob);
+  assert.deepEqual(
+    await op(alice, 'send-preparation', {
+      accountId: bob.session.accountId,
+      after: 0,
+    }),
+    {
+      directory: await op(alice, 'peer-directory', {
+        accountId: bob.session.accountId,
+        after: 0,
+      }),
+      recovery: {
+        own: await op(alice, 'recovery-current'),
+        peer: await op(alice, 'recovery-peer', {
+          accountId: bob.session.accountId,
+        }),
+      },
+    },
+  );
   const sends: { user: User; payload: Record<string, unknown> }[] = [];
   async function machine(user: User) {
     const crypto = await MessageCrypto.create({

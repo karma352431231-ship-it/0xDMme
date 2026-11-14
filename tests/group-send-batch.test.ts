@@ -1,3 +1,6 @@
+import { AccountError } from '../src/shared/account/index.ts';
+import { GroupGovernance } from '../src/client/groups/governance.ts';
+import { GroupSendPreparation } from '../src/client/groups/send-preparation.ts';
 import { groupTextQueue } from '../src/client/groups/text-queue.ts';
 import { deferred, waitForBoundary } from './fixtures/deferred.ts';
 import {
@@ -21,7 +24,7 @@ import type {
 } from '../src/client/message-crypto/index.ts';
 import { createRecoveryKey } from '../src/client/message-recovery/index.ts';
 import { groupEventHash } from '../src/shared/groups/index.ts';
-import { canonical, digest } from '../src/shared/devices/index.ts';
+import { canonical, digest, eventHash } from '../src/shared/devices/index.ts';
 import type { GroupEvent } from '../src/shared/groups/index.ts';
 import { GroupCache } from '../src/client/groups/cache.ts';
 import {
@@ -198,7 +201,9 @@ function storedDraft(
   ]);
   t.mock.method(GroupCache.prototype, 'page', () =>
     Promise.resolve({
-      items: [...stored].map(([name, value]) => ({ name, value })),
+      items: [...stored]
+        .filter(([name]) => name.startsWith('outbox:'))
+        .map(([name, value]) => ({ name, value })),
       next: null,
     }),
   );
@@ -210,12 +215,116 @@ function storedDraft(
     stored.delete(name);
     return Promise.resolve();
   });
+  t.mock.method(GroupCache.prototype, 'get', (name: string) =>
+    Promise.resolve(stored.get(name) ?? null),
+  );
   return stored;
 }
 const access = {
   withVault: () => Promise.reject(new Error('Not used.')),
   withLocalVault: () => Promise.reject(new Error('Not used.')),
 };
+
+await test('warm group send prepares governance and directories in one request, with an old-server fallback', async (t) => {
+  const { machine, transport } = await warm();
+  t.after(() => machine.close());
+  const state = period(2),
+    head = await groupEventHash(state);
+  const sample = await machine.encryptGroup(message(transport));
+  const stored = storedDraft(t, sample);
+  const name = `outbox:${sample.packet.id}`;
+  const draft = { ...(stored.get(name) as object), packet: null, keys: null };
+  const identities = new PeerIdentity(new VaultSync(access));
+  const preparation = new GroupSendPreparation();
+  const scope = { groupId: state.groupId, head };
+  const calls: string[] = [];
+  let oldServer = false;
+  const history = { events: [], revision: state.revision, head };
+  const directories = {
+    directories: await Promise.all(
+      participants.map(async (p) => ({
+        accountId: p.accountId,
+        events: [p.directory],
+        revision: 1,
+        head: await eventHash(p.directory),
+      })),
+    ),
+    recovery,
+  };
+  const api = async (operation: string, payload: Record<string, unknown>) => {
+    calls.push(operation);
+    if (operation === 'group-send-preparation') {
+      if (oldServer)
+        throw new AccountError(404, 'Message operation unavailable.');
+      assert.deepEqual(payload, {
+        groupId: state.groupId,
+        after: state.revision,
+      });
+      return { history, directories };
+    }
+    if (operation === 'group-history') return history;
+    if (operation === 'group-directory') return directories;
+    if (operation === 'group-message-publish')
+      return {
+        status: 'accepted',
+        hash: await digest(canonical(payload['packet'])),
+      };
+    return transport(
+      operation.replace(/^group-/u, '') as Parameters<typeof transport>[0],
+      payload['payload'] as Record<string, unknown>,
+    );
+  };
+  const send = async () => {
+    const id = crypto.randomUUID();
+    stored.set(`outbox:${id}`, { ...draft, id });
+    stored.set('governance-current', state);
+    const governance = new GroupGovernance(identities, api, owner.authority);
+    const prepared = await preparation.prepare({
+      groupId: scope.groupId,
+      governance,
+      api,
+    });
+    await sendGroupPending({
+      ...prepared,
+      authority: owner.authority,
+      identities,
+      machine,
+      api,
+    });
+    assert.ok(!stored.has(`outbox:${id}`));
+    return calls
+      .splice(0)
+      .filter((op) =>
+        [
+          'group-send-preparation',
+          'group-history',
+          'group-directory',
+          'group-matrix-query',
+          'group-message-publish',
+        ].includes(op),
+      );
+  };
+  stored.delete(name);
+  assert.deepEqual(await send(), [
+    'group-send-preparation',
+    'group-matrix-query',
+    'group-message-publish',
+  ]);
+  oldServer = true;
+  assert.deepEqual(await send(), [
+    'group-send-preparation',
+    'group-history',
+    'group-directory',
+    'group-matrix-query',
+    'group-message-publish',
+  ]);
+  assert.deepEqual(await send(), [
+    'group-history',
+    'group-directory',
+    'group-matrix-query',
+    'group-message-publish',
+  ]);
+});
 
 await test('a publication rejected after a revocation clears the stored packet for a fresh encryption', async (t) => {
   const { transport } = counting(),

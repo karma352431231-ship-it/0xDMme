@@ -1,3 +1,7 @@
+import {
+  SendPreparationRead,
+  preparedRecovery,
+} from '../send-preparation/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
   measurePrivateSend,
@@ -132,7 +136,7 @@ import {
   assertRemovalIdentity,
 } from './history.ts';
 import type { MessageItem } from './history.ts';
-import { PeerIdentity } from '../peer-identity/index.ts';
+import { PeerIdentity, currentPeerHistory } from '../peer-identity/index.ts';
 /** Normal state of an accepted message; the bubble shows it only as a tooltip to keep the thread quiet. */
 export const receivedState = messageStates.received;
 export type {
@@ -184,6 +188,7 @@ export class Messages {
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
   private prefetchAbort: AbortController | null = null;
+  private sendPreparation = new SendPreparationRead();
   private readonly outbox: MessageOutbox;
   private readonly reader: ConversationReader;
   /** Media opened in this session; see media-memory for its lifetime. */
@@ -235,16 +240,16 @@ export class Messages {
         pinsLoaded: (generation) => this.pinsGeneration === generation,
         loadPins: (options) => this.loadPins(options),
         savePins: (options) => this.savePins(options),
-        history: (a, generation, peer) =>
-          this.history({ a, generation }, peer, null),
-        encryption: async (a, generation, diagnostic) => {
+        preparation: (a, generation, peer, diagnostic) =>
+          this.prepareSend(a, generation, peer, diagnostic),
+        encryption: async (a, generation, { diagnostic, recovery }) => {
           const api = (op: string, data: Record<string, unknown>) =>
             messageApi(a, op, data, {
               guard: () => this.guard(generation),
               privateSend: diagnostic,
             });
           const own = await measurePrivateSend(diagnostic, 'recovery', () =>
-            this.recoverable(a, generation),
+            this.recoverable(a, generation, recovery),
           );
           const machine = await measurePrivateSend(diagnostic, 'sdk-open', () =>
             this.machine(a, generation, api),
@@ -371,6 +376,7 @@ export class Messages {
       this.close();
       this.identities.clear();
       this.histories.clear();
+      this.sendPreparation = new SendPreparationRead();
       this.initializedDirectory = '';
     }
     this.session = session;
@@ -478,13 +484,61 @@ export class Messages {
       openMessageMachine(a, api, this.audiences),
     );
   }
+  private async prepareSend(
+    a: VaultAuthority,
+    generation: number,
+    peer: string,
+    diagnostic?: PrivateSendContext,
+  ) {
+    const api = (op: string, data: Record<string, unknown>) =>
+      messageApi(a, op, data, {
+        guard: () => this.guard(generation),
+        privateSend: diagnostic,
+      });
+    const pin = this.identities.get(peer);
+    const known = this.histories.get(peer);
+    const prefix =
+      pin && known && known.length >= pin.revision
+        ? known.slice(0, pin.revision)
+        : [];
+    const after = prefix.length;
+    const response = await this.sendPreparation.read(api, 'send-preparation', {
+      accountId: peer,
+      after,
+    });
+    if (response === null)
+      return {
+        history: await this.history({ a, generation, api }, peer, null),
+        recovery: null,
+      };
+    let used = false;
+    const history = await this.history(
+      {
+        a,
+        generation,
+        prefix,
+        api: (op, data) => {
+          if (op !== 'peer-directory' || data['after'] !== after || used)
+            return api(op, data);
+          used = true;
+          return Promise.resolve(response['directory']);
+        },
+      },
+      peer,
+      null,
+    );
+    return { history, recovery: preparedRecovery(response) };
+  }
   private async recoverable(
     a: VaultAuthority,
     generation: number,
+    prepared?: { raw: unknown },
   ): Promise<RecoveryKey> {
-    let raw = await messageApi(a, 'recovery-current', {}, () =>
-      this.guard(generation),
-    );
+    let raw = prepared
+      ? prepared.raw
+      : await messageApi(a, 'recovery-current', {}, () =>
+          this.guard(generation),
+        );
     if (raw === null)
       raw = await messageApi(
         a,
@@ -559,6 +613,7 @@ export class Messages {
       a: VaultAuthority;
       generation: number;
       api?: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+      prefix?: import('../../shared/devices/index.ts').DirectoryEvent[];
     },
     account: string,
     through: number | null,
@@ -571,12 +626,12 @@ export class Messages {
     const cached = this.histories.get(account);
     if (through !== null && cached && cached.length >= through)
       return cached.slice(0, through);
-    const history = await peerHistory(
-      c.api ?? ((op, d) => messageApi(a, op, d, () => this.guard(generation))),
-      account,
-      through,
-      this.identities.get(account),
-    );
+    const api =
+      c.api ?? ((op, d) => messageApi(a, op, d, () => this.guard(generation)));
+    const pin = this.identities.get(account);
+    const history = c.prefix
+      ? await currentPeerHistory(api, { account, pin }, c.prefix)
+      : await peerHistory(api, account, through, pin);
     this.histories.set(account, history);
     if (this.histories.size > 16)
       this.histories.delete(this.histories.keys().next().value ?? '');

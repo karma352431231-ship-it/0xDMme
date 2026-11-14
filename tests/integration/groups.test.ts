@@ -724,6 +724,54 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
   const sender = await machine(owner),
     reader = await machine(member),
     groupHead = await groupEventHash(joined);
+  await t.test(
+    'group send preparation returns the existing pages under a current membership check',
+    async () => {
+      const groupId = joined.groupId;
+      const after = joined.revision;
+      const accounts = joined.members.map((member) => ({
+        accountId: member.accountId,
+        after: 0,
+      }));
+      assert.deepEqual(
+        await message(messages, owner, 'group-send-preparation', {
+          groupId,
+          after,
+        }),
+        {
+          history: await message(messages, owner, 'group-history', {
+            groupId,
+            after,
+          }),
+          directories: await message(messages, owner, 'group-directory', {
+            groupId,
+            head: groupHead,
+            accounts,
+          }),
+        },
+      );
+      assert.deepEqual(
+        await message(messages, owner, 'group-send-preparation', {
+          groupId,
+          after: 0,
+        }),
+        {
+          history: await message(messages, owner, 'group-history', {
+            groupId,
+            after: 0,
+          }),
+          directories: null,
+        },
+      );
+      await assert.rejects(
+        message(messages, outsider, 'group-send-preparation', {
+          groupId,
+          after,
+        }),
+        { status: 403 },
+      );
+    },
+  );
   await changeContact(owner, 'block', {
     wallet: { ecosystem: 'evm', address: member.wallet.address },
     blocked: true,

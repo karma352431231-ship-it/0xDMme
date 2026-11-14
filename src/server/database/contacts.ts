@@ -753,18 +753,22 @@ export class ContactStore {
     return this.withMessageRead(authority, async (client) => {
       if (!(await this.allowed(client, authority.session.accountId, targetId)))
         unavailable();
-      const current = await client.query<{ revision: number; head: string }>(
-        'SELECT revision,head FROM hash_talk.device_directories WHERE account_id=$1',
-        [targetId],
-      );
-      const row = current.rows[0] ?? unavailable();
-      if (after > row.revision)
-        throw new AccountError(409, 'Contact directory changed.');
-      const events = await client.query<{ event: unknown }>(
-        'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision>$2 ORDER BY revision LIMIT 8',
-        [targetId, after],
-      );
-      return { ...row, events: events.rows.map((r) => r.event) };
+      return this.directoryPage(client, targetId, after);
     });
+  }
+  /** The coordinating operation must establish contact consent in this transaction. */
+  async directoryPage(client: pg.PoolClient, targetId: string, after: number) {
+    const current = await client.query<{ revision: number; head: string }>(
+      'SELECT revision,head FROM hash_talk.device_directories WHERE account_id=$1',
+      [targetId],
+    );
+    const row = current.rows[0] ?? unavailable();
+    if (after > row.revision)
+      throw new AccountError(409, 'Contact directory changed.');
+    const events = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision>$2 ORDER BY revision LIMIT 8',
+      [targetId, after],
+    );
+    return { ...row, events: events.rows.map((r) => r.event) };
   }
 }

@@ -440,37 +440,116 @@ export type Api = (
   operation: string,
   payload: Record<string, unknown>,
 ) => Promise<unknown>;
-export async function peerHistory(
+interface PeerHistoryScope {
+  account: string;
+  through: number | null;
+  pin: PeerPin | null;
+}
+
+export function peerHistory(
   api: Api,
   account: string,
   through: number | null,
   pin: PeerPin | null,
 ): Promise<DirectoryEvent[]> {
-  const events: unknown[] = [];
+  return readPeerHistory(api, { account, through, pin }, []);
+}
+
+/** Revalidate a retained prefix against the current head and the existing pin. */
+export async function currentPeerHistory(
+  api: Api,
+  scope: Omit<PeerHistoryScope, 'through'>,
+  prefix: readonly DirectoryEvent[],
+): Promise<DirectoryEvent[]> {
+  const current = { ...scope, through: null };
+  try {
+    return await readPeerHistory(api, current, prefix);
+  } catch (error: unknown) {
+    if (!(error instanceof InvalidDirectoryTail)) throw error;
+    return readPeerHistory(api, current, []);
+  }
+}
+
+class InvalidDirectoryTail extends Error {}
+
+async function readPeerHistory(
+  api: Api,
+  scope: PeerHistoryScope,
+  prefix: readonly DirectoryEvent[],
+): Promise<DirectoryEvent[]> {
+  const { account, through, pin } = scope;
+  const events: unknown[] = [...prefix];
+  const incremental = prefix.length > 0;
   let expected: string | null = null;
+  const operation = through === null ? 'peer-directory' : 'history';
+  const target =
+    through === null ? { accountId: account } : { accountId: account, through };
   for (let page = 0; page < 16; page++) {
-    const result = await api(through === null ? 'peer-directory' : 'history', {
-      accountId: account,
-      after: events.length,
-      ...(through === null ? {} : { through }),
-    });
-    const raw = through === null ? object(result)['events'] : result;
-    assertHistoryPage(raw);
-    events.push(...raw);
-    const revision = through ?? integer(object(result)['revision'], 128);
-    if (through === null) expected = fingerprint(object(result)['head']);
-    if (events.length !== revision) continue;
-    return verifiedPeer({
-      events,
-      account,
-      expected,
-      pin,
-      current: through === null,
-    });
+    const result = await api(operation, { ...target, after: events.length });
+    try {
+      const next = peerHistoryPage(result, through, {
+        events,
+        expected,
+        incremental,
+      });
+      expected = next.head;
+      if (events.length !== next.revision) continue;
+      return await verifiedPeer({
+        events,
+        account,
+        expected,
+        pin,
+        current: through === null,
+      });
+    } catch (error: unknown) {
+      if (incremental)
+        throw new InvalidDirectoryTail('Directory tail failed verification.', {
+          cause: error,
+        });
+      throw error;
+    }
   }
   throw new Error('Directory incomplete.');
 }
-function assertHistoryPage(raw: unknown): asserts raw is unknown[] {
-  if (!Array.isArray(raw) || raw.length > 8 || !raw.length)
+function peerHistoryPage(
+  result: unknown,
+  through: number | null,
+  history: { events: unknown[]; expected: string | null; incremental: boolean },
+) {
+  const directory = through === null ? object(result) : null;
+  const revision = through ?? integer(directory?.['revision'], 128);
+  const head = directory ? fingerprint(directory['head']) : null;
+  appendHistoryEvents(
+    directory ? directory['events'] : result,
+    history,
+    revision,
+  );
+  if (history.incremental) assertDirectoryTail(history, { head, revision });
+  return { head, revision };
+}
+
+function appendHistoryEvents(
+  raw: unknown,
+  history: { events: unknown[]; incremental: boolean },
+  revision: number,
+): void {
+  if (!Array.isArray(raw) || raw.length > 8)
     throw new Error('Directory omitted or invalid.');
+  if (
+    !raw.length &&
+    !(history.incremental && history.events.length === revision)
+  )
+    throw new Error('Directory omitted or invalid.');
+  history.events.push(...(raw as unknown[]));
+}
+
+function assertDirectoryTail(
+  history: { events: unknown[]; expected: string | null },
+  page: { head: string | null; revision: number },
+) {
+  if (
+    history.events.length > page.revision ||
+    (history.expected !== null && history.expected !== page.head)
+  )
+    throw new Error('Directory changed while reading.');
 }

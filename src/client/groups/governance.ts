@@ -66,18 +66,23 @@ export class GroupGovernance {
     this.api = api;
     this.authority = authority;
   }
-  async verify(groupId: string): Promise<GroupState> {
+  async verify(
+    groupId: string,
+    firstPage: AttachmentApi = this.api,
+  ): Promise<GroupState> {
     const cache = new GroupCache(this.authority, groupId);
     let previous = await cache.current();
     let expected: HistoryPage | null = null;
+    let read = firstPage;
     checkCachedGroup(previous, groupId);
     for (;;) {
       const page = historyPage(
-        await this.api('group-history', {
+        await read('group-history', {
           groupId,
           after: previous?.revision ?? 0,
         }),
       );
+      read = this.api;
       checkProgress(previous, page, expected);
       expected = page;
       if (page.events.length)

@@ -32,6 +32,7 @@ export const groupOperations = [
   'group-list',
   'group-current',
   'group-history',
+  'group-send-preparation',
   'group-incoming',
   'group-propose',
   'group-cancel',
@@ -77,6 +78,13 @@ export class GroupService {
       'group-history': (a, d) => {
         keys(d, ['groupId', 'after']);
         return store.history(a, {
+          groupId: uuid(d['groupId']),
+          after: revision(d['after']),
+        });
+      },
+      'group-send-preparation': (a, d) => {
+        keys(d, ['groupId', 'after']);
+        return store.sendPreparation(a, {
           groupId: uuid(d['groupId']),
           after: revision(d['after']),
         });

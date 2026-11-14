@@ -117,6 +117,27 @@ export class GroupStore {
     groupId: string,
     work: (client: pg.PoolClient, state: GroupEvent) => Promise<T>,
   ): Promise<T> {
+    return this.withCurrentMembership(
+      authority,
+      groupId,
+      async (client, _row, state) => {
+        await this.devices.lockDirectories(
+          client,
+          state.members.map((m) => m.accountId),
+        );
+        return work(client, state);
+      },
+    );
+  }
+  private withCurrentMembership<T>(
+    authority: ContactAuthority,
+    groupId: string,
+    work: (
+      client: pg.PoolClient,
+      row: GroupRow,
+      state: GroupEvent,
+    ) => Promise<T>,
+  ): Promise<T> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       const row = await this.row(client, groupId);
       if (!row) unavailable();
@@ -125,11 +146,7 @@ export class GroupStore {
         !state.members.some((m) => m.accountId === authority.session.accountId)
       )
         unavailable();
-      await this.devices.lockDirectories(
-        client,
-        state.members.map((m) => m.accountId),
-      );
-      return work(client, state);
+      return work(client, row, state);
     });
   }
   async withMaintenance<T>(
@@ -550,18 +567,25 @@ export class GroupStore {
   }> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       const row = await this.historyState(client, authority, input);
-      const state = groupEvent(row.event);
-      const events = await client.query<{ event: unknown }>(
-        'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND revision>$2 ORDER BY revision LIMIT $3',
-        [input.groupId, input.after, groupPageSize],
-      );
-      return {
-        events: events.rows.map((r) => groupEvent(r.event)),
-        head: row.head,
-        revision: state.revision,
-        ...(row.link ? { link: row.link } : {}),
-      };
+      return this.historyPage(client, row, input.after);
     });
+  }
+  private async historyPage(
+    client: pg.PoolClient,
+    row: GroupRow,
+    after: number,
+  ) {
+    const state = groupEvent(row.event);
+    const events = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND revision>$2 ORDER BY revision LIMIT $3',
+      [row.id, after, groupPageSize],
+    );
+    return {
+      events: events.rows.map((r) => groupEvent(r.event)),
+      head: row.head,
+      revision: state.revision,
+      ...(row.link ? { link: row.link } : {}),
+    };
   }
   /** Called inside coordinated reads; current participation gates every old period. */
   async allowedPeriods(
@@ -641,20 +665,54 @@ export class GroupStore {
         ...historical.rows.map((r) => r.actor),
       ]);
       if (input.accounts.some((r) => !allowed.has(r.accountId))) unavailable();
-      const directories = await this.devices.historyBatch(
+      return this.directoryPage(
         client,
         input.accounts,
+        current.has(authority.session.accountId) ? current : new Set(),
       );
-      const recovery = current.has(authority.session.accountId)
-        ? await this.recovery.currentBatch(
-            client,
-            input.accounts
-              .filter((r) => current.has(r.accountId))
-              .map((r) => r.accountId),
-          )
-        : [];
-      return { directories, recovery };
     });
+  }
+  private async directoryPage(
+    client: pg.PoolClient,
+    accounts: { accountId: string; after: number }[],
+    current: ReadonlySet<string>,
+  ) {
+    const directories = await this.devices.historyBatch(client, accounts);
+    const included = accounts
+      .filter((r) => current.has(r.accountId))
+      .map((r) => r.accountId);
+    const recovery = included.length
+      ? await this.recovery.currentBatch(client, included)
+      : [];
+    return { directories, recovery };
+  }
+  /** Membership and the first bounded directory page share their existing locks. */
+  async sendPreparation(
+    authority: ContactAuthority,
+    input: { groupId: string; after: number },
+  ) {
+    return this.withCurrentMembership(
+      authority,
+      input.groupId,
+      async (client, row, state) => {
+        const history = await this.historyPage(client, row, input.after);
+        if (input.after !== state.revision)
+          return { history, directories: null };
+        const accounts = state.members
+          .slice(0, 16)
+          .map((member) => member.accountId);
+        await this.devices.lockDirectories(client, accounts);
+        const first = accounts.map((accountId) => ({ accountId, after: 0 }));
+        return {
+          history,
+          directories: await this.directoryPage(
+            client,
+            first,
+            new Set(accounts),
+          ),
+        };
+      },
+    );
   }
   private async historyState(
     client: pg.PoolClient,

@@ -7,13 +7,18 @@ interface SendTarget {
   peer: string;
 }
 
-/** A verified directory belongs only to these admitted drafts and this authority
+export interface SendPreparation {
+  history: DirectoryEvent[];
+  recovery: { own: unknown; peer: unknown } | null;
+}
+
+/** Verified preparation belongs only to these admitted drafts and this authority
  * observation. It never becomes a controller/session cache or grants authority. */
 export class PinnedSendBatch {
   readonly names: readonly string[];
   private readonly authority: string;
   private readonly targets: Map<string, SendTarget>;
-  private readonly histories = new Map<string, DirectoryEvent[]>();
+  private readonly preparations = new Map<string, SendPreparation>();
 
   private constructor(
     authority: VaultAuthority,
@@ -32,31 +37,36 @@ export class PinnedSendBatch {
   static async prepare(input: {
     authority: VaultAuthority;
     entries: { name: string; value: SendTarget }[];
-    history: (peer: string) => Promise<DirectoryEvent[]>;
+    preparation: (peer: string) => Promise<SendPreparation>;
   }): Promise<PinnedSendBatch> {
     if (input.entries.length > 16)
       throw new Error('Pending message batch exceeds the limit.');
     const batch = new PinnedSendBatch(input.authority, input.entries);
     for (const peer of new Set(input.entries.map((entry) => entry.value.peer)))
-      batch.histories.set(peer, await input.history(peer));
+      batch.preparations.set(peer, await input.preparation(peer));
     return batch;
+  }
+
+  ownRecovery(): { raw: unknown } | undefined {
+    const first = this.preparations.values().next().value?.recovery;
+    return first ? { raw: first.own } : undefined;
   }
 
   current(authority: VaultAuthority): boolean {
     return this.authority === authorityStamp(authority);
   }
 
-  history(name: string, value: SendTarget): DirectoryEvent[] {
+  preparation(name: string, value: SendTarget): SendPreparation {
     const target = this.targets.get(name),
-      history = this.histories.get(value.peer);
+      preparation = this.preparations.get(value.peer);
     if (
       !target ||
       target.id !== value.id ||
       target.peer !== value.peer ||
-      !history
+      !preparation
     )
       throw new Error('Pending message differs from its verified send batch.');
-    return history;
+    return preparation;
   }
 }
 

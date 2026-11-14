@@ -38,11 +38,55 @@ await test('each warm private send verifies the recipient once and preserves its
     f.state.beforeKeys = () => assert.equal(f.pinnedRevision(), 1);
     await f.controller.sendPending({ priority: 'interactive' });
     const requests = f.requests.slice(before);
-    assert.equal(requests.filter((op) => op === 'peer-directory').length, 1);
+    assert.deepEqual(
+      requests.filter((operation) =>
+        [
+          'send-preparation',
+          'peer-directory',
+          'recovery-current',
+          'recovery-peer',
+          'publish',
+        ].includes(operation),
+      ),
+      ['send-preparation', 'publish'],
+    );
     assert.equal(requests.filter((op) => op === 'publish').length, 1);
     assert.equal(f.publications.at(-1)?.id, id);
     assert.equal(f.records.size, 0);
   }
+  assert.deepEqual(f.state.preparationOffsets, [0, 1]);
+});
+
+await test('an old server is probed once and uses the separate verified private preparation reads', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  f.state.combinedPreparation = false;
+  for (let index = 0; index < 2; index++) {
+    await f.queue();
+    await f.controller.sendPending({ priority: 'interactive' });
+  }
+  assert.deepEqual(
+    f.requests.filter((operation) =>
+      [
+        'send-preparation',
+        'peer-directory',
+        'recovery-current',
+        'recovery-peer',
+        'publish',
+      ].includes(operation),
+    ),
+    [
+      'send-preparation',
+      'peer-directory',
+      'recovery-current',
+      'recovery-peer',
+      'publish',
+      'peer-directory',
+      'recovery-current',
+      'recovery-peer',
+      'publish',
+    ],
+  );
 });
 
 await test('authority changes between preflight and transfer require a fresh pinned batch before opening the SDK', async (t) => {
@@ -64,7 +108,7 @@ await test('authority changes between preflight and transfer require a fresh pin
   const pinsAtDistribution: (number | null)[] = [];
   f.state.beforeKeys = () => pinsAtDistribution.push(f.pinnedRevision());
   await f.controller.sendPending({ priority: 'interactive' });
-  assert.equal(f.requests.filter((op) => op === 'peer-directory').length, 2);
+  assert.equal(f.requests.filter((op) => op === 'send-preparation').length, 2);
   assert.equal(f.state.machineOpens, 1);
   assert.equal(f.publications[0]?.id, id);
   assert.equal(f.publications[0]?.recipientRevision, 2);
@@ -215,6 +259,6 @@ await test('the foreground publisher yields after a confirmed message and re-ver
     f.publications.map((packet) => packet.id),
     [first, second, third],
   );
-  assert.equal(f.requests.filter((op) => op === 'peer-directory').length, 2);
+  assert.equal(f.requests.filter((op) => op === 'send-preparation').length, 2);
   assert.equal(f.records.size, 0);
 });

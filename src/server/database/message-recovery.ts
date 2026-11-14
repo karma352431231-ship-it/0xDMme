@@ -56,19 +56,39 @@ export class MessageRecoveryStore {
     });
   }
   async current(authority: ContactAuthority): Promise<RecoveryKey | null> {
-    return this.contacts.withMessageRead(authority, async (client) => {
-      const directory = await client.query<{ event: unknown }>(
-        'SELECT event FROM hash_talk.device_directories WHERE account_id=$1',
-        [authority.session.accountId],
-      );
-      const event = directory.rows[0]?.event;
-      if (!event) throw new AccountError(403, 'Directory missing.');
-      return this.epoch(
-        client,
-        authority.session.accountId,
-        directoryEvent(event).epoch,
-      );
-    });
+    return this.contacts.withMessageRead(authority, (client) =>
+      this.ownCurrent(client, authority.session.accountId),
+    );
+  }
+  private async ownCurrent(client: pg.PoolClient, account: string) {
+    const directory = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.device_directories WHERE account_id=$1',
+      [account],
+    );
+    const event = directory.rows[0]?.event;
+    if (!event) throw new AccountError(403, 'Directory missing.');
+    return this.epoch(client, account, directoryEvent(event).epoch);
+  }
+  /** One coherent read under the existing consent and directory locks. */
+  async sendPreparation(
+    authority: ContactAuthority,
+    input: { accountId: string; after: number },
+  ) {
+    return this.contacts.withMessageConsent(
+      authority,
+      input.accountId,
+      async (client) => ({
+        directory: await this.contacts.directoryPage(
+          client,
+          input.accountId,
+          input.after,
+        ),
+        recovery: {
+          own: await this.ownCurrent(client, authority.session.accountId),
+          peer: await this.peerCurrent(client, input.accountId),
+        },
+      }),
+    );
   }
   async historical(
     authority: ContactAuthority,
@@ -88,17 +108,16 @@ export class MessageRecoveryStore {
     authority: ContactAuthority,
     accountId: string,
   ): Promise<RecoveryKey | null> {
-    return this.contacts.withMessageConsent(
-      authority,
-      accountId,
-      async (client) => {
-        const result = await client.query<{ body: RecoveryKey }>(
-          "SELECT k.body FROM hash_talk.message_recovery_keys k JOIN hash_talk.device_directories d ON d.account_id=k.account_id AND (d.event->>'epoch')::integer=k.epoch WHERE k.account_id=$1",
-          [accountId],
-        );
-        return result.rows[0]?.body ?? null;
-      },
+    return this.contacts.withMessageConsent(authority, accountId, (client) =>
+      this.peerCurrent(client, accountId),
     );
+  }
+  private async peerCurrent(client: pg.PoolClient, accountId: string) {
+    const result = await client.query<{ body: RecoveryKey }>(
+      "SELECT k.body FROM hash_talk.message_recovery_keys k JOIN hash_talk.device_directories d ON d.account_id=k.account_id AND (d.event->>'epoch')::integer=k.epoch WHERE k.account_id=$1",
+      [accountId],
+    );
+    return result.rows[0]?.body ?? null;
   }
   /** Current group permission is enforced by the coordinating GroupStore transaction. */
   async currentBatch(

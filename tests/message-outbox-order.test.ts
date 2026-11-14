@@ -216,7 +216,7 @@ await test('private text admission seals locally without online authority and ca
         Promise.reject(new Error('No pin reads during admission.')),
       savePins: () =>
         Promise.reject(new Error('No pin writes during admission.')),
-      history: () =>
+      preparation: () =>
         Promise.reject(new Error('No peer reads during admission.')),
       encryption: () => Promise.reject(new Error('No SDK during admission.')),
     },
