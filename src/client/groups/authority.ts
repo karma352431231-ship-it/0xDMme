@@ -1,4 +1,6 @@
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import {
   backupMessageApi,
@@ -72,6 +74,44 @@ export class GroupAuthority {
         await rateLimitPause(guard);
       }
     }
+  }
+  /** Reuse only immutable, fully loaded pins after checking the current signed
+   * vault heads and removal cursor inside this send's fresh authority. A changed
+   * snapshot leaves that turn before full synchronization and reacquisition. */
+  async send<T>(
+    guard: () => void,
+    work: (context: GroupContext) => Promise<T>,
+    diagnostic: VaultWorkOptions = {},
+  ): Promise<T> {
+    const prepared = this.options.identities.prepareRead();
+    if (prepared) {
+      try {
+        const result = await this.run(
+          guard,
+          async (context) => {
+            const valid = await measurePrivateSend(
+              diagnostic.privateSend,
+              'pins-load',
+              () => prepared.confirm(context.authority),
+            );
+            guard();
+            if (!valid) return { valid: false as const };
+            return { valid: true as const, value: await work(context) };
+          },
+          diagnostic,
+        );
+        if (result.valid) return result.value;
+      } finally {
+        prepared.dispose();
+      }
+    }
+    await measurePrivateSend(diagnostic.privateSend, 'pins-load', () =>
+      measureWork(this, 'group/identities', () =>
+        this.options.identities.load(diagnostic),
+      ),
+    );
+    guard();
+    return this.run(guard, work, diagnostic);
   }
   private async once<T>(
     guard: () => void,

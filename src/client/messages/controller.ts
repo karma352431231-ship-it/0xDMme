@@ -544,7 +544,7 @@ export class Messages {
     this.guard(generation);
     this.pinsGeneration = generation;
     this.startupIdentities?.dispose();
-    this.startupIdentities = this.identities.prepareStartup();
+    this.startupIdentities = this.identities.prepareRead();
   }
   takeStartupIdentities(): IdentityPreparation | undefined {
     const prepared = this.startupIdentities;

@@ -1,7 +1,7 @@
 # Private and group send accounting
 
-Current collector: **11**, send protocol **5**, text queue accounting **2**.
-The revision 11 section below supersedes the earlier queue coverage description. Revision 8 defines the
+Current collector: **12**, send protocol **5**, text queue accounting **2**.
+The revision 12 section below supersedes the earlier authority preparation description. Revision 8 defines the
 retained send and operation budgets.
 
 The original revision 6 change implements the private-send instrumentation assignment. It preserves
@@ -613,3 +613,87 @@ direct texts); this candidate does not claim to remove it. Android installation
 and automated web/mobile builds do not establish matched performance gains or
 browser/iPhone runtime acceptance. The earlier 2.163-second gap remains
 historically unexplained.
+
+## Revision 12: confirmed identity preparation inside send authority
+
+The supplied baseline is clean source `611308eb`, Android version 20261134,
+asset `app-c93007f2a3c9e6fa.js`, collector 11 and a 67,763 ms capture. The
+installed APK's packaged manifest was checked separately. Nine sends survive;
+7,382 ring evictions prevent reconstructing missing raw events. Group send
+authority slots 113, 117 and 123 follow identity preparation and wait behind
+maintenance group slots 111, 114 and 119. The first two holders were admitted
+at or just before the send continuation enqueued; that alone is not priority
+inversion. The third follows four interactive operations. Existing six-frame
+caller positions end in common wrappers and cannot name those historical
+holders more precisely.
+
+A physical Android reproduction names automatic original-image reads
+(`GroupController.readMedia`) and stored-preview access (`withPreview`) among
+the generic group work. Each revalidates current governance and exact message
+availability while holding authority; original image reads took about 0.8 s
+in the diagnostic probe. These checks cannot simply be removed. The probe uses
+short debugger pauses to identify callers and is not itself a performance trial.
+The old slots must not be retrospectively renamed solely from this reproduction.
+
+The real authority scheduler/native-lock reproduction distinguishes ordinary
+selection from the four-interactive boundary. A queued continuation wins in the
+ordinary case; a due maintenance operation wins at the fairness boundary. A
+continuation requested only after a new leader starts also waits legitimately.
+Interactive priority does not reserve the interval between two async owners.
+
+### Runtime correction and ownership
+
+`PeerIdentity.prepareRead()` generalizes the existing scoped startup read
+capability without changing its validation. `GroupAuthority.send()` now consumes
+it inside one freshly acquired send authority. It checks the signed vault heads,
+sequence, directory, account/device/session and removal cursor before using
+already loaded immutable pins, then runs normal group verification and
+publication under that same authority. It disposes the capability on every exit.
+There is no priority reservation, new long-lived cache, new transaction or new
+concurrent SDK access. This substitutes a validated read for separate vault
+refresh/decryption and reacquisition; it does not merge unrelated work into a
+larger exclusive turn.
+
+An unavailable or changed snapshot takes the existing full identity preparation
+path outside the rejected turn, followed by fresh authority acquisition. A failed
+confirmation propagates rather than silently using stale pins. Current group
+head, membership/epoch, device authorization, recovery, SDK, durable packet
+storage and idempotent acceptance checks remain. Rate-limit retry remains bounded
+by the existing owner and rechecks the preparation. The controller only selects
+the send operation and retains post-send identity persistence.
+
+The direct path does not have the same unconditional group identity refresh:
+its initialized pins are generation-scoped. It retains bounded preflight and pin
+preservation, then separately acquires current authority and compares the pinned
+batch before recovery and SDK work. Own recovery verification, remote recovery,
+recipient directories, device distribution, SDK packet creation and durable
+packet persistence are serial or nested costs. No proof here permits discarding
+those checks or caching authorization across revocation. Direct trials serve as
+an unchanged-path comparison and may retain substantial preparation time.
+
+### Narrow observability and regression coverage
+
+The group media and preview callsites now emit fixed purpose categories.
+Authority admission records one fixed selection reason (`interactive`,
+`maintenance-share`, `background`, `held-follower`), bounded interactive and
+maintenance queue counts, and fairness state capped at four. Counts are gathered
+only when that operation has an active diagnostic trace. The collector does not
+choose work, poll queues or own continuation resources. Existing event and
+retained-slot budgets apply; protocol 5 and queue accounting 2 remain compatible.
+
+Regressions cover a confirmed prepared read with one authority, changed heads
+falling back outside exclusion, failed confirmation/publication, wrong account,
+disposal, native-lock selection before and at the fairness share, and current
+vault/removal invalidation. Existing lost-response, group epoch, direct pinned
+batch, receipt, local draft, hidden render and joined-batch tests remain relevant.
+Structural review keeps verification/preparation lifetime in the identity and
+authority owners; scheduler edits emit its existing selection and preserve the
+policy. The group controller gains no new captured state or scheduler callbacks.
+
+Physical trial artifacts, exact build provenance, individual observations and
+failures stay in `.local/private-send-revision12-release/`. A shared collector is
+used for both builds, with its real source/dirty provenance retained. Debugger
+caller observations are kept separately with pause overhead. The same
+100,578-byte image is hashed and selected from the Android's existing files.
+Matched performance acceptance must be reported separately from these passing
+regressions; browser and iPhone runtime performance remains unverified.

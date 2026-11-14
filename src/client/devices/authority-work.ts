@@ -1,6 +1,7 @@
 import type { PrivateSendFields } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import { startAuthorityWork } from '../chat-sync-diagnostics/index.ts';
 import type { AuthorityDiagnosticContext } from '../../shared/chat-sync-diagnostics/flow.ts';
+import type { AuthoritySelection } from '../../shared/chat-sync-diagnostics/flow.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 
@@ -215,9 +216,12 @@ export class AuthorityWork {
     ) {
       const index = this.follower(leader, held.key);
       if (index < 0) return;
+      const selection = this.waiting[index]!.trace
+        ? this.selection('held-follower')
+        : undefined;
       const [next] = this.waiting.splice(index, 1);
       if (next!.interactive) this.interactiveTurns++;
-      next!.trace?.admitted();
+      next!.trace?.admitted(selection);
       next!.trace?.platform('storage-acquired', 'held-turn-follower');
       releasing.push(next!);
       usable = await next!.held!.operation({ follower: true });
@@ -243,27 +247,44 @@ export class AuthorityWork {
       this.interactiveTurns = 0;
       return;
     }
-    const index = this.next();
+    const { index, selection } = this.next();
     const [entry] = this.waiting.splice(index, 1);
     this.running = true;
-    entry!.trace?.admitted();
+    entry!.trace?.admitted(selection);
     void entry!.run().finally(() => {
       this.running = false;
       this.resume();
     });
   }
-  private next(): number {
+  private selection(
+    workSelection: AuthoritySelection['workSelection'],
+  ): AuthoritySelection {
+    return {
+      workSelection,
+      workQueuedInteractive: this.waiting.filter((work) => work.interactive)
+        .length,
+      workQueuedMaintenance: this.waiting.filter((work) => !work.interactive)
+        .length,
+      workInteractiveTurns: Math.min(4, this.interactiveTurns),
+    };
+  }
+  private choose(index: number, reason: AuthoritySelection['workSelection']) {
+    const selection = this.waiting[index]!.trace
+      ? this.selection(reason)
+      : undefined;
+    this.interactiveTurns =
+      reason === 'interactive' ? this.interactiveTurns + 1 : 0;
+    return { index, selection };
+  }
+  private next(): { index: number; selection: AuthoritySelection | undefined } {
     const background = this.waiting.findIndex((work) => !work.interactive);
     const interactive = this.waiting.findIndex((work) => work.interactive);
     if (background >= 0 && this.interactiveTurns >= 4) {
-      this.interactiveTurns = 0;
-      return background;
+      return this.choose(background, 'maintenance-share');
     }
     if (interactive >= 0) {
-      this.interactiveTurns++;
-      return interactive;
+      return this.choose(interactive, 'interactive');
     }
-    this.interactiveTurns = 0;
-    return 0;
+    return this.choose(0, 'background');
   }
 }

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { AuthorityWork } from '../src/client/devices/authority-work.ts';
+import { authorityTurn } from '../src/client/devices/authority-turns.ts';
+import { deferred, waitForBoundary } from './fixtures/deferred.ts';
 import { GroupAuthority } from '../src/client/groups/authority.ts';
 import { PeerIdentity } from '../src/client/peer-identity/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
@@ -36,12 +39,13 @@ function fixture() {
     },
     withLocalVault: () => Promise.reject(new Error('Sem cofre offline.')),
   };
+  const identities = new PeerIdentity(new VaultSync(access));
   const authority = new GroupAuthority({
     access,
-    identities: new PeerIdentity(new VaultSync(access)),
+    identities,
     session: () => session,
   });
-  return { authority, vault, session, ownership };
+  return { authority, vault, session, ownership, identities, access };
 }
 
 await test('view invalidation hides an old read without rejecting confirmation of its own creation or entry', async () => {
@@ -174,3 +178,167 @@ await test('only outgoing group text staging expresses draft intent; local histo
   assert.equal(admissions[1]!.options.intent, undefined);
   assert.equal(admissions[1]!.options.priority, undefined);
 });
+
+await test('a send confirms already verified pins inside its current authority and releases its scoped read', async (t) => {
+  const f = fixture();
+  let confirmed = 0,
+    disposed = 0;
+  t.mock.method(f.identities, 'prepareRead', () => ({
+    confirm: (authority: VaultAuthority) => {
+      assert.equal(authority, f.vault);
+      assert.equal(f.ownership.holding, 1);
+      confirmed++;
+      return Promise.resolve(true);
+    },
+    hydrate: () => Promise.reject(new Error('A send keeps its identity owner')),
+    dispose: () => {
+      disposed++;
+    },
+  }));
+  t.mock.method(f.identities, 'load', () =>
+    Promise.reject(new Error('No second authority for unchanged pins')),
+  );
+  const value = await f.authority.send(
+    () => {},
+    () => {
+      assert.equal(confirmed, 1);
+      assert.equal(f.ownership.holding, 1);
+      return Promise.resolve('accepted');
+    },
+  );
+  assert.equal(value, 'accepted');
+  assert.equal(f.ownership.entries, 1);
+  assert.equal(f.ownership.holding, 0);
+  assert.equal(disposed, 1);
+});
+
+await test('a changed prepared vault leaves exclusion before full identity refresh and reacquires before publication', async (t) => {
+  const f = fixture(),
+    order: string[] = [];
+  t.mock.method(f.identities, 'prepareRead', () => ({
+    confirm: () => {
+      order.push('stale');
+      return Promise.resolve(false);
+    },
+    hydrate: () => Promise.resolve(false),
+    dispose: () => {
+      order.push('dispose');
+    },
+  }));
+  t.mock.method(f.identities, 'load', () => {
+    assert.equal(f.ownership.holding, 0);
+    order.push('full-refresh');
+    return Promise.resolve();
+  });
+  await f.authority.send(
+    () => {},
+    () => {
+      assert.equal(f.ownership.holding, 1);
+      order.push('publish');
+      return Promise.resolve();
+    },
+  );
+  assert.deepEqual(order, ['stale', 'dispose', 'full-refresh', 'publish']);
+  assert.equal(f.ownership.entries, 2);
+});
+
+for (const failure of ['confirm', 'publication', 'account'] as const)
+  await test(`a ${failure} failure cannot bypass pin verification and disposes the prepared send read`, async (t) => {
+    const f = fixture();
+    let disposed = 0,
+      published = false;
+    t.mock.method(f.identities, 'prepareRead', () => ({
+      confirm: () =>
+        failure === 'confirm'
+          ? Promise.reject(new Error('Confirmation failed'))
+          : Promise.resolve(true),
+      hydrate: () => Promise.resolve(false),
+      dispose: () => {
+        disposed++;
+      },
+    }));
+    t.mock.method(f.identities, 'load', () =>
+      Promise.reject(new Error('Failure cannot silently fall back')),
+    );
+    if (failure === 'account')
+      f.vault.session = { ...f.vault.session, deviceId: crypto.randomUUID() };
+    await assert.rejects(
+      f.authority.send(
+        () => {},
+        () => {
+          published = true;
+          return Promise.reject(new Error('Publication response lost'));
+        },
+      ),
+    );
+    assert.equal(disposed, 1);
+    assert.equal(published, failure === 'publication');
+    assert.equal(f.ownership.holding, 0);
+  });
+
+for (const dueMaintenance of [false, true])
+  await test(`prepared group sending keeps one verified turn while due maintenance=${dueMaintenance} retains its share`, async (t) => {
+    const f = fixture(),
+      order: string[] = [];
+    const q = new AuthorityWork((key, body, options) =>
+      authorityTurn(key, body, options),
+    );
+    const release = deferred<void>(),
+      entered = deferred<void>();
+    const jobs: Promise<unknown>[] = [];
+    t.after(async () => {
+      release.resolve();
+      await Promise.allSettled(jobs);
+    });
+    f.access.withVault = (_offline, work, options = {}) =>
+      q.hold(f.session.accountId, () => work(f.vault), options.priority);
+    t.mock.method(f.identities, 'prepareRead', () => ({
+      confirm: async () => {
+        order.push('confirm-pins');
+        await Promise.resolve();
+        return true;
+      },
+      hydrate: () => Promise.resolve(false),
+      dispose() {},
+    }));
+    jobs.push(
+      q.hold(
+        f.session.accountId,
+        async () => {
+          entered.resolve();
+          await release.promise;
+        },
+        'interactive',
+      ),
+    );
+    await waitForBoundary(entered.promise);
+    if (dueMaintenance)
+      for (let i = 0; i < 3; i++)
+        jobs.push(
+          q.hold(f.session.accountId, () => Promise.resolve(), 'interactive'),
+        );
+    jobs.push(
+      q.hold(f.session.accountId, () => {
+        order.push('media');
+        return Promise.resolve();
+      }),
+    );
+    jobs.push(
+      f.authority.send(
+        () => {},
+        () => {
+          order.push('publish');
+          return Promise.resolve();
+        },
+        { priority: 'interactive' },
+      ),
+    );
+    release.resolve();
+    await Promise.all(jobs);
+    assert.deepEqual(
+      order,
+      dueMaintenance
+        ? ['media', 'confirm-pins', 'publish']
+        : ['confirm-pins', 'publish', 'media'],
+    );
+  });

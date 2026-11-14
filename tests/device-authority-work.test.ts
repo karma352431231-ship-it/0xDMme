@@ -4,6 +4,7 @@ import { AuthorityWork } from '../src/client/devices/authority-work.ts';
 import { DeviceController } from '../src/client/devices/controller.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import { deferred } from './fixtures/deferred.ts';
+import { privateSendCapture } from './fixtures/private-send-capture.ts';
 
 await test('interactive authority work precedes queued maintenance without interrupting or overlapping active work', async () => {
   const queue = new AuthorityWork(),
@@ -38,7 +39,8 @@ await test('interactive authority work precedes queued maintenance without inter
   assert.equal(maximum, 1);
 });
 
-await test('four interactive turns yield to queued maintenance and errors release the queue', async () => {
+await test('four interactive turns yield to queued maintenance and errors release the queue', async (t) => {
+  const capture = privateSendCapture(t);
   const queue = new AuthorityWork(),
     gate = deferred<void>(),
     order: string[] = [];
@@ -56,6 +58,13 @@ await test('four interactive turns yield to queued maintenance and errors releas
   gate.resolve();
   await Promise.all([running, background, ...interactive]);
   assert.deepEqual(order, ['0', '1', '2', '3', 'background', '4', '5']);
+  const selected = capture.recording
+    .report()
+    .deliveryFlow.authority.flatMap((work) => work.events)
+    .find((event) => event['workSelection'] === 'maintenance-share');
+  assert.equal(selected?.['workInteractiveTurns'], 4);
+  assert.equal(selected?.['workQueuedInteractive'], 2);
+  assert.equal(selected?.['workQueuedMaintenance'], 1);
   const failure = new Error('synthetic failure');
   await assert.rejects(
     queue.run(() => Promise.reject(failure)),

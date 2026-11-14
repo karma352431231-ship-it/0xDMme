@@ -3,6 +3,7 @@ import type { LoadToken } from '../../shared/chat-sync-diagnostics/load.ts';
 import type {
   FlowDiagnosticFields,
   AuthorityDiagnosticContext,
+  AuthoritySelection,
   HandleReadToken,
   HandleSendToken,
   SendPreparationPoint,
@@ -110,11 +111,13 @@ export class CaptureWork {
     let settled = false;
     const point = (
       workPhase: NonNullable<FlowDiagnosticFields['workPhase']>,
+      selection?: AuthoritySelection,
     ) => {
       if (this.ended || settled) return;
       const workClockMs = Math.round(performance.now());
       this.emit('authority-work', {
         ...linked,
+        ...selection,
         diagnosticWork,
         authorityQueue,
         workClockMs,
@@ -140,7 +143,8 @@ export class CaptureWork {
     };
     point('queued');
     return {
-      admitted: () => point('admitted'),
+      admitted: (selection?: AuthoritySelection) =>
+        point('admitted', selection),
       platform: (
         lockPhase: NonNullable<PrivateSendFields['lockPhase']>,
         lockCoverage: PrivateSendFields['lockCoverage'] = 'platform-locks',

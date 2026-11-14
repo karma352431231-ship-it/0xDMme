@@ -41,12 +41,27 @@ export const authorityKinds = [
   'group',
   'group-draft',
   'group-send',
+  'group-media',
+  'group-media-preview',
   'group-identities',
   'group-directory',
   'conversation-previews',
   'archived-peers',
 ] as const;
 export type AuthorityKind = (typeof authorityKinds)[number];
+export const authoritySelections = [
+  'interactive',
+  'maintenance-share',
+  'background',
+  'held-follower',
+] as const;
+export interface AuthoritySelection {
+  workSelection: (typeof authoritySelections)[number];
+  workQueuedInteractive: number;
+  workQueuedMaintenance: number;
+  /** Capped at four: the state relevant to the maintenance share. */
+  workInteractiveTurns: number;
+}
 export interface AuthorityDiagnosticContext {
   privateSend?: PrivateSendContext | undefined;
   diagnosticOperation?: AuthorityKind;
@@ -55,10 +70,10 @@ export interface AuthorityDiagnosticContext {
   handleSend?: HandleSendToken;
   handleListCaller?: HandleListCaller;
 }
-export interface FlowDiagnosticFields extends Pick<
-  LoadDiagnosticFields,
-  'load' | 'loadMs'
-> {
+export interface FlowDiagnosticFields
+  extends
+    Partial<AuthoritySelection>,
+    Pick<LoadDiagnosticFields, 'load' | 'loadMs'> {
   authorityQueue?: number;
   workClockMs?: number;
   flowOverflow?: boolean;
@@ -91,7 +106,26 @@ export function copyFlowDiagnostic(
   if (['interactive', 'maintenance'].includes(String(input['workPriority'])))
     output['workPriority'] = input['workPriority'];
   copyAuthorityTiming(input, output);
+  copyAuthoritySelection(input, output);
   copyHandlePreparation(input, output);
+}
+
+function copyAuthoritySelection(
+  input: Record<string, unknown>,
+  output: Record<string, unknown>,
+): void {
+  if (authoritySelections.some((reason) => reason === input['workSelection']))
+    output['workSelection'] = input['workSelection'];
+  for (const key of ['workQueuedInteractive', 'workQueuedMaintenance'])
+    if (
+      Number.isSafeInteger(input[key]) &&
+      Number(input[key]) >= 0 &&
+      Number(input[key]) <= 64
+    )
+      output[key] = input[key];
+  const turns = input['workInteractiveTurns'];
+  if (Number.isSafeInteger(turns) && Number(turns) >= 0 && Number(turns) <= 4)
+    output['workInteractiveTurns'] = turns;
 }
 
 function copyAuthorityTiming(

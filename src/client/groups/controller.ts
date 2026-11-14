@@ -1691,10 +1691,9 @@ export class GroupController {
       ...(priority ? { priority } : {}),
       diagnosticOperation: 'group-send',
     };
-    await measurePrivateSend(diagnostic, 'pins-load', () =>
-      measureWork(this, 'group/identities', () => this.identities.load(work)),
-    );
-    await this.withAuthority(
+    const generation = this.generation;
+    await this.authority.send(
+      () => this.guard(generation),
       async (c) => {
         const group = await measurePrivateSend(diagnostic, 'group-verify', () =>
           measureWork(this, 'group/verify', () =>
@@ -1711,7 +1710,6 @@ export class GroupController {
           }),
         );
       },
-      undefined,
       work,
     );
     await measurePrivateSend(diagnostic, 'pins-save', () =>
@@ -1794,36 +1792,40 @@ export class GroupController {
     thumbnail: boolean,
   ): Promise<Uint8Array<ArrayBuffer>> {
     const generation = this.generation;
-    return this.withAuthority(async (c) => {
-      if (selected.localOnly || !networkAvailable())
-        return this.localMedia(c.authority, view, thumbnail, generation);
-      const group = await c.governance.verify(selected.state.groupId),
-        content = attachmentContent(JSON.parse(view.text) as unknown),
-        file = thumbnail ? content.thumbnail : content.file;
-      if (!file) throw new Error('Preview unavailable.');
-      await this.confirmMedia(c.api, group, view);
-      const bytes = await downloadAttachment({
-        account: groupCacheScope(
-          c.authority.session.accountId,
-          group.state.groupId,
-        ),
-        message: view.id,
-        file,
-        thumbnail,
-        image: thumbnail || content.image,
-        api: groupAttachmentApi(group, c.api),
-        snapshot: null,
-        guard: () => this.guard(generation),
-        budget: groupQuota,
-      });
-      try {
+    return this.withAuthority(
+      async (c) => {
+        if (selected.localOnly || !networkAvailable())
+          return this.localMedia(c.authority, view, thumbnail, generation);
+        const group = await c.governance.verify(selected.state.groupId),
+          content = attachmentContent(JSON.parse(view.text) as unknown),
+          file = thumbnail ? content.thumbnail : content.file;
+        if (!file) throw new Error('Preview unavailable.');
         await this.confirmMedia(c.api, group, view);
-        return bytes;
-      } catch (error: unknown) {
-        bytes.fill(0);
-        throw error;
-      }
-    });
+        const bytes = await downloadAttachment({
+          account: groupCacheScope(
+            c.authority.session.accountId,
+            group.state.groupId,
+          ),
+          message: view.id,
+          file,
+          thumbnail,
+          image: thumbnail || content.image,
+          api: groupAttachmentApi(group, c.api),
+          snapshot: null,
+          guard: () => this.guard(generation),
+          budget: groupQuota,
+        });
+        try {
+          await this.confirmMedia(c.api, group, view);
+          return bytes;
+        } catch (error: unknown) {
+          bytes.fill(0);
+          throw error;
+        }
+      },
+      undefined,
+      { diagnosticOperation: 'group-media' },
+    );
   }
   mediaPreviews(view: GroupView): MediaPreviews {
     return {
@@ -1873,28 +1875,32 @@ export class GroupController {
         throw new Error('Group message changed.');
     };
     guard();
-    return this.withAuthority(async (c) => {
-      guard();
-      const group =
-        selected!.localOnly || !networkAvailable()
-          ? null
-          : await c.governance.verify(view.groupId);
-      if (group) await this.confirmMedia(c.api, group, view);
-      const file = attachmentContent(JSON.parse(view.text) as unknown).file;
-      const result = await work(
-        c.authority,
-        groupCacheScope(c.authority.session.accountId, view.groupId),
-        file,
-      );
-      try {
-        if (group) await this.confirmMedia(c.api, group, view);
+    return this.withAuthority(
+      async (c) => {
         guard();
-        return result;
-      } catch (error: unknown) {
-        if (result instanceof Uint8Array) result.fill(0);
-        throw error;
-      }
-    });
+        const group =
+          selected!.localOnly || !networkAvailable()
+            ? null
+            : await c.governance.verify(view.groupId);
+        if (group) await this.confirmMedia(c.api, group, view);
+        const file = attachmentContent(JSON.parse(view.text) as unknown).file;
+        const result = await work(
+          c.authority,
+          groupCacheScope(c.authority.session.accountId, view.groupId),
+          file,
+        );
+        try {
+          if (group) await this.confirmMedia(c.api, group, view);
+          guard();
+          return result;
+        } catch (error: unknown) {
+          if (result instanceof Uint8Array) result.fill(0);
+          throw error;
+        }
+      },
+      undefined,
+      { diagnosticOperation: 'group-media-preview' },
+    );
   }
   private async confirmMedia(
     api: AttachmentApi,

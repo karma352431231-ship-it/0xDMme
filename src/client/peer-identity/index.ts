@@ -82,7 +82,7 @@ function copyStoredIdentity(
 ): StoredIdentity | null {
   return identity && { account: identity.account, pin: { ...identity.pin } };
 }
-/** One startup pass; only persisted pins cross owners, never pending writes. */
+/** One scoped verified read; only persisted pins cross owners, never pending writes. */
 export interface IdentityPreparation {
   hydrate: (
     target: PeerIdentity,
@@ -207,8 +207,8 @@ export class PeerIdentity {
   }
   /** The receiving owner keeps its own pins, loaded commits and pending writes.
    * A fresh signed vault-head/removal check is required at both consumption and
-   * publication. The capability is cancelled after this startup directory pass. */
-  prepareStartup(): IdentityPreparation | undefined {
+   * publication. The caller disposes the capability at the end of its operation. */
+  prepareRead(): IdentityPreparation | undefined {
     const read = this.sync.verifiedRead?.();
     if (!read) return;
     const entries = [...this.sync.currentHeads().values()]

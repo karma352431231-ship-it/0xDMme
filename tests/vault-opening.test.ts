@@ -652,7 +652,7 @@ async function verifiedIdentityFixture(t: TestContext) {
 
 await test('startup transfers verified immutable pins into a different owner without another vault authority or decryption', async (t) => {
   const f = await verifiedIdentityFixture(t);
-  const preparation = f.source.prepareStartup();
+  const preparation = f.source.prepareRead();
   assert.ok(preparation);
   const target = new f.module.PeerIdentity(f.sync);
   const before = f.counts();
@@ -681,7 +681,7 @@ for (const change of [
 ] as const)
   await test(`startup identity handoff rejects a changed ${change}`, async (t) => {
     const f = await verifiedIdentityFixture(t);
-    const prepared = f.source.prepareStartup()!;
+    const prepared = f.source.prepareRead()!;
     const target = new f.module.PeerIdentity(f.sync);
     let authority = f.owner.authority;
     if (change === 'local-head')
@@ -720,7 +720,7 @@ for (const change of [
 ] as const)
   await test(`startup handoff preserves the rejection path for ${change}`, async (t) => {
     const f = await verifiedIdentityFixture(t);
-    const prepared = f.source.prepareStartup()!;
+    const prepared = f.source.prepareRead()!;
     const target = new f.module.PeerIdentity(f.sync);
     if (change === 'logout') f.sync.setSession(null);
     if (change === 'device')
@@ -741,7 +741,7 @@ for (const change of [
 
 await test('handoff rechecks removal and session state after asynchronous confirmation and excludes pending pins', async (t) => {
   const f = await verifiedIdentityFixture(t);
-  const prepared = f.source.prepareStartup()!;
+  const prepared = f.source.prepareRead()!;
   const target = new f.module.PeerIdentity(f.sync);
   const peer = await groupParticipant();
   await f.source.remember(peer.accountId, [peer.directory]);
@@ -764,7 +764,7 @@ await test('handoff rechecks removal and session state after asynchronous confir
 for (const cancelled of ['source', 'target', 'device'] as const)
   await test(`queued startup evidence cannot hydrate after ${cancelled} changes during confirmation`, async (t) => {
     const f = await verifiedIdentityFixture(t);
-    const prepared = f.source.prepareStartup()!;
+    const prepared = f.source.prepareRead()!;
     const target = new f.module.PeerIdentity(f.sync);
     const entered = deferred<void>(),
       release = deferred<void>();
@@ -786,7 +786,7 @@ for (const cancelled of ['source', 'target', 'device'] as const)
 
 await test('a newly observed removal invalidates prepared pins before publication', async (t) => {
   const f = await verifiedIdentityFixture(t);
-  const prepared = f.source.prepareStartup()!;
+  const prepared = f.source.prepareRead()!;
   const target = new f.module.PeerIdentity(f.sync);
   assert.equal(await prepared.hydrate(target, f.owner.authority), true);
   let cursor = 0;
