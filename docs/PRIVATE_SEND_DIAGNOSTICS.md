@@ -1,7 +1,7 @@
 # Private and group send accounting
 
-Current collector: **10**, send protocol **4**. The revision 10 section below
-supersedes the earlier queue coverage description. Revision 8 defines the
+Current collector: **11**, send protocol **5**, text queue accounting **2**.
+The revision 11 section below supersedes the earlier queue coverage description. Revision 8 defines the
 retained send and operation budgets.
 
 The original revision 6 change implements the private-send instrumentation assignment. It preserves
@@ -497,3 +497,119 @@ matched runs per affected scenario, the same 100,578-byte image and separate
 Android/browser/iPhone results are required to establish physical improvement.
 The retrospective 2.16-second cause remains unresolved until the new capture
 provides the retained queue transitions.
+
+## Revision 11: outgoing group admission and actual executing batches
+
+The revision 10 baseline is clean source `536374ff`, collector 10, protocol 4
+and application asset `app-f61bc41af0861172.js`, with eight retained sends and
+8,686 ring evictions. Its first group text takes 6,268 ms to acceptance:
+4,624 ms of queue/lock union, 1,631 ms observed execution and 13 ms residual.
+The draft authority acquisition waits about 2,479 ms, followed by preparation
+and group authority waits of 1,136 ms and 970 ms. These nested details overlap
+the union and must not be added to it. The draft's acquired operation takes
+about 132 ms, while final publication takes about 169 ms. The unmatched older
+capture cannot establish a regression or a measured candidate improvement.
+
+### Admission ownership and preserved critical sections
+
+Group staging uses `withVault(true)`, including verified offline restoration;
+it does not use the direct `withLocalVault` path. Previously that call expressed
+neither interactive priority nor the local-save waiting capability, so queued
+optional work could run before the draft and extend a held native turn.
+
+`VaultWorkOptions.intent: outgoing-draft` now identifies only outgoing group
+text/media staging. `DeviceController` owns its reservation in the existing
+account-local waiting registry. It registers before authority admission and
+removes it exactly once on native acquisition or failure, including queue
+expiry and stale-session rejection. The authority scheduler sees interactive
+intent, stops follower chaining at the existing safe boundary and retains its
+four interactive/one maintenance share, three-follower/one-second bounds and
+eight-second acquisition deadline. Direct local saves retain their native
+requests and existing verification. Group history, searches and previews do not
+acquire this intent merely because a group is open.
+
+The group controller supplies interactive priority for an explicit pending send
+through identity preparation, group authority and pin preservation. Automatic
+pending recovery keeps background priority. The existing generation guards,
+membership/epoch checks, SDK exclusion, authority verification, atomic writes
+and lock reacquisition remain. No verification cache or merged transaction is
+introduced: the capture establishes waiting cost, but does not establish that
+these repeated checks can safely be skipped.
+
+The already running mandatory receipt page still completes before releasing
+its resource. The baseline direct local wait of 1,046 ms includes 972 ms of
+linked vault overlap and 74 ms without holder coverage. Its commit and inbox
+settlement precede actual native release; neither alone ends resource ownership.
+This candidate extends the waiting capability to group drafts and preserves
+the previous optional old-recovery yield. That yield was not shown to execute
+in the baseline. No additional split of mandatory receive/acknowledgment work
+is justified by this capture. Receiving progress and native release must be
+measured again alongside outgoing latency.
+
+### Truthful queue and batch attribution
+
+The capture owner retains actual dispatch context separately from the draft's
+base context. Both outboxes emit dispatch when an entry actually starts, with
+the executing batch and attempt. A draft saved during preparation can join
+that batch's later outbox read without having initiated its own queue flush.
+Per-send stages use this executing context; shared cleanup remains batch work.
+
+Queue observation retires an accepted ID before restoring pending trace IDs.
+An executing ID suppresses unrelated queue points; a failed unaccepted attempt
+reopens observation for retry. These return values affect only diagnostic
+membership, not the runtime outbox, dirty/version state, transmission guards,
+durability or publication. Reset/stop clear execution and dispatch state with
+the existing bounded draft capabilities.
+
+`textQueue.executingBatch` identifies the first execution, `joinMs` its actual
+per-message dispatch, and `batches[].startMs` the first observed linked batch
+work. A missing own flush stays null. Admission is `joined-existing-batch`,
+`no-own-flush-observed`, `own-flush` or `not-observed`. The primary queue window
+ends at its own flush, or actual dispatch for a joining message; preparation
+after a flush is exposed separately as `preparationAfterFlushMs`. It is outside
+the queue gate model and may overlap linked authority work. Queue intervals
+remain clipped to the selected boundary. A dispatch can close the last observed
+gate; capture stop alone cannot invent that closure.
+
+Initial admission points exclude later retry points, which remain in
+`textQueue.retryPoints`. Up to eight distinct batch/attempt dispatches are
+retained per send, with `droppedDispatches` reported. Existing limits remain:
+48 queue points per send, 32 emitting waiting IDs, 256 app draft capabilities,
+and the prior shared operation, batch and terminal budgets. This observer
+correction does not mean the baseline published messages twice.
+
+### Validation and remaining owner measurements
+
+Deterministic regressions cover group intent behind an active receipt and
+optional previews, direct local admission before the next optional turn, queued
+intent expiry, stale-session rejection, and resumed authority followers after
+reservation cleanup. An actual group queue/outbox test saves a second encrypted
+draft during preparation, consumes it in the first batch and performs a later
+empty flush. It publishes each ID once, reports the second as joining the first
+batch, retains no invented own flush and excludes later accepted queue events.
+A separate failed-attempt test preserves distinct retry dispatches and queue
+observations. Existing bounded fairness, live receipt, lost-response retry,
+ring-wrap, overflow, acceptance rendering and diagnostics-disabled contracts
+remain part of the affected automated checks.
+
+Structural review keeps waiting reservations at the authority owner, execution
+capabilities at the capture owner and pending observation membership at the
+queue observer. The group controller only supplies intent and threads send
+options; it owns no new scheduler or capture state. Its preexisting composition,
+selection and transmission coordination remains broader than this change. A
+separate follow-up can extract outgoing staging first and pending transmission
+second, preserving the existing authority/session interfaces; generation changes,
+view invalidation and lost-response retry are the main risks and corresponding
+group-authority, group-text-queue and group-send-batch tests must accompany it.
+
+Manual trials remain owner-operated. Compare at least five matched runs for
+idle sends, group receipt/previews contention, live direct receipt, rapid sends,
+simultaneous direct/group drafts and identical direct/group images. Preserve
+the 100,578-byte fixture and compression mode. Record active holders, scheduler
+versus platform acquisition wait, native hold/release, incoming completion,
+acceptance and DOM timing, individual values, median/range and failures. Packet
+preparation remains a separate measured cost (about 909–1,021 ms in the supplied
+direct texts); this candidate does not claim to remove it. Android installation
+and automated web/mobile builds do not establish matched performance gains or
+browser/iPhone runtime acceptance. The earlier 2.163-second gap remains
+historically unexplained.

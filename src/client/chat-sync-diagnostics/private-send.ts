@@ -1,3 +1,4 @@
+import type { TextQueueObservation } from '../../shared/chat-sync-diagnostics/text-queue.ts';
 import type {
   PrivateSendContext,
   PrivateSendFields,
@@ -29,6 +30,8 @@ export class PrivateSendCapture {
   private readonly saves = new Map<string, (ok?: boolean) => void>();
   private readonly eligible = new Set<string>();
   private readonly accepted = new Set<string>();
+  private readonly dispatched = new Set<number>();
+  private readonly executions = new Map<string, PrivateSendContext>();
   private readonly waiting = new Map<string, Map<SendWaitReason, () => void>>();
   private maintenance: SendMaintenanceKind | undefined;
   private reasons: readonly SendWaitReason[] = [];
@@ -43,6 +46,8 @@ export class PrivateSendCapture {
   stop(): void {
     this.ended = true;
     this.drafts.clear();
+    this.dispatched.clear();
+    this.executions.clear();
     this.waiting.clear();
     this.saves.clear();
     this.accepted.clear();
@@ -108,6 +113,8 @@ export class PrivateSendCapture {
       if (!this.accepted.has(id))
         this.point(context, 'send-cancelled', { sendOutcome: 'cancelled' });
     this.drafts.clear();
+    this.dispatched.clear();
+    this.executions.clear();
     this.waiting.clear();
     this.saves.clear();
     this.accepted.clear();
@@ -193,10 +200,39 @@ export class PrivateSendCapture {
       this.point(this.context(id), 'scheduler-eligible');
     }
   }
+  retryMessage(id: string): void {
+    const message = this.context(id)?.message;
+    if (message) this.dispatched.delete(message);
+  }
+  assignExecution(id: string, batch: PrivateSendContext | undefined): void {
+    const message = this.context(id);
+    if (message && batch?.owner === this.tokenOwner)
+      this.executions.set(id, { ...batch, ...message });
+  }
+  stageContext(id: string): PrivateSendContext | undefined {
+    return this.executions.get(id) ?? this.context(id);
+  }
+  queueObservation(
+    id: string,
+    value: TextQueueObservation,
+  ): 'retired' | undefined {
+    if (this.accepted.has(id)) return 'retired';
+    const context = this.context(id);
+    if (!context || this.dispatched.has(context.message!)) return;
+    this.point(context, 'text-queue', {
+      queuePhase: value.phase,
+      queueTrigger: value.trigger,
+      queueGeneration: value.generation,
+      ...(value.batch === undefined ? {} : { queueBatch: value.batch }),
+      ...(value.gate ? { queueGate: value.gate } : {}),
+    });
+  }
   dispatch(id: string): void {
     for (const finish of this.waiting.get(id)?.values() ?? []) finish();
     this.waiting.delete(id);
-    this.point(this.context(id), 'outbox-dispatch');
+    const context = this.stageContext(id);
+    if (context?.message) this.dispatched.add(context.message);
+    this.point(context, 'outbox-dispatch');
   }
   accept(id: string): void {
     if (!this.context(id)) return;
@@ -294,6 +330,12 @@ export class PrivateSendCapture {
     return (ok = true) => {
       if (this.ended || finished || owner !== this.tokenOwner) return;
       finished = true;
+      if (
+        !ok &&
+        context.message &&
+        ['group-send-entry', 'server-publish'].includes(stage)
+      )
+        this.dispatched.delete(context.message);
       this.emit(stage, {
         ...linkage,
         sendClockMs: Math.round(performance.now()),

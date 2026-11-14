@@ -8,7 +8,11 @@ import {
 } from '../chat-sync-diagnostics/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
-import { traceSend, measureSend } from '../chat-sync-diagnostics/index.ts';
+import {
+  traceSend,
+  measureSend,
+  traceOutboxDispatch,
+} from '../chat-sync-diagnostics/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -440,8 +444,7 @@ export class MessageOutbox {
                 diagnostic,
                 entries.map(({ value }) => value.id),
               );
-              for (const { value } of entries)
-                traceSend('outbox-dispatch', value.id);
+
               return PinnedSendBatch.prepare({
                 authority: a,
                 entries,
@@ -530,6 +533,7 @@ export class MessageOutbox {
     try {
       for (const [index, { name, value }] of page.entries()) {
         earlier[index]?.();
+        traceOutboxDispatch(value.id, diagnostic);
         const linked = privateSendContext(value.id);
         const context = linked ? { ...diagnostic, ...linked } : diagnostic;
         const message = (op: string, d: Record<string, unknown>) =>

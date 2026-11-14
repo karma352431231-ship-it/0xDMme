@@ -199,7 +199,9 @@ await test('deferred group admission resumes on the gate owner notification with
     available: () => open,
     blockedBy: () => 'maintenance',
     changed: () => subject.resume(),
-    observe: (_id, entry) => notices.push(entry.phase),
+    observe: (_id, entry) => {
+      notices.push(entry.phase);
+    },
     failed: (error) => {
       throw error;
     },

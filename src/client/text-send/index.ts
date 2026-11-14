@@ -213,8 +213,8 @@ export class TextSendQueue {
     } catch (error: unknown) {
       if (turn.generation !== this.generation) return;
       this.sendFailed = true;
-      this.trace?.restore(ids);
-      this.markTurn(ids, turn, 'failed', 'transmission-complete');
+      const live = this.markTurn(ids, turn, 'failed', 'transmission-complete');
+      this.trace?.restore(live);
       this.options.failed(error);
     } finally {
       this.activeTrace = [];
@@ -241,27 +241,29 @@ export class TextSendQueue {
   ): void {
     this.sendFailed = !result.ok && result.deferred !== true;
     this.dirty = !result.ok || result.more || turn.version !== this.version;
-    this.markTurn(
+    const live = this.markTurn(
       ids,
       turn,
       transmissionPhase(result),
       'transmission-complete',
     );
-    if (!result.ok || result.more) this.trace?.restore(ids);
+    if (!result.ok || result.more) this.trace?.restore(live);
   }
   private markTurn(
     ids: readonly string[],
     turn: TextQueueTurn,
     phase: TextQueueObservation['phase'],
     trigger: QueueWakeup,
-  ): void {
-    if (turn.generation === this.generation)
+  ): readonly string[] {
+    if (turn.generation !== this.generation) return [];
+    return (
       this.trace?.mark(ids, {
         generation: turn.generation,
         batch: turn.batch,
         phase,
         trigger,
-      });
+      }) ?? []
+    );
   }
 }
 interface TextQueueTurn {

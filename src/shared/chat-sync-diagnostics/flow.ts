@@ -39,6 +39,8 @@ export const authorityKinds = [
   'handle-request',
   'handle-media-stage',
   'group',
+  'group-draft',
+  'group-send',
   'group-identities',
   'group-directory',
   'conversation-previews',

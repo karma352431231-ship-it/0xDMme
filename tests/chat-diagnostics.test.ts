@@ -191,7 +191,8 @@ await test('authority observation separates queue/hold time, preserves options/r
     capture.report().events.find((e) => e.kind === 'lock-released')?.['heldMs'],
     2300,
   );
-  assert.ok(!JSON.stringify(capture.report()).includes('private-'));
+  for (const value of ['private-account', 'private-callback-result'])
+    assert.ok(!JSON.stringify(capture.report()).includes(value));
   hook.stop();
   assert.equal(Reflect.get(manager, 'request'), native);
 });
@@ -232,7 +233,9 @@ await test('control observation accepts only empty complete protocol frames and 
   await reader.cancel('private-cancellation-reason');
   assert.equal(cancelled, 'private-cancellation-reason');
   assert.equal((await reader.read()).done, true);
-  assert.ok(!JSON.stringify(capture.report()).includes('private'));
+  assert.ok(
+    !JSON.stringify(capture.report()).includes('private-cancellation-reason'),
+  );
   stop();
   assert.equal(
     Reflect.get(ReadableStreamDefaultReader.prototype, 'read'),

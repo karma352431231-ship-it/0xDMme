@@ -1,3 +1,10 @@
+import { groupTextQueue } from '../src/client/groups/text-queue.ts';
+import { deferred, waitForBoundary } from './fixtures/deferred.ts';
+import {
+  tracePrivateTextQueue,
+  traceTextQueue,
+  traceSend,
+} from '../src/client/chat-sync-diagnostics/index.ts';
 import { privateSendCapture } from './fixtures/private-send-capture.ts';
 import { privateSendBatch } from '../src/client/chat-sync-diagnostics/index.ts';
 import assert from 'node:assert/strict';
@@ -303,4 +310,102 @@ await test('a lost acceptance answer settles on the next send, after a reload, w
       (point) => point.stage === 'accepted-check',
     ),
   );
+});
+
+await test('a group draft saved during preparation joins the executing batch and never inherits the later empty queue flush', async (t) => {
+  const { transport } = counting(),
+    machine = await sender(transport);
+  t.after(() => machine.close());
+  const first = await machine.encryptGroup(message(transport)),
+    second = await machine.encryptGroup(message(transport));
+  const stored = storedDraft(t, first);
+  const original = structuredClone(stored.get(`outbox:${first.packet.id}`));
+  const f = privateSendCapture(t);
+  const entered = deferred<void>(),
+    readOutbox = deferred<void>(),
+    completed = deferred<void>();
+  const published: string[] = [];
+  let calls = 0;
+  const q = groupTextQueue({
+    save: (_group, draft) => {
+      if (draft.id === second.packet.id)
+        stored.set(`outbox:${draft.id}`, {
+          ...(original as object),
+          id: draft.id,
+          packet: second.packet,
+          keys: second.keys,
+          order: 2,
+        });
+      return Promise.resolve();
+    },
+    send: async (_group, admitted) => {
+      calls++;
+      const diagnostic = privateSendBatch();
+      admitted();
+      entered.resolve();
+      await readOutbox.promise;
+      await sendGroupPending({
+        diagnostic,
+        authority: owner.authority,
+        group: { state: period(2), head: await groupEventHash(period(2)) },
+        identities: new PeerIdentity(new VaultSync(access)),
+        machine,
+        api: async (operation, payload) => {
+          if (operation === 'group-message-accepted') return false;
+          assert.equal(operation, 'group-message-publish');
+          const packet = payload['packet'] as { id: string };
+          published.push(packet.id);
+          return { status: 'accepted', hash: await digest(canonical(packet)) };
+        },
+        progress: {
+          sending() {},
+          accepted: (id) => {
+            traceSend('check-render', id);
+            if (id === second.packet.id) completed.resolve();
+          },
+        },
+      });
+      return true;
+    },
+    available: () => true,
+    timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
+    observe: traceTextQueue,
+    changed() {},
+    failed: (error) => {
+      throw error;
+    },
+  });
+  t.after(() => {
+    readOutbox.resolve();
+    q.reset();
+  });
+  f.send(first.packet.id, 'group');
+  q.enqueue({ id: first.packet.id, peer: 'synthetic-group', text: 'first' });
+  await waitForBoundary(entered.promise);
+  f.at(20);
+  f.send(second.packet.id, 'group');
+  q.enqueue({ id: second.packet.id, peer: 'synthetic-group', text: 'second' });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.at(50);
+  readOutbox.resolve();
+  await waitForBoundary(completed.promise);
+  for (let i = 0; i < 4; i++)
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.ok(calls >= 2, 'The queue can recheck its remaining dirty work');
+  assert.deepEqual(published, [first.packet.id, second.packet.id]);
+  const sends = f.recording.report().comparison.privateLatency.sends;
+  assert.equal(
+    f.recording.report().comparison.privateLatency.textQueueRevision,
+    2,
+  );
+  assert.equal(sends[1]!.textQueue.admission, 'joined-existing-batch');
+  assert.equal(sends[1]!.textQueue.firstFlushMs, null);
+  assert.equal(
+    sends[1]!.textQueue.executingBatch?.batch,
+    sends[0]!.textQueue.executingBatch?.batch,
+  );
+  assert.equal(sends[1]!.textQueue.joinMs, 50);
+  assert.equal(sends[1]!.textQueue.dispatches.length, 1);
+  assert.ok(sends[1]!.textQueue.points.every((p) => p.ms <= 50));
+  assert.equal(sends[1]!.outcome, 'accepted');
 });

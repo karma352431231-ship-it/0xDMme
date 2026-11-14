@@ -123,3 +123,54 @@ await test('a rate-limited group read waits outside the vault and runs again und
   assert.equal(requests, 2);
   assert.equal(ownership.entries, 2, 'the retry reacquires authority');
 });
+
+await test('only outgoing group text staging expresses draft intent; local history keeps its existing admission', async (t) => {
+  const { GroupController } =
+    await import('../src/client/groups/controller.ts');
+  const { GroupCache } = await import('../src/client/groups/cache.ts');
+  const { groupParticipant } = await import('./fixtures/group-participant.ts');
+  const owner = await groupParticipant();
+  const admissions: {
+    offline: boolean;
+    options: import('../src/client/vault-authority/index.ts').VaultWorkOptions;
+  }[] = [];
+  const access: VaultAccess = {
+    withVault: (offline, work, options = {}) => {
+      admissions.push({ offline, options });
+      return work(owner.authority);
+    },
+    withLocalVault: () =>
+      Promise.reject(
+        new Error('Group staging retains full offline vault authority'),
+      ),
+  };
+  t.mock.method(GroupCache.prototype, 'put', () => Promise.resolve());
+  t.mock.method(GroupCache.prototype, 'page', () =>
+    Promise.resolve({ items: [], next: null }),
+  );
+  const controller = new GroupController(
+    access,
+    new VaultSync(access),
+    () => false,
+  );
+  controller.setSession(
+    owner.authority
+      .session as import('../src/shared/account/index.ts').AccountSession,
+  );
+  const group = crypto.randomUUID();
+  await controller.composeText(group, {
+    id: crypto.randomUUID(),
+    text: 'Synthetic draft',
+    order: 1,
+  });
+  assert.equal(admissions[0]!.offline, true);
+  assert.equal(admissions[0]!.options.intent, 'outgoing-draft');
+  assert.equal(admissions[0]!.options.diagnosticOperation, 'group-draft');
+  controller.selected = {
+    state: { groupId: group },
+  } as import('../src/client/groups/controller.ts').GroupSummary;
+  await controller.pending();
+  assert.equal(admissions[1]!.offline, true);
+  assert.equal(admissions[1]!.options.intent, undefined);
+  assert.equal(admissions[1]!.options.priority, undefined);
+});

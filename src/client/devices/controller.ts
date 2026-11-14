@@ -414,21 +414,27 @@ export class DeviceController {
     const session = this.session;
     const generation = this.generation;
     if (!session) throw new Error('Connect the original wallet first.');
-    return this.authorityWork.hold(
-      session.accountId,
-      async (turn) => {
-        if (generation !== this.generation)
-          throw new Error('Session changed before the operation.');
-        const result = await operation(session, turn);
-        if (generation !== this.generation) {
-          this.ring = null;
-          throw new Error('Session changed during the operation.');
-        }
-        return result;
-      },
-      options.priority,
-      options,
-    );
+    const release = this.reserveDraft(session.accountId, options.intent);
+    try {
+      return await this.authorityWork.hold(
+        session.accountId,
+        async (turn) => {
+          release();
+          if (generation !== this.generation)
+            throw new Error('Session changed before the operation.');
+          const result = await operation(session, turn);
+          if (generation !== this.generation) {
+            this.ring = null;
+            throw new Error('Session changed during the operation.');
+          }
+          return result;
+        },
+        options.intent === 'outgoing-draft' ? 'interactive' : options.priority,
+        options,
+      );
+    } finally {
+      release();
+    }
   }
   /** A follower inside the same native turn reuses the directory its leader
    * read under one second ago. Every request still carries the signed
@@ -588,6 +594,19 @@ export class DeviceController {
       this.finishLocalAuthority(locator.accountId, acquired, trace);
       trace?.finish(ok);
     }
+  }
+  private reserveDraft(
+    account: string,
+    intent: VaultWorkOptions['intent'],
+  ): () => void {
+    if (intent !== 'outgoing-draft') return () => {};
+    this.trackLocalSave(account, 1);
+    let waiting = true;
+    return () => {
+      if (!waiting) return;
+      waiting = false;
+      this.trackLocalSave(account, -1);
+    };
   }
   private trackLocalSave(account: string, change: 1 | -1): void {
     const count = (this.waitingLocalSaves.get(account) ?? 0) + change;

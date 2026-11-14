@@ -7,7 +7,7 @@ import type {
 export type ObserveTextQueue = (
   id: string,
   value: TextQueueObservation,
-) => void;
+) => 'retired' | void;
 const limit = 32;
 
 /** Observes only durable drafts waiting for a queue admission. The queue's
@@ -34,21 +34,24 @@ export class TextQueueTrace {
       if (prior === value.gate) continue;
       this.waiting.set(id, value.gate);
       this.emit(id, { ...value, phase: 'requested' });
-      this.emit(id, value);
+      if (this.emit(id, value) === 'retired') this.waiting.delete(id);
     }
   }
   flush(value: TextQueueObservation): readonly string[] {
     const ids = [...this.waiting.keys()];
     this.waiting.clear();
-    this.mark(ids, value);
-    return ids;
+    return this.mark(ids, value);
   }
   restore(ids: readonly string[]): void {
     for (const id of ids)
       if (this.waiting.size < limit) this.waiting.set(id, undefined);
   }
-  mark(ids: readonly string[], value: TextQueueObservation): void {
-    for (const id of ids) this.emit(id, value);
+  mark(ids: readonly string[], value: TextQueueObservation): readonly string[] {
+    return ids.filter((id) => {
+      if (this.emit(id, value) !== 'retired') return true;
+      this.waiting.delete(id);
+      return false;
+    });
   }
   reset(generation: number, trigger: QueueWakeup): void {
     this.mark([...this.waiting.keys()], {

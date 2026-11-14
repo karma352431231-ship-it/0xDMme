@@ -36,6 +36,8 @@ export interface VaultAccess {
 }
 export interface VaultWorkOptions extends AuthorityDiagnosticContext {
   priority?: 'interactive';
+  /** Durable outgoing staging waits at a native turn boundary, like a local save. */
+  intent?: 'outgoing-draft';
 }
 export interface VaultLocator {
   accountId: string;

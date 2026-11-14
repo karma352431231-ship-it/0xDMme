@@ -157,7 +157,7 @@ await test('operation failure and session replacement release all admission gate
         executed = true;
         return Promise.resolve();
       },
-      { priority: 'interactive' },
+      { priority: 'interactive', intent: 'outgoing-draft' },
     ),
     /Session changed/,
   );
@@ -452,5 +452,122 @@ await test('a local save already waiting on the native storage lock runs before 
   release.resolve();
   await Promise.all(jobs);
   assert.deepEqual(order, ['receipt', 'durable-save', 'next-authority']);
+  await released(account);
+});
+
+await test('outgoing group draft intent overtakes queued optional authority and releases its turn before a direct local waiter', async (t) => {
+  const account = crypto.randomUUID(),
+    owner = controller(account);
+  const entered = deferred<void>(),
+    release = deferred<void>(),
+    draftEntered = deferred<void>(),
+    draftRelease = deferred<void>();
+  const order: string[] = [];
+  const jobs: Promise<unknown>[] = [];
+  t.after(async () => {
+    release.resolve();
+    draftRelease.resolve();
+    await Promise.allSettled(jobs);
+  });
+  jobs.push(
+    owner.run(async () => {
+      order.push('receipt');
+      entered.resolve();
+      await release.promise;
+    }),
+  );
+  await waitForBoundary(entered.promise);
+  jobs.push(
+    owner.run(() => {
+      order.push('previews');
+      return Promise.resolve();
+    }),
+  );
+  jobs.push(
+    owner.run(
+      async () => {
+        order.push('group-draft');
+        draftEntered.resolve();
+        await draftRelease.promise;
+      },
+      { intent: 'outgoing-draft', diagnosticOperation: 'group-draft' },
+    ),
+  );
+  release.resolve();
+  await waitForBoundary(draftEntered.promise);
+  // Local authorization is intentionally unavailable in this fixture. Its
+  // guarded native acquisition must nevertheless precede the optional work.
+  const direct = owner
+    .withLocalVault({ accountId: account, deviceId: crypto.randomUUID() }, () =>
+      Promise.resolve(),
+    )
+    .then(
+      () => assert.fail('No local authorization in this fixture'),
+      () => {
+        order.push('direct-draft');
+      },
+    );
+  jobs.push(direct);
+  await pending(account, 1);
+  draftRelease.resolve();
+  await Promise.all(jobs);
+  assert.deepEqual(order, [
+    'receipt',
+    'group-draft',
+    'direct-draft',
+    'previews',
+  ]);
+  await released(account);
+});
+
+await test('expired outgoing-draft reservation is removed before authority followers resume', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const account = crypto.randomUUID(),
+    owner = controller(account);
+  const entered = deferred<void>(),
+    release = deferred<void>();
+  const first = owner.run(async () => {
+    entered.resolve();
+    await release.promise;
+  });
+  t.after(() => release.resolve());
+  await waitForBoundary(entered.promise);
+  let ran = false;
+  const draft = owner.run(
+    () => {
+      ran = true;
+      return Promise.resolve();
+    },
+    { intent: 'outgoing-draft' },
+  );
+  const failed = assert.rejects(draft, { name: 'TimeoutError' });
+  t.mock.timers.tick(8000);
+  await failed;
+  release.resolve();
+  await first;
+  assert.equal(ran, false);
+  await released(account);
+  const hold = deferred<void>(),
+    nextEntered = deferred<void>();
+  const next = owner.run(
+    async () => {
+      nextEntered.resolve();
+      await hold.promise;
+    },
+    { priority: 'interactive' },
+  );
+  t.after(() => hold.resolve());
+  await waitForBoundary(nextEntered.promise);
+  const follower = owner.run(
+    (_session, turn) => Promise.resolve(turn.follower),
+    { priority: 'interactive' },
+  );
+  hold.resolve();
+  assert.equal(
+    await follower,
+    true,
+    'An expired reservation must not suppress a later follower',
+  );
+  await next;
   await released(account);
 });

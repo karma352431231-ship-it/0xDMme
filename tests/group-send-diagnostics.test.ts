@@ -499,3 +499,62 @@ await test('capture that misses durable queue entry does not invent the start of
   assert.equal(trace.durableReadyMs, null);
   assert.equal(trace.blockedMs, 0);
 });
+
+await test('dispatch keeps its executing batch, retires later accepted queue events and preserves an unaccepted retry', async (t) => {
+  const { traceOutboxDispatch, traceTextQueue } =
+    await import('../src/client/chat-sync-diagnostics/index.ts');
+  const f = privateSendCapture(t),
+    send = f.send('retry-membership', 'group');
+  const first = privateSendBatch();
+  linkPrivateBatch(first, [send.id]);
+  f.at(10);
+  traceTextQueue(send.id, {
+    phase: 'durable',
+    trigger: 'save-complete',
+    generation: 1,
+  });
+  f.at(20);
+  traceOutboxDispatch(send.id, first ? { ...first, attempt: 1 } : undefined);
+  f.at(30);
+  traceSend('server-publish', send.id, {
+    sendPhase: 'end',
+    sendSuccess: false,
+    sendMs: 10,
+  });
+  f.at(40);
+  traceTextQueue(send.id, {
+    phase: 'flush',
+    trigger: 'retry',
+    generation: 1,
+    batch: 2,
+  });
+  const second = privateSendBatch();
+  linkPrivateBatch(second, [send.id]);
+  f.at(50);
+  traceOutboxDispatch(send.id, second ? { ...second, attempt: 1 } : undefined);
+  f.at(60);
+  send.accepted();
+  f.at(70);
+  assert.equal(
+    traceTextQueue(send.id, {
+      phase: 'flush',
+      trigger: 'save-complete',
+      generation: 1,
+      batch: 3,
+    }),
+    'retired',
+  );
+  const report =
+    f.recording.report().comparison.privateLatency.sends[0]!.textQueue;
+  assert.equal(report.firstFlushMs, null);
+  assert.equal(report.admission, 'joined-existing-batch');
+  assert.deepEqual(
+    report.dispatches.map((p) => p.ms),
+    [20, 50],
+  );
+  assert.deepEqual(
+    report.retryPoints.map((p) => p.ms),
+    [40],
+  );
+  assert.equal(report.retryPoints[0]!.batch, 2);
+});

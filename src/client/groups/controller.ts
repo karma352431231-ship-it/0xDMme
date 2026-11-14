@@ -131,6 +131,11 @@ interface GroupPrefetch {
   listed: boolean;
   complete: boolean;
 }
+interface GroupSendOptions {
+  progress?: GroupSendProgress | undefined;
+  diagnostic?: PrivateSendContext | undefined;
+  priority?: 'interactive';
+}
 export class GroupController {
   private readonly directoryLoading = loadingPresentation('group-directory');
   private directoryProfiles: readonly string[] | null = null;
@@ -334,7 +339,7 @@ export class GroupController {
   }
   private async withLocalAuthority<T>(
     work: (authority: VaultAuthority) => Promise<T>,
-    diagnostic?: PrivateSendContext,
+    options: VaultWorkOptions = {},
   ): Promise<T> {
     const generation = this.generation;
     if (!this.session) throw new Error('Sign in and authorize this device.');
@@ -348,7 +353,7 @@ export class GroupController {
         this.guard(generation);
         return result;
       },
-      { privateSend: diagnostic },
+      options,
     );
   }
   async search(query: string, after: string | null) {
@@ -1271,7 +1276,11 @@ export class GroupController {
           id: draft.id,
           order: draft.order,
         }),
-      privateSendContext(draft.id),
+      {
+        intent: 'outgoing-draft',
+        diagnosticOperation: 'group-draft',
+        privateSend: privateSendContext(draft.id),
+      },
     );
   }
   async composeFor(
@@ -1403,50 +1412,57 @@ export class GroupController {
     createdAt: number;
   }) {
     const diagnostic = privateSendContext(input.id);
-    return this.withLocalAuthority(async (authority) => {
-      if (input.viewOnce) {
-        const ids = await composeGroupOnce({
-          authority,
-          diagnostic,
-          groupId: input.peer,
-          ...input,
-        });
-        return ids.map((id) => ({
-          id,
-          peer: input.peer,
-          createdAt: input.createdAt,
-          content: null,
-        }));
-      }
-      const cache = new GroupCache(authority, input.peer, diagnostic),
-        old = await cache.get(`outbox:${input.id}`);
-      if (!old)
-        await composeGroup({
-          authority,
-          diagnostic,
-          groupId: input.peer,
-          id: input.id,
-          contentFormat: 'daily',
-          text: encodeGroupText({
-            text: input.text,
-            reply: input.reply,
-            forwarded: false,
-          }),
-          selection: input.selection,
-          order: input.createdAt * 1000,
-        });
-      const draft = object(await cache.get(`outbox:${input.id}`));
-      return [
-        {
-          id: input.id,
-          peer: input.peer,
-          createdAt: input.createdAt,
-          content: attachmentContent(
-            JSON.parse(String(draft['text'])) as unknown,
-          ),
-        },
-      ];
-    }, diagnostic);
+    return this.withLocalAuthority(
+      async (authority) => {
+        if (input.viewOnce) {
+          const ids = await composeGroupOnce({
+            authority,
+            diagnostic,
+            groupId: input.peer,
+            ...input,
+          });
+          return ids.map((id) => ({
+            id,
+            peer: input.peer,
+            createdAt: input.createdAt,
+            content: null,
+          }));
+        }
+        const cache = new GroupCache(authority, input.peer, diagnostic),
+          old = await cache.get(`outbox:${input.id}`);
+        if (!old)
+          await composeGroup({
+            authority,
+            diagnostic,
+            groupId: input.peer,
+            id: input.id,
+            contentFormat: 'daily',
+            text: encodeGroupText({
+              text: input.text,
+              reply: input.reply,
+              forwarded: false,
+            }),
+            selection: input.selection,
+            order: input.createdAt * 1000,
+          });
+        const draft = object(await cache.get(`outbox:${input.id}`));
+        return [
+          {
+            id: input.id,
+            peer: input.peer,
+            createdAt: input.createdAt,
+            content: attachmentContent(
+              JSON.parse(String(draft['text'])) as unknown,
+            ),
+          },
+        ];
+      },
+      {
+        intent: 'outgoing-draft',
+        diagnosticOperation: 'group-draft',
+        privateSend: diagnostic,
+      },
+    );
   }
   async openViewOnce(
     view: GroupView,
@@ -1603,7 +1619,7 @@ export class GroupController {
     const selected = this.selected;
     if (!selected) return;
     this.retry.reset(selected.state.groupId);
-    await this.sendSelectedPending(selected);
+    await this.sendSelectedPending(selected, { priority: 'interactive' });
   }
   /** Sends one group's drafts whether or not it is still the open group. */
   async sendGroupDrafts(
@@ -1617,7 +1633,11 @@ export class GroupController {
         : this.entries.find((entry) => entry.state.groupId === groupId);
     if (!group || group.localOnly) return;
     this.retry.reset(groupId);
-    await this.sendSelectedPending(group, progress, diagnostic);
+    await this.sendSelectedPending(group, {
+      progress,
+      diagnostic,
+      priority: 'interactive',
+    });
   }
   async pendingWork(): Promise<boolean> {
     const selected = this.selected;
@@ -1645,34 +1665,34 @@ export class GroupController {
    * identities, group verification, participant directories and devices. */
   private async sendSelectedPending(
     selected: GroupSummary,
-    progress?: GroupSendProgress,
-    diagnostic?: PrivateSendContext,
+    options: GroupSendOptions = {},
   ): Promise<void> {
-    const batch = diagnostic ?? privateSendBatch();
+    const batch = options.diagnostic ?? privateSendBatch();
     try {
-      await this.sendPreparedPending(
-        selected,
-        progress,
-        batch ? { ...batch, attempt: 1 } : undefined,
-      );
+      await this.sendPreparedPending(selected, {
+        ...options,
+        diagnostic: batch ? { ...batch, attempt: 1 } : undefined,
+      });
     } catch (error: unknown) {
       if (!staleGroupSend(error)) throw error;
-      await this.sendPreparedPending(
-        selected,
-        progress,
-        batch ? { ...batch, attempt: 2 } : undefined,
-      );
+      await this.sendPreparedPending(selected, {
+        ...options,
+        diagnostic: batch ? { ...batch, attempt: 2 } : undefined,
+      });
     }
   }
   private async sendPreparedPending(
     selected: GroupSummary,
-    progress?: GroupSendProgress,
-    diagnostic?: PrivateSendContext,
+    options: GroupSendOptions,
   ): Promise<void> {
+    const { progress, diagnostic, priority } = options;
+    const work: VaultWorkOptions = {
+      privateSend: diagnostic,
+      ...(priority ? { priority } : {}),
+      diagnosticOperation: 'group-send',
+    };
     await measurePrivateSend(diagnostic, 'pins-load', () =>
-      measureWork(this, 'group/identities', () =>
-        this.identities.load({ privateSend: diagnostic }),
-      ),
+      measureWork(this, 'group/identities', () => this.identities.load(work)),
     );
     await this.withAuthority(
       async (c) => {
@@ -1692,10 +1712,10 @@ export class GroupController {
         );
       },
       undefined,
-      { privateSend: diagnostic },
+      work,
     );
     await measurePrivateSend(diagnostic, 'pins-save', () =>
-      this.identities.save(undefined, { privateSend: diagnostic }),
+      this.identities.save(undefined, work),
     );
   }
   async pending(): Promise<{ id: string; text: string }[]> {

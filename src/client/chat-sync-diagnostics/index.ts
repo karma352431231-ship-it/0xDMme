@@ -363,6 +363,8 @@ export function traceSend(
   > = {},
 ): void {
   if (!chatSyncActive()) return;
+  if (id && fields.sendPhase === 'end' && fields.sendSuccess === false)
+    privateSends?.retryMessage(id);
   const linkage = privateSendFields(stage, id);
   const message = id === undefined ? undefined : sendMessage(id, stage);
   if (message === null) return;
@@ -386,7 +388,7 @@ function privateSendFields(
   if (stage === 'flush-ready') privateSends.ready(id);
   if (stage === 'outbox-dispatch') privateSends.dispatch(id);
   if (stage === 'accepted') privateSends.accept(id);
-  return privateSends.fields(privateSends.context(id));
+  return privateSends.fields(privateSends.stageContext(id));
 }
 function sendMessage(id: string, stage: SendStage): number | null {
   let send = sends.get(id);
@@ -767,16 +769,19 @@ export function tracePrivateTextQueue(
   if (chatSyncActive()) privateSends?.queue(id, stage);
 }
 
-export function traceTextQueue(id: string, entry: TextQueueObservation): void {
-  const context = privateSendContext(id);
-  if (!context) return;
-  privateSendPoint(context, 'text-queue', {
-    queuePhase: entry.phase,
-    queueTrigger: entry.trigger,
-    queueGeneration: entry.generation,
-    ...(entry.batch === undefined ? {} : { queueBatch: entry.batch }),
-    ...(entry.gate ? { queueGate: entry.gate } : {}),
-  });
+export function traceTextQueue(
+  id: string,
+  entry: TextQueueObservation,
+): 'retired' | undefined {
+  if (chatSyncActive()) return privateSends?.queueObservation(id, entry);
+}
+export function traceOutboxDispatch(
+  id: string,
+  batch: PrivateSendContext | undefined,
+): void {
+  if (!chatSyncActive()) return;
+  privateSends?.assignExecution(id, batch);
+  traceSend('outbox-dispatch', id);
 }
 
 /** The inbox owns this turn's lifecycle; the capture only numbers its capability. */

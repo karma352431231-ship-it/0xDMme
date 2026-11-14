@@ -11,7 +11,7 @@ export interface PrivateSendContext {
   readonly receipt?: number;
   readonly receiptAttempt?: number;
 }
-export const privateSendRevision = 4;
+export const privateSendRevision = 5;
 export const retainedSendLimit = 32;
 export const sendMaintenanceKinds = [
   'background',

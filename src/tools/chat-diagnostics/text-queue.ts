@@ -40,6 +40,21 @@ const limit = 48;
 export class TextQueueObservations {
   private readonly points: QueuePoint[] = [];
   private dropped = 0;
+  private readonly dispatches: {
+    batch: number | null;
+    attempt: number | null;
+    ms: number;
+  }[] = [];
+  private droppedDispatches = 0;
+  dispatched(ms: number, batch: number | null, attempt: number | null): void {
+    if (this.dispatches.some((p) => p.batch === batch && p.attempt === attempt))
+      return;
+    if (this.dispatches.length >= 8) {
+      this.droppedDispatches++;
+      return;
+    }
+    this.dispatches.push({ batch, attempt, ms });
+  }
   observe(event: TraceEvent, ms: number): void {
     const entry = point(event, ms);
     if (!entry) return;
@@ -47,12 +62,15 @@ export class TextQueueObservations {
     else this.points.push(entry);
   }
   report(bounds: QueueBounds) {
-    const times = queueTimes(this.points, bounds);
+    const points = admissionPoints(this.points, bounds);
+    const times = queueTimes(points, bounds);
     const range =
       times.start === null || times.end === null
         ? null
         : { startMs: times.start, endMs: times.end };
-    const intervals = range ? queueIntervals(this.points, range) : [];
+    const intervals = range
+      ? queueIntervals(closedAtDispatch(points, bounds), range)
+      : [];
     const blocked = intervals.filter((p) => blockingGate(p.gate));
     const available = intervals.filter((p) => p.gate === 'available');
     const known = [...blocked, ...available];
@@ -61,7 +79,13 @@ export class TextQueueObservations {
       emitterTruncated: this.points.some((p) => p.phase === 'truncated'),
       limit,
       dropped: this.dropped,
-      points: this.points.map((p) => ({ ...p })),
+      points: points.map((p) => ({ ...p })),
+      retryPoints: retryPoints(this.points, bounds).map((p) => ({ ...p })),
+      executingBatch: bounds.executing ?? null,
+      dispatches: this.dispatches.map((p) => ({ ...p })),
+      droppedDispatches: this.droppedDispatches,
+      joinMs: bounds.dispatch,
+      admission: admissionKind(times, bounds),
       ...boundaryReport(times, bounds),
       blocked,
       blockedMs: duration(blocked),
@@ -77,18 +101,25 @@ interface QueueBounds {
   dispatch: number | null;
   accepted: number | null;
   captureEnd: number | null;
+  executing?: {
+    batch: number;
+    attempt: number | null;
+    startMs: number | null;
+  } | null;
 }
 function queueTimes(points: readonly QueuePoint[], bounds: QueueBounds) {
   const at = (phase: QueuePoint['phase']) =>
     points.find((p) => p.phase === phase)?.ms ?? null;
   const cancelled = at('cancelled');
-  const end = bounds.dispatch ?? bounds.accepted ?? bounds.captureEnd;
+  const terminal = bounds.dispatch ?? bounds.accepted ?? bounds.captureEnd;
+  const flush = at('flush');
+  const end = flush ?? terminal;
   return {
     start: at('durable') ?? bounds.durable,
     end: cancelled === null ? end : Math.min(cancelled, end ?? cancelled),
     cancelled,
     firstDecision: at('decision'),
-    firstFlush: at('flush'),
+    firstFlush: flush,
   };
 }
 function boundaryReport(
@@ -100,6 +131,7 @@ function boundaryReport(
     firstDecisionMs: times.firstDecision,
     firstFlushMs: times.firstFlush,
     dispatchMs: bounds.dispatch,
+    preparationAfterFlushMs: difference(bounds.dispatch, times.firstFlush),
     dispatchToAcceptanceMs: difference(bounds.accepted, bounds.dispatch),
     durableToDecisionMs: difference(times.firstDecision, times.start),
     missingDispatch: bounds.dispatch === null,
@@ -108,7 +140,10 @@ function boundaryReport(
       bounds.dispatch === null &&
       times.cancelled === null &&
       bounds.captureEnd !== null,
-    endBasis: endBasis(bounds, times.cancelled),
+    endBasis:
+      times.firstFlush === null
+        ? endBasis(bounds, times.cancelled)
+        : 'queue-flush',
   };
 }
 function difference(end: number | null, start: number | null): number | null {
@@ -140,5 +175,48 @@ function gateInterval(
   const gate = entry.gate;
   return clip([{ startMs: entry.ms, endMs: next.ms }], range).map(
     (interval) => ({ ...interval, gate, batch: entry.batch ?? null }),
+  );
+}
+
+function admissionPoints(
+  points: readonly QueuePoint[],
+  bounds: QueueBounds,
+): readonly QueuePoint[] {
+  const end = bounds.dispatch ?? bounds.accepted;
+  return end === null ? points : points.filter((p) => p.ms <= end);
+}
+function closedAtDispatch(
+  points: readonly QueuePoint[],
+  bounds: QueueBounds,
+): readonly QueuePoint[] {
+  if (bounds.dispatch === null) return points;
+  return [
+    ...points,
+    {
+      ms: bounds.dispatch,
+      phase: 'admitted',
+      generation: 0,
+      trigger: 'status',
+    },
+  ];
+}
+function admissionKind(
+  times: ReturnType<typeof queueTimes>,
+  bounds: QueueBounds,
+): string {
+  if (times.firstFlush !== null) return 'own-flush';
+  if (bounds.dispatch === null) return 'not-observed';
+  return bounds.executing ? 'joined-existing-batch' : 'no-own-flush-observed';
+}
+
+function retryPoints(
+  points: readonly QueuePoint[],
+  bounds: QueueBounds,
+): readonly QueuePoint[] {
+  const dispatch = bounds.dispatch,
+    accepted = bounds.accepted;
+  if (dispatch === null) return [];
+  return points.filter(
+    (p) => p.ms > dispatch && (accepted === null || p.ms <= accepted),
   );
 }

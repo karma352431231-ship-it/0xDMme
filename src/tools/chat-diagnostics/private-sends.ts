@@ -15,6 +15,8 @@ import { union, clip, subtract, duration } from './send-intervals.ts';
 import type { Interval } from './send-intervals.ts';
 
 interface Point {
+  executionBatch?: number;
+  executionAttempt?: number;
   groupMessage?: number;
   receipt?: number;
   attempt?: number;
@@ -155,11 +157,25 @@ export class PrivateSendBreakdowns {
       return;
     }
     if (event['sendPhase'] === 'point') {
-      if (send) this.point(send, stage, event);
-      else if (batch !== null) this.batchPoint(batch, stage, event);
+      this.recordPoint(stage, event, send);
       return;
     }
     if (send || batch !== null) this.operation(stage, event);
+  }
+  private recordPoint(
+    stage: SendStage,
+    event: TraceEvent,
+    send: Send | undefined,
+  ): void {
+    const batch = number(event['privateBatch']);
+    if (stage === 'outbox-dispatch')
+      send?.textQueue.dispatched(
+        this.at(event),
+        batch,
+        number(event['privateAttempt']),
+      );
+    if (send) this.point(send, stage, event);
+    else if (batch !== null) this.batchPoint(batch, stage, event);
   }
   private batchMember(event: TraceEvent): void {
     const batch = number(event['privateBatch']),
@@ -249,6 +265,7 @@ export class PrivateSendBreakdowns {
     const result = outcome(event['sendOutcome']);
     points.push({
       ...pointMessageSlot(event),
+      ...executionPoint(stage, event),
       stage,
       ...receiptField,
       ms: this.at(event),
@@ -399,7 +416,7 @@ export class PrivateSendBreakdowns {
       available: this.revision >= 3 && this.revision <= privateSendRevision,
       revision: this.revision,
       expectedRevision: privateSendRevision,
-      textQueueRevision: this.revision >= 4 ? 1 : null,
+      textQueueRevision: this.revision >= 5 ? 2 : this.revision >= 4 ? 1 : null,
       receipts: receiptReport,
       scopeCounts: scopeCounts(sends, this.observed, this.omitted),
       limits: {
@@ -438,6 +455,7 @@ export class PrivateSendBreakdowns {
       })),
       batches: [...this.batches.values()].map((b) => ({
         slot: b.slot,
+        startMs: this.batchStart(b.slot),
         members: [...b.members],
         attempts: [...b.attempts].map(([slot, members]) => ({
           slot,
@@ -612,12 +630,31 @@ export class PrivateSendBreakdowns {
     );
   }
   private queueReport(send: Send) {
+    const dispatch = send.points.find((p) => p.stage === 'outbox-dispatch');
+    const batch = dispatch?.executionBatch ?? null;
     return send.textQueue.report({
       durable: firstPoint(send, 'flush-ready'),
-      dispatch: firstPoint(send, 'outbox-dispatch'),
+      dispatch: dispatch?.ms ?? null,
       accepted: firstPoint(send, 'accepted'),
       captureEnd: this.captureEnd,
+      executing:
+        batch === null
+          ? null
+          : {
+              batch,
+              attempt: dispatch?.executionAttempt ?? null,
+              startMs: this.batchStart(batch),
+            },
     });
+  }
+  private batchStart(batch: number): number | null {
+    const starts = [
+      ...(this.batchPoints.get(batch) ?? []).map((p) => p.ms),
+      ...this.operations
+        .filter((op) => op.batch === batch && op.startMs !== null)
+        .map((op) => op.startMs!),
+    ];
+    return starts.length ? Math.min(...starts) : null;
   }
   private window(
     send: Send,
@@ -981,4 +1018,17 @@ function messageExecution(
     .filter((op) => op.message === slot && !op.wait)
     .flatMap((op) => interval(op.startMs, op.endMs ?? end));
   return execution.flatMap((span) => clip(linked, span));
+}
+
+function executionPoint(
+  stage: SendStage,
+  event: TraceEvent,
+): Pick<Point, 'executionBatch' | 'executionAttempt'> {
+  if (stage !== 'outbox-dispatch') return {};
+  const batch = number(event['privateBatch']),
+    attempt = number(event['privateAttempt']);
+  return {
+    ...(batch === null ? {} : { executionBatch: batch }),
+    ...(attempt === null ? {} : { executionAttempt: attempt }),
+  };
 }

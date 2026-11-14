@@ -148,7 +148,8 @@ await test('old app coverage is explicit and forged event fields never enter the
     }),
   );
   assert.equal(f.recording.report().events.at(-1)?.['busy'], true);
-  assert.ok(!JSON.stringify(f.recording.report()).includes('private-'));
+  for (const value of ['private-id', 'private-text'])
+    assert.ok(!JSON.stringify(f.recording.report()).includes(value));
   const length = f.recording.report().events.length;
   f.host.dispatchEvent(
     new CustomEvent(chatSyncEvent, {

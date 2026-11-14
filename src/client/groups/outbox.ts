@@ -5,6 +5,7 @@ import {
   privateSendSpan,
   linkPrivateBatch,
   traceSend,
+  traceOutboxDispatch,
   resumeGroupSendDiagnostic,
 } from '../chat-sync-diagnostics/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
@@ -183,7 +184,7 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
   try {
     for (const [index, draft] of drafts.entries()) {
       waits[index]?.();
-      traceSend('outbox-dispatch', draft.value.id);
+      traceOutboxDispatch(draft.value.id, c.diagnostic);
       const message = privateSendContext(draft.value.id);
       const diagnostic = message
         ? { ...c.diagnostic, ...message }
