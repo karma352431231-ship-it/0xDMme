@@ -249,6 +249,7 @@ export class MessageStore {
       throw new AccountError(
         409,
         'Devices changed during sending. Encrypt again.',
+        'stale-send-material',
       );
     return [directoryEvent(sender.event), directoryEvent(recipient.event)];
   }
@@ -274,6 +275,7 @@ export class MessageStore {
         throw new AccountError(
           409,
           'Recoverable preservation not prepared for the current epoch.',
+          'stale-send-material',
         );
     }
   }

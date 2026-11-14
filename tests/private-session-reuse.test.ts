@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
+import { FreshSendRequired } from '../src/client/send-material/index.ts';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { initAsync, OlmMachine } from '@matrix-org/matrix-sdk-crypto-wasm';
-import type { RoomId } from '@matrix-org/matrix-sdk-crypto-wasm';
+import type {
+  RoomId,
+  UserId,
+  EncryptionSettings,
+} from '@matrix-org/matrix-sdk-crypto-wasm';
 import {
   MessageCrypto,
   PrivateAudiences,
 } from '../src/client/message-crypto/index.ts';
-import { createRecoveryKey } from '../src/client/message-recovery/index.ts';
+import {
+  createRecoveryKey,
+  openRecoveryKey,
+  openRoomKey,
+} from '../src/client/message-recovery/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
 import { messageTransport } from './fixtures/message-transport.ts';
 
@@ -111,4 +120,129 @@ await test('remembered audiences match only their identity, room and audience, a
   for (let n = 0; n <= 1024; n++) audiences.remember('identity', `r${n}`, 'a');
   assert.equal(audiences.matches('identity', 'r0', 'a'), false, 'bounded');
   assert.equal(audiences.matches('identity', 'r1024', 'a'), true);
+});
+
+await test('a device registered after Matrix trust decrypts the reuse-path packet through recovery', async (t) => {
+  const own = await groupParticipant(),
+    peer = await groupParticipant(),
+    server = messageTransport();
+  const sharedTo: string[] = [];
+  const sender = await MessageCrypto.create({
+    accountId: own.accountId,
+    deviceId: own.deviceId,
+    store: null,
+    audiences: new PrivateAudiences(),
+    transport: (operation, payload) => {
+      if (operation === 'matrix-send') sharedTo.push(JSON.stringify(payload));
+      return server.transport(operation, payload);
+    },
+  });
+  t.after(() => sender.close());
+  const recovery = await Promise.all(
+    [own, peer].map((p) => createRecoveryKey(p.authority)),
+  );
+  const encrypt = (reused = false) =>
+    sender.encrypt({
+      authority: own.authority,
+      peerHistory: [peer.directory],
+      recovery,
+      id: crypto.randomUUID(),
+      text: 'Synthetic late registration',
+      reused,
+    });
+  await encrypt();
+  const reader = await MessageCrypto.create({
+    accountId: peer.accountId,
+    deviceId: peer.deviceId,
+    store: null,
+    transport: server.transport,
+  });
+  t.after(() => reader.close());
+  await reader.prepare(peer.authority);
+  const before = server.queries.length;
+  const packet = await encrypt(true);
+  assert.equal(server.queries.length, before);
+  assert.ok(sharedTo.every((value) => !value.includes(peer.deviceId)));
+  const archive = packet.archives.find((a) => a.accountId === peer.accountId);
+  assert.ok(archive);
+  const secret = await openRecoveryKey(recovery[1]!, peer.authority);
+  try {
+    assert.equal(
+      await reader.decrypt({
+        packet,
+        senderEvent: own.directory,
+        exported: openRoomKey(secret, archive),
+      }),
+      'Synthetic late registration',
+    );
+  } finally {
+    secret.free();
+  }
+});
+
+await test('SDK rotation on a reuse path stops before any room key reaches transport', async (t) => {
+  const original = Object.getOwnPropertyDescriptor(
+    OlmMachine.prototype,
+    'shareRoomKey',
+  )?.value as OlmMachine['shareRoomKey'];
+  t.mock.method(
+    OlmMachine.prototype,
+    'shareRoomKey',
+    function (
+      this: OlmMachine,
+      room: RoomId,
+      users: UserId[],
+      settings: EncryptionSettings,
+    ) {
+      settings.rotationPeriodMessages = 1n;
+      return original.call(this, room, users, settings);
+    },
+  );
+  const own = await groupParticipant(),
+    peer = await groupParticipant(),
+    server = messageTransport();
+  const operations: string[] = [];
+  const reader = await MessageCrypto.create({
+    accountId: peer.accountId,
+    deviceId: peer.deviceId,
+    store: null,
+    transport: server.transport,
+  });
+  t.after(() => reader.close());
+  await reader.prepare(peer.authority);
+  const sender = await MessageCrypto.create({
+    accountId: own.accountId,
+    deviceId: own.deviceId,
+    store: null,
+    audiences: new PrivateAudiences(),
+    transport: (op, payload) => {
+      operations.push(op);
+      return server.transport(op, payload);
+    },
+  });
+  t.after(() => sender.close());
+  const recovery = await Promise.all(
+    [own, peer].map((p) => createRecoveryKey(p.authority)),
+  );
+  const input = {
+    authority: own.authority,
+    peerHistory: [peer.directory],
+    recovery,
+    id: crypto.randomUUID(),
+    text: 'Synthetic rotation',
+  };
+  await sender.encrypt(input);
+  const before = operations.length;
+  const id = crypto.randomUUID();
+  await assert.rejects(
+    sender.encrypt({ ...input, id, reused: true }),
+    FreshSendRequired,
+  );
+  assert.deepEqual(operations.slice(before), []);
+  await sender.encrypt({ ...input, id });
+  const refreshed = operations.slice(before);
+  assert.ok(refreshed.includes('matrix-query'));
+  assert.ok(
+    refreshed.indexOf('matrix-query') < refreshed.indexOf('matrix-send'),
+  );
 });

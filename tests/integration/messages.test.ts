@@ -271,6 +271,7 @@ await test('recipient revocation after verified directory and key claims blocks 
   const rejected = assert.rejects(pending, {
     status: 403,
     message: 'Recipient device revoked.',
+    code: 'stale-send-material',
   });
   void rejected.catch(() => undefined);
   try {

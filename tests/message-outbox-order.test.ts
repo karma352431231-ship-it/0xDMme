@@ -219,6 +219,9 @@ await test('private text admission seals locally without online authority and ca
       preparation: () =>
         Promise.reject(new Error('No peer reads during admission.')),
       encryption: () => Promise.reject(new Error('No SDK during admission.')),
+      encrypted: () =>
+        Promise.reject(new Error('No encryption during admission.')),
+      invalidate: () => assert.fail('No transmission during admission.'),
     },
     published: () => assert.fail('Admission cannot publish.'),
   });

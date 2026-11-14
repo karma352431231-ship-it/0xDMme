@@ -111,6 +111,7 @@ async function fixture(t: TestContext, count = 16, pinned = false) {
     TextEncoder,
     TextDecoder,
     Uint8Array,
+    structuredClone,
     AbortSignal,
     DOMException,
     atob,

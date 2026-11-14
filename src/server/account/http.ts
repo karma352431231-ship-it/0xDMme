@@ -332,7 +332,10 @@ export function createAccountHandler(options: {
       await get(request, response);
     } catch (error: unknown) {
       if (error instanceof AccountError) {
-        sendAccountJson(response, error.status, { error: error.message });
+        sendAccountJson(response, error.status, {
+          error: error.message,
+          ...(error.code ? { code: error.code } : {}),
+        });
         return;
       }
       sendAccountJson(response, 503, {

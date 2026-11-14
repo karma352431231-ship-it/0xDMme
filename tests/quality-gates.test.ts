@@ -73,6 +73,15 @@ const architectureCases: ReadonlyArray<{
   entries?: string[];
 }> = [
   {
+    name: 'verified send material cannot acquire persistence operations',
+    files: {
+      'src/client/send-material/index.ts':
+        "export { save } from '../message-storage/index.ts';\n",
+      'src/client/message-storage/index.ts': 'export const save = () => {};\n',
+    },
+    diagnostic: /send-material-cannot-acquire-io-or-domain-owners/u,
+  },
+  {
     name: 'inline editors cannot import message or vault operations',
     files: {
       'src/client/message-inline-editor/index.ts':

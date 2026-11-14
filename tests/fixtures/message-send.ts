@@ -1,3 +1,4 @@
+import type { PrivateAudiences } from '../../src/client/message-crypto/index.ts';
 import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
@@ -131,6 +132,8 @@ export async function sendFixture() {
     expectedPriority: 'interactive' as 'interactive' | undefined,
     losePublishResponse: false,
     combinedPreparation: true,
+    retainMachine: false,
+    stalePublishCount: 0,
     preparationOffsets: [] as number[],
     failPublish: false,
     closedMachines: 0,
@@ -174,6 +177,8 @@ export async function sendFixture() {
       .filter(([name]) => !names || names.includes(name))
       .slice(0, 16)
       .map(([name, value]) => ({ name, value }));
+  let retained: MessageCrypto | null = null;
+  const disposers: (() => void)[] = [];
   const fixture = {
     sdk,
     sealLocal,
@@ -206,25 +211,37 @@ export async function sendFixture() {
     openMessageMachine: async (
       authority: VaultAuthority,
       api: (op: string, payload: Record<string, unknown>) => Promise<unknown>,
+      audiences?: PrivateAudiences,
     ) => {
       state.machineOpens++;
+      if (state.retainMachine && retained) return retained;
       const machine = await MessageCrypto.create({
         accountId: authority.session.accountId,
         deviceId: authority.session.deviceId,
         store: null,
         transport: api,
+        ...(audiences ? { audiences } : {}),
       });
       machines.push(machine);
       const close = machine.close.bind(machine);
+      disposers.push(close);
+      if (state.retainMachine) retained = machine;
       machine.close = () => {
         state.closedMachines++;
-        close();
+        if (!state.retainMachine) close();
       };
       return machine;
     },
   };
   const publish = async (payload: Record<string, unknown>) => {
     state.beforePublish?.();
+    if (state.stalePublishCount > 0) {
+      state.stalePublishCount--;
+      return Response.json(
+        { error: 'Synthetic stale material', code: 'stale-send-material' },
+        { status: 409 },
+      );
+    }
     if (state.failPublish)
       return Response.json(
         { error: 'Synthetic publication failure' },
@@ -235,7 +252,10 @@ export async function sendFixture() {
       packet.recipientDirectory !== (await eventHash(state.peerEvents.at(-1)!))
     )
       return Response.json(
-        { error: 'Devices changed during sending. Encrypt again.' },
+        {
+          error: 'Devices changed during sending. Encrypt again.',
+          code: 'stale-send-material',
+        },
         { status: 409 },
       );
     await verifyPacket(packet, state.authority.events.at(-1)!);
@@ -306,6 +326,7 @@ export async function sendFixture() {
     TextDecoder,
     AbortSignal,
     AbortController,
+    structuredClone,
     URL,
     Response,
     Error,
@@ -349,6 +370,9 @@ export async function sendFixture() {
     records,
     queue,
     pinnedRevision,
-    close: () => machines.forEach((machine) => machine.close()),
+    close: () => {
+      disposers.forEach((dispose) => dispose());
+      reader.close();
+    },
   };
 }

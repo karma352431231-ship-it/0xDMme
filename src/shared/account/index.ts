@@ -9,9 +9,11 @@ export const encryptedProfileLimit = profileLimit + 65_536;
 
 export class AccountError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly code: 'stale-send-material' | undefined;
+  constructor(status: number, message: string, code?: 'stale-send-material') {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 

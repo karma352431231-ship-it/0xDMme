@@ -235,6 +235,7 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
     'receipt-decrypt',
     () => decryptGroupText(c, packet),
   );
+  c.identities.observedPacket(packet.sender, packet.directory);
   if (packet.kind === 'attachment')
     attachmentContent(JSON.parse(text) as unknown);
   if (packet.kind === 'profile') await preserveProfile(c, packet, text);

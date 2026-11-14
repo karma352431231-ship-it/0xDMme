@@ -166,6 +166,7 @@ export class GroupMessageStore {
       throw new AccountError(
         409,
         'Membership changed before acceptance. Refresh and encrypt again.',
+        'stale-send-material',
       );
     if (
       input.packet.kind === 'profile' &&
@@ -215,6 +216,7 @@ export class GroupMessageStore {
       throw new AccountError(
         409,
         'Participant directory or recovery changed. Refresh before resending.',
+        'stale-send-material',
       );
   }
   private async saveBundle(

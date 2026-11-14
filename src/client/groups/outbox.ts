@@ -1,3 +1,6 @@
+import { refreshSendMaterial } from '../send-material/index.ts';
+import { legacyGroupConflict } from './send-preparation.ts';
+import type { PreparedGroupSend } from './send-preparation.ts';
 import {
   measurePrivateSend,
   privateSendContext,
@@ -87,7 +90,7 @@ interface SendContext {
   group: GroupState;
   identities: PeerIdentity;
   api: AttachmentApi;
-  directoryApi?: AttachmentApi;
+  preparation?: PreparedGroupSend;
   machine: MessageCrypto;
   progress?: GroupSendProgress | undefined;
 }
@@ -162,18 +165,20 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
   );
   let directories: ReturnType<typeof readDirectories> | null = null;
   const participants = () =>
-    (directories ??= readDirectories({
-      accounts: c.group.state.members.map((m) => m.accountId),
-      identities: c.identities,
-      load: (requests) =>
-        measurePrivateSend(c.diagnostic, 'group-directories', () =>
-          (c.directoryApi ?? c.api)('group-directory', {
-            groupId: c.group.state.groupId,
-            head: c.group.head,
-            accounts: requests,
-          }),
-        ),
-    }));
+    (directories ??=
+      c.preparation?.directories() ??
+      readDirectories({
+        accounts: c.group.state.members.map((m) => m.accountId),
+        identities: c.identities,
+        load: (requests) =>
+          measurePrivateSend(c.diagnostic, 'group-directories', () =>
+            c.api('group-directory', {
+              groupId: c.group.state.groupId,
+              head: c.group.head,
+              accounts: requests,
+            }),
+          ),
+      }));
   const batch = new GroupSendBatch();
   const waits = drafts.map(({ value }, index) =>
     index === 0
@@ -191,7 +196,7 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
         ? { ...c.diagnostic, ...message }
         : c.diagnostic;
       await measurePrivateSend(diagnostic, 'group-send-entry', () =>
-        sendGroupOne(
+        sendVerifiedGroupOne(
           { ...c, diagnostic, api: groupSendApi(c, diagnostic) },
           {
             cache: new GroupCache(
@@ -213,12 +218,7 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
 /** The server rejected a packet prepared for an older membership, participant
  * directory or recovery key; its draft was cleared for a fresh encryption. */
 export function staleGroupSend(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    error.status === 409
-  );
+  return refreshSendMaterial(error) || legacyGroupConflict(error);
 }
 /** Every draft, so the admission order holds across storage pages. */
 async function outboxDrafts(
@@ -234,6 +234,22 @@ async function outboxDrafts(
     after = result.next;
   }
   return drafts;
+}
+async function sendVerifiedGroupOne(
+  c: SendContext,
+  entry: Parameters<typeof sendGroupOne>[1],
+): Promise<void> {
+  try {
+    await sendGroupOne(c, entry);
+  } catch (error: unknown) {
+    if (
+      c.preparation ? c.preparation.shouldRefresh(error) : staleGroupSend(error)
+    ) {
+      c.preparation?.invalidate();
+      await invalidateGroupDraft(c, entry);
+    }
+    throw error;
+  }
 }
 async function sendGroupOne(
   c: SendContext,
@@ -283,6 +299,7 @@ async function sendGroupOne(
         measureWork(c.machine, 'sdk/group-encrypt', () =>
           c.machine.encryptGroup({
             authority: c.authority,
+            reused: c.preparation?.reused === true,
             state: c.group.state,
             histories: accounts.map((account) => {
               const d = directories.get(account);
@@ -313,6 +330,7 @@ async function sendGroupOne(
           }),
         ),
     );
+    await c.preparation?.encrypted();
     value.packet = encrypted.packet;
     value.keys = encrypted.keys;
     await cache.put(
@@ -351,30 +369,29 @@ async function publish(
     batch: GroupSendBatch;
   },
 ): Promise<unknown> {
+  return c.api('group-message-publish', {
+    packet: entry.value.packet,
+    keys: entry.value.keys,
+  });
+}
+async function invalidateGroupDraft(
+  c: SendContext,
+  entry: Parameters<typeof publish>[1],
+): Promise<void> {
   const { cache, name, value } = entry;
-  try {
-    return await c.api('group-message-publish', {
-      packet: value.packet,
-      keys: value.keys,
+  if (value.once?.payload) {
+    await c.api('view-once-cancel', {
+      scope: 'group',
+      peer: c.group.state.groupId,
+      id: value.id,
+      hash: decodeDailyText(value.once.payload.text).viewOnce!.hash,
     });
-  } catch (error: unknown) {
-    if (staleGroupSend(error)) {
-      if (value.once?.payload) {
-        await c.api('view-once-cancel', {
-          scope: 'group',
-          peer: c.group.state.groupId,
-          id: value.id,
-          hash: decodeDailyText(value.once.payload.text).viewOnce!.hash,
-        });
-        delete value.once.payload;
-      }
-      entry.batch.reset();
-      value.packet = null;
-      value.keys = null;
-      await cache.put(name, value);
-    }
-    throw error;
+    delete value.once.payload;
   }
+  entry.batch.reset();
+  value.packet = null;
+  value.keys = null;
+  await cache.put(name, value);
 }
 function currentPacket(value: GroupDraft, c: SendContext): boolean {
   const packet = value.packet;

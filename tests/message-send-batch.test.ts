@@ -116,7 +116,7 @@ await test('authority changes between preflight and transfer require a fresh pin
   assert.ok(pinsAtDistribution.every((revision) => revision === 2));
 });
 
-await test('a remote recipient revision change still rejects publication and retains the exact draft for verified retry', async (t) => {
+await test('a stale recipient revision refreshes once inside the drain and preserves the exact message ID', async (t) => {
   const f = await sendFixture();
   t.after(f.close);
   const id = await f.queue();
@@ -127,13 +127,8 @@ await test('a remote recipient revision change still rejects publication and ret
     f.state.beforePublish = undefined;
     f.state.peerEvents = [f.peer.directory, next];
   };
-  await assert.rejects(
-    f.controller.sendPending({ priority: 'interactive' }),
-    /Devices changed/u,
-  );
-  assert.equal(f.publications.length, 0);
-  assert.ok(f.records.has(`outbox:${id}`));
   await f.controller.sendPending({ priority: 'interactive' });
+  assert.equal(f.requests.filter((op) => op === 'publish').length, 2);
   assert.equal(f.publications[0]?.id, id);
   assert.equal(f.publications[0]?.recipientDirectory, await eventHash(next));
   assert.equal(f.pinnedRevision(), 2);
@@ -261,4 +256,61 @@ await test('the foreground publisher yields after a confirmed message and re-ver
   );
   assert.equal(f.requests.filter((op) => op === 'send-preparation').length, 2);
   assert.equal(f.records.size, 0);
+});
+
+await test('an unchanged peer reuses verified material across drains and suspension clears it', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  f.state.retainMachine = true;
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  const before = f.requests.length;
+  const id = await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.deepEqual(f.requests.slice(before), ['publish']);
+  assert.equal(f.publications.at(-1)?.id, id);
+  f.controller.pause('account');
+  const reset = f.requests.length;
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.ok(f.requests.slice(reset).includes('send-preparation'));
+  assert.ok(f.requests.slice(reset).includes('matrix-query'));
+});
+
+await test('two stale refusals leave the same draft durable and never loop', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  f.state.retainMachine = true;
+  f.state.stalePublishCount = 2;
+  const id = await f.queue();
+  await assert.rejects(
+    f.controller.sendPending({ priority: 'interactive' }),
+    /Synthetic stale material/u,
+  );
+  assert.equal(f.requests.filter((op) => op === 'publish').length, 2);
+  assert.equal(f.requests.filter((op) => op === 'send-preparation').length, 2);
+  assert.ok(f.records.has(`outbox:${id}`));
+  assert.equal(f.publications.length, 0);
+});
+
+await test('an unrelated publication failure is surfaced once and keeps verified material for the next draft', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  f.state.retainMachine = true;
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  const before = f.requests.length;
+  await f.queue();
+  f.state.failPublish = true;
+  await assert.rejects(
+    f.controller.sendPending({ priority: 'interactive' }),
+    /Synthetic publication failure/u,
+  );
+  assert.deepEqual(f.requests.slice(before), ['publish']);
+  f.state.failPublish = false;
+  await f.controller.sendPending({ priority: 'interactive' });
+  const next = f.requests.length;
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.deepEqual(f.requests.slice(next), ['publish']);
 });

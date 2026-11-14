@@ -5,6 +5,9 @@ import type { Api } from '../peer-identity/index.ts';
 /** Session-scoped capability detection for the optional combined read. */
 export class SendPreparationRead {
   private available = true;
+  get legacy(): boolean {
+    return !this.available;
+  }
   async read(api: Api, operation: string, payload: Record<string, unknown>) {
     if (!this.available) return null;
     try {

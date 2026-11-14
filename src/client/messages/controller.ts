@@ -1,7 +1,4 @@
-import {
-  SendPreparationRead,
-  preparedRecovery,
-} from '../send-preparation/index.ts';
+import { PrivateSendPreparation } from './send-preparation.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
   measurePrivateSend,
@@ -175,10 +172,6 @@ export class Messages {
   private initializedDirectory = '';
   private pinsGeneration = -1;
   private startupIdentities: IdentityPreparation | undefined;
-  private readonly histories = new Map<
-    string,
-    import('../../shared/devices/index.ts').DirectoryEvent[]
-  >();
   transportPending = false;
   private readonly receiver = new MessageSyncReceiver();
   private readonly recoveryAlarm: MessageRecoveryWakeup;
@@ -188,7 +181,7 @@ export class Messages {
   synchronizationIssues: readonly import('./sync-progress.ts').PendingConversation[] =
     [];
   private prefetchAbort: AbortController | null = null;
-  private sendPreparation = new SendPreparationRead();
+  private readonly sendPreparation: PrivateSendPreparation;
   private readonly outbox: MessageOutbox;
   private readonly reader: ConversationReader;
   /** Media opened in this session; see media-memory for its lifetime. */
@@ -207,7 +200,10 @@ export class Messages {
   ) {
     this.access = access;
     this.sync = sync;
-    this.identities = new PeerIdentity(sync);
+    this.identities = new PeerIdentity(sync, (account, head) =>
+      this.sendPreparation.observed(account, head),
+    );
+    this.sendPreparation = new PrivateSendPreparation(this.identities);
     this.recoveryAlarm = new MessageRecoveryWakeup(
       typeof events === 'function' ? () => {} : (events.recovery ?? (() => {})),
     );
@@ -242,6 +238,8 @@ export class Messages {
         savePins: (options) => this.savePins(options),
         preparation: (a, generation, peer, diagnostic) =>
           this.prepareSend(a, generation, peer, diagnostic),
+        encrypted: (a, input) => this.sendPreparation.encrypted(a, input),
+        invalidate: (peer) => this.sendPreparation.invalidate(peer),
         encryption: async (a, generation, { diagnostic, recovery }) => {
           const api = (op: string, data: Record<string, unknown>) =>
             messageApi(a, op, data, {
@@ -375,8 +373,7 @@ export class Messages {
     ) {
       this.close();
       this.identities.clear();
-      this.histories.clear();
-      this.sendPreparation = new SendPreparationRead();
+      this.sendPreparation.reset();
       this.initializedDirectory = '';
     }
     this.session = session;
@@ -390,6 +387,7 @@ export class Messages {
     this.pinsGeneration = -1;
     this.pauseSynchronization();
     this.audiences.clear();
+    this.sendPreparation.invalidate();
     this.generation++;
     this.mediaMemory.clear();
     this.reader.close();
@@ -398,6 +396,7 @@ export class Messages {
     if (scope === 'account') {
       this.previewGeneration++;
       this.audiences.clear();
+      this.sendPreparation.invalidate();
       this.mediaMemory.clear();
     }
     this.pinsGeneration = -1;
@@ -418,6 +417,7 @@ export class Messages {
   }
   hide(): void {
     this.audiences.clear();
+    this.sendPreparation.invalidate();
     this.generation++;
     this.recoveryAlarm.clear();
     this.previewGeneration++;
@@ -495,39 +495,15 @@ export class Messages {
         guard: () => this.guard(generation),
         privateSend: diagnostic,
       });
-    const pin = this.identities.get(peer);
-    const known = this.histories.get(peer);
-    const prefix =
-      pin && known && known.length >= pin.revision
-        ? known.slice(0, pin.revision)
-        : [];
-    const after = prefix.length;
-    const response = await this.sendPreparation.read(api, 'send-preparation', {
-      accountId: peer,
-      after,
+    return this.sendPreparation.prepare(a, peer, {
+      api,
+      history: (request, prefix) =>
+        this.history(
+          { a, generation, api: request, ...(prefix ? { prefix } : {}) },
+          peer,
+          null,
+        ),
     });
-    if (response === null)
-      return {
-        history: await this.history({ a, generation, api }, peer, null),
-        recovery: null,
-      };
-    let used = false;
-    const history = await this.history(
-      {
-        a,
-        generation,
-        prefix,
-        api: (op, data) => {
-          if (op !== 'peer-directory' || data['after'] !== after || used)
-            return api(op, data);
-          used = true;
-          return Promise.resolve(response['directory']);
-        },
-      },
-      peer,
-      null,
-    );
-    return { history, recovery: preparedRecovery(response) };
   }
   private async recoverable(
     a: VaultAuthority,
@@ -623,7 +599,7 @@ export class Messages {
       await verifyHistory(a.events, account);
       return a.events;
     }
-    const cached = this.histories.get(account);
+    const cached = this.identities.history(account);
     if (through !== null && cached && cached.length >= through)
       return cached.slice(0, through);
     const api =
@@ -632,9 +608,6 @@ export class Messages {
     const history = c.prefix
       ? await currentPeerHistory(api, { account, pin }, c.prefix)
       : await peerHistory(api, account, through, pin);
-    this.histories.set(account, history);
-    if (this.histories.size > 16)
-      this.histories.delete(this.histories.keys().next().value ?? '');
     await this.identities.remember(account, history);
     return history;
   }
@@ -1115,6 +1088,7 @@ export class Messages {
           key: rawKey,
         }),
     );
+    this.sendPreparation.observed(packet.sender, packet.senderDirectory);
     const text = content.text;
     const peer =
         packet.sender === a.session.accountId

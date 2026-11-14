@@ -98,14 +98,26 @@ export class PeerIdentity {
   private readonly pins = new Map<string, PeerPin>();
   private readonly pending = new Map<string, PeerPin>();
   private generation = 0;
-  constructor(sync: IdentitySync) {
+  private readonly histories = new Map<
+    string,
+    { events: DirectoryEvent[]; bytes: number; directory: string }
+  >();
+  private historyBytes = 0;
+  private readonly observed: (account: string, directory: string) => void;
+  constructor(
+    sync: IdentitySync,
+    observed: (account: string, directory: string) => void = () => {},
+  ) {
     this.sync = sync;
+    this.observed = observed;
   }
   clear(): void {
     this.generation++;
     this.pins.clear();
     this.pending.clear();
     this.loaded.clear();
+    this.histories.clear();
+    this.historyBytes = 0;
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
@@ -113,6 +125,41 @@ export class PeerIdentity {
   }
   get(account: string): PeerPin | null {
     return this.pins.get(account) ?? null;
+  }
+  /** Signed prefix retained in memory. Eviction only requires a future full read. */
+  history(account: string): DirectoryEvent[] | null {
+    const stored = this.histories.get(account);
+    if (!stored || stored.directory !== this.pins.get(account)?.directory)
+      return null;
+    this.histories.delete(account);
+    this.histories.set(account, stored);
+    return stored.events.slice();
+  }
+  private retainHistory(
+    account: string,
+    events: DirectoryEvent[],
+    directory: string,
+  ): void {
+    const previous = this.histories.get(account);
+    if (previous) this.historyBytes -= previous.bytes;
+    this.histories.delete(account);
+    const bytes = new TextEncoder().encode(JSON.stringify(events)).byteLength;
+    if (bytes > 4_194_304) return;
+    this.histories.set(account, {
+      events: structuredClone(events),
+      bytes,
+      directory,
+    });
+    this.historyBytes += bytes;
+    while (this.histories.size > 256 || this.historyBytes > 4_194_304) {
+      const oldest = this.histories.keys().next().value!;
+      this.historyBytes -= this.histories.get(oldest)!.bytes;
+      this.histories.delete(oldest);
+    }
+  }
+  /** Called only after an incoming packet signature and its directory were verified. */
+  observedPacket(account: string, directory: string): void {
+    this.observed(account, directory);
   }
   async load(options: VaultWorkOptions = {}): Promise<void> {
     await this.synchronize(options);
@@ -273,6 +320,10 @@ export class PeerIdentity {
       old = this.pins.get(account);
     this.guard(generation);
     this.accept(account, next);
+    if (this.pins.get(account)?.directory === next.directory) {
+      this.retainHistory(account, history, next.directory);
+      this.observed(account, next.directory);
+    }
     if (!old || next.revision > old.revision) this.pending.set(account, next);
   }
   async verify(input: {

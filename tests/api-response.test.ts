@@ -213,3 +213,22 @@ await test('user action cancels preparation networking and preserves the authori
       error instanceof ApiResponseError && error.failure === 'cancelled',
   );
 });
+
+await test('only the recognized stale material code can request a verified send retry', async () => {
+  for (const code of ['stale-send-material', 'quota', null]) {
+    await assert.rejects(
+      readApiJson(
+        Response.json({ error: 'Synthetic refusal', code }, { status: 409 }),
+        'messages/publish',
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof ApiResponseError);
+        assert.equal(
+          error.code,
+          code === 'stale-send-material' ? code : undefined,
+        );
+        return true;
+      },
+    );
+  }
+});

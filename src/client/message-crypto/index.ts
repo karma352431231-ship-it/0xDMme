@@ -1,6 +1,7 @@
+import { FreshSendRequired } from '../send-material/index.ts';
 import { measureSend } from '../chat-sync-diagnostics/index.ts';
 import type { PrivateAudiences } from './audiences.ts';
-export { PrivateAudiences } from './audiences.ts';
+export { PrivateAudiences, SendAudiences } from './audiences.ts';
 export { GroupSendBatch } from './group-batch.ts';
 import type { GroupSendBatch } from './group-batch.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
@@ -54,7 +55,7 @@ import {
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { object } from '../../shared/account/index.ts';
-import { canonical, eventHash } from '../../shared/devices/index.ts';
+import { canonical, eventHash, digest } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import {
   matrixBindingProof,
@@ -82,6 +83,7 @@ import {
 export interface GroupEncryptionInput {
   /** Shares device trust with earlier messages of the same send batch. */
   batch?: GroupSendBatch;
+  reused?: boolean;
   authority: VaultAuthority;
   state: GroupEvent;
   histories: DirectoryEvent[][];
@@ -395,6 +397,7 @@ export class MessageCrypto {
     }
   }
   async encrypt(input: {
+    reused?: boolean;
     viewOnce?: MessagePacket['viewOnce'];
     socialMedia?: MessagePacket['socialMedia'];
     authority: VaultAuthority;
@@ -455,48 +458,7 @@ export class MessageCrypto {
     );
     await currentRecoveryKey(input.recovery[1], peerHistory, peer.accountId);
     await measureSend('sdk-prepare', () => this.prepare(authority), id);
-    await measureSend(
-      'device-keys',
-      () =>
-        this.trustParticipantDevices(
-          [authority.events, peerHistory],
-          this.transport,
-        ),
-      id,
-    );
-    const room = messageRoom(authority.session.accountId, peer.accountId);
-    const membership = canonical([authority.directory, await eventHash(peer)]);
-    const identity = await this.rotateChangedAudience(room, membership);
-    const users = () => [
-      new UserId(matrixUser(authority.session.accountId)),
-      new UserId(matrixUser(peer.accountId)),
-    ];
-    const claim = await this.machine.getMissingSessions(users());
-    if (claim) {
-      try {
-        await this.dispatch(claim);
-      } finally {
-        claim.free();
-      }
-    }
-    const settings = new EncryptionSettings();
-    settings.sharingStrategy = CollectStrategy.onlyTrustedDevices();
-    try {
-      for (const request of await this.machine.shareRoomKey(
-        new RoomId(room),
-        users(),
-        settings,
-      )) {
-        try {
-          await this.dispatch(request);
-        } finally {
-          request.free();
-        }
-      }
-    } finally {
-      settings.free();
-    }
-    this.audiences?.remember(identity, room, membership);
+    const room = await this.preparePrivateSession(input);
     const value = roomContent({
       text,
       id,
@@ -544,6 +506,59 @@ export class MessageCrypto {
     packet.signature = await authority.sign(packetProof(packet));
     return packet;
   }
+  /** Reuse never crosses a fresh key-distribution boundary. */
+  private async preparePrivateSession(
+    input: Parameters<MessageCrypto['encrypt']>[0],
+  ): Promise<string> {
+    const { authority, peerHistory, id } = input;
+    const peer = peerHistory.at(-1);
+    if (!peer) throw new Error('Contact directory missing.');
+    const room = messageRoom(authority.session.accountId, peer.accountId);
+    const membership = canonical([authority.directory, await eventHash(peer)]);
+    const identity = this.identityKey();
+    if (input.reused) {
+      if (!this.audiences?.trusted(identity, room, membership))
+        throw new FreshSendRequired();
+    } else
+      await measureSend(
+        'device-keys',
+        () =>
+          this.trustParticipantDevices(
+            [authority.events, peerHistory],
+            this.transport,
+          ),
+        id,
+      );
+    await this.rotateChangedAudience(room, membership);
+    const users = () => [
+      new UserId(matrixUser(authority.session.accountId)),
+      new UserId(matrixUser(peer.accountId)),
+    ];
+    const claim = await this.machine.getMissingSessions(users());
+    if (claim) {
+      try {
+        if (input.reused) throw new FreshSendRequired();
+        await this.dispatch(claim);
+      } finally {
+        claim.free();
+      }
+    }
+    const settings = new EncryptionSettings();
+    settings.sharingStrategy = CollectStrategy.onlyTrustedDevices();
+    try {
+      await this.distributeRoomKey({
+        room,
+        users: users(),
+        settings,
+        transport: this.transport,
+        reused: input.reused === true,
+      });
+    } finally {
+      settings.free();
+    }
+    this.audiences?.remember(identity, room, membership);
+    return room;
+  }
   encryptGroup(input: GroupEncryptionInput): Promise<GroupEncryptedMessage> {
     return this.serializeSend(() => this.encryptGroupMessage(input));
   }
@@ -570,7 +585,7 @@ export class MessageCrypto {
         };
       }),
     );
-    await measureSend(
+    const trustKey = await measureSend(
       'device-keys',
       () => this.trustForBatch(input, { histories, transport, destinations }),
       input.id,
@@ -587,7 +602,9 @@ export class MessageCrypto {
       room,
       accounts: destinations.map((d) => d.accountId),
       transport,
+      reused: input.reused === true,
     });
+    this.audiences?.remember(this.identityKey(), room, trustKey);
     const text = this.groupContent(input);
     const content = object(
       JSON.parse(
@@ -772,12 +789,14 @@ export class MessageCrypto {
   private async claimGroupSessions(
     accounts: string[],
     transport: MessageTransport,
+    reused: boolean,
   ): Promise<void> {
     const claim = await this.machine.getMissingSessions(
       accounts.map((a) => new UserId(matrixUser(a))),
     );
     if (!claim) return;
     try {
+      if (reused) throw new FreshSendRequired();
       await this.dispatch(claim, transport);
     } finally {
       claim.free();
@@ -792,20 +811,29 @@ export class MessageCrypto {
       transport: MessageTransport;
       destinations: GroupDestination[];
     },
-  ): Promise<void> {
-    const key = canonical([
-      input.state.groupId,
-      input.state.epoch,
-      await groupEventHash(input.state),
-      trust.destinations,
-      input.recovery.map((recovery) => recovery.id),
-      input.authority.session.deviceId,
-      input.authority.directory,
-    ]);
+  ): Promise<string> {
+    const key = await digest(
+      canonical([
+        input.state.groupId,
+        input.state.epoch,
+        await groupEventHash(input.state),
+        trust.destinations,
+        input.recovery.map((recovery) => recovery.id),
+        input.authority.session.deviceId,
+        input.authority.directory,
+      ]),
+    );
+    if (input.reused) {
+      const room = groupRoom(input.state.groupId, input.state.epoch);
+      if (!this.audiences?.trusted(this.identityKey(), room, key))
+        throw new FreshSendRequired();
+      return key;
+    }
     const reused = input.batch?.covers(key) ?? false;
     if (!reused)
       await this.trustParticipantDevices(trust.histories, trust.transport);
     input.batch?.used(key, !reused);
+    return key;
   }
   private async trustParticipantDevices(
     histories: DirectoryEvent[][],
@@ -831,28 +859,45 @@ export class MessageCrypto {
       await this.trustKnownDevices(current);
     }
   }
+  private async distributeRoomKey(input: {
+    room: string;
+    users: UserId[];
+    settings: EncryptionSettings;
+    transport: MessageTransport;
+    reused: boolean;
+  }): Promise<void> {
+    const requests = await this.machine.shareRoomKey(
+      new RoomId(input.room),
+      input.users,
+      input.settings,
+    );
+    try {
+      if (input.reused && requests.length) throw new FreshSendRequired();
+      for (const request of requests)
+        await this.dispatch(request, input.transport);
+    } finally {
+      for (const request of requests) request.free();
+    }
+  }
   private async shareGroupSession(input: {
     room: string;
     accounts: string[];
     transport: MessageTransport;
+    reused: boolean;
   }): Promise<void> {
     const settings = new EncryptionSettings();
     settings.sharingStrategy = CollectStrategy.onlyTrustedDevices();
     try {
-      await this.claimGroupSessions(input.accounts, input.transport);
-      // Supply the complete membership once; transport batches must not be
-      // mistaken by the SDK for changes to the room's membership.
-      for (const request of await this.machine.shareRoomKey(
-        new RoomId(input.room),
-        input.accounts.map((a) => new UserId(matrixUser(a))),
+      await this.claimGroupSessions(
+        input.accounts,
+        input.transport,
+        input.reused,
+      );
+      await this.distributeRoomKey({
+        ...input,
+        users: input.accounts.map((a) => new UserId(matrixUser(a))),
         settings,
-      )) {
-        try {
-          await this.dispatch(request, input.transport);
-        } finally {
-          request.free();
-        }
-      }
+      });
     } finally {
       settings.free();
     }

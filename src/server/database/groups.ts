@@ -107,6 +107,7 @@ export class GroupStore {
           throw new AccountError(
             409,
             'Group membership changed. Refresh before continuing.',
+            'stale-send-material',
           );
         return work(client, state);
       },

@@ -283,7 +283,11 @@ export class MatrixStore {
           [item.account, item.device],
         );
         if (!device.rowCount)
-          throw new AccountError(403, 'Recipient device revoked.');
+          throw new AccountError(
+            403,
+            'Recipient device revoked.',
+            'stale-send-material',
+          );
         const result = await client.query<{
           id: string;
           body: unknown;
@@ -350,7 +354,11 @@ export class MatrixStore {
       !event ||
       !directoryEvent(event).devices.some((d) => d.id === input.device)
     )
-      throw new AccountError(403, 'Recipient device revoked.');
+      throw new AccountError(
+        403,
+        'Recipient device revoked.',
+        'stale-send-material',
+      );
     const body = {
       type: 'm.room.encrypted',
       sender: matrixUser(authority.session.accountId),

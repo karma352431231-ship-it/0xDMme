@@ -49,7 +49,12 @@ export async function assertGroupDevices(
     `SELECT count(*)::integer AS count FROM jsonb_to_recordset($1::jsonb) AS r(account uuid,device text) JOIN hash_talk.device_directories d ON d.account_id=r.account WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(d.event->'devices') member WHERE member->>'id'=r.device)`,
     [JSON.stringify(requests)],
   );
-  if (rows.rows[0]?.count !== requests.length) unavailable();
+  if (rows.rows[0]?.count !== requests.length)
+    throw new AccountError(
+      403,
+      'Keys outside authorized membership.',
+      'stale-send-material',
+    );
 }
 export async function claimGroupKeys(
   client: pg.PoolClient,

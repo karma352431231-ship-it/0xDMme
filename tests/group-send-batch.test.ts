@@ -17,6 +17,7 @@ import { initAsync } from '@matrix-org/matrix-sdk-crypto-wasm';
 import {
   GroupSendBatch,
   MessageCrypto,
+  SendAudiences,
 } from '../src/client/message-crypto/index.ts';
 import type {
   GroupEncryptionInput,
@@ -101,6 +102,7 @@ async function sender(transport: MessageTransport) {
     deviceId: owner.deviceId,
     store: null,
     transport,
+    audiences: new SendAudiences(),
   });
 }
 function message(
@@ -283,6 +285,8 @@ await test('warm group send prepares governance and directories in one request, 
       groupId: scope.groupId,
       governance,
       api,
+      identities,
+      authority: owner.authority,
     });
     await sendGroupPending({
       ...prepared,
@@ -310,6 +314,18 @@ await test('warm group send prepares governance and directories in one request, 
     'group-matrix-query',
     'group-message-publish',
   ]);
+  assert.deepEqual(await send(), ['group-history', 'group-message-publish']);
+  assert.equal(
+    preparation.shouldRefresh(new AccountError(409, 'Quota reached.')),
+    false,
+  );
+  assert.equal(
+    preparation.shouldRefresh(
+      new AccountError(409, 'Audience changed.', 'stale-send-material'),
+    ),
+    true,
+  );
+  preparation.invalidate();
   oldServer = true;
   assert.deepEqual(await send(), [
     'group-send-preparation',
@@ -318,6 +334,10 @@ await test('warm group send prepares governance and directories in one request, 
     'group-matrix-query',
     'group-message-publish',
   ]);
+  assert.equal(
+    preparation.shouldRefresh(new AccountError(409, 'Legacy conflict.')),
+    true,
+  );
   assert.deepEqual(await send(), [
     'group-history',
     'group-directory',
@@ -337,7 +357,7 @@ await test('a publication rejected after a revocation clears the stored packet f
     new Error(
       'Participant directory or recovery changed. Refresh before resending.',
     ),
-    { status: 409 },
+    { status: 409, code: 'stale-send-material' },
   );
   const sending = sendGroupPending({
     authority: owner.authority,

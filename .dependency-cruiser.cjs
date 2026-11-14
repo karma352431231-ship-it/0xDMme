@@ -1,6 +1,16 @@
 module.exports = {
   forbidden: [
     {
+      name: 'send-material-cannot-acquire-io-or-domain-owners',
+      severity: 'error',
+      from: { path: '^src/client/send-material/' },
+      to: {
+        path: '^src/(?:client|server)/',
+        pathNot: '^src/client/send-material/',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
       name: 'inline-editor-has-no-domain-authority',
       severity: 'error',
       from: { path: '^src/client/message-inline-editor/' },

@@ -1,3 +1,4 @@
+import { SendAudiences } from '../message-crypto/index.ts';
 import { GroupSendPreparation } from './send-preparation.ts';
 import {
   privateSendContext,
@@ -96,12 +97,7 @@ import { GroupGovernance } from './governance.ts';
 import type { GroupState } from './governance.ts';
 import { GroupCache, groupCacheScope, groupTitle } from './cache.ts';
 import { createGroupEvent, changeGroupEvent } from './transitions.ts';
-import {
-  composeGroup,
-  composeGroupOnce,
-  sendGroupPending,
-  staleGroupSend,
-} from './outbox.ts';
+import { composeGroup, composeGroupOnce, sendGroupPending } from './outbox.ts';
 import type { GroupSendProgress } from './outbox.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
 import type { GroupView } from './reader.ts';
@@ -179,6 +175,7 @@ export class GroupController {
   private readonly identities: PeerIdentity;
   private readonly authority: GroupAuthority;
   private sendPreparation = new GroupSendPreparation();
+  private readonly sendAudiences = new SendAudiences();
   private session: AccountSession | null = null;
   private generation = 0;
   private readonly selection = new SelectionWork();
@@ -220,7 +217,9 @@ export class GroupController {
     this.directoryChanged = directoryChanged;
     this.access = access;
     this.visible = visible;
-    this.identities = new PeerIdentity(sync);
+    this.identities = new PeerIdentity(sync, (account, head) =>
+      this.sendPreparation.observed(account, head),
+    );
     this.authority = new GroupAuthority({
       access,
       identities: this.identities,
@@ -264,6 +263,8 @@ export class GroupController {
     this.focus = null;
   }
   close(): void {
+    this.sendPreparation.invalidate();
+    this.sendAudiences.clear();
     this.directoryLoading.reset();
     this.directoryProfiles = null;
     this.deselect();
@@ -284,6 +285,8 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
+    this.sendPreparation.invalidate();
+    this.sendAudiences.clear();
     this.directoryLoading.reset();
     this.directoryProfiles = null;
     this.ownRemovals.clear();
@@ -329,7 +332,11 @@ export class GroupController {
       ensureMessageRecovery(c.authority, c.api),
     );
     const machine = await measurePrivateSend(c.diagnostic, 'sdk-open', () =>
-      openMessageMachine(c.authority, (op, data) => c.api(op, data)),
+      openMessageMachine(
+        c.authority,
+        (op, data) => c.api(op, data),
+        this.sendAudiences,
+      ),
     );
     try {
       await measurePrivateSend(c.diagnostic, 'sdk-prepare', () =>
@@ -1677,7 +1684,8 @@ export class GroupController {
         diagnostic: batch ? { ...batch, attempt: 1 } : undefined,
       });
     } catch (error: unknown) {
-      if (!staleGroupSend(error)) throw error;
+      if (!this.sendPreparation.shouldRefresh(error)) throw error;
+      this.sendPreparation.invalidate(selected.state.groupId);
       await this.sendPreparedPending(selected, {
         ...options,
         diagnostic: batch ? { ...batch, attempt: 2 } : undefined,
@@ -1698,7 +1706,7 @@ export class GroupController {
     await this.authority.send(
       () => this.guard(generation),
       async (c) => {
-        const { group, directoryApi } = await measurePrivateSend(
+        const { group, preparation } = await measurePrivateSend(
           diagnostic,
           'group-verify',
           () =>
@@ -1707,6 +1715,8 @@ export class GroupController {
                 groupId: selected.state.groupId,
                 governance: c.governance,
                 api: c.api,
+                authority: c.authority,
+                identities: this.identities,
               }),
             ),
         );
@@ -1714,7 +1724,7 @@ export class GroupController {
           sendGroupPending({
             ...c,
             group,
-            directoryApi,
+            preparation,
             machine,
             identities: this.identities,
             progress,

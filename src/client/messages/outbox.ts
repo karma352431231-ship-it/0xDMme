@@ -1,3 +1,4 @@
+import { refreshSendMaterial } from '../send-material/index.ts';
 import {
   privateSendContext,
   privateSendBatch,
@@ -85,6 +86,17 @@ interface SendAuthority {
     peer: string,
     diagnostic?: PrivateSendContext,
   ) => Promise<SendPreparation>;
+  encrypted: (
+    a: VaultAuthority,
+    input: {
+      peer: string;
+      history: import('../../shared/devices/index.ts').DirectoryEvent[];
+      own: RecoveryKey;
+      recipient: RecoveryKey;
+      retention: number | undefined;
+    },
+  ) => Promise<void>;
+  invalidate: (peer: string) => void;
   encryption: (
     authority: VaultAuthority,
     generation: number,
@@ -109,6 +121,7 @@ interface OutboxEntry {
 }
 interface OutboxTransmission {
   batch: PinnedSendBatch;
+  attempt: number;
   generation: number;
   options: VaultWorkOptions;
   yieldAfterMessage?: (() => boolean) | undefined;
@@ -469,6 +482,7 @@ export class MessageOutbox {
       transmit: (batch) =>
         this.transmitBatch({
           batch,
+          attempt,
           generation,
           options: { ...options, privateSend: diagnostic },
           yieldAfterMessage,
@@ -489,8 +503,14 @@ export class MessageOutbox {
             sendOutcome: current ? 'current' : 'changed',
           });
           if (!current) return false;
-          await this.transmitVerifiedPage(a, input);
-          return true;
+          try {
+            await this.transmitVerifiedPage(a, input);
+            return true;
+          } catch (error: unknown) {
+            if (!refreshSendMaterial(error)) throw error;
+            if (input.attempt >= 2) throw error;
+            return false;
+          }
         },
         options,
       ),
@@ -544,7 +564,7 @@ export class MessageOutbox {
             guard: () => this.authority.guard(generation),
             privateSend: context,
           });
-        await this.sendOne({
+        await this.sendVerified({
           a,
           api: context ? message : api,
           own,
@@ -561,6 +581,33 @@ export class MessageOutbox {
       }
     } finally {
       for (const finish of earlier) finish?.();
+    }
+  }
+  private async sendVerified(context: SendContext): Promise<void> {
+    try {
+      await this.sendOne(context);
+    } catch (error: unknown) {
+      if (refreshSendMaterial(error)) {
+        this.authority.invalidate(context.value.peer);
+        if (context.value.viewOncePayload) {
+          await this.cancelViewOnceUpload(
+            context.a,
+            context.value,
+            context.generation,
+            false,
+          );
+          delete context.value.viewOncePayload;
+          delete context.value.transferStarted;
+        }
+        context.value.packet = null;
+        await localPut(
+          context.a.session.accountId,
+          context.name,
+          context.value,
+          this.entrySize(context.value),
+        );
+      }
+      throw error;
     }
   }
   private async sendOne(context: SendContext): Promise<void> {
@@ -671,8 +718,9 @@ export class MessageOutbox {
       text = (
         await Promise.all(value.draft.map((chunk) => openLocal(a, chunk)))
       ).join('');
-    return machine.encrypt({
+    const packet = await machine.encrypt({
       authority: a,
+      reused: context.preparation.reused === true,
       peerHistory: history,
       recovery: [own, peer],
       id: value.id,
@@ -681,6 +729,15 @@ export class MessageOutbox {
       kind: value.kind,
       ...(value.relation ? { relation: value.relation } : {}),
     });
+    if (recovery)
+      await this.authority.encrypted(a, {
+        peer: value.peer,
+        history,
+        own,
+        recipient: peer,
+        retention: context.preparation.retention,
+      });
+    return packet;
   }
   private notifyPublished(value: OutboxEntry, generation: number): void {
     if (value.kind !== 'profile' && !value.relation)

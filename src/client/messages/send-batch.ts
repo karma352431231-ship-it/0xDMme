@@ -1,4 +1,4 @@
-import { canonical } from '../../shared/devices/index.ts';
+import { sendAuthorityStamp } from '../send-material/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 
@@ -9,11 +9,14 @@ interface SendTarget {
 
 export interface SendPreparation {
   history: DirectoryEvent[];
+  reused?: boolean;
+  retention?: number;
   recovery: { own: unknown; peer: unknown } | null;
 }
 
 /** Verified preparation belongs only to these admitted drafts and this authority
- * observation. It never becomes a controller/session cache or grants authority. */
+ * observation. Inputs may come from session material tied to the same authority.
+ * This carrier remains batch-scoped and grants no authority. */
 export class PinnedSendBatch {
   readonly names: readonly string[];
   private readonly authority: string;
@@ -24,7 +27,7 @@ export class PinnedSendBatch {
     authority: VaultAuthority,
     entries: { name: string; value: SendTarget }[],
   ) {
-    this.authority = authorityStamp(authority);
+    this.authority = sendAuthorityStamp(authority);
     this.names = entries.map((entry) => entry.name);
     this.targets = new Map(
       entries.map(({ name, value }) => [
@@ -53,7 +56,7 @@ export class PinnedSendBatch {
   }
 
   current(authority: VaultAuthority): boolean {
-    return this.authority === authorityStamp(authority);
+    return this.authority === sendAuthorityStamp(authority);
   }
 
   preparation(name: string, value: SendTarget): SendPreparation {
@@ -68,16 +71,6 @@ export class PinnedSendBatch {
       throw new Error('Pending message differs from its verified send batch.');
     return preparation;
   }
-}
-
-function authorityStamp(authority: VaultAuthority): string {
-  return canonical([
-    authority.session.accountId,
-    authority.session.deviceId,
-    authority.session.csrf,
-    authority.directory,
-    authority.epoch,
-  ]);
 }
 
 /** Pin persistence must release the vault lock. A changed authority restarts the

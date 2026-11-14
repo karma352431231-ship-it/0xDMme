@@ -67,6 +67,7 @@ export class ApiResponseError extends AccountError {
   constructor(input: {
     operation: string;
     status: number;
+    code?: 'stale-send-material';
     failure: ApiFailure;
     responseType?: ResponseType;
     message?: string | undefined;
@@ -91,6 +92,7 @@ export class ApiResponseError extends AccountError {
         input.failure,
         type,
       ]),
+      input.code,
     );
     this.cause = input.cause;
     this.operation = operation;
@@ -145,6 +147,16 @@ function serverMessage(value: unknown): string | undefined {
     .trim()
     .slice(0, 200);
 }
+function serverCode(value: unknown): { code?: 'stale-send-material' } {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'code' in value &&
+    value.code === 'stale-send-material'
+  )
+    return { code: value.code };
+  return {};
+}
 /** Status and a coarse content type survive HTML, empty and malformed responses.
  * JSON error messages retain the existing server contract; bodies are never logged. */
 export async function readApiJson(
@@ -186,6 +198,7 @@ export async function readApiJson(
       failure: 'http',
       responseType: type,
       message: serverMessage(data),
+      ...serverCode(data),
     });
   return data;
 }
