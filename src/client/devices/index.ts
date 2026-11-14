@@ -344,7 +344,8 @@ export function startDevices(options: {
     withLocalVault: <T>(
       locator: VaultLocator,
       work: (a: VaultAuthority) => Promise<T>,
-    ) => controller.withLocalVault(locator, work),
+      options?: VaultWorkOptions,
+    ) => controller.withLocalVault(locator, work, options),
     withVault: <T>(
       offline: boolean,
       work: (a: VaultAuthority) => Promise<T>,

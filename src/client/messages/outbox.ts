@@ -170,31 +170,36 @@ export class MessageOutbox {
     const { accountId, deviceId } = session;
     // Admission only needs the verified local keyring. Publication still
     // opens fresh online authority and verifies the intended recipient.
-    await this.access.withLocalVault({ accountId, deviceId }, async (a) => {
-      this.authority.guard(generation);
-      const draft = [
-        await measureSend(
-          'draft-seal',
-          () => sealLocal(a, input.id, input.text),
-          input.id,
-        ),
-      ];
-      this.authority.guard(generation);
-      await enqueueOutbox({
-        scope: accountId,
-        id: input.id,
-        value: {
+    await this.access.withLocalVault(
+      { accountId, deviceId },
+      async (a) => {
+        this.authority.guard(generation);
+        const draft = [
+          await measureSend(
+            'draft-seal',
+            () => sealLocal(a, input.id, input.text),
+            input.id,
+          ),
+        ];
+        this.authority.guard(generation);
+        await enqueueOutbox({
+          scope: accountId,
           id: input.id,
-          peer: input.peer,
-          draft,
-          kind: 'text',
-          packet: null,
-          createdAt: input.createdAt ?? Date.now(),
-        },
-        size: draft[0]!.bytes.length + 512,
-        current: () => generation === this.authority.current(),
-      });
-    });
+          value: {
+            id: input.id,
+            peer: input.peer,
+            draft,
+            kind: 'text',
+            packet: null,
+            createdAt: input.createdAt ?? Date.now(),
+          },
+          size: draft[0]!.bytes.length + 512,
+          current: () => generation === this.authority.current(),
+          diagnostic: privateSendContext(input.id),
+        });
+      },
+      { privateSend: privateSendContext(input.id) },
+    );
   }
   async composeAttachment(
     peer: string,
@@ -230,46 +235,51 @@ export class MessageOutbox {
     const generation = this.authority.current();
     const session = this.authority.session();
     if (!session) throw new WorkInterruption('session');
-    return this.access.withLocalVault(session, async (a) => {
-      this.authority.guard(generation);
-      traceSend('submit', id);
-      try {
-        const content = await measureSend(
-          'attachment-stage',
-          () =>
-            stageAttachment({
-              account: a.session.accountId,
-              id,
-              selection,
-              caption: item.text,
-              signal: item.signal,
-              maximum: chatFileLimit,
-            }),
-          id,
-        );
+    return this.access.withLocalVault(
+      session,
+      async (a) => {
         this.authority.guard(generation);
-        const draft = [await sealLocal(a, id, JSON.stringify(content))];
-        const value: OutboxEntry = {
-          id,
-          peer,
-          draft,
-          kind: 'attachment',
-          packet: null,
-          createdAt: item.createdAt,
-        };
-        await enqueueOutbox({
-          scope: a.session.accountId,
-          id,
-          value,
-          size: this.entrySize(value),
-          current: () => generation === this.authority.current(),
-        });
-        return { id, peer, content, createdAt: item.createdAt };
-      } catch (error: unknown) {
-        await forgetAttachment(a.session.accountId, id);
-        throw error;
-      }
-    });
+        traceSend('submit', id);
+        try {
+          const content = await measureSend(
+            'attachment-stage',
+            () =>
+              stageAttachment({
+                account: a.session.accountId,
+                id,
+                selection,
+                caption: item.text,
+                signal: item.signal,
+                maximum: chatFileLimit,
+              }),
+            id,
+          );
+          this.authority.guard(generation);
+          const draft = [await sealLocal(a, id, JSON.stringify(content))];
+          const value: OutboxEntry = {
+            id,
+            peer,
+            draft,
+            kind: 'attachment',
+            packet: null,
+            createdAt: item.createdAt,
+          };
+          await enqueueOutbox({
+            scope: a.session.accountId,
+            id,
+            value,
+            size: this.entrySize(value),
+            current: () => generation === this.authority.current(),
+            diagnostic: privateSendContext(id),
+          });
+          return { id, peer, content, createdAt: item.createdAt };
+        } catch (error: unknown) {
+          await forgetAttachment(a.session.accountId, id);
+          throw error;
+        }
+      },
+      { privateSend: privateSendContext(id) },
+    );
   }
   async composeViewOnce(
     peer: string,

@@ -1,3 +1,7 @@
+import {
+  measurePrivateSend,
+  privateSendPoint,
+} from '../chat-sync-diagnostics/index.ts';
 import { ensureMessageRecovery } from '../message-recovery/index.ts';
 import { openMessageMachine } from '../message-session/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
@@ -24,7 +28,14 @@ export class GroupMessageLease {
   async read(raw: unknown) {
     const c = this.context,
       machine = await this.open();
-    const result = await readGroupPage({ ...c, machine }, raw);
+    const result = await measurePrivateSend(
+      c.diagnostic,
+      'receipt-verify',
+      () => readGroupPage({ ...c, machine }, raw),
+    );
+    privateSendPoint(c.diagnostic, 'receipt-verify', {
+      receiptItems: result.views.length,
+    });
     if (result.receipts.length)
       await c.api('group-message-received', {
         groupId: c.group.state.groupId,
@@ -36,9 +47,17 @@ export class GroupMessageLease {
   private async open(): Promise<MessageCrypto> {
     if (this.machine) return this.machine;
     const c = this.context;
-    await ensureMessageRecovery(c.authority, c.api);
-    this.machine = await openMessageMachine(c.authority, c.api);
-    await this.machine.prepare(c.authority);
+    await measurePrivateSend(c.diagnostic, 'recovery', () =>
+      ensureMessageRecovery(c.authority, c.api),
+    );
+    this.machine = await measurePrivateSend(
+      c.diagnostic,
+      'receipt-sdk-open',
+      () => openMessageMachine(c.authority, c.api),
+    );
+    await measurePrivateSend(c.diagnostic, 'receipt-sdk-prepare', () =>
+      this.machine!.prepare(c.authority),
+    );
     return this.machine;
   }
   close(): void {

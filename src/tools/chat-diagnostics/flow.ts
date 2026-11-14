@@ -51,7 +51,7 @@ export class FlowSummaries {
       return;
     }
     const points = rows.get(slot) ?? [];
-    if (points.length >= (key === 'handleSend' ? 32 : 8)) {
+    if (points.length >= (key === 'handleSend' ? 32 : 16)) {
       this.overflow = true;
       return;
     }

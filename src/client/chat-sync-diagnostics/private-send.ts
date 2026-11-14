@@ -31,6 +31,8 @@ export class PrivateSendCapture {
   private reasons: readonly SendWaitReason[] = [];
   private batches = 0;
   private spans = 0;
+  private receipts = 0;
+  private activeReceipt: PrivateSendContext | undefined;
   private readonly emit: Emit;
   constructor(emit: Emit) {
     this.emit = emit;
@@ -81,6 +83,8 @@ export class PrivateSendCapture {
           }
         : {},
     );
+    if (this.activeReceipt)
+      this.point({ ...this.activeReceipt, ...context }, 'receipt-at-submit');
   }
   reset(): void {
     for (const [id, context] of this.drafts)
@@ -92,6 +96,7 @@ export class PrivateSendCapture {
     this.accepted.clear();
     this.eligible.clear();
     this.gestures = new WeakMap();
+    this.activeReceipt = undefined;
     this.tokenOwner = {};
   }
   queue(
@@ -182,9 +187,34 @@ export class PrivateSendCapture {
     }
     return { owner: this.tokenOwner, batch: ++this.batches };
   }
+  receipt(
+    scope: 'direct' | 'groups',
+    live: boolean,
+  ): PrivateSendContext | undefined {
+    if (this.ended) return;
+    if (this.receipts >= 128) {
+      this.point(undefined, 'receipt-start', { privateOverflow: true });
+      return;
+    }
+    const token = { owner: this.tokenOwner, receipt: ++this.receipts };
+    this.activeReceipt = token;
+    this.point(token, 'receipt-start', {
+      receiptScope: scope,
+      receiptLive: live,
+    });
+    return token;
+  }
+  releaseReceipt(context: PrivateSendContext | undefined): void {
+    this.point(context, 'receipt-release');
+    if (this.activeReceipt === context) this.activeReceipt = undefined;
+  }
   fields(context: PrivateSendContext | undefined): PrivateSendFields {
     if (this.ended || context?.owner !== this.tokenOwner) return {};
     return {
+      ...(context.receipt ? { receiptTurn: context.receipt } : {}),
+      ...(context.receiptAttempt
+        ? { receiptAttempt: context.receiptAttempt }
+        : {}),
       ...(context.message ? { privateSend: context.message } : {}),
       ...(context.batch ? { privateBatch: context.batch } : {}),
       ...(context.attempt ? { privateAttempt: context.attempt } : {}),

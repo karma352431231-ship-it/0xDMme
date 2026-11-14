@@ -723,3 +723,16 @@ export function tracePrivateTextQueue(
 ): void {
   if (chatSyncActive()) privateSends?.queue(id, stage);
 }
+
+/** The inbox owns this turn's lifecycle; the capture only numbers its capability. */
+export function startReceiptDiagnostic(
+  scope: 'direct' | 'groups',
+  live: boolean,
+): PrivateSendContext | undefined {
+  return chatSyncActive() ? privateSends?.receipt(scope, live) : undefined;
+}
+export function releaseReceiptDiagnostic(
+  context: PrivateSendContext | undefined,
+): void {
+  if (chatSyncActive()) privateSends?.releaseReceipt(context);
+}

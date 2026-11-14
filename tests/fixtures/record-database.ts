@@ -1,6 +1,8 @@
 /** IDB IO adapter only: ordered compound keys, serial read/write transactions
  * and atomic commit/abort. The outbox/index/quota algorithms stay real. */
-export function recordDatabase() {
+export function recordDatabase(
+  options: { beforeCommit?: () => Promise<void> } = {},
+) {
   let records = new Map<string, unknown>(),
     previous = Promise.resolve();
   const key = (value: readonly string[]) => value.join('\u0000');
@@ -18,7 +20,8 @@ export function recordDatabase() {
     let release = () => {},
       working = new Map<string, unknown>(),
       pending = 0,
-      closed = false;
+      closed = false,
+      committing = false;
     previous = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -37,7 +40,16 @@ export function recordDatabase() {
       objectStore: () => store,
     };
     function commit() {
-      if (closed || pending !== 0) return;
+      if (closed || pending !== 0 || committing) return;
+      committing = true;
+      if (options.beforeCommit) {
+        void options.beforeCommit().then(complete, () => tx.abort());
+        return;
+      }
+      complete();
+    }
+    function complete() {
+      if (closed) return;
       closed = true;
       records = working;
       release();

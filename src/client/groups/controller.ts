@@ -1,3 +1,7 @@
+import {
+  measurePrivateSend,
+  privateSendPoint,
+} from '../chat-sync-diagnostics/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { loadingPresentation } from '../chat-sync-diagnostics/index.ts';
 import {
@@ -589,7 +593,10 @@ export class GroupController {
     };
   }
   /** Prepares every authorized group without selecting it or marking it read. */
-  async synchronizeAll(signal: AbortSignal): Promise<boolean> {
+  async synchronizeAll(
+    signal: AbortSignal,
+    work: VaultWorkOptions = {},
+  ): Promise<boolean> {
     if (this.prefetch.complete) this.resetSynchronization();
     const generation = this.generation,
       abort = new AbortController();
@@ -601,23 +608,42 @@ export class GroupController {
     };
     const progress = this.prefetch;
     try {
-      const more = await this.access.withVault(false, async (authority) => {
-        guard();
-        if (authority.session.accountId !== this.session?.accountId)
-          throw new Error('Account changed.');
-        const api = (op: string, payload: Record<string, unknown>) =>
-          messageApi(authority, op, payload, { guard, signal: combined });
-        if (!(await this.loadPrefetchGroups(progress, api))) return false;
-        const governance = new GroupGovernance(this.identities, api, authority);
-        await this.prefetchGroupPage(
-          { authority, api, governance, guard },
-          progress,
-        );
-        return true;
-      });
+      const more = await this.access.withVault(
+        false,
+        async (authority) => {
+          guard();
+          if (authority.session.accountId !== this.session?.accountId)
+            throw new Error('Account changed.');
+          const api = (op: string, payload: Record<string, unknown>) =>
+            messageApi(authority, op, payload, {
+              guard,
+              signal: combined,
+              privateSend: work.privateSend,
+            });
+          if (!(await this.loadPrefetchGroups(progress, api))) return false;
+          const governance = new GroupGovernance(
+            this.identities,
+            api,
+            authority,
+          );
+          await this.prefetchGroupPage(
+            { authority, api, governance, guard, diagnostic: work.privateSend },
+            progress,
+          );
+          return true;
+        },
+        work,
+      );
+      privateSendPoint(work.privateSend, 'receipt-resource-release');
       guard();
-      await this.identities.save(guard);
+      await measurePrivateSend(work.privateSend, 'receipt-persist', () =>
+        this.identities.save(guard, work),
+      );
       guard();
+      if (more)
+        privateSendPoint(work.privateSend, 'receipt-commit', {
+          receiptPages: 1,
+        });
       return more;
     } finally {
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
@@ -659,7 +685,9 @@ export class GroupController {
     c: GroupContext & { guard: () => void },
     progress: GroupPrefetch,
   ): Promise<void> {
-    const group = await c.governance.verify(progress.groups[0]!.groupId);
+    const group = await measurePrivateSend(c.diagnostic, 'receipt-verify', () =>
+      c.governance.verify(progress.groups[0]!.groupId),
+    );
     const prepared =
       progress.before === null &&
       this.messageWindows.prepared(group.state.groupId);

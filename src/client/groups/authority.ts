@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import {
   backupMessageApi,
@@ -15,6 +16,7 @@ import type {
 import { GroupGovernance } from './governance.ts';
 
 export interface GroupContext {
+  diagnostic?: PrivateSendContext | undefined;
   authority: VaultAuthority;
   api: AttachmentApi;
   governance: GroupGovernance;

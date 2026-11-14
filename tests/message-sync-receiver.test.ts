@@ -1,3 +1,6 @@
+import { privateSendCapture } from './fixtures/private-send-capture.ts';
+import { startReceiptDiagnostic } from '../src/client/chat-sync-diagnostics/index.ts';
+import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MessageSyncReceiver } from '../src/client/messages/sync-receiver.ts';
@@ -425,3 +428,40 @@ await test('the durable checkpoint another tab advanced is reported before any w
   assert.deepEqual(observed, [null, committed]);
   assert.equal(h.commits.length, 1, 'an idle turn commits nothing');
 });
+
+for (const failure of [
+  'persistence',
+  'revocation',
+  'session-change',
+] as const) {
+  await test(`receipt diagnostic cannot report commit after ${failure}`, async (t) => {
+    const f = privateSendCapture(t),
+      h = harness([item(1)]);
+    h.ports.diagnostic = startReceiptDiagnostic('direct', true);
+    if (failure === 'persistence')
+      h.ports.save = () =>
+        Promise.reject(new MessageStorageError('Controlled durable failure'));
+    else {
+      let changed = false;
+      const api = h.ports.api;
+      h.ports.api = async (operation, data) => {
+        const result = await api(operation, data);
+        if (operation === 'confirm') changed = true;
+        return result;
+      };
+      h.ports.guard = () => {
+        if (changed)
+          throw new AccountError(
+            failure === 'revocation' ? 403 : 401,
+            'Authorization changed',
+          );
+      };
+    }
+    await assert.rejects(new MessageSyncReceiver().step(h.ports));
+    assert.equal(h.commits.length, 0);
+    const turn =
+      f.recording.report().comparison.privateLatency.receipts.turns[0]!;
+    assert.equal(turn.commitMs, null);
+    assert.ok(!turn.points.some((p) => p.stage === 'receipt-commit'));
+  });
+}

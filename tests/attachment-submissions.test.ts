@@ -198,3 +198,80 @@ await test('offline staging is durable and bounded even without verified history
   assert.equal(f.owner.full, true);
   assert.throws(() => f.owner.enqueue(submission()));
 });
+
+await test('submission diagnostic attributes its admission wait before staging, without guessing from unrelated work', async (t) => {
+  const { privateSendCapture } =
+    await import('./fixtures/private-send-capture.ts');
+  const f = privateSendCapture(t),
+    invoked = deferred<void>(),
+    stage = deferred<void>(),
+    completed = deferred<void>();
+  let available = false;
+  const owner = new AttachmentSubmissions({
+    available: () => available,
+    blockers: () => (available ? [] : ['foreground-operation']),
+    run: async (work) => {
+      await work();
+      return true;
+    },
+    stage: async (item) => {
+      invoked.resolve();
+      await stage.promise;
+      return [
+        {
+          id: item.id,
+          peer: item.peer,
+          createdAt: item.createdAt,
+          content: null,
+        },
+      ];
+    },
+    send: () => Promise.resolve(),
+    changed() {},
+    failed: (error) => {
+      throw error;
+    },
+    followup: () => completed.resolve(),
+  });
+  t.after(() => {
+    stage.resolve();
+    owner.reset();
+  });
+  owner.enqueue(submission());
+  await setImmediate();
+  const before = f.recording.report().comparison.privateLatency;
+  assert.ok(
+    !before.sends[0]!.milestones.some((p) => p.stage === 'staging-invoked'),
+  );
+  f.at(593);
+  available = true;
+  owner.resume();
+  await invoked.promise;
+  const during = f.recording.report().comparison.privateLatency;
+  assert.ok(
+    during.sends[0]!.milestones.some(
+      (p) => p.stage === 'submission-admitted' && p.ms === 593,
+    ),
+  );
+  assert.ok(
+    during.operations.some(
+      (op) =>
+        op.wait === 'foreground-operation' &&
+        op.startMs === 0 &&
+        op.endMs === 593,
+    ),
+  );
+  f.at(700);
+  stage.resolve();
+  await completed.promise;
+  assert.ok(
+    f.recording
+      .report()
+      .comparison.privateLatency.operations.some(
+        (op) =>
+          op.stage === 'staging-invoked' &&
+          op.startMs === 593 &&
+          op.endMs === 700,
+      ),
+  );
+});

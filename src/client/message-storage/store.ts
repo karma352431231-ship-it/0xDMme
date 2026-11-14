@@ -1,3 +1,8 @@
+import {
+  privateSendPoint,
+  privateSendSpan,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 export interface RecordRow {
   scope: string;
   name: string;
@@ -9,7 +14,13 @@ export class MessageStorageError extends Error {}
 export function transaction<T>(
   scope: string,
   work: (store: IDBObjectStore, done: (result: T) => void) => void,
+  diagnostic?: {
+    context: PrivateSendContext | undefined;
+    current: () => boolean;
+  },
 ): Promise<T> {
+  const openDone = privateSendSpan(diagnostic?.context, 'local-storage-open');
+  let transactionDone: ((ok?: boolean) => void) | undefined;
   return new Promise((resolve, reject) => {
     const opening = indexedDB.open('0xdmme-messages', 1);
     let db: IDBDatabase | undefined,
@@ -20,6 +31,8 @@ export function transaction<T>(
     function fail() {
       if (finished) return;
       finished = true;
+      openDone?.(false);
+      transactionDone?.(false);
       clearTimeout(timer);
       try {
         tx?.abort();
@@ -51,7 +64,12 @@ export function transaction<T>(
         db.close();
         return;
       }
+      openDone?.();
       tx = db.transaction('records', 'readwrite', { durability: 'strict' });
+      transactionDone = privateSendSpan(
+        diagnostic?.context,
+        'outbox-transaction',
+      );
       tx.onerror = fail;
       tx.onabort = fail;
       tx.oncomplete = () => {
@@ -59,11 +77,19 @@ export function transaction<T>(
         finished = true;
         clearTimeout(timer);
         db?.close();
+        const current = diagnostic ? diagnostic.current() : true;
+        transactionDone?.(current);
+        if (current) privateSendPoint(diagnostic?.context, 'outbox-commit');
+        else
+          privateSendPoint(diagnostic?.context, 'send-cancelled', {
+            sendOutcome: 'cancelled',
+          });
         resolve(result);
       };
       try {
         work(tx.objectStore('records'), (value) => {
           result = value;
+          privateSendPoint(diagnostic?.context, 'outbox-write-ready');
         });
       } catch {
         fail();

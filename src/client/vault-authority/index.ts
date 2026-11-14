@@ -31,6 +31,7 @@ export interface VaultAccess {
   withLocalVault: <T>(
     locator: VaultLocator,
     work: (authority: VaultAuthority) => Promise<T>,
+    options?: VaultWorkOptions,
   ) => Promise<T>;
 }
 export interface VaultWorkOptions extends AuthorityDiagnosticContext {

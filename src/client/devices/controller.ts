@@ -1,3 +1,7 @@
+import {
+  startAuthorityWork,
+  measurePrivateSend,
+} from '../chat-sync-diagnostics/index.ts';
 import { AuthorityKeys } from './authority-keys.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
@@ -520,36 +524,66 @@ export class DeviceController {
   async withLocalVault<T>(
     locator: VaultLocator,
     work: (authority: VaultAuthority) => Promise<T>,
+    options: VaultWorkOptions = {},
   ): Promise<T> {
-    return exclusive(locator.accountId, async () => {
-      const checkpoint = await readCheckpoint(locator.accountId);
-      const event = await verifyHistory(checkpoint.events, locator.accountId);
-      if (
-        !event ||
-        checkpoint.trustedRoot !== (await digest(canonical(event.root)))
-      )
-        throw new Error(
-          'No verified local authorization. Sign in and recover this device.',
+    const diagnostic = options.privateSend;
+    const trace = startAuthorityWork(
+      { ...options, diagnosticOperation: 'vault-local' },
+      undefined,
+      this.authorityWork,
+    );
+    trace?.admitted();
+    trace?.platform('storage-queued');
+    let ok = false,
+      acquired = false;
+    try {
+      const result = await exclusive(locator.accountId, async () => {
+        acquired = true;
+        trace?.platform('storage-acquired');
+        trace?.start();
+        const checkpoint = await measurePrivateSend(
+          diagnostic,
+          'local-keyring',
+          () => readCheckpoint(locator.accountId),
         );
-      const identity = await storedIdentity(
-        locator.accountId,
-        locator.deviceId,
-      );
-      const ring = await deviceSecrets(identity, event);
-      return work({
-        session: { ...locator, csrf: '' },
-        offline: true,
-        directory: await eventHash(event),
-        epoch: ring.epoch,
-        events: checkpoint.events,
-        key: async (epoch) => {
-          const secret = ring.keys[epoch - 1];
-          if (!secret) throw new Error('Key epoch unavailable.');
-          return aesKey(secret);
-        },
-        sign: (proof) => sign(identity.signing, proof),
+        const event = await measurePrivateSend(diagnostic, 'local-verify', () =>
+          verifyHistory(checkpoint.events, locator.accountId),
+        );
+        if (
+          !event ||
+          checkpoint.trustedRoot !== (await digest(canonical(event.root)))
+        )
+          throw new Error(
+            'No verified local authorization. Sign in and recover this device.',
+          );
+        const identity = await measurePrivateSend(
+          diagnostic,
+          'local-identity',
+          () => storedIdentity(locator.accountId, locator.deviceId),
+        );
+        const ring = await measurePrivateSend(diagnostic, 'local-ring', () =>
+          deviceSecrets(identity, event),
+        );
+        return work({
+          session: { ...locator, csrf: '' },
+          offline: true,
+          directory: await eventHash(event),
+          epoch: ring.epoch,
+          events: checkpoint.events,
+          key: async (epoch) => {
+            const secret = ring.keys[epoch - 1];
+            if (!secret) throw new Error('Key epoch unavailable.');
+            return aesKey(secret);
+          },
+          sign: (proof) => sign(identity.signing, proof),
+        });
       });
-    });
+      ok = true;
+      return result;
+    } finally {
+      if (acquired) trace?.platform('released');
+      trace?.finish(ok);
+    }
   }
   private async restoreOffline(session: AccountSession): Promise<void> {
     this.directoryReadAt = null;

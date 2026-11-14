@@ -351,3 +351,53 @@ await test('operations that follow inside one turn reuse its directory read; a n
   assert.equal(reads, 2);
   await released(accountId);
 });
+
+await test('linked acquisition distinguishes platform storage wait from scheduler admission and releases the observed resource', async (t) => {
+  const { privateSendCapture } =
+    await import('./fixtures/private-send-capture.ts');
+  const { AuthorityWork } =
+    await import('../src/client/devices/authority-work.ts');
+  const f = privateSendCapture(t),
+    send = f.send('authority-blocked');
+  const account = crypto.randomUUID(),
+    entered = deferred<void>(),
+    release = deferred<void>();
+  const holder = navigator.locks.request(
+    `0xdmme-device-authority:${account}`,
+    async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  );
+  t.after(() => release.resolve());
+  await waitForBoundary(entered.promise);
+  f.at(20);
+  const queue = new AuthorityWork(authorityTurn);
+  let acquired = false;
+  const job = queue.hold(
+    account,
+    () => {
+      acquired = true;
+      return Promise.resolve();
+    },
+    'interactive',
+    { privateSend: send.context },
+  );
+  await pending(account, 1);
+  assert.equal(acquired, false);
+  const before = f.recording.report().deliveryFlow.authority[0]!;
+  assert.ok(before.events.some((e) => e['lockPhase'] === 'storage-queued'));
+  assert.ok(!before.events.some((e) => e['workPhase'] === 'start'));
+  f.at(450);
+  release.resolve();
+  await Promise.all([holder, job]);
+  await released(account);
+  await setImmediate();
+  const after = f.recording.report().deliveryFlow.authority[0]!;
+  assert.ok(
+    after.events.some(
+      (e) => e['lockPhase'] === 'storage-acquired' && e['workClockMs'] === 1450,
+    ),
+  );
+  assert.ok(after.events.some((e) => e['lockPhase'] === 'released'));
+});

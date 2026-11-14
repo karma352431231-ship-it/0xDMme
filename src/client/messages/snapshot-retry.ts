@@ -5,11 +5,13 @@ import { ApiResponseError } from '../api-response/index.ts';
 export async function retrySnapshotRead<T>(
   read: () => Promise<T>,
   current: () => boolean,
+  retried?: () => void,
 ): Promise<T> {
   try {
     return await read();
   } catch (error: unknown) {
     if (!current() || !snapshotChanged(error)) throw error;
+    retried?.();
     return read();
   }
 }

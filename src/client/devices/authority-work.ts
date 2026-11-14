@@ -1,3 +1,4 @@
+import type { PrivateSendFields } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import { startAuthorityWork } from '../chat-sync-diagnostics/index.ts';
 import type { AuthorityDiagnosticContext } from '../../shared/chat-sync-diagnostics/flow.ts';
 import { measureWork } from '../synchronization-diagnostics/index.ts';
@@ -10,7 +11,14 @@ export interface AuthorityTurnContext {
 type NativeTurn = (
   key: string,
   body: () => Promise<void>,
-  options: { waitMs: number; priority?: 'interactive' },
+  options: {
+    waitMs: number;
+    priority?: 'interactive';
+    platform?: (
+      phase: NonNullable<PrivateSendFields['lockPhase']>,
+      coverage?: PrivateSendFields['lockCoverage'],
+    ) => void;
+  },
 ) => Promise<void>;
 
 interface WaitingWork {
@@ -172,19 +180,24 @@ export class AuthorityWork {
       await held.operation({ follower: false });
       return;
     }
+    const releasing = [entry];
     try {
-      await turn(held.key, () => this.batch(entry, held), {
+      await turn(held.key, () => this.batch(entry, held, releasing), {
         waitMs,
+        ...(entry.trace ? { platform: entry.trace.platform } : {}),
         ...(entry.interactive ? { priority: 'interactive' as const } : {}),
       });
     } catch (error: unknown) {
       // Only an unacquired turn reaches here; settled callers ignore it.
       held.fail(error);
+    } finally {
+      for (const work of releasing) work.trace?.platform('released');
     }
   }
   private async batch(
     leader: WaitingWork,
     held: NonNullable<WaitingWork['held']>,
+    releasing: WaitingWork[],
   ): Promise<void> {
     const started = performance.now();
     let usable = await held.operation({ follower: false });
@@ -200,6 +213,8 @@ export class AuthorityWork {
       const [next] = this.waiting.splice(index, 1);
       if (next!.interactive) this.interactiveTurns++;
       next!.trace?.admitted();
+      next!.trace?.platform('storage-acquired', 'held-turn-follower');
+      releasing.push(next!);
       usable = await next!.held!.operation({ follower: true });
     }
   }

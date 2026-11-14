@@ -1,4 +1,11 @@
 import {
+  startReceiptDiagnostic,
+  releaseReceiptDiagnostic,
+  privateSendPoint,
+  measurePrivateSend,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import {
   expectedInterruption,
   WorkInterruption,
   SynchronizationTask,
@@ -18,7 +25,7 @@ interface InboxPorts {
   current: (generation: number) => boolean;
   /** Live demand asks for interactive authority priority. */
   direct: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
-  groups: (signal: AbortSignal) => Promise<boolean>;
+  groups: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
   /** After a committed page, outside the turn; `live` reports whether the
@@ -44,7 +51,11 @@ export class MessageInbox {
   private readonly retryAt = { direct: 0, groups: 0 };
   private readonly continuing = new Set<HistoryKind>();
   private readonly demanded = new Set<HistoryKind>();
-  private active: { live: boolean; done: Promise<void> } | null = null;
+  private active: {
+    live: boolean;
+    done: Promise<void>;
+    diagnostic: PrivateSendContext | undefined;
+  } | null = null;
   running = false;
 
   constructor(ports: InboxPorts) {
@@ -83,13 +94,16 @@ export class MessageInbox {
   }
   /** Foreground work waits for a live page to commit instead of discarding its
    * progress; speculative preparation is still interrupted. */
-  async settle(): Promise<void> {
+  async settle(diagnostic?: PrivateSendContext): Promise<void> {
     if (!this.active?.live) {
       this.pause();
       return;
     }
     this.defer();
-    await this.active.done;
+    const active = this.active;
+    const linked = active.diagnostic && { ...active.diagnostic, ...diagnostic };
+    privateSendPoint(linked, 'receipt-awaited');
+    await active.done;
   }
   resume(): void {
     if (
@@ -151,19 +165,31 @@ export class MessageInbox {
     const live = this.demanded.has(turn.kind);
     this.active = {
       live,
+      diagnostic: startReceiptDiagnostic(turn.kind, live),
       done: new Promise<void>((resolve) => {
         settled = resolve;
       }),
     };
+    const diagnostic = this.active.diagnostic;
     let committed = false;
     try {
       committed = await measureWork(this, 'inbox', () =>
         this.receivePage(turn, abort.signal, generation),
       );
     } catch (error: unknown) {
+      privateSendPoint(diagnostic, 'receipt-failed', {
+        receiptReason:
+          abort.signal.aborted || expectedInterruption(error)
+            ? 'cancelled'
+            : 'failed',
+      });
       this.resumeInterrupted(error, turn);
       this.fail(error, abort.signal, generation, turn.kind);
     } finally {
+      releaseReceiptDiagnostic(diagnostic);
+      privateSendPoint(diagnostic, 'receipt-complete', {
+        receiptMore: this.preparation.has(turn.kind),
+      });
       this.running = false;
       this.active = null;
       settled();
@@ -214,15 +240,32 @@ export class MessageInbox {
     signal: AbortSignal,
     generation: number,
   ): Promise<boolean> {
+    const diagnostic = this.active?.diagnostic;
+    let attempt = 0;
     const more = await retrySnapshotRead(
-      () =>
-        turn.kind === 'groups'
-          ? this.ports.groups(signal)
-          : this.ports.direct(
-              signal,
-              this.active?.live ? { priority: 'interactive' } : {},
-            ),
+      () => {
+        attempt++;
+        const context = diagnostic
+          ? { ...diagnostic, receiptAttempt: attempt }
+          : undefined;
+        privateSendPoint(context, 'receipt-attempt');
+        const work: VaultWorkOptions = {
+          ...(this.active?.live && turn.kind === 'direct'
+            ? { priority: 'interactive' as const }
+            : {}),
+          privateSend: context,
+        };
+        return measurePrivateSend(context, 'receipt-attempt', () =>
+          turn.kind === 'groups'
+            ? this.ports.groups(signal, work)
+            : this.ports.direct(signal, work),
+        );
+      },
       () => !signal.aborted && this.ports.current(generation),
+      () =>
+        privateSendPoint(diagnostic, 'receipt-retry', {
+          receiptReason: 'snapshot-changed',
+        }),
     );
     if (signal.aborted || !this.ports.current(generation)) return false;
     this.preparation.complete(turn, more);

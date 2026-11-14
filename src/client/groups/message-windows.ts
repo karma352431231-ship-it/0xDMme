@@ -1,3 +1,5 @@
+import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { readReopen, writeReopen } from '../reopen-cache/index.ts';
 import { groupCacheScope } from './cache.ts';
@@ -31,6 +33,7 @@ interface Window {
   before: number | null;
 }
 interface ReadContext extends Omit<GroupReadContext, 'machine'> {
+  diagnostic?: PrivateSendContext | undefined;
   indexPages?: number;
   guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;
@@ -144,13 +147,17 @@ export class GroupMessageWindows {
     });
     const result = { ...loaded, views: reached.rows };
     c.guard?.();
-    await c.api('group-message-confirm', wire(snapshot));
+    await measurePrivateSend(c.diagnostic, 'receipt-confirm', () =>
+      c.api('group-message-confirm', wire(snapshot)),
+    );
     c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
     this.index.confirmed(snapshot);
     if (history.remember) {
       this.floors.update(snapshot.groupId, reached);
-      await this.saveCheckpoint(c, result);
+      await measurePrivateSend(c.diagnostic, 'receipt-persist', () =>
+        this.saveCheckpoint(c, result),
+      );
     }
     return result;
   }

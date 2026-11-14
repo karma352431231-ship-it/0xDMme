@@ -1,3 +1,15 @@
+import { SubmissionDiagnostics } from './diagnostics.ts';
+import {
+  chatSyncActive,
+  privateSendContext,
+  privateSendBatch,
+  linkPrivateBatch,
+  measurePrivateSend,
+} from '../chat-sync-diagnostics/index.ts';
+import type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 export { submittedMediaRows, updateSubmittedMediaStates } from './rows.ts';
 import type {
@@ -24,6 +36,7 @@ interface Batch {
   next: number;
   failed: boolean;
   ids: Set<string>;
+  diagnostic?: SubmissionDiagnostics;
 }
 /** Owns at most two immutable media batches, their transferred plaintext,
  * staging failure/retry and visible lifetime. The outbox owns durable data,
@@ -36,9 +49,13 @@ export class AttachmentSubmissions {
   private admitting = false;
   private readonly options: {
     available: () => boolean;
-    run: (work: () => Promise<void>) => Promise<boolean>;
+    blockers?: () => readonly SendWaitReason[];
+    run: (
+      work: () => Promise<void>,
+      diagnostic?: PrivateSendContext,
+    ) => Promise<boolean>;
     stage: (item: SubmissionItem) => Promise<StagedMedia[]>;
-    send: () => Promise<void>;
+    send: (diagnostic?: PrivateSendContext) => Promise<void>;
     changed: (update?: 'progress') => void;
     failed: (error: unknown) => void;
     followup: () => void;
@@ -112,6 +129,10 @@ export class AttachmentSubmissions {
       if (!this.options.available())
         traceSend('ui-blocked', item.id, { sendBlock: 'engine' });
     }
+    if (chatSyncActive())
+      this.batches.at(-1)!.diagnostic = new SubmissionDiagnostics(
+        items.map((item) => item.id),
+      );
     this.admitting = true;
     try {
       this.options.changed();
@@ -121,6 +142,7 @@ export class AttachmentSubmissions {
     queueMicrotask(() => this.resume());
   }
   resume(): void {
+    this.observeAdmission();
     if (
       this.admitting ||
       this.running ||
@@ -134,16 +156,36 @@ export class AttachmentSubmissions {
       batch = this.batches[0]!;
     void this.perform(batch, generation);
   }
+  private observeAdmission(): void {
+    if (!chatSyncActive()) return;
+    const reasons =
+      this.options.blockers?.() ??
+      (this.options.available() ? [] : ['availability-unavailable' as const]);
+    this.batches.forEach((batch, index) =>
+      batch.diagnostic?.observe([
+        ...reasons,
+        ...(index > 0 ? ['earlier-submission' as const] : []),
+        ...(this.admitting ? ['submission-admitting' as const] : []),
+        ...(this.running ? ['submission-running' as const] : []),
+      ]),
+    );
+  }
   private async perform(batch: Batch, generation: number): Promise<void> {
+    const diagnostic = privateSendBatch();
+    linkPrivateBatch(
+      diagnostic,
+      batch.items.map((item) => item.id),
+    );
     try {
       const ran = await this.options.run(async () => {
+        batch.diagnostic?.admit();
         await this.stageBatch(batch, generation);
         if (generation !== this.generation) return;
         this.markBatch(batch, networkAvailable() ? 'sending' : 'saved');
-        if (networkAvailable()) await this.options.send();
+        if (networkAvailable()) await this.options.send(diagnostic);
         if (generation === this.generation) this.markBatch(batch, 'saved');
         if (generation === this.generation) this.options.followup();
-      });
+      }, diagnostic);
       if (generation !== this.generation) return;
       if (ran) this.batches.shift();
       else {
@@ -167,7 +209,11 @@ export class AttachmentSubmissions {
       const item = batch.items[batch.next]!;
       this.mark(item.id, 'staging');
       this.options.changed();
-      const staged = await this.options.stage(item);
+      const staged = await measurePrivateSend(
+        privateSendContext(item.id),
+        'staging-invoked',
+        () => this.options.stage(item),
+      );
       if (generation !== this.generation) return;
       for (const row of staged) {
         batch.ids.add(row.id);
@@ -272,6 +318,7 @@ export class AttachmentSubmissions {
   reset(): void {
     this.generation++;
     for (const batch of this.batches) {
+      batch.diagnostic?.close();
       batch.cancel.abort();
       if (!this.running || batch !== this.batches[0]) this.disposeBatch(batch);
     }

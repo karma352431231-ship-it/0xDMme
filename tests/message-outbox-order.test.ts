@@ -1,3 +1,5 @@
+import { privateSendCapture } from './fixtures/private-send-capture.ts';
+import { waitForBoundary } from './fixtures/deferred.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -24,8 +26,7 @@ import type {
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type { LocalCipher } from '../src/client/message-storage/index.ts';
 
-function installStorage(t: TestContext): void {
-  const db = recordDatabase();
+function installStorage(t: TestContext, db = recordDatabase()): void {
   const previous = ['indexedDB', 'IDBKeyRange'].map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
   );
@@ -277,4 +278,72 @@ await test('a view-once text/file pair is admitted atomically, preserves FIFO on
     }),
   );
   assert.equal((await outboxPage(scope)).length, 2);
+});
+
+await test('outbox diagnostics distinguish queued writes from durable completion and never mark a cancelled save committed', async (t) => {
+  const f = privateSendCapture(t),
+    reached = deferred<void>(),
+    release = deferred<void>();
+  const db = recordDatabase({
+    beforeCommit: () => {
+      reached.resolve();
+      return release.promise;
+    },
+  });
+  installStorage(t, db);
+  t.after(() => release.resolve());
+  const send = f.send('storage-boundary');
+  let current = true,
+    resolved = false;
+  const saving = enqueueOutbox({
+    scope: 'synthetic-account',
+    id: send.id,
+    value: {},
+    size: 32,
+    current: () => current,
+    diagnostic: send.context,
+  }).then(() => {
+    resolved = true;
+  });
+  await waitForBoundary(reached.promise);
+  assert.equal(resolved, false);
+  const before = f.recording.report().comparison.privateLatency;
+  assert.ok(
+    before.sends[0]!.milestones.some((p) => p.stage === 'outbox-write-ready'),
+  );
+  assert.ok(
+    !before.sends[0]!.milestones.some((p) => p.stage === 'outbox-commit'),
+  );
+  f.at(300);
+  current = false;
+  release.resolve();
+  await saving;
+  const after = f.recording.report().comparison.privateLatency;
+  assert.ok(
+    !after.sends[0]!.milestones.some((p) => p.stage === 'outbox-commit'),
+  );
+  assert.equal(
+    after.operations.find((op) => op.stage === 'outbox-transaction')?.endMs,
+    300,
+  );
+  assert.equal(
+    after.operations.find((op) => op.stage === 'outbox-transaction')?.success,
+    false,
+  );
+  const next = f.send('current-storage-boundary');
+  f.at(400);
+  await enqueueOutbox({
+    scope: 'synthetic-account',
+    id: next.id,
+    value: {},
+    size: 32,
+    current: () => true,
+    diagnostic: next.context,
+  });
+  const committed = f.recording.report().comparison.privateLatency.sends[1]!;
+  assert.ok(
+    committed.milestones.some(
+      (p) => p.stage === 'outbox-commit' && p.ms === 400,
+    ),
+  );
 });

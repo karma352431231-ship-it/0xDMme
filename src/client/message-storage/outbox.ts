@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { vaultQuota } from '../../shared/vault/index.ts';
 import { transaction } from './store.ts';
 import type { RecordRow } from './store.ts';
@@ -24,17 +25,20 @@ export function enqueueOutbox(input: {
   value: object;
   size: number;
   current: () => boolean;
+  diagnostic?: PrivateSendContext | undefined;
 }): Promise<void> {
   return enqueueOutboxBatch({
     scope: input.scope,
     entries: [input],
     current: input.current,
+    diagnostic: input.diagnostic,
   });
 }
 export function enqueueOutboxBatch(input: {
   scope: string;
   entries: readonly { id: string; value: object; size: number }[];
   current: () => boolean;
+  diagnostic?: PrivateSendContext | undefined;
 }): Promise<void> {
   const { scope, entries, current } = input;
   if (
@@ -44,48 +48,52 @@ export function enqueueOutboxBatch(input: {
     entries.some(({ size }) => !Number.isSafeInteger(size) || size < 0)
   )
     throw new Error('Invalid local budget.');
-  return transaction(scope, (store, done) => {
-    const old = entries.map(({ id }) => store.get([scope, `outbox:${id}`])),
-      usage = store.get([scope, 'usage']),
-      sequence = store.get([scope, 'outbox-sequence']);
-    let reads = 0;
-    const update = () => {
-      if (++reads !== entries.length + 2) return;
-      if (!current()) {
-        store.transaction.abort();
-        return;
-      }
-      const added = entries.filter((_, position) => !row(old[position]!));
-      if (!added.length) {
+  return transaction(
+    scope,
+    (store, done) => {
+      const old = entries.map(({ id }) => store.get([scope, `outbox:${id}`])),
+        usage = store.get([scope, 'usage']),
+        sequence = store.get([scope, 'outbox-sequence']);
+      let reads = 0;
+      const update = () => {
+        if (++reads !== entries.length + 2) return;
+        if (!current()) {
+          store.transaction.abort();
+          return;
+        }
+        const added = entries.filter((_, position) => !row(old[position]!));
+        if (!added.length) {
+          done(undefined);
+          return;
+        }
+        let next = Number(row(sequence)?.value ?? 0);
+        const used =
+          Number(row(usage)?.value ?? 0) +
+          added.reduce((total, entry) => total + entry.size + indexBytes, 0);
+        if (!validBudget(next + added.length, used)) {
+          store.transaction.abort();
+          return;
+        }
+        for (const { id, value, size } of added) {
+          const order = `${prefix}${String(++next).padStart(16, '0')}:${id}`;
+          store.put({
+            scope,
+            name: `outbox:${id}`,
+            value: { ...value, outboxOrder: order },
+            size,
+          });
+          store.put({ scope, name: order, value: id, size: indexBytes });
+        }
+        store.put({ scope, name: 'outbox-sequence', value: next, size: 0 });
+        store.put({ scope, name: 'usage', value: used, size: 0 });
         done(undefined);
-        return;
-      }
-      let next = Number(row(sequence)?.value ?? 0);
-      const used =
-        Number(row(usage)?.value ?? 0) +
-        added.reduce((total, entry) => total + entry.size + indexBytes, 0);
-      if (!validBudget(next + added.length, used)) {
-        store.transaction.abort();
-        return;
-      }
-      for (const { id, value, size } of added) {
-        const order = `${prefix}${String(++next).padStart(16, '0')}:${id}`;
-        store.put({
-          scope,
-          name: `outbox:${id}`,
-          value: { ...value, outboxOrder: order },
-          size,
-        });
-        store.put({ scope, name: order, value: id, size: indexBytes });
-      }
-      store.put({ scope, name: 'outbox-sequence', value: next, size: 0 });
-      store.put({ scope, name: 'usage', value: used, size: 0 });
-      done(undefined);
-    };
-    for (const request of old) request.onsuccess = update;
-    usage.onsuccess = update;
-    sequence.onsuccess = update;
-  });
+      };
+      for (const request of old) request.onsuccess = update;
+      usage.onsuccess = update;
+      sequence.onsuccess = update;
+    },
+    { context: input.diagnostic, current },
+  );
 }
 
 /** At most sixteen ordered lookups in one short transaction. Legacy drafts

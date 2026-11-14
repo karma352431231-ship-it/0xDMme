@@ -103,3 +103,107 @@ Confirm `meterRevision: 6`, private accounting availability, the collector commi
 and the app asset before comparing. After-capture timings and any remaining
 large residual are intentionally pending that owner-run capture. Instrument the
 specific residual bounds before proposing a speed change.
+
+## Revision 7: receipt turns, local admission and attachment staging
+
+The revision 6 Android follow-up used clean collector/app source
+`929106c1360c6508fbccb91aaa3aedc6988e51b6` and asset
+`app-aff3253ca41f4d1d.js`. Its private summaries survived 4,073 global event drops.
+Text acceptance took 3,467 / 4,450 / 4,606 ms; the second and third included
+2,133 / 1,863 ms waiting for receipt completion. Local saves took 562 / 203 /
+796 ms, with about 1 ms sealing. The 100,578-byte image took 4,269 ms to
+acceptance, including 593 ms before attachment staging, 457 ms of previously
+unidentified authority acquisition and 607 ms residual. These are supplied
+baseline measurements, not candidate results.
+
+Collector **7**, app private protocol **2**, adds the following evidence:
+
+- `privateLatency.receipts.turns` independently retains the exact inbox turn,
+  direct/group scope, live/speculative status, attempts, snapshot retry reason,
+  bounded page/item counts, durable commit, failure/cancellation, inbox release
+  and completion. Fetch, verification, SDK/key inbox, decryption, persistence,
+  acknowledgment and confirmation spans include request categories. Each turn
+  includes its linked authority events, with the same capture-relative clock.
+- Each send's `receipts` distinguishes the turn active at its gesture from the
+  exact turn awaited by its foreground batch. It reports that turn's age at
+  the gesture and only the remaining overlap after the actual wait began.
+  Several sends reference one shared turn; its internal work is retained once.
+  A hint that arrives during a turn still requests its successor.
+- The existing local authority gate records platform lock queue/acquisition,
+  checkpoint loading, history verification, stored identity and keyring opening.
+  `local-storage-open`, `outbox-transaction`, `outbox-write-ready` and
+  `outbox-commit` distinguish opening storage, the transaction, issuing writes
+  and strict durable `IDBTransaction.oncomplete`. A generation that is no longer
+  current never receives a successful send commit annotation. Existing atomic
+  quota/order/ciphertext writes and save-generation guards are unchanged.
+- Attachment submission owns enqueue, observed eligibility/blocker intervals,
+  admission and staging invocation. It supplies its scheduling batch to the
+  foreground receipt wait and outbox. Unsupported availability observations
+  remain an explicit category instead of an inferred blocker.
+- Authority records distinguish maintenance-gate, turn-gate and innermost
+  storage-lock waits. Followers are labeled as already inside their leader's
+  native turn. Operation completion and actual platform release are separate;
+  another document's holder identity remains unavailable. Same-document work
+  uses existing anonymous queue/operation slots. Nested waits remain detail
+  under the enclosing queue interval and are not added to the elapsed total.
+- Milestone completeness and `windows.*.accountingCoverage` are separate.
+  Complete milestones can coexist with residual time. The residual retains
+  its bounding stages and is never relabeled execution just to reach 100%.
+
+The receipt owner is `messages/inbox.ts`; domain state and continuations remain
+with `MessageSyncReceiver`, `Messages` and `GroupController`. Diagnostic
+capabilities expire on session/capture changes. The storage owner marks its own
+transaction boundaries. The new submission observer owns only its bounded
+observation closures, closing them at admission or reset. No controller state
+bag, new data cache, dependency, timer or transport policy is introduced.
+
+Receipt summaries have at most 128 turns, 128 detail points and 16 separately
+retained terminal points per turn. Truncation/overflow and unfinished span
+boundaries remain explicit. Authority summaries retain at most 512 operations,
+now with at most 16 phase points each to include platform boundaries. Older
+private protocol 1 retains its available evidence but cannot advertise the
+new automatic attribution. Outgoing group sends retain the existing group
+collector; this increment does not provide the full private-send decomposition
+for an outgoing group message.
+
+### Optimization decision from the inspected code
+
+The direct domain already processes one bounded account page per turn. Its
+packet storage/ACKs precede final snapshot confirmation and durable progress.
+The inbox waits for the enclosing operation, including its one permitted
+snapshot retry; a first page-level timestamp does not prove the whole lease
+can be released. Group preparation already uses one index page per turn, then
+saves pending verified identity pins outside that vault operation. Releasing
+the inbox before that save would require a reviewed recovery/continuation
+contract. Counters, sound and visible receipt follow-ups already execute outside
+the active inbox turn.
+
+Consequently this increment preserves settlement, retry count, admission and
+priority, including maintenance priority for group receipt. There is no supported
+latency fix yet: the supplied aggregate wait does not identify redundant domain
+work or a measured internal cost. It would be incorrect to claim a two-second
+improvement by cancelling live receipt, skipping verification, or releasing
+before progress/pins are safely settled. The new trace provides the missing
+internal evidence for the narrow next optimization.
+
+### Validation and owner capture
+
+Deterministic tests exercise live direct and group receipt, two sends sharing
+one awaited turn, a hint during the turn, snapshot retry, persistence failure,
+revocation/session changes, global-ring eviction, platform-lock acquisition,
+transaction completion and attachment admission. Existing sender accepted-retry,
+authority scheduling, receiver cursor/recovery, group preparation and attachment
+lifecycle tests remain the correctness checks. These tests demonstrate contracts
+and interval attribution, not physical-device latency improvements.
+
+No manual trial or real-message interaction is part of this follow-up.
+Authorized Android package updates verify source assets, signing identity and
+installation data identity; they do not establish manual-flow acceptance.
+At the owner's request, matched Android baseline/candidate trials are
+left to the owner: at least three idle texts, texts during a verified active
+direct/group receipt, two rapid texts and the same-size image. Retain the same
+account, device, network and build mode; compare median/range, failures, receipt
+progress and duplicate/lost sends as specified in the work order. Capture
+collector revision 7/private protocol 2 plus collector commit and app asset.
+Candidate latency, instrumentation overhead and before/after improvement remain
+unmeasured. Browser and iOS acceptance are separate from Android measurements.

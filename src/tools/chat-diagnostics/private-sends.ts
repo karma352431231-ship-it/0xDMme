@@ -1,3 +1,4 @@
+import { ReceiptTurns, receiptLinks } from './receipt-turns.ts';
 import { sendStages } from '../../shared/chat-sync-diagnostics/send.ts';
 import type { SendStage } from '../../shared/chat-sync-diagnostics/send.ts';
 import {
@@ -11,6 +12,7 @@ import { union, clip, subtract, duration } from './send-intervals.ts';
 import type { Interval } from './send-intervals.ts';
 
 interface Point {
+  receipt?: number;
   attempt?: number;
   batch?: number;
   stage: SendStage;
@@ -40,6 +42,7 @@ interface Batch {
   members: Set<number>;
 }
 interface Work {
+  platform: { phase: string; ms: number; coverage: string }[];
   slot: number;
   queue: number | null;
   category: string;
@@ -72,6 +75,7 @@ const interval = (start: number | null, end: number | null): Interval[] =>
 /** Admission summaries and shared operations have budgets independent of the
  * global ring. Linkage is explicit; temporal proximity is never attribution. */
 export class PrivateSendBreakdowns {
+  private readonly receipts = new ReceiptTurns();
   private revision = 0;
   private offset: number | undefined;
   private overflow = 0;
@@ -87,6 +91,7 @@ export class PrivateSendBreakdowns {
     if (event.kind !== 'reuse-send') return;
     const clock = number(event['sendClockMs']);
     if (clock !== null) this.offset ??= event.ms - clock;
+    this.receipts.observe(event, this.at(event));
     const stage = sendStages.find((s) => s === event['sendStage']);
     if (!stage) return;
     this.sendEvent(stage, event);
@@ -124,10 +129,13 @@ export class PrivateSendBreakdowns {
       this.overflow++;
       return;
     }
+    const receipt = number(event['receiptTurn']);
+    const receiptField = receipt === null ? {} : { receipt };
     const result = outcome(event['sendOutcome']);
     const attempt = number(event['privateAttempt']);
     points.push({
       stage,
+      ...receiptField,
       batch: slot,
       ...(attempt === null ? {} : { attempt }),
       ms: this.at(event),
@@ -167,9 +175,12 @@ export class PrivateSendBreakdowns {
       send.points.some((p) => p.stage === stage)
     )
       return;
+    const receipt = number(event['receiptTurn']);
+    const receiptField = receipt === null ? {} : { receipt };
     const result = outcome(event['sendOutcome']);
     send.points.push({
       stage,
+      ...receiptField,
       ms: this.at(event),
       ...(result ? { outcome: result } : {}),
     });
@@ -261,8 +272,16 @@ export class PrivateSendBreakdowns {
   }
   report(flow: Flow) {
     const works = flow.authority.map((w) => readWork(w, this.offset ?? 0));
+    const receiptReport = this.receipts.report(
+      flow.authority,
+      this.offset ?? 0,
+    );
     const sends = [...this.sends.values()].map((send) =>
-      this.sendReport(send, works, flow.overflow),
+      this.sendReport(send, {
+        works,
+        authorityOverflow: flow.overflow,
+        receipts: receiptReport,
+      }),
     );
     const execution = this.operations
       .filter((op) => !op.wait)
@@ -277,6 +296,7 @@ export class PrivateSendBreakdowns {
       available: this.revision === privateSendRevision,
       revision: this.revision,
       expectedRevision: privateSendRevision,
+      receipts: receiptReport,
       limits: { sends: 5, batches: 128, operations: 1024, pointsPerSend: 128 },
       overflow: this.overflow,
       authorityOverflow: flow.overflow,
@@ -311,9 +331,13 @@ export class PrivateSendBreakdowns {
   }
   private sendReport(
     original: Send,
-    works: Work[],
-    authorityOverflow: boolean,
+    context: {
+      works: Work[];
+      authorityOverflow: boolean;
+      receipts: ReturnType<ReceiptTurns['report']>;
+    },
   ) {
+    const { works, authorityOverflow } = context;
     const shared = [...this.batches.values()]
       .filter((b) => b.members.has(original.slot))
       .flatMap((b) =>
@@ -356,6 +380,16 @@ export class PrivateSendBreakdowns {
           operations,
           work,
         ),
+      },
+      receipts: receiptLinks({
+        points: send.points,
+        gestureMs: send.gestureMs,
+        turns: context.receipts.turns,
+        endMs: firstPoint(send, 'accepted'),
+      }),
+      residualCoverage: {
+        meaning:
+          'separate-from-milestone-coverage; measured-unattributed-time-remains-visible',
       },
       checkObservation: checkObservation(send),
     };
@@ -430,6 +464,11 @@ export class PrivateSendBreakdowns {
       queueWaitMs: duration(queue),
       executionMs: duration(execution),
       unattributedMs: duration(residual),
+      accountingCoverage: {
+        observedMs: duration(queue) + duration(execution),
+        residualMs: duration(residual),
+        fullyAttributed: residual.length === 0,
+      },
       queueIntervals: queue,
       executionIntervals: execution,
       unattributedIntervals: residual.map((span) => ({
@@ -474,6 +513,13 @@ function readWork(work: AuthorityWorkSummary, offset: number): Work {
   };
   return {
     slot: work.slot,
+    platform: work.events
+      .filter((e) => e['workPhase'] === 'platform')
+      .map((e) => ({
+        phase: String(e['lockPhase']),
+        ms: (number(e['workClockMs']) ?? e.ms) + offset,
+        coverage: String(e['lockCoverage']),
+      })),
     queue: number(first?.['authorityQueue']),
     category:
       authorityKinds.find((k) => k === first?.['authorityKind']) ?? 'vault',
@@ -505,7 +551,8 @@ function workReport(work: Work, all: Work[], window: Interval) {
     queuedMs: work.queued,
     admittedMs: work.admitted,
     acquiredMs: work.start,
-    releasedMs: work.end,
+    operationCompleteMs: work.end,
+    releasedMs: work.platform.find((p) => p.phase === 'released')?.ms ?? null,
     schedulerWaitMs:
       work.queued === null || work.admitted === null
         ? null
@@ -514,6 +561,8 @@ function workReport(work: Work, all: Work[], window: Interval) {
       work.admitted === null || work.start === null
         ? null
         : duration(clip(interval(work.admitted, work.start), window)),
+    platform: work.platform,
+    platformWait: platformWait(work, window),
     missingBoundary:
       work.queued === null || work.start === null || work.end === null,
     blockers: [
@@ -582,4 +631,40 @@ function queueInterval(op: Operation, send: Send, end: number): Interval[] {
       ? Math.min(op.endMs ?? end, acquired)
       : (op.endMs ?? end);
   return interval(op.startMs, stop);
+}
+
+function platformWait(work: Work, window: Interval) {
+  const spans = ['maintenance', 'turn', 'storage'].flatMap((category) => {
+    const start = work.platform.find(
+      (p) => p.phase === `${category}-queued`,
+    )?.ms;
+    const end = work.platform.find(
+      (p) => p.phase === `${category}-acquired`,
+    )?.ms;
+    return start === undefined || end === undefined
+      ? []
+      : [
+          {
+            category,
+            intervals: clip([{ startMs: start, endMs: end }], window),
+          },
+        ];
+  });
+  const acquisition = clip(interval(work.admitted, work.start), window);
+  return {
+    observed: spans.map((s) => ({
+      category: s.category,
+      elapsedMs: duration(s.intervals),
+      intervals: s.intervals,
+    })),
+    unattributedMs: duration(
+      subtract(
+        acquisition,
+        spans.flatMap((s) => s.intervals),
+      ),
+    ),
+    holderCoverage:
+      'same-document-authority-slots-only; other-documents-have-no-holder-identity',
+    follower: work.platform.some((p) => p.coverage === 'held-turn-follower'),
+  };
 }

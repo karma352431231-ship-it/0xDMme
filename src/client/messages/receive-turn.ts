@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { MessageStorageError } from '../message-storage/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
@@ -8,6 +9,7 @@ import { readBackupWindow } from './backup-window.ts';
  * Peers share transport batches; a failed peer cannot acknowledge another peer.
  * Ciphertexts are released before fetching the next bounded window. */
 interface TurnPorts<T> {
+  diagnostic?: PrivateSendContext | undefined;
   api: Api;
   guard: () => void;
   open: () => Promise<MessageCrypto>;
@@ -25,6 +27,9 @@ export class MessageReceiveTurn<T> {
   private snapshot: unknown = null;
   constructor(ports: TurnPorts<T>) {
     this.ports = ports;
+  }
+  get diagnostic(): PrivateSendContext | undefined {
+    return this.ports.diagnostic;
   }
   async prepare(snapshot: unknown, items: MessageItem[]): Promise<number> {
     await this.flush();

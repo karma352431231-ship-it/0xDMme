@@ -141,6 +141,21 @@ export class CaptureWork {
     point('queued');
     return {
       admitted: () => point('admitted'),
+      platform: (
+        lockPhase: NonNullable<PrivateSendFields['lockPhase']>,
+        lockCoverage: PrivateSendFields['lockCoverage'] = 'platform-locks',
+      ) => {
+        if (this.ended) return;
+        this.emit('authority-work', {
+          ...linked,
+          diagnosticWork,
+          authorityQueue,
+          workClockMs: Math.round(performance.now()),
+          workPhase: 'platform',
+          lockPhase,
+          lockCoverage,
+        });
+      },
       start: () => {
         if (this.ended || settled) return;
         point('start');

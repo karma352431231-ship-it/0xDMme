@@ -511,7 +511,7 @@ export function startMessages(
       groups.pauseSynchronization();
     },
     preloadDirect: (signal, work) => controller.synchronizeAll(signal, work),
-    preloadGroups: (signal) => groups.synchronizeAll(signal),
+    preloadGroups: (signal, work) => groups.synchronizeAll(signal, work),
     unread: () => activity.refresh(),
     groupProjection: () => groups.counters(),
     presence: dailyTick,
@@ -533,9 +533,12 @@ export function startMessages(
   const mediaSubmissions = new AttachmentSubmissions({
     available: () =>
       synchronization.localForegroundReady && !continuity.suspended,
-    run: (work) => synchronization.run(work),
+    blockers: () =>
+      synchronization.sendBlockers().filter((reason) => reason !== 'offline'),
+    run: (work, diagnostic) => synchronization.run(work, diagnostic),
     stage: (item) => controller.stageSubmission(item),
-    send: () => sendPending({ priority: 'interactive' }),
+    send: (privateSend) =>
+      sendPending({ priority: 'interactive', privateSend }),
     changed: (update) => {
       if (update === 'progress') return historyUi.renderSubmittedMediaStates();
       renderHistory();

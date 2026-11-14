@@ -1,3 +1,8 @@
+import {
+  measurePrivateSend,
+  privateSendPoint,
+} from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { ApiResponseError } from '../api-response/index.ts';
 import { messagePageSize } from '../../shared/messages/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
@@ -20,6 +25,7 @@ interface View {
   state: string;
 }
 export interface SyncReceiverPorts<T extends View> {
+  diagnostic?: PrivateSendContext | undefined;
   account: string;
   device: string;
   wakeRecovery?: boolean;
@@ -84,7 +90,13 @@ export class MessageSyncReceiver {
     state: SyncProgress,
   ): Promise<boolean> {
     const from = state.discovered;
-    const source = await this.source(p, state, discoveryLimit(state));
+    const source = await measurePrivateSend(p.diagnostic, 'receipt-fetch', () =>
+      this.source(p, state, discoveryLimit(state)),
+    );
+    privateSendPoint(p.diagnostic, 'receipt-fetch', {
+      receiptItems: source.page.items.length,
+      receiptPages: source.idle ? 0 : 1,
+    });
     const page = source.page;
     if (
       source.idle &&
@@ -106,7 +118,9 @@ export class MessageSyncReceiver {
     views.push(...recovered.views);
     p.guard();
     await p.finish?.();
-    await p.api('confirm', { snapshot: source.snapshot });
+    await measurePrivateSend(p.diagnostic, 'receipt-confirm', () =>
+      p.api('confirm', { snapshot: source.snapshot }),
+    );
     p.guard();
     confirmProgress(state, source.snapshot, page);
     await p.save(state);
@@ -117,6 +131,10 @@ export class MessageSyncReceiver {
         [...page.items, ...recovered.items].map((item) => [item.id, item]),
       ).values(),
     ];
+    privateSendPoint(p.diagnostic, 'receipt-commit', {
+      receiptItems: page.items.length + recovered.items.length,
+      receiptPages: 1,
+    });
     p.commit({
       snapshot: source.snapshot,
       from,

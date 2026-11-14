@@ -32,6 +32,7 @@ export const sendPreparationPoints = [
 ] as const;
 export type SendPreparationPoint = (typeof sendPreparationPoints)[number];
 export const authorityKinds = [
+  'vault-local',
   'vault',
   'handle-read',
   'handle-crypto',
@@ -60,7 +61,8 @@ export interface FlowDiagnosticFields extends Pick<
   workClockMs?: number;
   flowOverflow?: boolean;
   diagnosticWork?: number;
-  workPhase?: 'queued' | 'admitted' | 'start' | 'complete' | 'failed';
+  workPhase?:
+    'queued' | 'admitted' | 'start' | 'complete' | 'failed' | 'platform';
   authorityKind?: AuthorityKind;
   workPriority?: 'interactive' | 'maintenance';
   handleRead?: number;
@@ -117,6 +119,13 @@ function copyHandlePreparation(
 }
 
 const phases = {
-  workPhase: new Set(['queued', 'admitted', 'start', 'complete', 'failed']),
+  workPhase: new Set([
+    'queued',
+    'admitted',
+    'start',
+    'complete',
+    'failed',
+    'platform',
+  ]),
   readPhase: new Set(['queued', 'start', 'complete', 'failed']),
 };

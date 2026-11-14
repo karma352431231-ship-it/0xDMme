@@ -1,3 +1,4 @@
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import {
@@ -899,6 +900,7 @@ export class Messages {
         items,
         machine,
         skipUnavailable: false,
+        diagnostic: c.turn?.diagnostic,
       });
     } finally {
       if (!c.turn) machine.close();
@@ -972,6 +974,7 @@ export class Messages {
       window: MessageItem[];
       histories: Map<string, Awaited<ReturnType<Messages['history']>>>;
       keys: Map<string, RecoveryKey>;
+      diagnostic?: PrivateSendContext | undefined;
       acknowledge?: (id: string, hash: string) => Promise<void>;
     },
     item: MessageItem,
@@ -1004,6 +1007,7 @@ export class Messages {
       window: MessageItem[];
       histories: Map<string, Awaited<ReturnType<Messages['history']>>>;
       keys: Map<string, RecoveryKey>;
+      diagnostic?: PrivateSendContext | undefined;
       acknowledge?: (id: string, hash: string) => Promise<void>;
     },
     item: MessageItem,
@@ -1038,29 +1042,36 @@ export class Messages {
       rawKey = recoveryKey(await api('recovery-key', { id: archive.keyId }));
       c.keys.set(archive.keyId, rawKey);
     }
-    const content = await this.decryptPacket({
-      a,
-      machine,
-      packet,
-      event,
-      key: rawKey,
-    });
+    const content = await measurePrivateSend(
+      c.diagnostic,
+      'receipt-decrypt',
+      () =>
+        this.decryptPacket({
+          a,
+          machine,
+          packet,
+          event,
+          key: rawKey,
+        }),
+    );
     const text = content.text;
     const peer =
         packet.sender === a.session.accountId
           ? packet.recipient
           : packet.sender,
       own = packet.sender === a.session.accountId;
-    await this.cachePacket({
-      a,
-      packet,
-      text,
-      peer,
-      own,
-      item,
-      snapshot,
-      sentAt: content.sentAt,
-    });
+    await measurePrivateSend(c.diagnostic, 'receipt-persist', () =>
+      this.cachePacket({
+        a,
+        packet,
+        text,
+        peer,
+        own,
+        item,
+        snapshot,
+        sentAt: content.sentAt,
+      }),
+    );
     if (c.acknowledge) await c.acknowledge(packet.id, item.hash);
     else await api('acknowledge', { id: packet.id, hash: item.hash });
     return this.viewFromItem(a, item, text, content.sentAt);
@@ -1333,6 +1344,7 @@ export class Messages {
     machine: MessageCrypto;
     items: MessageItem[];
     skipUnavailable: boolean;
+    diagnostic?: PrivateSendContext | undefined;
     guard?: () => void;
     consume?: (views: MessageView[]) => Promise<void>;
   }): Promise<Map<string, MessageView>> {
@@ -1441,10 +1453,15 @@ export class Messages {
         async (a) => {
           guard();
           const api = (op: string, data: Record<string, unknown>) =>
-            messageApi(a, op, data, { guard, signal: combined });
+            messageApi(a, op, data, {
+              guard,
+              signal: combined,
+              privateSend: work.privateSend,
+            });
           const hints = this.reader.hintVersion,
             recoveryWake = this.recoveryWake;
           const turn = new MessageReceiveTurn<MessageView>({
+            diagnostic: work.privateSend,
             api,
             guard,
             cache: async (snapshot, item) => {
@@ -1452,12 +1469,23 @@ export class Messages {
               return view ? retainedMessageView(view) : null;
             },
             open: async () => {
-              const machine = await this.machine(a, generation, api);
+              const machine = await measurePrivateSend(
+                work.privateSend,
+                'receipt-sdk-open',
+                () => this.machine(a, generation, api),
+              );
               try {
-                await measureWork(this, 'sdk/prepare', () =>
-                  machine.prepare(a),
+                await measurePrivateSend(
+                  work.privateSend,
+                  'receipt-sdk-prepare',
+                  () =>
+                    measureWork(this, 'sdk/prepare', () => machine.prepare(a)),
                 );
-                await this.receive(a, machine, generation, api);
+                await measurePrivateSend(
+                  work.privateSend,
+                  'receipt-key-inbox',
+                  () => this.receive(a, machine, generation, api),
+                );
                 return machine;
               } catch (error: unknown) {
                 machine.close();
@@ -1467,6 +1495,7 @@ export class Messages {
           });
           try {
             const more = await this.receiver.step({
+              diagnostic: work.privateSend,
               account: a.session.accountId,
               device: a.session.deviceId,
               wakeRecovery: recoveryWake !== this.recoveryHandled,
@@ -1483,23 +1512,37 @@ export class Messages {
                   : 'verification',
               api,
               guard,
-              load: () => loadSyncProgress(a),
-              save: (state) => saveSyncProgress(a, state),
+              load: () =>
+                measurePrivateSend(work.privateSend, 'receipt-progress', () =>
+                  loadSyncProgress(a),
+                ),
+              save: (state) =>
+                measurePrivateSend(work.privateSend, 'receipt-persist', () =>
+                  saveSyncProgress(a, state),
+                ),
               remove: (item) =>
                 this.indexItem({ a, generation, selected: null, api }, item),
-              prepare: (snapshot, items) => turn.prepare(snapshot, items),
-              finish: () => turn.flush(),
+              prepare: (snapshot, items) =>
+                measurePrivateSend(work.privateSend, 'receipt-fetch', () =>
+                  turn.prepare(snapshot, items),
+                ),
+              finish: () =>
+                measurePrivateSend(work.privateSend, 'receipt-ack', () =>
+                  turn.flush(),
+                ),
               read: (snapshot, items) =>
-                this.reader
-                  .readWindow({
-                    a,
-                    generation,
-                    api: turn.api,
-                    snapshot,
-                    items,
-                    turn,
-                  })
-                  .then((views) => views.map(retainedMessageView)),
+                measurePrivateSend(work.privateSend, 'receipt-verify', () =>
+                  this.reader
+                    .readWindow({
+                      a,
+                      generation,
+                      api: turn.api,
+                      snapshot,
+                      items,
+                      turn,
+                    })
+                    .then((views) => views.map(retainedMessageView)),
+                ),
               commit: (batch) => {
                 this.synchronizationIssues = batch.pending;
                 this.recoveryAlarm.wait(batch.pending);

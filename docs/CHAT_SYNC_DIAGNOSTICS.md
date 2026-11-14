@@ -475,3 +475,13 @@ optional manual marker is independent of automatic coverage. Sequential-only
 network attribution above still applies to legacy clients and other chat scopes.
 See [the private accounting contract](PRIVATE_SEND_DIAGNOSTICS.md) for fields,
 limits, observation semantics and the pending owner-run comparative capture.
+
+## Receipt attribution — collector revision 7
+
+Private protocol 2 names the exact live direct/group inbox turn awaited by each
+private send, retaining its domain stages independently of timeline eviction.
+Local authority/platform acquisition, strict outbox commit and attachment
+submission admission are separately observed. Milestone completeness does not
+imply zero residual time. The existing outgoing group diagnostic remains
+available; the full private-send accounting is scoped to private sends.
+See [revision 7 details and optimization limits](PRIVATE_SEND_DIAGNOSTICS.md#revision-7-receipt-turns-local-admission-and-attachment-staging).

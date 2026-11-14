@@ -1,3 +1,4 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { revealMessage, renderSearchReturn } from '../chat-ui/index.ts';
@@ -590,7 +591,8 @@ export function startGroups(
       return receipt.changed(change);
     },
     counters: () => receipt.counters(),
-    synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
+    synchronizeAll: (signal: AbortSignal, work?: VaultWorkOptions) =>
+      controller.synchronizeAll(signal, work),
     pauseSynchronization: () => controller.pauseSynchronization(),
     resumePending,
     pendingWork: () => controller.pendingWork(),

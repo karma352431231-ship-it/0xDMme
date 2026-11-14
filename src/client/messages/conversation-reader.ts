@@ -35,6 +35,7 @@ import type { SyncReceiverPorts } from './sync-receiver.ts';
 import { projectCachedConversation } from './cache-projection.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
 import {
+  measurePrivateSend,
   traceChatSync,
   traceChatSyncFailure,
 } from '../chat-sync-diagnostics/index.ts';
@@ -689,7 +690,10 @@ export class ConversationReader {
           : (this.verified.read(c.snapshot, item) ??
             (await this.packets.cached(c.a, c.snapshot, item))),
       missing: (items) => this.packets.missing({ ...c, items }),
-      complete: (views) => indexSearch(c.a, views),
+      complete: (views) =>
+        measurePrivateSend(c.turn?.diagnostic, 'receipt-persist', () =>
+          indexSearch(c.a, views),
+        ),
     });
   }
   private async confirmVisible(

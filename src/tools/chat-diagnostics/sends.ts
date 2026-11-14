@@ -108,12 +108,12 @@ export class ComparisonSends {
     applyComposition(this.pending, event);
   }
   private explicitPrivate(event: TraceEvent): boolean {
-    return this.privateRevision === 1 && event['scope'] === 'private';
+    return this.privateRevision >= 1 && event['scope'] === 'private';
   }
   private automaticMarker(send: SendSummary): boolean {
     return (
       (this.handleTimings && send.scope === 'handle') ||
-      (this.privateRevision === 1 && send.scope === 'private')
+      (this.privateRevision >= 1 && send.scope === 'private')
     );
   }
   private begin(event: TraceEvent): SendSummary | undefined {
@@ -245,7 +245,7 @@ export class ComparisonSends {
     const unbound = this.sends.filter(
       (send) =>
         send.message === null &&
-        !(this.privateRevision === 1 && send.scope === 'private'),
+        !(this.privateRevision >= 1 && send.scope === 'private'),
     );
     if (unbound.length === 1) {
       unbound[0]!.message = message;
@@ -320,7 +320,7 @@ export class ComparisonSends {
     linked?: SendSummary,
   ): SendSummary | undefined {
     const send = linked ?? this.active;
-    if (!linked && send?.scope === 'private' && this.privateRevision === 1)
+    if (!linked && send?.scope === 'private' && this.privateRevision >= 1)
       return;
     if (
       typeof event['category'] !== 'string' ||
@@ -394,7 +394,7 @@ export class ComparisonSends {
     send: SendSummary,
     report: ReturnType<PrivateSendBreakdowns['report']>,
   ): boolean {
-    if (this.privateRevision !== 1 || send.scope !== 'private') return true;
+    if (this.privateRevision < 1 || send.scope !== 'private') return true;
     const coverage = report.sends.find(
       (s) => s.slot === send.message,
     )?.coverage;

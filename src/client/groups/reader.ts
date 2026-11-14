@@ -1,3 +1,5 @@
+import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { applyGroupRemovals } from './removals.ts';
 import { groupMessageRelation } from '../../shared/group-messages/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
@@ -75,6 +77,7 @@ interface GroupRow {
   unavailableMedia: string[];
 }
 export interface GroupReadContext {
+  diagnostic?: PrivateSendContext | undefined;
   authority: VaultAuthority;
   group: GroupState;
   api: AttachmentApi;
@@ -227,7 +230,11 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
   // packet hash and membership are still checked on every authorized read.
   const stored = c.cached.get(item.id);
   if (stored) return { ...stored, unavailableMedia: item.unavailableMedia };
-  const { text, ...presentation } = await decryptGroupText(c, packet);
+  const { text, ...presentation } = await measurePrivateSend(
+    c.diagnostic,
+    'receipt-decrypt',
+    () => decryptGroupText(c, packet),
+  );
   if (packet.kind === 'attachment')
     attachmentContent(JSON.parse(text) as unknown);
   if (packet.kind === 'profile') await preserveProfile(c, packet, text);
@@ -245,8 +252,10 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
     ...(packet.relation ? { relation: packet.relation } : {}),
     unavailableMedia: item.unavailableMedia,
   };
-  await cache.put(name, view);
-  await preserveEdit(cache, view);
+  await measurePrivateSend(c.diagnostic, 'receipt-persist', async () => {
+    await cache.put(name, view);
+    await preserveEdit(cache, view);
+  });
   return view;
 }
 async function preserveEdit(cache: GroupCache, view: GroupView): Promise<void> {

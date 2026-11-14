@@ -48,7 +48,10 @@ interface SynchronizationOperations {
     signal: AbortSignal,
     work: VaultWorkOptions,
   ) => Promise<boolean>;
-  preloadGroups: (signal: AbortSignal) => Promise<boolean>;
+  preloadGroups: (
+    signal: AbortSignal,
+    work: VaultWorkOptions,
+  ) => Promise<boolean>;
   unread: () => Promise<void>;
   groupProjection?: () => Promise<void>;
   presence: () => Promise<void>;
@@ -107,7 +110,7 @@ export class MessageSynchronization {
       generation: () => options.state().generation,
       current: (generation) => this.current(generation),
       direct: (signal, work) => options.preloadDirect(signal, work),
-      groups: (signal) => options.preloadGroups(signal),
+      groups: (signal, work) => options.preloadGroups(signal, work),
       pause: () => options.pause(),
       changed: () => this.resume(),
       received: (scope, live) => {
@@ -359,7 +362,7 @@ export class MessageSynchronization {
     if (this.closed || this.busy) return false;
     this.busy = true;
     // A live receipt page commits first; speculative preparation is interrupted.
-    const receipt = this.inbox.settle();
+    const receipt = this.inbox.settle(diagnostic);
     this.failed = false;
     const current = this.options.state().generation;
     this.options.status();
