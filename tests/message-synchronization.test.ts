@@ -27,6 +27,7 @@ function fixture(
     suspended: false,
     liveConnecting: false,
     startupPending: false,
+    interactiveSendPending: false,
   };
   const notices: string[] = [];
   let completed = 0,
@@ -1511,3 +1512,82 @@ for (const error of [
     assert.equal(calls, 1);
   });
 }
+
+await test('an undurable queued send gets the next turn, while live demand gets a turn after four send batches', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  const events: string[] = [];
+  const receipt = deferred<boolean>();
+  f.options.preloadDirect = () => {
+    events.push('live-page');
+    return receipt.promise;
+  };
+  f.state.interactiveSendPending = true;
+  f.sync.admitDraft();
+  f.sync.receive('direct');
+  t.mock.timers.tick(0);
+  await turn();
+  assert.equal(events.length, 0);
+  for (let i = 0; i < 4; i++)
+    assert.equal(
+      await f.sync.runSend(() => {
+        events.push('send');
+        return Promise.resolve();
+      }),
+      true,
+    );
+  assert.equal(f.sync.sendTurnReady, false);
+  t.mock.timers.tick(0);
+  await turn();
+  assert.deepEqual(events, ['send', 'send', 'send', 'send', 'live-page']);
+  const lastSend = f.sync.runSend(() => {
+    events.push('after-receipt');
+    return Promise.resolve();
+  });
+  assert.equal(events.at(-1), 'live-page');
+  receipt.resolve(false);
+  assert.equal(await lastSend, true);
+  assert.equal(events.at(-1), 'after-receipt');
+});
+
+await test('an admitted send gates the next optional maintenance segment, including after a failing segment', async (t) => {
+  const f = fixture(t),
+    active = deferred<void>();
+  const events: string[] = [];
+  const maintenance = f.sync.background(async () => {
+    events.push('maintenance');
+    await active.promise;
+  }, 'group-directory');
+  await turn();
+  f.state.interactiveSendPending = true;
+  assert.equal(f.sync.shouldYieldMaintenance, true);
+  const first = f.sync.runSend(() => {
+    events.push('first-send');
+    return Promise.resolve();
+  });
+  active.reject(new Error('Synthetic deferred segment failed'));
+  await maintenance;
+  assert.equal(await first, true);
+  await f.sync.background(() => {
+    events.push('unexpected');
+    return Promise.resolve();
+  }, 'group-directory');
+  assert.equal(
+    await f.sync.runSend(() => {
+      events.push('second-send');
+      return Promise.resolve();
+    }),
+    true,
+  );
+  f.state.interactiveSendPending = false;
+  await f.sync.background(() => {
+    events.push('maintenance-resumed');
+    return Promise.resolve();
+  }, 'group-directory');
+  assert.deepEqual(events, [
+    'maintenance',
+    'first-send',
+    'second-send',
+    'maintenance-resumed',
+  ]);
+});

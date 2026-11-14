@@ -438,31 +438,46 @@ export class GroupController {
     await this.refreshLocal(more, true, more);
     this.guard(generation);
   }
-  /** The latest bounded page owns this deferred maintenance, never row authority. */
-  async finishDirectoryRefresh(): Promise<void> {
-    if (!networkAvailable() || this.directoryProfiles === null) return;
+  /** Optional work releases authority between groups. A newer directory page or
+   * session supersedes the old cursor. Failed items stay pending for a retry. */
+  async finishDirectoryRefresh(
+    shouldYield: () => boolean = () => false,
+  ): Promise<boolean> {
+    if (!networkAvailable() || this.directoryProfiles === null) return true;
     const generation = this.generation;
-    const groups = this.directoryProfiles;
-    this.directoryProfiles = null;
     if (!this.historyLoaded) {
       await this.refreshLocal(false, true);
       this.guard(generation);
       this.directoryChanged();
     }
-    if (groups.length)
-      await this.withAuthority(async (context) => {
-        for (const id of groups) {
-          this.guard(generation);
-          await this.maintainDirectoryGroup(context, id);
-        }
-      });
-    this.guard(generation);
+    if (!(await this.maintainDirectoryProfiles(generation, shouldYield)))
+      return false;
+    const finished = this.directoryProfiles;
     await this.reconcileSelected();
     this.guard(generation);
     await this.refreshIncoming();
     this.guard(generation);
     await this.identities.save(() => this.guard(generation));
     this.guard(generation);
+    if (this.directoryProfiles === finished) this.directoryProfiles = null;
+    return true;
+  }
+  private async maintainDirectoryProfiles(
+    generation: number,
+    shouldYield: () => boolean,
+  ): Promise<boolean> {
+    while (this.directoryProfiles?.length) {
+      if (shouldYield()) return false;
+      const remaining: readonly string[] = this.directoryProfiles;
+      await this.withAuthority((context) =>
+        this.maintainDirectoryGroup(context, remaining[0]!),
+      );
+      this.guard(generation);
+      if (this.directoryProfiles !== remaining) return false;
+      this.directoryProfiles = remaining.slice(1);
+    }
+    if (shouldYield()) return false;
+    return true;
   }
   private async maintainDirectoryGroup(
     c: GroupContext,

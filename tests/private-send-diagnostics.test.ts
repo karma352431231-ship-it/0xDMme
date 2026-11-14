@@ -150,7 +150,7 @@ await test('overlapping private sends retain actual batch attempts, blockers and
   ms = 200;
   for (let i = 0; i < 1600; i++) recording.record('background', { count: i });
   const report = recording.report();
-  assert.equal(report.meterRevision, 8);
+  assert.equal(report.meterRevision, 9);
   assert.ok(report.droppedEvents > 0);
   assert.ok(report.events.every((e) => e.kind === 'background'));
   const diagnostic = report.comparison.privateLatency;

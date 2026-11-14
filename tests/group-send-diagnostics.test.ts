@@ -8,6 +8,8 @@ import {
   privateSendBatch,
   linkPrivateBatch,
   traceSend,
+  startReceiptDiagnostic,
+  privateSendSpan,
 } from '../src/client/chat-sync-diagnostics/index.ts';
 import { diagnosticRequestCategory } from '../src/shared/chat-sync-diagnostics/network.ts';
 import { deferred, waitForBoundary } from './fixtures/deferred.ts';
@@ -332,4 +334,75 @@ await test('shared detail overflow reports lost linked work without evicting ter
   assert.ok(report.overflowCategories.batchPoints > 0);
   assert.equal(report.sends[0]!.coverage.missingLinkedWork, true);
   assert.equal(report.sends[0]!.outcome, 'accepted');
+});
+
+await test('a background receipt spanning group image acceptance stays in capture coverage', (t) => {
+  const f = privateSendCapture(t);
+  f.recording.record('attachment-selection', {
+    scope: 'group',
+    composer: 1,
+    selection: 1,
+    mediaKind: 'image',
+  });
+  const receipt = startReceiptDiagnostic('direct', true);
+  privateSendSpan(receipt, 'receipt-fetch');
+  f.at(20);
+  const send = f.send('group-image-during-receipt', 'group', 'image');
+  for (const stage of [
+    'draft-admitted',
+    'ui-available',
+    'pending-render',
+    'staging-complete',
+    'outbox-dispatch',
+  ] as const)
+    traceSend(stage, send.id);
+  const finish = privateSendSpan(send.context, 'request-dispatch', {
+    sendRequest: 'messages/group-attachment-part',
+  });
+  privateSendPoint(send.context, 'device-keys', { sendOutcome: 'skipped' });
+  f.at(50);
+  finish?.();
+  send.accepted();
+  const report = f.recording.report().comparison;
+  assert.equal(report.sends[0]!.acceptedMs, 50);
+  assert.equal(report.sends[0]!.complete, true);
+  assert.equal(report.sends[0]!.stages['receipt-fetch'], undefined);
+  assert.equal(
+    report.privateLatency.sends[0]!.coverage.milestoneComplete,
+    true,
+  );
+  assert.equal(report.privateLatency.receipts.turns[0]!.completeMs, null);
+});
+
+await test('a group send joining an existing batch excludes pre-gesture milestones and separates previous-member wait from shared context', (t) => {
+  const f = privateSendCapture(t);
+  const batch = privateSendBatch();
+  privateSendPoint(batch, 'foreground-acquired');
+  const finishShared = privateSendSpan(batch, 'group-verify');
+  f.at(20);
+  const send = f.send('joins-existing-batch', 'group');
+  linkPrivateBatch(batch, [send.id]);
+  const wait = privateSendSpan(send.context, 'scheduler-wait', {
+    sendWait: 'earlier-draft',
+  });
+  f.at(40);
+  wait?.();
+  const work = privateSendSpan(send.context, 'group-packet');
+  f.at(50);
+  work?.();
+  f.at(60);
+  finishShared?.();
+  send.accepted();
+  const report = f.recording.report().comparison.privateLatency.sends[0]!;
+  assert.equal(
+    report.milestones.some((point) => point.ms < 20),
+    false,
+  );
+  assert.equal(report.sharedMilestones[0]?.beforeGesture, true);
+  const window = report.windows.toAcceptance;
+  assert.ok(window.available);
+  assert.equal(window.elapsedMs, 40);
+  assert.equal(window.queueWaitMs, 20);
+  assert.equal(window.executionCoverage.messageLinkedMs, 10);
+  assert.equal(window.executionCoverage.sharedContextOnlyMs, 10);
 });

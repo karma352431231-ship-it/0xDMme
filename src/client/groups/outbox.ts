@@ -2,6 +2,7 @@ import {
   measurePrivateSend,
   privateSendContext,
   privateSendPoint,
+  privateSendSpan,
   linkPrivateBatch,
   traceSend,
   resumeGroupSendDiagnostic,
@@ -172,21 +173,39 @@ export async function sendGroupPending(c: SendContext): Promise<void> {
         ),
     }));
   const batch = new GroupSendBatch();
-  for (const draft of drafts) {
-    traceSend('outbox-dispatch', draft.value.id);
-    const message = privateSendContext(draft.value.id);
-    const diagnostic = message ? { ...c.diagnostic, ...message } : c.diagnostic;
-    await measurePrivateSend(diagnostic, 'group-send-entry', () =>
-      sendGroupOne(
-        { ...c, diagnostic, api: groupSendApi(c, diagnostic) },
-        {
-          cache: new GroupCache(c.authority, c.group.state.groupId, diagnostic),
-          ...draft,
-          participants,
-          batch,
-        },
-      ),
-    );
+  const waits = drafts.map(({ value }, index) =>
+    index === 0
+      ? undefined
+      : privateSendSpan(privateSendContext(value.id), 'scheduler-wait', {
+          sendWait: 'earlier-draft',
+        }),
+  );
+  try {
+    for (const [index, draft] of drafts.entries()) {
+      waits[index]?.();
+      traceSend('outbox-dispatch', draft.value.id);
+      const message = privateSendContext(draft.value.id);
+      const diagnostic = message
+        ? { ...c.diagnostic, ...message }
+        : c.diagnostic;
+      await measurePrivateSend(diagnostic, 'group-send-entry', () =>
+        sendGroupOne(
+          { ...c, diagnostic, api: groupSendApi(c, diagnostic) },
+          {
+            cache: new GroupCache(
+              c.authority,
+              c.group.state.groupId,
+              diagnostic,
+            ),
+            ...draft,
+            participants,
+            batch,
+          },
+        ),
+      );
+    }
+  } finally {
+    for (const finish of waits) finish?.();
   }
 }
 /** The server rejected a packet prepared for an older membership, participant

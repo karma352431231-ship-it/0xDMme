@@ -338,14 +338,65 @@ await test('queued group texts preserve immediate typing and do not read history
   assert.equal(new Set(f.state.savedTexts.map((draft) => draft.id)).size, 2);
   assert.equal(f.state.historyReads, reads);
   assert.match(f.nodes['groupHistory']!.textContent, /First queued text/);
+  const pending = () =>
+    f.nodes['groupHistory']!.querySelectorAll('[data-group-pending]');
+  const accepted = () =>
+    f.nodes['groupHistory']!.querySelectorAll('[data-group-accepted]');
+  assert.equal(pending().length, 2);
+  assert.equal(accepted().length, 0);
+  assert.ok(
+    pending().every((row) =>
+      /Sending/u.test(
+        row.querySelector('.message-checks')?.getAttribute('aria-label') ?? '',
+      ),
+    ),
+  );
   input.value = 'Continue typing';
   f.state.textSend.resolve();
   await turn();
+  assert.equal(f.frame(), 1);
+  assert.equal(accepted().length, 2);
+  assert.ok(
+    accepted().every((row) =>
+      /Accepted by the server/u.test(
+        row.querySelector('.message-checks')?.getAttribute('aria-label') ?? '',
+      ),
+    ),
+  );
   assert.equal(f.state.historyReads, reads);
   assert.equal(input.value, 'Continue typing');
   assert.deepEqual(f.errors, []);
   f.ui.setSession(null);
 });
+
+for (const departure of [
+  'hidden',
+  'different group',
+  'session reset',
+] as const) {
+  await test(`group acceptance does not redraw an absent view after ${departure}`, async () => {
+    const f = groupUiFixture();
+    await f.ui.open(f.group);
+    f.state.holdTextSend = true;
+    f.nodes['groupText']!.value = 'Pending acceptance';
+    f.nodes['groupCompose']!.dispatchEvent(
+      new Event('submit', { cancelable: true }),
+    );
+    await turn();
+    if (departure === 'hidden')
+      Object.assign(f.document, { visibilityState: 'hidden' });
+    if (departure === 'different group') await f.ui.open(crypto.randomUUID());
+    f.state.textSend.resolve();
+    await turn();
+    if (departure === 'session reset') f.ui.setSession(null);
+    assert.equal(f.frame(), 0);
+    assert.equal(
+      f.nodes['groupHistory']!.querySelectorAll('[data-group-accepted]').length,
+      0,
+    );
+    f.ui.setSession(null);
+  });
+}
 
 await test('a queued group save failure reports through the existing notice and retries with the same ID', async () => {
   const f = groupUiFixture();

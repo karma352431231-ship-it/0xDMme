@@ -39,6 +39,9 @@ export class TextSendQueue {
   get unsaved(): boolean {
     return this.drafts.length > 0;
   }
+  get awaitingSave(): boolean {
+    return this.unsaved && !this.saveFailed;
+  }
   get pending(): boolean {
     return this.working || this.quiet !== null;
   }

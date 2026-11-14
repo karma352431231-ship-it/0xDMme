@@ -11,6 +11,15 @@ export interface PrivateSendContext {
 }
 export const privateSendRevision = 3;
 export const retainedSendLimit = 32;
+export const sendMaintenanceKinds = [
+  'background',
+  'directory',
+  'presence',
+  'changes',
+  'periodic',
+  'group-directory',
+] as const;
+export type SendMaintenanceKind = (typeof sendMaintenanceKinds)[number];
 export const sendWaitReasons = [
   'earlier-submission',
   'submission-admitting',
@@ -67,6 +76,7 @@ export interface PrivateSendFields {
   sendGesture?: number;
   sendGestureClockMs?: number;
   sendWait?: SendWaitReason;
+  sendMaintenance?: SendMaintenanceKind;
   sendOutcome?:
     | 'accepted'
     | 'not-accepted'
@@ -120,6 +130,8 @@ function copySendLabels(
     output['privateOverflow'] = input['privateOverflow'];
   if (input['privateOverflowKind'] === 'operation')
     output['privateOverflowKind'] = 'operation';
+  if (sendMaintenanceKinds.some((kind) => kind === input['sendMaintenance']))
+    output['sendMaintenance'] = input['sendMaintenance'];
   if (sendWaitReasons.some((reason) => reason === input['sendWait']))
     output['sendWait'] = input['sendWait'];
   if (

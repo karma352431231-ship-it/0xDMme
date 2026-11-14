@@ -42,10 +42,14 @@ export class GroupOutgoing {
   /** The server accepted the draft with this ID at `at` (performance time).
    * Only an accepted text whose group is not open can be dropped, by the
    * global bound; that group's verified read shows it when opened. */
-  accepted(id: string, at: number, open: string | null): void {
+  accepted(id: string, at: number, open: string | null): string | null {
     const held = this.held.get(id);
-    if (!held) return;
+    if (!held || held.accepted !== null) return null;
     held.accepted = at;
+    this.trimAccepted(open);
+    return held.groupId;
+  }
+  private trimAccepted(open: string | null): void {
     let excess =
       [...this.held.values()].filter((text) => text.accepted !== null).length -
       acceptedLimit;

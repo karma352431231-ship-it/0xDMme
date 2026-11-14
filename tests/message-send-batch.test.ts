@@ -193,3 +193,28 @@ await test('discarding a possibly accepted message confirms remote deletion befo
   assert.deepEqual(f.requests.slice(before), ['accepted', 'delete']);
   assert.ok(!f.records.has(`outbox:${id}`));
 });
+
+await test('the foreground publisher yields after a confirmed message and re-verifies its durable suffix on the next turn', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  const first = await f.queue(),
+    second = await f.queue(),
+    third = await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' }, () => true);
+  assert.deepEqual(
+    f.publications.map((packet) => packet.id),
+    [first],
+  );
+  assert.deepEqual(
+    [...f.records.keys()],
+    [`outbox:${second}`, `outbox:${third}`],
+  );
+  assert.equal(f.state.closedMachines, 1);
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.deepEqual(
+    f.publications.map((packet) => packet.id),
+    [first, second, third],
+  );
+  assert.equal(f.requests.filter((op) => op === 'peer-directory').length, 2);
+  assert.equal(f.records.size, 0);
+});

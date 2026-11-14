@@ -492,13 +492,18 @@ function observeSendRow(row: HTMLElement): void {
     row.dataset['groupPending'] ??
     row.dataset['message'];
   if (!id || !sends.has(id)) return;
-  traceSend('pending-render', id);
+  if (pendingSendRow(row)) traceSend('pending-render', id);
   if (acceptedSendRow(row, id)) {
     traceSend('check-render', id);
     traceHandleDelivery(id, 'sender-check');
   }
 }
 
+function pendingSendRow(row: HTMLElement): boolean {
+  if (row.dataset['groupMessage'] !== undefined) return false;
+  if (row.dataset['groupAccepted'] !== undefined) return false;
+  return true;
+}
 function acceptedSendRow(row: HTMLElement, id: string): boolean {
   return (
     !!sends.get(id)?.accepted &&
@@ -744,8 +749,9 @@ async function finishPrivateSend<T>(
 
 export function tracePrivateScheduler(
   reasons: readonly import('../../shared/chat-sync-diagnostics/private-send.ts').SendWaitReason[],
+  maintenance?: import('../../shared/chat-sync-diagnostics/private-send.ts').SendMaintenanceKind,
 ): void {
-  if (chatSyncActive()) privateSends?.scheduler(reasons);
+  if (chatSyncActive()) privateSends?.scheduler(reasons, maintenance);
 }
 export function resetPrivateSendDiagnostics(): void {
   privateSends?.reset();

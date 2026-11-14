@@ -3,6 +3,7 @@ import { sendStages } from '../../shared/chat-sync-diagnostics/send.ts';
 import type { SendStage } from '../../shared/chat-sync-diagnostics/send.ts';
 import {
   sendWaitReasons,
+  sendMaintenanceKinds,
   privateSendRevision,
   retainedSendLimit,
 } from '../../shared/chat-sync-diagnostics/private-send.ts';
@@ -43,6 +44,7 @@ interface Operation {
   success: boolean | null;
   wait: string | null;
   request: string | null;
+  maintenance: string | null;
 }
 interface Batch {
   slot: number;
@@ -317,6 +319,10 @@ export class PrivateSendBreakdowns {
       success:
         event['sendPhase'] === 'end' ? event['sendSuccess'] === true : null,
       wait: sendWaitReasons.find((r) => r === event['sendWait']) ?? null,
+      maintenance:
+        sendMaintenanceKinds.find(
+          (kind) => kind === event['sendMaintenance'],
+        ) ?? null,
       request:
         typeof event['sendRequest'] === 'string' ? event['sendRequest'] : null,
     };
@@ -477,7 +483,16 @@ export class PrivateSendBreakdowns {
               ? 'unsupported; submission mode not observed'
               : 'observed-stages-only',
       gestureMs: send.gestureMs,
-      milestones: send.points.map((p) => ({ ...p })),
+      milestones: send.points
+        .filter((p) => p.batch === undefined)
+        .map((p) => ({ ...p })),
+      sharedMilestones: shared.map((p) => ({
+        ...p,
+        beforeGesture: send.gestureMs !== null && p.ms < send.gestureMs,
+      })),
+      acceptedMs: firstPoint(send, 'accepted'),
+      pendingRowMs: firstPoint(send, 'pending-render'),
+      acceptedDomMs: firstPoint(send, 'check-render'),
       operations: operations.map((op) => op.slot),
       coverage,
       deviceKeys: keys.state,
@@ -547,6 +562,10 @@ export class PrivateSendBreakdowns {
     ].filter((stage) => !send.points.some((p) => p.stage === stage));
     if (send.gestureMs === null) missing.push('gesture');
     if (keys.state === 'not-observed') missing.push('device-keys');
+    const truncated = operations.filter(
+      (op) => op.startMs === null || op.endMs === null,
+    );
+    const accepted = firstPoint(send, 'accepted');
     return {
       missing,
       droppedPoints: send.droppedPoints,
@@ -562,8 +581,9 @@ export class PrivateSendBreakdowns {
       ambiguousGesture: send.gestureMs === null,
       overflow: this.overflow,
       authorityOverflow,
-      truncatedSpans: operations
-        .filter((op) => op.startMs === null || op.endMs === null)
+      truncatedSpans: truncated.map((op) => op.slot),
+      requiredTruncatedSpans: truncated
+        .filter((op) => relevantTruncation(op, send.slot, accepted))
         .map((op) => op.slot),
       automatic: this.revision === privateSendRevision,
     };
@@ -602,12 +622,25 @@ export class PrivateSendBreakdowns {
       queue,
     );
     const residual = subtract([window], union([...queue, ...execution]));
+    const ownExecution = messageExecution(
+      send.slot,
+      operations,
+      execution,
+      end,
+    );
+    const sharedOnly = subtract(execution, ownExecution);
     return {
       available: true as const,
       ...window,
       elapsedMs: end - send.gestureMs,
       queueWaitMs: duration(queue),
       executionMs: duration(execution),
+      executionCoverage: {
+        messageLinkedMs: duration(ownExecution),
+        sharedContextOnlyMs: duration(sharedOnly),
+        meaning:
+          'wall-time overlap; shared context may include work for other batch members',
+      },
       unattributedMs: duration(residual),
       accountingCoverage: {
         observedMs: duration(queue) + duration(execution),
@@ -769,8 +802,7 @@ function checkObservation(send: Send): string {
 }
 function queueInterval(op: Operation, send: Send, end: number): Interval[] {
   const acquired =
-    firstPoint(send, 'foreground-acquired') ??
-    firstPoint(send, 'outbox-dispatch');
+    firstForegroundAfterGesture(send) ?? firstPoint(send, 'outbox-dispatch');
   const stop =
     op.wait === 'foreground-operation' && acquired !== null
       ? Math.min(op.endMs ?? end, acquired)
@@ -882,4 +914,38 @@ function startCoverage(send: Send) {
 
 function sendScope(event: TraceEvent): Send['scope'] {
   return event['sendScope'] === 'group' ? 'group' : 'private';
+}
+
+function firstForegroundAfterGesture(send: Send): number | null {
+  const start = send.gestureMs;
+  if (start === null) return null;
+  return (
+    send.points.find((p) => p.stage === 'foreground-acquired' && p.ms >= start)
+      ?.ms ?? null
+  );
+}
+
+function relevantTruncation(
+  op: Operation,
+  slot: number,
+  accepted: number | null,
+): boolean {
+  return (
+    op.message === slot &&
+    (accepted === null || op.startMs === null || op.startMs < accepted) &&
+    !op.stage.startsWith('receipt-') &&
+    !['group-send-entry', 'scheduler-wait', 'pins-save'].includes(op.stage)
+  );
+}
+
+function messageExecution(
+  slot: number,
+  operations: Operation[],
+  execution: Interval[],
+  end: number,
+): Interval[] {
+  const linked = operations
+    .filter((op) => op.message === slot && !op.wait)
+    .flatMap((op) => interval(op.startMs, op.endMs ?? end));
+  return execution.flatMap((span) => clip(linked, span));
 }

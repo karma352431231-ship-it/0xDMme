@@ -254,9 +254,13 @@ export class ComparisonSends {
   private forMessage(event: TraceEvent): SendSummary | undefined {
     if (typeof event['privateSend'] === 'number')
       return this.privateMessage(event);
-    if (typeof event['privateBatch'] === 'number') return;
+    if (
+      typeof event['privateBatch'] === 'number' ||
+      typeof event['receiptTurn'] === 'number'
+    )
+      return;
     const message = event['message'];
-    if (typeof message !== 'number') return this.pending ?? this.active;
+    if (typeof message !== 'number') return this.legacyUnlinked();
     const known = this.sends.find((send) => send.message === message);
     if (known) return known;
     if (event['sendStage'] !== 'submit') return;
@@ -268,6 +272,11 @@ export class ComparisonSends {
       return unbound[0];
     }
     for (const send of unbound) send.ambiguous = true;
+    return;
+  }
+  private legacyUnlinked(): SendSummary | undefined {
+    const candidate = this.pending ?? this.active;
+    if (candidate && !this.explicitScope(candidate.scope)) return candidate;
     return;
   }
   private privateMessage(event: TraceEvent): SendSummary | undefined {
@@ -425,7 +434,7 @@ export class ComparisonSends {
     if (!coverage) return false;
     return (
       coverage.missing.length === 0 &&
-      coverage.truncatedSpans.length === 0 &&
+      coverage.requiredTruncatedSpans.length === 0 &&
       coverage.overflow === 0 &&
       !coverage.authorityOverflow
     );
@@ -480,6 +489,12 @@ export class ComparisonSends {
                 ? null
                 : send.upload.lastPartMs - send.upload.firstPartMs,
           },
+          ancillaryInFlight: Object.entries(send.stages)
+            .filter(
+              ([stage, timing]) =>
+                timing.inFlight && !stageRequiredForAcceptance(stage),
+            )
+            .map(([stage]) => stage),
           missingStages: missing,
           complete: this.complete(send, missing, privateLatency),
           clickToAcceptanceMs: difference(send.acceptedMs, send.submitMs),
@@ -506,7 +521,13 @@ function missingStages(
     missing.push('upload');
   if (send.upload.inFlight) missing.push('in-flight-parts');
   if (send.inspectionPending) missing.push('file-inspection');
-  if (Object.values(send.stages).some((stage) => stage.inFlight))
+  if (
+    Object.entries(send.stages).some(
+      ([name, stage]) =>
+        stage.inFlight &&
+        (!hasAutomaticMarker || stageRequiredForAcceptance(name)),
+    )
+  )
     missing.push('in-flight-stage');
   return missing;
 }
@@ -628,5 +649,12 @@ function clippedStageDuration(
     0,
     Math.min(end, send.acceptedMs ?? end) -
       Math.max(end - duration, send.submitMs ?? 0),
+  );
+}
+
+function stageRequiredForAcceptance(stage: string): boolean {
+  return (
+    !stage.startsWith('receipt-') &&
+    !['group-send-entry', 'pins-save', 'scheduler-wait'].includes(stage)
   );
 }

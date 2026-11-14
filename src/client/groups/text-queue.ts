@@ -57,6 +57,10 @@ export function groupTextQueue(options: {
       const groups = [...unsent];
       unsent.clear();
       for (const [index, groupId] of groups.entries()) {
+        if (!options.available()) {
+          for (const left of groups.slice(index)) unsent.add(left);
+          return { ok: true, more: true };
+        }
         if (!(await attempt(groupId, groups.slice(index))))
           return { ok: false, more: true };
       }

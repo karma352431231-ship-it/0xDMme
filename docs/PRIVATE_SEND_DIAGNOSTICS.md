@@ -335,3 +335,70 @@ correctness only. Android, browser and iPhone runtime performance must be
 accepted separately. No manual message flow is exercised by this implementation;
 new Android package preparation/installation follows the owner's existing
 in-place update authorization, preserving app data and signing identity.
+
+## Revision 9: acceptance presentation and bounded handovers
+
+The revision 8 Android baseline combined the clean collector at `10531d20`
+with application asset `app-940af97c36445af5.js`. All nine submissions were
+retained. The four group texts took 1,599–3,711 ms from protocol acceptance
+to accepted DOM observation. Pending rows already used one check under the
+approved presentation policy. The recorded interval measures when the row
+reflects acceptance, independent of when its first glyph appeared.
+
+The outgoing projection reports which held text changed to accepted. The
+group view coalesces that change on the next animation frame for the visible
+group. Navigation, session reset, suspension and remount dispose the queued
+frame. The existing history renderer preserves scroll and menu handling.
+Pending and accepted text still display one check, with distinct accessible
+labels. The collector observes an accepted row after it renders. Background
+or disconnected views can retain protocol acceptance with unobserved DOM
+coverage.
+
+### Resource boundaries
+
+The foreground scheduler accounts for queued interactive sends before they
+become durable. A pending send prevents starting another live receipt page
+until the scheduler owes a receipt after four send turns. An active page still
+finishes and releases its authority. Each page retains its signed snapshot, SDK
+lease, ciphertext verification, batched backup acknowledgment, confirmation
+and durable progress boundary. An incoming hint advances the preparation
+version and survives a turn finishing against the earlier version.
+
+Both ordinary authority and local text verification use the same account
+storage lock. A foreground direct batch can close its SDK and release that
+lock after the current message's validated publication or accepted retry and
+local removal, when a newly admitted draft is still waiting for durable save.
+The remaining drafts keep their FIFO records and enter the next freshly
+verified batch. In-flight publication, packet persistence, fresh directory and
+pin verification, snapshot validation and atomic draft commit retain their
+existing exclusion. A send already blocked by one active receipt or outgoing
+message can still wait for that indivisible operation. The capture does not
+justify caching or weakening the authority checks between preflight and
+publication.
+
+The optional group directory maintenance cursor advances after a group
+finishes. Its authority is released between groups, and an arriving send
+can run before another group starts. A yielded cursor stays in the group
+controller and the maintenance scheduler readmits it. Selected-history,
+invitations and identity pin work keep their current verification and
+session checks. Reported maintenance waits can identify fixed owners for
+foreground waits; the baseline does not identify which maintenance owner
+caused the entire 1,817–1,820 ms interval.
+
+### Report semantics and measurement
+
+Collector revision 9 retains the existing application diagnostic protocol
+revision 3. It includes separate timestamps for protocol acceptance, the
+pending row and the accepted DOM row. Unlinked receipt spans stay in the
+capture summary. In-flight ancillary work is reported separately from missing
+send-owned work. Shared batch milestones appear separately with a pre-gesture
+flag. Per-send elapsed windows clip to the gesture and endpoint, with
+previous-member wait tracked at the outbox boundary. Message-linked execution
+and shared-only context are separate wall-time unions. Shared context can
+include activity for other members of the batch.
+
+Physical acceptance requires five matched trials covering isolated and rapid
+texts, group image, live receipt, speculative receipt and active maintenance.
+Record individual values, median and range, failures, incoming progress and
+interval residuals. The idle group acceptance-to-DOM investigation target is
+100 ms. Collect runtime results separately for Android, browser and iPhone.

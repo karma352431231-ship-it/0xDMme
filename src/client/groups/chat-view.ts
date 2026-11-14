@@ -1,5 +1,8 @@
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
-import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../chat-sync-diagnostics/index.ts';
 import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
 import { verifyMessageRemovals } from '../message-removal-batch/index.ts';
@@ -92,6 +95,9 @@ interface ChatOptions {
   playback: VoicePlayback;
   externalMedia?: ExternalMediaConsent | undefined;
   isBusy: () => boolean;
+  sendReady?: (() => boolean) | undefined;
+  sendChanged?: (() => void) | undefined;
+  sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
   members: Pick<
     GroupMemberPresentation,
     'name' | 'label' | 'sender' | 'contactCandidate' | 'offerContact'
@@ -127,6 +133,7 @@ export class GroupChatView {
   private readonly deletion: MessageDeletionSelection<GroupView>;
   private readonly forwarding: MessageForwardSelection<GroupMessageView> | null;
   private host: HTMLElement | null = null;
+  private acceptanceFrame: number | null = null;
   private readonly attachments: Pick<AttachmentUi, 'render'>;
   private readonly messageActions: GroupMessageActions;
   private readonly externalRows = new ExternalTextHistory();
@@ -140,6 +147,9 @@ export class GroupChatView {
       externalMedia: options.externalMedia,
       account: options.account,
       isBusy: options.isBusy,
+      sendReady: options.sendReady,
+      sendChanged: options.sendChanged,
+      sendBlockers: options.sendBlockers,
       run: options.run,
       operationRun: options.operationRun,
       reopen: () => options.reopen(),
@@ -150,15 +160,7 @@ export class GroupChatView {
       },
       progress: {
         sending: (id) => this.delivery.step('sending', id),
-        accepted: (id) => {
-          this.delivery.step('accepted', id);
-          const open = options.visibleGroup();
-          this.outgoing.accepted(id, performance.now(), open);
-          if (open && this.outgoing.crowded(open))
-            options
-              .reconcile(open)
-              .catch((error: unknown) => this.reportGroupError(error));
-        },
+        accepted: (id) => this.accepted(id),
       },
       draftChanged: (draft, phase) => {
         this.outgoing.update(draft, phase);
@@ -283,6 +285,32 @@ export class GroupChatView {
   status(): void {
     this.composer.status();
   }
+  private accepted(id: string): void {
+    this.delivery.step('accepted', id);
+    const open = this.options.visibleGroup();
+    const group = this.outgoing.accepted(id, performance.now(), open);
+    if (!group || group !== open) return;
+    this.scheduleAcceptance(group);
+    if (this.outgoing.crowded(group))
+      this.options
+        .reconcile(group)
+        .catch((error: unknown) => this.reportGroupError(error));
+  }
+  private scheduleAcceptance(group: string): void {
+    if (this.acceptanceFrame !== null) return;
+    this.acceptanceFrame = requestAnimationFrame(() => {
+      this.acceptanceFrame = null;
+      if (this.options.visibleGroup() === group) this.renderHistory();
+    });
+  }
+  private cancelAcceptance(): void {
+    if (this.acceptanceFrame === null) return;
+    cancelAnimationFrame(this.acceptanceFrame);
+    this.acceptanceFrame = null;
+  }
+  get sendPending(): boolean {
+    return this.composer.sendPending;
+  }
   get recording(): boolean {
     return this.composer.recording;
   }
@@ -299,6 +327,7 @@ export class GroupChatView {
     closeMessageMenu(this.node('[data-group-history]'));
   }
   open(id: string): void {
+    this.cancelAcceptance();
     closeMessageMenu(this.node('[data-group-history]'));
     if (this.recording)
       throw new Error(
@@ -316,6 +345,7 @@ export class GroupChatView {
     if (this.host) this.host.hidden = true;
   }
   invalidateHistory(): void {
+    this.cancelAcceptance();
     this.editor.clear();
     this.externalRows.clear();
     this.externalAbort.abort();
@@ -333,6 +363,7 @@ export class GroupChatView {
     this.composer.leave();
   }
   suspend(revoked: boolean): void {
+    this.cancelAcceptance();
     this.composer.suspend(revoked);
     this.renderHistory();
   }
@@ -340,6 +371,7 @@ export class GroupChatView {
     this.composer.bindBrowserLifetime();
   }
   mount(container: HTMLElement): void {
+    this.cancelAcceptance();
     this.host = container;
     this.composer.mount(container);
     this.watchOlder();
@@ -445,6 +477,7 @@ export class GroupChatView {
       this.editor.clear();
       historyPosition(history);
       history.hidden = true;
+      traceSendChecks(history, 'group');
       closeMessageMenu(this.node('[data-group-history]'));
       this.forwarding?.clear();
       this.deletion.clear();
@@ -764,12 +797,20 @@ export class GroupChatView {
       );
       retry.addEventListener('click', () => this.composer.retryTexts());
       state.append(retry);
-    } else
+    } else {
+      const checks = messageChecks({
+        own: true,
+        delivery: 'accepted',
+        read: false,
+      })!;
       state.append(
         checksIcon(
-          messageChecks({ own: true, delivery: 'accepted', read: false })!,
+          text.accepted === null
+            ? { ...checks, label: t('message.sending') }
+            : checks,
         ),
       );
+    }
     this.appendAnnotations(article, decodeGroupText(text.text));
     article.append(sender, body, state);
     return article;

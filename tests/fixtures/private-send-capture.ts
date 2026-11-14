@@ -32,7 +32,11 @@ export function privateSendCapture(t: TestContext) {
     at(ms: number) {
       now = 1000 + ms;
     },
-    send(id = `synthetic-${++next}`, scope: 'private' | 'group' = 'private') {
+    send(
+      id = `synthetic-${++next}`,
+      scope: 'private' | 'group' = 'private',
+      mode: 'text' | 'image' = 'text',
+    ) {
       const slot = ++next;
       const event = new Event('submit');
       recording.record('send-action', {
@@ -43,7 +47,7 @@ export function privateSendCapture(t: TestContext) {
         sendDisabled: false,
         sendHidden: false,
         formHidden: false,
-        mediaKind: 'text',
+        mediaKind: mode,
         viewOnce: false,
       });
       host.dispatchEvent(
@@ -51,7 +55,7 @@ export function privateSendCapture(t: TestContext) {
           detail: {
             privateSubmission: {
               event,
-              mediaMode: 'text',
+              mediaMode: mode === 'text' ? 'text' : 'ordinary',
               composer: 1,
               gesture: slot,
               clock: now,

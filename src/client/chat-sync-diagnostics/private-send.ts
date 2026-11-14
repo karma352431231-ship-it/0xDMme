@@ -2,6 +2,7 @@ import type {
   PrivateSendContext,
   PrivateSendFields,
   SendWaitReason,
+  SendMaintenanceKind,
 } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import type { SendStage } from '../../shared/chat-sync-diagnostics/send.ts';
 
@@ -29,6 +30,7 @@ export class PrivateSendCapture {
   private readonly eligible = new Set<string>();
   private readonly accepted = new Set<string>();
   private readonly waiting = new Map<string, Map<SendWaitReason, () => void>>();
+  private maintenance: SendMaintenanceKind | undefined;
   private reasons: readonly SendWaitReason[] = [];
   private batches = 0;
   private spans = 0;
@@ -155,8 +157,14 @@ export class PrivateSendCapture {
     this.waiting.set(id, new Map());
     this.scheduler(this.reasons);
   }
-  scheduler(reasons: readonly SendWaitReason[]): void {
+  scheduler(
+    reasons: readonly SendWaitReason[],
+    maintenance = this.maintenance,
+  ): void {
     this.reasons = reasons;
+    this.maintenance = reasons.includes('maintenance')
+      ? maintenance
+      : undefined;
     for (const [id, waits] of this.waiting) this.updateWait(id, waits, reasons);
   }
   private updateWait(
@@ -173,6 +181,9 @@ export class PrivateSendCapture {
       if (!waits.has(reason)) {
         const finish = this.span(this.context(id), 'scheduler-wait', {
           sendWait: reason,
+          ...(reason === 'maintenance' && this.maintenance
+            ? { sendMaintenance: this.maintenance }
+            : {}),
         });
         if (finish) waits.set(reason, finish);
       }

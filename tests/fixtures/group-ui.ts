@@ -74,6 +74,10 @@ const bundle = await build({
 
 class GroupNode extends ChatNode {
   open = false;
+  override setAttribute(name: string, value: string): void {
+    super.setAttribute(name, value);
+    if (name === 'class') this.className = value;
+  }
   get isConnected(): boolean {
     return this.tag === 'body' || !!this.parent;
   }
@@ -503,6 +507,8 @@ export function groupUiFixture() {
       reset() {}
     },
   };
+  const frames = new Map<number, FrameRequestCallback>();
+  let frameId = 0;
   const context = {
     fixture,
     document,
@@ -515,6 +521,11 @@ export function groupUiFixture() {
     AbortSignal,
     matchMedia: () => ({ matches: false }),
     queueMicrotask,
+    requestAnimationFrame: (run: FrameRequestCallback) => {
+      frames.set(++frameId, run);
+      return frameId;
+    },
+    cancelAnimationFrame: (id: number) => frames.delete(id),
     Blob,
     URL,
     TextDecoder,
@@ -595,6 +606,12 @@ export function groupUiFixture() {
     session,
     window,
     document,
+    frame() {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      for (const callback of callbacks) callback(performance.now());
+      return callbacks.length;
+    },
     async click(key: string) {
       nodes[key]!.click();
       await turn();

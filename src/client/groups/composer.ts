@@ -4,7 +4,10 @@ import {
   tracePrivateTextQueue,
   privateSendBatch,
 } from '../chat-sync-diagnostics/index.ts';
-import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../chat-sync-diagnostics/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { encodeGroupText } from '../../shared/group-messages/index.ts';
@@ -51,6 +54,9 @@ interface Options {
   externalMedia?: ExternalMediaConsent | undefined;
   account: () => string | undefined;
   isBusy: () => boolean;
+  sendReady?: (() => boolean) | undefined;
+  sendChanged?: (() => void) | undefined;
+  sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
   run: (work: () => Promise<void>) => Promise<void>;
   operationRun: (
     work: () => Promise<void>,
@@ -109,26 +115,41 @@ export class GroupComposer {
     this.texts = groupTextQueue({
       save: (groupId, draft) => options.controller.composeText(groupId, draft),
       send: (id) => this.transmit(id),
-      available: () => !!options.account() && networkAvailable(),
-      changed: () => this.status(),
+      available: () => this.sendReady() && networkAvailable(),
+      changed: () => {
+        this.status();
+        options.sendChanged?.();
+      },
       failed: (error) => this.failure(error),
       draftChanged: options.draftChanged,
       timing: (draft, stage) => tracePrivateTextQueue(draft.id, stage),
     });
     this.submissions = new AttachmentSubmissions({
       diagnosticScope: 'group',
-      available: () => !!options.account() && !options.isBusy(),
-      blockers: () => (options.isBusy() ? ['foreground-operation'] : []),
+      available: () => this.sendReady(),
+      blockers: () =>
+        options.sendBlockers?.() ??
+        (options.isBusy() ? ['foreground-operation'] : []),
       run: (work, diagnostic) => this.runSubmission(work, diagnostic),
       stage: (item) => options.controller.stageMedia(item),
       send: (diagnostic) => this.sendSubmissions(diagnostic),
       changed: () => {
         this.status();
         options.changed();
+        options.sendChanged?.();
       },
       failed: (error) => this.failure(error),
       followup: () => {},
     });
+  }
+  private sendReady(): boolean {
+    return (
+      !!this.options.account() &&
+      (this.options.sendReady?.() ?? !this.options.isBusy())
+    );
+  }
+  get sendPending(): boolean {
+    return this.texts.working || this.submissions.ready;
   }
   retryTexts(): void {
     this.texts.retry();
@@ -241,6 +262,7 @@ export class GroupComposer {
         !controller.selected,
     );
     this.submissions.resume();
+    this.texts.resume();
   }
   private recordingControls(blocked: boolean): void {
     const stop = this.node('[data-voice-stop]'),

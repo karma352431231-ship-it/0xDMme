@@ -28,6 +28,7 @@ interface InboxPorts {
   groups: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
+  startingLive?: () => void;
   /** After a committed page, outside the turn; `live` reports whether the
    * page answered live demand. */
   received: (scope: HistoryKind, live: boolean) => void | Promise<void>;
@@ -191,6 +192,7 @@ export class MessageInbox {
         settled = resolve;
       }),
     };
+    this.beginLive(live);
     const diagnostic = this.active.diagnostic;
     let committed = false;
     try {
@@ -219,6 +221,9 @@ export class MessageInbox {
       if (this.ports.current(generation)) this.resume();
     }
     if (committed) this.followUp(turn.kind, live, generation);
+  }
+  private beginLive(live: boolean): void {
+    if (live) this.ports.startingLive?.();
   }
   /** Counters, sound and visible read receipts follow a committed page outside
    * the turn, so the next live page never waits for them. Their own failures

@@ -1,4 +1,7 @@
-import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
+import type {
+  PrivateSendContext,
+  SendWaitReason,
+} from '../chat-sync-diagnostics/index.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { IdentityPreparation } from '../peer-identity/index.ts';
 import { networkAvailable } from '../connectivity/index.ts';
@@ -68,6 +71,10 @@ interface GroupOptions {
   changed: () => void;
   select: () => void;
   isBusy: () => boolean;
+  sendReady?: (() => boolean) | undefined;
+  sendChanged?: (() => void) | undefined;
+  sendBlockers?: (() => readonly SendWaitReason[]) | undefined;
+  runSend?: GroupOptions['run'];
   alert: () => void;
   peers: () => readonly Peer[];
   alias: (account: string) => string;
@@ -122,6 +129,9 @@ export function startGroups(
     playback: options.playback,
     externalMedia: options.externalMedia,
     isBusy: options.isBusy,
+    sendReady: options.sendReady,
+    sendChanged: options.sendChanged,
+    sendBlockers: options.sendBlockers,
     members,
     peers: options.peers,
     ...(options.forwarding ? { forwarding: options.forwarding } : {}),
@@ -130,7 +140,7 @@ export function startGroups(
     ...(options.stars ? { stars: options.stars } : {}),
     visibleGroup,
     reconcile: (id) => reconciliation.request(id),
-    operationRun: options.run,
+    operationRun: options.runSend ?? options.run,
     run,
     reopen,
     select: options.select,
@@ -299,11 +309,14 @@ export function startGroups(
         .map((g) => ({ id: g.state.groupId, head: g.head })),
     );
   }
-  async function finishDirectoryRefresh(): Promise<void> {
+  async function finishDirectoryRefresh(
+    shouldYield?: () => boolean,
+  ): Promise<boolean> {
     const current = session;
     const previous = controller.selected;
     const selected = previous?.state.groupId;
-    await controller.finishDirectoryRefresh();
+    if ((await controller.finishDirectoryRefresh(shouldYield)) === false)
+      return false;
     guardSession(current);
     updateOwnerNotice(previous);
     publishGroupHeads();
@@ -320,6 +333,7 @@ export function startGroups(
     options.changed();
     await resumeIncompleteHistory(selected);
     await refreshSelected(selected);
+    return true;
   }
   /** Unread counts and alerts for the listed groups; no history or profiles. */
   async function refreshStates(): Promise<void> {
@@ -398,7 +412,8 @@ export function startGroups(
     return selected &&
       !selected.localOnly &&
       document.visibilityState === 'visible' &&
-      host?.getClientRects().length
+      host?.isConnected &&
+      host.getClientRects().length
       ? selected.state.groupId
       : null;
   }
@@ -543,6 +558,9 @@ export function startGroups(
     },
     get selected(): GroupSummary | null {
       return controller.selected;
+    },
+    get interactiveSendPending(): boolean {
+      return chat.sendPending;
     },
     get recording(): boolean {
       return chat.recording;

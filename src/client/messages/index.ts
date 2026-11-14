@@ -279,6 +279,11 @@ export function startMessages(
     playback,
     daily,
     run,
+    runSend: runGroupSend,
+    sendReady: () => synchronization.sendTurnReady,
+    sendChanged: () => synchronization.resume(),
+    sendBlockers: () =>
+      synchronization.sendBlockers().filter((reason) => reason !== 'offline'),
     history: (work, settled) => synchronization.history(work, settled),
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
@@ -482,6 +487,10 @@ export function startMessages(
       liveConnecting: live.connecting,
       startupPending: usefulStartup.pending || startupWarmup.pending,
       textPending: textQueue.pending || mediaSubmissions.ready,
+      interactiveSendPending:
+        textQueue.working ||
+        mediaSubmissions.ready ||
+        groups.interactiveSendPending,
     }),
     status: () => {
       status();
@@ -520,7 +529,11 @@ export function startMessages(
     changes: refreshChangedSelected,
     changeMaintenance: [
       () => refreshContacts(),
-      () => (groups.selected ? Promise.resolve() : groups.refresh()),
+      async () => {
+        if (groups.selected) return;
+        await groups.refreshDirectory();
+        groupDirectoryMaintenance.queue();
+      },
       async () => {
         contactsMore();
         await dailyTick();
@@ -532,11 +545,10 @@ export function startMessages(
     sendPending: () => sendPending(),
   });
   const mediaSubmissions = new AttachmentSubmissions({
-    available: () =>
-      synchronization.localForegroundReady && !continuity.suspended,
+    available: () => synchronization.sendTurnReady && !continuity.suspended,
     blockers: () =>
       synchronization.sendBlockers().filter((reason) => reason !== 'offline'),
-    run: (work, diagnostic) => synchronization.run(work, diagnostic),
+    run: (work, diagnostic) => synchronization.runSend(work, diagnostic),
     stage: (item) => controller.stageSubmission(item),
     send: (privateSend) =>
       sendPending({ priority: 'interactive', privateSend }),
@@ -568,11 +580,18 @@ export function startMessages(
     },
     draftChanged: (draft, phase) => outgoing.update(draft, phase),
     save: (draft) => controller.queueText(draft),
-    available: () => synchronization.foregroundReady && !mediaSubmissions.ready,
+    available: () =>
+      networkAvailable() &&
+      synchronization.sendTurnReady &&
+      !mediaSubmissions.ready,
     transmit: async () => {
       const privateSend = privateSendBatch();
-      const ok = await synchronization.run(
-        () => sendPending({ priority: 'interactive', privateSend }),
+      const ok = await synchronization.runSend(
+        () =>
+          sendPending(
+            { priority: 'interactive', privateSend },
+            () => textQueue.awaitingSave,
+          ),
         privateSend,
       );
       return { ok, more: (await controller.pending()).length > 0 };
@@ -611,6 +630,24 @@ export function startMessages(
     },
     failed: reportTextSaveError,
   });
+  // The directory owner retains the remaining groups if an interactive send
+  // arrives between items. Re-admission uses the existing maintenance gate.
+  const groupDirectoryMaintenance = new MessageWarmup({
+    available: () => !usefulStartup.pending && synchronization.backgroundReady,
+    run: (step) => synchronization.background(step, 'group-directory'),
+    changed: () => synchronization.resume(),
+    failed: reportTextSaveError,
+    steps: [
+      async () => {
+        if (
+          !(await groups.finishDirectoryRefresh(
+            () => synchronization.shouldYieldMaintenance,
+          ))
+        )
+          return false;
+      },
+    ],
+  });
   const startupWarmup: MessageWarmup = new MessageWarmup({
     available: () => !usefulStartup.pending && synchronization.backgroundReady,
     run: (step) => synchronization.background(step),
@@ -628,9 +665,10 @@ export function startMessages(
     steps: [
       // Speculative SDK/store preparation must yield to a requested history.
       () => controller.initialize(),
-      async () => {
-        await groups.finishDirectoryRefresh();
+      () => {
+        groupDirectoryMaintenance.queue();
         contactsMore();
+        return Promise.resolve();
       },
       async () => {
         const current = generation;
@@ -966,14 +1004,18 @@ export function startMessages(
         : t('Conversations updated.');
   }
   function status(): void {
-    tracePrivateScheduler([
-      ...synchronization.sendBlockers(),
-      ...(mediaSubmissions.ready ? ['media-submission' as const] : []),
-    ]);
+    tracePrivateScheduler(
+      [
+        ...synchronization.sendBlockers(),
+        ...(mediaSubmissions.ready ? ['media-submission' as const] : []),
+      ],
+      synchronization.activeMaintenance,
+    );
     mediaSubmissions.resume();
     sendFollowup.resume();
     textQueue.resume();
     startupWarmup.resume();
+    groupDirectoryMaintenance.resume();
     visits.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
@@ -1021,6 +1063,12 @@ export function startMessages(
     },
     { signal: soundEvents.signal },
   );
+  async function runGroupSend(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<void> {
+    await synchronization.runSend(work, diagnostic);
+  }
   function action(label: string, work: () => Promise<void>): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1150,10 +1198,13 @@ export function startMessages(
     node('[data-message-pending]')?.replaceChildren();
     composer.setPeer(null);
   }
-  async function sendPending(work: VaultWorkOptions = {}): Promise<void> {
+  async function sendPending(
+    work: VaultWorkOptions = {},
+    yieldAfterMessage?: () => boolean,
+  ): Promise<void> {
     outgoing.beginTransfer();
     try {
-      await controller.sendPending(work);
+      await controller.sendPending(work, yieldAfterMessage);
     } catch (error: unknown) {
       outgoing.failTransfer();
       mediaSubmissions.failTransfer();
@@ -1852,12 +1903,17 @@ export function startMessages(
   }
   async function groupTick(): Promise<void> {
     if (!mounted?.isConnected) return;
-    if (!live.current) await groups.refresh();
+    if (!live.current) {
+      await groups.refreshDirectory();
+      groupDirectoryMaintenance.queue();
+      if (synchronization.shouldYieldMaintenance) return;
+    }
     if (conversationVisible('[data-group-conversation]'))
       await groups.resumePending();
   }
   async function periodicMessages(): Promise<void> {
     await groupTick();
+    if (synchronization.shouldYieldMaintenance) return;
     if (
       !conversationMounted('[data-direct-conversation]') ||
       !selected ||
@@ -1899,6 +1955,7 @@ export function startMessages(
     usefulStartup.reset();
     synchronization.reset();
     startupWarmup.pause();
+    groupDirectoryMaintenance.pause();
     if (composer.recording)
       void composer.stopRecording(
         t(
@@ -1912,6 +1969,7 @@ export function startMessages(
       sendFollowup.reset();
       outgoing.reset();
       startupWarmup.reset();
+      groupDirectoryMaintenance.reset();
       composer.dispose();
       groups.suspend(true);
       playback.close();
@@ -2086,6 +2144,7 @@ export function startMessages(
       usefulStartup.reset();
       synchronization.reset();
       startupWarmup.reset();
+      groupDirectoryMaintenance.reset();
       session = value;
       contacts.setSession(value);
       daily.setSession(value);

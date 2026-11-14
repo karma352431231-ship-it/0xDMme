@@ -99,6 +99,12 @@ interface OutboxEntry {
   packet: MessagePacket | null;
   transferStarted?: boolean;
 }
+interface OutboxTransmission {
+  batch: PinnedSendBatch;
+  generation: number;
+  options: VaultWorkOptions;
+  yieldAfterMessage?: (() => boolean) | undefined;
+}
 interface SendContext {
   diagnostic?: PrivateSendContext | undefined;
   a: VaultAuthority;
@@ -396,7 +402,10 @@ export class MessageOutbox {
     await localPut(session.accountId, name, hash, 512);
   }
 
-  async sendPending(options: VaultWorkOptions = {}): Promise<void> {
+  async sendPending(
+    options: VaultWorkOptions = {},
+    yieldAfterMessage?: () => boolean,
+  ): Promise<void> {
     const batchContext = options.privateSend ?? privateSendBatch();
     privateSendPoint(batchContext, 'outbox-dispatch');
     const pending = await measurePrivateSend(batchContext, 'pending-page', () =>
@@ -455,14 +464,11 @@ export class MessageOutbox {
           batch,
           generation,
           options: { ...options, privateSend: diagnostic },
+          yieldAfterMessage,
         }),
     });
   }
-  private transmitBatch(input: {
-    batch: PinnedSendBatch;
-    generation: number;
-    options: VaultWorkOptions;
-  }): Promise<boolean> {
+  private transmitBatch(input: OutboxTransmission): Promise<boolean> {
     const { batch, generation, options } = input;
     const diagnostic = options.privateSend;
     this.authority.guard(generation);
@@ -476,62 +482,79 @@ export class MessageOutbox {
             sendOutcome: current ? 'current' : 'changed',
           });
           if (!current) return false;
-          const api = (op: string, d: Record<string, unknown>) =>
-            messageApi(a, op, d, {
-              guard: () => this.authority.guard(generation),
-              privateSend: diagnostic,
-            });
-          const { own, machine } = await this.authority.encryption(
-            a,
-            generation,
-            diagnostic,
-          );
-          try {
-            const page = await measurePrivateSend(
-              diagnostic,
-              'pending-page',
-              () => outboxPage<OutboxEntry>(a.session.accountId, batch.names),
-            );
-            const earlier = page.map(({ value }) =>
-              privateSendSpan(privateSendContext(value.id), 'scheduler-wait', {
-                sendWait: 'earlier-draft',
-              }),
-            );
-            try {
-              for (const [index, { name, value }] of page.entries()) {
-                earlier[index]?.();
-                const linked = privateSendContext(value.id);
-                const context = linked
-                  ? { ...diagnostic, ...linked }
-                  : diagnostic;
-                const message = (op: string, d: Record<string, unknown>) =>
-                  messageApi(a, op, d, {
-                    guard: () => this.authority.guard(generation),
-                    privateSend: context,
-                  });
-                await this.sendOne({
-                  a,
-                  api: context ? message : api,
-                  own,
-                  machine,
-                  generation,
-                  name,
-                  value,
-                  diagnostic: context,
-                  history: batch.history(name, value),
-                });
-              }
-            } finally {
-              for (const finish of earlier) finish?.();
-            }
-          } finally {
-            machine.close();
-          }
+          await this.transmitVerifiedPage(a, input);
           return true;
         },
         options,
       ),
     );
+  }
+  private async transmitVerifiedPage(
+    a: VaultAuthority,
+    input: OutboxTransmission,
+  ): Promise<void> {
+    const { batch, generation } = input;
+    const diagnostic = input.options.privateSend;
+    const api = (op: string, d: Record<string, unknown>) =>
+      messageApi(a, op, d, {
+        guard: () => this.authority.guard(generation),
+        privateSend: diagnostic,
+      });
+    const { own, machine } = await this.authority.encryption(
+      a,
+      generation,
+      diagnostic,
+    );
+    try {
+      const page = await measurePrivateSend(diagnostic, 'pending-page', () =>
+        outboxPage<OutboxEntry>(a.session.accountId, batch.names),
+      );
+      await this.transmitOrderedDrafts({ a, own, machine, api }, input, page);
+    } finally {
+      machine.close();
+    }
+  }
+  private async transmitOrderedDrafts(
+    resources: Pick<SendContext, 'a' | 'own' | 'machine' | 'api'>,
+    input: OutboxTransmission,
+    page: readonly { name: string; value: OutboxEntry }[],
+  ): Promise<void> {
+    const { a, own, machine, api } = resources;
+    const { generation, batch } = input;
+    const diagnostic = input.options.privateSend;
+    const earlier = page.map(({ value }) =>
+      privateSendSpan(privateSendContext(value.id), 'scheduler-wait', {
+        sendWait: 'earlier-draft',
+      }),
+    );
+    try {
+      for (const [index, { name, value }] of page.entries()) {
+        earlier[index]?.();
+        const linked = privateSendContext(value.id);
+        const context = linked ? { ...diagnostic, ...linked } : diagnostic;
+        const message = (op: string, d: Record<string, unknown>) =>
+          messageApi(a, op, d, {
+            guard: () => this.authority.guard(generation),
+            privateSend: context,
+          });
+        await this.sendOne({
+          a,
+          api: context ? message : api,
+          own,
+          machine,
+          generation,
+          name,
+          value,
+          diagnostic: context,
+          history: batch.history(name, value),
+        });
+        // This message is settled. Unvisited records stay durable and
+        // enter a newly verified batch on the next foreground turn.
+        if (input.yieldAfterMessage?.()) break;
+      }
+    } finally {
+      for (const finish of earlier) finish?.();
+    }
   }
   private async sendOne(context: SendContext): Promise<void> {
     const { a, api, generation, name, value } = context;

@@ -1,3 +1,4 @@
+import type { SendMaintenanceKind as MaintenanceKind } from '../../shared/chat-sync-diagnostics/private-send.ts';
 import {
   privateSendSpan,
   privateSendPoint,
@@ -34,6 +35,7 @@ interface SynchronizationState {
   liveConnecting: boolean;
   startupPending?: boolean;
   textPending?: boolean;
+  interactiveSendPending?: boolean;
 }
 interface SynchronizationOperations {
   state: () => SynchronizationState;
@@ -85,6 +87,8 @@ export class MessageSynchronization {
   private receiptProjectionPending = false;
   private receiptFailed = false;
   private maintenance: Promise<void> | null = null;
+  private maintenanceKind: MaintenanceKind | undefined;
+  private sendsBeforeReceipt = 0;
   private readonly inbox: MessageInbox;
   private readonly continuation: MessageContinuationQueue;
   private historyGeneration = 0;
@@ -112,7 +116,13 @@ export class MessageSynchronization {
       direct: (signal, work) => options.preloadDirect(signal, work),
       groups: (signal, work) => options.preloadGroups(signal, work),
       pause: () => options.pause(),
-      changed: () => this.resume(),
+      changed: () => {
+        options.status();
+        this.resume();
+      },
+      startingLive: () => {
+        this.sendsBeforeReceipt = 0;
+      },
       received: (scope, live) => {
         if (live && this.receiptFailed)
           this.failed = this.receiptFailed = false;
@@ -230,6 +240,7 @@ export class MessageSynchronization {
     this.updates.clear();
     this.automaticAttempts = 0;
     this.lastTransferAttempt = 0;
+    this.sendsBeforeReceipt = 0;
     this.inbox.reset();
   }
   close(): void {
@@ -338,10 +349,17 @@ export class MessageSynchronization {
       !this.inbox.urgent
     );
   }
-  async background(work: () => Promise<void>): Promise<void> {
-    await this.maintain(work, (error) => {
-      this.report(error, t('Could not complete the operation.'));
-    });
+  async background(
+    work: () => Promise<void>,
+    kind: MaintenanceKind = 'background',
+  ): Promise<void> {
+    await this.maintain(
+      work,
+      (error) => {
+        this.report(error, t('Could not complete the operation.'));
+      },
+      kind,
+    );
   }
   /** Visible directory reads yield to openings, sends and urgent receipts.
    * Report admission separately so the startup owner never loses a queued step. */
@@ -349,11 +367,49 @@ export class MessageSynchronization {
     if (!this.backgroundReady || this.options.state().liveConnecting)
       return false;
     let failure: { error: unknown } | undefined;
-    const completed = await this.maintain(work, (error) => {
-      failure = { error };
-    });
+    const completed = await this.maintain(
+      work,
+      (error) => {
+        failure = { error };
+      },
+      'directory',
+    );
     if (failure) throw failure.error;
     return completed;
+  }
+  /** Reserve the next live turn after a bounded burst of interactive sends.
+   * Reserving a ready receipt does not cancel a page or block other UI work. */
+  get sendTurnReady(): boolean {
+    return this.localForegroundReady && !this.receiptOwed;
+  }
+  private get receiptOwed(): boolean {
+    return (
+      this.sendsBeforeReceipt >= 4 &&
+      this.inbox.urgent &&
+      this.options.state().visible &&
+      !this.opening.waiting &&
+      !this.inbox.running
+    );
+  }
+  runSend(
+    work: () => Promise<void>,
+    diagnostic?: PrivateSendContext,
+  ): Promise<boolean> {
+    if (this.receiptOwed) {
+      this.inbox.resume();
+      return Promise.resolve(false);
+    }
+    if (this.inbox.urgent && this.sendTurnReady && !this.inbox.running)
+      this.sendsBeforeReceipt++;
+    return this.run(work, diagnostic);
+  }
+  /** Active segments keep their exclusion; optional work checks this between segments. */
+  get shouldYieldMaintenance(): boolean {
+    return (
+      this.busy ||
+      this.opening.waiting ||
+      !!this.options.state().interactiveSendPending
+    );
   }
   async run(
     work: () => Promise<void>,
@@ -369,7 +425,12 @@ export class MessageSynchronization {
     try {
       await settleSendWait(diagnostic, 'receipt-page', receipt);
       // A user action waits for automatic maintenance instead of being dropped.
-      await settleSendWait(diagnostic, 'maintenance', this.maintenance);
+      await settleSendWait(
+        diagnostic,
+        'maintenance',
+        this.maintenance,
+        this.maintenanceKind,
+      );
       if (!this.current(current)) return false;
       this.failed = false;
       privateSendPoint(diagnostic, 'foreground-acquired');
@@ -444,7 +505,8 @@ export class MessageSynchronization {
       !this.opening.waiting &&
       !this.inbox.running &&
       state.visible &&
-      !state.textPending
+      !state.textPending &&
+      !state.interactiveSendPending
     );
   }
   /** Live receipt waits only for an active owner or a requested opening. Send
@@ -453,7 +515,8 @@ export class MessageSynchronization {
     return (
       this.foregroundReady &&
       !this.opening.waiting &&
-      this.options.state().visible
+      this.options.state().visible &&
+      (!this.options.state().interactiveSendPending || this.receiptOwed)
     );
   }
   get presentationReady(): boolean {
@@ -461,12 +524,16 @@ export class MessageSynchronization {
     return !this.closed && state.session && state.online && !state.suspended;
   }
   /** Observed predicates only; this does not claim why another tab holds a lock. */
+  get activeMaintenance(): MaintenanceKind | undefined {
+    return this.maintenanceKind;
+  }
   sendBlockers(): SendWaitReason[] {
     const state = this.options.state();
     const flags: [boolean, SendWaitReason][] = [
       [this.closed, 'closed'],
       [this.busy, 'foreground-operation'],
       [this.maintenance !== null, 'maintenance'],
+      [this.receiptOwed, 'receipt-page'],
       [!state.session, 'session'],
       [!state.online, 'offline'],
       [state.suspended, 'suspended'],
@@ -559,6 +626,7 @@ export class MessageSynchronization {
           );
           if (this.current(current)) this.followup.queue(plan);
         },
+        'changes',
         plan.scope === 'all' ? 'full' : 'projection',
       );
     } finally {
@@ -576,6 +644,7 @@ export class MessageSynchronization {
    * reserve busy and wait for them instead of being rejected as another sync. */
   private async checkAutomatically(
     work: () => Promise<void>,
+    kind: 'changes' | 'periodic',
     completion: 'full' | 'projection' = 'full',
   ): Promise<void> {
     const current = this.options.state().generation;
@@ -597,22 +666,29 @@ export class MessageSynchronization {
         this.failed = true;
         this.report(error, t('Could not complete the operation.'));
       },
+      kind,
     );
   }
   async maintainPresence(): Promise<void> {
     if (!this.options.state().visible) return;
-    await this.maintain(this.options.presence, (error) => {
-      this.report(error, t('Could not update presence.'));
-    });
+    await this.maintain(
+      this.options.presence,
+      (error) => {
+        this.report(error, t('Could not update presence.'));
+      },
+      'presence',
+    );
   }
   private async maintain(
     work: () => Promise<void>,
     failure: (error: unknown) => void,
+    kind: MaintenanceKind,
   ): Promise<boolean> {
     if (!this.canSynchronize()) return false;
     const current = this.options.state().generation;
     let completed = false;
     this.stopPreload();
+    this.maintenanceKind = kind;
     this.maintenance = Promise.resolve()
       .then(async () => {
         if (!this.current(current)) return;
@@ -626,6 +702,7 @@ export class MessageSynchronization {
       })
       .finally(() => {
         this.maintenance = null;
+        this.maintenanceKind = undefined;
         if (this.current(current)) this.options.status();
         this.resume();
       });
@@ -661,7 +738,7 @@ export class MessageSynchronization {
       if (!this.current(current) || !this.canSynchronize()) return;
       if (!(await this.options.periodicWork()) || !this.current(current))
         return;
-      await this.checkAutomatically(this.options.periodic);
+      await this.checkAutomatically(this.options.periodic, 'periodic');
     } catch (error: unknown) {
       if (!this.current(current)) return;
       this.report(error, t('Could not check pending sends.'));
@@ -685,13 +762,15 @@ function settleSendWait(
   context: PrivateSendContext | undefined,
   reason: SendWaitReason,
   work: Promise<void> | null,
+  maintenance?: MaintenanceKind,
 ): Promise<void> {
-  const promise = work ?? Promise.resolve();
+  if (!work) return Promise.resolve();
   const finish = privateSendSpan(context, 'scheduler-wait', {
     sendWait: reason,
+    ...(maintenance ? { sendMaintenance: maintenance } : {}),
   });
-  if (!finish) return promise;
-  return promise.then(
+  if (!finish) return work;
+  return work.then(
     () => finish(),
     (error: unknown) => {
       finish(false);

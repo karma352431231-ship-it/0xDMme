@@ -2,7 +2,7 @@ import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { startLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 
-type Step = () => Promise<void>;
+type Step = () => Promise<void | false>;
 
 /** Bounded startup maintenance yields between owners to foreground actions.
  * No SDK or authority operation is interrupted or run concurrently here. */
@@ -11,6 +11,7 @@ export class MessageWarmup {
   private next: number | null = null;
   private running = false;
   private repeat = false;
+  private generation = 0;
   private scheduled: LoadTrace | undefined;
   ready = false;
   get pending(): boolean {
@@ -18,7 +19,7 @@ export class MessageWarmup {
   }
   private readonly options: {
     available: () => boolean;
-    run: (step: Step) => Promise<void>;
+    run: (step: () => Promise<void>) => Promise<void>;
     failed: (error: unknown) => void;
     changed: () => void;
     steps: readonly [Step, ...Step[]];
@@ -41,6 +42,7 @@ export class MessageWarmup {
     else if (this.running || this.next !== 0) this.repeat = true;
   }
   reset(): void {
+    this.generation++;
     this.repeat = false;
     this.ready = false;
     this.next = null;
@@ -77,12 +79,16 @@ export class MessageWarmup {
       trace?.point('cancelled', { loadOutcome: 'cancelled' });
       return;
     }
-    const step = this.options.steps[this.next]!;
-    this.next =
-      this.next + 1 < this.options.steps.length ? this.next + 1 : null;
+    const index = this.next;
+    const step = this.options.steps[index]!;
+    this.next = index + 1 < this.options.steps.length ? index + 1 : null;
+    const generation = this.generation;
     this.running = true;
     try {
-      await this.execute(step, trace);
+      await this.execute(async () => {
+        if ((await step()) === false && this.generation === generation)
+          this.next = index;
+      }, trace);
     } finally {
       this.running = false;
       if (this.next === null && this.repeat) {
@@ -94,7 +100,7 @@ export class MessageWarmup {
     }
   }
   private async execute(
-    step: Step,
+    step: () => Promise<void>,
     trace: LoadTrace | undefined,
   ): Promise<void> {
     try {

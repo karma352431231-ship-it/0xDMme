@@ -877,8 +877,11 @@ export class Messages {
   shareProfile(peer: string, card: ProfileCard): Promise<void> {
     return this.outbox.shareProfile(peer, card);
   }
-  sendPending(options: VaultWorkOptions = {}): Promise<void> {
-    return this.outbox.sendPending(options);
+  sendPending(
+    options: VaultWorkOptions = {},
+    yieldAfterMessage?: () => boolean,
+  ): Promise<void> {
+    return this.outbox.sendPending(options, yieldAfterMessage);
   }
   synchronize(options: VaultWorkOptions = {}): Promise<MessageWorkResult> {
     return this.reader.synchronize(options);
