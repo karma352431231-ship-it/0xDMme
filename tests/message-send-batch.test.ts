@@ -126,9 +126,10 @@ await test('authority changes between preflight and transfer require a fresh pin
   assert.ok(pinsAtDistribution.every((revision) => revision === 2));
 });
 
-await test('a stale recipient revision refreshes once inside the drain and preserves the exact message ID', async (t) => {
+await test('a cold preparation preserves the stale-recipient retry and the exact message ID', async (t) => {
   const f = await sendFixture();
   t.after(f.close);
+  f.state.reuseOwnDirectory = true;
   const id = await f.queue();
   const next = await linkedDirectory(f.peer);
   f.state.beforeKeys = () =>
@@ -322,6 +323,7 @@ await test('two stale refusals leave the same draft durable and never loop', asy
   const f = await sendFixture();
   t.after(f.close);
   f.state.retainMachine = true;
+  f.state.reuseOwnDirectory = true;
   f.state.stalePublishCount = 2;
   const id = await f.queue();
   await assert.rejects(

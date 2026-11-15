@@ -234,6 +234,7 @@ export class Messages {
         current: () => this.generation,
         guard: (generation) => this.guard(generation),
         pinsLoaded: (generation) => this.pinsGeneration === generation,
+        ownDirectory: (peers) => this.sendPreparation.ownDirectory(peers),
         loadPins: (options) => this.loadPins(options),
         savePins: (options) => this.savePins(options),
         preparation: (a, generation, peer, diagnostic) =>

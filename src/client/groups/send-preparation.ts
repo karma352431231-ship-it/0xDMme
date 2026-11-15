@@ -15,6 +15,10 @@ import type { GroupGovernance, GroupState } from './governance.ts';
 export class GroupSendPreparation {
   private readonly read = new SendPreparationRead();
   private readonly material = new SendMaterials();
+  /** Select freshness conservatively; prepare() still verifies any cached hit. */
+  ownDirectory(groupId: string): 'fresh' | 'reuse' {
+    return this.material.has(groupId) ? 'reuse' : 'fresh';
+  }
   observed(account: string, head: string): void {
     this.material.observed(account, head);
   }

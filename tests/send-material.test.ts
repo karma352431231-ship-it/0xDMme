@@ -22,11 +22,14 @@ await test('material requires the exact own authority and is dropped by changed 
   const materials = new SendMaterials();
   const remember = () =>
     materials.remember(own.authority, peer.accountId, data);
+  assert.equal(materials.has(peer.accountId), false);
   remember();
+  assert.equal(materials.has(peer.accountId), true);
   assert.deepEqual(materials.reusable(own.authority, peer.accountId), data);
   materials.observed(peer.accountId, peer.head);
   assert.ok(materials.reusable(own.authority, peer.accountId));
   materials.observed(peer.accountId, 'changed');
+  assert.equal(materials.has(peer.accountId), false);
   assert.equal(materials.reusable(own.authority, peer.accountId), null);
   for (const authority of [
     { ...own.authority, directory: 'changed' },
@@ -51,6 +54,7 @@ await test('material requires the exact own authority and is dropped by changed 
   const generation = materials.generation;
   materials.invalidate();
   materials.remember(own.authority, peer.accountId, data, generation);
+  assert.equal(materials.has(peer.accountId), false);
   assert.equal(materials.reusable(own.authority, peer.accountId), null);
 });
 
@@ -62,6 +66,7 @@ await test('material is bounded, refreshes least-recently-used order, and return
     materials.remember(own.authority, String(index), material);
   assert.ok(materials.reusable(own.authority, '0'));
   materials.remember(own.authority, '32', material);
+  assert.equal(materials.has('1'), false);
   assert.equal(materials.reusable(own.authority, '1'), null);
   const read = materials.reusable(own.authority, '0');
   assert.ok(read);

@@ -212,6 +212,7 @@ await test('private text admission seals locally without online authority and ca
         if (expected !== generation) throw new Error('Session changed.');
       },
       pinsLoaded: () => false,
+      ownDirectory: () => 'fresh',
       loadPins: () =>
         Promise.reject(new Error('No pin reads during admission.')),
       savePins: () =>

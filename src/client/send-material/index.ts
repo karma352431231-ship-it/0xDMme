@@ -36,6 +36,10 @@ export class SendMaterials {
   get generation(): number {
     return this.epoch;
   }
+  /** Scheduling hint only. Presence never replaces authority/audience checks. */
+  has(key: string): boolean {
+    return this.entries.has(key);
+  }
   remember(
     authority: VaultAuthority,
     key: string,

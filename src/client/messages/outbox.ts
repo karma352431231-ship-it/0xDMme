@@ -79,6 +79,7 @@ interface SendAuthority {
   current: () => number;
   guard: (generation: number) => void;
   pinsLoaded: (generation: number) => boolean;
+  ownDirectory: (peers: readonly string[]) => 'fresh' | 'reuse';
   loadPins: (options?: VaultWorkOptions) => Promise<void>;
   savePins: (options?: VaultWorkOptions) => Promise<void>;
   preparation: (
@@ -448,7 +449,10 @@ export class MessageOutbox {
         work = {
           ...options,
           privateSend: diagnostic,
-          ownDirectory: attempt === 1 ? 'reuse' : 'fresh',
+          ownDirectory:
+            attempt === 1
+              ? this.authority.ownDirectory(pending.map((draft) => draft.peer))
+              : 'fresh',
         };
         if (attempt > 1 || !this.authority.pinsLoaded(generation))
           await measurePrivateSend(diagnostic, 'pins-load', () =>

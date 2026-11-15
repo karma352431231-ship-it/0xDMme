@@ -309,11 +309,13 @@ await test('warm group send prepares governance and directories in one request, 
       );
   };
   stored.delete(name);
+  assert.equal(preparation.ownDirectory(scope.groupId), 'fresh');
   assert.deepEqual(await send(), [
     'group-send-preparation',
     'group-matrix-query',
     'group-message-publish',
   ]);
+  assert.equal(preparation.ownDirectory(scope.groupId), 'reuse');
   assert.deepEqual(await send(), ['group-history', 'group-message-publish']);
   // Another verified governance operation has advanced the cached period.
   // Reusing the old participants must not reuse its old Matrix trust.
@@ -337,6 +339,7 @@ await test('warm group send prepares governance and directories in one request, 
     true,
   );
   preparation.invalidate();
+  assert.equal(preparation.ownDirectory(scope.groupId), 'fresh');
   oldServer = true;
   assert.deepEqual(await send(), [
     'group-send-preparation',

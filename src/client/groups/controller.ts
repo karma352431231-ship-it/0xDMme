@@ -1677,7 +1677,7 @@ export class GroupController {
     try {
       await this.sendPreparedPending(selected, {
         ...options,
-        ownDirectory: 'reuse',
+        ownDirectory: this.sendPreparation.ownDirectory(selected.state.groupId),
         diagnostic: batch ? { ...batch, attempt: 1 } : undefined,
       });
     } catch (error: unknown) {

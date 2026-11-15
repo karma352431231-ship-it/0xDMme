@@ -20,6 +20,14 @@ export class PrivateSendPreparation {
     this.identities = identities;
   }
 
+  /** A known cache miss needs fresh own verification before entering its turn.
+   * A hit is only a hint; prepare() still validates the complete reuse stamp. */
+  ownDirectory(peers: readonly string[]): 'fresh' | 'reuse' {
+    return peers.length > 0 && peers.every((peer) => this.material.has(peer))
+      ? 'reuse'
+      : 'fresh';
+  }
+
   async prepare(
     a: VaultAuthority,
     peer: string,
