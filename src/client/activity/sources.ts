@@ -6,7 +6,22 @@ import type {
 } from '../../shared/community-posts/index.ts';
 import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
 import type { FollowNotice } from '../../shared/follow-notices/index.ts';
+import type { PublicActivitySource } from '../../shared/activity-snapshot/index.ts';
 import type { ModerationActivity } from './moderation.ts';
+import type { PublicActivityRead } from './public-snapshot.ts';
+
+type Read<T> = (response?: () => unknown) => Promise<readonly T[]>;
+interface ActivityReply {
+  reply: string;
+  community: string;
+  createdAt: string;
+  read?: boolean;
+  kind?: 'post' | 'reply';
+  /** Author and start of the reply, already filtered by public visibility. */
+  preview: ReplyPreview | null;
+  /** The reader's own content this reply answered. */
+  target?: ReplyTarget;
+}
 
 /**
  * Activity: one place for items the app already
@@ -14,13 +29,16 @@ import type { ModerationActivity } from './moderation.ts';
  * only reads them on demand and calls the same actions as the original screens.
  */
 export interface ActivitySources {
-  upvotes?: () => Promise<readonly UpvoteNotice[]>;
+  publicSnapshot?: (
+    current: () => boolean,
+  ) => Promise<PublicActivityRead | null>;
+  upvotes?: Read<UpvoteNotice>;
   markUpvotesRead?: (ids: readonly string[]) => Promise<void>;
-  mentions?: () => Promise<readonly MentionNotification[]>;
-  follows?: () => Promise<readonly FollowNotice[]>;
+  mentions?: Read<MentionNotification>;
+  follows?: Read<FollowNotice>;
   markFollowsRead?: (ids: readonly string[]) => Promise<void>;
   markMentionsRead?: (ids: readonly string[]) => Promise<void>;
-  moderation?: () => Promise<readonly ModerationActivity[]>;
+  moderation?: Read<ModerationActivity>;
   markModerationRead?: (ids: readonly string[]) => Promise<void>;
   requests: () => Promise<
     readonly {
@@ -35,21 +53,9 @@ export interface ActivitySources {
     readonly { id: string; kind: 'invite' | 'transfer'; actor: string }[]
   >;
   respondGroupInvite: (id: string, accept: boolean) => Promise<void>;
-  replies: () => Promise<
-    readonly {
-      reply: string;
-      community: string;
-      createdAt: string;
-      read?: boolean;
-      kind?: 'post' | 'reply';
-      /** Author and start of the reply, already filtered by public visibility. */
-      preview: ReplyPreview | null;
-      /** The reader's own content this reply answered. */
-      target?: ReplyTarget;
-    }[]
-  >;
+  replies: Read<ActivityReply>;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;
-  transfers: () => Promise<readonly { id: string; name: string }[]>;
+  transfers: Read<{ id: string; name: string }>;
   missedCalls: () => Promise<
     readonly { id: string; peer: string; label: string; at: number }[]
   >;
@@ -107,35 +113,46 @@ async function load<T>(
   }
 }
 
-/** Enqueue one source at a time, leaving the shared authority queue room for
- * current conversation work. A source failure stays visible without preventing
- * later sources; session/invalidation changes stop unstarted reads. */
+async function publicReader(
+  source: ActivitySources['publicSnapshot'],
+  current: () => boolean,
+): Promise<PublicActivityRead | null> {
+  if (!source || !current()) return null;
+  try {
+    return await source(current);
+  } catch (error: unknown) {
+    return () => {
+      throw error;
+    };
+  }
+}
+
+/** Enqueue one authority read at a time, leaving room for conversation work.
+ * Each source projects its own result. Invalidation stops unstarted reads. */
 export async function readActivitySnapshot(
   sources: ActivitySources,
   current: () => boolean,
 ): Promise<Snapshot | null> {
+  const requests = await load(sources.requests, current);
+  const invites = await load(sources.groupInvites, current);
+  const read = await publicReader(sources.publicSnapshot, current);
+  function publicSource<T>(name: PublicActivitySource, source?: Read<T>) {
+    return load(
+      () =>
+        source?.(read ? () => read(name) : undefined) ?? Promise.resolve([]),
+      current,
+    );
+  }
   const snapshot: Snapshot = {
-    requests: await load(sources.requests, current),
-    invites: await load(sources.groupInvites, current),
-    replies: await load(sources.replies, current),
-    transfers: await load(sources.transfers, current),
+    requests,
+    invites,
+    replies: await publicSource('replies', sources.replies),
+    transfers: await publicSource('transfers', sources.transfers),
     calls: await load(sources.missedCalls, current),
-    moderation: await load(
-      sources.moderation ?? (() => Promise.resolve([])),
-      current,
-    ),
-    mentions: await load(
-      sources.mentions ?? (() => Promise.resolve([])),
-      current,
-    ),
-    upvotes: await load(
-      sources.upvotes ?? (() => Promise.resolve([])),
-      current,
-    ),
-    follows: await load(
-      sources.follows ?? (() => Promise.resolve([])),
-      current,
-    ),
+    moderation: await publicSource('moderation', sources.moderation),
+    mentions: await publicSource('mentions', sources.mentions),
+    upvotes: await publicSource('upvotes', sources.upvotes),
+    follows: await publicSource('follows', sources.follows),
   };
   return current() ? snapshot : null;
 }

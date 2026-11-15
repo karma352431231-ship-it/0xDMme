@@ -3,6 +3,7 @@ import type { Communities } from './controller.ts';
 import type { CommunityScreen } from './screen.ts';
 import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
+import { publicActivitySources } from '../../shared/activity-snapshot/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { publicationNotificationRow } from './notification-row.ts';
 import {
@@ -25,22 +26,18 @@ export class CommunityNotifications {
   resetPage(): void {
     this.cursor = null;
   }
-  async publications(): Promise<readonly ReplyNotification[]> {
+  async publications(
+    read?: () => unknown,
+  ): Promise<readonly ReplyNotification[]> {
+    const { operation, payload } = publicActivitySources.replies;
     return replyNotificationPage(
-      await this.controller.request('post-notifications', {
-        after: null,
-        authors: true,
-        targets: true,
-        thumbnails: true,
-      }),
+      read ? read() : await this.controller.request(operation, payload),
     ).items;
   }
-  async upvotes() {
+  async upvotes(read?: () => unknown) {
+    const { operation, payload } = publicActivitySources.upvotes;
     return upvoteNoticePage(
-      await this.controller.request('post-upvote-notifications', {
-        after: null,
-        thumbnails: true,
-      }),
+      read ? read() : await this.controller.request(operation, payload),
     ).items;
   }
   async markRepliesRead(replies: readonly string[]): Promise<void> {

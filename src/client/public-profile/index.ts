@@ -9,6 +9,7 @@ import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import { followNoticePage } from '../../shared/follow-notices/index.ts';
+import { publicActivitySources } from '../../shared/activity-snapshot/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
@@ -237,21 +238,25 @@ export function startPublicProfile(
     follows: profileFollows(controller),
     blockUser: (target: string) => blockPublicUser(controller, target),
     mountReview: review.mount,
-    mentionNotifications: async () =>
-      mentionNotificationPage(
-        await controller.perform('mention-notifications', { after: null }),
-      ).items,
+    async mentionNotifications(read?: () => unknown) {
+      const { operation, payload } = publicActivitySources.mentions;
+      return mentionNotificationPage(
+        read ? read() : await controller.perform(operation, payload),
+      ).items;
+    },
     markMentionsRead: async (ids: readonly string[]) => {
       await controller.perform('mention-notifications-read', { ids });
     },
-    followNotifications: async () =>
-      followNoticePage(
-        await controller.perform('follow-notifications', { after: null }),
-      ).items,
+    async followNotifications(read?: () => unknown) {
+      const { operation, payload } = publicActivitySources.follows;
+      return followNoticePage(
+        read ? read() : await controller.perform(operation, payload),
+      ).items;
+    },
     markFollowsRead: async (ids: readonly string[]) => {
       await controller.perform('follow-notifications-read', { ids });
     },
-    moderationNotifications: () => notices.read(),
+    moderationNotifications: (read?: () => unknown) => notices.read(read),
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),
     mount,
     leave,

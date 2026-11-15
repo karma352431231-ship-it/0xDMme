@@ -25,6 +25,8 @@ import type { CommunityService } from '../communities/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
+import { activitySnapshotPath } from '../../shared/activity-snapshot/index.ts';
+import { readPublicActivity } from '../activity-snapshot/index.ts';
 
 import {
   approvalDocumentUrl,
@@ -267,6 +269,17 @@ export function createAccountHandler(options: {
     token: string,
     input: unknown,
   ): Promise<boolean> {
+    const { communities, publicProfiles } = options;
+    if (request.url === activitySnapshotPath && communities && publicProfiles) {
+      const snapshot = await readPublicActivity(
+        { communities, profiles: publicProfiles },
+        () => options.service.session(token),
+        input,
+        () => !response.destroyed,
+      );
+      if (!response.destroyed) sendAccountJson(response, 200, snapshot);
+      return true;
+    }
     if (await communityPost(request, response, token, input)) return true;
     if (
       !request.url?.startsWith('/api/account/public-profile/') ||

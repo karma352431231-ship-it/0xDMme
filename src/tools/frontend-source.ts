@@ -151,6 +151,7 @@ const authored = [
   'src/client/preference-events',
   'src/client/account-settings',
   'src/client/activity',
+  'src/shared/activity-snapshot',
   'src/client/pull-refresh',
   'src/client/message-search',
   'src/client/message-status',

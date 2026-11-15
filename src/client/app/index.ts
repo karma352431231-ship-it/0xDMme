@@ -69,7 +69,7 @@ import {
   startMobileConversation,
 } from './mobile-conversation.ts';
 import { startConversationBadges } from './conversation-badges.ts';
-import { startActivity } from '../activity/index.ts';
+import { publicActivityReader, startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
@@ -260,19 +260,20 @@ const groupEntrypoints = startGroupEntrypoints({
 });
 const activity = startActivity(
   {
+    publicSnapshot: publicActivityReader(devices),
     requests: () => contacts.incomingRequests(),
     respondRequest: (id, accept) => contacts.respondRequest(id, accept),
     groupInvites: () => messages.groupInvites(),
     respondGroupInvite: (id, accept) => messages.respondGroupInvite(id, accept),
-    replies: () => communities.publicationNotifications(),
+    replies: (read) => communities.publicationNotifications(read),
     markRepliesRead: (ids) => communities.markRepliesRead(ids),
-    upvotes: () => communities.upvoteNotifications(),
+    upvotes: (read) => communities.upvoteNotifications(read),
     markUpvotesRead: (ids) => communities.markUpvotesRead(ids),
-    transfers: () => communities.pendingTransfers(),
-    moderation: () => publicProfiles.moderationNotifications(),
-    mentions: () => publicProfiles.mentionNotifications(),
+    transfers: (read) => communities.pendingTransfers(read),
+    moderation: (read) => publicProfiles.moderationNotifications(read),
+    mentions: (read) => publicProfiles.mentionNotifications(read),
     markMentionsRead: (ids) => publicProfiles.markMentionsRead(ids),
-    follows: () => publicProfiles.followNotifications(),
+    follows: (read) => publicProfiles.followNotifications(read),
     markFollowsRead: (ids) => publicProfiles.markFollowsRead(ids),
     markModerationRead: (ids) => {
       publicProfiles.markModerationRead(ids);

@@ -20,6 +20,7 @@ import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 
 export type { ActivitySources } from './sources.ts';
+export { publicActivityReader } from './public-snapshot.ts';
 import { empty, readActivitySnapshot } from './sources.ts';
 import type { ActivitySources, Loaded } from './sources.ts';
 

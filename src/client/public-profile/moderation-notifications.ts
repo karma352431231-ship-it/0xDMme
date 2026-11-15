@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { publicActivitySources } from '../../shared/activity-snapshot/index.ts';
 import { publicModerationNotice } from '../../shared/public-moderation/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import type { PublicProfiles } from './controller.ts';
@@ -87,12 +88,13 @@ export class ModerationNotifications {
       /* An unavailable acknowledgment store never hides a notice. */
     }
   }
-  async read(): Promise<readonly ModerationNotification[]> {
+  async read(read?: () => unknown): Promise<readonly ModerationNotification[]> {
     if (!this.account) return [];
     const old = this.generation;
-    const data = await this.controller.perform('moderation-notices', {
-      after: null,
-    });
+    const { operation, payload } = publicActivitySources.moderation;
+    const data = read
+      ? read()
+      : await this.controller.perform(operation, payload);
     if (old !== this.generation) return [];
     if (!Array.isArray(data) || data.length > 32)
       throw new Error('Invalid analysis notices.');

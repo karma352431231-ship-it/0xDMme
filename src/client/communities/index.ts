@@ -15,7 +15,11 @@ export { startRankingSide } from './ranking-side.ts';
 export { startCommunitiesTab } from './communities-tab.ts';
 export type { RankingScope } from './ranking-side.ts';
 import { uuid } from '../../shared/account/index.ts';
-import { communityState } from '../../shared/communities/index.ts';
+import {
+  communityPage,
+  communityState,
+} from '../../shared/communities/index.ts';
+import { publicActivitySources } from '../../shared/activity-snapshot/index.ts';
 import type {
   Community,
   CommunityState,
@@ -565,8 +569,9 @@ export function startCommunities(
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
     /** Bounded publication history and read acknowledgements for Activity. */
-    publicationNotifications: () => notifications.publications(),
-    upvoteNotifications: () => notifications.upvotes(),
+    publicationNotifications: (read?: () => unknown) =>
+      notifications.publications(read),
+    upvoteNotifications: (read?: () => unknown) => notifications.upvotes(read),
     markUpvotesRead: (ids: readonly string[]) =>
       notifications.markUpvotesRead(ids),
     previewModeration(
@@ -579,8 +584,13 @@ export function startCommunities(
     markRepliesRead: (replies: readonly string[]) =>
       notifications.markRepliesRead(replies),
     /** Pending community transfers, as listed in Communities → Transfers. */
-    async pendingTransfers(): Promise<readonly Community[]> {
-      return (await controller.list('invitations', null)).items;
+    async pendingTransfers(
+      read?: () => unknown,
+    ): Promise<readonly Community[]> {
+      const { operation, payload } = publicActivitySources.transfers;
+      return communityPage(
+        read ? read() : await controller.request(operation, payload),
+      ).items;
     },
     canActivate: () =>
       !busy &&
