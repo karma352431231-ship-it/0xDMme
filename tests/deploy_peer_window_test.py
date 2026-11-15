@@ -1,7 +1,7 @@
 """The selected-conversation read release keeps exact schema/runtime guards."""
 from unittest.mock import patch
 import deploy_source_text_test as contracts
-import deploy_reviewed_code as reviewed_code
+import deploy_database_code_review as reviewed_code
 
 remote = contracts.remote
 backups = contracts.backups

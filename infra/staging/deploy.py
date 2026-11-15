@@ -18,7 +18,8 @@ import tempfile
 import urllib.parse
 import urllib.request
 
-from deploy_remote import MAX_MANIFEST_BYTES, digest, validate, valid_release_branch
+from deploy_remote import (MAX_MANIFEST_BYTES, digest, validate, valid_release_branch,
+                           schema_transition_requested)
 import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
@@ -195,6 +196,11 @@ def private_inputs(profile=None):
 def executor_code(config):
     modules = []
     names = ['deploy_sources', 'deploy_runtime', 'deploy_archive', 'deploy_reviewed_code', 'deploy_artifacts', 'deploy_remote', 'deploy_backup_io', 'deploy_engagement_backup', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_snapshot_batches', 'deploy_account_rankings', 'deploy_profile_directory']
+    names.insert(names.index('deploy_reviewed_code') + 1, 'deploy_database_code_review')
+    # Explicit schema transitions must use their pinned migration review,
+    # so they need runtime checks but no code-only approval catalog.
+    if schema_transition_requested(config):
+        names.remove('deploy_database_code_review')
     # Operational installers are explicit, mutually exclusive CLI modes.
     # Keep ordinary code publication within the existing source budget without
     # transporting an unused worker installer or directory migration. Later

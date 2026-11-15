@@ -21,7 +21,8 @@ import deploy
 import deploy_remote as remote
 import deploy_blocks45 as backups
 import deploy_runtime as runtime
-import deploy_reviewed_code as reviewed_code
+import deploy_database_code_review as reviewed_code
+import deploy_reviewed_code as runtime_review
 from deploy_review_fixtures import reviewed_runtime_lock
 
 
@@ -324,7 +325,7 @@ print('restored')
     def test_reviewed_probe_lock_transition_and_reverse_reuse_runtime(self):
         before, after = self.reviewed_probe_locks()
         self.assertEqual({remote.hashlib.sha256(blob).hexdigest() for blob in [before, after]},
-                         set(reviewed_code.PHANTOM_PROBE_LOCKFILES))
+                         set(runtime_review.PHANTOM_PROBE_LOCKFILES))
         for old_bytes, new_bytes in [(before, after), (after, before)]:
             with tempfile.TemporaryDirectory() as directory:
                 old, new = Path(directory) / 'old', Path(directory) / 'new'

@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 import deploy_pipeline_test as fixtures
-import deploy_reviewed_code as reviewed_code
+import deploy_database_code_review as reviewed_code
 
 remote = fixtures.remote
 backups = fixtures.backups

@@ -16,6 +16,21 @@ SQL = group.previous.search.directory.ranking.capacity
 
 
 class GroupChatDeploymentTests(unittest.TestCase):
+    def test_explicit_schema_review_cannot_use_a_code_only_approval(self):
+        import deploy_pipeline_test as fixtures
+        fixture = fixtures.CommunityFeedCodeTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        with (patch.object(base, 'database_code_reviewed', return_value=True) as code,
+              patch.object(base, 'database_review') as migration,
+              patch.object(base, 'run', return_value=b'v24.14.0')):
+            base.compatibility(fixture.candidate, fixture.live, schema_transition=True)
+        code.assert_not_called()
+        migration.assert_called_once_with(fixture.candidate, fixture.live)
+        for mode in [{'group_chat': True}, {'capacity': {'reviewed': True}}, {'share_counts': True}]:
+            self.assertTrue(base.schema_transition_requested(mode))
+        self.assertFalse(base.schema_transition_requested({'media_worker': {'reviewed': True}}))
+
     def test_only_explicit_transition_loads_and_stays_within_transport_budget(self):
         files = {'infra/staging/' + p.name: base.digest(p)
                  for p in (ROOT / 'infra/staging').glob('deploy_*.py')}
@@ -24,6 +39,7 @@ class GroupChatDeploymentTests(unittest.TestCase):
         safe += 'assert callable(sys.modules["deploy_group_chat"].activate)\n'
         safe += 'assert "deploy_view_once" not in sys.modules\n'
         safe += 'assert "deploy_worker_boot" not in sys.modules\n'
+        safe += 'assert "deploy_database_code_review" not in sys.modules\n'
         subprocess.run([sys.executable, '-c', safe], check=True, capture_output=True, timeout=10)
         self.assertLess(len(code.encode()), 64 * 1024)
         self.assertNotIn('deploy_group_chat', deploy.executor_code({'files': files}).rsplit('print(json.dumps', 1)[0])

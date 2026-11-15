@@ -21,8 +21,8 @@ import deploy_archive as release_archive
 import deploy_artifacts as artifacts
 from deploy_archive import digest, valid_release_branch
 from deploy_artifacts import receipt, verified_code_failure
-from deploy_reviewed_code import (database_code_reviewed, database_files,
-                                  reviewed_lockfile_change, reviewed_mobile_tooling)
+from deploy_reviewed_code import (database_files, reviewed_lockfile_change,
+                                  reviewed_mobile_tooling)
 
 import deploy_sources as public_sources
 import deploy_runtime as runtime
@@ -286,7 +286,21 @@ def wait_ready(files=None):
         healthy(files)
 
 
-def compatibility(candidate, live):
+def database_code_reviewed(candidate, live):
+    # Lazy because explicit schema-only executors do not carry this catalog.
+    from deploy_database_code_review import database_code_reviewed as reviewed
+    return reviewed(candidate, live)
+
+
+def schema_transition_requested(config):
+    # Keep mode names tied to the authoritative transition dispatch table.
+    # These two historical CLI names differ from their module names.
+    aliases = {'capacity_database': 'capacity', 'post_share_counts': 'share_counts'}
+    modes = (module.removeprefix('deploy_') for module in TRANSITIONS.values())
+    return any(config.get(aliases.get(mode, mode)) for mode in modes)
+
+
+def compatibility(candidate, live, *, schema_transition=False):
     daily = digest(live / 'package-lock.json') == runtime.BEFORE_LOCK and digest(candidate / 'package-lock.json') == runtime.REVIEWED_LOCK
     mobile_tooling = reviewed_mobile_tooling(candidate, live)
     if daily:
@@ -299,7 +313,7 @@ def compatibility(candidate, live):
             continue
         if before.is_dir() and after.is_dir():
             old, new = database_files(live), database_files(candidate)
-            if old != new and not database_code_reviewed(candidate, live):
+            if old != new and (schema_transition or not database_code_reviewed(candidate, live)):
                 database_review(candidate, live)
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
@@ -691,7 +705,10 @@ def prepare(config, work):
         actual = {str(p.relative_to(candidate)): digest(p) for p in candidate.rglob('*') if p.is_file()}
     if actual != config['files']:
         raise RuntimeError('Git source/build manifest mismatch.')
-    compatibility(candidate, DATA / 'release')
+    if schema_transition_requested(config):
+        compatibility(candidate, DATA / 'release', schema_transition=True)
+    else:
+        compatibility(candidate, DATA / 'release')
     dependencies = DATA / 'release/node_modules'
     count, size = 0, sum(p.stat().st_size for p in candidate.rglob('*') if p.is_file())
     for path in dependencies.rglob('*'):
