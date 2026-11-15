@@ -41,6 +41,33 @@ export class GroupAuthority {
   invalidate(): void {
     this.generation++;
   }
+  /** Stage ciphertext under the local storage lock without replacing the
+   * controller's last online authority. Publication uses a separate turn. */
+  stageDraft<T>(
+    guard: () => void,
+    work: (authority: VaultAuthority) => Promise<T>,
+    privateSend: PrivateSendContext | undefined,
+  ): Promise<T> {
+    const session = this.options.session();
+    if (!session)
+      return Promise.reject(new Error('Sign in and authorize this device.'));
+    const { accountId, deviceId } = session;
+    return this.options.access.withLocalVault(
+      { accountId, deviceId },
+      async (authority) => {
+        guard();
+        if (
+          authority.session.accountId !== accountId ||
+          authority.session.deviceId !== deviceId
+        )
+          throw new Error('Account changed.');
+        const result = await work(authority);
+        guard();
+        return result;
+      },
+      { diagnosticOperation: 'group-draft', privateSend },
+    );
+  }
   /** Signed governance and message mutations keep the per-request retry. */
   mutate<T>(work: (context: GroupContext) => Promise<T>): Promise<T> {
     const generation = this.generation;

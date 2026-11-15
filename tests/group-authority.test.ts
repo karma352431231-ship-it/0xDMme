@@ -9,6 +9,8 @@ import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type {
   VaultAccess,
   VaultAuthority,
+  VaultLocator,
+  VaultWorkOptions,
 } from '../src/client/vault-authority/index.ts';
 
 function fixture() {
@@ -128,27 +130,41 @@ await test('a rate-limited group read waits outside the vault and runs again und
   assert.equal(ownership.entries, 2, 'the retry reacquires authority');
 });
 
-await test('only outgoing group text staging expresses draft intent; local history keeps its existing admission', async (t) => {
+await test('outgoing group drafts use local storage authority and stop after revocation while waiting', async (t) => {
   const { GroupController } =
     await import('../src/client/groups/controller.ts');
   const { GroupCache } = await import('../src/client/groups/cache.ts');
   const { groupParticipant } = await import('./fixtures/group-participant.ts');
   const owner = await groupParticipant();
-  const admissions: {
-    offline: boolean;
-    options: import('../src/client/vault-authority/index.ts').VaultWorkOptions;
-  }[] = [];
+  const local: { locator: VaultLocator; operation: string | undefined }[] = [];
+  const history: boolean[] = [];
+  const writes: string[] = [];
+  const waiting = deferred<void>();
+  let holdDraft = false;
   const access: VaultAccess = {
-    withVault: (offline, work, options = {}) => {
-      admissions.push({ offline, options });
+    withVault: (offline, work) => {
+      history.push(offline);
       return work(owner.authority);
     },
-    withLocalVault: () =>
-      Promise.reject(
-        new Error('Group staging retains full offline vault authority'),
-      ),
+    withLocalVault: async (locator, work, options: VaultWorkOptions = {}) => {
+      local.push({ locator, operation: options.diagnosticOperation });
+      if (holdDraft) await waiting.promise;
+      return work({ ...owner.authority, offline: true });
+    },
   };
-  t.mock.method(GroupCache.prototype, 'put', () => Promise.resolve());
+  t.mock.method(GroupCache.prototype, 'put', (name: string) => {
+    writes.push(name);
+    return Promise.resolve();
+  });
+  t.mock.method(
+    GroupCache.prototype,
+    'putMany',
+    (records: readonly { name: string }[]) => {
+      writes.push(...records.map(({ name }) => name));
+      return Promise.resolve();
+    },
+  );
+  t.mock.method(GroupCache.prototype, 'get', () => Promise.resolve(null));
   t.mock.method(GroupCache.prototype, 'page', () =>
     Promise.resolve({ items: [], next: null }),
   );
@@ -161,22 +177,46 @@ await test('only outgoing group text staging expresses draft intent; local histo
     owner.authority
       .session as import('../src/shared/account/index.ts').AccountSession,
   );
-  const group = crypto.randomUUID();
+  const group = crypto.randomUUID(),
+    textId = crypto.randomUUID(),
+    mediaId = crypto.randomUUID();
   await controller.composeText(group, {
-    id: crypto.randomUUID(),
+    id: textId,
     text: 'Synthetic draft',
     order: 1,
   });
-  assert.equal(admissions[0]!.offline, true);
-  assert.equal(admissions[0]!.options.intent, 'outgoing-draft');
-  assert.equal(admissions[0]!.options.diagnosticOperation, 'group-draft');
+  await controller.stageMedia({
+    id: mediaId,
+    peer: group,
+    text: 'Synthetic media draft',
+    reply: null,
+    viewOnce: true,
+    selection: null,
+    createdAt: 2,
+  });
+  const admission = {
+    locator: { accountId: owner.accountId, deviceId: owner.deviceId },
+    operation: 'group-draft',
+  };
+  assert.deepEqual(local, [admission, admission]);
+  assert.deepEqual(writes, [`outbox:${textId}`, `outbox:${mediaId}`]);
+  assert.deepEqual(history, []);
   controller.selected = {
     state: { groupId: group },
   } as import('../src/client/groups/controller.ts').GroupSummary;
   await controller.pending();
-  assert.equal(admissions[1]!.offline, true);
-  assert.equal(admissions[1]!.options.intent, undefined);
-  assert.equal(admissions[1]!.options.priority, undefined);
+  assert.deepEqual(history, [true]);
+
+  holdDraft = true;
+  const queued = controller.composeText(group, {
+    id: crypto.randomUUID(),
+    text: 'Obsolete draft',
+    order: 3,
+  });
+  controller.revokeAuthority();
+  waiting.resolve();
+  await assert.rejects(queued);
+  assert.equal(writes.length, 2);
 });
 
 await test('a send confirms already verified pins inside its current authority and releases its scoped read', async (t) => {

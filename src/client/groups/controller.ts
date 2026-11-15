@@ -1264,8 +1264,6 @@ export class GroupController {
     });
     await this.identities.save();
   }
-  /** Saves a text to that group's encrypted outbox, whichever group is open
-   * when the save runs; sending still verifies the group first. */
   /** Stages a text in that group's encrypted outbox with this device's
    * verified local authority: no network read is needed to keep a draft, and
    * sending revalidates the group and its members online. The draft keeps its
@@ -1274,11 +1272,14 @@ export class GroupController {
     groupId: string,
     draft: { id: string; text: string; order: number },
   ): Promise<void> {
-    await this.withLocalAuthority(
+    const generation = this.generation;
+    const diagnostic = privateSendContext(draft.id);
+    await this.authority.stageDraft(
+      () => this.guard(generation),
       (authority) =>
         composeGroup({
           authority,
-          diagnostic: privateSendContext(draft.id),
+          diagnostic,
           groupId,
           text: draft.text,
           contentFormat: 'daily',
@@ -1286,11 +1287,7 @@ export class GroupController {
           id: draft.id,
           order: draft.order,
         }),
-      {
-        intent: 'outgoing-draft',
-        diagnosticOperation: 'group-draft',
-        privateSend: privateSendContext(draft.id),
-      },
+      diagnostic,
     );
   }
   async composeFor(
@@ -1422,7 +1419,9 @@ export class GroupController {
     createdAt: number;
   }) {
     const diagnostic = privateSendContext(input.id);
-    return this.withLocalAuthority(
+    const generation = this.generation;
+    return this.authority.stageDraft(
+      () => this.guard(generation),
       async (authority) => {
         if (input.viewOnce) {
           const ids = await composeGroupOnce({
@@ -1467,11 +1466,7 @@ export class GroupController {
           },
         ];
       },
-      {
-        intent: 'outgoing-draft',
-        diagnosticOperation: 'group-draft',
-        privateSend: diagnostic,
-      },
+      diagnostic,
     );
   }
   async openViewOnce(
