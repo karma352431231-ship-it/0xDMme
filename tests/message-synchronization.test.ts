@@ -158,6 +158,39 @@ await test('user operation waits for maintenance and stays exclusive through pen
   await action;
   assert.equal(f.sync.busy, false);
 });
+
+await test('a durable send reserves admission during maintenance and starts immediately after that segment', async (t) => {
+  const f = fixture(t),
+    release = deferred<void>();
+  const events: string[] = [];
+  f.options.presence = () => {
+    events.push('maintenance');
+    return release.promise;
+  };
+  const maintenance = f.sync.maintainPresence();
+  await turn();
+  f.state.interactiveSendPending = true;
+  assert.equal(f.sync.sendTurnReady, true);
+  const send = f.sync.admitSend(() => {
+    events.push('send');
+    return Promise.resolve();
+  });
+  assert.equal(
+    f.sync.busy,
+    true,
+    'The sender reserves admission before maintenance resolves.',
+  );
+  assert.equal(f.sync.sendTurnReady, false);
+  await f.sync.background(() => {
+    events.push('unexpected-maintenance');
+    return Promise.resolve();
+  });
+  assert.deepEqual(events, ['maintenance']);
+  release.resolve();
+  await maintenance;
+  assert.equal(await send, true);
+  assert.deepEqual(events, ['maintenance', 'send']);
+});
 await test('logout during queued work suppresses the old action, result and pending projection', async (t) => {
   const f = fixture(t),
     presence = deferred<void>();

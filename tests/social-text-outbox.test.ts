@@ -53,7 +53,7 @@ function installStorage(t: TestContext): void {
   for (const [name, value] of Object.entries({
     indexedDB,
     IDBKeyRange: db.range,
-    navigator: { onLine: true },
+    navigator: { onLine: true, locks: navigator.locks },
   })) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
     Object.defineProperty(globalThis, name, { configurable: true, value });

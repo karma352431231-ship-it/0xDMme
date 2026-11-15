@@ -34,7 +34,16 @@ import {
 import {
   readCheckpoint,
   storedIdentity,
+  saveCheckpoint,
 } from '../src/client/device-storage/index.ts';
+import { recordDatabase } from './fixtures/record-database.ts';
+import {
+  enqueueOutbox,
+  outboxPage,
+  sealLocal,
+  openLocal,
+} from '../src/client/message-storage/index.ts';
+import type { LocalCipher } from '../src/client/message-storage/index.ts';
 import {
   OwnDirectoryRequired,
   requireFreshOwnDirectory,
@@ -206,6 +215,108 @@ function controllerFixture(t: TestContext) {
     },
   };
 }
+
+await test('a durable encrypted draft commits during another controller online turn and serializes checkpoint publication', async (t) => {
+  const locks = navigator.locks;
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Test device',
+    revoked: [],
+    revision: 0,
+  });
+  const devices = indexedDB;
+  const reached = deferred<void>(),
+    commit = deferred<void>(),
+    network = deferred<void>(),
+    entered = deferred<void>();
+  const messages = recordDatabase({
+    beforeCommit: () => {
+      reached.resolve();
+      return commit.promise;
+    },
+  });
+  f.useStorage({
+    open(name: string, version?: number) {
+      return (
+        name === '0xdmme-device-authority' ? devices : messages.factory
+      ).open(name, version);
+    },
+  } as IDBFactory);
+  const previousRange = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'IDBKeyRange',
+  );
+  Object.defineProperty(globalThis, 'IDBKeyRange', {
+    configurable: true,
+    value: messages.range,
+  });
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: locks,
+  });
+  t.after(() => {
+    if (previousRange)
+      Object.defineProperty(globalThis, 'IDBKeyRange', previousRange);
+    else Reflect.deleteProperty(globalThis, 'IDBKeyRange');
+    commit.resolve();
+    network.resolve();
+  });
+  let onlineComplete = false;
+  const online = f.controller.run(async () => {
+    entered.resolve();
+    await network.promise;
+    onlineComplete = true;
+  });
+  await waitForBoundary(entered.promise);
+  const local = new DeviceController();
+  local.setSession(f.session);
+  const id = crypto.randomUUID();
+  const saved = local.withDraftVault(f.session, async (authority) => {
+    const draft = await sealLocal(
+      authority,
+      id,
+      'Local draft during network work',
+    );
+    await enqueueOutbox({
+      scope: f.session.accountId,
+      id,
+      value: { draft },
+      size: draft.bytes.length + 512,
+      current: () => true,
+    });
+  });
+  await waitForBoundary(reached.promise);
+  const checkpoint = await readCheckpoint(f.session.accountId);
+  let checkpointWritten = false;
+  const writer = saveCheckpoint(f.session.accountId, checkpoint).then(() => {
+    checkpointWritten = true;
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(checkpointWritten, false);
+  commit.resolve();
+  await waitForBoundary(saved);
+  await waitForBoundary(writer);
+  assert.equal(onlineComplete, false);
+  const rows = await outboxPage<{ draft: LocalCipher }>(f.session.accountId);
+  assert.equal(rows.length, 1);
+  network.resolve();
+  await online;
+  await local.withLocalVault(f.session, async (authority) => {
+    assert.equal(
+      await openLocal(authority, rows[0]!.value.draft),
+      'Local draft during network work',
+    );
+  });
+  await assert.rejects(
+    local.withDraftVault(f.session, () =>
+      Promise.reject(new Error('Synthetic draft failure')),
+    ),
+  );
+  await waitForBoundary(saveCheckpoint(f.session.accountId, checkpoint));
+});
 
 await test('send authority reuses only its verified online directory and a definite refusal withdraws reuse', async (t) => {
   const f = controllerFixture(t);

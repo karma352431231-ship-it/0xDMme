@@ -378,10 +378,17 @@ export class MessageSynchronization {
     if (failure) throw failure.error;
     return completed;
   }
-  /** Reserve the next live turn after a bounded burst of interactive sends.
-   * Reserving a ready receipt does not cancel a page or block other UI work. */
+  /** Reserve send admission while an active maintenance segment finishes.
+   * The operation starts only after run() settles that segment and receipts. */
   get sendTurnReady(): boolean {
-    return this.localForegroundReady && !this.receiptOwed;
+    const state = this.options.state();
+    return (
+      !this.closed &&
+      !this.busy &&
+      state.session &&
+      !state.suspended &&
+      !this.receiptOwed
+    );
   }
   private get receiptOwed(): boolean {
     return (

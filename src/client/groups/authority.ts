@@ -15,6 +15,7 @@ import type {
   VaultAuthority,
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
+import { withDraftVault } from '../vault-authority/index.ts';
 import { GroupGovernance } from './governance.ts';
 
 export interface GroupContext {
@@ -52,7 +53,8 @@ export class GroupAuthority {
     if (!session)
       return Promise.reject(new Error('Sign in and authorize this device.'));
     const { accountId, deviceId } = session;
-    return this.options.access.withLocalVault(
+    return withDraftVault(
+      this.options.access,
       { accountId, deviceId },
       async (authority) => {
         guard();

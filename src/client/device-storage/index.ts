@@ -150,17 +150,33 @@ function transaction<T>(
     };
   });
 }
-export async function exclusive<T>(
+export function exclusive<T>(
   accountId: string,
   operation: () => Promise<T>,
   waitMs = 8000,
+): Promise<T> {
+  return locked(`0xdmme-device-authority:${accountId}`, operation, waitMs);
+}
+/** Checkpoint publication and local staging share this short lock. Work is
+ * limited to local key verification and storage, with no SDK or network IO. */
+export function withDeviceCheckpoint<T>(
+  accountId: string,
+  operation: () => Promise<T>,
+  waitMs = 8000,
+): Promise<T> {
+  return locked(`0xdmme-device-checkpoint:${accountId}`, operation, waitMs);
+}
+function locked<T>(
+  name: string,
+  operation: () => Promise<T>,
+  waitMs: number,
 ): Promise<T> {
   if (!navigator.locks)
     throw new Error(
       'This browser lacks the required cross-tab locking. Use an updated browser.',
     );
   return navigator.locks.request(
-    `0xdmme-device-authority:${accountId}`,
+    name,
     { mode: 'exclusive', signal: AbortSignal.timeout(waitMs) },
     operation,
   );
@@ -262,17 +278,19 @@ export function saveCheckpoint(
   accountId: string,
   checkpoint: Checkpoint,
 ): Promise<void> {
-  return transaction(`checkpoint:${accountId}`, (store, value) => {
-    const existing = value as Checkpoint | undefined;
-    if ((existing?.events.length ?? 0) > checkpoint.events.length)
-      throw new Error('Old checkpoint.');
-    if (
-      existing?.trustedRoot &&
-      existing.trustedRoot !== checkpoint.trustedRoot
-    )
-      throw new Error('Local root changed.');
-    store.put(checkpoint, `checkpoint:${accountId}`);
-  });
+  return withDeviceCheckpoint(accountId, () =>
+    transaction(`checkpoint:${accountId}`, (store, value) => {
+      const existing = value as Checkpoint | undefined;
+      if ((existing?.events.length ?? 0) > checkpoint.events.length)
+        throw new Error('Old checkpoint.');
+      if (
+        existing?.trustedRoot &&
+        existing.trustedRoot !== checkpoint.trustedRoot
+      )
+        throw new Error('Local root changed.');
+      store.put(checkpoint, `checkpoint:${accountId}`);
+    }),
+  );
 }
 /** Move a pinned root only through a verified extension of the local journal.
  * Verification happens before the short IDB transaction; its old head is then
@@ -296,14 +314,16 @@ export async function advanceCheckpoint(
     checkpoint.trustedRoot !== (await digest(canonical(current.root)))
   )
     throw new Error('New root without a verified transition.');
-  return transaction(`checkpoint:${accountId}`, (store, value) => {
-    const actual = value as Checkpoint | undefined;
-    if (
-      !actual ||
-      actual.trustedRoot !== existing.trustedRoot ||
-      canonical(actual.events) !== canonical(existing.events)
-    )
-      throw new Error('Checkpoint changed during migration.');
-    store.put(checkpoint, `checkpoint:${accountId}`);
-  });
+  return withDeviceCheckpoint(accountId, () =>
+    transaction(`checkpoint:${accountId}`, (store, value) => {
+      const actual = value as Checkpoint | undefined;
+      if (
+        !actual ||
+        actual.trustedRoot !== existing.trustedRoot ||
+        canonical(actual.events) !== canonical(existing.events)
+      )
+        throw new Error('Checkpoint changed during migration.');
+      store.put(checkpoint, `checkpoint:${accountId}`);
+    }),
+  );
 }

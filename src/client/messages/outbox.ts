@@ -39,6 +39,7 @@ import type {
   VaultAuthority,
   VaultWorkOptions,
 } from '../vault-authority/index.ts';
+import { withDraftVault } from '../vault-authority/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
 import {
   localGet,
@@ -197,7 +198,8 @@ export class MessageOutbox {
     const { accountId, deviceId } = session;
     // Admission only needs the verified local keyring. Publication still
     // opens fresh online authority and verifies the intended recipient.
-    await this.access.withLocalVault(
+    await withDraftVault(
+      this.access,
       { accountId, deviceId },
       async (a) => {
         this.authority.guard(generation);
@@ -262,7 +264,8 @@ export class MessageOutbox {
     const generation = this.authority.current();
     const session = this.authority.session();
     if (!session) throw new WorkInterruption('session');
-    return this.access.withLocalVault(
+    return withDraftVault(
+      this.access,
       session,
       async (a) => {
         this.authority.guard(generation);
@@ -333,7 +336,7 @@ export class MessageOutbox {
       chatFileLimit,
       { id: item.id, signal: item.signal },
     );
-    return this.access.withLocalVault(session, async (a) => {
+    return withDraftVault(this.access, session, async (a) => {
       this.authority.guard(generation);
       const entries = await Promise.all(
         contents.map(async (content, index) => {

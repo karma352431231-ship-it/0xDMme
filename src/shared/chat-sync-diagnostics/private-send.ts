@@ -69,6 +69,8 @@ export interface PrivateSendFields {
     | 'turn-acquired'
     | 'storage-queued'
     | 'storage-acquired'
+    | 'checkpoint-queued'
+    | 'checkpoint-acquired'
     | 'released';
   lockCoverage?: 'platform-locks' | 'unavailable' | 'held-turn-follower';
   sendRequest?: string;
@@ -179,6 +181,8 @@ function copyReceiptLabels(
       'turn-acquired',
       'storage-queued',
       'storage-acquired',
+      'checkpoint-queued',
+      'checkpoint-acquired',
       'released',
     ],
     lockCoverage: ['platform-locks', 'unavailable', 'held-turn-follower'],

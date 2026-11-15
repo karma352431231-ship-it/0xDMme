@@ -58,6 +58,7 @@ import type {
 } from '../vault-authority/index.ts';
 import {
   exclusive,
+  withDeviceCheckpoint,
   localIdentity,
   nameIdentity,
   readCheckpoint,
@@ -571,11 +572,50 @@ export class DeviceController {
       return false;
     return (await eventHash(this.current)) === this.verified.directory;
   }
-  async withLocalVault<T>(
+  withLocalVault<T>(
     locator: VaultLocator,
     work: (authority: VaultAuthority) => Promise<T>,
     options: VaultWorkOptions = {},
   ): Promise<T> {
+    return this.localVault({
+      locator,
+      work,
+      options,
+      lock: {
+        acquire: exclusive,
+        queued: 'storage-queued',
+        acquired: 'storage-acquired',
+      },
+    });
+  }
+  /** Local ciphertext staging owns no mutable online or SDK state. */
+  withDraftVault<T>(
+    locator: VaultLocator,
+    work: (authority: VaultAuthority) => Promise<T>,
+    options: VaultWorkOptions = {},
+  ): Promise<T> {
+    return this.localVault({
+      locator,
+      work,
+      options,
+      lock: {
+        acquire: withDeviceCheckpoint,
+        queued: 'checkpoint-queued',
+        acquired: 'checkpoint-acquired',
+      },
+    });
+  }
+  private async localVault<T>(input: {
+    locator: VaultLocator;
+    work: (authority: VaultAuthority) => Promise<T>;
+    options: VaultWorkOptions;
+    lock: {
+      acquire: typeof exclusive;
+      queued: 'storage-queued' | 'checkpoint-queued';
+      acquired: 'storage-acquired' | 'checkpoint-acquired';
+    };
+  }): Promise<T> {
+    const { locator, work, options, lock } = input;
     const diagnostic = options.privateSend;
     const trace = startAuthorityWork(
       {
@@ -586,15 +626,15 @@ export class DeviceController {
       this.authorityWork,
     );
     trace?.admitted();
-    trace?.platform('storage-queued');
+    trace?.platform(lock.queued);
     this.trackLocalSave(locator.accountId, 1);
     let ok = false,
       acquired = false;
     try {
-      const result = await exclusive(locator.accountId, async () => {
+      const result = await lock.acquire(locator.accountId, async () => {
         acquired = true;
         this.trackLocalSave(locator.accountId, -1);
-        trace?.platform('storage-acquired');
+        trace?.platform(lock.acquired);
         trace?.start();
         const checkpoint = await measurePrivateSend(
           diagnostic,

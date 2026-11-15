@@ -341,6 +341,11 @@ export function startDevices(options: {
   return {
     withSigner: <T>(work: (a: SigningAuthority) => Promise<T>) =>
       controller.withSigner(work),
+    withDraftVault: <T>(
+      locator: VaultLocator,
+      work: (a: VaultAuthority) => Promise<T>,
+      options?: VaultWorkOptions,
+    ) => controller.withDraftVault(locator, work, options),
     withLocalVault: <T>(
       locator: VaultLocator,
       work: (a: VaultAuthority) => Promise<T>,

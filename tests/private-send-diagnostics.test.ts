@@ -107,7 +107,12 @@ await test('overlapping private sends retain actual batch attempts, blockers and
     sendStage: 'batch-member',
     sendPhase: 'point',
   });
-  const authority = (slot: number, times: number[], linked: boolean) => {
+  const authority = (
+    slot: number,
+    times: number[],
+    linked: boolean,
+    lock?: 'checkpoint',
+  ) => {
     for (const [i, phase] of [
       'queued',
       'admitted',
@@ -124,10 +129,28 @@ await test('overlapping private sends retain actual batch attempts, blockers and
         ...(linked ? { privateBatch: 1, privateAttempt: slot - 1 } : {}),
       });
     }
+    if (!lock) return;
+    for (const [i, lockPhase] of [
+      'checkpoint-queued',
+      'checkpoint-acquired',
+    ].entries()) {
+      recording.record('reuse-authority-work', {
+        diagnosticWork: slot,
+        authorityQueue: 1,
+        authorityKind: 'group-directory',
+        workPhase: 'platform',
+        workClockMs: times[i + 1]! + 1000,
+        lockPhase,
+        lockCoverage: 'platform-locks',
+      });
+    }
   };
   authority(1, [0, 0, 0, 40], false);
   authority(2, [20, 35, 40, 70], true);
   authority(3, [80, 85, 90, 110], true);
+  // An independent local checkpoint holder overlaps the SDK wait, but cannot
+  // explain why that sender waited for the online authority lock.
+  authority(4, [0, 0, 20, 35], false, 'checkpoint');
   span({ start: 112, end: 125, stage: 'sdk-open', send: 1 });
   span({ start: 130, end: 140, stage: 'device-keys', send: 1 });
   span({ start: 75, end: 85, stage: 'device-keys', send: 2 });
@@ -174,6 +197,12 @@ await test('overlapping private sends retain actual batch attempts, blockers and
     a.authority[0]?.blockers.find((b) => b.category === 'group-directory')
       ?.elapsedMs,
     20,
+  );
+  assert.deepEqual(
+    a.authority[0]?.blockers
+      .filter((blocker) => blocker.category === 'group-directory')
+      .map((blocker) => blocker.elapsedMs),
+    [20],
   );
   assert.deepEqual(
     diagnostic.batches[0]?.attempts.map((a) => a.members),

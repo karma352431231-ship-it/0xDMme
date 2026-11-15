@@ -785,7 +785,10 @@ function workReport(work: Work, all: Work[], window: Interval) {
   const holders = all
     .filter(
       (w) =>
-        work.queue !== null && w.queue === work.queue && w.slot !== work.slot,
+        work.queue !== null &&
+        w.queue === work.queue &&
+        w.slot !== work.slot &&
+        checkpointWork(work) === checkpointWork(w),
     )
     .map((w) => ({
       category: w.category,
@@ -825,6 +828,10 @@ function workReport(work: Work, all: Work[], window: Interval) {
     blockerScope:
       'observed-holders-in-the-same-local-queue; concurrent-holder-detail-is-not-additive',
   };
+}
+
+function checkpointWork(work: Work): boolean {
+  return work.platform.some((point) => point.phase === 'checkpoint-queued');
 }
 
 function operationKey(stage: SendStage, event: TraceEvent): string {
@@ -881,22 +888,24 @@ function queueInterval(op: Operation, send: Send, end: number): Interval[] {
 }
 
 function platformWait(work: Work, window: Interval) {
-  const spans = ['maintenance', 'turn', 'storage'].flatMap((category) => {
-    const start = work.platform.find(
-      (p) => p.phase === `${category}-queued`,
-    )?.ms;
-    const end = work.platform.find(
-      (p) => p.phase === `${category}-acquired`,
-    )?.ms;
-    return start === undefined || end === undefined
-      ? []
-      : [
-          {
-            category,
-            intervals: clip([{ startMs: start, endMs: end }], window),
-          },
-        ];
-  });
+  const spans = ['maintenance', 'turn', 'storage', 'checkpoint'].flatMap(
+    (category) => {
+      const start = work.platform.find(
+        (p) => p.phase === `${category}-queued`,
+      )?.ms;
+      const end = work.platform.find(
+        (p) => p.phase === `${category}-acquired`,
+      )?.ms;
+      return start === undefined || end === undefined
+        ? []
+        : [
+            {
+              category,
+              intervals: clip([{ startMs: start, endMs: end }], window),
+            },
+          ];
+    },
+  );
   const acquisition = clip(interval(work.admitted, work.start), window);
   return {
     observed: spans.map((s) => ({

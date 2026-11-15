@@ -20,6 +20,13 @@ export type SigningAuthority = Pick<
   'session' | 'directory' | 'sign'
 >;
 export interface VaultAccess {
+  /** Immutable local keys for encrypted outgoing staging. No SDK, networking,
+   * vault synchronization or checkpoint mutation is allowed inside this work. */
+  withDraftVault?: <T>(
+    locator: VaultLocator,
+    work: (authority: VaultAuthority) => Promise<T>,
+    options?: VaultWorkOptions,
+  ) => Promise<T>;
   /** Work that only signs requests, outside the exclusive account turn when
    * the implementation supports it. */
   withSigner?: <T>(
@@ -44,6 +51,18 @@ export interface VaultWorkOptions extends AuthorityDiagnosticContext {
 export interface VaultLocator {
   accountId: string;
   deviceId: string;
+}
+
+/** Legacy access adapters keep their serialized local operation. */
+export function withDraftVault<T>(
+  access: VaultAccess,
+  locator: VaultLocator,
+  work: (authority: VaultAuthority) => Promise<T>,
+  options: VaultWorkOptions = {},
+): Promise<T> {
+  return access.withDraftVault
+    ? access.withDraftVault(locator, work, options)
+    : access.withLocalVault(locator, work, options);
 }
 
 /** Signs outside the exclusive turn where supported, else inside one. */
