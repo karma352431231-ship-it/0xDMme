@@ -11,6 +11,10 @@ import { AuthorityWork } from './authority-work.ts';
 import type { AuthorityTurnContext } from './authority-work.ts';
 import { authorityTurn } from './authority-turns.ts';
 import { SigningLane } from './signing-lane.ts';
+import {
+  OwnDirectoryRequired,
+  ownDirectoryRejected,
+} from '../own-device-authority/index.ts';
 import type { VerifiedSigner } from './signing-lane.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
@@ -480,12 +484,12 @@ export class DeviceController {
     options: VaultWorkOptions = {},
   ): Promise<T> {
     return this.run(async (session, turn) => {
-      await this.loadIdentity(session);
-      if (offline) await this.restoreOffline(session);
-      else if (!this.reusesTurnDirectory(turn))
-        await measureWork(this, 'authority/directory', () =>
-          this.synchronize(session),
-        );
+      const reusedOwnDirectory = await this.prepareVault({
+        session,
+        turn,
+        offline,
+        options,
+      });
       if (!this.current || !this.ring || !this.identity)
         throw new Error('Authorize or recover this device to open the vault.');
       const ring = this.ring;
@@ -502,6 +506,7 @@ export class DeviceController {
       const authority: VaultAuthority = {
         session,
         offline,
+        ...(reusedOwnDirectory ? { reusedOwnDirectory: true as const } : {}),
         directory: await eventHash(this.current),
         epoch: ring.epoch,
         events: [...this.events],
@@ -518,10 +523,53 @@ export class DeviceController {
         const result = await work(authority);
         this.assertSession(session);
         return result;
+      } catch (error: unknown) {
+        if (
+          reusedOwnDirectory &&
+          this.sameSession(session) &&
+          ownDirectoryRejected(error)
+        ) {
+          this.verified = null;
+          this.directoryReadAt = null;
+          this.ring = null;
+          throw new OwnDirectoryRequired();
+        }
+        throw error;
       } finally {
         keys.dispose();
       }
     }, options);
+  }
+  private async prepareVault(input: {
+    session: AccountSession;
+    turn: AuthorityTurnContext;
+    offline: boolean;
+    options: VaultWorkOptions;
+  }): Promise<boolean> {
+    const { session, turn, offline, options } = input;
+    await this.loadIdentity(session);
+    if (offline) {
+      await this.restoreOffline(session);
+      return false;
+    }
+    if (await this.reusesOwnDirectory(options)) return true;
+    if (options.ownDirectory === 'fresh' || !this.reusesTurnDirectory(turn))
+      await measureWork(this, 'authority/directory', () =>
+        this.synchronize(session),
+      );
+    return false;
+  }
+  private async reusesOwnDirectory(
+    options: VaultWorkOptions,
+  ): Promise<boolean> {
+    if (
+      options.ownDirectory !== 'reuse' ||
+      !this.verified ||
+      !this.ring ||
+      !this.current
+    )
+      return false;
+    return (await eventHash(this.current)) === this.verified.directory;
   }
   async withLocalVault<T>(
     locator: VaultLocator,
@@ -606,6 +654,7 @@ export class DeviceController {
     else this.trackLocalSave(account, -1);
   }
   private async restoreOffline(session: AccountSession): Promise<void> {
+    const verified = this.verified;
     this.directoryReadAt = null;
     this.verified = null;
     const checkpoint = await readCheckpoint(session.accountId);
@@ -616,10 +665,15 @@ export class DeviceController {
       checkpoint.trustedRoot !== (await digest(canonical(current.root)))
     )
       throw new Error('No verified local authorization. Connect to recover.');
-    this.ring = await deviceSecrets(this.identity, current);
+    const ring = await deviceSecrets(this.identity, current);
+    const directory = await eventHash(current);
+    this.assertSession(session);
+    this.ring = ring;
     this.current = current;
     this.events = checkpoint.events;
     this.trustedRoot = checkpoint.trustedRoot;
+    // A local projection can retain only the identical last online observation.
+    this.verified = verified?.directory === directory ? verified : null;
   }
   private async synchronize(session: AccountSession): Promise<void> {
     this.assertSession(session);

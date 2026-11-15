@@ -184,6 +184,7 @@ const authored = [
   'src/client/peer-identity',
   'src/client/send-preparation',
   'src/client/send-material',
+  'src/client/own-device-authority',
   'src/client/message-api',
   'src/shared/backups',
   'src/client/attachment-crypto',

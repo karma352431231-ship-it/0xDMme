@@ -129,6 +129,7 @@ interface GroupPrefetch {
   complete: boolean;
 }
 interface GroupSendOptions {
+  ownDirectory?: VaultWorkOptions['ownDirectory'];
   progress?: GroupSendProgress | undefined;
   diagnostic?: PrivateSendContext | undefined;
   priority?: 'interactive';
@@ -1676,6 +1677,7 @@ export class GroupController {
     try {
       await this.sendPreparedPending(selected, {
         ...options,
+        ownDirectory: 'reuse',
         diagnostic: batch ? { ...batch, attempt: 1 } : undefined,
       });
     } catch (error: unknown) {
@@ -1683,6 +1685,7 @@ export class GroupController {
       this.sendPreparation.invalidate(selected.state.groupId);
       await this.sendPreparedPending(selected, {
         ...options,
+        ownDirectory: 'fresh',
         diagnostic: batch ? { ...batch, attempt: 2 } : undefined,
       });
     }
@@ -1693,6 +1696,7 @@ export class GroupController {
   ): Promise<void> {
     const { progress, diagnostic, priority } = options;
     const work: VaultWorkOptions = {
+      ownDirectory: options.ownDirectory ?? 'fresh',
       privateSend: diagnostic,
       ...(priority ? { priority } : {}),
       diagnosticOperation: 'group-send',
@@ -1729,7 +1733,7 @@ export class GroupController {
       work,
     );
     await measurePrivateSend(diagnostic, 'pins-save', () =>
-      this.identities.save(undefined, work),
+      this.identities.save(undefined, { ...work, ownDirectory: 'fresh' }),
     );
   }
   async pending(): Promise<{ id: string; text: string }[]> {

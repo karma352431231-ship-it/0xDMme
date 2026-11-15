@@ -111,6 +111,7 @@ export function refreshSendMaterial(error: unknown): boolean {
     (typeof error === 'object' &&
       error !== null &&
       'code' in error &&
-      error.code === 'fresh-send-required')
+      (error.code === 'fresh-send-required' ||
+        error.code === 'fresh-own-directory-required'))
   );
 }

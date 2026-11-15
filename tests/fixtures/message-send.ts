@@ -131,6 +131,9 @@ export async function sendFixture() {
     savedPin: undefined as (() => void) | undefined,
     machineOpens: 0,
     authorityReads: 0,
+    reuseOwnDirectory: false,
+    ownDirectoryReads: 0,
+    lastAuthorityReused: false,
     expectedPriority: 'interactive' as 'interactive' | undefined,
     losePublishResponse: false,
     combinedPreparation: true,
@@ -156,6 +159,11 @@ export async function sendFixture() {
     withVault: (_offline, work, options) => {
       assert.equal(options?.priority, state.expectedPriority);
       state.beforeAuthority?.(++state.authorityReads);
+      state.lastAuthorityReused =
+        state.reuseOwnDirectory && options?.ownDirectory === 'reuse';
+      if (state.lastAuthorityReused)
+        return work({ ...state.authority, reusedOwnDirectory: true });
+      state.ownDirectoryReads++;
       return work(state.authority);
     },
     withLocalVault: (locator, work) => {

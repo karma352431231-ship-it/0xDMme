@@ -5,6 +5,8 @@ import type { SealedSecret } from '../../shared/devices/index.ts';
 export interface VaultAuthority {
   session: Pick<AccountSession, 'accountId' | 'deviceId' | 'csrf'>;
   offline: boolean;
+  /** Send-specific reuse. Full preparation must reacquire online verification. */
+  reusedOwnDirectory?: true;
   directory: string;
   epoch: number;
   events: DirectoryEvent[];
@@ -36,6 +38,8 @@ export interface VaultAccess {
 }
 export interface VaultWorkOptions extends AuthorityDiagnosticContext {
   priority?: 'interactive';
+  /** Refusal-driven own-directory reuse for the idempotent send workflow. */
+  ownDirectory?: 'reuse' | 'fresh';
 }
 export interface VaultLocator {
   accountId: string;

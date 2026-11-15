@@ -1,4 +1,5 @@
 import { refreshSendMaterial, SendMaterials } from '../send-material/index.ts';
+import { requireFreshOwnDirectory } from '../own-device-authority/index.ts';
 import type { SendMaterial } from '../send-material/index.ts';
 import { readDirectories } from '../peer-identity/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
@@ -57,6 +58,7 @@ export class GroupSendPreparation {
         };
       this.material.invalidate(groupId);
     }
+    requireFreshOwnDirectory(input.authority);
     let combined: Record<string, unknown> | null = null;
     const group = await governance.verify(
       groupId,

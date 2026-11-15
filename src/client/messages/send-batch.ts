@@ -1,4 +1,5 @@
 import { sendAuthorityStamp } from '../send-material/index.ts';
+import { refreshSendMaterial } from '../send-material/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 
@@ -81,10 +82,14 @@ export async function sendPinnedBatch(input: {
   transmit: (batch: PinnedSendBatch) => Promise<boolean>;
 }): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const batch = await input.prepare();
-    if (!batch.names.length) return;
-    await input.preserve();
-    if (await input.transmit(batch)) return;
+    try {
+      const batch = await input.prepare();
+      if (!batch.names.length) return;
+      await input.preserve();
+      if (await input.transmit(batch)) return;
+    } catch (error: unknown) {
+      if (attempt || !refreshSendMaterial(error)) throw error;
+    }
   }
   throw new Error('Devices changed during sending. Try again.');
 }

@@ -1,4 +1,5 @@
 import { eventHash } from '../../shared/devices/index.ts';
+import { requireFreshOwnDirectory } from '../own-device-authority/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { RecoveryKey } from '../../shared/messages/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
@@ -33,6 +34,7 @@ export class PrivateSendPreparation {
     const retention = this.material.generation;
     const reusable = this.reusable(a, peer);
     if (reusable) return { ...reusable, retention };
+    requireFreshOwnDirectory(a);
     const history = this.identities.history(peer);
     const pin = this.identities.get(peer);
     const prefix = pin && history ? history.slice(0, pin.revision) : [];

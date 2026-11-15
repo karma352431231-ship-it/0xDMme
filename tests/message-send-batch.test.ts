@@ -287,6 +287,37 @@ await test('an unchanged peer reuses verified material across drains and suspens
   assert.ok(f.requests.slice(reset).includes('matrix-query'));
 });
 
+await test('warm own-directory reuse reaches publish without a read and full preparation reacquires fresh authority', async (t) => {
+  const f = await sendFixture();
+  t.after(f.close);
+  f.state.retainMachine = true;
+  f.state.reuseOwnDirectory = true;
+  f.state.beforeKeys = () => assert.equal(f.state.lastAuthorityReused, false);
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.ok(
+    f.state.ownDirectoryReads > 0,
+    'The first preparation must be fresh.',
+  );
+  const beforeReads = f.state.ownDirectoryReads;
+  const beforeRequests = f.requests.length;
+  const id = await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.equal(f.state.ownDirectoryReads, beforeReads);
+  assert.deepEqual(f.requests.slice(beforeRequests), ['publish']);
+  assert.equal(f.publications.at(-1)?.id, id);
+  f.state.retainMachine = false;
+  const beforeNewMachine = f.state.ownDirectoryReads;
+  const next = await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.ok(f.state.ownDirectoryReads > beforeNewMachine);
+  assert.equal(f.publications.at(-1)?.id, next);
+  f.controller.pause('account');
+  await f.queue();
+  await f.controller.sendPending({ priority: 'interactive' });
+  assert.ok(f.state.ownDirectoryReads > beforeReads);
+});
+
 await test('two stale refusals leave the same draft durable and never loop', async (t) => {
   const f = await sendFixture();
   t.after(f.close);

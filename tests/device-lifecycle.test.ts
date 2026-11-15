@@ -3,7 +3,18 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { startDevices } from '../src/client/devices/index.ts';
 import { DeviceController } from '../src/client/devices/controller.ts';
-import { createIdentity, sealTo } from '../src/client/device-keys/index.ts';
+import {
+  createIdentity,
+  deviceSecrets,
+  sealTo,
+} from '../src/client/device-keys/index.ts';
+import {
+  freshKeyring,
+  prepareEvent,
+} from '../src/client/device-operations/index.ts';
+import { AccountError } from '../src/shared/account/index.ts';
+import { MessageAuthority } from '../src/server/messages/authority.ts';
+import { messageApi } from '../src/client/message-api/index.ts';
 import { createWalletRecovery } from '../src/client/wallet-recovery/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type { RecoveryFlow } from '../src/client/recovery-return/index.ts';
@@ -20,7 +31,15 @@ import {
   enrollmentPayload,
   verifyEnrollmentMac,
 } from '../src/shared/device-enrollment/index.ts';
-import { readCheckpoint } from '../src/client/device-storage/index.ts';
+import {
+  readCheckpoint,
+  storedIdentity,
+} from '../src/client/device-storage/index.ts';
+import {
+  OwnDirectoryRequired,
+  requireFreshOwnDirectory,
+} from '../src/client/own-device-authority/index.ts';
+import { ApiResponseError } from '../src/client/api-response/index.ts';
 
 function requestBody(init?: RequestInit): unknown {
   if (typeof init?.body !== 'string')
@@ -187,6 +206,177 @@ function controllerFixture(t: TestContext) {
     },
   };
 }
+
+await test('send authority reuses only its verified online directory and a definite refusal withdraws reuse', async (t) => {
+  const f = controllerFixture(t);
+  f.injectWallet();
+  await f.controller.beginWalletRecovery({
+    mode: 'initialize',
+    wallet: 'MetaMask',
+    name: 'Test device',
+    revoked: [],
+    revision: 0,
+  });
+  await f.controller.refresh();
+  const readCount = () =>
+    f.calls.filter((path) => path === '/api/account/devices/read').length;
+  const before = readCount();
+  await f.controller.withVault(
+    false,
+    async (authority) => {
+      assert.equal(authority.reusedOwnDirectory, true);
+      assert.throws(
+        () => requireFreshOwnDirectory(authority),
+        OwnDirectoryRequired,
+      );
+      assert.equal((await authority.key(1)).extractable, false);
+    },
+    { ownDirectory: 'reuse' },
+  );
+  assert.equal(readCount(), before);
+  await f.controller.withVault(true, () => Promise.resolve());
+  await f.controller.withVault(
+    false,
+    (authority) => {
+      assert.equal(authority.reusedOwnDirectory, true);
+      return Promise.resolve();
+    },
+    { ownDirectory: 'reuse' },
+  );
+  assert.equal(
+    readCount(),
+    before,
+    'The identical local projection keeps the online observation.',
+  );
+  const refused = new ApiResponseError({
+    operation: 'messages/publish',
+    status: 403,
+    failure: 'http',
+    message: 'Device has no current authorization.',
+  });
+  await assert.rejects(
+    f.controller.withVault(false, () => Promise.reject(refused), {
+      ownDirectory: 'reuse',
+    }),
+    OwnDirectoryRequired,
+  );
+  assert.equal(f.controller.authorized, false);
+  await f.controller.withVault(
+    false,
+    (authority) => {
+      assert.equal(authority.reusedOwnDirectory, undefined);
+      return Promise.resolve();
+    },
+    { ownDirectory: 'reuse' },
+  );
+  assert.equal(readCount(), before + 1);
+  const ordinary = readCount();
+  await f.controller.withVault(false, () => Promise.resolve());
+  assert.equal(readCount(), ordinary + 1);
+  f.controller.setSession({ ...f.session, csrf: 'b'.repeat(64) });
+  await f.controller.withVault(
+    false,
+    (authority) => {
+      assert.equal(authority.reusedOwnDirectory, undefined);
+      return Promise.resolve();
+    },
+    { ownDirectory: 'reuse' },
+  );
+  assert.equal(readCount(), ordinary + 2);
+});
+
+for (const change of ['link', 'revoke-self', 'rotate-epoch'] as const)
+  await test(`own-directory reuse rejects a stale ${change} before server work and rechecks the signed history`, async (t) => {
+    const f = controllerFixture(t);
+    f.injectWallet();
+    await f.controller.beginWalletRecovery({
+      mode: 'initialize',
+      wallet: 'MetaMask',
+      name: 'Test device',
+      revoked: [],
+      revision: 0,
+    });
+    await f.controller.refresh();
+    const identity = await storedIdentity(
+      f.session.accountId,
+      f.session.deviceId,
+    );
+    const first = f.events[0]!;
+    const ring = await deviceSecrets(identity, first);
+    const added = await createIdentity(
+      crypto.randomUUID(),
+      'Additional device',
+    );
+    const link = await prepareEvent({
+      accountId: f.session.accountId,
+      previous: first,
+      kind: 'link',
+      signer: identity.public.id,
+      signing: identity.signing,
+      root: first.root,
+      identities: [identity.public, added.public],
+      ring,
+      linkId: crypto.randomUUID(),
+      profile: null,
+    });
+    f.events.push(link);
+    if (change !== 'link')
+      f.events.push(
+        await prepareEvent({
+          accountId: f.session.accountId,
+          previous: link,
+          kind: 'revoke',
+          signer:
+            change === 'revoke-self' ? added.public.id : identity.public.id,
+          signing: change === 'revoke-self' ? added.signing : identity.signing,
+          root: first.root,
+          identities:
+            change === 'revoke-self' ? [added.public] : [identity.public],
+          ring: freshKeyring(f.session.accountId, ring),
+          profile: null,
+        }),
+      );
+    const server = new MessageAuthority({
+      current: async () => ({
+        head: await eventHash(f.events.at(-1)!),
+        revision: f.events.length,
+        event: f.events.at(-1),
+      }),
+    });
+    let accepted = 0;
+    f.overrides.set('/api/account/messages/publish', async (init) => {
+      try {
+        await server.authenticate('publish', f.session, requestBody(init));
+        accepted++;
+        return Response.json({ status: 'accepted' });
+      } catch (error: unknown) {
+        if (!(error instanceof AccountError)) throw error;
+        return Response.json(
+          { error: error.message },
+          { status: error.status },
+        );
+      }
+    });
+    const publish = () =>
+      f.controller.withVault(
+        false,
+        (authority) => messageApi(authority, 'publish', {}, () => {}),
+        { ownDirectory: 'reuse' },
+      );
+    await assert.rejects(publish(), OwnDirectoryRequired);
+    assert.equal(accepted, 0);
+    if (change === 'revoke-self') {
+      await assert.rejects(publish(), /Authorize or recover/);
+      assert.equal(accepted, 0);
+    } else {
+      await publish();
+      assert.equal(accepted, 1);
+    }
+    assert.equal(
+      (await readCheckpoint(f.session.accountId)).events.length,
+      f.events.length,
+    );
+  });
 
 await test('restoration never opens the wallet; login opens only without keys and expired request stops blocking updates', async (t) => {
   const window = new EventTarget();

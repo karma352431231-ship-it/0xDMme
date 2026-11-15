@@ -434,18 +434,23 @@ export class MessageOutbox {
     );
     if (!pending.length) return;
     const generation = this.authority.current();
-    const initial = { ...options, privateSend: batchContext };
-    if (!this.authority.pinsLoaded(generation))
-      await measurePrivateSend(batchContext, 'pins-load', () =>
-        this.authority.loadPins(initial),
-      );
     this.authority.guard(generation);
     let attempt = 0;
     let diagnostic = batchContext;
+    let work: VaultWorkOptions = options;
     await sendPinnedBatch({
-      prepare: () => {
+      prepare: async () => {
         attempt++;
         diagnostic = batchContext ? { ...batchContext, attempt } : undefined;
+        work = {
+          ...options,
+          privateSend: diagnostic,
+          ownDirectory: attempt === 1 ? 'reuse' : 'fresh',
+        };
+        if (attempt > 1 || !this.authority.pinsLoaded(generation))
+          await measurePrivateSend(diagnostic, 'pins-load', () =>
+            this.authority.loadPins(work),
+          );
         this.authority.guard(generation);
         return measurePrivateSend(diagnostic, 'preflight', () =>
           this.access.withVault(
@@ -471,20 +476,20 @@ export class MessageOutbox {
                   ),
               });
             },
-            { ...options, privateSend: diagnostic },
+            work,
           ),
         );
       },
       preserve: () =>
         measurePrivateSend(diagnostic, 'pins-save', () =>
-          this.authority.savePins({ ...options, privateSend: diagnostic }),
+          this.authority.savePins({ ...work, ownDirectory: 'fresh' }),
         ),
       transmit: (batch) =>
         this.transmitBatch({
           batch,
           attempt,
           generation,
-          options: { ...options, privateSend: diagnostic },
+          options: work,
           yieldAfterMessage,
         }),
     });
