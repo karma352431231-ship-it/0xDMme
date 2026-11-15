@@ -140,6 +140,31 @@ export function openRoomKey(
  * same account, device and directory hash always name the same capsule. Any
  * directory change (a device added or removed, a new epoch) asks again. */
 const prepared = new Map<string, RecoveryKey>();
+function recoveryScope(authority: VaultAuthority): string {
+  return canonical([
+    authority.session.accountId,
+    authority.session.deviceId,
+    authority.directory,
+  ]);
+}
+/** Reuse only an immutable capsule already prepared for this exact authority
+ * scope and requested ID. Historical/unprepared keys use the authorized read.
+ * The consumer still opens and verifies the capsule under its current root. */
+export async function readMessageRecovery(
+  authority: VaultAuthority,
+  api: (
+    operation: string,
+    payload: Record<string, unknown>,
+  ) => Promise<unknown>,
+  id: string,
+): Promise<RecoveryKey> {
+  const known = prepared.get(recoveryScope(authority));
+  if (known?.id === id) return known;
+  const key = recoveryKey(await api('recovery-key', { id }));
+  if (key.id !== id)
+    throw new Error('Recovery key differs from the requested archive.');
+  return key;
+}
 /** Prepare the existing account recovery capsule before any shared publication. */
 export async function ensureMessageRecovery(
   authority: VaultAuthority,
@@ -148,11 +173,7 @@ export async function ensureMessageRecovery(
     payload: Record<string, unknown>,
   ) => Promise<unknown>,
 ): Promise<RecoveryKey> {
-  const scope = canonical([
-      authority.session.accountId,
-      authority.session.deviceId,
-      authority.directory,
-    ]),
+  const scope = recoveryScope(authority),
     known = prepared.get(scope);
   if (known) return known;
   const key = await prepareMessageRecovery(authority, api);

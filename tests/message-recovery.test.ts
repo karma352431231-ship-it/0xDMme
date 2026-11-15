@@ -16,6 +16,7 @@ import {
   archiveRoomKey,
   openRoomKey,
   ensureMessageRecovery,
+  readMessageRecovery,
 } from '../src/client/message-recovery/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
 import {
@@ -242,4 +243,51 @@ await test('a prepared recovery capsule is reused for the same account, device a
   assert.equal(calls, 2, 'Same directory: no request');
   await ensureMessageRecovery(second.authority, api(second.accountId));
   assert.equal(calls, 3, 'Another account or directory asks again');
+});
+
+await test('reading a prepared capsule preserves authority scope, archive identity and cryptographic verification', async () => {
+  const owner = await groupParticipant(),
+    key = await createRecoveryKey(owner.authority);
+  await ensureMessageRecovery(owner.authority, () => Promise.resolve(key));
+  let reads = 0;
+  const api = (operation: string, payload: Record<string, unknown>) => {
+    assert.equal(operation, 'recovery-key');
+    assert.deepEqual(payload, { id: key.id });
+    reads++;
+    return Promise.resolve(key);
+  };
+  assert.deepEqual(
+    await readMessageRecovery(owner.authority, api, key.id),
+    key,
+  );
+  assert.equal(reads, 0);
+  for (const changed of [
+    { ...owner.authority, directory: 'f'.repeat(64) },
+    {
+      ...owner.authority,
+      session: { ...owner.authority.session, deviceId: crypto.randomUUID() },
+    },
+  ])
+    assert.deepEqual(await readMessageRecovery(changed, api, key.id), key);
+  assert.equal(reads, 2, 'Changed authority cannot reuse the previous scope');
+  await assert.rejects(
+    readMessageRecovery(
+      owner.authority,
+      () => Promise.resolve(key),
+      crypto.randomUUID(),
+    ),
+    /requested archive/u,
+  );
+  const stranger = await groupParticipant();
+  await assert.rejects(
+    openRecoveryKey(
+      await readMessageRecovery(stranger.authority, api, key.id),
+      stranger.authority,
+    ),
+  );
+  const secret = await openRecoveryKey(
+    await readMessageRecovery(owner.authority, api, key.id),
+    owner.authority,
+  );
+  secret.free();
 });

@@ -238,7 +238,7 @@ await test('a send confirms already verified pins inside its current authority a
   t.mock.method(f.identities, 'load', () =>
     Promise.reject(new Error('No second authority for unchanged pins')),
   );
-  const value = await f.authority.send(
+  const value = await f.authority.withIdentities(
     () => {},
     () => {
       assert.equal(confirmed, 1);
@@ -270,7 +270,7 @@ await test('a changed prepared vault leaves exclusion before full identity refre
     order.push('full-refresh');
     return Promise.resolve();
   });
-  await f.authority.send(
+  await f.authority.withIdentities(
     () => {},
     () => {
       assert.equal(f.ownership.holding, 1);
@@ -303,7 +303,7 @@ for (const failure of ['confirm', 'publication', 'account'] as const)
     if (failure === 'account')
       f.vault.session = { ...f.vault.session, deviceId: crypto.randomUUID() };
     await assert.rejects(
-      f.authority.send(
+      f.authority.withIdentities(
         () => {},
         () => {
           published = true;
@@ -364,7 +364,7 @@ for (const dueMaintenance of [false, true])
       }),
     );
     jobs.push(
-      f.authority.send(
+      f.authority.withIdentities(
         () => {},
         () => {
           order.push('publish');

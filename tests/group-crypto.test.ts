@@ -17,6 +17,7 @@ import {
   createRecoveryKey,
   openRecoveryKey,
   openRoomKey,
+  ensureMessageRecovery,
 } from '../src/client/message-recovery/index.ts';
 import { groupEventHash, groupEventProof } from '../src/shared/groups/index.ts';
 import type { GroupEvent } from '../src/shared/groups/index.ts';
@@ -124,6 +125,76 @@ await test("real Megolm recovers only the member's addressed period and rejects 
   // The sender's clock travels inside the encrypted content only.
   assert.equal(typeof opened.sentAt, 'number');
   assert.equal(JSON.stringify(packet).includes(String(opened.sentAt)), false);
+  await t.test(
+    'own readback uses verified local authority and the prepared recovery capsule',
+    async (c) => {
+      const head = await groupEventHash(state),
+        ownKey = keys[participants.indexOf(owner)];
+      await ensureMessageRecovery(owner.authority, (operation) => {
+        assert.equal(operation, 'recovery-current');
+        return Promise.resolve(ownKey);
+      });
+      c.mock.method(GroupCache.prototype, 'get', (name: string) =>
+        Promise.resolve(name === `governance:${head}` ? state : null),
+      );
+      c.mock.method(GroupCache.prototype, 'put', () => Promise.resolve());
+      const access = {
+        withVault: () => Promise.reject(new Error('No second vault turn')),
+        withLocalVault: () => Promise.reject(new Error('No offline authority')),
+      };
+      const context = {
+        authority: owner.authority,
+        group: { state, head },
+        machine: sender,
+        identities: new PeerIdentity(new VaultSync(access)),
+        api: () =>
+          Promise.reject(new Error('Own material is already verified')),
+      };
+      const row = {
+        id: packet.id,
+        epoch: packet.epoch,
+        sequence: 1,
+        hash: await digest(canonical(packet)),
+        packet,
+        unavailableMedia: [],
+      };
+      const page = { items: [row], keys: [bundle] };
+      assert.equal(
+        (await readGroupPage(context, page)).views[0]?.text,
+        opened.text,
+      );
+      const altered = {
+        ...packet,
+        signature: Buffer.alloc(64, 2).toString('base64'),
+      };
+      await assert.rejects(
+        readGroupPage(context, {
+          ...page,
+          items: [
+            { ...row, packet: altered, hash: await digest(canonical(altered)) },
+          ],
+        }),
+      );
+      await assert.rejects(
+        readGroupPage(
+          {
+            ...context,
+            group: {
+              ...context.group,
+              state: {
+                ...state,
+                members: state.members.filter(
+                  (m) => m.accountId !== owner.accountId,
+                ),
+              },
+            },
+          },
+          page,
+        ),
+        /membership period/u,
+      );
+    },
+  );
   await t.test(
     'encrypted edit binds original, group and author; deletion proof rejects another message',
     async () => {

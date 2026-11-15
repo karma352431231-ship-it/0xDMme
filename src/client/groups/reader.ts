@@ -25,11 +25,14 @@ import type {
   GroupKeys,
 } from '../../shared/group-messages/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
-import { recoveryKey } from '../../shared/messages/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import type { AttachmentApi } from '../attachments/index.ts';
 import type { MessageCrypto } from '../message-crypto/index.ts';
-import { openRecoveryKey, openRoomKey } from '../message-recovery/index.ts';
+import {
+  openRecoveryKey,
+  openRoomKey,
+  readMessageRecovery,
+} from '../message-recovery/index.ts';
 import { readDirectories } from '../peer-identity/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
 import { GroupCache, groupTitle, groupMessageRecordName } from './cache.ts';
@@ -110,16 +113,7 @@ export async function readGroupPage(
       ),
     ),
   ];
-  const histories = await readDirectories({
-    accounts: senders,
-    identities: c.identities,
-    load: (accounts) =>
-      c.api('group-directory', {
-        groupId: c.group.state.groupId,
-        head: c.group.head,
-        accounts,
-      }),
-  });
+  const histories = await readSenderHistories(c, senders);
   const views: GroupView[] = [],
     receipts: { id: string; hash: string }[] = [];
   const keys = new Map<string, GroupKeys>();
@@ -148,6 +142,33 @@ export async function readGroupPage(
   } finally {
     for (const secret of recovery.values()) secret.free();
   }
+}
+/** Our current authority already contains our signed directory. Other senders
+ * keep their authorized group-directory read; local pins and packet proofs are
+ * verified through the same identity and SDK contracts for every sender. */
+async function readSenderHistories(c: GroupReadContext, senders: string[]) {
+  const own = c.authority.session.accountId;
+  const histories = await readDirectories({
+    accounts: senders.filter((account) => account !== own),
+    identities: c.identities,
+    load: (accounts) =>
+      c.api('group-directory', {
+        groupId: c.group.state.groupId,
+        head: c.group.head,
+        accounts,
+      }),
+  });
+  if (senders.includes(own))
+    histories.set(own, {
+      events: await c.identities.verify({
+        account: own,
+        events: c.authority.events,
+        expected: c.authority.directory,
+        current: true,
+      }),
+      recovery: null,
+    });
+  return histories;
 }
 async function cachedGroupViews(
   cache: GroupCache,
@@ -320,7 +341,7 @@ async function decryptGroupText(
   if (!archive) throw new Error('Message has no recovery for your account.');
   let secret = c.recovery.get(archive.keyId);
   if (!secret) {
-    const key = recoveryKey(await c.api('recovery-key', { id: archive.keyId }));
+    const key = await readMessageRecovery(c.authority, c.api, archive.keyId);
     secret = await openRecoveryKey(key, c.authority);
     c.recovery.set(archive.keyId, secret);
   }

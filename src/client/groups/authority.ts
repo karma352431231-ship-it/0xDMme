@@ -104,10 +104,11 @@ export class GroupAuthority {
       }
     }
   }
-  /** Reuse only immutable, fully loaded pins after checking the current signed
-   * vault heads and removal cursor inside this send's fresh authority. A changed
-   * snapshot leaves that turn before full synchronization and reacquisition. */
-  async send<T>(
+  /** Confirm fully loaded identity pins against current signed vault heads and
+   * removals inside the operation's authority. A changed snapshot leaves that
+   * turn before full synchronization and reacquisition. The caller's freshness
+   * policy applies to every authority acquisition, including the fallback. */
+  async withIdentities<T>(
     guard: () => void,
     work: (context: GroupContext) => Promise<T>,
     diagnostic: VaultWorkOptions = {},

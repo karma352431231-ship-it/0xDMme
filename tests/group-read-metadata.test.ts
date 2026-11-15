@@ -7,7 +7,10 @@ import { GroupGovernance } from '../src/client/groups/governance.ts';
 import { GroupMessageWindows } from '../src/client/groups/message-windows.ts';
 import { PeerIdentity } from '../src/client/peer-identity/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
-import type { VaultAccess } from '../src/client/vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultWorkOptions,
+} from '../src/client/vault-authority/index.ts';
 import type { GroupEvent } from '../src/shared/groups/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
@@ -63,8 +66,12 @@ async function fixture(t: TestContext) {
       else Reflect.deleteProperty(globalThis, name);
     });
   }
+  const turns: VaultWorkOptions[] = [];
   const access: VaultAccess = {
-    withVault: (_offline, work) => work(owner.authority),
+    withVault: (_offline, work, options = {}) => {
+      turns.push(options);
+      return work(owner.authority);
+    },
     withLocalVault: (_locator, work) => work(owner.authority),
   };
   t.mock.method(PeerIdentity.prototype, 'load', async () => {});
@@ -101,6 +108,8 @@ async function fixture(t: TestContext) {
   controller.setSession(owner.authority.session as AccountSession);
   return {
     controller,
+    authority: owner.authority,
+    turns,
     groupId,
     views,
     requests,
@@ -140,4 +149,63 @@ await test('revocation during deferred group metadata cannot apply an old comple
   });
   await assert.rejects(f.controller.refreshReadState(f.policy));
   assert.deepEqual(f.controller.views, []);
+});
+
+for (const current of [true, false])
+  await test(`group history uses current-authority pin confirmation before reading; unchanged=${current}`, async (t) => {
+    const f = await fixture(t);
+    let confirmed = 0,
+      loaded = 0,
+      disposed = 0;
+    t.mock.method(PeerIdentity.prototype, 'prepareRead', () => ({
+      confirm: (authority: typeof f.authority) => {
+        assert.equal(authority, f.authority);
+        confirmed++;
+        return Promise.resolve(current);
+      },
+      hydrate: () =>
+        Promise.reject(new Error('The read keeps its identity owner')),
+      dispose: () => {
+        disposed++;
+      },
+    }));
+    t.mock.method(PeerIdentity.prototype, 'load', () => {
+      assert.equal(
+        current,
+        false,
+        'Unchanged pins need no separate identity load',
+      );
+      loaded++;
+      return Promise.resolve();
+    });
+    await f.controller.open(f.groupId, false, false, f.policy);
+    assert.equal(confirmed, 1);
+    assert.equal(loaded, current ? 0 : 1);
+    assert.equal(disposed, 1);
+    assert.equal(f.turns.length, current ? 1 : 2);
+    assert.ok(f.turns.every((turn) => turn.ownDirectory === 'fresh'));
+    assert.deepEqual(f.controller.views, f.views);
+    assert.deepEqual(f.deferred, [f.groupId]);
+  });
+
+await test('group history rejects revocation during prepared pin confirmation', async (t) => {
+  const f = await fixture(t);
+  let disposed = 0;
+  t.mock.method(PeerIdentity.prototype, 'prepareRead', () => ({
+    confirm: () => {
+      f.controller.revokeAuthority();
+      return Promise.resolve(true);
+    },
+    hydrate: () => Promise.resolve(false),
+    dispose: () => {
+      disposed++;
+    },
+  }));
+  t.mock.method(PeerIdentity.prototype, 'load', () =>
+    Promise.reject(new Error('Revocation must not trigger a fallback read')),
+  );
+  await assert.rejects(f.controller.open(f.groupId, false, false, f.policy));
+  assert.equal(disposed, 1);
+  assert.deepEqual(f.controller.views, []);
+  assert.deepEqual(f.requests, []);
 });

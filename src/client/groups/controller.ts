@@ -787,25 +787,27 @@ export class GroupController {
     const { groupId, older, localOnly, guard } = input;
     guard();
     if (!networkAvailable() || localOnly) return this.openLocal(groupId, older);
-    await this.identities.load();
-    guard();
-    const complete = await this.withAuthority(async (c) => {
-      const group = await c.governance.verify(groupId),
-        profile = await new GroupCache(c.authority, groupId).get('profile');
-      guard();
-      if (this.selected?.state.groupId !== groupId) this.views = [];
-      this.selected = {
-        ...group,
-        title:
-          profile === null
-            ? t('Group {0}', [groupId.slice(0, 8)])
-            : groupTitle(profile),
-      };
-      this.warning = '';
-      if (c.authority.offline)
-        throw new Error('Connect to check current group membership.');
-      return this.openVerified(c, group, { older, metadata: input.metadata });
-    }, guard);
+    const complete = await this.authority.withIdentities(
+      guard,
+      async (c) => {
+        const group = await c.governance.verify(groupId),
+          profile = await new GroupCache(c.authority, groupId).get('profile');
+        guard();
+        if (this.selected?.state.groupId !== groupId) this.views = [];
+        this.selected = {
+          ...group,
+          title:
+            profile === null
+              ? t('Group {0}', [groupId.slice(0, 8)])
+              : groupTitle(profile),
+        };
+        this.warning = '';
+        if (c.authority.offline)
+          throw new Error('Connect to check current group membership.');
+        return this.openVerified(c, group, { older, metadata: input.metadata });
+      },
+      { ownDirectory: 'fresh' },
+    );
     guard();
     await this.identities.save(guard);
     guard();
@@ -1744,7 +1746,7 @@ export class GroupController {
       diagnosticOperation: 'group-send',
     };
     const generation = this.generation;
-    await this.authority.send(
+    await this.authority.withIdentities(
       () => this.guard(generation),
       async (c) => {
         const { group, preparation } = await measurePrivateSend(
