@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { MessageSynchronization } from '../src/client/messages/synchronization.ts';
 import { deferred } from './fixtures/deferred.ts';
+import { GroupReceipt } from '../src/client/groups/receipt.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 function fixture(
@@ -190,6 +191,63 @@ await test('a durable send reserves admission during maintenance and starts imme
   await maintenance;
   assert.equal(await send, true);
   assert.deepEqual(events, ['maintenance', 'send']);
+});
+
+await test('a group change releases admitted transmission before secondary reads and resumes them after the send', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    verified = deferred<void>(),
+    sending = deferred<void>();
+  const events: string[] = [];
+  const receipt = new GroupReceipt({
+    visibleGroup: () => 'group',
+    readSelected: async () => {
+      events.push('history');
+      await verified.promise;
+      receipt.metadata.deferred('group');
+    },
+    reads: () => {
+      events.push('read-state');
+      return Promise.resolve();
+    },
+    receipts: () => {
+      events.push('receipts');
+      return Promise.resolve();
+    },
+    states: () => {
+      events.push('states');
+      return Promise.resolve();
+    },
+    directory: async () => {},
+    changed: () => {},
+    schedule: {
+      shouldYield: () => f.sync.interactiveSendPending,
+      pending: () => f.sync.requestCounters('groups'),
+    },
+  });
+  f.options.changes = () => receipt.changed('content');
+  f.options.groupProjection = () => receipt.counters();
+  f.sync.request('probe', {}, 'groups');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(events, ['history']);
+  f.state.interactiveSendPending = true;
+  const send = f.sync.admitSend(async () => {
+    events.push('send');
+    await sending.promise;
+  });
+  verified.resolve();
+  await turn();
+  assert.deepEqual(events, ['history', 'send']);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.deepEqual(events, ['history', 'send']);
+  f.state.interactiveSendPending = false;
+  sending.resolve();
+  assert.equal(await send, true);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.deepEqual(events, ['history', 'send', 'read-state', 'states']);
 });
 await test('logout during queued work suppresses the old action, result and pending projection', async (t) => {
   const f = fixture(t),

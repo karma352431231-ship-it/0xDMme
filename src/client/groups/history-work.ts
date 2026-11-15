@@ -1,11 +1,13 @@
 import type { MessageWork } from '../synchronization-work/index.ts';
 import type { GroupController } from './controller.ts';
+import type { GroupMetadataPolicy } from './receipt.ts';
 interface HistoryOptions {
   controller: GroupController;
   schedule?:
     | ((work: MessageWork, settled?: () => Promise<void>) => Promise<boolean>)
     | undefined;
   settled: () => Promise<void>;
+  metadata?: GroupMetadataPolicy | undefined;
 }
 /** The read tail belongs to the selected group, not to the first partial turn. */
 export class GroupHistoryWork {
@@ -19,7 +21,13 @@ export class GroupHistoryWork {
     localOnly: boolean;
   }): Promise<void> {
     const { controller, schedule } = this.options;
-    const work = () => controller.open(input.id, input.older, input.localOnly);
+    const work = () =>
+      controller.open(
+        input.id,
+        input.older,
+        input.localOnly,
+        this.options.metadata,
+      );
     const settled = async () => {
       if (controller.selected?.state.groupId === input.id)
         await this.options.settled();

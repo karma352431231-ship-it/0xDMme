@@ -50,6 +50,7 @@ import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
 import { GroupReceipt } from './receipt.ts';
 import type { GroupChange } from './receipt.ts';
+import type { GroupMetadataSchedule } from './receipt.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import type { GroupProfile } from './people.ts';
@@ -80,6 +81,7 @@ interface GroupOptions {
     work: () => Promise<void>,
     diagnostic?: PrivateSendContext,
   ) => Promise<boolean | 'deferred'>;
+  metadataSchedule?: GroupMetadataSchedule | undefined;
   alert: () => void;
   peers: () => readonly Peer[];
   alias: (account: string) => string;
@@ -394,9 +396,26 @@ export function startGroups(
   async function resumePending(): Promise<void> {
     if (await controller.resumePending()) await reopen();
   }
+  const receipt = new GroupReceipt({
+    visibleGroup,
+    readSelected: (id) => reconciliation.request(id),
+    receipts: async () => {
+      await controller.refreshReceipts(receipt.receiptMetadata);
+      chat.renderHistory();
+    },
+    reads: async () => {
+      await controller.refreshReadState(receipt.metadata);
+      chat.renderHistory();
+    },
+    states: refreshStates,
+    directory: () => refresh(),
+    changed: () => options.changed(),
+    schedule: options.metadataSchedule,
+  });
   const historyWork = new GroupHistoryWork({
     controller,
     schedule: options.history,
+    metadata: receipt.metadata,
     settled: async () => {
       const selected = controller.selected;
       await vault.refresh();
@@ -431,17 +450,6 @@ export function startGroups(
   const reconciliation = new GroupReconciliation((id) =>
     readHistory(id, false, false),
   );
-  const receipt = new GroupReceipt({
-    visibleGroup,
-    readSelected: (id) => reconciliation.request(id),
-    receipts: async () => {
-      await controller.refreshReceipts();
-      chat.renderHistory();
-    },
-    states: refreshStates,
-    directory: () => refresh(),
-    changed: () => options.changed(),
-  });
   async function open(
     group: GroupSummary | string,
     focus?: { sequence: number },
@@ -642,6 +650,7 @@ export function startGroups(
         return;
       }
       session = value;
+      receipt.reset();
       chat.resetTexts();
       loading.reset();
       chat.closeActions();
@@ -659,11 +668,13 @@ export function startGroups(
       return controller.expectingOwnRemoval;
     },
     removed(): void {
+      receipt.reset();
       controller.removed();
       chat.pauseActions();
       chat.renderHistory();
     },
     suspend(revoked = false): void {
+      receipt.reset();
       chat.closeActions();
       management.leave();
       if (revoked) controller.revokeAuthority();

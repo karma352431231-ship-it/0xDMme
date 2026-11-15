@@ -114,6 +114,7 @@ import {
 import { GroupAdmissions } from './admission.ts';
 import { GroupAuthority } from './authority.ts';
 import type { GroupContext } from './authority.ts';
+import type { GroupMetadataPolicy } from './receipt.ts';
 import {
   HistoryFloors,
   WindowReceipts,
@@ -527,7 +528,7 @@ export class GroupController {
         if (pending) this.retry.reset(id);
       }
       if (this.selected?.state.groupId === id && this.visible())
-        await this.openVerified(c, group, false, machine).catch(
+        await this.openVerified(c, group, { older: false, machine }).catch(
           (error: unknown) => {
             if (!expectedInterruption(error)) throw error;
           },
@@ -769,17 +770,19 @@ export class GroupController {
     groupId: string,
     older = false,
     localOnly = false,
+    metadata?: GroupMetadataPolicy,
   ): Promise<MessageWorkResult> {
     this.selection.invalidate('replacement');
     const generation = this.generation;
     const guard = this.selection.capture(() => this.guard(generation));
-    return this.openSelected({ groupId, older, localOnly, guard });
+    return this.openSelected({ groupId, older, localOnly, guard, metadata });
   }
   private async openSelected(input: {
     groupId: string;
     older: boolean;
     localOnly: boolean;
     guard: () => void;
+    metadata?: GroupMetadataPolicy | undefined;
   }): Promise<MessageWorkResult> {
     const { groupId, older, localOnly, guard } = input;
     guard();
@@ -801,7 +804,7 @@ export class GroupController {
       this.warning = '';
       if (c.authority.offline)
         throw new Error('Connect to check current group membership.');
-      return this.openVerified(c, group, older);
+      return this.openVerified(c, group, { older, metadata: input.metadata });
     }, guard);
     guard();
     await this.identities.save(guard);
@@ -813,9 +816,13 @@ export class GroupController {
   private async openVerified(
     c: GroupContext,
     group: GroupState,
-    older: boolean,
-    machine?: import('../message-crypto/index.ts').MessageCrypto,
+    options: {
+      older: boolean;
+      machine?: import('../message-crypto/index.ts').MessageCrypto;
+      metadata?: GroupMetadataPolicy | undefined;
+    },
   ): Promise<boolean> {
+    const { older, machine, metadata } = options;
     const generation = this.generation,
       guard = this.selection.capture(() => this.guard(generation));
     this.warning = '';
@@ -857,12 +864,16 @@ export class GroupController {
     } finally {
       lease.close();
     }
-    await this.readViews(async (op, payload) => {
-      guard();
-      const result = await c.api(op, payload);
-      guard();
-      return result;
-    }, group);
+    await this.readViews(
+      async (op, payload) => {
+        guard();
+        const result = await c.api(op, payload);
+        guard();
+        return result;
+      },
+      group,
+      metadata,
+    );
     guard();
     return true;
   }
@@ -952,18 +963,27 @@ export class GroupController {
   private async readViews(
     api: AttachmentApi,
     group: GroupState,
+    metadata?: GroupMetadataPolicy,
   ): Promise<void> {
     const scope = { groupId: group.state.groupId, head: group.head };
     const ids = this.views
       .filter((v) => !v.own && !v.unavailableMedia.length && !v.localOnly)
       .map((v) => v.id);
+    const deferred = () => {
+      if (!metadata?.shouldYield()) return false;
+      metadata.deferred(scope.groupId);
+      return true;
+    };
+    if (deferred()) return;
     if (ids.length && this.visible() && document.visibilityState === 'visible')
       for (const batch of this.receipts.reads.batches(ids)) {
+        if (deferred()) return;
         if (!(await this.recordReads(api, group, batch))) break;
         this.receipts.reads.answered(batch);
       }
-    await this.askReceipts((own) =>
-      api('group-daily-receipts', { ...scope, ids: own }),
+    await this.askReceipts(
+      (own) => api('group-daily-receipts', { ...scope, ids: own }),
+      metadata && { group: scope.groupId, policy: metadata },
     );
   }
   /** False when the personal vault is full and the read was not recorded. */
@@ -990,41 +1010,63 @@ export class GroupController {
   }
   /** Delivery/read metadata for the open group's own messages, without
    * decoding history or reading the group directory. */
-  async refreshReceipts(): Promise<void> {
+  async refreshReceipts(metadata?: GroupMetadataPolicy): Promise<void> {
+    if (!this.views.some((v) => v.own && !v.localOnly)) return;
+    return this.withSelectedMetadata((api, selected) =>
+      this.askReceipts(
+        (ids) =>
+          api('group-daily-receipts', {
+            groupId: selected.state.groupId,
+            head: selected.head,
+            ids,
+          }),
+        metadata && { group: selected.state.groupId, policy: metadata },
+      ),
+    );
+  }
+  /** Only deferred content work may send read acknowledgements. A receipt hint
+   * never writes them again and cannot create a read/receipt feedback loop. */
+  refreshReadState(metadata?: GroupMetadataPolicy): Promise<void> {
+    return this.withSelectedMetadata((api, group) =>
+      this.readViews(api, group, metadata),
+    );
+  }
+  private async withSelectedMetadata(
+    work: (api: AttachmentApi, group: GroupState) => Promise<void>,
+  ): Promise<void> {
     const selected = this.selected;
     if (!selected || selected.localOnly) return;
-    if (!this.views.some((v) => v.own && !v.localOnly)) return;
     const generation = this.generation,
       guard = this.selection.capture(() => this.guard(generation));
     await this.withAuthority(
       (c) =>
-        this.askReceipts(async (ids) => {
-          const raw = await c.api('group-daily-receipts', {
-            groupId: selected.state.groupId,
-            head: selected.head,
-            ids,
-          });
+        work(async (operation, payload) => {
           guard();
-          // A reopened group answers again on its own read.
-          return this.selected?.state.groupId === selected.state.groupId
-            ? raw
-            : [];
-        }),
+          const raw = await c.api(operation, payload);
+          guard();
+          return raw;
+        }, selected),
       guard,
     );
   }
   /** The latest page of own messages on every check, older pages once. */
   private async askReceipts(
     request: (ids: string[]) => Promise<unknown>,
+    metadata?: { group: string; policy: GroupMetadataPolicy },
   ): Promise<void> {
     const own = this.views
       .filter((v) => v.own && !v.localOnly)
       .map((v) => v.id);
-    for (const batch of this.receipts.checks.batches(own))
+    for (const batch of this.receipts.checks.batches(own)) {
+      if (metadata?.policy.shouldYield()) {
+        metadata.policy.deferred(metadata.group);
+        break;
+      }
       this.receipts.checks.answered(
         batch,
         this.applyReceipts(await request(batch)),
       );
+    }
     for (const view of this.views) {
       const known = view.delivery
         ? undefined

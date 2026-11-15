@@ -422,6 +422,10 @@ export class MessageSynchronization {
     if (this.receiptOwed) return 'receipt-fairness';
     return this.sendBlockers().find(isTextGate) ?? 'unknown';
   }
+  /** Queued send demand excludes a read's own foreground ownership. */
+  get interactiveSendPending(): boolean {
+    return !!this.options.state().interactiveSendPending;
+  }
   /** Active segments keep their exclusion; optional work checks this between segments. */
   get shouldYieldMaintenance(): boolean {
     return (

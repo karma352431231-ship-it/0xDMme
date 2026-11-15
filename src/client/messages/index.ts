@@ -288,6 +288,10 @@ export function startMessages(
     sendBlockers: () =>
       synchronization.sendBlockers().filter((reason) => reason !== 'offline'),
     history: (work, settled) => synchronization.history(work, settled),
+    metadataSchedule: {
+      shouldYield: () => synchronization.interactiveSendPending,
+      pending: () => synchronization.requestCounters('groups'),
+    },
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
     alias: (account) =>
