@@ -34,7 +34,7 @@ const featureExports: Record<string, string[]> = {
   calls: ['CallLog', 'startCalls'],
   communities: ['startCommunities', 'startCommunitiesTab', 'startRankingSide'],
   'public-profile': ['startPublicProfile'],
-  activity: ['startActivity'],
+  activity: ['startActivity', 'publicActivityReader'],
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],
   'transient-menu': ['startTransientMenus'],
@@ -176,6 +176,7 @@ async function page(
       sessionReady: () => readied.push(name),
     });
   Object.assign(fixture, {
+    publicActivityReader: () => () => Promise.resolve(null),
     networkAvailable: () => true,
     networkOnlineEvent: '0xdmme-network-online',
     networkOfflineEvent: '0xdmme-network-offline',
