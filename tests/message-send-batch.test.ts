@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sendFixture } from './fixtures/message-send.ts';
-import { prepareEvent } from '../src/client/device-operations/index.ts';
-import { createIdentity } from '../src/client/device-keys/index.ts';
+import {
+  freshKeyring,
+  prepareEvent,
+} from '../src/client/device-operations/index.ts';
+import { aesKey, createIdentity } from '../src/client/device-keys/index.ts';
+import { MessageCrypto } from '../src/client/message-crypto/index.ts';
+import {
+  createRecoveryKey,
+  openRecoveryKey,
+  openRoomKey,
+} from '../src/client/message-recovery/index.ts';
+import type { DirectoryEvent } from '../src/shared/devices/index.ts';
 import type { groupParticipant } from './fixtures/group-participant.ts';
 import { eventHash } from '../src/shared/devices/index.ts';
 import type { VaultWorkOptions } from '../src/client/vault-authority/index.ts';
@@ -293,24 +303,162 @@ await test('two stale refusals leave the same draft durable and never loop', asy
   assert.equal(f.publications.length, 0);
 });
 
-await test('an unrelated publication failure is surfaced once and keeps verified material for the next draft', async (t) => {
+for (const status of [403, 409, 429, 503]) {
+  await test(`an unrelated HTTP ${status} is surfaced once and keeps verified material for the next draft`, async (t) => {
+    const f = await sendFixture();
+    t.after(f.close);
+    f.state.retainMachine = true;
+    await f.queue();
+    await f.controller.sendPending({ priority: 'interactive' });
+    const before = f.requests.length;
+    await f.queue();
+    f.state.failPublish = true;
+    f.state.publishFailureStatus = status;
+    await assert.rejects(
+      f.controller.sendPending({ priority: 'interactive' }),
+      /Synthetic publication failure/u,
+    );
+    assert.deepEqual(f.requests.slice(before), ['publish']);
+    f.state.failPublish = false;
+    await f.controller.sendPending({ priority: 'interactive' });
+    const next = f.requests.length;
+    await f.queue();
+    await f.controller.sendPending({ priority: 'interactive' });
+    assert.deepEqual(f.requests.slice(next), ['publish']);
+  });
+}
+
+async function rotateAfterLink(
+  participant: Awaited<ReturnType<typeof groupParticipant>>,
+  previous: DirectoryEvent,
+) {
+  const ring = freshKeyring(participant.accountId, participant.ring);
+  const event = await prepareEvent({
+    accountId: participant.accountId,
+    previous,
+    kind: 'revoke',
+    signer: participant.deviceId,
+    signing: participant.signing,
+    root: previous.root,
+    identities: [participant.identity.public],
+    ring,
+    profile: null,
+  });
+  return {
+    event,
+    authority: {
+      ...participant.authority,
+      directory: await eventHash(event),
+      epoch: ring.epoch,
+      events: [participant.directory, previous, event],
+      key: (epoch: number) => aesKey(ring.keys[epoch - 1]!),
+    },
+  };
+}
+
+for (const change of [
+  'peer-added',
+  'peer-revoked',
+  'own-recovery-rotated',
+] as const) {
+  await test(`verified material refreshes after ${change} and preserves the next message ID`, async (t) => {
+    const f = await sendFixture();
+    t.after(f.close);
+    f.state.retainMachine = true;
+    const linked = await linkedDirectory(
+      change === 'own-recovery-rotated' ? f.sender : f.peer,
+    );
+    if (change === 'peer-revoked') f.state.peerEvents.push(linked);
+    if (change === 'own-recovery-rotated')
+      f.state.authority = {
+        ...f.sender.authority,
+        directory: await eventHash(linked),
+        events: [f.sender.directory, linked],
+      };
+    await f.queue();
+    await f.controller.sendPending({ priority: 'interactive' });
+    let peerAuthority = f.peer.authority;
+    if (change === 'peer-added') f.state.peerEvents.push(linked);
+    else {
+      const rotated = await rotateAfterLink(
+        change === 'peer-revoked' ? f.peer : f.sender,
+        linked,
+      );
+      if (change === 'peer-revoked') {
+        f.state.peerEvents.push(rotated.event);
+        peerAuthority = rotated.authority;
+        f.state.peerRecovery = await createRecoveryKey(peerAuthority);
+      } else {
+        f.state.authority = rotated.authority;
+        f.state.recovery = await createRecoveryKey(rotated.authority);
+      }
+    }
+    const before = f.requests.length;
+    const id = await f.queue();
+    await f.controller.sendPending({ priority: 'interactive' });
+    const calls = f.requests.slice(before);
+    assert.equal(
+      calls[0],
+      change === 'own-recovery-rotated' ? 'send-preparation' : 'publish',
+    );
+    assert.equal(
+      calls.filter((op) => op === 'publish').length,
+      change === 'own-recovery-rotated' ? 1 : 2,
+    );
+    assert.equal(calls.filter((op) => op === 'send-preparation').length, 1);
+    const packet = f.publications.at(-1)!;
+    assert.equal(packet.id, id);
+    assert.equal(
+      packet.recipientDirectory,
+      await eventHash(f.state.peerEvents.at(-1)!),
+    );
+    assert.equal(f.publications.filter((p) => p.id === id).length, 1);
+    assert.equal(f.records.size, 0);
+    // A new or remaining device can recover without an old SDK session.
+    const reader = await MessageCrypto.create({
+      accountId: f.peer.accountId,
+      deviceId:
+        change === 'peer-added'
+          ? linked.devices.find((d) => d.id !== f.peer.deviceId)!.id
+          : f.peer.deviceId,
+      store: null,
+      transport: () =>
+        Promise.reject(new Error('Recovery needs no transport.')),
+    });
+    t.after(() => reader.close());
+    const secret = await openRecoveryKey(f.state.peerRecovery, peerAuthority);
+    try {
+      const archive = packet.archives.find(
+        (a) => a.accountId === f.peer.accountId,
+      )!;
+      assert.equal(archive.keyId, f.state.peerRecovery.id);
+      assert.equal(
+        await reader.decrypt({
+          packet,
+          senderEvent: f.state.authority.events.at(-1)!,
+          exported: openRoomKey(secret, archive),
+        }),
+        'Synthetic sender regression text',
+      );
+    } finally {
+      secret.free();
+    }
+  });
+}
+
+await test('a stale key envelope refreshes the directory before retrying the same draft', async (t) => {
   const f = await sendFixture();
   t.after(f.close);
-  f.state.retainMachine = true;
-  await f.queue();
+  const next = await linkedDirectory(f.peer);
+  f.state.staleKeysCount = 1;
+  f.state.beforeKeys = () => {
+    f.state.beforeKeys = undefined;
+    f.state.peerEvents.push(next);
+  };
+  const id = await f.queue();
   await f.controller.sendPending({ priority: 'interactive' });
-  const before = f.requests.length;
-  await f.queue();
-  f.state.failPublish = true;
-  await assert.rejects(
-    f.controller.sendPending({ priority: 'interactive' }),
-    /Synthetic publication failure/u,
-  );
-  assert.deepEqual(f.requests.slice(before), ['publish']);
-  f.state.failPublish = false;
-  await f.controller.sendPending({ priority: 'interactive' });
-  const next = f.requests.length;
-  await f.queue();
-  await f.controller.sendPending({ priority: 'interactive' });
-  assert.deepEqual(f.requests.slice(next), ['publish']);
+  assert.equal(f.requests.filter((op) => op === 'send-preparation').length, 2);
+  assert.equal(f.publications.length, 1);
+  assert.equal(f.publications[0]?.id, id);
+  assert.equal(f.publications[0]?.recipientDirectory, await eventHash(next));
 });

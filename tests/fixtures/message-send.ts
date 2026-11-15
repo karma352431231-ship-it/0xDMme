@@ -123,6 +123,8 @@ export async function sendFixture() {
   const state = {
     authority: sender.authority,
     peerEvents: [peer.directory],
+    recovery,
+    peerRecovery,
     beforeAuthority: undefined as ((count: number) => void) | undefined,
     beforePublish: undefined as (() => void) | undefined,
     beforeKeys: undefined as (() => void) | undefined,
@@ -134,6 +136,8 @@ export async function sendFixture() {
     combinedPreparation: true,
     retainMachine: false,
     stalePublishCount: 0,
+    staleKeysCount: 0,
+    publishFailureStatus: 503,
     preparationOffsets: [] as number[],
     failPublish: false,
     closedMachines: 0,
@@ -245,11 +249,19 @@ export async function sendFixture() {
     if (state.failPublish)
       return Response.json(
         { error: 'Synthetic publication failure' },
-        { status: 503 },
+        { status: state.publishFailureStatus },
       );
     const packet = messagePacket(payload['packet']);
     if (
-      packet.recipientDirectory !== (await eventHash(state.peerEvents.at(-1)!))
+      packet.recipientDirectory !==
+        (await eventHash(state.peerEvents.at(-1)!)) ||
+      packet.archives.some(
+        (archive) =>
+          archive.keyId !==
+          (archive.accountId === sender.accountId
+            ? state.recovery.id
+            : state.peerRecovery.id),
+      )
     )
       return Response.json(
         {
@@ -271,6 +283,16 @@ export async function sendFixture() {
     payload: Record<string, unknown>,
   ) => {
     if (operation === 'matrix-send') state.beforeKeys?.();
+    if (operation === 'matrix-send' && state.staleKeysCount > 0) {
+      state.staleKeysCount--;
+      return Response.json(
+        {
+          error: 'Synthetic revoked key recipient',
+          code: 'stale-send-material',
+        },
+        { status: 403 },
+      );
+    }
     return Response.json(
       await transport.transport(
         operation as Parameters<typeof transport.transport>[0],
@@ -293,7 +315,7 @@ export async function sendFixture() {
     state.preparationOffsets.push(after);
     return Response.json({
       directory,
-      recovery: { own: recovery, peer: peerRecovery },
+      recovery: { own: state.recovery, peer: state.peerRecovery },
     });
   };
   const respond = async (path: string, input: RequestInit) => {
@@ -305,8 +327,8 @@ export async function sendFixture() {
       payload = object(body['payload']);
     if (operation === 'peer-directory' || operation === 'send-preparation')
       return prepareDirectory(operation, Number(payload['after']));
-    if (operation === 'recovery-current') return Response.json(recovery);
-    if (operation === 'recovery-peer') return Response.json(peerRecovery);
+    if (operation === 'recovery-current') return Response.json(state.recovery);
+    if (operation === 'recovery-peer') return Response.json(state.peerRecovery);
     if (operation.startsWith('matrix-'))
       return matrixResponse(operation, payload);
     if (operation === 'publish') return publish(payload);

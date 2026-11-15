@@ -230,7 +230,7 @@ const access = {
 await test('warm group send prepares governance and directories in one request, with an old-server fallback', async (t) => {
   const { machine, transport } = await warm();
   t.after(() => machine.close());
-  const state = period(2),
+  let state = period(2),
     head = await groupEventHash(state);
   const sample = await machine.encryptGroup(message(transport));
   const stored = storedDraft(t, sample);
@@ -241,7 +241,7 @@ await test('warm group send prepares governance and directories in one request, 
   const scope = { groupId: state.groupId, head };
   const calls: string[] = [];
   let oldServer = false;
-  const history = { events: [], revision: state.revision, head };
+  let history = { events: [], revision: state.revision, head };
   const directories = {
     directories: await Promise.all(
       participants.map(async (p) => ({
@@ -315,6 +315,17 @@ await test('warm group send prepares governance and directories in one request, 
     'group-message-publish',
   ]);
   assert.deepEqual(await send(), ['group-history', 'group-message-publish']);
+  // Another verified governance operation has advanced the cached period.
+  // Reusing the old participants must not reuse its old Matrix trust.
+  state = period(3);
+  head = await groupEventHash(state);
+  history = { events: [], revision: state.revision, head };
+  assert.deepEqual(await send(), [
+    'group-history',
+    'group-send-preparation',
+    'group-matrix-query',
+    'group-message-publish',
+  ]);
   assert.equal(
     preparation.shouldRefresh(new AccountError(409, 'Quota reached.')),
     false,
