@@ -376,6 +376,7 @@ def backup_review(candidate, live):
 
 # Migration count → its reviewed transition module (review() and activate()).
 TRANSITIONS = {
+    111: 'deploy_notification_cursors',
     110: 'deploy_group_pins',
     109: 'deploy_group_chat',
     107: 'deploy_view_once',
@@ -1041,7 +1042,8 @@ def activate(config, work):
     if own_state() != before:
         raise RuntimeError('Own configuration/database service changed.')
     if (database_files(candidate) != database_files(DATA / 'release')
-            and not database_code_reviewed(candidate, DATA / 'release')):
+            and (schema_transition_requested(config)
+                 or not database_code_reviewed(candidate, DATA / 'release'))):
         # Any unreviewed database change was rejected by prepare()/compatibility().
         count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
         if count in TRANSITIONS:

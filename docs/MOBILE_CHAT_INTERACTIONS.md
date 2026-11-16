@@ -293,3 +293,9 @@ count and message push candidates. It records the latest eligible sequence at
 the time of the action. Later messages stay unread. Handle conversations use
 their existing encrypted per-device unread cursor. This action sends no read
 receipt and does neither delivery acknowledgement nor history retrieval.
+
+The first VPS release uses the existing deployment executor with
+`--notification-cursors`. The reviewed predecessor has schema 110. The
+executor checks the exact sources, rehearses the backup restore, verifies
+that the two new columns start at zero and compares all existing rows and
+checksums before reopening the app.
