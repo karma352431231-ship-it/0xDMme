@@ -2,7 +2,10 @@ import { AccountError } from '../../shared/account/index.ts';
 import { conversationPreview } from '../conversation-preview/index.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { loadingPresentation } from '../chat-sync-diagnostics/index.ts';
-import { WorkInterruption } from '../synchronization-work/index.ts';
+import {
+  WorkInterruption,
+  workInterruption,
+} from '../synchronization-work/index.ts';
 import { IncompleteGroupIndex } from './message-index.ts';
 import { groupMessageView } from './message-content.ts';
 import type { GroupView } from './reader.ts';
@@ -86,15 +89,15 @@ export class GroupPreviews {
     for (const [id, loading] of this.loading)
       loading.presented(host, id === '' || groups.includes(id));
   }
-  step(): Promise<boolean> {
+  step(shouldYield: () => boolean = () => false): Promise<boolean> {
     if (this.active) return this.active;
-    const work = this.next().finally(() => {
+    const work = this.next(shouldYield).finally(() => {
       if (this.active === work) this.active = null;
     });
     this.active = work;
     return work;
   }
-  private async next(): Promise<boolean> {
+  private async next(shouldYield: () => boolean): Promise<boolean> {
     const group = this.pending.shift();
     if (!group) {
       if (this.emptyPending) {
@@ -110,22 +113,18 @@ export class GroupPreviews {
     const previous = this.records.get(id);
     const guard = () => {
       if (generation !== this.generation) throw new WorkInterruption('session');
+      if (shouldYield()) throw new WorkInterruption('scheduler');
     };
     try {
-      await this.loading.get(id)?.run(
-        async () => {
-          const views = await this.options.read(group, guard);
-          guard();
-          if (
-            this.records.get(id) !== previous ||
-            this.options.selected() === id
-          )
-            throw new WorkInterruption('replacement');
-          this.publish(id, views);
-          return views.length ? 1 : 0;
-        },
-        (error) => error instanceof IncompleteGroupIndex,
-      );
+      await this.loading.get(id)?.run(async () => {
+        guard();
+        const views = await this.options.read(group, guard);
+        guard();
+        if (this.records.get(id) !== previous || this.options.selected() === id)
+          throw new WorkInterruption('replacement');
+        this.publish(id, views);
+        return views.length ? 1 : 0;
+      }, canResumePreview);
       this.options.changed();
     } catch (error: unknown) {
       this.failedRead({ error, generation, group, previous });
@@ -140,7 +139,7 @@ export class GroupPreviews {
   }): void {
     const { error, generation, group, previous } = input;
     if (generation !== this.generation) return;
-    if (error instanceof IncompleteGroupIndex) {
+    if (canResumePreview(error)) {
       this.pending.push(group);
       return;
     }
@@ -152,4 +151,11 @@ export class GroupPreviews {
     this.options.failed(error);
     this.options.changed();
   }
+}
+
+function canResumePreview(error: unknown): boolean {
+  return (
+    error instanceof IncompleteGroupIndex ||
+    workInterruption(error)?.origin === 'scheduler'
+  );
 }

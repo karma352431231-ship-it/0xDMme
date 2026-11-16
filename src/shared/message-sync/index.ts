@@ -26,6 +26,8 @@ export const messageSyncConflict =
   'Message deletion or authorization changed. Reconcile the affected history.';
 export const messageChangeRetention = 256;
 export const messageChangePageIds = 256;
+export const messageDeliveryBatchSize = 18;
+export const messageSyncDeliveryBatchSize = 64;
 export function syncSnapshot(input: unknown): MessageSyncSnapshot {
   const d = object(input);
   keys(d, [

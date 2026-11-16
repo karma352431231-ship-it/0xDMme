@@ -641,7 +641,10 @@ export function startMessages(
     },
     groups: () =>
       groups.refreshDirectory(false, controller.takeStartupIdentities()),
-    groupPreviews: () => groups.prepareDirectoryPreviews(),
+    groupPreviews: () =>
+      groups.prepareDirectoryPreviews(
+        () => synchronization.shouldYieldMaintenance,
+      ),
     settled: () => {
       options.directorySettled?.(session);
       startupWarmup.resume();

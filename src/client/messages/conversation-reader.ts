@@ -46,7 +46,7 @@ import {
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { probeConfirmed } from './confirmed-probe.ts';
 import { readIncrementalWindow } from './incremental-window.ts';
-import { readDelivery } from './delivery.ts';
+import { readHistoryDelivery } from './delivery.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
 import {
   conversationHistory,
@@ -527,8 +527,7 @@ export class ConversationReader {
                       { a, generation, api, snapshot, items },
                       trace,
                     ),
-                  delivery: (views) =>
-                    this.refreshDelivery(snapshot, generation, views, a),
+                  delivery: (views) => this.refreshDelivery(read, views),
                 })
               : null;
           if (incremental)
@@ -662,12 +661,7 @@ export class ConversationReader {
       },
       trace,
     );
-    const delivered = await this.refreshDelivery(
-      snapshot,
-      generation,
-      ordered,
-      a,
-    );
+    const delivered = await this.refreshDelivery(c, ordered);
     const projected = await timedLoad(trace, 'local-history', () =>
       this.includeHistory(a, delivered, generation, before),
     );
@@ -1080,19 +1074,19 @@ export class ConversationReader {
     }
   }
   private async refreshDelivery(
-    snapshot: unknown,
-    generation: number,
+    read: Pick<PageRead, 'a' | 'snapshot' | 'generation' | 'trace'>,
     views: readonly MessageView[],
-    authority: VaultAuthority,
   ): Promise<MessageView[]> {
-    return readDelivery({
-      snapshot,
-      views,
-      api: (operation, payload) =>
-        messageApi(authority, operation, payload, () =>
-          this.authority.guard(generation),
-        ),
-    });
+    return timedLoad(read.trace, 'delivery', () =>
+      readHistoryDelivery({
+        snapshot: read.snapshot,
+        views,
+        api: (operation, payload) =>
+          messageApi(read.a, operation, payload, () =>
+            this.authority.guard(read.generation),
+          ),
+      }),
+    );
   }
   async openOffline(peer: string | null, trace?: LoadTrace): Promise<void> {
     if (networkAvailable())

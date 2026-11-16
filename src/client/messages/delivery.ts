@@ -1,4 +1,10 @@
 import { object } from '../../shared/account/index.ts';
+import {
+  isSyncSnapshot,
+  messageDeliveryBatchSize,
+  messageSyncDeliveryBatchSize,
+} from '../../shared/message-sync/index.ts';
+import { ApiResponseError } from '../api-response/index.ts';
 import { messageStates } from '../message-state/index.ts';
 
 export interface DeliveryView {
@@ -18,17 +24,66 @@ type DeliveryApi = (
 ) => Promise<unknown>;
 
 /** The caller owns the authenticated authority and final snapshot check. */
-export async function readDelivery<T extends DeliveryView>(input: {
+interface DeliveryRead<T extends DeliveryView> {
   api: DeliveryApi;
   snapshot: unknown;
   views: readonly T[];
-}): Promise<T[]> {
-  const states = new Map<string, DeliveryState>();
+}
+
+/** The finite history reader can refresh current delivery in fewer requests.
+ * An older server rejects oversized batches before reading. Authorization,
+ * transport and snapshot errors still propagate to the history owner. */
+export async function readHistoryDelivery<T extends DeliveryView>(
+  input: DeliveryRead<T>,
+): Promise<T[]> {
   const online = input.views.filter((view) => !view.archived);
-  for (let offset = 0; offset < online.length; offset += 18) {
+  if (
+    !isSyncSnapshot(input.snapshot) ||
+    online.length <= messageDeliveryBatchSize
+  )
+    return readDeliveryBatches(input, online, messageDeliveryBatchSize);
+  try {
+    return await readDeliveryBatches(
+      input,
+      online,
+      messageSyncDeliveryBatchSize,
+    );
+  } catch (error: unknown) {
+    if (!legacyBatchLimit(error)) throw error;
+    return readDeliveryBatches(input, online, messageDeliveryBatchSize);
+  }
+}
+
+export function readDelivery<T extends DeliveryView>(
+  input: DeliveryRead<T>,
+): Promise<T[]> {
+  return readDeliveryBatches(
+    input,
+    input.views.filter((view) => !view.archived),
+    messageDeliveryBatchSize,
+  );
+}
+
+function legacyBatchLimit(error: unknown): boolean {
+  return (
+    error instanceof ApiResponseError &&
+    error.operation === 'messages/delivery' &&
+    error.status === 400 &&
+    error.failure === 'http' &&
+    error.reason === 'Invalid batch.'
+  );
+}
+
+async function readDeliveryBatches<T extends DeliveryView>(
+  input: DeliveryRead<T>,
+  online: readonly T[],
+  batchSize: number,
+): Promise<T[]> {
+  const states = new Map<string, DeliveryState>();
+  for (let offset = 0; offset < online.length; offset += batchSize) {
     const raw = await input.api('delivery', {
       snapshot: input.snapshot,
-      ids: online.slice(offset, offset + 18).map((view) => view.id),
+      ids: online.slice(offset, offset + batchSize).map((view) => view.id),
     });
     if (!Array.isArray(raw)) throw new Error('Invalid delivery state.');
     const values: unknown[] = raw;

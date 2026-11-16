@@ -7,7 +7,11 @@ import type { TestContext } from 'node:test';
 import type { MessagePacket } from '../../src/shared/messages/index.ts';
 import type { MessageRelation } from '../../src/shared/daily/index.ts';
 import { messageItems } from '../../src/client/messages/history.ts';
-import { syncSnapshot } from '../../src/shared/message-sync/index.ts';
+import {
+  messageSyncDeliveryBatchSize,
+  syncSnapshot,
+} from '../../src/shared/message-sync/index.ts';
+import { object } from '../../src/shared/account/index.ts';
 import { digest } from '../../src/shared/devices/index.ts';
 
 interface SyncUser {
@@ -81,6 +85,32 @@ export async function signedMessageSyncContract<U extends SyncUser>(
         { status: 409 },
       );
       const future = accepted.at(-1)!;
+      const ids = [future.id, ...seen];
+      while (ids.length < messageSyncDeliveryBatchSize)
+        ids.push(crypto.randomUUID());
+      const delivery = await p.op(recipient, 'delivery', {
+        snapshot: cut,
+        ids,
+      });
+      assert.ok(Array.isArray(delivery));
+      assert.deepEqual(
+        new Set(delivery.map((row: unknown) => object(row)['id'])),
+        new Set(seen),
+      );
+      await assert.rejects(
+        p.op(recipient, 'delivery', {
+          snapshot: cut,
+          ids: [...ids, crypto.randomUUID()],
+        }),
+        { status: 400 },
+      );
+      await assert.rejects(
+        p.op(recipient, 'delivery', {
+          snapshot: legacy,
+          ids: ids.slice(0, 19),
+        }),
+        { status: 400 },
+      );
       await assert.rejects(
         p.op(recipient, 'object', { snapshot: cut, id: future.id }),
         { status: 404 },

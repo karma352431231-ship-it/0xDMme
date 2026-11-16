@@ -195,3 +195,28 @@ await test('visible pages are bounded and selected/local-only groups use their e
   assert.ok(!f.calls.includes(selected.state.groupId));
   assert.ok(!f.calls.includes(local.state.groupId));
 });
+
+await test('a preview waiting for authority yields to foreground history and remains queued', async () => {
+  const f = fixture(),
+    summary = group(),
+    admitted = deferred<void>();
+  let foreground = false;
+  const read = f.options.read;
+  f.options.read = async (candidate, guard) => {
+    await admitted.promise;
+    return read(candidate, guard);
+  };
+  f.previews.queue([summary]);
+  const running = f.previews.step(() => foreground);
+  foreground = true;
+  admitted.resolve();
+  assert.equal(await running, true);
+  assert.deepEqual(f.calls, []);
+  assert.equal(f.previews.get(summary.state.groupId), undefined);
+  assert.deepEqual(f.errors, []);
+
+  foreground = false;
+  assert.equal(await f.previews.step(() => foreground), false);
+  assert.deepEqual(f.calls, [summary.state.groupId]);
+  assert.equal(f.previews.get(summary.state.groupId)?.text, summary.title);
+});

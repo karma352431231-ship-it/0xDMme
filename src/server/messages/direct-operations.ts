@@ -15,6 +15,11 @@ import { digest } from '../../shared/devices/index.ts';
 import { messagePacket, verifyPacket } from '../../shared/messages/index.ts';
 import type { AttachmentService } from '../attachments/index.ts';
 import { messageSyncOperations } from './sync.ts';
+import {
+  isSyncSnapshot,
+  messageDeliveryBatchSize,
+  messageSyncDeliveryBatchSize,
+} from '../../shared/message-sync/index.ts';
 interface DirectMessagePorts {
   messages: Database['messages'];
   contacts: Pick<Database['contacts'], 'playbackAllowed' | 'directory'>;
@@ -96,10 +101,14 @@ export function directMessageOperations(
     },
     delivery: (a, d) => {
       keys(d, ['snapshot', 'ids']);
-      if (!Array.isArray(d['ids']) || d['ids'].length > 18)
+      const cut = snapshot(d['snapshot']);
+      const maximum = isSyncSnapshot(cut)
+        ? messageSyncDeliveryBatchSize
+        : messageDeliveryBatchSize;
+      if (!Array.isArray(d['ids']) || d['ids'].length > maximum)
         throw new AccountError(400, 'Invalid batch.');
       return input.messages.delivery(a, {
-        snapshot: snapshot(d['snapshot']),
+        snapshot: cut,
         ids: d['ids'].map(uuid),
       });
     },

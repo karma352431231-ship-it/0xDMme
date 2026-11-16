@@ -2,6 +2,7 @@ import { canonical } from '../../shared/devices/index.ts';
 import { object } from '../../shared/account/index.ts';
 import {
   isSyncSnapshot,
+  messageDeliveryBatchSize,
   syncSnapshot,
 } from '../../shared/message-sync/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -64,7 +65,7 @@ async function probeFiniteCut<T extends DeliveryView, Publication>(input: {
 }): Promise<T[] | null> {
   const ids = input.candidate.views
     .filter((view) => !view.archived)
-    .slice(0, 18)
+    .slice(0, messageDeliveryBatchSize)
     .map((view) => view.id);
   const value = object(
     await input.api('sync-probe', { from: input.snapshot, ids }),

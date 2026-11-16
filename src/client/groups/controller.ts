@@ -937,8 +937,8 @@ export class GroupController {
     guard();
     return views;
   }
-  prepareDirectoryPreviews(): Promise<boolean> {
-    return this.previews.step();
+  prepareDirectoryPreviews(shouldYield: () => boolean): Promise<boolean> {
+    return this.previews.step(shouldYield);
   }
   previewPresented(host: HTMLElement, groups: readonly string[]): void {
     this.previews.presented(host, groups);

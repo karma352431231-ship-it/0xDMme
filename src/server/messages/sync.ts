@@ -4,7 +4,10 @@ import {
   object,
   uuid,
 } from '../../shared/account/index.ts';
-import { syncSnapshot } from '../../shared/message-sync/index.ts';
+import {
+  messageDeliveryBatchSize,
+  syncSnapshot,
+} from '../../shared/message-sync/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import type { ContactAuthority, MessageStore } from '../database/index.ts';
 
@@ -14,7 +17,7 @@ export function messageSyncOperations(store: MessageStore) {
     'sync-probe': (a: ContactAuthority, data: Record<string, unknown>) => {
       keys(data, ['from', 'ids']);
       const ids = data['ids'];
-      if (!Array.isArray(ids) || ids.length > 18)
+      if (!Array.isArray(ids) || ids.length > messageDeliveryBatchSize)
         throw new AccountError(400, 'Invalid delivery probe.');
       return store.syncProbe(a, {
         from: syncSnapshot(data['from']),

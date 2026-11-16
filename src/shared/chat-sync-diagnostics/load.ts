@@ -90,6 +90,7 @@ export const loadStages = [
   'work',
   'request',
   'local-history',
+  'delivery',
   'packet-verify',
   'confirm',
   'start',

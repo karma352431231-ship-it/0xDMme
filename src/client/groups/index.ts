@@ -627,7 +627,8 @@ export function startGroups(
     refresh,
     refreshDirectory,
     finishDirectoryRefresh,
-    prepareDirectoryPreviews: () => controller.prepareDirectoryPreviews(),
+    prepareDirectoryPreviews: (shouldYield: () => boolean) =>
+      controller.prepareDirectoryPreviews(shouldYield),
     previewPresented: (host: HTMLElement, groups: readonly string[]) =>
       controller.previewPresented(host, groups),
     directoryPresented: (host: HTMLElement, matchingRows: boolean) =>

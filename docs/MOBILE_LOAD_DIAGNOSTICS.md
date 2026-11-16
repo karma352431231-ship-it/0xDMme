@@ -300,3 +300,24 @@ Captures remain bounded by the existing session and report limits. Inspect
 `window.__0xdmmeLag.stop()` and save the JSON locally if needed. History spans
 record fixed labels, elapsed times and row counts through the existing
 allowlist and anonymous slots. The recorder sends no telemetry.
+
+### Private history receipt batches
+
+In the post-release capture, the page growing the window from 98 to 114 rows
+spent 746 ms on six sequential delivery reads for the already visible rows.
+Private finite-cut history now reads current delivery in batches of up to 64
+IDs. The legacy snapshot and probe limits are still 18. An older server's
+explicit oversized-batch response retries with batches of 18. Snapshot
+conflicts, authorization errors and malformed results follow the usual failure
+path. The same authenticated query checks message ownership and the finite cut,
+and publication still requires the final snapshot confirmation.
+
+Collector revision 14 reports a `delivery` stage for these receipt reads separately from the history
+index and packet requests. On the scheduling side, speculative group previews
+now yield at an existing guard when a foreground operation is waiting or
+running. The directory retains the pending preview for a later turn. Its normal
+verification and publication lifecycle still applies when resumed.
+
+Compare a deep private scroll with the prior capture, including the delivery
+request count and the time from the scroll trigger to the frame opportunity.
+Use a separate capture with a real incoming message for live-delivery latency.

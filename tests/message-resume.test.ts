@@ -1280,3 +1280,23 @@ await test('a private batch conceals unauthorized history without waiting for ot
     'late success cannot reopen unauthorized history',
   );
 });
+
+await test('a deep private history read checks current deliveries and confirms before adding the next page', async () => {
+  const { controller, data, add } = resumeFixture(true);
+  for (let index = 0; index < 80; index++)
+    await add(`Synthetic message ${index}`);
+  await controller.synchronize();
+  for (let page = 0; page < 3; page++) {
+    controller.requestOlder();
+    await controller.synchronize();
+  }
+  data.requests.length = 0;
+  controller.requestOlder();
+  await controller.synchronize();
+  assert.equal(data.requests.filter((op) => op === 'delivery').length, 2);
+  assert.equal(data.requests.at(-1), 'confirm');
+  assert.equal(
+    data.frames.at(-1)?.filter((row) => row.kind === 'text').length,
+    80,
+  );
+});

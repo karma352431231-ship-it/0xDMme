@@ -559,7 +559,7 @@ await test('group preview index continuations retain one summary and presentatio
     'group-directory',
     'group-previews',
   ]);
-  assert.equal(report.meterRevision, 13);
+  assert.equal(report.meterRevision, 14);
 });
 
 await test('history reports group, private and handle modes and ranks measured stages', (t) => {
