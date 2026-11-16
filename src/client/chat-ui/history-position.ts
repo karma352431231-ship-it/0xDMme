@@ -9,10 +9,15 @@ interface HistoryMessage {
   archived?: boolean;
   localOnly?: boolean;
 }
+interface ReadingAnchor {
+  row: Element;
+  offset: number;
+  height: number;
+}
 interface ReadingPosition {
   top: number;
   follow: boolean;
-  anchors: { row: Element; offset: number }[];
+  anchors: ReadingAnchor[];
 }
 interface HistoryState {
   position: ReadingPosition;
@@ -206,31 +211,49 @@ function restorePosition(
     history.scrollTop = history.scrollHeight;
     return;
   }
-  history.scrollTop = position.top;
-  const anchor = position.anchors.find(
-    ({ row }) => row.isConnected && row.parentElement === history,
-  );
-  if (anchor)
-    history.scrollTop += layoutLength(
-      rowOffset(history, anchor.row) - anchor.offset,
-      history,
-    );
+  const current = history.scrollTop;
+  const shift = anchorShift(history, position.anchors);
+  const target =
+    shift === undefined ? position.top : current + layoutLength(shift, history);
+  // The browser may have already compensated for the resize. Apply only
+  // the outstanding shift and avoid disturbing an unchanged scroll position.
+  if (Math.abs(target - current) >= 0.5) history.scrollTop = target;
 }
-function readingAnchors(history: HTMLElement): ReadingPosition['anchors'] {
-  if (typeof history.getBoundingClientRect !== 'function') return [];
+
+function anchorShift(
+  history: HTMLElement,
+  anchors: readonly ReadingAnchor[],
+): number | undefined {
+  if (!anchors.length) return;
   const top = history.getBoundingClientRect().top;
-  const anchors: ReadingPosition['anchors'] = [];
+  let fallback: number | undefined;
+  for (const { row, offset, height } of anchors) {
+    if (!row.isConnected || row.parentElement !== history) continue;
+    const bounds = row.getBoundingClientRect();
+    const shift = bounds.top - top - offset;
+    fallback ??= shift;
+    // A row that changed height can still occupy the same top pixel while
+    // pushing the reading below it out of view. Prefer a stable visible row.
+    if (Math.abs(bounds.bottom - bounds.top - height) < 1) return shift;
+  }
+  return fallback;
+}
+
+function readingAnchors(history: HTMLElement): ReadingAnchor[] {
+  if (typeof history.getBoundingClientRect !== 'function') return [];
+  const viewport = history.getBoundingClientRect();
+  const anchors: ReadingAnchor[] = [];
   for (const row of history.children) {
     const bounds = row.getBoundingClientRect();
-    if (bounds.bottom <= top) continue;
-    anchors.push({ row, offset: bounds.top - top });
-    if (anchors.length === 4) break;
+    if (bounds.top >= viewport.bottom) break;
+    if (bounds.bottom <= viewport.top) continue;
+    const height = bounds.bottom - bounds.top;
+    if (height > 0)
+      anchors.push({ row, offset: bounds.top - viewport.top, height });
   }
   return anchors;
 }
-function rowOffset(history: HTMLElement, row: Element): number {
-  return row.getBoundingClientRect().top - history.getBoundingClientRect().top;
-}
+
 function messageSequence(row: HistoryMessage): number {
   return row.archived || row.localOnly || row.relation || row.kind === 'profile'
     ? 0

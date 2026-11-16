@@ -136,6 +136,15 @@ observation follows the reconciled DOM. Removed rows and the existing abort
 lifetime release their observations. This applies to private, group and handle
 chats through their existing position-restoration callbacks.
 
+When several photos resolve while a conversation is open, the position owner
+now prefers a stable row that was visible immediately before the resize. A
+partially visible photo can keep its top edge in place as its height expands,
+so using that photo as the anchor would push the text below it out of view.
+The shared scroller keeps the reading offset of a stable row, including when
+four placeholders grow in one layout. A photo being read on its own stays
+anchored. While preserving a reading offset, the scroller applies only the
+correction still needed after the browser's own scroll anchoring.
+
 The modal emoji selector initially focuses its close button, so opening reactions does
 not select search or summon the keyboard. Search receives focus on an explicit
 press or keyboard navigation. The composer attachment menu sizes its columns to

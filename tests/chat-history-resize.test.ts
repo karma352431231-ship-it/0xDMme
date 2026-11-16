@@ -52,6 +52,7 @@ function fixture(t: TestContext) {
     getAttribute: (name: string) => attributes.get(name) ?? null,
   });
   let attached = 0;
+  let scrollWrites = 0;
   const history = Object.assign(new EventTarget(), {
     hidden: false,
     clientWidth: 360,
@@ -59,7 +60,10 @@ function fixture(t: TestContext) {
     scrollHeight: 1200,
     childElementCount: 12,
     children: [] as Element[],
-    getBoundingClientRect: () => ({ top: 0 }),
+    getBoundingClientRect: (): { top: number; bottom: number } => ({
+      top: 0,
+      bottom: history.clientHeight,
+    }),
     ownerDocument: { createElement: () => button },
     after: () => {
       attached++;
@@ -69,6 +73,7 @@ function fixture(t: TestContext) {
   Object.defineProperty(history, 'scrollTop', {
     get: () => top,
     set: (value: number) => {
+      scrollWrites++;
       top = Math.max(
         0,
         Math.min(value, history.scrollHeight - history.clientHeight),
@@ -113,6 +118,7 @@ function fixture(t: TestContext) {
       history.scrollHeight += amount;
     },
     attached: () => attached,
+    scrollWrites: () => scrollWrites,
   };
 }
 
@@ -145,11 +151,46 @@ for (const browserAnchored of [false, true])
     f.grow(0, 400);
     if (browserAnchored) f.element.scrollTop += 400;
     f.history.dispatchEvent(new Event('scroll'));
+    const writes = f.scrollWrites();
     f.observers[0]!.resize(f.rows[0]);
     assert.equal(anchor.getBoundingClientRect().top, offset);
     assert.equal(f.element.scrollTop, 640);
+    assert.equal(f.scrollWrites() - writes, browserAnchored ? 0 : 1);
     assert.equal(f.button.hidden, false);
   });
+
+for (const simultaneous of [false, true])
+  await test(`text below four enlarging images holds its viewport offset, simultaneous=${simultaneous}`, (t) => {
+    const f = fixture(t);
+    f.scroll(simultaneous ? 40 : 340);
+    const reading = f.rows[4]!;
+    const offset = reading.getBoundingClientRect().top;
+    for (const [index, height] of [270, 400, 128, 500].entries()) {
+      f.grow(index, height);
+      if (!simultaneous) {
+        f.observers[0]!.resize(f.rows[index]);
+        assert.equal(reading.getBoundingClientRect().top, offset);
+      }
+    }
+    if (simultaneous) {
+      f.observers[0]!.resize();
+      assert.equal(reading.getBoundingClientRect().top, offset);
+    }
+  });
+
+await test('when the enlarging photo is the only visible row, its reading offset stays in place', (t) => {
+  const f = fixture(t);
+  f.grow(3, 500);
+  f.observers[0]!.resize(f.rows[3]);
+  f.scroll(410);
+  const reading = f.rows[3]!;
+  const offset = reading.getBoundingClientRect().top;
+  const previous = f.scrollWrites();
+  f.grow(3, 180);
+  f.observers[0]!.resize(reading);
+  assert.equal(reading.getBoundingClientRect().top, offset);
+  assert.equal(f.scrollWrites(), previous);
+});
 
 await test('new message rows are observed after a paint and removed rows are released with their lifetime', (t) => {
   const f = fixture(t);
