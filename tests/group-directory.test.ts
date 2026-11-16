@@ -282,7 +282,11 @@ function dom(t: TestContext) {
   });
   t.mock.method(URL, 'createObjectURL', () => 'blob:private-group');
   t.mock.method(URL, 'revokeObjectURL', (value: string) => revoked.push(value));
-  return { list: list as unknown as HTMLElement, revoked };
+  return {
+    list: list as unknown as HTMLElement,
+    revoked,
+    document: globals.document,
+  };
 }
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -593,11 +597,11 @@ await test('missing or unavailable private photos retain group initials in both 
 
 for (const language of ['en', 'zh-CN'] as const)
   await test(`group preparation shows loading only before its first verified window in ${language}`, async (t) => {
-    dom(t);
+    const { document } = dom(t);
     setActiveLanguage(language);
     const current = group(),
       notice = new CommunityNode(),
-      history = new CommunityNode(),
+      history = Object.assign(new CommunityNode(), { ownerDocument: document }),
       host = Object.assign(new CommunityNode(), { insertAdjacentHTML() {} }),
       aside = new CommunityNode();
     const nodes = new Map([

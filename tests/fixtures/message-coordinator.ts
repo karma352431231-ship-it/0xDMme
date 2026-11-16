@@ -204,6 +204,7 @@ export function coordinatorFixture(
   const fixture: Record<string, unknown> = {};
   for (const names of exports.values())
     for (const name of names) fixture[name] = noop;
+  fixture.historyWait = () => noop;
   fixture.t = (text: string) => text;
   fixture.translatedError = (text: string) => text;
   for (const name of [
@@ -272,6 +273,7 @@ export function coordinatorFixture(
         options.composerChanged();
       },
       clearMedia: noop,
+      checkOlder: noop,
       markRead: () => {
         calls.push('read');
         return Promise.resolve();
