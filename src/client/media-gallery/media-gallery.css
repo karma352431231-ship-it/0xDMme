@@ -171,25 +171,3 @@ dialog.media-gallery button.media-gallery-row:hover {
 .media-gallery-notice:empty {
   display: none;
 }
-.media-gallery-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--line);
-}
-.media-gallery-footer small {
-  color: var(--text-muted);
-  font-size: var(--fs-caption);
-}
-dialog.media-gallery .media-gallery-footer button {
-  padding: 8px 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text);
-  font: inherit;
-  font-size: var(--fs-small);
-  cursor: pointer;
-}

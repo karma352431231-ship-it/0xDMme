@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dmUnreadCount } from '../src/client/social-dm/unread.ts';
+import {
+  dmUnreadCount,
+  latestDmNotification,
+} from '../src/client/social-dm/unread.ts';
 import { DmUnreadUpdates } from '../src/client/communities/dm-unread-updates.ts';
 import { deferred } from './fixtures/deferred.ts';
 
@@ -39,6 +42,20 @@ await test('public unread counts use local cursors, deduplicate metadata and rej
       ],
       cursors,
     ),
+  );
+});
+
+await test('marking one handle conversation ignores duplicates and leaves subsequent arrivals unread', () => {
+  const peer = crypto.randomUUID();
+  const other = crypto.randomUUID();
+  const through = latestDmNotification([{ peer, sequences: [3, 1, 3] }], peer);
+  assert.equal(through, 3);
+  assert.equal(
+    dmUnreadCount([{ peer, sequences: [5, 3, 1] }], [{ peer, through }]),
+    1,
+  );
+  assert.throws(() =>
+    latestDmNotification([{ peer: other, sequences: [7] }], peer),
   );
 });
 

@@ -54,27 +54,38 @@ export function dmUnreadCount(
   raw: unknown,
   cursors: readonly { peer: string; through: number }[],
 ): number {
-  if (!Array.isArray(raw) || raw.length > 16)
-    throw new Error('Invalid DM page.');
   const known = new Map(cursors.map((row) => [row.peer, row.through]));
   let count = 0;
-  for (const value of raw) {
-    const row = object(value),
-      peer = uuid(row['peer']),
-      through = known.get(peer);
-    if (
-      through === undefined ||
-      !Array.isArray(row['sequences']) ||
-      row['sequences'].length > 100
-    )
-      throw new Error('Invalid DM page.');
-    known.delete(peer);
-    const sequences = new Set(
-      (row['sequences'] as unknown[]).map(socialRevision),
-    );
-    count += [...sequences].filter((sequence) => sequence > through).length;
-  }
+  for (const [peer, sequences] of unreadSequences(raw, new Set(known.keys())))
+    count += [...sequences].filter(
+      (sequence) => sequence > known.get(peer)!,
+    ).length;
   return Math.min(100, count);
+}
+
+export function latestDmNotification(raw: unknown, peer: string): number {
+  return Math.max(
+    0,
+    ...(unreadSequences(raw, new Set([peer])).get(peer) ?? []),
+  );
+}
+
+function unreadSequences(
+  raw: unknown,
+  allowed: Set<string>,
+): Map<string, Set<number>> {
+  if (!Array.isArray(raw) || raw.length > 16)
+    throw new Error('Invalid DM page.');
+  const result = new Map<string, Set<number>>();
+  for (const value of raw) {
+    const row = object(value);
+    const peer = uuid(row['peer']);
+    const values = row['sequences'];
+    if (!allowed.delete(peer) || !Array.isArray(values) || values.length > 100)
+      throw new Error('Invalid DM page.');
+    result.set(peer, new Set((values as unknown[]).map(socialRevision)));
+  }
+  return result;
 }
 export async function dmUnreadCursors(input: {
   a: VaultAuthority;

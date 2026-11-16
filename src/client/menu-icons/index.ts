@@ -29,6 +29,7 @@ const paths = {
   unfavorite: [...heart, slash],
   mute: [...bell, slash],
   unmute: bell,
+  'mark-read': ['m3 12 4 4 8-8', 'm13 15 1 1 7-8'],
   clock: [circle, 'M12 7v5l3.5 2'],
   block: [circle, 'm5.3 5.3 13.4 13.4'],
   unblock: [circle, 'm8 12.5 3 3 5-6'],

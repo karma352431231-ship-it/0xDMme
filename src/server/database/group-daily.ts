@@ -43,7 +43,7 @@ export class GroupDailyStore {
         epoch: s.epoch,
       }));
       const data = await client.query(
-        `SELECT root."group" AS peer,coalesce(c.revision,0) AS revision,coalesce(c.muted_until,0)::text AS "mutedUntil",(extract(epoch FROM cleanup.due_at)*1000)::bigint::text AS "cleanupDueAt",cleanup.selected_bytes AS "cleanupBytes",(SELECT count(*)::integer FROM hash_talk.group_packets p WHERE p.group_id=root."group" AND p.epoch>=root.joined AND p.epoch<=root.epoch AND p.sender<>$1 AND p.kind<>'profile' AND p.relation IS NULL AND p.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.group_reads r WHERE r.account_id=$1 AND r.message_id=p.id)) AS unread FROM jsonb_to_recordset($2::jsonb) root("group" uuid,joined integer,epoch integer) LEFT JOIN hash_talk.group_controls c ON c.account_id=$1 AND c.group_id=root."group" LEFT JOIN hash_talk.group_cleanups cleanup ON cleanup.group_id=root."group" AND cleanup.due_at IS NOT NULL`,
+        `SELECT root."group" AS peer,coalesce(c.revision,0) AS revision,coalesce(c.muted_until,0)::text AS "mutedUntil",(extract(epoch FROM cleanup.due_at)*1000)::bigint::text AS "cleanupDueAt",cleanup.selected_bytes AS "cleanupBytes",(SELECT count(*)::integer FROM hash_talk.group_packets p WHERE p.group_id=root."group" AND p.epoch>=root.joined AND p.epoch<=root.epoch AND p.sender<>$1 AND p.sequence>coalesce(c.notifications_through,0) AND p.kind<>'profile' AND p.relation IS NULL AND p.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.group_reads r WHERE r.account_id=$1 AND r.message_id=p.id)) AS unread FROM jsonb_to_recordset($2::jsonb) root("group" uuid,joined integer,epoch integer) LEFT JOIN hash_talk.group_controls c ON c.account_id=$1 AND c.group_id=root."group" LEFT JOIN hash_talk.group_cleanups cleanup ON cleanup.group_id=root."group" AND cleanup.due_at IS NOT NULL`,
         [a.session.accountId, JSON.stringify(request)],
       );
       return data.rows as unknown[];
@@ -71,6 +71,30 @@ export class GroupDailyStore {
       this.admission.changed(client, [a.session.accountId], {
         category: 'group-receipts',
       });
+    });
+  }
+  async dismissNotifications(
+    a: ContactAuthority,
+    input: GroupScope,
+  ): Promise<void> {
+    await this.groups.withGroupAuthority(a, input, async (client, state) => {
+      const account = a.session.accountId;
+      const joined = state.members.find(
+        (member) => member.accountId === account,
+      )?.joined;
+      const result = await client.query(
+        `INSERT INTO hash_talk.group_controls(account_id,group_id,notifications_through)
+         SELECT $1,$2,p.sequence FROM hash_talk.group_packets p
+         WHERE p.group_id=$2 AND p.epoch BETWEEN $3 AND $4 AND p.sender<>$1
+           AND p.body IS NOT NULL AND p.kind<>'profile'
+         ORDER BY p.sequence DESC LIMIT 1
+         ON CONFLICT(account_id,group_id) DO UPDATE SET notifications_through=excluded.notifications_through
+         WHERE hash_talk.group_controls.notifications_through<excluded.notifications_through`,
+        [account, input.groupId, joined, state.epoch],
+      );
+      if (!result.rowCount) return;
+      await this.budget(client, account);
+      this.admission.changed(client, [account], { category: 'group-receipts' });
     });
   }
   async read(

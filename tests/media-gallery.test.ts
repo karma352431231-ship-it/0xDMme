@@ -6,6 +6,8 @@ import {
   tileSource,
 } from '../src/client/media-gallery/index.ts';
 import type { DailyRow, DailyView } from '../src/client/daily-text/index.ts';
+import { watchGalleryHistory } from '../src/client/media-gallery/history.ts';
+import { deferred } from './fixtures/deferred.ts';
 
 function file(bytes: number) {
   return {
@@ -121,4 +123,77 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     { thumbnail: false, frameType: 'video/mp4' },
     { thumbnail: true, frameType: null },
   ]);
+});
+
+await test('the gallery fills short tabs, paginates near the bottom and discards a page after closing', async (t) => {
+  let frame: FrameRequestCallback | undefined;
+  const setFrame = (callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  };
+  const globals = {
+    requestAnimationFrame: setFrame,
+    cancelAnimationFrame: () => {
+      frame = undefined;
+    },
+  };
+  for (const [key, value] of Object.entries(globals)) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, key, previous);
+      else Reflect.deleteProperty(globalThis, key);
+    });
+  }
+  const body = Object.assign(new EventTarget(), {
+    ownerDocument: Object.assign(new EventTarget(), {
+      visibilityState: 'visible',
+    }),
+    clientHeight: 400,
+    scrollHeight: 400,
+    scrollTop: 0,
+  });
+  const notice = { textContent: '' };
+  const abort = new AbortController();
+  const first = deferred<boolean>();
+  const next = deferred<boolean>();
+  let reads = 0;
+  let paints = 0;
+  const tick = async () => {
+    const callback = frame;
+    frame = undefined;
+    callback?.(0);
+    await Promise.resolve();
+  };
+  watchGalleryHistory({
+    body: body as unknown as HTMLElement,
+    notice: notice as unknown as HTMLElement,
+    older: {
+      available: () => true,
+      load: () => (++reads === 1 ? first.promise : next.promise),
+    },
+    repaint: () => {
+      paints++;
+      body.scrollHeight = 1200;
+    },
+    signal: abort.signal,
+  });
+  await tick();
+  assert.equal(reads, 1);
+  body.dispatchEvent(new Event('scroll'));
+  await tick();
+  assert.equal(reads, 1);
+  first.resolve(true);
+  await tick();
+  await tick();
+  assert.equal(paints, 1);
+  assert.equal(reads, 1);
+  body.scrollTop = 700;
+  body.dispatchEvent(new Event('scroll'));
+  await tick();
+  assert.equal(reads, 2);
+  abort.abort();
+  next.resolve(true);
+  await tick();
+  assert.equal(paints, 1);
 });

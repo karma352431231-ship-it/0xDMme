@@ -18,6 +18,7 @@ import type {
   ConversationFilter,
 } from './directory.ts';
 import type { ConversationMenu } from './directory-menu.ts';
+import { markNotificationsReadAction } from '../conversation-menu/index.ts';
 import type { ConversationSearch } from './search.ts';
 import { organizationActions } from './directory-actions.ts';
 import { mountOfflineNotice } from '../ping/index.ts';
@@ -57,6 +58,10 @@ interface DirectoryView {
     mutePeer: string | null,
   ) => ConversationAction[];
   perform: (work: () => Promise<void>) => void;
+  markNotificationsRead: (
+    id: string,
+    kind: 'contact' | 'group',
+  ) => Promise<void>;
   openPeer: (peer: ConversationPeer) => void;
   openContact: (contact: AddressBookEntry) => void;
   openGroup: (group: Groups['entries'][number]) => void;
@@ -144,6 +149,8 @@ export class MessageDirectoryUi {
       favoriteId = this.options.agenda.id(peer);
     const settingsId = this.contactOrganizationId(saved, peer.accountId);
     const settings = this.options.daily.conversation(settingsId);
+    const unread =
+      this.options.snapshot().states.get(peer.accountId)?.unread ?? 0;
     return {
       id: peer.accountId,
       title: this.contactTitle(contact, peer),
@@ -162,12 +169,15 @@ export class MessageDirectoryUi {
       hidden: contact.removed,
       ...settings,
       favorite: this.options.daily.favorite(favoriteId),
-      unread: this.options.snapshot().states.get(peer.accountId)?.unread ?? 0,
-      actions: this.contactActions(
-        contact,
-        settingsId,
-        peer.localOnly ? null : peer.accountId,
-      ),
+      unread,
+      actions: [
+        ...this.notificationActions(peer.accountId, 'contact', unread),
+        ...this.contactActions(
+          contact,
+          settingsId,
+          peer.localOnly ? null : peer.accountId,
+        ),
+      ],
       open: () => {
         this.options.openPeer(peer);
       },
@@ -241,6 +251,7 @@ export class MessageDirectoryUi {
     return this.options.groups.entries.map((group) => {
       const id = group.state.groupId,
         settings = this.options.daily.conversation(id);
+      const unread = this.options.groups.unread(id);
       return {
         id,
         title: group.title,
@@ -268,22 +279,36 @@ export class MessageDirectoryUi {
         selected: this.options.groups.selected?.state.groupId === id,
         ...settings,
         favorite: this.options.daily.favorite(id),
-        unread: this.options.groups.unread(id),
-        actions: organizationActions({
-          daily: this.options.daily,
-          settingsId: id,
-          favoriteId: id,
-          mutePeer: group.localOnly ? null : id,
-          perform: this.options.perform,
-        }),
-        menuNote: t(
-          'Archiving mutes alerts. Unarchiving does not automatically restore alerts.',
-        ),
+        unread,
+        actions: [
+          ...this.notificationActions(id, 'group', unread),
+          ...organizationActions({
+            daily: this.options.daily,
+            settingsId: id,
+            favoriteId: id,
+            mutePeer: group.localOnly ? null : id,
+            perform: this.options.perform,
+          }),
+        ],
         open: () => {
           this.options.openGroup(group);
         },
       };
     });
+  }
+  private notificationActions(
+    id: string,
+    kind: 'contact' | 'group',
+    unread: number,
+  ): ConversationAction[] {
+    if (!unread) return [];
+    return [
+      markNotificationsReadAction(() =>
+        this.options.perform(() =>
+          this.options.markNotificationsRead(id, kind),
+        ),
+      ),
+    ];
   }
   /** No conversations at all invites a first contact; an empty filter just finds nothing. */
   private emptyState(): { empty: string; emptyMood: 'wink' | 'puzzled' } {

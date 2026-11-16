@@ -1,8 +1,4 @@
-import {
-  t,
-  translatedError,
-  currentLanguage,
-} from '../../shared/i18n/index.ts';
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { menuIcon } from '../menu-icons/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import { galleryItems, tileSource } from './classify.ts';
@@ -13,9 +9,13 @@ import type {
   GalleryMedia,
   GalleryMonth,
 } from './classify.ts';
+import { watchGalleryHistory } from './history.ts';
+import type { GalleryOlderHistory } from './history.ts';
+import { GalleryPreviews } from './previews.ts';
 
 type Tab = 'media' | 'docs' | 'links';
 type GalleryRow = DailyRow & { sentAt?: number };
+type KeepRow = (key: string, create: () => HTMLElement) => HTMLElement;
 
 /** What one conversation lends the gallery; its history owner keeps the data. */
 export interface GalleryPort<V extends GalleryRow> {
@@ -31,32 +31,29 @@ export interface GalleryPort<V extends GalleryRow> {
     thumbnail: boolean,
     signal: AbortSignal,
   ) => Promise<Uint8Array<ArrayBuffer> | null>;
-  older?: { available: () => boolean; load: () => Promise<boolean> };
+  older?: GalleryOlderHistory;
   /** Shows the message in its conversation. */
   open: (view: DailyView<V>) => void;
 }
 
-// Previews are read at most three at a time while the gallery is open.
-const previewConcurrency = 3;
-
 /**
  * Media, Docs and Links of one conversation, grouped by month (owner,
- * 12/11/2026). Owns its dialog, the preview reads and their object URLs,
- * all released on close.
+ * 12/11/2026). The dialog owns the lifetime of its projection, previews,
+ * and older page requests.
  */
 export class MediaGallery<V extends GalleryRow> {
   private readonly dialog = document.createElement('dialog');
   private readonly title = document.createElement('h2');
   private readonly tabs = document.createElement('div');
   private readonly body = document.createElement('div');
-  private readonly footer = document.createElement('div');
+  private readonly list = document.createElement('div');
   private readonly notice = document.createElement('p');
+  private readonly previews = new GalleryPreviews(this.body);
+  private rows = new Map<string, HTMLElement>();
   private port: GalleryPort<V> | null = null;
   private tab: Tab = 'media';
-  private abort = new AbortController();
-  private readonly urls = new Set<string>();
-  private queue: (() => Promise<void>)[] = [];
-  private running = 0;
+  private lifetime: AbortController | null = null;
+  private checkHistory: (() => void) | undefined;
   constructor() {
     this.dialog.className = 'media-gallery';
     this.dialog.setAttribute('aria-labelledby', 'media-gallery-title');
@@ -81,18 +78,18 @@ export class MediaGallery<V extends GalleryRow> {
       button.setAttribute('role', 'tab');
       button.dataset['tab'] = id;
       button.textContent = label;
-      button.addEventListener('click', () => {
-        this.tab = id;
-        this.render();
-      });
+      button.addEventListener('click', () => this.selectTab(id));
       this.tabs.append(button);
     }
     this.body.className = 'media-gallery-body';
-    this.footer.className = 'media-gallery-footer';
     this.notice.className = 'media-gallery-notice';
     this.notice.setAttribute('role', 'status');
-    this.dialog.append(header, this.tabs, this.body, this.notice, this.footer);
-    this.dialog.addEventListener('close', () => this.release());
+    this.body.append(this.list, this.notice);
+    this.dialog.append(header, this.tabs, this.body);
+    this.dialog.addEventListener('close', () => {
+      if (!this.dialog.open) this.release();
+    });
+    this.bindBackdrop();
     document.body.append(this.dialog);
   }
   show(port: GalleryPort<V>): void {
@@ -102,46 +99,91 @@ export class MediaGallery<V extends GalleryRow> {
     this.title.textContent = port.title;
     this.render();
     if (!this.dialog.open) this.dialog.showModal();
+    this.body.scrollTop = 0;
+    this.lifetime = new AbortController();
+    if (port.older)
+      this.checkHistory = watchGalleryHistory({
+        body: this.body,
+        notice: this.notice,
+        older: port.older,
+        repaint: () => this.render(),
+        signal: this.lifetime.signal,
+      });
   }
   close(): void {
     if (this.dialog.open) this.dialog.close();
     this.release();
   }
   private release(): void {
-    this.abort.abort();
-    this.abort = new AbortController();
-    this.queue = [];
-    for (const url of this.urls) URL.revokeObjectURL(url);
-    this.urls.clear();
-    this.body.replaceChildren();
+    this.lifetime?.abort();
+    this.lifetime = null;
+    this.checkHistory = undefined;
+    this.port = null;
+    this.clearRows();
     this.notice.textContent = '';
   }
+  private clearRows(): void {
+    this.previews.clear();
+    this.rows.clear();
+    this.list.replaceChildren();
+  }
+  private selectTab(tab: Tab): void {
+    if (tab === this.tab) return;
+    this.tab = tab;
+    this.clearRows();
+    this.body.scrollTop = 0;
+    this.render();
+    this.checkHistory?.();
+  }
+  private bindBackdrop(): void {
+    let startedOutside = false;
+    this.dialog.addEventListener('pointerdown', (event) => {
+      startedOutside = event.button === 0 && outside(this.dialog, event);
+    });
+    this.dialog.addEventListener('pointercancel', () => {
+      startedOutside = false;
+    });
+    this.dialog.addEventListener('click', (event) => {
+      const dismiss = startedOutside && outside(this.dialog, event);
+      startedOutside = false;
+      if (dismiss) this.close();
+    });
+  }
   private render(): void {
-    const port = this.port;
-    if (!port) return;
-    // Previews of the previous tab stop; their URLs are released.
-    this.abort.abort();
-    this.abort = new AbortController();
-    this.queue = [];
-    for (const url of this.urls) URL.revokeObjectURL(url);
-    this.urls.clear();
+    if (!this.port) return;
     for (const button of this.tabs.querySelectorAll<HTMLElement>('button'))
       button.setAttribute(
         'aria-selected',
         String(button.dataset['tab'] === this.tab),
       );
-    const items = galleryItems(port.views());
-    this.body.replaceChildren(...this.sections(items));
-    if (!this.body.children.length) this.body.append(this.empty());
-    this.renderFooter(port);
+    const top = this.body.scrollTop;
+    const focused = this.dialog.ownerDocument.activeElement;
+    const next = new Map<string, HTMLElement>();
+    const sections = this.sections(
+      galleryItems(this.port.views()),
+      (key, create) => {
+        const row = this.rows.get(key) ?? create();
+        next.set(key, row);
+        return row;
+      },
+    );
+    for (const [key, row] of this.rows)
+      if (!next.has(key)) this.previews.forget(row);
+    this.rows = next;
+    if (!sections.length && !this.port.older?.available())
+      sections.push(this.empty());
+    this.list.replaceChildren(...sections);
+    this.body.scrollTop = top;
+    if (focused instanceof HTMLElement && this.list.contains(focused))
+      focused.focus({ preventScroll: true });
   }
-  private sections(items: GalleryItems<V>): HTMLElement[] {
+  private sections(items: GalleryItems<V>, keep: KeepRow): HTMLElement[] {
     if (this.tab === 'media')
       return byMonth(items.media).map(([month, entries]) =>
         this.section(
           month,
           'media-gallery-grid',
-          entries.map((e) => this.tile(e)),
+          entries.map((e) => keep(rowKey(e.view), () => this.tile(e))),
         ),
       );
     if (this.tab === 'docs')
@@ -149,14 +191,18 @@ export class MediaGallery<V extends GalleryRow> {
         this.section(
           month,
           'media-gallery-list',
-          entries.map((e) => this.doc(e)),
+          entries.map((e) => keep(rowKey(e.view), () => this.doc(e))),
         ),
       );
     return byMonth(items.links).map(([month, entries]) =>
       this.section(
         month,
         'media-gallery-list',
-        entries.map((e) => this.link(e)),
+        entries.map((e, index) =>
+          keep(JSON.stringify([rowKey(e.view), e.url, index]), () =>
+            this.link(e),
+          ),
+        ),
       ),
     );
   }
@@ -179,10 +225,10 @@ export class MediaGallery<V extends GalleryRow> {
     empty.className = 'media-gallery-empty';
     empty.textContent =
       this.tab === 'media'
-        ? t('No photos or videos in the loaded messages.')
+        ? t('No photos or videos yet.')
         : this.tab === 'docs'
-          ? t('No documents in the loaded messages.')
-          : t('No links in the loaded messages.');
+          ? t('No documents yet.')
+          : t('No links yet.');
     return empty;
   }
   private opener(view: DailyView<V>): () => void {
@@ -201,40 +247,14 @@ export class MediaGallery<V extends GalleryRow> {
     tile.append(menuIcon(entry.video ? 'video' : 'image'));
     if (entry.video) tile.dataset['video'] = 'true';
     tile.addEventListener('click', this.opener(entry.view));
-    this.loadPreview(tile, entry);
+    const port = this.port!;
+    const source = tileSource(entry);
+    this.previews.watch(
+      tile,
+      (signal) => port.media(entry.view, source.thumbnail, signal),
+      source.frameType,
+    );
     return tile;
-  }
-  private loadPreview(tile: HTMLElement, entry: GalleryMedia<V>): void {
-    const port = this.port,
-      signal = this.abort.signal;
-    if (!port) return;
-    this.queue.push(async () => {
-      if (signal.aborted) return;
-      try {
-        const source = tileSource(entry),
-          bytes = await port.media(entry.view, source.thumbnail, signal);
-        if (!bytes || signal.aborted) return;
-        const url = URL.createObjectURL(
-          new Blob([bytes], source.frameType ? { type: source.frameType } : {}),
-        );
-        this.urls.add(url);
-        tile.prepend(source.frameType ? firstFrame(url) : previewImage(url));
-      } catch {
-        // The tile keeps its icon; opening the message still works.
-        tile.dataset['unavailable'] = 'true';
-      }
-    });
-    this.pump();
-  }
-  private pump(): void {
-    while (this.running < previewConcurrency && this.queue.length) {
-      const next = this.queue.shift()!;
-      this.running++;
-      void next().finally(() => {
-        this.running--;
-        this.pump();
-      });
-    }
   }
   private doc(entry: GalleryDoc<V>): HTMLElement {
     const row = rowButton('file', entry.name, [
@@ -252,56 +272,21 @@ export class MediaGallery<V extends GalleryRow> {
     row.addEventListener('click', this.opener(entry.view));
     return row;
   }
-  private renderFooter(port: GalleryPort<V>): void {
-    this.footer.replaceChildren();
-    const hint = document.createElement('small');
-    hint.textContent = t('Shows the messages loaded on this device.');
-    this.footer.append(hint);
-    const older = port.older;
-    if (!older?.available()) return;
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.textContent = t('Load earlier messages');
-    more.addEventListener('click', () => {
-      more.disabled = true;
-      this.notice.textContent = t('Loading…');
-      older.load().then(
-        () => {
-          this.notice.textContent = '';
-          this.render();
-        },
-        (error: unknown) => {
-          more.disabled = false;
-          this.notice.textContent =
-            error instanceof Error
-              ? translatedError(error.message)
-              : t('Could not complete the operation.');
-        },
-      );
-    });
-    this.footer.append(more);
-  }
 }
 
-function previewImage(url: string): HTMLImageElement {
-  const image = document.createElement('img');
-  image.alt = '';
-  image.src = url;
-  image.draggable = false;
-  return image;
+function rowKey(view: GalleryRow): string {
+  return JSON.stringify([view.id, view.hash]);
 }
 
-/** A still of a video's opening; iOS paints it only for a seek past 0. */
-function firstFrame(url: string): HTMLVideoElement {
-  const video = document.createElement('video');
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-  video.disablePictureInPicture = true;
-  video.tabIndex = -1;
-  video.setAttribute('aria-hidden', 'true');
-  video.src = `${url}#t=0.1`;
-  return video;
+function outside(dialog: HTMLDialogElement, event: MouseEvent): boolean {
+  if (event.target !== dialog) return false;
+  const bounds = dialog.getBoundingClientRect();
+  return (
+    event.clientX < bounds.left ||
+    event.clientX > bounds.right ||
+    event.clientY < bounds.top ||
+    event.clientY > bounds.bottom
+  );
 }
 
 function byMonth<E extends { month: GalleryMonth }>(

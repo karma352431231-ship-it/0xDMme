@@ -98,7 +98,7 @@ export class DailyStore {
     return this.contacts.withMessageRead(a, async (c) => {
       const rows = await c.query(
         `SELECT root.peer,coalesce(cc.revision,0) AS revision,coalesce(cc.muted_until,0)::text AS "mutedUntil",
-        (SELECT count(*)::integer FROM hash_talk.message_packets m WHERE m.sender=root.peer AND m.recipient=$1 AND m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.message_reads mr WHERE mr.account_id=m.recipient AND mr.message_id=m.id) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)) AS unread,
+        (SELECT count(*)::integer FROM hash_talk.message_packets m WHERE m.sender=root.peer AND m.recipient=$1 AND m.sequence>coalesce(cc.notifications_through,0) AND m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.message_reads mr WHERE mr.account_id=m.recipient AND mr.message_id=m.id) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)) AS unread,
         coalesce(dc.online,false) AND EXISTS(SELECT 1 FROM hash_talk.device_presence p JOIN hash_talk.device_directories d ON d.account_id=p.account_id WHERE p.account_id=root.peer AND p.expires_at>now() AND EXISTS(SELECT 1 FROM jsonb_array_elements(d.event->'devices') member WHERE member->>'id'=p.device_id::text)) AS online,
         NULL::timestamptz AS "lastSeen"
         FROM unnest($2::uuid[]) root(peer) LEFT JOIN hash_talk.conversation_controls cc ON cc.account_id=$1 AND cc.peer=root.peer LEFT JOIN hash_talk.daily_controls dc ON dc.account_id=root.peer WHERE EXISTS(SELECT 1 FROM hash_talk.contact_relations cr WHERE cr.lo=least($1::uuid,root.peer) AND cr.hi=greatest($1::uuid,root.peer) AND cr.state='approved')`,
@@ -147,6 +147,26 @@ export class DailyStore {
           [a.session.accountId, a.session.deviceId],
         );
       await this.budget(c, a.session.accountId);
+    });
+  }
+  async dismissNotifications(a: ContactAuthority, peer: string): Promise<void> {
+    return this.contacts.withMessageConsent(a, peer, async (client) => {
+      const result = await client.query(
+        `INSERT INTO hash_talk.conversation_controls(account_id,peer,notifications_through)
+         SELECT $1,$2,m.sequence FROM hash_talk.message_packets m
+         WHERE m.recipient=$1 AND m.sender=$2 AND m.body IS NOT NULL
+           AND m.kind<>'profile' AND m.relation IS NULL
+           AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)
+         ORDER BY m.sequence DESC LIMIT 1
+         ON CONFLICT(account_id,peer) DO UPDATE SET notifications_through=excluded.notifications_through
+         WHERE hash_talk.conversation_controls.notifications_through<excluded.notifications_through`,
+        [a.session.accountId, peer],
+      );
+      if (!result.rowCount) return;
+      await this.budget(client, a.session.accountId);
+      this.contacts.changed(client, [a.session.accountId], {
+        category: 'private-receipts',
+      });
     });
   }
   async read(a: ContactAuthority, peer: string, ids: string[]): Promise<void> {

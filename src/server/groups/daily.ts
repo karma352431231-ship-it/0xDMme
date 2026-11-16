@@ -10,6 +10,7 @@ import type { ContactAuthority, GroupDailyStore } from '../database/index.ts';
 export const groupDailyOperations = [
   'group-daily-state',
   'group-daily-states',
+  'group-daily-dismiss-notifications',
   'group-daily-mute',
   'group-daily-read',
   'group-daily-receipts',
@@ -54,6 +55,10 @@ export function groupDailyActions(
     'group-daily-state': (a, d) => {
       keys(d, ['groupId', 'head']);
       return available().state(a, scope(d));
+    },
+    'group-daily-dismiss-notifications': (a, d) => {
+      keys(d, ['groupId', 'head']);
+      return available().dismissNotifications(a, scope(d));
     },
     'group-daily-mute': (a, d) => {
       keys(d, ['groupId', 'head', 'revision', 'mutedUntil']);

@@ -139,6 +139,7 @@ export class MessageService {
       'daily-push-configure',
       'daily-state',
       'daily-states',
+      'daily-dismiss-notifications',
       'daily-configure',
       'daily-mute',
       'daily-heartbeat',

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import type pg from 'pg';
 import { vaultQuota } from '../../src/shared/vault/index.ts';
+import { object } from '../../src/shared/account/index.ts';
 import { globalBytes } from '../fixtures/global-usage-database.ts';
 import { assertPersonalQuotaMatches } from '../fixtures/personal-quota-database.ts';
 import {
@@ -717,4 +718,43 @@ await test('private receipt coordination starts fresh and preserves delivery, pr
   await verifyFinalization(t, c, second);
   await reconcile(c, [first, second]);
   assert.deepEqual(allocationPoolErrors, []);
+});
+
+await test('notification dismissal clears only the chosen private chat and does not acknowledge content', async (t) => {
+  const c = await messageReceiptFixture(t);
+  const pair = await messagePair(c);
+  const other = await messagePair(c, pair.recipient);
+  const separate = await accepted(c, other);
+  const first = await accepted(c, pair);
+  await privacy(c, pair, true);
+  await c.db.daily.subscribe(pair.recipient, {
+    endpoint: 'https://web.push.apple.com/synthetic-private-notification',
+    keys: { p256dh: 'synthetic', auth: 'synthetic' },
+  });
+  const unread = async (item: Pair) =>
+    object(
+      await c.db.daily.state(item.recipient, item.sender.session.accountId),
+    )['unread'];
+  assert.equal(await unread(pair), 1);
+  assert.deepEqual(await c.db.daily.privateCandidates(pair.recipient), [
+    { kind: 'direct', id: first.id, peer: first.sender },
+  ]);
+  await assert.rejects(
+    c.db.daily.dismissNotifications(other.sender, first.sender),
+  );
+  await c.db.daily.dismissNotifications(pair.recipient, first.sender);
+  await c.db.daily.dismissNotifications(pair.recipient, first.sender);
+  assert.equal(await unread(pair), 0);
+  assert.equal(await unread(other), 1);
+  assert.deepEqual(await readRows(c, [first.id]), []);
+  assert.deepEqual(await c.db.daily.receipts(pair.sender, [first.id]), []);
+  assert.deepEqual(await c.db.daily.privateCandidates(pair.recipient), [
+    { kind: 'direct', id: separate.id, peer: separate.sender },
+  ]);
+  const later = await accepted(c, pair);
+  assert.equal(await unread(pair), 1);
+  assert.deepEqual(await c.db.daily.privateCandidates(pair.recipient), [
+    { kind: 'direct', id: later.id, peer: later.sender },
+  ]);
+  await reconcile(c, [pair, other]);
 });

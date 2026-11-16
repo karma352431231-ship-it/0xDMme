@@ -1,4 +1,5 @@
 import { networkAvailable } from '../connectivity/index.ts';
+import { markNotificationsReadAction } from '../conversation-menu/index.ts';
 import { DmOutgoingMedia } from './dm-outgoing-media.ts';
 import {
   startHandleRead,
@@ -135,7 +136,15 @@ export function startSocialDmUi(
       await controls.load(page.items.map((row) => row.peer.id));
       return page;
     },
-    actions: (relation) => controls.actions(relation),
+    actions: (relation) => [
+      markNotificationsReadAction(() => {
+        void run(async () => {
+          await controller.dismissNotifications(relation.peer.id);
+          unread.project();
+        });
+      }),
+      ...controls.actions(relation),
+    ],
     previews: (peers, options) => controller.directoryPreviews(peers, options),
   });
   const playback = new VoicePlayback();

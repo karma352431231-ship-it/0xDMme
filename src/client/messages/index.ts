@@ -387,6 +387,13 @@ export function startMessages(
     host: () => directory,
     contactActions,
     perform: performDirectoryAction,
+    markNotificationsRead: async (id, kind) => {
+      if (kind === 'group') await groups.dismissNotifications(id);
+      else {
+        await daily.dismissNotifications(id);
+        await activity.refresh();
+      }
+    },
     openPeer: (peer) => {
       void requestPeer(peer);
     },
@@ -757,8 +764,10 @@ export function startMessages(
             views: () => dailyViews(rows ?? []),
             media: (view, thumbnail) => controller.media(view, thumbnail),
             older: {
-              available: () => controller.olderAvailable(rootsShown()),
-              load: loadOlder,
+              available: () =>
+                selected === peer && controller.olderAvailable(rootsShown()),
+              load: () =>
+                selected === peer ? loadOlder() : Promise.resolve(false),
             },
             open: (view) => void revealSearchMatch(view.id, peer),
           }),

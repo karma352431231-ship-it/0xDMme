@@ -60,7 +60,12 @@ import {
 import type { DmHistorySnapshot } from './history-sync.ts';
 import { WorkInterruption } from '../synchronization-work/index.ts';
 import { readDmDirectoryPreviews } from './directory-previews.ts';
-import { dmUnreadCursors, dmUnreadCount, markDmRead } from './unread.ts';
+import {
+  dmUnreadCursors,
+  dmUnreadCount,
+  latestDmNotification,
+  markDmRead,
+} from './unread.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
 import { relatedDmHistory } from '../local-history/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -1123,6 +1128,15 @@ export class SocialDms {
       this.guard(generation);
       return count;
     });
+  }
+  async dismissNotifications(peer: string): Promise<void> {
+    const generation = this.generation;
+    const latest = latestDmNotification(
+      await this.request('unread', { peers: [peer] }),
+      peer,
+    );
+    this.guard(generation);
+    if (latest) await this.markRead(peer, latest);
   }
   async markRead(
     peer: string,

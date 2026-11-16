@@ -195,6 +195,14 @@ export class Daily {
     for (const notification of (await registration?.getNotifications()) ?? [])
       notification.close();
   }
+  async dismissNotifications(peer: string, head?: string): Promise<void> {
+    await this.api(
+      head
+        ? 'group-daily-dismiss-notifications'
+        : 'daily-dismiss-notifications',
+      head ? { groupId: peer, head } : { peer },
+    );
+  }
   async readConversation(input: ReceiptWindow): Promise<Set<string> | null> {
     if (!input.current()) return null;
     if (!input.incoming.length && !input.outgoing.length) return new Set();

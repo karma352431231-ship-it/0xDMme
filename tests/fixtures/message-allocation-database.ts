@@ -110,9 +110,10 @@ export async function messageUser(
 export type MessageUser = Awaited<ReturnType<typeof messageUser>>;
 export async function messagePair(
   c: Pick<MessageAllocationFixture, 'db' | 'inspector'>,
+  existingRecipient?: MessageUser,
 ) {
   const sender = await messageUser(c),
-    recipient = await messageUser(c);
+    recipient = existingRecipient ?? (await messageUser(c));
   await c.inspector.query(
     `INSERT INTO hash_talk.contact_relations(lo,hi,requester,state)
     VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'approved')`,

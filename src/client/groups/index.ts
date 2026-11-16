@@ -1,4 +1,5 @@
 import { timedLoadSync } from '../chat-sync-diagnostics/index.ts';
+import { oldestRoot } from '../history-window/index.ts';
 import type { HistoryLoadMode } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import type {
@@ -538,15 +539,25 @@ export function startGroups(
   chat.bindBrowserLifetime();
   /** Media, Links and Docs of the open group's loaded messages. */
   function showGallery(title: string): void {
+    const groupId = controller.selected?.state.groupId;
+    if (!groupId) return;
+    const selectedGroup = () => controller.selected?.state.groupId === groupId;
     gallery.show({
       title,
       views: () => controller.views.map(groupMessageView),
       media: (view, thumbnail) => controller.media(view, thumbnail),
       older: {
-        available: () => controller.olderAvailable,
+        available: () => selectedGroup() && controller.olderAvailable,
         load: async () => {
+          if (!selectedGroup()) return false;
+          const before = oldestRoot(controller.views);
           await reopen(true);
-          return true;
+          const oldest = oldestRoot(controller.views);
+          return (
+            selectedGroup() &&
+            oldest !== null &&
+            (before === null || oldest < before)
+          );
         },
       },
       open: (view) => {
@@ -622,6 +633,14 @@ export function startGroups(
     sendGroupDrafts: (id: string) => controller.sendGroupDrafts(id),
     reveal: revealGroupMessage,
     unread: (id: string) => states.get(id)?.unread ?? 0,
+    dismissNotifications: async (id: string) => {
+      const group = controller.entries.find(
+        (entry) => entry.state.groupId === id && !entry.localOnly,
+      );
+      if (!group) throw new Error('Group unavailable for this account.');
+      await options.daily.dismissNotifications(id, group.head);
+      await refreshStates();
+    },
     search: (query: string, after: string | null) =>
       controller.search(query, after),
     refresh,

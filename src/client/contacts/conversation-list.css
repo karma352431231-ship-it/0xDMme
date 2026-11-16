@@ -125,12 +125,6 @@
 .conversation-menu .menu-back {
   color: var(--text-muted);
 }
-.conversation-menu small {
-  display: block;
-  color: var(--text-muted);
-  padding: 12px;
-  line-height: 1.6;
-}
 @media (pointer: coarse) {
   .conversation-menu-trigger {
     display: none;

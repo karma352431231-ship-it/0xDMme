@@ -954,7 +954,6 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
       assert.deepEqual(await db.daily.privateCandidates(pushAuthority), [
         { kind: 'group', id: encrypted.packet.id, group: joined.groupId },
       ]);
-
       await assert.rejects(
         message(messages, outsider, 'group-daily-states', { groups: [scope] }),
         { status: 409 },
@@ -985,6 +984,32 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         }),
         { status: 409 },
       );
+      await assert.rejects(
+        message(messages, outsider, 'group-daily-dismiss-notifications', scope),
+        { status: 403 },
+      );
+      await message(
+        messages,
+        member,
+        'group-daily-dismiss-notifications',
+        scope,
+      );
+      assert.equal(
+        object(await message(messages, member, 'group-daily-state', scope))[
+          'unread'
+        ],
+        0,
+      );
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.group_reads WHERE account_id=$1 AND message_id=$2',
+            [member.session.accountId, ids[0]],
+          )
+        ).rowCount,
+        0,
+      );
+
       await message(messages, member, 'group-daily-read', { ...scope, ids });
       assert.equal(
         object(await message(messages, member, 'group-daily-state', scope))[

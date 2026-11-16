@@ -1247,11 +1247,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   Archived: ['Archived', '已归档'],
   Archive: ['Archive', '归档'],
   'Archive community': ['Archive community', '归档社区'],
-  'Archiving mutes alerts. Unarchiving does not automatically restore alerts.':
-    [
-      'Archiving mutes alerts. Unarchiving does not automatically restore alerts.',
-      '归档会静音通知。取消归档不会自动恢复通知。',
-    ],
+  'Mark as read': ['Mark as read', '标记为已读'],
   'File still being prepared.': [
     'File still being prepared.',
     '文件仍在准备中。',
@@ -10520,21 +10516,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   Links: ['Links', '链接'],
   'This month': ['This month', '本月'],
   Earlier: ['Earlier', '更早'],
-  'No photos or videos in the loaded messages.': [
-    'No photos or videos in the loaded messages.',
-    '已加载的消息中没有照片或视频。',
-  ],
-  'No documents in the loaded messages.': [
-    'No documents in the loaded messages.',
-    '已加载的消息中没有文档。',
-  ],
-  'No links in the loaded messages.': [
-    'No links in the loaded messages.',
-    '已加载的消息中没有链接。',
-  ],
-  'Shows the messages loaded on this device.': [
-    'Shows the messages loaded on this device.',
-    '仅显示此设备上已加载的消息。',
-  ],
-  'Load earlier messages': ['Load earlier messages', '加载更早的消息'],
+  'No photos or videos yet.': ['No photos or videos yet.', '暂无照片或视频。'],
+  'No documents yet.': ['No documents yet.', '暂无文档。'],
+  'No links yet.': ['No links yet.', '暂无链接。'],
 };

@@ -26,15 +26,21 @@ export function keepConversationMenu<T extends ConversationEntry>(
     (entry) =>
       entry.id === current.id && entry.kind === current.kind && !entry.hidden,
   );
-  if (
-    !next ||
-    next.title !== current.title ||
-    next.menuNote !== current.menuNote
-  )
-    return false;
+  if (!next || next.title !== current.title) return false;
   const signature = (entry: ConversationEntry) =>
     JSON.stringify(actionSignature(entry.actions));
   return signature(current) === signature(next);
+}
+
+export function markNotificationsReadAction(
+  perform: () => void,
+): ConversationAction {
+  return {
+    id: 'mark-read',
+    label: t('Mark as read'),
+    icon: 'mark-read',
+    perform,
+  };
 }
 
 /** A scroll or canceled pointer never becomes a context-menu gesture. */
@@ -233,11 +239,6 @@ export class ConversationMenu {
     list.className = 'conversation-menu-actions';
     dialog.append(title, close, list);
     this.renderActions(list);
-    if (entry.menuNote) {
-      const note = document.createElement('small');
-      note.textContent = entry.menuNote;
-      dialog.append(note);
-    }
     const opened = performance.now();
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog && performance.now() - opened > 400) {

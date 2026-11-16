@@ -105,6 +105,10 @@ export class NotificationService {
         keys(input, ['peer']);
         return this.store.state(a, uuid(input['peer']));
       },
+      'daily-dismiss-notifications': () => {
+        keys(input, ['peer']);
+        return this.store.dismissNotifications(a, uuid(input['peer']));
+      },
       'daily-states': () => {
         keys(input, ['peers']);
         if (!Array.isArray(input['peers']) || input['peers'].length > 16)

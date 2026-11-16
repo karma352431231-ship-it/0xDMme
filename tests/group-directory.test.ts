@@ -295,7 +295,6 @@ function editContactFromMenu(
   language: 'en' | 'zh-CN',
 ): void {
   const contact = entries.find((entry) => entry.kind === 'contact')!;
-  assert.equal(contact.menuNote, undefined);
   const action = contact.actions?.find((item) => item.id === 'edit-contact');
   assert.ok(action);
   assert.equal(action.label, language === 'en' ? 'Edit contact' : '编辑联系人');
@@ -317,6 +316,9 @@ await test('directory shows the private group avatar and marks only the opened g
         name: 'Contact',
       };
     const edited: AddressBookEntry[] = [];
+    const marked: [string, string][] = [];
+    let action: Promise<void> | undefined;
+    let opened = 0;
     const headerEdit = new CommunityNode('button');
     const groupFilter = new CommunityNode('button');
     let unread = 0;
@@ -366,10 +368,16 @@ await test('directory shows the private group avatar and marks only the opened g
               : null,
       host: () => null,
       contactActions: () => [],
-      perform: () => {},
-      openPeer: () => {},
+      perform: (work: () => Promise<void>) => {
+        action = work();
+      },
+      markNotificationsRead: (id: string, kind: string) => {
+        marked.push([id, kind]);
+        return Promise.resolve();
+      },
+      openPeer: () => opened++,
       openContact: (contact: AddressBookEntry) => edited.push(contact),
-      openGroup: () => {},
+      openGroup: () => opened++,
       changed: () => {},
       unreadChanged: (count: number) => {
         unread = count;
@@ -383,6 +391,17 @@ await test('directory shows the private group avatar and marks only the opened g
     ui.renderContacts();
     await settle();
     assert.equal(unread, 5);
+    for (const entry of entries) {
+      const mark = entry.actions?.find((item) => item.id === 'mark-read');
+      assert.equal(mark?.icon, 'mark-read');
+      mark.perform();
+      await action;
+    }
+    assert.deepEqual(marked, [
+      [peer.accountId, 'contact'],
+      [current.state.groupId, 'group'],
+    ]);
+    assert.equal(opened, 0);
     groupFilter.click();
     assert.equal(
       unread,

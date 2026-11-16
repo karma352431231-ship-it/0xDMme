@@ -33,6 +33,5 @@ export interface ConversationEntry {
   unread?: number;
   hidden?: boolean;
   actions?: readonly ConversationAction[];
-  menuNote?: string;
   preview?: ConversationPreview;
 }

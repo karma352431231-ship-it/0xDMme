@@ -276,3 +276,20 @@ History readers still own authorization, verification, paging and their
 existing 512-root window limit. The scroll binding owns the attempt and retry
 state, and the console collector owns diagnostic capture and export. See
 [conversation history measurements](MOBILE_LOAD_DIAGNOSTICS.md#conversation-history-and-new-messages).
+
+## Conversation media and unread actions
+
+The conversation gallery loads older verified pages when its selected tab is
+short or the reader approaches the bottom. Images and video frames load near
+the gallery viewport with at most three concurrent preview reads. Existing
+tiles keep their position as pages are added. Closing the gallery releases
+its preview URLs and stops automatic paging. A click that starts and ends on
+the browser backdrop closes the gallery.
+
+The conversation list menu can acknowledge pending notifications for one
+conversation without opening it. Private chats and groups keep that
+acknowledgement in their conversation controls, applying it to the unread
+count and message push candidates. It records the latest eligible sequence at
+the time of the action. Later messages stay unread. Handle conversations use
+their existing encrypted per-device unread cursor. This action sends no read
+receipt and does neither delivery acknowledgement nor history retrieval.

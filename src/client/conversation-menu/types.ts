@@ -12,5 +12,4 @@ export interface ConversationMenuEntry {
   title: string;
   hidden?: boolean;
   actions?: readonly ConversationAction[];
-  menuNote?: string;
 }
