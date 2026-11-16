@@ -62,6 +62,26 @@
   #app-shell .chip-full {
     display: none;
   }
+  /* The conversation search sits at the end of the filters (16/11/2026). */
+  #app-shell .directory-filters .directory-filter-search {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    margin-left: auto;
+    padding: 0;
+    box-shadow: none;
+    color: var(--text);
+  }
+  #app-shell .directory-filter-search svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
   #app-shell .chip-short {
     display: inline;
   }
