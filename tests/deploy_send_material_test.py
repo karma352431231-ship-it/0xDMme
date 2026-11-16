@@ -21,3 +21,9 @@ class SendMaterialReviewTests(contracts.SourceTextReviewTests):
                         contracts.remote.compatibility(self.candidate, self.live)
                 finally:
                     path.write_bytes(original)
+
+
+class IdentitySnapshotReviewTests(SendMaterialReviewTests):
+    before = reviewed_code.IDENTITY_SNAPSHOT_BEFORE
+    reviewed = reviewed_code.IDENTITY_SNAPSHOT_REVIEWED
+    review_modules = reviewed_code.IDENTITY_SNAPSHOT_MODULES
