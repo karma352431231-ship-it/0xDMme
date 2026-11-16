@@ -201,10 +201,85 @@ await test('catalogue counts every tab before the gallery opens and continues me
     downloaded,
     'opening a prepared tile reuses its preview',
   );
-  assert.ok(
+  assert.equal(
     media.includes('doc'),
-    'document originals are prepared through their encrypted attachment reader',
+    false,
+    'listing docs needs no original bytes',
   );
+  assert.ok(
+    media.length <= 25,
+    'at most 24 warm thumbnails plus one visible request',
+  );
+});
+
+await test('verified visible pictures paint while the older catalogue page and optional cache write are pending', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const lastPage = deferred<{ views: DailyView<Row>[]; next: null }>();
+  const save = deferred<void>();
+  const row = view({
+    id: 'first',
+    kind: 'attachment',
+    text: attachment('p.jpg', 'image/jpeg', true),
+    sentAt: 1,
+  });
+  let reads = 0;
+  catalogue.prepare(
+    'conversation',
+    () => ({
+      page: (before) =>
+        before === null
+          ? Promise.resolve({ views: [row], next: 16 })
+          : lastPage.promise,
+      media: () => {
+        reads++;
+        return Promise.resolve(Uint8Array.of(1, 2, 3));
+      },
+      previews: () => ({
+        read: () => Promise.resolve(null),
+        save: () => save.promise,
+      }),
+      close() {},
+    }),
+    { conversation: 'peer', rows: [row] },
+  );
+  const entry = galleryItems(catalogue.views()).media[0]!;
+  const picture = await catalogue.picture(entry);
+  assert.deepEqual(picture, Uint8Array.of(1, 2, 3));
+  assert.equal(catalogue.count(), null);
+  assert.equal(reads, 1, 'visible and background requests coalesce');
+  save.resolve();
+  lastPage.resolve({ views: [], next: null });
+});
+
+await test('a verified catalogue and encrypted previews can supply a reopening without rereading history or media', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const row = view({
+    id: 'cached',
+    kind: 'attachment',
+    text: attachment('p.jpg', 'image/jpeg', true),
+    sentAt: 1,
+  });
+  catalogue.prepare('cached', () => ({
+    checkpoint: {
+      read: () => Promise.resolve([row]),
+      save: () => Promise.resolve(),
+    },
+    page: () => assert.fail('A verified cache hit should avoid the scan'),
+    media: () =>
+      assert.fail('The encrypted preview should avoid the original download'),
+    previews: () => ({
+      read: () => Promise.resolve(Uint8Array.of(3, 2, 1)),
+      save: () => Promise.resolve(),
+    }),
+    close() {},
+  }));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(catalogue.count(), 1);
+  const entry = galleryItems(catalogue.views()).media[0]!;
+  assert.deepEqual(await catalogue.picture(entry), Uint8Array.of(3, 2, 1));
+  assert.equal(catalogue.error, null);
 });
 
 await test('closing or replacing a catalogue suppresses late metadata and releases its reader', async () => {
@@ -284,16 +359,12 @@ await test('verified arrivals update the catalogue without discarding prepared c
     }),
     sequence: 0,
   };
-  let creations = 0,
-    downloads = 0;
+  let creations = 0;
   const source = () => {
     creations++;
     return {
       page: () => Promise.resolve({ views: [document, first], next: null }),
-      media: () => {
-        downloads++;
-        return Promise.resolve(Uint8Array.of(1));
-      },
+      media: () => assert.fail('Document metadata is enough for the list'),
       close() {},
     };
   };
@@ -301,21 +372,14 @@ await test('verified arrivals update the catalogue without discarding prepared c
     conversation: 'peer',
     rows: [document, first],
   });
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(catalogue.count(), 2);
-  assert.equal(downloads, 1);
   catalogue.prepare('appended', source, {
     conversation: 'peer',
     rows: [document, first, arrival],
   });
   assert.equal(catalogue.count(), 3);
   assert.equal(creations, 1);
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(
-    downloads,
-    1,
-    'an arrival does not prepare unchanged documents again',
-  );
   catalogue.prepare(
     'removed',
     () => {
@@ -328,7 +392,7 @@ await test('verified arrivals update the catalogue without discarding prepared c
     },
     { conversation: 'peer', rows: [arrival] },
   );
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(creations, 2);
   assert.equal(catalogue.count(), 1);
 });

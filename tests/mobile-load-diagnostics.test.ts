@@ -559,7 +559,30 @@ await test('group preview index continuations retain one summary and presentatio
     'group-directory',
     'group-previews',
   ]);
-  assert.equal(report.meterRevision, 14);
+  assert.equal(report.meterRevision, 15);
+});
+
+await test('gallery load summaries report cache, download and decoded preview timings', (t) => {
+  const { recording } = fixture(t);
+  const catalogue = startLoad('gallery-catalogue')!;
+  catalogue.point('gallery-cache', { loadStageMs: 18 });
+  catalogue.point('complete', { loadRows: 36, loadOutcome: 'complete' });
+  const preview = startLoad('gallery-preview')!;
+  preview.point('download', { loadStageMs: 27 });
+  preview.point('decrypt', { loadStageMs: 8 });
+  preview.point('decode', { loadStageMs: 3 });
+  preview.point('published');
+  preview.point('gallery-cache-save', { loadStageMs: 12 });
+  preview.point('complete', { loadOutcome: 'complete' });
+  const [metadata, image] = recording.report().loading.operations;
+  assert.equal(metadata?.kind, 'gallery-catalogue');
+  assert.equal(metadata?.rows, 36);
+  assert.ok(metadata?.stages['gallery-cache']);
+  assert.equal(image?.kind, 'gallery-preview');
+  assert.ok(
+    image?.stages.download && image.stages.decrypt && image.stages.decode,
+  );
+  assert.ok(image.stages.published && image.stages['gallery-cache-save']);
 });
 
 await test('history reports group, private and handle modes and ranks measured stages', (t) => {

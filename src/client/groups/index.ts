@@ -479,11 +479,14 @@ export function startGroups(
     if (!session || !group || controller.historyPending) mediaCatalogue.clear();
     else {
       const account = session;
+      const rows = controller.views.map(groupMessageView);
+      const conversation = JSON.stringify([
+        group.state.groupId,
+        group.head,
+        !!group.localOnly,
+      ]);
       mediaCatalogue.prepare(
-        catalogueIdentity(
-          group.state.groupId,
-          controller.views.map(groupMessageView),
-        ),
+        catalogueIdentity(conversation, rows),
         () =>
           groupGallerySource({
             access,
@@ -491,11 +494,9 @@ export function startGroups(
             session: account,
             group: group.state.groupId,
             localOnly: !!group.localOnly,
+            initial: group,
           }),
-        {
-          conversation: group.state.groupId,
-          rows: controller.views.map(groupMessageView),
-        },
+        { conversation, rows },
       );
     }
     management.updateSettingsGroup(group);

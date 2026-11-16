@@ -20,8 +20,8 @@ export type SigningAuthority = Pick<
   'session' | 'directory' | 'sign'
 >;
 export interface VaultAccess {
-  /** Immutable local keys for encrypted outgoing staging. No SDK, networking,
-   * vault synchronization or checkpoint mutation is allowed inside this work. */
+  /** Immutable local keys for encrypted staging and disposable local caches.
+   * No SDK, networking, vault sync or checkpoint mutation inside this work. */
   withDraftVault?: <T>(
     locator: VaultLocator,
     work: (authority: VaultAuthority) => Promise<T>,

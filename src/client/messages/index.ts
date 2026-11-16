@@ -1246,8 +1246,10 @@ export function startMessages(
     }
     const peer = selected;
     const account = session;
+    const views = dailyViews(rows);
+    const conversation = JSON.stringify([peer.accountId, !!peer.localOnly]);
     mediaCatalogue.prepare(
-      catalogueIdentity(peer.accountId, dailyViews(rows)),
+      catalogueIdentity(conversation, views),
       () =>
         privateGallerySource({
           access,
@@ -1256,7 +1258,7 @@ export function startMessages(
           peer: peer.accountId,
           localOnly: !!peer.localOnly,
         }),
-      { conversation: peer.accountId, rows: dailyViews(rows) },
+      { conversation, rows: views },
     );
   }
   function choose(_mode: 'reply', view: MessageView): void {

@@ -1,3 +1,5 @@
+import { withDraftVault } from '../vault-authority/index.ts';
+import type { VaultAccess, VaultLocator } from '../vault-authority/index.ts';
 import { base64, encode } from '../../shared/account/index.ts';
 import { readReopen, writeReopen } from '../reopen-cache/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
@@ -101,4 +103,42 @@ function encodePreview(
       finish(null);
     }
   });
+}
+
+/** Read and save an optional accelerator for a row the caller has already
+ * verified. Only ciphertext enters the existing bounded preview cache. */
+export function localMediaPreview(input: {
+  access: VaultAccess;
+  session: VaultLocator;
+  identity: PreviewIdentity;
+  signal: AbortSignal;
+}): MediaPreviews {
+  const { access, session, identity, signal } = input;
+  return {
+    read: async () => {
+      signal.throwIfAborted();
+      try {
+        return await withDraftVault(access, session, (authority) => {
+          signal.throwIfAborted();
+          return readMediaPreview(authority, identity);
+        });
+      } catch (error: unknown) {
+        if (signal.aborted) throw error;
+        // The accelerator can be absent, evicted or inaccessible.
+        return null;
+      }
+    },
+    save: async (bytes) => {
+      signal.throwIfAborted();
+      try {
+        await withDraftVault(access, session, (authority) => {
+          signal.throwIfAborted();
+          return saveMediaPreview(authority, identity, bytes);
+        });
+      } catch (error: unknown) {
+        if (signal.aborted) throw error;
+        // An optional cache write cannot invalidate a verified picture.
+      }
+    },
+  };
 }

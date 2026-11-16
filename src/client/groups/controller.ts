@@ -1,3 +1,4 @@
+import { readGroupGalleryMedia } from './gallery-media.ts';
 import { SendAudiences } from '../message-crypto/index.ts';
 import { GroupSendPreparation } from './send-preparation.ts';
 import {
@@ -1871,18 +1872,40 @@ export class GroupController {
   }
   /** Catalogue media rechecks current membership and exact file availability
    * independently of the displayed history page. */
-  galleryMedia(
-    view: GroupView,
-    thumbnail: boolean,
-  ): Promise<Uint8Array<ArrayBuffer>> {
-    const selected = this.selected;
-    if (
-      !selected ||
-      this.historyPending ||
-      view.groupId !== selected.state.groupId
-    )
-      return Promise.reject(new Error('Group message changed.'));
-    return this.readMedia(selected, view, thumbnail);
+  galleryMedia(input: {
+    view: GroupView;
+    thumbnail: boolean;
+    signal: AbortSignal;
+    initial?: GroupSummary | undefined;
+    diagnostic?: LoadTrace | undefined;
+  }): Promise<Uint8Array<ArrayBuffer>> {
+    const { view, thumbnail, signal, diagnostic } = input;
+    const group = this.selected ?? input.initial;
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+      if (this.historyPending || group?.state.groupId !== view.groupId)
+        throw new Error('Group message changed.');
+    };
+    if (!group) return Promise.reject(new Error('Group message changed.'));
+    if (group.localOnly || !networkAvailable())
+      return this.withLocalAuthority((authority) => {
+        guard();
+        return this.localMedia(authority, view, thumbnail, generation);
+      });
+    return readGroupGalleryMedia({
+      access: this.access,
+      group,
+      view,
+      thumbnail,
+      signal,
+      guard,
+      diagnostic,
+    });
+  }
+  galleryCut(group: string) {
+    return this.messageWindows.confirmedCut(group);
   }
   /** Whether this message's media was already opened in this session. */
   mediaReady(message: string, variant: MediaVariant): boolean {

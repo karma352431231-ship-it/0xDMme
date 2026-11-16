@@ -1,9 +1,13 @@
 import { galleryItems, tileSource } from './classify.ts';
 import type { GalleryMedia } from './classify.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
-import { MediaMemory } from '../media-memory/index.ts';
+import { GalleryPictureQueue, PictureAdmission } from './picture-queue.ts';
+import { startLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
+import type { MediaPreviews } from '../media-preview/index.ts';
 import { prepareGalleryPicture } from './picture.ts';
 import { historyPage } from '../history-window/index.ts';
+import type { GalleryCheckpoint } from './checkpoint.ts';
 
 export type GalleryRow = DailyRow & { sentAt?: number };
 export interface GallerySource<V extends GalleryRow> {
@@ -13,12 +17,16 @@ export interface GallerySource<V extends GalleryRow> {
   ) => Promise<{
     views: readonly DailyView<V>[];
     next: number | null;
+    cut?: string | null;
   }>;
   media: (
     view: DailyView<V>,
     thumbnail: boolean,
     signal: AbortSignal,
+    trace?: LoadTrace,
   ) => Promise<Uint8Array<ArrayBuffer> | null>;
+  previews?: (view: DailyView<V>, signal: AbortSignal) => MediaPreviews;
+  checkpoint?: GalleryCheckpoint<V>;
   close: () => void;
 }
 export interface GallerySummary {
@@ -42,15 +50,10 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
   private readonly rows = new Map<string, DailyView<V>>();
   private readonly counts = new Map<string, number>();
   private total = 0;
-  private pictures = new MediaMemory();
+  private pictures: GalleryPictureQueue<V> | null = null;
+  private readonly admission = new PictureAdmission();
+  private warmRemaining = 24;
   private readonly listeners = new Set<() => void>();
-  private readonly pending = new Map<string, GalleryMedia<V>>();
-  private readonly files = new Map<string, DailyView<V>>();
-  private readonly reads = new Map<
-    string,
-    Promise<Uint8Array<ArrayBuffer> | null>
-  >();
-  private running = 0;
   private complete = false;
   private failure: unknown = null;
   count = (): number | null => (this.complete ? this.total : null);
@@ -82,7 +85,6 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
       this.window = window;
       try {
         this.remember(window.rows);
-        this.pump();
       } catch (error) {
         this.complete = false;
         this.failure = error;
@@ -94,8 +96,16 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
     this.identity = identity;
     this.create = create;
     this.window = window ?? null;
-    this.source = create();
-    void this.collect(this.source, this.abort.signal);
+    const source = create();
+    const signal = this.abort.signal;
+    this.source = source;
+    this.pictures = new GalleryPictureQueue(
+      signal,
+      this.admission,
+      (entry, trace, prepared) =>
+        readPicture({ source, entry, signal, trace, prepared }),
+    );
+    void this.collect(source, signal);
   }
   clear(): void {
     if (!this.source && !this.identity) return;
@@ -110,11 +120,9 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
     this.rows.clear();
     this.counts.clear();
     this.total = 0;
-    this.pictures.clear();
-    this.pictures = new MediaMemory();
-    this.pending.clear();
-    this.files.clear();
-    this.reads.clear();
+    this.pictures = null;
+    this.admission.clear();
+    this.warmRemaining = 24;
     this.complete = false;
     this.failure = null;
     this.changed();
@@ -128,70 +136,95 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
       identity = this.identity,
       window = this.window;
     this.clear();
-    this.prepare(identity, create, window ?? undefined);
+    this.prepare(identity, create);
+    this.window = window;
   }
   picture(entry: GalleryMedia<V>): Promise<Uint8Array<ArrayBuffer> | null> {
-    const source = this.source;
-    if (!source) return Promise.resolve(null);
-    const signal = this.abort.signal;
-    if (!this.complete && !this.failure)
-      return this.metadataReady(signal).then(() => {
-        signal.throwIfAborted();
-        return this.picture(entry);
-      });
-    if (this.failure)
-      return Promise.reject(
-        this.failure instanceof Error
-          ? this.failure
-          : new Error('Could not complete the operation.'),
-      );
-    const existing = this.reads.get(entry.view.id);
-    if (existing) return existing;
-    const reading = this.pictures.read(entry.view.id, 'thumbnail', async () => {
-      const selected = tileSource(entry);
-      const bytes = await source.media(entry.view, selected.thumbnail, signal);
-      signal.throwIfAborted();
-      if (!bytes) throw new Error('Preview unavailable.');
-      return prepareGalleryPicture(bytes, selected.frameType, signal);
-    });
-    this.reads.set(entry.view.id, reading);
-    void reading.then(
-      () => this.finishPicture(entry.view.id, reading, signal),
-      () => this.finishPicture(entry.view.id, reading, signal),
-    );
-    return reading;
-  }
-  private finishPicture(
-    id: string,
-    reading: Promise<Uint8Array<ArrayBuffer> | null>,
-    signal: AbortSignal,
-  ): void {
-    if (signal.aborted || this.reads.get(id) !== reading) return;
-    this.reads.delete(id);
+    if (this.rows.get(entry.view.id)?.hash !== entry.view.hash)
+      return Promise.resolve(null);
+    return this.pictures?.read(entry) ?? Promise.resolve(null);
   }
   private async collect(
     source: GallerySource<V>,
     signal: AbortSignal,
   ): Promise<void> {
-    let before: number | null = null;
+    const trace = startLoad('gallery-catalogue');
     try {
-      do {
-        const page = await source.page(before, signal);
-        signal.throwIfAborted();
-        this.remember(page.views);
-        if (page.next !== null && before !== null && page.next >= before)
-          throw new Error('Message window does not match.');
-        before = page.next;
-        this.complete = before === null;
-        this.pump();
-        this.changed();
-        if (before !== null) await yieldPreparation(signal);
-      } while (before !== null);
+      const window = this.window;
+      const seed = this.seed(window);
+      if (await this.restore({ source, signal, trace, window, seed })) {
+        this.finish(seed, trace);
+        return;
+      }
+      const cut = await this.collectPages(source, signal, seed, trace);
+      this.finish(seed, trace);
+      if (cut && this.window === window)
+        await source.checkpoint?.save({ cut, views: this.views() }, signal);
     } catch (error) {
+      trace?.point(signal.aborted ? 'cancelled' : 'failed');
       if (signal.aborted) return;
       this.failure = error;
       this.changed();
     }
+  }
+  private seed(window: VerifiedWindow<V> | null): Set<string> {
+    if (!window) return new Set();
+    this.remember(window.rows);
+    this.changed();
+    return new Set(window.rows.map((row) => row.id));
+  }
+  private async restore(input: {
+    source: GallerySource<V>;
+    signal: AbortSignal;
+    trace: LoadTrace | undefined;
+    window: VerifiedWindow<V> | null;
+    seed: Set<string>;
+  }): Promise<boolean> {
+    const { source, signal, trace, window, seed } = input;
+    const checkpoint = source.checkpoint;
+    if (!checkpoint) return false;
+    const cached = await timedLoad(trace, 'gallery-cache', () =>
+      checkpoint.read(signal),
+    );
+    signal.throwIfAborted();
+    if (!cached || this.window !== window) return false;
+    this.remember(cached);
+    for (const view of cached) seed.delete(view.id);
+    return true;
+  }
+  private async collectPages(
+    source: GallerySource<V>,
+    signal: AbortSignal,
+    seed: Set<string>,
+    trace: LoadTrace | undefined,
+  ) {
+    let before: number | null = null;
+    let cut: string | null | undefined;
+    do {
+      const page = await timedLoad(trace, 'local-history', () =>
+        source.page(before, signal),
+      );
+      signal.throwIfAborted();
+      for (const view of page.views) seed.delete(view.id);
+      this.remember(page.views);
+      if (page.next !== null && before !== null && page.next >= before)
+        throw new Error('Message window does not match.');
+      cut = mergeCut(cut, page.cut ?? null);
+      before = page.next;
+      this.changed();
+      if (before !== null) await yieldPreparation(signal);
+    } while (before !== null);
+    return cut;
+  }
+  private finish(
+    stale: ReadonlySet<string>,
+    trace: LoadTrace | undefined,
+  ): void {
+    for (const id of stale) this.bytes -= catalogueBytes(this.rows.get(id));
+    this.replaceRows({ removed: stale, kept: new Map(), counts: new Map() });
+    this.complete = true;
+    trace?.point('complete', { loadOutcome: 'complete', loadRows: this.total });
+    this.changed();
   }
   private remember(views: readonly DailyView<V>[]): void {
     const items = galleryItems(views);
@@ -216,16 +249,15 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
     if (bytes > 8 * 1024 * 1024)
       throw new Error('Media catalogue exceeds the device memory budget.');
     this.bytes = bytes;
-    this.queueAttachments(items);
+    const warm = items.media
+      .filter(
+        (item) =>
+          item.preview && this.rows.get(item.view.id)?.hash !== item.view.hash,
+      )
+      .slice(0, this.warmRemaining);
     this.replaceRows({ removed, kept, counts });
-  }
-  private queueAttachments(items: ReturnType<typeof galleryItems<V>>): void {
-    const changed = (view: GalleryRow) =>
-      this.rows.get(view.id)?.hash !== view.hash;
-    for (const item of items.media)
-      if (changed(item.view)) this.pending.set(item.view.id, item);
-    for (const item of items.docs)
-      if (changed(item.view)) this.files.set(item.view.id, item.view);
+    this.warmRemaining -= warm.length;
+    this.pictures?.warm(warm);
   }
   private replaceRows(page: {
     removed: ReadonlySet<string>;
@@ -244,58 +276,65 @@ export class MediaCatalogue<V extends GalleryRow> implements GallerySummary {
     }
     for (const row of kept.values()) this.rows.set(row.id, row);
   }
-  private pump(): void {
-    if (!this.complete) return;
-    while (this.running < 2 && (this.pending.size || this.files.size)) {
-      const entry = this.pending.values().next().value;
-      const work = entry ? this.nextPicture(entry) : this.nextFile();
-      this.running++;
-      void work
-        .catch(() => {
-          // A visible tile retries through the same verified source.
-        })
-        .finally(() => {
-          this.running--;
-          this.pump();
-        });
-    }
-  }
-  private metadataReady(signal: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const finish = () => {
-        if (!this.complete && !this.failure && !signal.aborted) return;
-        stop();
-        signal.removeEventListener('abort', finish);
-        if (signal.aborted) reject(new Error('Preview unavailable.'));
-        else resolve();
-      };
-      const stop = this.subscribe(finish);
-      signal.addEventListener('abort', finish, { once: true });
-      finish();
-    });
-  }
-  private nextPicture(
-    entry: GalleryMedia<V>,
-  ): Promise<Uint8Array<ArrayBuffer> | null> {
-    this.pending.delete(entry.view.id);
-    return this.picture(entry);
-  }
-  private async nextFile(): Promise<null> {
-    const view = this.files.values().next().value!;
-    this.files.delete(view.id);
-    const source = this.source;
-    if (!source) return null;
-    const bytes = await source.media(view, false, this.abort.signal);
-    bytes?.fill(0);
-    return null;
-  }
   private changed(): void {
     for (const listener of this.listeners) listener();
   }
 }
 
-function catalogueBytes(row: GalleryRow): number {
-  return JSON.stringify(row).length * 2 + 256;
+function mergeCut(
+  previous: string | null | undefined,
+  current: string | null,
+): string | null {
+  return previous === undefined || previous === current ? current : null;
+}
+
+async function readPicture<V extends GalleryRow>(input: {
+  source: GallerySource<V>;
+  entry: GalleryMedia<V>;
+  signal: AbortSignal;
+  trace: LoadTrace | undefined;
+  prepared: (picture: Uint8Array<ArrayBuffer>) => void;
+}): Promise<void> {
+  const { source, entry, signal, trace, prepared } = input;
+  const cache = source.previews?.(entry.view, signal);
+  const cached = cache
+    ? await timedLoad(trace, 'gallery-cache', cache.read)
+    : null;
+  if (cached) {
+    prepared(currentPicture(cached, signal));
+    return;
+  }
+  const selected = tileSource(entry);
+  const bytes = await source.media(
+    entry.view,
+    selected.thumbnail,
+    signal,
+    trace,
+  );
+  if (!bytes) throw new Error('Preview unavailable.');
+  const picture = await timedLoad(trace, 'decode', () =>
+    prepareGalleryPicture(
+      currentPicture(bytes, signal),
+      selected.frameType,
+      signal,
+    ),
+  );
+  prepared(currentPicture(picture, signal));
+  // The visible tile gets its bytes before the optional encrypted write.
+  if (cache)
+    await timedLoad(trace, 'gallery-cache-save', () => cache.save(picture));
+}
+
+function currentPicture(bytes: Uint8Array<ArrayBuffer>, signal: AbortSignal) {
+  if (signal.aborted) {
+    bytes.fill(0);
+    signal.throwIfAborted();
+  }
+  return bytes;
+}
+
+function catalogueBytes(row: GalleryRow | undefined): number {
+  return row ? JSON.stringify(row).length * 2 + 256 : 0;
 }
 
 /** A verified append can update counts without interrupting prepared pictures.

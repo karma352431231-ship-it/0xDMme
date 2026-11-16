@@ -923,6 +923,57 @@ await test('offline catalogue media keeps local authorization and never requests
   assert.deepEqual(f.data.requests, []);
 });
 
+await test('a catalogue checkpoint needs the exact current cut and gives way to changed history', async () => {
+  const f = resumeFixture(true, { persistWindows: true });
+  await f.add('https://example.com/first');
+  const reader = f.galleryReader();
+  const signal = new AbortController().signal;
+  try {
+    const page = await reader.page(null, signal);
+    assert.ok(page.cut);
+    const checkpoint = reader.checkpoint!;
+    await checkpoint.save({ cut: page.cut, views: page.views }, signal);
+    f.data.requests.length = 0;
+    const cached = await checkpoint.read(signal);
+    assert.equal(cached?.[0]?.id, page.views[0]?.id);
+    assert.deepEqual(f.data.requests, ['snapshot']);
+    await f.add('https://example.com/new');
+    assert.equal(await checkpoint.read(signal), null);
+  } finally {
+    reader.close();
+  }
+});
+
+await test('gallery requests use only signing authority online and stop on access refusal', async () => {
+  const f = resumeFixture(true);
+  const reads = f.data.authorityReads;
+  f.access.withSigner = (work) =>
+    work({
+      session: f.session,
+      directory: f.data.snapshot.directory,
+      sign: () => Promise.resolve('synthetic-signature'),
+    });
+  f.data.failure = 'snapshot';
+  await assert.rejects(
+    f.controller.galleryMedia(
+      {
+        id: crypto.randomUUID(),
+        peer: f.peer,
+        hash: 'a'.repeat(64),
+        kind: 'attachment',
+        own: false,
+        text: '',
+        state: '',
+      },
+      false,
+      new AbortController().signal,
+    ),
+    /Not authorized/u,
+  );
+  assert.equal(f.data.authorityReads, reads);
+  assert.deepEqual(f.data.requests, ['snapshot']);
+});
+
 await test('late confirmation from A cannot replace a restored B or discard valid C', async () => {
   const f = resumeFixture(true),
     b = crypto.randomUUID(),

@@ -72,6 +72,9 @@ export class GroupMessageWindows {
   prepared(group: string): boolean {
     return this.states.get(group)?.prepared ?? false;
   }
+  confirmedCut(group: string): Snapshot | null {
+    return this.states.get(group)?.snapshot ?? null;
+  }
   finishPreparation(group: string): void {
     const state = this.states.get(group);
     if (state) state.prepared = true;

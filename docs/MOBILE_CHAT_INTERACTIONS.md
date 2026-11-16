@@ -279,27 +279,41 @@ state, and the console collector owns diagnostic capture and export. See
 
 ## Conversation media and unread actions
 
-Opening a private or group conversation starts an independent media catalogue.
-The existing verified reader loads bounded pages without expanding or moving
-the displayed chat. All pages contribute photos, videos, documents and links
-to the count. Contact info shows an ellipsis until that initial scan completes
-and updates its count while the panel stays open.
+Opening a private or group conversation prepares its media catalogue. The
+verified chat window supplies the first preview candidates immediately. An
+independent reader fills older pages without moving the chat or acknowledging
+reads. The count covers photos, videos, documents and links and appears when
+the full catalogue is verified. The info panel displays an ellipsis during
+cold preparation.
 
-Catalogue metadata completes before attachment reads acquire the shared vault.
-Two background reads prepare pictures and document originals through the usual encrypted attachment
-store. Large images and videos retain JPEG pictures of at most 64 KiB.
-The existing 64-entry memory cache keeps at most 4 MiB of these pictures.
-Document originals stay in the encrypted attachment store. Catalogue metadata has
-an 8 MiB budget and reports exhaustion explicitly. Session or authorization
-changes release the reader and its decrypted catalogue. A verified append
-updates the count while preserving prepared pictures.
+A complete catalogue from a single consistent cut can reuse the existing
+encrypted reopen store. The record shares the account's 16-entry budget and
+512 KiB entry limit. A fresh signed snapshot must match the recorded group head,
+directory and history cut before any cached rows are used. Private histories
+with a local import use the normal reader so the import participates in the
+count. An exact-cut miss or eviction returns to the normal verified scan.
 
-Gallery tiles render from that catalogue. Their viewport observer owns only
-visible object URLs, so scrolling and reopening reuse prepared picture bytes.
-Closing the gallery releases those URLs while preparation continues for the
-open conversation. A click that starts and ends on the browser backdrop closes
-the gallery. The initial preparation on a cold device still requires the normal
-verified reads. Its duration is independent of opening or scrolling the gallery.
+At most 24 small sender thumbnails warm on conversation open. Visible tiles
+take priority, with up to three active picture jobs, two background jobs and
+one original-file job at a time. Originals are read when needed to generate a
+visible image or video preview. Documents and links are listed from verified
+metadata. Thumbnail downloads use the signing lane and attachment worker
+without holding the exclusive vault turn. The two domains retain their
+availability and membership checks around the transfer.
+
+The current gallery keeps up to 64 pictures of at most 64 KiB in memory.
+It reads and writes the existing encrypted IndexedDB preview family (up to 128
+entries per cache scope), and never stores an extra copy of the original.
+The gallery publishes a ready tile before writing its optional preview.
+Storage refusal or eviction leaves the normal checked read available. The
+catalogue's existing 8 MiB in-memory metadata budget still applies. Closing
+the gallery frees its object URLs; leaving the conversation, losing authority
+or logging out cancels preparation. Browser site-data removal clears the
+accelerators and can also remove browser-held authorization state.
+
+The opt-in console collector records catalogue and preview operations, cache
+times, signed authorization, queue waits, downloads, decryption and decoding.
+It records numeric durations and counts without attaching file or chat data.
 
 The conversation list menu can acknowledge pending notifications for one
 conversation without opening it. Private chats and groups keep that
