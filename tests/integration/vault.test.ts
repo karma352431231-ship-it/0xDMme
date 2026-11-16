@@ -78,12 +78,19 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
     devices: database.devices,
     objects,
   });
+  const messages = new MessageService(database, database.devices, objects);
   const host = createWebServer({
     origin,
     assets: new Map(),
     database,
     objects,
-    account: createAccountHandler({ origin, service: account, devices, vault }),
+    account: createAccountHandler({
+      origin,
+      service: account,
+      devices,
+      vault,
+      messages,
+    }),
   });
   await new Promise<void>((resolve) =>
     host.server.listen(45117, '127.0.0.1', resolve),
@@ -154,6 +161,23 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
     profile: null,
   });
   await devices.commit(a.session, { event: authority, profile: null });
+  async function signSnapshot(
+    login: typeof a,
+    signer: typeof identity,
+    directory: string,
+  ) {
+    const proof = { deviceId: login.session.deviceId, directory, payload: {} };
+    const signature = await sign(
+      signer.signing,
+      messageBody(
+        login.session.accountId,
+        proof.deviceId,
+        'identity-snapshot',
+        proof,
+      ),
+    );
+    return { ...proof, signature };
+  }
   const pending = await vault.operate('read', a.session, { after: 0 });
   assert.equal((pending as { sequence: number }).sequence, 0);
   const code = {
@@ -750,7 +774,6 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
   await t.test(
     'backup: version cleanup preserves chain and checkpoint and rejects object access',
     async () => {
-      const service = new MessageService(database, database.devices, objects);
       const current = await database.devices.current(a.session.accountId);
       assert.ok(current);
       const selected = {
@@ -781,8 +804,68 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
         ),
       };
       const before = await vault.operate('read', a.session, { after: 0 });
-      const cleaned = await service.operate('personal-clean', a.session, input);
-      assert.equal((cleaned as { status: string }).status, 'cleaned');
+      const snapshot = await signSnapshot(a, identity, current.head);
+      const snapshotResponse = await fetch(
+        origin + '/api/account/messages/identity-snapshot',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: origin,
+            Cookie: `hash-talk-session=${a.sessionToken}`,
+            'X-Hash-Talk-CSRF': a.session.csrf,
+          },
+          body: JSON.stringify(snapshot),
+        },
+      );
+      const head = { sequence: last.sequence, head: await commitHash(last) };
+      assert.equal(snapshotResponse.status, 200);
+      assert.equal(snapshotResponse.headers.get('cache-control'), 'no-store');
+      assert.deepEqual(await snapshotResponse.json(), { ...head, removal: 0 });
+      await assert.rejects(
+        messages.operate('identity-snapshot', outsider.session, snapshot),
+        { status: 403 },
+      );
+      await assert.rejects(
+        messages.operate(
+          'identity-snapshot',
+          b.session,
+          await signSnapshot(b, identityB, current.head),
+        ),
+        { status: 403 },
+      );
+      await assert.rejects(
+        messages.operate(
+          'identity-snapshot',
+          a.session,
+          await signSnapshot(a, identity, '0'.repeat(64)),
+        ),
+        { status: 403 },
+      );
+      await assert.rejects(
+        messages.operate('identity-snapshot', a.session, {
+          ...snapshot,
+          signature: input.signature,
+        }),
+        { status: 409 },
+      );
+      const cleaned = (await messages.operate(
+        'personal-clean',
+        a.session,
+        input,
+      )) as {
+        status: string;
+        items: { sequence: number }[];
+      };
+      assert.equal(cleaned.status, 'cleaned');
+      assert.ok(cleaned.items[0]!.sequence > 0);
+      assert.deepEqual(
+        await messages.operate('identity-snapshot', a.session, snapshot),
+        {
+          ...head,
+          removal: cleaned.items[0]!.sequence,
+        },
+      );
       await assert.rejects(
         vault.operate('object', a.session, { id: first.commit.id }),
         { status: 410 },
@@ -795,7 +878,7 @@ await test('persistent vault: reservations, isolation, concurrency, failures, qu
       const commits = (after as { commits: VaultCommit[] }).commits;
       assert.ok(commits.some((c) => c.id === first.commit.id));
       await assert.rejects(objects.read(first.commit.block.hash));
-      const again = await service.operate('personal-clean', a.session, input);
+      const again = await messages.operate('personal-clean', a.session, input);
       assert.equal((again as { released: number }).released, 0);
     },
   );

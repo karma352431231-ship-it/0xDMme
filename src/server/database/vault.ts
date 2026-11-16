@@ -91,16 +91,20 @@ export class VaultStore {
     client: pg.PoolClient,
     commit: VaultCommit,
   ): Promise<void> {
-    const result = await client.query<Head>(
-      'SELECT sequence,head FROM hash_talk.vault_heads WHERE account_id=$1',
-      [commit.accountId],
-    );
-    const head = result.rows[0] ?? { sequence: 0, head: null };
+    const head = await this.readHead(client, commit.accountId);
     if (commit.sequence !== head.sequence + 1 || commit.previous !== head.head)
       throw new AccountError(
         409,
         'Vault changed on another device. Sync while preserving the draft.',
       );
+  }
+  /** Caller holds the account lock and has checked current device authority. */
+  async readHead(client: pg.PoolClient, accountId: string): Promise<Head> {
+    const result = await client.query<Head>(
+      'SELECT sequence,head FROM hash_talk.vault_heads WHERE account_id=$1',
+      [accountId],
+    );
+    return result.rows[0] ?? { sequence: 0, head: null };
   }
   private async lockOperation(
     client: pg.PoolClient,
@@ -281,12 +285,7 @@ export class VaultStore {
         'SELECT commit FROM hash_talk.vault_operations WHERE account_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3',
         [session.accountId, after, pageSize],
       );
-      const head = (
-        await client.query<Head>(
-          'SELECT sequence,head FROM hash_talk.vault_heads WHERE account_id=$1',
-          [session.accountId],
-        )
-      ).rows[0] ?? { sequence: 0, head: null };
+      const head = await this.readHead(client, session.accountId);
       if (after > head.sequence)
         throw new AccountError(
           409,

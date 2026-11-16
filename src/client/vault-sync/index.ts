@@ -1,4 +1,4 @@
-import { sameVaultRead } from './verified-read.ts';
+import { sameVaultRead, VaultIdentitySnapshot } from './verified-read.ts';
 import type { VerifiedVaultRead, VaultReadVersion } from './verified-read.ts';
 import { networkAvailable } from '../connectivity/index.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
@@ -72,6 +72,7 @@ export class VaultSync {
   private locator: VaultLocator | null = null;
   private localOnly = false;
   private readonly removals = new RemovalIndex();
+  private readonly identitySnapshot = new VaultIdentitySnapshot();
   private readonly refreshes = new QueuedVaultRefresh();
   get removalCursor(): number {
     return this.removals.cursor;
@@ -206,6 +207,17 @@ export class VaultSync {
       throw new Error('Session changed during synchronization.');
     if (authority.offline || authority.directory !== version.directory)
       return false;
+    const snapshot = await this.identitySnapshot.read(authority, guard);
+    guard();
+    return snapshot
+      ? confirmsIdentitySnapshot(version, snapshot, this.readVersion())
+      : this.confirmSeparateReads(version, authority, guard);
+  }
+  private async confirmSeparateReads(
+    version: VaultReadVersion,
+    authority: VaultAuthority,
+    guard: () => void,
+  ): Promise<boolean> {
     const page = readPage(
       await api(authority, 'read', { after: version.sequence }),
     );
@@ -572,4 +584,19 @@ export class VaultSync {
       { options },
     );
   }
+}
+
+function confirmsIdentitySnapshot(
+  expected: VaultReadVersion,
+  remote: Pick<VaultReadVersion, 'sequence' | 'head' | 'removal'>,
+  local: VaultReadVersion | null,
+): boolean {
+  if (remote.sequence < expected.sequence || remote.removal < expected.removal)
+    throw new Error('Remote vault predates the local checkpoint.');
+  return (
+    remote.sequence === expected.sequence &&
+    remote.head === expected.head &&
+    remote.removal === expected.removal &&
+    sameVaultRead(expected, local)
+  );
 }

@@ -83,6 +83,14 @@ export class BackupStore {
       };
     });
   }
+  /** Caller holds the account lock and has checked current device authority. */
+  async removalCursor(c: pg.PoolClient, accountId: string): Promise<number> {
+    const result = await c.query<{ sequence: string }>(
+      'SELECT sequence::text FROM hash_talk.personal_removals WHERE account_id=$1 ORDER BY personal_removals.sequence DESC LIMIT 1',
+      [accountId],
+    );
+    return Number(result.rows[0]?.sequence ?? 0);
+  }
   async clean(a: ContactAuthority, proof: MessageProof) {
     const selection = cleanupSelection(proof);
     return withPersonalCleanupAuthority(

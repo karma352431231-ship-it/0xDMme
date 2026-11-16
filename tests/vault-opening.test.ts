@@ -631,6 +631,11 @@ async function verifiedIdentityFixture(t: TestContext) {
   const f = await fixture(t, 1, true);
   const commit = f.sync.latest()!.commit;
   const checkpoint = { sequence: 1, head: await commitHash(commit), used: 256 };
+  const snapshot = {
+    sequence: checkpoint.sequence,
+    head: checkpoint.head,
+    removal: 0,
+  };
   const storage = f.context.fixture.storage;
   t.mock.method(
     f.context.fixture,
@@ -642,13 +647,21 @@ async function verifiedIdentityFixture(t: TestContext) {
       return storage(name, args);
     },
   );
-  t.mock.method(f.context, 'fetch', () =>
-    Promise.resolve(Response.json({ ...checkpoint, commits: [], pending: [] })),
-  );
+  const requests: string[] = [];
+  t.mock.method(f.context, 'fetch', (url: string) => {
+    requests.push(url);
+    return Promise.resolve(
+      Response.json(
+        url.endsWith('/identity-snapshot')
+          ? snapshot
+          : { ...checkpoint, commits: [], pending: [] },
+      ),
+    );
+  });
   const source = new f.module.PeerIdentity(f.sync);
   await source.synchronize();
   await source.loadCurrent();
-  return { ...f, source, checkpoint };
+  return { ...f, source, checkpoint, snapshot, requests };
 }
 
 await test('startup transfers verified immutable pins into a different owner without another vault authority or decryption', async (t) => {
@@ -657,6 +670,7 @@ await test('startup transfers verified immutable pins into a different owner wit
   assert.ok(preparation);
   const target = new f.module.PeerIdentity(f.sync);
   const before = f.counts();
+  f.requests.length = 0;
   const open = t.mock.method(f.sync, 'openMany', () =>
     Promise.reject(new Error('Reused pins must not be decrypted again')),
   );
@@ -666,7 +680,8 @@ await test('startup transfers verified immutable pins into a different owner wit
     f.source.get(f.owner.accountId),
   );
   assert.equal(f.counts().authorities, before.authorities);
-  assert.equal(f.counts().removalChecks, before.removalChecks + 1);
+  assert.equal(f.counts().removalChecks, before.removalChecks);
+  assert.deepEqual(f.requests, ['/api/account/messages/identity-snapshot']);
   assert.equal(open.mock.callCount(), 0);
   assert.equal(await preparation.confirm(f.owner.authority), true);
   preparation.dispose();
@@ -691,11 +706,9 @@ for (const change of [
       t.mock.method(f.context, 'fetch', () =>
         Promise.resolve(
           Response.json({
-            ...f.checkpoint,
+            ...f.snapshot,
             sequence: 2,
             head: 'a'.repeat(64),
-            commits: [],
-            pending: [],
           }),
         ),
       );
@@ -712,13 +725,7 @@ for (const change of [
     assert.equal(target.get(f.owner.accountId), null);
   });
 
-for (const change of [
-  'logout',
-  'device',
-  'csrf',
-  'revoked',
-  'removal-failure',
-] as const)
+for (const change of ['logout', 'device', 'csrf', 'revoked'] as const)
   await test(`startup handoff preserves the rejection path for ${change}`, async (t) => {
     const f = await verifiedIdentityFixture(t);
     const prepared = f.source.prepareRead()!;
@@ -731,10 +738,6 @@ for (const change of [
     if (change === 'revoked')
       t.mock.method(f.context, 'fetch', () =>
         Promise.resolve(Response.json({ error: 'Revoked' }, { status: 403 })),
-      );
-    if (change === 'removal-failure')
-      t.mock.method(f.module.RemovalIndex.prototype, 'load', () =>
-        Promise.reject(new Error('Removal check denied')),
       );
     await assert.rejects(prepared.hydrate(target, f.owner.authority));
     assert.equal(target.get(f.owner.accountId), null);
@@ -753,7 +756,7 @@ await test('handoff rechecks removal and session state after asynchronous confir
   t.mock.method(f.context, 'fetch', async () => {
     changed.resolve();
     await release.promise;
-    return Response.json({ ...f.checkpoint, commits: [], pending: [] });
+    return Response.json(f.snapshot);
   });
   const confirmation = prepared.confirm(f.owner.authority);
   await changed.promise;
@@ -772,7 +775,7 @@ for (const cancelled of ['source', 'target', 'device'] as const)
     t.mock.method(f.context, 'fetch', async () => {
       entered.resolve();
       await release.promise;
-      return Response.json({ ...f.checkpoint, commits: [], pending: [] });
+      return Response.json(f.snapshot);
     });
     const hydration = prepared.hydrate(target, f.owner.authority);
     await entered.promise;
@@ -790,13 +793,62 @@ await test('a newly observed removal invalidates prepared pins before publicatio
   const prepared = f.source.prepareRead()!;
   const target = new f.module.PeerIdentity(f.sync);
   assert.equal(await prepared.hydrate(target, f.owner.authority), true);
-  let cursor = 0;
-  t.mock.getter(f.module.RemovalIndex.prototype, 'cursor', () => cursor);
-  t.mock.method(f.module.RemovalIndex.prototype, 'load', () => {
-    cursor++;
-    return Promise.resolve();
-  });
+  t.mock.method(f.context, 'fetch', () =>
+    Promise.resolve(Response.json({ ...f.snapshot, removal: 1 })),
+  );
   assert.equal(await prepared.confirm(f.owner.authority), false);
+  assert.equal(
+    f.sync.removalCursor,
+    0,
+    'An unverified cursor never advances the removal index',
+  );
+});
+
+await test('only an explicit unavailable operation enables the legacy identity reads', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const prepared = f.source.prepareRead()!;
+  const before = f.counts();
+  let error = 'Unknown resource.';
+  const requests: string[] = [];
+  t.mock.method(f.context, 'fetch', (url: string) => {
+    requests.push(url);
+    return Promise.resolve(
+      url.endsWith('/identity-snapshot')
+        ? Response.json({ error }, { status: 404 })
+        : Response.json({ ...f.checkpoint, commits: [], pending: [] }),
+    );
+  });
+  await assert.rejects(prepared.confirm(f.owner.authority));
+  assert.equal(f.counts().removalChecks, before.removalChecks);
+  error = 'Message operation unavailable.';
+  assert.equal(await prepared.confirm(f.owner.authority), true);
+  assert.equal(await prepared.confirm(f.owner.authority), true);
+  assert.deepEqual(requests, [
+    '/api/account/messages/identity-snapshot',
+    '/api/account/messages/identity-snapshot',
+    '/api/account/vault/read',
+    '/api/account/vault/read',
+  ]);
+  assert.equal(f.counts().removalChecks, before.removalChecks + 2);
+  t.mock.method(f.module.RemovalIndex.prototype, 'load', () =>
+    Promise.reject(new Error('Removal check denied')),
+  );
+  await assert.rejects(
+    prepared.confirm(f.owner.authority),
+    /Removal check denied/u,
+  );
+});
+
+await test('an invalid identity snapshot neither confirms pins nor falls back', async (t) => {
+  const f = await verifiedIdentityFixture(t);
+  const prepared = f.source.prepareRead()!;
+  const before = f.counts();
+  const read = t.mock.method(f.context, 'fetch', () =>
+    Promise.resolve(Response.json({ ...f.snapshot, removal: null })),
+  );
+  await assert.rejects(prepared.confirm(f.owner.authority));
+  assert.equal(read.mock.callCount(), 1);
+  assert.equal(f.counts().removalChecks, before.removalChecks);
 });
 
 await test('message startup offers prepared pins once and closing cancels an unclaimed preparation', async (t) => {

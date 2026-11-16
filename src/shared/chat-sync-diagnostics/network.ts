@@ -36,6 +36,7 @@ const operations = new Set([
   'recovery-peer',
   'peer-directory',
   'send-preparation',
+  'identity-snapshot',
   'daily-states',
   'daily-configure',
   'daily-heartbeat',
