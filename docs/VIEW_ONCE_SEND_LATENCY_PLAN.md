@@ -118,8 +118,9 @@ optimization remain pending. No before/after latency reduction is claimed.
 
 The owner rejected selecting a category before each test and explicitly allowed
 local inspection of synthetic test files for the best automatic accuracy. This
-supersedes the first implementation's manual case selector. The panel now has
-only **Mark delay** and **Stop and download report**. Normal text submission,
+supersedes the first implementation's manual case selector. Mark and export
+from the console as described in [the capture instructions](CHAT_SYNC_DIAGNOSTICS.md#per-send-comparison-capture--10-november-2026).
+Normal text submission,
 file-input changes (including the existing drop path) and the composer's actual
 view-once state identify the case. Enter, its generated button click and the
 form submit share one gesture, so a message creates one summary. File selection

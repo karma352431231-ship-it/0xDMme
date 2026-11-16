@@ -88,10 +88,11 @@ __0xdmmeLag.pair('the-32-character-code-returned-above');
 __0xdmmeLag.ready();
 ```
 
-The panel distinguishes unavailable hooks, incompatible revisions, missing
-pairing, pairing failure, missing server clock samples and inconsistent clocks.
-Pairing is acknowledged after the ephemeral HMAC key is usable. Both panels
-must say **Ready locally** and show the same pair fingerprint before sending.
+`__0xdmmeLag.ready()` distinguishes unavailable hooks, incompatible revisions,
+missing pairing, pairing failure, missing server clock samples and inconsistent
+clocks. Pairing is acknowledged after the ephemeral HMAC key is usable. Verify
+**Ready locally** and the same pair fingerprint on both consoles before sending.
+Optional pairing controls are available through `__0xdmmeLag.showPanel()`.
 One device cannot establish the other device's readiness without its report;
 `peerConfirmed: false` makes that limit explicit. The code and real message IDs
 are never exported, persisted or sent to the server. Tags and fingerprints are

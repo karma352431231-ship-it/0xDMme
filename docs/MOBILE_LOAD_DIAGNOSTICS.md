@@ -34,9 +34,11 @@ Normal builds still require the console recorder and retain no launch history.
    copy(JSON.stringify(window.__0xdmmeLag.stop(), null, 2));
    ```
 
-The mobile overlay's Stop capture button ends collection. Export through the
-Mac Console afterward. It does not depend on the app supporting a Blob download.
-Pasting the recorder again starts a fresh capture after the previous one stops.
+The recorder starts in the console, leaving the chat available for scrolling
+and input. `__0xdmmeLag.showPanel()` opens optional controls. **Hide controls**
+or `__0xdmmeLag.hidePanel()` removes them while recording continues. Console
+export works independently of Blob download support. Pasting the recorder
+again starts a fresh capture after the previous one stops.
 
 ## Reading the report
 

@@ -378,9 +378,11 @@ registrations. The content hint to the sender's own account still causes one
 Report schema 2 adds five comparison slots independent of detailed timeline
 eviction. Build with `npm run diagnostic:chat`; install the console meter before
 file selection. Send text, images and videos normally, with the desired ① state,
-and press **Mark delay** when each message appears sent. The panel has no case
-selector or start-case button. Use **Stop and download report** when done and
-start a fresh capture after five sends.
+and run `__0xdmmeLag.mark()` when each message appears sent. Use
+`__0xdmmeLag.download()` in the browser when done, or export the return value
+of `__0xdmmeLag.stop()` from an inspected WebView. Start a fresh capture after
+five sends. The chat stays clear by default. Run `__0xdmmeLag.showPanel()` for
+optional controls and choose **Hide controls** to dismiss them during capture.
 
 Categories and exact input sizes are automatic. Local signature inspection
 refines the browser's MIME category, while private full-file SHA-256 comparison

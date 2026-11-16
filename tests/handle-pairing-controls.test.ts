@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { PairingControls } from '../src/tools/chat-diagnostics/pairing-controls.ts';
-import { CommunityNode } from './fixtures/community-dom.ts';
+import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
+import type { Recording } from '../src/tools/chat-diagnostics/recording.ts';
 class MeterNode extends CommunityNode {
   style = { cssText: '' };
   readOnly = false;
   selected = false;
   onclick: (() => void) | null = null;
+  get isConnected(): boolean {
+    return this.parent !== null;
+  }
   select(): void {
     this.selected = true;
   }
@@ -65,4 +69,76 @@ await test('sender and recipient controls explicitly share one temporary code an
   assert.equal(recipient.code.value, '');
   assert.equal(f.code.value, '');
   assert.equal(recipient.button('Copy code').disabled, true);
+});
+
+await test('the console meter leaves the chat clear and hiding controls keeps capture active', async (t) => {
+  interface ConsoleMeter {
+    report(): ReturnType<Recording['report']>;
+    stop(): ReturnType<Recording['report']>;
+    mark(): void;
+    showPanel(): void;
+    hidePanel(): void;
+  }
+  const document = communityDocument();
+  const host = Object.assign(new EventTarget(), {
+    fetch,
+    __0xdmmeLag: undefined as ConsoleMeter | undefined,
+  });
+  let nodesCreated = 0;
+  const globals = {
+    document: Object.assign(document, {
+      documentElement: new CommunityNode('html'),
+      createElement: (tag: string) => {
+        nodesCreated++;
+        return new MeterNode(tag);
+      },
+    }),
+    window: host,
+    location: new URL('https://0xdmme.app/'),
+    MutationObserver: class {
+      observe(): void {}
+      disconnect(): void {}
+    },
+  };
+  for (const [key, value] of Object.entries(globals)) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, key, previous);
+      else Reflect.deleteProperty(globalThis, key);
+    });
+  }
+  t.mock.method(console, 'info', () => {});
+  await import('../src/tools/chat-diagnostics/index.ts');
+  const meter = host.__0xdmmeLag;
+  assert.ok(meter);
+  try {
+    assert.equal(nodesCreated, 0);
+    assert.equal(meter.report().active, true);
+    meter.showPanel();
+    meter.showPanel();
+    assert.equal(document.body.children.length, 1);
+    const panel = document.body.querySelector('aside');
+    assert.ok(panel);
+    const hide = panel.children.find(
+      (node) => node.textContent === 'Hide controls',
+    );
+    assert.ok(hide);
+    hide.click();
+    assert.equal(document.body.children.length, 0);
+    meter.mark();
+    assert.equal(meter.report().active, true);
+    assert.equal(meter.report().events.at(-1)?.kind, 'manual-marker');
+
+    meter.showPanel();
+    meter.hidePanel();
+    assert.equal(document.body.children.length, 0);
+    meter.showPanel();
+    assert.equal(meter.stop().active, false);
+    assert.equal(document.body.children.length, 0);
+    meter.showPanel();
+    assert.equal(document.body.children.length, 0);
+  } finally {
+    meter.stop();
+  }
 });

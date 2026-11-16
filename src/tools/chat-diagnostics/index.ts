@@ -1,4 +1,4 @@
-import { PairingControls } from './pairing-controls.ts';
+import { DiagnosticPanel } from './panel.ts';
 import { compareDelivery } from './delivery-comparison.ts';
 import { deliveryReadiness } from './readiness.ts';
 import { Recording } from './recording.ts';
@@ -22,30 +22,16 @@ interface DiagnosticWindow extends Window {
 /** Console-only entry. No app import, automatic installation or remote export. */
 function start() {
   const native =
-    location.hostname === 'localhost' && location.protocol === 'https:';
+    location.hostname === 'localhost' &&
+    ['https:', 'capacitor:'].includes(location.protocol);
   const recording = new Recording();
   const stopHooks: (() => void)[] = [];
-  const panel = document.createElement('aside');
-  panel.setAttribute('aria-label', 'Local synchronization meter');
-  panel.style.cssText =
-    'position:fixed;top:8px;right:8px;z-index:2147483647;padding:12px;border:1px solid GrayText;background:Canvas;color:CanvasText;font:13px system-ui;max-width:260px;box-shadow:0 2px 8px GrayText;';
-  const label = document.createElement('div');
-  label.textContent = '0xDMme · local meter active (up to 10 min)';
-  const marker = document.createElement('button');
-  marker.type = 'button';
-  marker.textContent = 'Mark delay';
-  marker.onclick = () => recording.record('manual-marker');
-  const done = document.createElement('button');
-  done.type = 'button';
-  done.textContent = native ? 'Stop capture' : 'Stop and download report';
-  panel.append(label, marker, done);
+  let panel: DiagnosticPanel | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let handleTimings = false;
   let revision = 0;
   let pairSent = false;
-  const pairing = new PairingControls(pair);
-  label.after(pairing.element);
 
   function pair(code = crypto.randomUUID().replaceAll('-', '')): string {
     if (stopped || !handleTimings || revision !== handleDiagnosticRevision)
@@ -66,15 +52,11 @@ function start() {
   function stop() {
     if (!stopped) {
       stopped = true;
-      pairing.stop();
+      panel?.close();
+      panel = undefined;
       clearTimeout(deadline);
       for (const hook of stopHooks.reverse()) hook();
       recording.stop();
-      label.textContent = 'Capture ended · local report only';
-      marker.disabled = true;
-      done.textContent = native
-        ? 'Capture ended · export on Mac'
-        : 'Download report';
     }
     return recording.report();
   }
@@ -110,32 +92,38 @@ function start() {
     const lifecycle = new AbortController();
     window.addEventListener('pagehide', stop, { signal: lifecycle.signal });
     stopHooks.push(() => lifecycle.abort());
-    document.body.append(panel);
-    done.onclick = native
-      ? () => {
-          stop();
-          console.info(
-            'Export on the Mac: copy(JSON.stringify(window.__0xdmmeLag.stop(), null, 2))',
-          );
-        }
-      : download;
-    const refreshStatus = () => {
-      label.textContent = deliveryReadiness(recording.readiness()).label;
-      pairing.update(
-        handleTimings && revision === handleDiagnosticRevision,
-        pairSent,
-      );
-    };
-    refreshStatus();
-    const statusTimer = setInterval(refreshStatus, 1000);
-    stopHooks.push(() => clearInterval(statusTimer));
     deadline = setTimeout(stop, 600_000);
     recording.record('capture-started');
   } catch (error: unknown) {
     stop();
-    panel.remove();
     throw error;
   }
+  const mark = () => recording.record('manual-marker');
+  const stopFromPanel = () => {
+    if (!native) {
+      download();
+      return;
+    }
+    stop();
+    console.info(
+      'Export on the Mac: copy(JSON.stringify(window.__0xdmmeLag.stop(), null, 2))',
+    );
+  };
+  const showPanel = () => {
+    if (stopped) return;
+    panel ??= new DiagnosticPanel({
+      native,
+      pair,
+      mark,
+      finish: stopFromPanel,
+      status: () => ({
+        label: deliveryReadiness(recording.readiness()).label,
+        canPair: handleTimings && revision === handleDiagnosticRevision,
+        configured: pairSent,
+      }),
+    });
+    panel.show();
+  };
   return Object.freeze({
     report: () => recording.report(),
     compare: (recipient: ReturnType<Recording['report']>) =>
@@ -152,10 +140,11 @@ function start() {
     stop,
     download,
     pair,
-    mark: () => recording.record('manual-marker'),
+    mark,
+    showPanel,
+    hidePanel: () => panel?.hide(),
     remove: () => {
       stop();
-      panel.remove();
     },
   });
 }
@@ -170,6 +159,6 @@ if (host.__0xdmmeLag?.report().active)
 host.__0xdmmeLag?.remove();
 host.__0xdmmeLag = start();
 console.info(
-  'Meter installed. Check __0xdmmeLag.ready() and BOTH device panels before sending. Do not reload during capture.',
+  'Meter installed in the console. Use __0xdmmeLag.report() or __0xdmmeLag.stop(). Paired delivery uses __0xdmmeLag.ready() on both devices.',
   host.__0xdmmeLag.ready(),
 );
