@@ -56,11 +56,12 @@ export async function currentGlobalUsageSources(client: pg.Client) {
   ).rows;
 }
 
-/** Columns later additive migrations derive from existing data. Upgrade
- * fingerprints compare every pre-existing column; 098 fills the group removal
- * fence from the existing revision. */
+/** Compare every pre-existing column across upgrades. Migration 098 derives
+ * the group removal fence and 111 initializes the notification cursors. */
 const derivedColumns: Record<string, string[]> = {
   groups: ['message_invalidation'],
+  conversation_controls: ['notifications_through'],
+  group_controls: ['notifications_through'],
 };
 export async function globalSourceSnapshot(
   client: pg.Client,

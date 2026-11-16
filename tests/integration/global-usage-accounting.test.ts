@@ -408,6 +408,10 @@ await test('statement global accounting preserves populated history and avoids p
     'migration preserves source fingerprints, exact totals and published checksums',
     async () => {
       assert.deepEqual(await globalSourceSnapshot(writer, sources), before);
+      const cursors = await writer.query(`
+        SELECT NOT EXISTS(SELECT 1 FROM hash_talk.conversation_controls WHERE notifications_through<>0)
+           AND NOT EXISTS(SELECT 1 FROM hash_talk.group_controls WHERE notifications_through<>0) AS zero`);
+      assert.deepEqual(cursors.rows, [{ zero: true }]);
       const added = await globalSourceSnapshot(writer, engagementSources);
       const addedBytes = added
         .filter((row) => row.name.startsWith('engagement_'))
