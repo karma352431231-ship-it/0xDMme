@@ -868,6 +868,61 @@ await test('headless private notification reads the exact verified message witho
   reader.close();
 });
 
+await test('media catalogue pages use the verified reader independently of the displayed private history', async () => {
+  const f = resumeFixture(true);
+  for (let index = 0; index < 36; index++)
+    await f.add('https://example.com/' + index);
+  await f.controller.synchronize();
+  const shown = f.data.frames.at(-1)!.map((row) => row.id);
+  const reader = f.galleryReader();
+  const signal = new AbortController().signal;
+  const ids = new Set<string>();
+  let before: number | null = null;
+  try {
+    do {
+      const page = await reader.page(before, signal);
+      for (const row of page.views) ids.add(row.id);
+      before = page.next;
+    } while (before !== null);
+  } finally {
+    reader.close();
+  }
+  assert.equal(ids.size, 36);
+  assert.deepEqual(
+    f.data.frames.at(-1)!.map((row) => row.id),
+    shown,
+  );
+  assert.ok(!f.data.requests.includes('daily-read'));
+});
+
+await test('offline catalogue media keeps local authorization and never requests remote authority', async () => {
+  const f = resumeFixture();
+  f.data.offline = true;
+  f.access.withLocalVault = (locator) => {
+    assert.equal(locator.accountId, f.session.accountId);
+    return Promise.reject(new Error('Local media authorization refused.'));
+  };
+  const authorityReads = f.data.authorityReads;
+  await assert.rejects(
+    f.controller.galleryMedia(
+      {
+        id: crypto.randomUUID(),
+        peer: f.peer,
+        hash: 'a'.repeat(64),
+        kind: 'attachment',
+        own: false,
+        text: '',
+        state: '',
+      },
+      false,
+      new AbortController().signal,
+    ),
+    /Local media authorization refused/u,
+  );
+  assert.equal(f.data.authorityReads, authorityReads);
+  assert.deepEqual(f.data.requests, []);
+});
+
 await test('late confirmation from A cannot replace a restored B or discard valid C', async () => {
   const f = resumeFixture(true),
     b = crypto.randomUUID(),

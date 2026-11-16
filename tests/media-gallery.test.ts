@@ -4,6 +4,8 @@ import {
   galleryItems,
   galleryCount,
   tileSource,
+  MediaCatalogue,
+  catalogueIdentity,
 } from '../src/client/media-gallery/index.ts';
 import type { DailyRow, DailyView } from '../src/client/daily-text/index.ts';
 import { watchGalleryHistory } from '../src/client/media-gallery/history.ts';
@@ -123,6 +125,212 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     { thumbnail: false, frameType: 'video/mp4' },
     { thumbnail: true, frameType: null },
   ]);
+});
+
+await test('catalogue counts every tab before the gallery opens and continues metadata while previews are held', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const preview = deferred<Uint8Array<ArrayBuffer>>();
+  const complete = deferred<void>();
+  const media: string[] = [];
+  const pages: (number | null)[] = [];
+  const records = [
+    ...Array.from({ length: 36 }, (_, index) =>
+      view({
+        id: 'photo-' + index,
+        kind: 'attachment',
+        text: attachment('p.jpg', 'image/jpeg', true),
+        sentAt: index,
+      }),
+    ),
+    view({
+      id: 'doc',
+      kind: 'attachment',
+      text: attachment('document.pdf', 'application/pdf', false),
+      sentAt: 0,
+    }),
+    view({
+      id: 'link',
+      kind: 'text',
+      text: 'https://example.com/shared https://example.com/another',
+      sentAt: 0,
+    }),
+  ];
+  catalogue.subscribe(() => {
+    if (catalogue.count() !== null) complete.resolve();
+  });
+  catalogue.prepare('conversation', () => ({
+    page: (before) => {
+      pages.push(before);
+      const offset = before === null ? 0 : 100 - before;
+      return Promise.resolve({
+        views: records.slice(offset, offset + 16),
+        next: offset + 16 < records.length ? 100 - offset - 16 : null,
+      });
+    },
+    media: (row) => {
+      media.push(row.id);
+      return preview.promise.then((bytes) => Uint8Array.from(bytes));
+    },
+    close: () => {},
+  }));
+  assert.equal(
+    catalogue.count(),
+    null,
+    'an incomplete catalogue cannot claim zero',
+  );
+  await complete.promise;
+  assert.equal(catalogue.count(), 39);
+  assert.equal(galleryItems(catalogue.views()).media.length, 36);
+  assert.equal(galleryItems(catalogue.views()).docs.length, 1);
+  assert.equal(galleryItems(catalogue.views()).links.length, 2);
+  assert.deepEqual(pages, [null, 84, 68]);
+  assert.equal(
+    media.length,
+    2,
+    'slow preview IO has a separate concurrency bound',
+  );
+  preview.resolve(Uint8Array.of(1, 2, 3));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const entry = galleryItems(catalogue.views()).media[0]!;
+  await catalogue.picture(entry);
+  const downloaded = media.length;
+  await catalogue.picture(entry);
+  assert.equal(
+    media.length,
+    downloaded,
+    'opening a prepared tile reuses its preview',
+  );
+  assert.ok(
+    media.includes('doc'),
+    'document originals are prepared through their encrypted attachment reader',
+  );
+});
+
+await test('closing or replacing a catalogue suppresses late metadata and releases its reader', async () => {
+  const catalogue = new MediaCatalogue<Row>();
+  const page = deferred<{ views: DailyView<Row>[]; next: null }>();
+  let closed = 0;
+  catalogue.prepare('old', () => ({
+    page: () => page.promise,
+    media: () => Promise.resolve(null),
+    close: () => closed++,
+  }));
+  catalogue.clear();
+  page.resolve({
+    views: [
+      view({
+        id: 'old',
+        kind: 'text',
+        text: 'https://private.example',
+        sentAt: 0,
+      }),
+    ],
+    next: null,
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(closed, 1);
+  assert.deepEqual(catalogue.views(), []);
+  assert.equal(catalogue.count(), null);
+});
+
+await test('scrolling the chat to older rows does not invalidate its prepared media catalogue', () => {
+  const rows = Array.from({ length: 40 }, (_, index) =>
+    view({
+      id: String(index),
+      kind: 'text',
+      text: 'text ' + index,
+      sentAt: index,
+    }),
+  );
+  assert.equal(
+    catalogueIdentity('peer', rows.slice(-16)),
+    catalogueIdentity('peer', rows),
+  );
+  assert.notEqual(
+    catalogueIdentity('peer', rows),
+    catalogueIdentity('other', rows),
+  );
+});
+
+await test('verified arrivals update the catalogue without discarding prepared content, while deletion rebuilds it', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const first = {
+    ...view({
+      id: 'first',
+      kind: 'text',
+      text: 'https://example.com/first',
+      sentAt: 1,
+    }),
+    sequence: 1,
+  };
+  const arrival = {
+    ...view({
+      id: 'arrival',
+      kind: 'text',
+      text: 'https://example.com/next',
+      sentAt: 2,
+    }),
+    sequence: 2,
+  };
+  const document = {
+    ...view({
+      id: 'document',
+      kind: 'attachment',
+      text: attachment('document.pdf', 'application/pdf', false),
+      sentAt: 0,
+    }),
+    sequence: 0,
+  };
+  let creations = 0,
+    downloads = 0;
+  const source = () => {
+    creations++;
+    return {
+      page: () => Promise.resolve({ views: [document, first], next: null }),
+      media: () => {
+        downloads++;
+        return Promise.resolve(Uint8Array.of(1));
+      },
+      close() {},
+    };
+  };
+  catalogue.prepare('initial', source, {
+    conversation: 'peer',
+    rows: [document, first],
+  });
+  await Promise.resolve();
+  assert.equal(catalogue.count(), 2);
+  assert.equal(downloads, 1);
+  catalogue.prepare('appended', source, {
+    conversation: 'peer',
+    rows: [document, first, arrival],
+  });
+  assert.equal(catalogue.count(), 3);
+  assert.equal(creations, 1);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(
+    downloads,
+    1,
+    'an arrival does not prepare unchanged documents again',
+  );
+  catalogue.prepare(
+    'removed',
+    () => {
+      creations++;
+      return {
+        page: () => Promise.resolve({ views: [arrival], next: null }),
+        media: () => Promise.resolve(null),
+        close() {},
+      };
+    },
+    { conversation: 'peer', rows: [arrival] },
+  );
+  await Promise.resolve();
+  assert.equal(creations, 2);
+  assert.equal(catalogue.count(), 1);
 });
 
 await test('the gallery fills short tabs, paginates near the bottom and discards a page after closing', async (t) => {

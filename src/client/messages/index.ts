@@ -63,9 +63,10 @@ import {
 import type { ConversationStars } from '../message-stars/index.ts';
 import {
   MediaGallery,
-  galleryCount,
-  galleryItems,
+  MediaCatalogue,
+  catalogueIdentity,
 } from '../media-gallery/index.ts';
+import { privateGallerySource } from './gallery-source.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
@@ -155,6 +156,7 @@ export function startMessages(
   const stars = new MessageStars(sync, () => session?.accountId),
     starredList = new StarredList(),
     gallery = new MediaGallery<MessageView>();
+  const mediaCatalogue = new MediaCatalogue<MessageView>();
   const conversationStars: ConversationStars = {
     starred: (id) => stars.starred(id),
     load: (conversation, ids) => stars.load(conversation, ids),
@@ -226,7 +228,16 @@ export function startMessages(
           online: networkAvailable(),
           localOnly: false,
         }),
-      receipt: (receipt) => receiptPreviews.commit(receipt),
+      receipt: (receipt) => {
+        receiptPreviews.commit(receipt);
+        if (
+          receipt.views.some(
+            (row) =>
+              row.peer === selected?.accountId && row.relation?.type === 'edit',
+          )
+        )
+          mediaCatalogue.revalidate();
+      },
     },
   );
   const composer: MessageComposer = new MessageComposer({
@@ -757,18 +768,14 @@ export function startMessages(
           (message) => void revealSearchMatch(message.id, peer),
         ),
       media: {
-        count: galleryCount(galleryItems(dailyViews(rows ?? []))),
+        count: 0,
+        summary: mediaCatalogue,
         open: () =>
           gallery.show({
             title,
-            views: () => dailyViews(rows ?? []),
+            views: () => mediaCatalogue.views(),
+            catalogue: mediaCatalogue,
             media: (view, thumbnail) => controller.media(view, thumbnail),
-            older: {
-              available: () =>
-                selected === peer && controller.olderAvailable(rootsShown()),
-              load: () =>
-                selected === peer ? loadOlder() : Promise.resolve(false),
-            },
             open: (view) => void revealSearchMatch(view.id, peer),
           }),
       },
@@ -946,6 +953,7 @@ export function startMessages(
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
       suspend('invalidate');
     else if (event === 'removed' && expectingOwnRemoval()) {
+      mediaCatalogue.clear();
       // The notice carries no message: it may be this tab's own deletion
       // coming back. The probe requested next verifies it, with any other
       // removal, before publishing; the open chat stays shown meanwhile.
@@ -954,6 +962,7 @@ export function startMessages(
       refreshDirectoryPreviews();
       controller.hint();
     } else if (event === 'removed') {
+      mediaCatalogue.clear();
       previews.clear();
       renderContacts();
       // Cancel the history token immediately without cancelling an in-flight
@@ -1231,6 +1240,24 @@ export function startMessages(
     trace?: LoadTrace,
   ): void {
     historyUi.render(rows, update, trace);
+    if (!session || !selected || !rows) {
+      mediaCatalogue.clear();
+      return;
+    }
+    const peer = selected;
+    const account = session;
+    mediaCatalogue.prepare(
+      catalogueIdentity(peer.accountId, dailyViews(rows)),
+      () =>
+        privateGallerySource({
+          access,
+          sync,
+          session: account,
+          peer: peer.accountId,
+          localOnly: !!peer.localOnly,
+        }),
+      { conversation: peer.accountId, rows: dailyViews(rows) },
+    );
   }
   function choose(_mode: 'reply', view: MessageView): void {
     composer.reply(view, rows ?? []);
@@ -2183,6 +2210,7 @@ export function startMessages(
       stars.clear();
       starredList.close();
       gallery.close();
+      mediaCatalogue.clear();
       contactInfo.close();
       visits.reset();
       textQueue.reset();

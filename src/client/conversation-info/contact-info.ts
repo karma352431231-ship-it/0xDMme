@@ -5,6 +5,8 @@ import { infoActionBar, infoRow } from './actions.ts';
 import type { InfoAction } from './actions.ts';
 import { MuteRow } from './mute.ts';
 import type { MutePort } from './mute.ts';
+import { mediaInfoRow } from './media-row.ts';
+import type { MediaInfo } from './media-row.ts';
 
 /** What the panel shows about one private (wallet) contact. */
 export interface ContactInfo {
@@ -16,8 +18,8 @@ export interface ContactInfo {
   search: () => void;
   /** Opens this contact's starred messages. */
   starred?: () => void;
-  /** Opens Media, Links and Docs; the count covers the loaded messages. */
-  media?: { count: number; open: () => void };
+  /** Opens Media, Links and Docs; the summary covers verified history. */
+  media?: MediaInfo;
   edit?: () => void;
   mute?: MutePort;
 }
@@ -31,6 +33,7 @@ export class ContactInfoDialog {
   private readonly dialog = document.createElement('dialog');
   private photo: AbortController | null = null;
   private mute: MuteRow | null = null;
+  private rowsLifetime = new AbortController();
   constructor() {
     this.dialog.className = 'info-dialog';
     this.dialog.setAttribute('aria-label', t('Contact info'));
@@ -60,6 +63,8 @@ export class ContactInfoDialog {
     this.release();
   }
   private release(): void {
+    this.rowsLifetime.abort();
+    this.rowsLifetime = new AbortController();
     this.photo?.abort();
     this.photo = null;
     this.mute?.dispose();
@@ -163,14 +168,10 @@ export class ContactInfoDialog {
     if (info.media) {
       const media = info.media;
       list.append(
-        infoRow({
-          label: t('Media, links and docs'),
-          icon: 'image',
-          end: String(media.count),
-          perform: () => {
-            this.close();
-            media.open();
-          },
+        mediaInfoRow({
+          media,
+          close: () => this.close(),
+          signal: this.rowsLifetime.signal,
         }),
       );
     }

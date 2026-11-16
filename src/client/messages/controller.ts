@@ -753,6 +753,59 @@ export class Messages {
       ),
     );
   }
+  /** Catalogue rows were verified by their independent reader. Recheck the
+   * exact encrypted object before opening media outside its last page. */
+  async galleryMedia(
+    view: MessageView,
+    thumbnail: boolean,
+    signal: AbortSignal,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+    };
+    guard();
+    if (view.archived) return this.historicalMedia(view, thumbnail, guard);
+    const execute = async (authority: VaultAuthority) => {
+      guard();
+      const api = authority.offline
+        ? null
+        : (operation: string, payload: Record<string, unknown>) =>
+            messageApi(authority, operation, payload, { guard, signal });
+      const snapshot = api ? await api('snapshot', {}) : undefined;
+      if (api)
+        await indexedPacket(
+          await api('object', { id: view.id, snapshot }),
+          view,
+        );
+      const content = attachmentContent(JSON.parse(view.text) as unknown);
+      const file = thumbnail ? content.thumbnail : content.file;
+      if (!file) throw new Error('Thumbnail missing.');
+      const bytes = await downloadAttachment({
+        account: authority.session.accountId,
+        message: view.id,
+        file,
+        thumbnail,
+        image: thumbnail || content.image,
+        api,
+        snapshot,
+        guard,
+      });
+      try {
+        if (api) await api('confirm', { snapshot });
+        guard();
+        return bytes;
+      } catch (error) {
+        bytes.fill(0);
+        throw error;
+      }
+    };
+    if (networkAvailable()) return this.access.withVault(false, execute);
+    const locator = await localLocator();
+    if (!locator) throw new Error('Local copy not authorized.');
+    return this.access.withLocalVault(locator, execute);
+  }
   /** Whether this message's media was already opened in this session. */
   mediaReady(message: string, variant: MediaVariant): boolean {
     return this.mediaMemory.has(message, variant);

@@ -4,3 +4,5 @@ export { MuteRow, muteDurations } from './mute.ts';
 export type { MutePort } from './mute.ts';
 export { infoActionBar, infoRow, bindInfoTrigger } from './actions.ts';
 export type { InfoAction } from './actions.ts';
+export { mediaInfoRow } from './media-row.ts';
+export type { MediaInfo } from './media-row.ts';

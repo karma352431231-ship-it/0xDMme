@@ -1869,6 +1869,21 @@ export class GroupController {
       () => this.readMedia(selected, view, thumbnail),
     );
   }
+  /** Catalogue media rechecks current membership and exact file availability
+   * independently of the displayed history page. */
+  galleryMedia(
+    view: GroupView,
+    thumbnail: boolean,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const selected = this.selected;
+    if (
+      !selected ||
+      this.historyPending ||
+      view.groupId !== selected.state.groupId
+    )
+      return Promise.reject(new Error('Group message changed.'));
+    return this.readMedia(selected, view, thumbnail);
+  }
   /** Whether this message's media was already opened in this session. */
   mediaReady(message: string, variant: MediaVariant): boolean {
     return this.mediaMemory.has(message, variant);

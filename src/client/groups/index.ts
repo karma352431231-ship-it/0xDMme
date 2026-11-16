@@ -1,5 +1,4 @@
 import { timedLoadSync } from '../chat-sync-diagnostics/index.ts';
-import { oldestRoot } from '../history-window/index.ts';
 import type { HistoryLoadMode } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import type {
@@ -17,9 +16,10 @@ import type { GroupMessageView } from './message-content.ts';
 import { groupMessageView } from './message-content.ts';
 import {
   MediaGallery,
-  galleryCount,
-  galleryItems,
+  MediaCatalogue,
+  catalogueIdentity,
 } from '../media-gallery/index.ts';
+import { groupGallerySource } from './gallery-source.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { GroupMemberPresentation } from './member-presentation.ts';
 import { GroupReconciliation } from './reconciliation.ts';
@@ -119,6 +119,7 @@ export function startGroups(
   let states = new Map<string, PeerState>();
   const loading = new ChatHistoryLoading();
   const gallery = new MediaGallery<GroupMessageView>();
+  const mediaCatalogue = new MediaCatalogue<GroupMessageView>();
   const report = (text: string) => {
     notice = text;
   };
@@ -191,9 +192,8 @@ export function startGroups(
         ? { search: options.searchConversation }
         : {}),
       media: (group: { id: string; title: string }) => ({
-        count: galleryCount(
-          galleryItems(controller.views.map(groupMessageView)),
-        ),
+        count: 0,
+        summary: mediaCatalogue,
         open: () => showGallery(group.title),
       }),
       ...(options.stars
@@ -476,6 +476,28 @@ export function startGroups(
   }
   function render(trace?: LoadTrace): void {
     const group = controller.selected;
+    if (!session || !group || controller.historyPending) mediaCatalogue.clear();
+    else {
+      const account = session;
+      mediaCatalogue.prepare(
+        catalogueIdentity(
+          group.state.groupId,
+          controller.views.map(groupMessageView),
+        ),
+        () =>
+          groupGallerySource({
+            access,
+            sync,
+            session: account,
+            group: group.state.groupId,
+            localOnly: !!group.localOnly,
+          }),
+        {
+          conversation: group.state.groupId,
+          rows: controller.views.map(groupMessageView),
+        },
+      );
+    }
     management.updateSettingsGroup(group);
     if (!group) {
       if (host) host.hidden = true;
@@ -505,6 +527,7 @@ export function startGroups(
     render();
   }
   function deselect(): void {
+    mediaCatalogue.clear();
     chat.closeActions();
     gallery.close();
     management.closeSettings();
@@ -518,6 +541,7 @@ export function startGroups(
     chat.deselect();
   }
   function leave(): void {
+    mediaCatalogue.clear();
     gallery.close();
     management.leave();
     chat.leave();
@@ -541,25 +565,11 @@ export function startGroups(
   function showGallery(title: string): void {
     const groupId = controller.selected?.state.groupId;
     if (!groupId) return;
-    const selectedGroup = () => controller.selected?.state.groupId === groupId;
     gallery.show({
       title,
-      views: () => controller.views.map(groupMessageView),
+      views: () => mediaCatalogue.views(),
+      catalogue: mediaCatalogue,
       media: (view, thumbnail) => controller.media(view, thumbnail),
-      older: {
-        available: () => selectedGroup() && controller.olderAvailable,
-        load: async () => {
-          if (!selectedGroup()) return false;
-          const before = oldestRoot(controller.views);
-          await reopen(true);
-          const oldest = oldestRoot(controller.views);
-          return (
-            selectedGroup() &&
-            oldest !== null &&
-            (before === null || oldest < before)
-          );
-        },
-      },
       open: (view) => {
         const group = controller.selected;
         if (group) void revealGroupMessage(group, view.id, view.sequence);
@@ -655,7 +665,14 @@ export function startGroups(
     /** A categorized change; only a general wakeup refreshes the directory. */
     changed: (change: GroupChange) => {
       if (change === 'content') chat.hint();
-      return receipt.changed(change);
+      const previous = mediaCatalogue.views();
+      return receipt.changed(change).then(() => {
+        if (
+          change === 'content' &&
+          mediaCatalogue.views().every((row, index) => row === previous[index])
+        )
+          mediaCatalogue.revalidate();
+      });
     },
     counters: () => receipt.counters(),
     synchronizeAll: (signal: AbortSignal, work?: VaultWorkOptions) =>
@@ -680,6 +697,7 @@ export function startGroups(
       chat.resetTexts();
       loading.reset();
       chat.closeActions();
+      mediaCatalogue.clear();
       management.setSession(value);
       chat.invalidateHistory();
       controller.setSession(value);
@@ -694,12 +712,14 @@ export function startGroups(
       return controller.expectingOwnRemoval;
     },
     removed(): void {
+      mediaCatalogue.clear();
       receipt.reset();
       controller.removed();
       chat.pauseActions();
       chat.renderHistory();
     },
     suspend(revoked = false): void {
+      mediaCatalogue.clear();
       receipt.reset();
       chat.closeActions();
       management.leave();

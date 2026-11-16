@@ -279,12 +279,27 @@ state, and the console collector owns diagnostic capture and export. See
 
 ## Conversation media and unread actions
 
-The conversation gallery loads older verified pages when its selected tab is
-short or the reader approaches the bottom. Images and video frames load near
-the gallery viewport with at most three concurrent preview reads. Existing
-tiles keep their position as pages are added. Closing the gallery releases
-its preview URLs and stops automatic paging. A click that starts and ends on
-the browser backdrop closes the gallery.
+Opening a private or group conversation starts an independent media catalogue.
+The existing verified reader loads bounded pages without expanding or moving
+the displayed chat. All pages contribute photos, videos, documents and links
+to the count. Contact info shows an ellipsis until that initial scan completes
+and updates its count while the panel stays open.
+
+Catalogue metadata completes before attachment reads acquire the shared vault.
+Two background reads prepare pictures and document originals through the usual encrypted attachment
+store. Large images and videos retain JPEG pictures of at most 64 KiB.
+The existing 64-entry memory cache keeps at most 4 MiB of these pictures.
+Document originals stay in the encrypted attachment store. Catalogue metadata has
+an 8 MiB budget and reports exhaustion explicitly. Session or authorization
+changes release the reader and its decrypted catalogue. A verified append
+updates the count while preserving prepared pictures.
+
+Gallery tiles render from that catalogue. Their viewport observer owns only
+visible object URLs, so scrolling and reopening reuse prepared picture bytes.
+Closing the gallery releases those URLs while preparation continues for the
+open conversation. A click that starts and ends on the browser backdrop closes
+the gallery. The initial preparation on a cold device still requires the normal
+verified reads. Its duration is independent of opening or scrolling the gallery.
 
 The conversation list menu can acknowledge pending notifications for one
 conversation without opening it. Private chats and groups keep that

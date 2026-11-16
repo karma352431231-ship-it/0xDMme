@@ -10519,4 +10519,8 @@ export const catalog: Record<string, readonly [string, string]> = {
   'No photos or videos yet.': ['No photos or videos yet.', '暂无照片或视频。'],
   'No documents yet.': ['No documents yet.', '暂无文档。'],
   'No links yet.': ['No links yet.', '暂无链接。'],
+  'Media catalogue exceeds the device memory budget.': [
+    'Media catalogue exceeds the device memory budget.',
+    '媒体目录超出设备内存预算。',
+  ],
 };

@@ -12,6 +12,7 @@ import { deferred } from './deferred.ts';
 // browser media and layout adapters, whose contracts have separate tests.
 const adapters: Record<string, string[]> = {
   './controller.ts': ['GroupController'],
+  './gallery-source.ts': ['groupGallerySource'],
   './backup.ts': ['GroupBackups'],
   './notification.ts': ['readGroupNotification'],
   './directory-photo.ts': ['showGroupDirectoryPhoto'],
@@ -460,6 +461,11 @@ export function groupUiFixture() {
     GroupController: function () {
       return controller;
     },
+    groupGallerySource: () => ({
+      page: () => Promise.resolve({ views: [], next: null }),
+      media: () => Promise.resolve(null),
+      close() {},
+    }),
     AttachmentUi: function () {
       return attachments;
     },

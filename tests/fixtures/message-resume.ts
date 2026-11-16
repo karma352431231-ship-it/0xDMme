@@ -23,6 +23,7 @@ import type {
 } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import type { notificationMessages } from '../../src/client/messages/notification.ts';
+import type { privateGallerySource } from '../../src/client/messages/gallery-source.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 import type { BackupRecord } from '../../src/client/backup-records/index.ts';
 
@@ -57,7 +58,7 @@ const adapters: Record<string, string[]> = {
 const bundle = await build({
   stdin: {
     contents:
-      "export { Messages } from './src/client/messages/controller.ts'; export { notificationMessages } from './src/client/messages/notification.ts';",
+      "export { Messages } from './src/client/messages/controller.ts'; export { notificationMessages } from './src/client/messages/notification.ts'; export { privateGallerySource } from './src/client/messages/gallery-source.ts';",
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -506,6 +507,7 @@ export function resumeFixture(
       | {
           Messages: typeof Messages;
           notificationMessages: typeof notificationMessages;
+          privateGallerySource: typeof privateGallerySource;
         }
       | undefined,
   };
@@ -611,6 +613,18 @@ export function resumeFixture(
     addProfile,
     access,
     notificationReader,
+    galleryReader: () =>
+      context.messageController!.privateGallerySource({
+        access,
+        sync: {
+          refresh: () => Promise.resolve(),
+          complete: true,
+          currentHeads: () => new Map(),
+        } as unknown as VaultSync,
+        session,
+        peer,
+        localOnly: false,
+      }),
   };
 }
 

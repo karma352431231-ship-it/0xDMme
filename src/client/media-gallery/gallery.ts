@@ -1,4 +1,8 @@
-import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import {
+  t,
+  currentLanguage,
+  translatedError,
+} from '../../shared/i18n/index.ts';
 import { menuIcon } from '../menu-icons/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import { galleryItems, tileSource } from './classify.ts';
@@ -12,6 +16,7 @@ import type {
 import { watchGalleryHistory } from './history.ts';
 import type { GalleryOlderHistory } from './history.ts';
 import { GalleryPreviews } from './previews.ts';
+import type { MediaCatalogue } from './catalogue.ts';
 
 type Tab = 'media' | 'docs' | 'links';
 type GalleryRow = DailyRow & { sentAt?: number };
@@ -32,6 +37,7 @@ export interface GalleryPort<V extends GalleryRow> {
     signal: AbortSignal,
   ) => Promise<Uint8Array<ArrayBuffer> | null>;
   older?: GalleryOlderHistory;
+  catalogue?: MediaCatalogue<V>;
   /** Shows the message in its conversation. */
   open: (view: DailyView<V>) => void;
 }
@@ -95,12 +101,22 @@ export class MediaGallery<V extends GalleryRow> {
   show(port: GalleryPort<V>): void {
     this.release();
     this.port = port;
+    port.catalogue?.retry();
     this.tab = 'media';
     this.title.textContent = port.title;
     this.render();
     if (!this.dialog.open) this.dialog.showModal();
     this.body.scrollTop = 0;
     this.lifetime = new AbortController();
+    if (port.catalogue) {
+      const update = () => {
+        this.render();
+        this.notice.textContent = catalogueNotice(port.catalogue!);
+      };
+      const stop = port.catalogue.subscribe(update);
+      this.lifetime.signal.addEventListener('abort', stop, { once: true });
+      update();
+    }
     if (port.older)
       this.checkHistory = watchGalleryHistory({
         body: this.body,
@@ -170,12 +186,14 @@ export class MediaGallery<V extends GalleryRow> {
     for (const [key, row] of this.rows)
       if (!next.has(key)) this.previews.forget(row);
     this.rows = next;
-    if (!sections.length && !this.port.older?.available())
-      sections.push(this.empty());
+    if (!sections.length && this.showEmpty()) sections.push(this.empty());
     this.list.replaceChildren(...sections);
     this.body.scrollTop = top;
     if (focused instanceof HTMLElement && this.list.contains(focused))
       focused.focus({ preventScroll: true });
+  }
+  private showEmpty(): boolean {
+    return !this.port?.older?.available() && !this.port?.catalogue?.loading;
   }
   private sections(items: GalleryItems<V>, keep: KeepRow): HTMLElement[] {
     if (this.tab === 'media')
@@ -251,8 +269,11 @@ export class MediaGallery<V extends GalleryRow> {
     const source = tileSource(entry);
     this.previews.watch(
       tile,
-      (signal) => port.media(entry.view, source.thumbnail, signal),
-      source.frameType,
+      (signal) =>
+        port.catalogue
+          ? port.catalogue.picture(entry)
+          : port.media(entry.view, source.thumbnail, signal),
+      port.catalogue ? null : source.frameType,
     );
     return tile;
   }
@@ -276,6 +297,17 @@ export class MediaGallery<V extends GalleryRow> {
 
 function rowKey(view: GalleryRow): string {
   return JSON.stringify([view.id, view.hash]);
+}
+
+function catalogueNotice(catalogue: {
+  loading: boolean;
+  error: unknown;
+}): string {
+  if (catalogue.loading) return t('Loading…');
+  if (!catalogue.error) return '';
+  return catalogue.error instanceof Error
+    ? translatedError(catalogue.error.message)
+    : t('Could not complete the operation.');
 }
 
 function outside(dialog: HTMLDialogElement, event: MouseEvent): boolean {

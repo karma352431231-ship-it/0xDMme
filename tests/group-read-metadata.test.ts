@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { GroupController } from '../src/client/groups/controller.ts';
+import { groupGallerySource } from '../src/client/groups/gallery-source.ts';
 import { GroupCache } from '../src/client/groups/cache.ts';
 import { GroupGovernance } from '../src/client/groups/governance.ts';
 import { GroupMessageWindows } from '../src/client/groups/message-windows.ts';
@@ -18,7 +19,7 @@ import { groupParticipant } from './fixtures/group-participant.ts';
 // The real controller, authority, signed metadata requests and receipt state.
 // The verified-window boundary is held explicitly; window proofs/crypto have
 // their own tests, while this suite checks the post-verification contract.
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, count = 2) {
   const owner = await groupParticipant(),
     groupId = crypto.randomUUID();
   const state: GroupEvent = {
@@ -39,14 +40,14 @@ async function fixture(t: TestContext) {
     signature: 'A'.repeat(86) + '==',
   };
   const head = 'b'.repeat(64);
-  const views = [true, false].map((own, index) => ({
+  const views = Array.from({ length: count }, (_, index) => ({
     id: crypto.randomUUID(),
     groupId,
     sequence: index + 1,
     epoch: 1,
     hash: 'c'.repeat(64),
-    sender: own ? owner.accountId : crypto.randomUUID(),
-    own,
+    sender: index === 0 ? owner.accountId : crypto.randomUUID(),
+    own: index === 0,
     kind: 'text' as const,
     text: 'Synthetic verified text',
     unavailableMedia: [],
@@ -80,15 +81,21 @@ async function fixture(t: TestContext) {
   t.mock.method(GroupGovernance.prototype, 'verify', () =>
     Promise.resolve({ state, head }),
   );
-  t.mock.method(GroupMessageWindows.prototype, 'read', () => {
-    verified = true;
-    return Promise.resolve({
-      scope: 'synthetic',
-      snapshot: { groupId, head, directory: owner.head, revision: 1 },
-      views,
-      before: null,
-    });
-  });
+  t.mock.method(
+    GroupMessageWindows.prototype,
+    'read',
+    (_context: unknown, before: number | null) => {
+      verified = true;
+      return Promise.resolve({
+        scope: 'synthetic',
+        snapshot: { groupId, head, directory: owner.head, revision: 1 },
+        views: views
+          .filter((view) => before === null || view.sequence < before)
+          .slice(-16),
+        before: null,
+      });
+    },
+  );
   t.mock.method(globalThis, 'fetch', (url: RequestInfo | URL) => {
     const path =
       typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
@@ -100,14 +107,13 @@ async function fixture(t: TestContext) {
       Response.json(operation === 'group-daily-read' ? {} : []),
     );
   });
-  const controller = new GroupController(
-    access,
-    new VaultSync(access),
-    () => true,
-  );
+  const sync = new VaultSync(access);
+  const controller = new GroupController(access, sync, () => true);
   controller.setSession(owner.authority.session as AccountSession);
   return {
     controller,
+    access,
+    sync,
     authority: owner.authority,
     turns,
     groupId,
@@ -123,6 +129,38 @@ async function fixture(t: TestContext) {
     },
   };
 }
+
+await test('the group media catalogue reads every verified page without changing the displayed window or acknowledging reads', async (t) => {
+  const f = await fixture(t, 36);
+  await f.controller.open(f.groupId);
+  const shown = f.controller.views.map((row) => row.id);
+  f.requests.length = 0;
+  const reader = groupGallerySource({
+    access: f.access,
+    sync: f.sync,
+    session: f.authority.session as AccountSession,
+    group: f.groupId,
+    localOnly: false,
+  });
+  const signal = new AbortController().signal;
+  const ids = new Set<string>();
+  let before: number | null = null;
+  try {
+    do {
+      const page = await reader.page(before, signal);
+      for (const row of page.views) ids.add(row.id);
+      before = page.next;
+    } while (before !== null);
+  } finally {
+    reader.close();
+  }
+  assert.equal(ids.size, 36);
+  assert.deepEqual(
+    f.controller.views.map((row) => row.id),
+    shown,
+  );
+  assert.ok(!f.requests.includes('group-daily-read'));
+});
 
 await test('verified group history completes before deferred metadata, while receipt hints never write read acknowledgements', async (t) => {
   const f = await fixture(t);

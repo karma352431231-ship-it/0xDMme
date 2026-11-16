@@ -1,6 +1,8 @@
 import { t } from '../../shared/i18n/index.ts';
 import { infoActionBar, infoRow, MuteRow } from '../conversation-info/index.ts';
 import type { MutePort } from '../conversation-info/index.ts';
+import { mediaInfoRow } from '../conversation-info/index.ts';
+import type { MediaInfo } from '../conversation-info/index.ts';
 
 export interface GroupShortcutPorts {
   /** The group's existing per-account mute. */
@@ -9,11 +11,8 @@ export interface GroupShortcutPorts {
   search?: (group: { id: string; title: string }) => void;
   /** The person's starred messages in this group. */
   starred?: (group: { id: string }) => void;
-  /** Media, Links and Docs of the loaded messages. */
-  media?: (group: { id: string; title: string }) => {
-    count: number;
-    open: () => void;
-  };
+  /** Media, Links and Docs of verified history. */
+  media?: (group: { id: string; title: string }) => MediaInfo;
 }
 
 /** The shortcuts under a group's name in its settings. Owns only the rows of
@@ -21,6 +20,7 @@ export interface GroupShortcutPorts {
 export class GroupSettingsShortcuts {
   private readonly ports: GroupShortcutPorts;
   private mute: MuteRow | null = null;
+  private lifetime = new AbortController();
   constructor(ports: GroupShortcutPorts) {
     this.ports = ports;
   }
@@ -50,17 +50,7 @@ export class GroupSettingsShortcuts {
     host.append(bar);
     const media = this.ports.media?.({ id: group.id, title: group.title });
     if (media)
-      host.append(
-        infoRow({
-          label: t('Media, links and docs'),
-          icon: 'image',
-          end: String(media.count),
-          perform: () => {
-            close();
-            media.open();
-          },
-        }),
-      );
+      host.append(mediaInfoRow({ media, close, signal: this.lifetime.signal }));
     const starred = this.ports.starred;
     if (starred)
       host.append(
@@ -78,6 +68,8 @@ export class GroupSettingsShortcuts {
     host.append(this.mute.element);
   }
   clear(host: HTMLElement | null): void {
+    this.lifetime.abort();
+    this.lifetime = new AbortController();
     this.mute?.dispose();
     this.mute = null;
     host?.replaceChildren();
