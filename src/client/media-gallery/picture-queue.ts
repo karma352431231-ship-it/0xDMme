@@ -15,7 +15,7 @@ interface Job<V extends DailyRow> {
   admitted: () => void;
 }
 
-/** One conversation's picture work. Reserve a lane for small thumbnails and
+/** One conversation's picture work. Prioritize visible thumbnails and
  * coalesce tile requests with preparation already in progress. */
 export class GalleryPictureQueue<V extends DailyRow> {
   private readonly jobs = new Map<string, Job<V>>();
@@ -83,13 +83,8 @@ export class GalleryPictureQueue<V extends DailyRow> {
     if (this.signal.aborted) return;
     this.admission.pump(this.next, this.run);
   }
-  private next = (
-    allowOriginal: boolean,
-    allowWarm: boolean,
-  ): Job<V> | undefined => {
-    const waiting = [...this.jobs.values()].filter(
-      (job) => !job.started && (allowOriginal || job.entry.preview),
-    );
+  private next = (allowWarm: boolean): Job<V> | undefined => {
+    const waiting = [...this.jobs.values()].filter((job) => !job.started);
     return (
       waiting.find((job) => job.visible) ?? (allowWarm ? waiting[0] : undefined)
     );
@@ -128,22 +123,18 @@ export class GalleryPictureQueue<V extends DailyRow> {
 /** Wait for the previous conversation's active reads to release their slots. */
 export class PictureAdmission {
   private active = 0;
-  private original = false;
   private refill: (() => void) | undefined;
   pump<V extends DailyRow>(
-    next: (allowOriginal: boolean, allowWarm: boolean) => Job<V> | undefined,
+    next: (allowWarm: boolean) => Job<V> | undefined,
     run: (job: Job<V>) => Promise<void>,
   ): void {
     this.refill = () => this.pump(next, run);
     while (this.active < 3) {
-      const job = next(!this.original, this.active < 2);
+      const job = next(this.active < 2);
       if (!job) return;
       this.active++;
-      const original = !job.entry.preview;
-      this.original ||= original;
       void run(job).finally(() => {
         this.active--;
-        if (original) this.original = false;
         this.refill?.();
       });
     }

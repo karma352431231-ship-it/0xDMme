@@ -119,11 +119,10 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     [['https://example.com/a', 'example.com']],
   );
   assert.equal(galleryCount(items), 4);
-  // Videos and photos sent as originals have no thumbnail: their tile reads
-  // the file, and a video shows its opening frame (regression, 12/11/2026).
+  // A legacy video still appears in the count but cannot fetch its original as a tile.
   assert.deepEqual(items.media.map(tileSource), [
-    { thumbnail: false, frameType: 'video/mp4' },
-    { thumbnail: true, frameType: null },
+    { thumbnail: false },
+    { thumbnail: true },
   ]);
 });
 
@@ -280,6 +279,40 @@ await test('a verified catalogue and encrypted previews can supply a reopening w
   const entry = galleryItems(catalogue.views()).media[0]!;
   assert.deepEqual(await catalogue.picture(entry), Uint8Array.of(3, 2, 1));
   assert.equal(catalogue.error, null);
+});
+
+await test('a legacy video tile uses a saved still if available and never requests the original', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const old = view({
+    id: 'old-video',
+    kind: 'attachment',
+    text: attachment('old.mp4', 'video/mp4', false),
+    sentAt: 1,
+  });
+  let saved: Uint8Array<ArrayBuffer> | null = null;
+  let downloads = 0;
+  catalogue.prepare(
+    'legacy-video',
+    () => ({
+      page: () => Promise.resolve({ views: [old], next: null }),
+      media: () => {
+        downloads++;
+        return Promise.resolve(Uint8Array.of(1));
+      },
+      previews: () => ({
+        read: () => Promise.resolve(saved),
+        save: () => Promise.resolve(),
+      }),
+      close() {},
+    }),
+    { conversation: 'peer', rows: [old] },
+  );
+  const tile = galleryItems(catalogue.views()).media[0]!;
+  assert.equal(await catalogue.picture(tile), null);
+  saved = Uint8Array.of(3, 1);
+  assert.deepEqual(await catalogue.picture(tile), saved);
+  assert.equal(downloads, 0);
 });
 
 await test('closing or replacing a catalogue suppresses late metadata and releases its reader', async () => {

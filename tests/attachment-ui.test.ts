@@ -589,6 +589,33 @@ await test('an authenticated thumbnail shows first, then the original replaces i
   assert.equal(viewerSaveLink(body)?.href, 'blob:synthetic-2');
   assert.equal(viewerSaveLink(body)?.download, media.name);
 });
+await test('an image around a historical anchor shows its thumbnail and reads the original only when opened', async (t) => {
+  const { ui, body } = environment(t);
+  const article = new MediaNode('article'),
+    media = content('image/png', true);
+  media.thumbnail = {
+    ...media.file,
+    ref: { ...media.file.ref, id: crypto.randomUUID() },
+  };
+  const loads: boolean[] = [];
+  ui.render({
+    article: article as unknown as HTMLElement,
+    content: media,
+    deferOriginal: true,
+    view: { id: 'photo', peer: 'peer', text: '' },
+    load: (_view, thumbnail) => {
+      loads.push(thumbnail);
+      return Promise.resolve(png());
+    },
+    run: (work) => work(),
+  });
+  await flush();
+  assert.deepEqual(loads, [true]);
+  article.children[0]!.children[0]!.click();
+  await flush();
+  assert.deepEqual(loads, [true, false]);
+  assert.equal(viewerSaveLink(body)?.download, media.name);
+});
 await test('a warm derived image shows at once and is replaced by its original; a detached row presents nothing late', async (t) => {
   const { ui, blobs } = environment(t);
   const article = new MediaNode('article');

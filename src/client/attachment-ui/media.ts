@@ -22,6 +22,7 @@ export interface MediaView {
   peer: string;
 }
 interface MediaInput<V extends MediaView> {
+  deferOriginal?: boolean;
   signal: AbortSignal;
   content?: AttachmentContent;
   previews?: MediaPreviews | undefined;
@@ -399,10 +400,54 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     });
     return original;
   };
-  async function fetchMedia(): Promise<void> {
+  function presentPhoto(loaded: {
+    url: string;
+    previewOnly: boolean;
+    diagnostic: LoadTrace | undefined;
+  }): void {
+    const { url, previewOnly, diagnostic } = loaded;
+    showImage(preview, url, {
+      name: content.name,
+      ...(previewOnly
+        ? {
+            original: openOriginal,
+            run: input.run,
+            current: input.current,
+          }
+        : {}),
+      ...(input.previews && !previewOnly && content.type !== 'image/gif'
+        ? {
+            capture: (image: HTMLImageElement) => {
+              void persistPreview(input, image, {
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+              });
+            },
+          }
+        : {}),
+    });
+    readyMedia(preview, diagnostic, input.current);
+    if (!input.deferOriginal)
+      upgradeToOriginal(preview, {
+        content,
+        previewOnly,
+        original: openOriginal,
+        current: input.current,
+      });
+  }
+  async function fetchMedia(previewFirst: boolean): Promise<void> {
     if (!input.current()) return;
     const diagnostic = startLoad(attachmentLoadKind(content), input.view.peer);
-    const loaded = await loadPhoto(input, content, diagnostic);
+    const loaded = await loadPhoto(input, content, {
+      diagnostic,
+      previewFirst,
+    });
+    if (!loaded) {
+      preview.textContent = '';
+      button.hidden = false;
+      diagnostic?.point('cancelled', { loadOutcome: 'unavailable' });
+      return;
+    }
     const { bytes, previewOnly } = loaded;
     try {
       if (!input.current()) return;
@@ -411,33 +456,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       input.retain(url);
       button.hidden = true;
       if (image && type !== 'application/octet-stream') {
-        showImage(preview, url, {
-          name: content.name,
-          ...(previewOnly
-            ? {
-                original: openOriginal,
-                run: input.run,
-                current: input.current,
-              }
-            : {}),
-          ...(input.previews && !previewOnly && content.type !== 'image/gif'
-            ? {
-                capture: (image: HTMLImageElement) => {
-                  void persistPreview(input, image, {
-                    width: image.naturalWidth,
-                    height: image.naturalHeight,
-                  });
-                },
-              }
-            : {}),
-        });
-        readyMedia(preview, diagnostic, input.current);
-        upgradeToOriginal(preview, {
-          content,
-          previewOnly,
-          original: openOriginal,
-          current: input.current,
-        });
+        presentPhoto({ url, previewOnly, diagnostic });
         return;
       }
       if (image)
@@ -450,12 +469,12 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
       bytes.fill(0);
     }
   }
-  async function request(): Promise<void> {
+  async function request(previewFirst = false): Promise<void> {
     if (pending || !input.current()) return;
     pending = true;
     button.disabled = true;
     try {
-      await input.enqueue(fetchMedia);
+      await input.enqueue(() => fetchMedia(previewFirst));
     } finally {
       pending = false;
       if (input.current()) button.disabled = false;
@@ -469,7 +488,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     // Rendering precedes DOM insertion; the serial queue starts after insertion.
     admitVisiblePreview(input, () =>
       Promise.resolve()
-        .then(() => withAutomaticRetries(request, input.current))
+        .then(() => withAutomaticRetries(() => request(true), input.current))
         .catch(() => {
           if (!input.current()) return;
           preview.textContent = t(
@@ -535,29 +554,24 @@ function admitVisiblePreview<V extends MediaView>(
 async function loadPhoto<V extends MediaView>(
   input: MediaInput<V>,
   content: AttachmentContent,
-  diagnostic: LoadTrace | undefined,
+  options: { diagnostic: LoadTrace | undefined; previewFirst: boolean },
 ) {
-  if (!imageCandidate(content))
-    return {
-      bytes: await loadMediaBytes(input, diagnostic),
-      previewOnly: false,
-    };
-  const animated = content.type === 'image/gif';
-  if (input.ready?.('original'))
-    return {
-      bytes: await loadMediaBytes(input, diagnostic),
-      previewOnly: false,
-    };
-  if (!animated && content.thumbnail)
-    return {
-      bytes: await input.load(input.view, true, diagnostic),
-      previewOnly: true,
-    };
-  if (!animated && input.previews) {
-    const bytes = await input.previews.read();
+  const { diagnostic, previewFirst } = options;
+  if (imageCandidate(content) && !input.ready?.('original')) {
+    const bytes = await readPhotoPreview(input, content, diagnostic);
     if (bytes) return { bytes, previewOnly: true };
+    if (previewFirst && input.deferOriginal) return null;
   }
   return { bytes: await loadMediaBytes(input, diagnostic), previewOnly: false };
+}
+function readPhotoPreview<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+  diagnostic: LoadTrace | undefined,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (content.type === 'image/gif') return Promise.resolve(null);
+  if (content.thumbnail) return input.load(input.view, true, diagnostic);
+  return input.previews?.read() ?? Promise.resolve(null);
 }
 async function originalPhoto<V extends MediaView>(
   input: MediaInput<V>,

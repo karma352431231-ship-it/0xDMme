@@ -66,8 +66,10 @@ import {
   watchHistoryPosition,
   resetHistoryPosition,
   watchOlderHistory,
+  watchCenteredHistory,
   revealMessage,
 } from '../chat-ui/index.ts';
+import type { CenteredHistoryScroll } from '../chat-ui/index.ts';
 import type { OlderHistory } from '../chat-ui/index.ts';
 interface ChatOptions {
   controller: Pick<
@@ -113,6 +115,7 @@ interface ChatOptions {
   ) => Promise<boolean | 'deferred'>;
   run: (work: () => Promise<void>) => Promise<void>;
   reopen: (older?: boolean) => Promise<void>;
+  centeredScroll?: CenteredHistoryScroll;
   select: () => void;
   report: (notice: string) => void;
   status: () => void;
@@ -390,6 +393,8 @@ export class GroupChatView {
     if (!history) return;
     const stop = new AbortController(),
       controller = this.options.controller;
+    if (this.options.centeredScroll)
+      watchCenteredHistory(history, this.options.centeredScroll, stop.signal);
     this.older = {
       stop,
       watch: watchOlderHistory({
@@ -481,6 +486,10 @@ export class GroupChatView {
       this.renderHistory();
     }
   }
+  private latestRows(): readonly GroupView[] | undefined {
+    const { controller } = this.options;
+    return controller.searchFocused ? undefined : controller.views;
+  }
   renderHistory(): void {
     const history = this.node('[data-group-history]');
     if (!history) return;
@@ -497,10 +506,7 @@ export class GroupChatView {
       this.pinned.clear();
       return;
     }
-    const restoreScroll = historyPosition(
-      history,
-      this.options.controller.views,
-    );
+    const restoreScroll = historyPosition(history, this.latestRows());
     history.hidden = false;
     const runs = messageRuns(
       this.options.controller.views,
@@ -511,6 +517,7 @@ export class GroupChatView {
       id: view.id,
       sentAt: view.sentAt,
       key: JSON.stringify([
+        this.options.controller.searchFocused,
         view.text,
         view.hash,
         view.sender,
@@ -667,6 +674,7 @@ export class GroupChatView {
     } else if (view.kind === 'attachment') {
       this.attachments.render({
         article,
+        deferOriginal: this.options.controller.searchFocused,
         imageOverlay: reactionPanel,
         caption: content.text,
         view: { id: view.id, text: view.text, peer: view.sender },

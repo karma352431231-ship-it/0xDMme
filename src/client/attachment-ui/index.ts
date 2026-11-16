@@ -1,3 +1,4 @@
+import { imageFilePicture } from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
@@ -216,7 +217,15 @@ export class AttachmentUi {
     return (
       once
         ? prepareViewOnceSelection(file, this.maximum)
-        : prepareAttachment(file, false, this.maximum)
+        : prepareAttachment(file, false, this.maximum).then(
+            async (selection) => {
+              if (selection.image && !selection.thumbnail)
+                selection.thumbnail = await imageFilePicture(
+                  new Blob([selection.bytes], { type: selection.type }),
+                );
+              return selection;
+            },
+          )
     ).catch((error: unknown) => {
       showToast(
         error instanceof Error
@@ -297,6 +306,7 @@ export class AttachmentUi {
   }
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
+    deferOriginal?: boolean;
     previews?: MediaPreviews | undefined;
     ready?: ((variant: 'original' | 'thumbnail') => boolean) | undefined;
     /** Visible caption already interpreted by the conversation format owner. */

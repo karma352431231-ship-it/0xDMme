@@ -142,3 +142,51 @@ export function localMediaPreview(input: {
     },
   };
 }
+
+/** Decode a local image into a separate small JPEG without modifying the
+ * selected original. The browser never receives a remote URL here. */
+export async function imageFilePicture(
+  file: Blob,
+  signal?: AbortSignal,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (typeof document === 'undefined') return null;
+  const url = URL.createObjectURL(file);
+  const image = document.createElement('img');
+  const timeout = AbortSignal.timeout(8_000);
+  const lifetime = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  const events = new AbortController();
+  try {
+    lifetime.throwIfAborted();
+    await new Promise<void>((resolve, reject) => {
+      lifetime.addEventListener(
+        'abort',
+        () => reject(new DOMException('Preview unavailable.', 'AbortError')),
+        {
+          once: true,
+          signal: events.signal,
+        },
+      );
+      image.addEventListener('load', () => resolve(), {
+        once: true,
+        signal: events.signal,
+      });
+      image.addEventListener(
+        'error',
+        () => reject(new Error('Preview unavailable.')),
+        { once: true, signal: events.signal },
+      );
+      image.src = url;
+    });
+    return await captureMediaPreview(
+      image,
+      { width: image.naturalWidth, height: image.naturalHeight },
+      lifetime,
+    );
+  } catch {
+    return null;
+  } finally {
+    events.abort();
+    image.removeAttribute('src');
+    URL.revokeObjectURL(url);
+  }
+}

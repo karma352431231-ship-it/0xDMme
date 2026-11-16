@@ -4,6 +4,35 @@ import { groupPreparationFixture } from './fixtures/group-preparation.ts';
 import { deferred } from './fixtures/deferred.ts';
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
+await test('group history jumps to the old message and requests just one page at each edge', async () => {
+  const f = groupPreparationFixture();
+  for (let n = 0; n < 80; n++) f.add();
+  const open = async () => {
+    let next = await f.controller.open(f.groupId);
+    while (next) next = await next.resume();
+  };
+  f.controller.focusAround(f.groupId, 40);
+  await open();
+  const shown = () => Array.from(f.controller.views, (row) => row.sequence);
+  const sequences = (first: number, last: number) =>
+    Array.from({ length: last - first + 1 }, (_, index) => first + index);
+  assert.deepEqual(shown(), sequences(28, 52));
+  assert.equal(
+    f.data.calls.filter((op) => op === 'group-message-recent').length,
+    2,
+  );
+  assert.ok(f.controller.extend('newer'));
+  await open();
+  assert.deepEqual(shown(), sequences(28, 68));
+  assert.ok(f.controller.extend('older'));
+  await open();
+  assert.deepEqual(shown(), sequences(12, 68));
+  assert.equal(
+    f.data.calls.filter((op) => op === 'group-message-recent').length,
+    4,
+  );
+  f.controller.setSession(null);
+});
 await test('A/B/C navigation during continuous private arrival preserves the actual group preparation and never overlaps SDKs', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = groupPreparationFixture();

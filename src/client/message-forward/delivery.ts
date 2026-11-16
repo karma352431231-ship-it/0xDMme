@@ -2,6 +2,7 @@ import { encodeDailyText } from '../../shared/daily/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
+import { imageFilePicture } from '../media-preview/index.ts';
 /** The source grants reading capability; the destination grants only staging. */
 export async function stageForwardedMessage(input: {
   view: DailyView<DailyRow>;
@@ -33,6 +34,10 @@ export async function stageForwardedMessage(input: {
   let thumbnail: Uint8Array<ArrayBuffer> | null = null;
   try {
     if (content.thumbnail) thumbnail = await load(true);
+    if (!thumbnail && content.image)
+      thumbnail = await imageFilePicture(
+        new Blob([bytes], { type: content.type }),
+      );
     await destination.attachment(
       {
         name: content.name,

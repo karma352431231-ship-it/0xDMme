@@ -458,6 +458,22 @@ export class Messages {
   focusMessage(sequence: number | null): void {
     this.reader.focusMessage(sequence);
   }
+  focusAround(sequence: number): void {
+    this.reader.focusAround(sequence);
+  }
+  canExtend(
+    direction: import('../history-window/index.ts').HistoryDirection,
+  ): boolean {
+    return this.reader.canExtend(direction);
+  }
+  extend(
+    direction: import('../history-window/index.ts').HistoryDirection,
+  ): boolean {
+    return this.reader.extend(direction);
+  }
+  cancelExtension(): void {
+    this.reader.cancelExtension();
+  }
   get searchFocused(): boolean {
     return this.reader.searchFocused;
   }

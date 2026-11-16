@@ -118,11 +118,13 @@ import { GroupAuthority } from './authority.ts';
 import type { GroupContext } from './authority.ts';
 import type { GroupMetadataPolicy } from './receipt.ts';
 import {
+  CenteredHistory,
   HistoryFloors,
   WindowReceipts,
   historyPage,
   reachFloor,
 } from '../history-window/index.ts';
+import type { HistoryDirection } from '../history-window/index.ts';
 
 interface GroupPrefetch {
   after: string | null;
@@ -160,12 +162,28 @@ export class GroupController {
     if (!Number.isSafeInteger(sequence) || sequence < 1)
       throw new Error('Invalid search page.');
     this.focus = { group, sequence };
+    this.centered = null;
+  }
+  private centered: CenteredHistory<GroupView> | null = null;
+  focusAround(group: string, sequence: number): void {
+    this.focusMessage(group, sequence);
+    this.centered = new CenteredHistory(sequence);
+  }
+  canExtend(direction: HistoryDirection): boolean {
+    return this.centered?.available(direction) ?? false;
+  }
+  extend(direction: HistoryDirection): boolean {
+    return this.centered?.request(direction) ?? false;
+  }
+  cancelExtension(): void {
+    this.centered?.cancelRequest();
   }
   get searchFocused(): boolean {
     return this.focus?.group === this.selected?.state.groupId;
   }
   latest(): void {
     this.focus = null;
+    this.centered = null;
   }
   private readonly retry = new GroupRetry();
   private readonly messageWindows = new GroupMessageWindows();
@@ -265,6 +283,7 @@ export class GroupController {
     this.selected = null;
     this.views = [];
     this.focus = null;
+    this.centered = null;
   }
   close(): void {
     this.sendPreparation.invalidate();
@@ -281,6 +300,7 @@ export class GroupController {
   }
   /** Someone else's deletion: media of deleted messages must not linger. */
   removed(): void {
+    this.centered?.forget();
     this.mediaMemory.clear();
     this.selection.invalidate('removal');
     this.messageWindows.clear();
@@ -289,6 +309,7 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
+    this.centered?.forget();
     this.sendPreparation.invalidate();
     this.sendAudiences.clear();
     this.directoryLoading.reset();
@@ -867,7 +888,7 @@ export class GroupController {
             timedLoad(trace, 'packet-verify', () => lease.read(raw)),
         },
         this.focus?.group === group.state.groupId
-          ? this.focus.sequence + 1
+          ? (this.centered ?? this.focus.sequence + 1)
           : null,
         older,
       );
@@ -951,10 +972,25 @@ export class GroupController {
     const group = this.entries.find((g) => g.state.groupId === groupId);
     if (!group) throw new Error('Local group copy missing.');
     await this.withAuthority(async (c) => {
+      if (this.centered && this.focus?.group === groupId) {
+        const staged = await this.centered.stage({
+          cut: JSON.stringify([c.authority.directory, groupId]),
+          read: (slice) =>
+            localGroupViews(c.authority, groupId, null, slice).then(
+              (page) => page.views,
+            ),
+        });
+        guard();
+        staged.commit();
+        this.showLocalGroup(group, staged.rows);
+        return;
+      }
       const page = (before: number | null) =>
         localGroupViews(c.authority, groupId, before).then((p) => p.views);
       const reached = await reachFloor({
-        rows: await page(null),
+        rows: await page(
+          this.focus?.group === groupId ? this.focus.sequence + 1 : null,
+        ),
         floor: this.localFloors.floor(groupId),
         older,
         page,
@@ -965,13 +1001,16 @@ export class GroupController {
       });
       guard();
       this.localFloors.update(groupId, reached);
-      this.selected = { ...group, localOnly: true };
-      this.views = reached.rows;
-      this.historyPending = false;
-      this.warning = t(
-        'Independent local copy. Sending and administration require verified current membership.',
-      );
+      this.showLocalGroup(group, reached.rows);
     }, guard);
+  }
+  private showLocalGroup(group: GroupSummary, rows: GroupView[]): void {
+    this.selected = { ...group, localOnly: true };
+    this.views = rows;
+    this.historyPending = false;
+    this.warning = t(
+      'Independent local copy. Sending and administration require verified current membership.',
+    );
   }
   historyChanged(): void {
     this.historyLoaded = false;

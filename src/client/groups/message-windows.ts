@@ -23,10 +23,12 @@ import { object, uuid } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import {
+  CenteredHistory,
   HistoryFloors,
   historyPage,
   reachFloor,
 } from '../history-window/index.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import type { HistoryFloor } from '../history-window/index.ts';
 import type { GroupReadContext, GroupView } from './reader.ts';
 interface Window {
@@ -42,6 +44,20 @@ interface ReadContext extends Omit<GroupReadContext, 'machine'> {
   indexPages?: number;
   guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;
+}
+function checkCenteredRows(
+  rows: readonly GroupView[],
+  slice: HistorySlice,
+): void {
+  if (
+    rows.length > slice.limit ||
+    rows.some((row) =>
+      slice.direction === 'newer'
+        ? row.sequence <= slice.cursor
+        : row.sequence >= slice.cursor,
+    )
+  )
+    throw new Error('Group message window does not match.');
 }
 /** Session-only bounded candidates. Metadata continuity and final confirmation
  * are required before candidates become a visible group window. */
@@ -83,11 +99,13 @@ export class GroupMessageWindows {
    * `older`, reaches one page further back; other cursors read single pages. */
   async read(
     c: ReadContext,
-    before: number | null,
+    before: number | null | CenteredHistory<GroupView>,
     older = false,
   ): Promise<Window> {
     try {
-      return await this.readCurrent(c, before, older);
+      return before instanceof CenteredHistory
+        ? await this.readCentered(c, before)
+        : await this.readCurrent(c, before, older);
     } catch (error: unknown) {
       if (
         !(error instanceof IncompleteGroupIndex) &&
@@ -97,6 +115,44 @@ export class GroupMessageWindows {
       }
       throw error;
     }
+  }
+  private async readCentered(
+    c: ReadContext,
+    history: CenteredHistory<GroupView>,
+  ): Promise<Window> {
+    c.guard?.();
+    await this.restoreCheckpoint(c);
+    const { scope, snapshot, read } = await this.target(c);
+    const previous = this.previousState(snapshot, scope);
+    const changed = await this.index.read(
+      read,
+      snapshot,
+      previous?.snapshot ?? null,
+    );
+    const focus = await history.stage({
+      cut: canonical(snapshot),
+      read: (slice) =>
+        this.recent(read, { scope, snapshot, before: null, slice }).then(
+          (page) => page.views,
+        ),
+    });
+    c.guard?.();
+    await timedLoad(c.historyTrace, 'confirm', () =>
+      c.api('group-message-confirm', wire(snapshot)),
+    );
+    c.guard?.();
+    const result = { scope, snapshot, views: focus.rows, before: null };
+    this.commitWindow({
+      snapshot,
+      scope,
+      key: canonical([snapshot.groupId, 'focus', history.anchor]),
+      changed,
+      previous,
+      result,
+    });
+    this.index.confirmed(snapshot);
+    focus.commit();
+    return result;
   }
   /** The list needs the complete latest window, without extending a history
    * floor or writing a reopen checkpoint just to decorate a directory row. */
@@ -454,13 +510,19 @@ export class GroupMessageWindows {
   }
   private async recent(
     c: ReadContext,
-    input: { scope: string; snapshot: Snapshot; before: number | null },
+    input: {
+      scope: string;
+      snapshot: Snapshot;
+      before: number | null;
+      slice?: HistorySlice;
+    },
   ): Promise<Window> {
     const raw = object(
       await c.api('group-message-recent', {
         groupId: input.snapshot.groupId,
         head: input.snapshot.head,
         before: input.before,
+        ...(input.slice ? { slice: input.slice } : {}),
         ...(input.snapshot.anchor === undefined
           ? {}
           : { anchor: input.snapshot.anchor }),
@@ -470,6 +532,7 @@ export class GroupMessageWindows {
       base = page.views.filter(
         (view) => view.kind !== 'profile' && !view.relation,
       );
+    if (input.slice) checkCenteredRows(base, input.slice);
     let projected = await this.related(c, input.snapshot, base);
     const local = projected.filter((view) => view.localOnly);
     if (local.length)

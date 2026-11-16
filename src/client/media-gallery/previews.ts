@@ -4,7 +4,6 @@ type ReadPreview = (
 interface Preview {
   tile: HTMLElement;
   read: ReadPreview;
-  frameType: string | null;
   visible: boolean;
   loading: boolean;
   image?: { url: string; element: HTMLElement };
@@ -33,8 +32,8 @@ export class GalleryPreviews {
             { root: body, rootMargin: '140px 0px' },
           );
   }
-  watch(tile: HTMLElement, read: ReadPreview, frameType: string | null): void {
-    const preview = { tile, read, frameType, visible: false, loading: false };
+  watch(tile: HTMLElement, read: ReadPreview): void {
+    const preview = { tile, read, visible: false, loading: false };
     this.tiles.set(tile, preview);
     if (this.observer) this.observer.observe(tile);
     else {
@@ -86,10 +85,8 @@ export class GalleryPreviews {
     try {
       const bytes = await preview.read(signal);
       if (!bytes || signal.aborted || !preview.visible) return;
-      const url = URL.createObjectURL(
-        new Blob([bytes], preview.frameType ? { type: preview.frameType } : {}),
-      );
-      const element = preview.frameType ? firstFrame(url) : previewImage(url);
+      const url = URL.createObjectURL(new Blob([bytes]));
+      const element = previewImage(url);
       preview.image = { url, element };
       preview.tile.prepend(element);
     } catch {
@@ -106,17 +103,4 @@ function previewImage(url: string): HTMLImageElement {
   image.src = url;
   image.draggable = false;
   return image;
-}
-
-/** A still of a video's opening; iOS paints it only for a seek past 0. */
-function firstFrame(url: string): HTMLVideoElement {
-  const video = document.createElement('video');
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-  video.disablePictureInPicture = true;
-  video.tabIndex = -1;
-  video.setAttribute('aria-hidden', 'true');
-  video.src = `${url}#t=0.1`;
-  return video;
 }

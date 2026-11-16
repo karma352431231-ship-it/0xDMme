@@ -305,6 +305,7 @@ async function readPicture<V extends GalleryRow>(input: {
     return;
   }
   const selected = tileSource(entry);
+  if (!selected.thumbnail) throw new Error('Preview unavailable.');
   const bytes = await source.media(
     entry.view,
     selected.thumbnail,
@@ -313,11 +314,7 @@ async function readPicture<V extends GalleryRow>(input: {
   );
   if (!bytes) throw new Error('Preview unavailable.');
   const picture = await timedLoad(trace, 'decode', () =>
-    prepareGalleryPicture(
-      currentPicture(bytes, signal),
-      selected.frameType,
-      signal,
-    ),
+    prepareGalleryPicture(currentPicture(bytes, signal), signal),
   );
   prepared(currentPicture(picture, signal));
   // The visible tile gets its bytes before the optional encrypted write.

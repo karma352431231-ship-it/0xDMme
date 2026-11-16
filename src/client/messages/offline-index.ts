@@ -1,6 +1,7 @@
 import { localPage } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 export type CachedText = LocalCipher & {
   verification?: LocalCipher;
   relation?: MessageRelation;
@@ -25,6 +26,7 @@ interface ReadContext {
   account: string;
   peer: string | null;
   before: number | null;
+  slice?: HistorySlice;
   guard: () => void;
 }
 export class OfflineIndex {
@@ -32,13 +34,8 @@ export class OfflineIndex {
   reset(): void {
     this.scan = null;
   }
-  async read(c: {
-    account: string;
-    peer: string | null;
-    before: number | null;
-    guard: () => void;
-  }): Promise<CachedText[]> {
-    const identity = JSON.stringify([c.account, c.peer, c.before]);
+  async read(c: ReadContext): Promise<CachedText[]> {
+    const identity = JSON.stringify([c.account, c.peer, c.before, c.slice]);
     if (this.scan?.identity !== identity)
       this.scan = {
         identity,
@@ -67,9 +64,7 @@ export class OfflineIndex {
       for (const { value } of result.items) {
         if (value.relation) continue;
         if (!selectedRow(value, c)) continue;
-        scan.rows.push(value);
-        scan.rows.sort((a, b) => a.sequence - b.sequence);
-        if (scan.rows.length > 16) scan.rows.shift();
+        retainClosest(scan.rows, value, c.slice);
       }
       scan.after = result.next;
       scan.complete = result.next === null;
@@ -110,11 +105,21 @@ function collectRelation(
   const old = rows.get(key);
   if (!old || old.sequence < value.sequence) rows.set(key, value);
 }
-function selectedRow(
+function selectedRow(value: CachedText, c: ReadContext): boolean {
+  if (value.peer !== c.peer) return false;
+  if (c.slice?.direction === 'newer') return value.sequence > c.slice.cursor;
+  const before = c.slice?.cursor ?? c.before;
+  return before === null || value.sequence < before;
+}
+
+function retainClosest(
+  rows: CachedText[],
   value: CachedText,
-  c: { peer: string | null; before: number | null },
-): boolean {
-  return (
-    value.peer === c.peer && (c.before === null || value.sequence < c.before)
-  );
+  slice?: HistorySlice,
+): void {
+  rows.push(value);
+  rows.sort((a, b) => a.sequence - b.sequence);
+  if (rows.length <= (slice?.limit ?? 16)) return;
+  if (slice?.direction === 'newer') rows.pop();
+  else rows.shift();
 }

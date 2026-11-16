@@ -366,3 +366,5 @@ export function roomKeyArchive(input: unknown): RoomKeyArchive {
     mac: matrixBase64(data['mac'], 8),
   };
 }
+export { historySlice, historySliceLimit } from './history-slice.ts';
+export type { HistorySlice } from './history-slice.ts';

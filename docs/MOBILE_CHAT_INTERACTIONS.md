@@ -294,12 +294,25 @@ with a local import use the normal reader so the import participates in the
 count. An exact-cut miss or eviction returns to the normal verified scan.
 
 At most 24 small sender thumbnails warm on conversation open. Visible tiles
-take priority, with up to three active picture jobs, two background jobs and
-one original-file job at a time. Originals are read when needed to generate a
-visible image or video preview. Documents and links are listed from verified
-metadata. Thumbnail downloads use the signing lane and attachment worker
-without holding the exclusive vault turn. The two domains retain their
-availability and membership checks around the transfer.
+take priority and the gallery reads additional thumbnails automatically as
+the reader scrolls. Gallery reads use a sender's encrypted derivative or a
+saved local picture. A legacy item without either keeps its tile and its
+message link. Opening the original in the chat can prepare a local picture.
+The gallery never downloads an original to populate its grid. Chat image
+preparation makes a separate JPEG of at most 64 KiB for supported new image
+files while preserving the original file bytes. Existing video messages
+retain their format, which older clients reject if it contains a thumbnail.
+Documents and links are listed from verified metadata.
+
+Opening a gallery item or search result in a private chat or group asks for
+the selected message and up to 12 messages on each side. User scroll towards
+either edge asks for 16 more roots in that direction. The reader preserves
+the visible position when adding rows and trims the opposite edge at the
+existing 512-root memory bound. Denied or changed authorization prevents
+reuse of the previous cut. The reader verifies both sides with the normal
+packet, membership and deletion checks. The centered view shows available
+previews and opens photo originals by explicit user action. Return to latest
+messages brings back the usual live window.
 
 The current gallery keeps up to 64 pictures of at most 64 KiB in memory.
 It reads and writes the existing encrypted IndexedDB preview family (up to 128
