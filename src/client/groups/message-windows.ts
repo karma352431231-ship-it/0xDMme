@@ -1,4 +1,7 @@
-import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
+import {
+  measurePrivateSend,
+  timedLoad,
+} from '../chat-sync-diagnostics/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { readReopen, writeReopen } from '../reopen-cache/index.ts';
@@ -34,6 +37,8 @@ interface Window {
 }
 interface ReadContext extends Omit<GroupReadContext, 'machine'> {
   diagnostic?: PrivateSendContext | undefined;
+  historyTrace?:
+    import('../chat-sync-diagnostics/index.ts').LoadTrace | undefined;
   indexPages?: number;
   guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;
@@ -117,7 +122,9 @@ export class GroupMessageWindows {
     latest = false,
   ): Promise<Window> {
     c.guard?.();
-    await this.restoreCheckpoint(c);
+    await timedLoad(c.historyTrace, 'local-history', () =>
+      this.restoreCheckpoint(c),
+    );
     c.guard?.();
     const { scope, snapshot, read } = await this.target(c),
       key = canonical([snapshot.groupId, before]);
@@ -147,8 +154,10 @@ export class GroupMessageWindows {
     });
     const result = { ...loaded, views: reached.rows };
     c.guard?.();
-    await measurePrivateSend(c.diagnostic, 'receipt-confirm', () =>
-      c.api('group-message-confirm', wire(snapshot)),
+    await timedLoad(c.historyTrace, 'confirm', () =>
+      measurePrivateSend(c.diagnostic, 'receipt-confirm', () =>
+        c.api('group-message-confirm', wire(snapshot)),
+      ),
     );
     c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });

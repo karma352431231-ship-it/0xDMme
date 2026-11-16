@@ -1,4 +1,7 @@
-import { startLoad } from '../chat-sync-diagnostics/index.ts';
+import {
+  startHistoryLoad,
+  presentHistoryLoad,
+} from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 
 /** Owns only the requested opening's diagnostic lifetime, including scheduler wait. */
@@ -8,22 +11,30 @@ export class HistoryLoadDiagnostics {
     trace: LoadTrace;
     presented: boolean;
   } | null = null;
-  request(peer: string): void {
+  request(peer: string): LoadTrace | undefined {
     this.reset();
-    const trace = startLoad('history', peer);
+    const trace = startHistoryLoad('history', 'open', peer);
     if (trace) this.opening = { peer, trace, presented: false };
+    return trace;
+  }
+  pending(peer: string | undefined): LoadTrace | undefined {
+    return this.opening?.peer === peer && !this.opening?.presented
+      ? this.opening?.trace
+      : undefined;
   }
   presented(
     peer: string | undefined,
     history: HTMLElement,
-    rows: number,
+    input: {
+      rows: number;
+      trace: LoadTrace | undefined;
+      current: () => boolean;
+    },
   ): void {
     const opening = this.opening;
-    if (!opening || opening.peer !== peer || opening.presented) return;
-    opening.presented = true;
-    opening.trace.point('verified', { loadRows: rows });
-    opening.trace.point('dom', { loadRows: rows });
-    opening.trace.frame(history, () => this.opening === opening);
+    const trace = input.trace ?? this.pending(peer);
+    if (opening && trace === opening.trace) opening.presented = true;
+    presentHistoryLoad(trace, history, input.rows, input.current);
   }
   reset(): void {
     this.opening?.trace.point('cancelled', { loadOutcome: 'cancelled' });

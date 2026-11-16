@@ -40,6 +40,7 @@ import { validReaction, pinText } from '../../shared/daily/index.ts';
 import { decryptViewOnce } from '../view-once/index.ts';
 import type { ViewOnceMetadata } from '../view-once/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
+import { historyWait, timedLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { GroupMessageLease } from './message-lease.ts';
 import { cachedGroupDescription } from './description.ts';
@@ -770,12 +771,15 @@ export class GroupController {
     groupId: string,
     older = false,
     localOnly = false,
-    metadata?: GroupMetadataPolicy,
+    settings?: {
+      metadata?: GroupMetadataPolicy | undefined;
+      trace?: LoadTrace | undefined;
+    },
   ): Promise<MessageWorkResult> {
     this.selection.invalidate('replacement');
     const generation = this.generation;
     const guard = this.selection.capture(() => this.guard(generation));
-    return this.openSelected({ groupId, older, localOnly, guard, metadata });
+    return this.openSelected({ groupId, older, localOnly, guard, ...settings });
   }
   private async openSelected(input: {
     groupId: string;
@@ -783,15 +787,25 @@ export class GroupController {
     localOnly: boolean;
     guard: () => void;
     metadata?: GroupMetadataPolicy | undefined;
+    trace?: LoadTrace | undefined;
   }): Promise<MessageWorkResult> {
-    const { groupId, older, localOnly, guard } = input;
+    const { groupId, older, localOnly, guard, trace } = input;
     guard();
-    if (!networkAvailable() || localOnly) return this.openLocal(groupId, older);
+    if (!networkAvailable() || localOnly)
+      return timedLoad(trace, 'local-history', () =>
+        this.openLocal(groupId, older),
+      );
+    const admitted = historyWait(trace, 'vault');
     const complete = await this.authority.withIdentities(
       guard,
       async (c) => {
-        const group = await c.governance.verify(groupId),
-          profile = await new GroupCache(c.authority, groupId).get('profile');
+        admitted();
+        const group = await timedLoad(trace, 'permissions', () =>
+            c.governance.verify(groupId),
+          ),
+          profile = await timedLoad(trace, 'local-history', () =>
+            new GroupCache(c.authority, groupId).get('profile'),
+          );
         guard();
         if (this.selected?.state.groupId !== groupId) this.views = [];
         this.selected = {
@@ -804,7 +818,13 @@ export class GroupController {
         this.warning = '';
         if (c.authority.offline)
           throw new Error('Connect to check current group membership.');
-        return this.openVerified(c, group, { older, metadata: input.metadata });
+        const api: GroupContext['api'] = (op, payload) =>
+          timedLoad(trace, 'request', () => c.api(op, payload));
+        return this.openVerified({ ...c, api }, group, {
+          older,
+          metadata: input.metadata,
+          trace,
+        });
       },
       { ownDirectory: 'fresh' },
     );
@@ -820,11 +840,12 @@ export class GroupController {
     group: GroupState,
     options: {
       older: boolean;
+      trace?: LoadTrace | undefined;
       machine?: import('../message-crypto/index.ts').MessageCrypto;
       metadata?: GroupMetadataPolicy | undefined;
     },
   ): Promise<boolean> {
-    const { older, machine, metadata } = options;
+    const { older, machine, metadata, trace } = options;
     const generation = this.generation,
       guard = this.selection.capture(() => this.guard(generation));
     this.warning = '';
@@ -840,7 +861,9 @@ export class GroupController {
           indexPages: 1,
           group,
           identities: this.identities,
-          read: (raw) => lease.read(raw),
+          historyTrace: trace,
+          read: (raw) =>
+            timedLoad(trace, 'packet-verify', () => lease.read(raw)),
         },
         this.focus?.group === group.state.groupId
           ? this.focus.sequence + 1

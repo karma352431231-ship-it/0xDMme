@@ -15,6 +15,9 @@ final class NativeBridgeViewController: CAPBridgeViewController {
 
     override func capacitorDidLoad() {
         guard let webView else { return }
+        #if DEBUG && CHAT_DIAGNOSTICS
+        if #available(iOS 16.4, *) { webView.isInspectable = true }
+        #endif
         let viewport = NativeViewportView(webView)
         viewport.appearanceChanged = { [weak self] in self?.setNeedsStatusBarAppearanceUpdate() }
         view = viewport

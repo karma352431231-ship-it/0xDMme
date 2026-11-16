@@ -17,6 +17,7 @@ export const loadKinds = [
   'group-previews',
   'optional-maintenance',
   'history',
+  'group-history',
   'handle-history',
   'text',
   'image',
@@ -28,6 +29,9 @@ export const loadKinds = [
   'view-once-file',
 ] as const;
 export type LoadKind = (typeof loadKinds)[number];
+export const historyLoadModes = ['open', 'older', 'live', 'refresh'] as const;
+export type HistoryLoadMode = (typeof historyLoadModes)[number];
+export type HistoryLoadKind = 'history' | 'group-history' | 'handle-history';
 const startupKinds = new Set<unknown>([
   'app-startup',
   'account-restore',
@@ -84,6 +88,10 @@ export const loadStages = [
   'groups',
   'scheduler',
   'work',
+  'request',
+  'local-history',
+  'packet-verify',
+  'confirm',
   'start',
   'verified',
   'published',
@@ -129,6 +137,7 @@ export interface LoadDiagnosticFields extends NativeTimingFields {
   bootTaskMs?: number;
   load?: number;
   loadKind?: LoadKind;
+  loadHistoryMode?: HistoryLoadMode;
   loadStage?: LoadStage;
   loadMs?: number;
   loadClockMs?: number;
@@ -189,6 +198,7 @@ export function copyLoadDiagnostic(
     )
       output[key] = input[key];
   copyChoice(input, output, 'loadKind', loadKinds);
+  copyChoice(input, output, 'loadHistoryMode', historyLoadModes);
   copyChoice(input, output, 'bootMilestone', bootMilestones);
   copyChoice(input, output, 'loadStage', loadStages);
   copyChoice(input, output, 'loadOutcome', [
@@ -232,5 +242,6 @@ function copyChoice(
   key: string,
   choices: readonly string[],
 ): void {
-  if (choices.includes(String(input[key]))) output[key] = input[key];
+  const value = input[key];
+  if (typeof value === 'string' && choices.includes(value)) output[key] = value;
 }

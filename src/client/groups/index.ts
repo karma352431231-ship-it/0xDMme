@@ -1,5 +1,8 @@
+import { timedLoadSync } from '../chat-sync-diagnostics/index.ts';
+import type { HistoryLoadMode } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
 import type {
+  LoadTrace,
   PrivateSendContext,
   SendWaitReason,
 } from '../chat-sync-diagnostics/index.ts';
@@ -246,6 +249,7 @@ export function startGroups(
           ? ''
           : notice;
     chat.status(trigger);
+    if (trigger === 'foreground-released') chat.checkOlder();
     management.renderCreation();
   }
   async function run(work: () => Promise<void>): Promise<void> {
@@ -416,25 +420,27 @@ export function startGroups(
     controller,
     schedule: options.history,
     metadata: receipt.metadata,
-    settled: async () => {
+    settled: async (trace) => {
       const selected = controller.selected;
       await vault.refresh();
-      if (!selected || controller.selected !== selected) return;
+      if (!selected || controller.selected !== selected) return null;
       loading.update({
         conversation: `${selected.state.groupId}:${!!selected.localOnly}`,
         ready: true,
       });
       notice = controller.warning || t('Group opened.');
-      render();
+      render(trace);
+      return node('[data-group-history]');
     },
   });
   const readHistory = async (
     id: string,
     older: boolean,
     localOnly: boolean,
+    mode: HistoryLoadMode = older ? 'older' : 'refresh',
   ): Promise<void> => {
     const started = performance.now();
-    await historyWork.open({ id, older, localOnly });
+    await historyWork.open({ id, older, localOnly, mode });
     if (!older && !localOnly) chat.settleOutgoing(id, started);
   };
   function visibleGroup(): string | null {
@@ -448,7 +454,7 @@ export function startGroups(
       : null;
   }
   const reconciliation = new GroupReconciliation((id) =>
-    readHistory(id, false, false),
+    readHistory(id, false, false, 'live'),
   );
   async function open(
     group: GroupSummary | string,
@@ -460,14 +466,14 @@ export function startGroups(
     else controller.latest();
     chat.open(id);
     try {
-      await readHistory(id, false, localOnly);
+      await readHistory(id, false, localOnly, 'open');
     } finally {
       options.changed();
     }
     if (controller.historyPending) notice = t('Syncing…');
     render();
   }
-  function render(): void {
+  function render(trace?: LoadTrace): void {
     const group = controller.selected;
     management.updateSettingsGroup(group);
     if (!group) {
@@ -475,7 +481,7 @@ export function startGroups(
       return;
     }
     management.renderIdentity(group);
-    chat.renderHistory();
+    timedLoadSync(trace, 'dom', () => chat.renderHistory());
     const history = node('[data-group-history]');
     if (history)
       renderSearchReturn(history, {

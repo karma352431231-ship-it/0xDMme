@@ -1,8 +1,13 @@
+import { oldestRoot } from '../history-window/index.ts';
 import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { ViewOnceMediaBuffer } from '../view-once-media-buffer/index.ts';
 import { placeVideoMessageMeta } from '../chat-video/index.ts';
-import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
+import {
+  endHistoryLoad,
+  timedLoadSync,
+  traceSendChecks,
+} from '../chat-sync-diagnostics/index.ts';
 import {
   submittedMediaRows,
   updateSubmittedMediaStates,
@@ -115,7 +120,11 @@ interface HistoryPresentation {
   flush?: () => Promise<void>;
   /** Reads further back when the reader scrolls to the top; true when the
    * window grew. */
-  older?: { available: () => boolean; load: () => Promise<boolean> };
+  older?: {
+    available: () => boolean;
+    ready: () => boolean;
+    load: () => Promise<boolean>;
+  };
   /** Covers the header initials with the contact's private card photo. */
   peerPhoto?: (
     host: HTMLElement,
@@ -218,8 +227,11 @@ export class MessageHistoryUi {
     this.headerPhoto?.abort();
     this.externalRows.clear();
   }
-  opening(peer: string): void {
-    this.loadingDiagnostics.request(peer);
+  opening(peer: string): LoadTrace | undefined {
+    return this.loadingDiagnostics.request(peer);
+  }
+  checkOlder(): void {
+    this.older?.watch.check();
   }
   /** Apply background results only when the conversation is visible. Closing
    * the gate still hides content immediately, including in hidden tabs. */
@@ -229,6 +241,7 @@ export class MessageHistoryUi {
   render(
     rows: readonly MessageView[] | null,
     update: HistoryUpdate = 'history',
+    trace?: LoadTrace,
   ): void {
     if (rows === null) {
       this.editor.clear();
@@ -239,11 +252,34 @@ export class MessageHistoryUi {
     this.views = rows;
     if (rows !== null && !this.options.visible()) {
       this.pending = this.pending === 'history' ? 'history' : update;
+      endHistoryLoad(trace, 'unavailable');
       return;
     }
     this.pending = null;
     const history = this.options.node('[data-message-history]');
-    if (history) this.paint(history, update);
+    if (!history) {
+      endHistoryLoad(trace, 'unavailable');
+      return;
+    }
+    if (rows === null) this.paint(history, update);
+    else this.paintVerified(history, rows, update, trace);
+  }
+  private paintVerified(
+    history: HTMLElement,
+    rows: readonly MessageView[],
+    update: HistoryUpdate,
+    trace?: LoadTrace,
+  ): void {
+    const peer = this.options.context().selected?.accountId;
+    const operation = trace ?? this.loadingDiagnostics.pending(peer);
+    timedLoadSync(operation, 'dom', () => this.paint(history, update));
+    this.loadingDiagnostics.presented(peer, history, {
+      rows: rows.length,
+      trace: operation,
+      current: () =>
+        this.options.context().selected?.accountId === peer &&
+        this.views === rows,
+    });
   }
   private paint(history: HTMLElement, update: HistoryUpdate): void {
     watchHistoryPosition(history, this.options.signal());
@@ -259,12 +295,6 @@ export class MessageHistoryUi {
     this.updateDeletion(history, this.views);
     this.forwarding?.update();
     this.renderGate(history);
-    if (this.views !== null)
-      this.loadingDiagnostics.presented(
-        this.options.context().selected?.accountId,
-        history,
-        this.views.length,
-      );
     traceSendChecks(history);
     this.renderPeer();
     restoreScroll();
@@ -335,7 +365,13 @@ export class MessageHistoryUi {
       watch: watchOlderHistory({
         history,
         button: this.options.node<HTMLButtonElement>('[data-message-older]'),
-        available: () => this.views !== null && older.available(),
+        available: () =>
+          this.views !== null &&
+          !this.options.searchFocus?.active() &&
+          older.available(),
+        ready: older.ready,
+        conversation: () => this.options.context().selected?.accountId ?? null,
+        oldest: () => oldestRoot(this.views ?? []),
         load: older.load,
         signal: stop.signal,
       }),

@@ -1,6 +1,6 @@
 /** Publishes one complete synchronized view. No intermediate history reaches the UI. */
 export type HistoryUpdate = 'history' | 'delivery' | 'pending';
-export class MessageVisibility<T> {
+export class MessageVisibility<T, Publication = undefined> {
   private generation = 0;
   private staged: T[] = [];
   /** The rows of the last complete publication, while it stays visible. */
@@ -14,9 +14,14 @@ export class MessageVisibility<T> {
   private readonly publish: (
     rows: readonly T[] | null,
     update: HistoryUpdate,
+    publication?: Publication,
   ) => void;
   constructor(
-    publish: (rows: readonly T[] | null, update: HistoryUpdate) => void,
+    publish: (
+      rows: readonly T[] | null,
+      update: HistoryUpdate,
+      publication?: Publication,
+    ) => void,
   ) {
     this.publish = publish;
   }
@@ -83,7 +88,11 @@ export class MessageVisibility<T> {
     this.assert(token);
     this.staged.push(...rows);
   }
-  complete(token: number, version?: number): boolean {
+  complete(
+    token: number,
+    version?: number,
+    publication?: Publication,
+  ): boolean {
     this.assert(token);
     if ((version ?? this.startedVersion) !== this.changeVersion) {
       if (version === undefined)
@@ -96,7 +105,7 @@ export class MessageVisibility<T> {
     this.visible = true;
     this.retained = false;
     this.shown = rows;
-    this.publish(rows, this.update);
+    this.publish(rows, this.update, publication);
     return true;
   }
   /**
@@ -114,12 +123,16 @@ export class MessageVisibility<T> {
   }
   /** The caller checks the same authenticated snapshot. Hints received during
    * that check require a new check; failure/authority cancellation stays closed. */
-  async confirm(token: number, check: () => Promise<void>): Promise<void> {
+  async confirm(
+    token: number,
+    check: () => Promise<void>,
+    publication?: Publication,
+  ): Promise<void> {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         const version = this.verificationVersion(token);
         await check();
-        if (this.complete(token, version)) return;
+        if (this.complete(token, version, publication)) return;
       }
       throw new Error('New updates arrived during verification. Sync again.');
     } catch (error: unknown) {
@@ -129,10 +142,14 @@ export class MessageVisibility<T> {
   }
   /** V2 checks a finite cut and its security fence. Ordinary append hints
    * queue the next cut; close() still invalidates this token immediately. */
-  async confirmCut(token: number, check: () => Promise<void>): Promise<void> {
+  async confirmCut(
+    token: number,
+    check: () => Promise<void>,
+    publication?: Publication,
+  ): Promise<void> {
     try {
       await check();
-      this.complete(token, this.verificationVersion(token));
+      this.complete(token, this.verificationVersion(token), publication);
     } catch (error: unknown) {
       this.fail(token);
       throw error;

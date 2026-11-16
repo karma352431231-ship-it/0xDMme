@@ -249,3 +249,21 @@ refresh operations. The previous composer editing paths were removed. Existing
 coordinator coupling remains outside this UI change; further work can move
 operation-capability composition out of `messages/index.ts` and `dms.ts`, one
 workflow at a time, protected by coordinator and history lifecycle tests.
+
+## Earlier messages on scroll
+
+The shared conversation scroller requests one verified page when a visible
+history approaches its top. Private DMs, private groups and public-handle DMs
+use the same trigger in browsers and in the shared Android and iPhone UI.
+A busy scheduler defers a read until the foreground owner releases. If a read
+makes no progress, another approach to the top or the retry control can request
+it again. A later verified publication with a different oldest row also rearms
+the scroller. Changes to the selection invalidate the previous UI attempt.
+The progress control overlays the thread so its appearance leaves the reading
+position stable. The existing reading anchor retains the visible row when the
+page is prepended.
+
+History readers still own authorization, verification, paging and their
+existing 512-root window limit. The scroll binding owns the attempt and retry
+state, and the console collector owns diagnostic capture and export. See
+[conversation history measurements](MOBILE_LOAD_DIAGNOSTICS.md#conversation-history-and-new-messages).

@@ -44,7 +44,13 @@ import type {
 } from '../../shared/chat-sync-diagnostics/load.ts';
 export type { LoadTrace } from './load.ts';
 export type { HandleSendToken } from '../../shared/chat-sync-diagnostics/flow.ts';
-export { timedLoad, timedLoadSync } from './load.ts';
+export {
+  timedLoad,
+  timedLoadSync,
+  presentHistoryLoad,
+  historyWait,
+  endHistoryLoad,
+} from './load.ts';
 import type {
   ChatSyncDecision,
   ChatSyncTrace,
@@ -320,6 +326,16 @@ export function startLoad(
     });
     if (token) trace.token = token;
   }
+  return trace;
+}
+
+export function startHistoryLoad(
+  kind: import('../../shared/chat-sync-diagnostics/load.ts').HistoryLoadKind,
+  mode: import('../../shared/chat-sync-diagnostics/load.ts').HistoryLoadMode,
+  peer: string,
+): LoadTrace | undefined {
+  const trace = startLoad(kind, peer);
+  trace?.point('entry', { loadHistoryMode: mode });
   return trace;
 }
 

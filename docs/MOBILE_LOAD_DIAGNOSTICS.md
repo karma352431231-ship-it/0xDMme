@@ -242,3 +242,59 @@ verified-authority preparation, 200 ms of group-mode and 100 ms of request
 preparation. Separate aggregation tests reject attribution of an unrelated
 1,170 ms wait and retain missing/overlapping evidence. These are test inputs;
 they do not establish the cause of the owner's earlier 7.06-to-9.61-second capture.
+
+## Conversation history and new messages
+
+Use the same console recorder for the web, the Android diagnostic build and the
+opt-in iPhone debug build. Run `npm run diagnostic:chat` and paste
+`build/chat-lag-console.js` into the app's console before opening, receiving or
+scrolling for earlier messages. On iPhone (iOS 16.4 or later), build the
+`NativeProduct` scheme in Debug with `CHAT_DIAGNOSTICS` added to Swift Active
+Compilation Conditions. Enable Web Inspector on the iPhone, connect it to the
+Mac and select the app in Safari's Develop menu. The Swift flag affects the
+main WebView only and is compiled out of Release. Use synthetic accounts on
+an inspectable build. [WebKit inspection setup](https://webkit.org/web-inspector/enabling-web-inspector/)
+
+Open a private conversation, a private group and a public-handle DM. With at
+least two pages in each, scroll near the top and wait for older rows to appear
+above the one being read. Send a new message from a second test account while
+each conversation is visible. Read the capture in the same console:
+
+```js
+console.table(
+  window.__0xdmmeLag
+    .report()
+    .loading.operations.filter((load) => load.historyMode)
+    .map(({ kind, historyMode, elapsedMs, outcome, slowestStages }) => ({
+      kind,
+      historyMode,
+      elapsedMs,
+      outcome,
+      slowest: slowestStages
+        .map(({ stage, durationMs }) => `${stage} ${durationMs} ms`)
+        .join(', '),
+    })),
+);
+```
+
+The revision 13 history modes are `open`, `older`, `live` and `refresh`.
+Kinds are `history` for private DMs, `group-history` for private groups and
+`handle-history` for public-handle DMs. Each entry shows wall time, outcome,
+published row count when available, and measured stages ranked by cumulative
+elapsed time. Queue and vault stages measure wait until admission. Request
+time includes signing and transport on the client. Local-history time includes
+opening and assembling local encrypted copies. Packet verification includes
+cryptographic work and may include requests, recovery or persistence. The DOM
+stage measures updating the visible history and frame time measures the next
+frame opportunity. Stage durations can overlap. Compare completed operations
+of the same kind and mode, and use the timeline and native request summary to
+inspect overlaps. No server processing breakdown or cross-device clock
+difference is inferred. Private live measurements are per receiver turn.
+An interrupted public-handle turn can appear as unavailable before the next
+turn projects a window.
+
+Captures remain bounded by the existing session and report limits. Inspect
+`loading.overflow` when benchmarking several cases in one capture. End with
+`window.__0xdmmeLag.stop()` and save the JSON locally if needed. History spans
+record fixed labels, elapsed times and row counts through the existing
+allowlist and anonymous slots. The recorder sends no telemetry.

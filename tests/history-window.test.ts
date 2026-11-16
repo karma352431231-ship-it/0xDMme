@@ -212,6 +212,10 @@ await test('reaching the top reads once at a time; a read with no progress shows
     disabled: false,
     textContent: '',
     isConnected: true,
+    ownerDocument: Object.assign(new EventTarget(), {
+      visibilityState: 'visible',
+    }),
+    clientHeight: 200,
     scrollTop: 0,
     addEventListener: (type: string, listener: () => void) =>
       listeners.set(type, listener),

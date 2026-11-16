@@ -14,10 +14,14 @@ import { snapshotChanged } from './snapshot-retry.ts';
 /** Delivery authenticates the complete cached snapshot on the server, including
  * consent and directory revisions. It can be the final check for an already
  * verified window; fresh content still uses the independent read/confirm path. */
-export async function probeConfirmed<T extends DeliveryView>(input: {
+export async function probeConfirmed<
+  T extends DeliveryView,
+  Publication = undefined,
+>(input: {
   candidate: { snapshot: string; views: readonly T[] };
   api: Api;
-  visibility: MessageVisibility<T>;
+  visibility: MessageVisibility<T, Publication>;
+  publication?: Publication | undefined;
   token: number;
   advanced?: (snapshot: unknown) => void;
 }): Promise<T[] | null> {
@@ -41,7 +45,7 @@ export async function probeConfirmed<T extends DeliveryView>(input: {
     }
     if (version !== input.visibility.verificationVersion(input.token)) continue;
     input.visibility.stage(input.token, views);
-    input.visibility.complete(input.token, version);
+    input.visibility.complete(input.token, version, input.publication);
     return views;
   }
   throw new Error(t('New updates arrived during verification. Sync again.'));
@@ -49,11 +53,12 @@ export async function probeConfirmed<T extends DeliveryView>(input: {
 
 /** One probe combines head discovery with the first delivery batch. Later
  * arrivals never invalidate this cut, but must still schedule its successor. */
-async function probeFiniteCut<T extends DeliveryView>(input: {
+async function probeFiniteCut<T extends DeliveryView, Publication>(input: {
   snapshot: unknown;
   candidate: { views: readonly T[] };
   api: Api;
-  visibility: MessageVisibility<T>;
+  visibility: MessageVisibility<T, Publication>;
+  publication?: Publication | undefined;
   token: number;
   advanced?: (snapshot: unknown) => void;
 }): Promise<T[] | null> {
@@ -85,6 +90,7 @@ async function probeFiniteCut<T extends DeliveryView>(input: {
   input.visibility.complete(
     input.token,
     input.visibility.verificationVersion(input.token),
+    input.publication,
   );
   return views;
 }

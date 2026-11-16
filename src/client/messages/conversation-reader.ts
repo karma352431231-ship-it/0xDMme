@@ -36,9 +36,14 @@ import { projectCachedConversation } from './cache-projection.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
 import {
   measurePrivateSend,
+  historyWait,
+  endHistoryLoad,
+  startHistoryLoad,
+  timedLoad,
   traceChatSync,
   traceChatSyncFailure,
 } from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { probeConfirmed } from './confirmed-probe.ts';
 import { readIncrementalWindow } from './incremental-window.ts';
 import { readDelivery } from './delivery.ts';
@@ -93,6 +98,7 @@ interface PageRead {
   api: Api;
   snapshot: unknown;
   selected: string | null;
+  trace?: LoadTrace | undefined;
 }
 export interface MessageWindowRead {
   a: VaultAuthority;
@@ -135,7 +141,7 @@ export class ConversationReader {
   private readonly access: VaultAccess;
   private readonly authority: ReaderAuthority;
   private readonly packets: ConversationPackets;
-  private readonly visibility: MessageVisibility<MessageView>;
+  private readonly visibility: MessageVisibility<MessageView, LoadTrace>;
   private readonly selection = new SelectionWork();
   private selected: string | null = null;
   /** How far back each conversation reaches; see history-window. */
@@ -178,12 +184,14 @@ export class ConversationReader {
     this.packets = input.packets;
     this.events = input.events;
     this.verifiedProjection = input.events.verified ?? (() => {});
-    this.visibility = new MessageVisibility((rows, update) =>
+    this.visibility = new MessageVisibility((rows, update, load) => {
+      if (rows) load?.point('verified', { loadRows: rows.length });
       input.publish(rows && this.ownRemovals.visible(rows), update, {
         peer: this.selected,
         latest: true,
-      }),
-    );
+        ...(load ? { load } : {}),
+      });
+    });
   }
   setProfile(session: AccountSession | null): void {
     this.conversations.setProfile(session);
@@ -471,6 +479,7 @@ export class ConversationReader {
   }
   async synchronize(
     options: VaultWorkOptions = {},
+    trace?: LoadTrace,
   ): Promise<MessageWorkResult> {
     const probed = this.probedSnapshot;
     this.probedSnapshot = null;
@@ -480,14 +489,18 @@ export class ConversationReader {
       older = this.takeOlder(),
       floor = this.floor(),
       guard = this.selection.capture(() => this.authority.guard(generation));
+    const admitted = historyWait(trace, 'vault');
     try {
       const staged = await this.access.withVault(
         false,
         async (a) => {
-          await this.restoreCheckpoint(a, selected, guard);
+          admitted();
+          await timedLoad(trace, 'local-history', () =>
+            this.restoreCheckpoint(a, selected, guard),
+          );
           guard();
           const api = (op: string, d: Record<string, unknown>) =>
-              messageApi(a, op, d, () => guard()),
+              timedLoad(trace, 'request', () => messageApi(a, op, d, guard)),
             snapshot = this.readTarget.take(
               probed ??
                 (await api('snapshot', {
@@ -497,7 +510,7 @@ export class ConversationReader {
                 })),
             );
           this.concealChangedFence(token, snapshot);
-          const read = { a, generation, api, snapshot, selected };
+          const read = { a, generation, api, snapshot, selected, trace };
           const incremental =
             this.searchBefore === null
               ? await readIncrementalWindow({
@@ -510,7 +523,10 @@ export class ConversationReader {
                   remove: (item) =>
                     this.packets.remove({ a, generation, selected, api }, item),
                   read: (items) =>
-                    this.readWindow({ a, generation, api, snapshot, items }),
+                    this.readWindow(
+                      { a, generation, api, snapshot, items },
+                      trace,
+                    ),
                   delivery: (views) =>
                     this.refreshDelivery(snapshot, generation, views, a),
                 })
@@ -538,6 +554,7 @@ export class ConversationReader {
         options,
         views,
         peer: selected,
+        trace,
       });
       guard();
       if (selected) this.floors.update(selected, staged.reach);
@@ -565,7 +582,7 @@ export class ConversationReader {
       this.settleOwnRemovals(selected, views);
       this.readTarget.reset();
     } catch (error: unknown) {
-      guardProjectionFailure(error, guard, () => this.visibility.close());
+      this.checkReadFailure(error, guard, trace);
       if (expectedInterruption(error)) throw error;
 
       if (error instanceof IncompleteMessageIndex) {
@@ -573,10 +590,15 @@ export class ConversationReader {
         this.visibility.discard(token);
         // The continuation still owes the page the reader asked for.
         if (older) this.olderRequested = true;
-        return new MessageContinuation(async () => {
-          guard();
-          return this.synchronize(options);
-        });
+        const resumed = historyWait(trace, 'queue');
+        return new MessageContinuation(
+          async () => {
+            guard();
+            resumed();
+            return this.synchronize(options, trace);
+          },
+          () => endHistoryLoad(trace, 'cancelled'),
+        );
       }
       if (!interruptedMessageRead(error)) {
         this.resetIndex();
@@ -595,6 +617,18 @@ export class ConversationReader {
       throw error;
     }
   }
+  private checkReadFailure(
+    error: unknown,
+    guard: () => void,
+    trace: LoadTrace | undefined,
+  ): void {
+    if (!(error instanceof IncompleteMessageIndex))
+      endHistoryLoad(
+        trace,
+        expectedInterruption(error) ? 'cancelled' : 'failed',
+      );
+    guardProjectionFailure(error, guard, () => this.visibility.close());
+  }
   private async restoreCheckpoint(
     a: VaultAuthority,
     peer: string | null,
@@ -608,7 +642,7 @@ export class ConversationReader {
   /** One verified remote page before `before` (the latest page when null),
    * joined with the archived local history of the same span. */
   private async readRemotePage(c: PageRead, before: number | null) {
-    const { a, generation, api, snapshot } = c;
+    const { a, generation, api, snapshot, trace } = c;
     const items = await this.synchronizeIndex({ ...c, before });
     const related = messageItems(
       await api('relations', {
@@ -618,24 +652,24 @@ export class ConversationReader {
       48,
     ).items;
     const window = [...items, ...related];
-    const ordered = await this.readWindow({
-      a,
-      generation,
-      api,
-      snapshot,
-      items: window,
-    });
+    const ordered = await this.readWindow(
+      {
+        a,
+        generation,
+        api,
+        snapshot,
+        items: window,
+      },
+      trace,
+    );
     const delivered = await this.refreshDelivery(
       snapshot,
       generation,
       ordered,
       a,
     );
-    const projected = await this.includeHistory(
-      a,
-      delivered,
-      generation,
-      before,
+    const projected = await timedLoad(trace, 'local-history', () =>
+      this.includeHistory(a, delivered, generation, before),
     );
     return { views: projected, liveViews: ordered, snapshot, window };
   }
@@ -674,22 +708,33 @@ export class ConversationReader {
     };
   }
   /** Full, incremental and receiver reads share complete-window verification. */
-  async readWindow(c: {
-    a: VaultAuthority;
-    generation: number;
-    api: (operation: string, data: Record<string, unknown>) => Promise<unknown>;
-    snapshot: unknown;
-    items: MessageItem[];
-    turn?: MessageReceiveTurn<MessageView>;
-  }): Promise<MessageView[]> {
+  async readWindow(
+    c: {
+      a: VaultAuthority;
+      generation: number;
+      api: (
+        operation: string,
+        data: Record<string, unknown>,
+      ) => Promise<unknown>;
+      snapshot: unknown;
+      items: MessageItem[];
+      turn?: MessageReceiveTurn<MessageView>;
+    },
+    trace?: LoadTrace,
+  ): Promise<MessageView[]> {
     return readMessageWindow({
       items: c.items,
-      cached: async (item) =>
-        c.turn
-          ? c.turn.cachedView(item.id)
-          : (this.verified.read(c.snapshot, item) ??
-            (await this.packets.cached(c.a, c.snapshot, item))),
-      missing: (items) => this.packets.missing({ ...c, items }),
+      cached: (item) =>
+        timedLoad(trace, 'local-history', async () =>
+          c.turn
+            ? c.turn.cachedView(item.id)
+            : (this.verified.read(c.snapshot, item) ??
+              (await this.packets.cached(c.a, c.snapshot, item))),
+        ),
+      missing: (items) =>
+        timedLoad(trace, 'packet-verify', () =>
+          this.packets.missing({ ...c, items }),
+        ),
       complete: (views) =>
         measurePrivateSend(c.turn?.diagnostic, 'receipt-persist', () =>
           indexSearch(c.a, views),
@@ -704,6 +749,7 @@ export class ConversationReader {
       options: VaultWorkOptions;
       views: MessageView[];
       peer: string | null;
+      trace?: LoadTrace | undefined;
     },
   ): Promise<void> {
     const guard = this.selection.capture(() =>
@@ -713,23 +759,28 @@ export class ConversationReader {
     const confirm = isSyncSnapshot(snapshot)
       ? this.visibility.confirmCut.bind(this.visibility)
       : this.visibility.confirm.bind(this.visibility);
-    await confirm(token, async () => {
-      await this.access.withVault(
-        false,
-        async (a) => {
-          await messageApi(a, 'confirm', { snapshot }, guard);
+    await confirm(
+      token,
+      () =>
+        timedLoad(input.trace, 'confirm', async () => {
+          await this.access.withVault(
+            false,
+            async (a) => {
+              await messageApi(a, 'confirm', { snapshot }, guard);
+              guard();
+              if (peer)
+                await saveConversationCheckpoint(a, peer, {
+                  snapshot: JSON.stringify(snapshot),
+                  views: input.views,
+                });
+              guard();
+            },
+            input.options,
+          );
           guard();
-          if (peer)
-            await saveConversationCheckpoint(a, peer, {
-              snapshot: JSON.stringify(snapshot),
-              views: input.views,
-            });
-          guard();
-        },
-        input.options,
-      );
-      guard();
-    });
+        }),
+      input.trace,
+    );
   }
   private historicalView(
     a: VaultAuthority,
@@ -742,7 +793,7 @@ export class ConversationReader {
       state: messageStates.history,
     };
   }
-  async openArchive(peer: string): Promise<void> {
+  async openArchive(peer: string, trace?: LoadTrace): Promise<void> {
     this.selected = peer;
     const older = this.takeOlder(),
       floor = this.floor(),
@@ -750,19 +801,21 @@ export class ConversationReader {
       token = older ? this.visibility.refresh() : this.visibility.begin(),
       guard = this.selection.capture(() => this.authority.guard(generation));
     const open = async (a: VaultAuthority) => {
-      const reached = await reachFloor({
-        rows: await this.includeHistory(a, [], generation, this.searchBefore),
-        floor,
-        older,
-        page: (before) => this.includeHistory(a, [], generation, before),
-        merge: (newer, older) => mergeHistory(newer, older),
-      });
+      const reached = await timedLoad(trace, 'local-history', async () =>
+        reachFloor({
+          rows: await this.includeHistory(a, [], generation, this.searchBefore),
+          floor,
+          older,
+          page: (before) => this.includeHistory(a, [], generation, before),
+          merge: (newer, older) => mergeHistory(newer, older),
+        }),
+      );
       guard();
       const views = reached.rows;
       this.floors.update(peer, reached);
       this.confirmed = { snapshot: 'local', views };
       this.visibility.stage(token, views);
-      this.visibility.complete(token);
+      this.visibility.complete(token, undefined, trace);
     };
     try {
       if (this.authority.session() && networkAvailable())
@@ -867,10 +920,16 @@ export class ConversationReader {
       windowBehind(this.confirmed.snapshot, cut)
     );
   }
+  beginReceiptLoad(): LoadTrace | undefined {
+    return this.selected && this.confirmed
+      ? startHistoryLoad('history', 'live', this.selected)
+      : undefined;
+  }
   commitInboxBatch(
     batch: Parameters<SyncReceiverPorts<MessageView>['commit']>[0],
     hints: number,
-  ): void {
+    trace?: LoadTrace,
+  ): boolean {
     const catalog = {
       from: batch.from,
       snapshot: batch.snapshot,
@@ -911,42 +970,59 @@ export class ConversationReader {
       views: batch.views,
       covered,
     });
-    if (!this.selected || !batch.complete || blocked.has(this.selected)) return;
-    this.publishSelectedReceipt(batch.snapshot, covered.has(this.selected));
+    if (!this.selected || !batch.complete || blocked.has(this.selected))
+      return false;
+    return this.publishSelectedReceipt(
+      batch.snapshot,
+      covered.has(this.selected),
+      trace,
+    );
   }
   /** Only a complete covering commit may replace the selected latest window. */
   private publishSelectedReceipt(
     snapshot: MessageSyncSnapshot,
     covered: boolean,
-  ): void {
+    trace?: LoadTrace,
+  ): boolean {
     if (!covered) {
       if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
         this.reportStale(snapshot);
-      return;
+      return false;
     }
     const candidate = this.selected
       ? this.conversations.read(this.selected)
       : null;
-    if (!candidate) return;
+    if (!candidate) return false;
     this.confirmed = candidate;
     this.verified.clear();
     const token = this.visibility.refresh();
     this.visibility.stage(token, candidate.views);
-    this.visibility.complete(token, this.visibility.verificationVersion(token));
+    return this.visibility.complete(
+      token,
+      this.visibility.verificationVersion(token),
+      trace,
+    );
   }
-  async probe(options: VaultWorkOptions = {}): Promise<boolean> {
+  async probe(
+    options: VaultWorkOptions = {},
+    trace?: LoadTrace,
+  ): Promise<boolean> {
     this.probedSnapshot = null;
     const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
       generation = this.authority.current(),
       guard = this.selection.capture(() => this.authority.guard(generation));
+    const admitted = historyWait(trace, 'vault');
     try {
       return await this.access.withVault(
         false,
         async (authority) => {
+          admitted();
           const api = (operation: string, payload: Record<string, unknown>) =>
-            messageApi(authority, operation, payload, () => guard());
+            timedLoad(trace, 'request', () =>
+              messageApi(authority, operation, payload, guard),
+            );
           let advanced: unknown = null;
           if (this.confirmed) {
             const views = await probeConfirmed({
@@ -956,6 +1032,7 @@ export class ConversationReader {
               },
               api,
               visibility: this.visibility,
+              publication: trace,
               token,
             });
             guard();
@@ -989,6 +1066,7 @@ export class ConversationReader {
         this.readTarget.reset();
       }
       this.conversations.clear('probe-failed');
+      trace?.point('failed', { loadOutcome: 'failed' });
       traceChatSyncFailure(this.conversations, {
         reason: 'probe-failed',
         current: generation === this.authority.current(),
@@ -1016,7 +1094,7 @@ export class ConversationReader {
         ),
     });
   }
-  async openOffline(peer: string | null): Promise<void> {
+  async openOffline(peer: string | null, trace?: LoadTrace): Promise<void> {
     if (networkAvailable())
       throw new Error('Connected: sync before opening history.');
     const older = this.takeOlder(),
@@ -1028,39 +1106,42 @@ export class ConversationReader {
     if (!locator) throw new Error('No authorized local copy on this device.');
     try {
       await this.access.withLocalVault(locator, async (a) => {
-        const removed = new RemovalIndex();
-        await removed.load(a, () => guard());
-        const latest = await this.offlineViews(
-          a,
-          peer,
-          this.searchBefore,
-          guard,
-        );
-        if (peer) latest.push(...(await this.packets.offlineProfiles(a, peer)));
-        guard();
-        this.selected = peer;
-        const reached = await reachFloor({
-          rows: await this.includeHistory(
+        const reached = await timedLoad(trace, 'local-history', async () => {
+          const removed = new RemovalIndex();
+          await removed.load(a, () => guard());
+          const latest = await this.offlineViews(
             a,
-            latest,
-            generation,
+            peer,
             this.searchBefore,
-          ),
-          floor,
-          older,
-          page: async (before) =>
-            this.includeHistory(
+            guard,
+          );
+          if (peer)
+            latest.push(...(await this.packets.offlineProfiles(a, peer)));
+          guard();
+          this.selected = peer;
+          return reachFloor({
+            rows: await this.includeHistory(
               a,
-              await this.offlineViews(a, peer, before, guard),
+              latest,
               generation,
-              before,
+              this.searchBefore,
             ),
-          merge: (newer, older) => mergeHistory(newer, older),
+            floor,
+            older,
+            page: async (before) =>
+              this.includeHistory(
+                a,
+                await this.offlineViews(a, peer, before, guard),
+                generation,
+                before,
+              ),
+            merge: (newer, older) => mergeHistory(newer, older),
+          });
         });
         guard();
         if (peer) this.floors.update(peer, reached);
         this.visibility.stage(token, reached.rows);
-        this.visibility.complete(token);
+        this.visibility.complete(token, undefined, trace);
         this.offlineIndex.reset();
       });
     } catch (error: unknown) {

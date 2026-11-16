@@ -19,48 +19,96 @@ export function watchOlderHistory(input: {
   history: HTMLElement;
   button: HTMLButtonElement | null;
   available: () => boolean;
+  /** Transient scheduling pressure is distinct from the end of history. */
+  ready?: () => boolean;
+  conversation?: () => string | null;
+  oldest?: () => number | null;
   load: () => Promise<boolean>;
   signal: AbortSignal;
 }): OlderHistory {
   const { history, button, signal } = input;
-  let loading = false,
-    stalled = false;
+  let active: object | null = null;
+  let stalled = false;
+  let frame: number | null = null;
+  let conversation = input.conversation?.();
+  let oldest = input.oldest?.();
+  const updateWindow = () => {
+    const next = input.conversation?.();
+    if (next !== conversation) {
+      conversation = next;
+      active = null;
+      stalled = false;
+    }
+    const cursor = input.oldest?.();
+    if (cursor !== oldest) {
+      oldest = cursor;
+      stalled = false;
+    }
+  };
+  const visible = () =>
+    !signal.aborted &&
+    !history.hidden &&
+    history.isConnected &&
+    history.clientHeight > 0 &&
+    history.ownerDocument.visibilityState === 'visible';
   const show = () => {
     if (!button) return;
-    button.hidden = !loading && !(stalled && input.available());
-    button.disabled = loading;
-    button.textContent = loading
+    button.hidden = !active && !(stalled && input.available());
+    button.disabled = active !== null;
+    button.textContent = active
       ? t('Loading earlier messages…')
       : t('Earlier messages');
   };
   const read = () => {
-    if (loading || signal.aborted || !input.available()) return;
-    loading = true;
+    if (active || !visible() || !input.available() || input.ready?.() === false)
+      return;
+    const attempt = {};
+    const before = oldest;
+    active = attempt;
     show();
     void input
       .load()
       .catch(() => false)
       .then((progressed) => {
-        loading = false;
-        stalled = !progressed;
+        if (signal.aborted || active !== attempt) return;
+        active = null;
+        const reached = input.oldest?.();
+        stalled =
+          !progressed &&
+          (reached == null || (before != null && reached >= before));
+        oldest = reached;
         show();
-        if (progressed) requestAnimationFrame(check);
+        if (!stalled)
+          frame = requestAnimationFrame(() => {
+            frame = null;
+            check();
+          });
       });
   };
-  const check = () => {
-    if (
-      !stalled &&
-      !history.hidden &&
-      history.isConnected &&
-      history.scrollTop < nearTop
-    )
-      read();
-    else show();
+  const nearHistoryTop = () => {
+    if (signal.aborted) return;
+    if (history.scrollTop >= nearTop) stalled = false;
+    else if (!stalled) read();
+    show();
   };
-  history.addEventListener('scroll', check, { passive: true, signal });
+  const check = () => {
+    if (signal.aborted) return;
+    updateWindow();
+    nearHistoryTop();
+  };
+  history.addEventListener('scroll', nearHistoryTop, { passive: true, signal });
+  history.ownerDocument.addEventListener('visibilitychange', check, { signal });
+  signal.addEventListener(
+    'abort',
+    () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+    },
+    { once: true },
+  );
   button?.addEventListener(
     'click',
     () => {
+      updateWindow();
       stalled = false;
       read();
     },

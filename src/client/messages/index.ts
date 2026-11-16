@@ -30,7 +30,12 @@ import { SelectedPreviewAdmission } from './preview-admission.ts';
 import { ConversationActivity } from './activity.ts';
 import { MessageWarmup } from './warmup.ts';
 import { ConnectedConversationVisits } from './visits.ts';
-import { traceChatSync } from '../chat-sync-diagnostics/index.ts';
+import {
+  historyWait,
+  startHistoryLoad,
+  traceChatSync,
+} from '../chat-sync-diagnostics/index.ts';
+import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import {
   publishVerifiedConversationPreview,
   publishVerifiedPreviewReceipts,
@@ -203,7 +208,7 @@ export function startMessages(
         online: networkAvailable(),
         localOnly: selected?.localOnly ?? false,
       });
-      renderHistory(update);
+      renderHistory(update, projection.load);
     },
     {
       recovery: () => synchronization.requestInbox('direct'),
@@ -809,6 +814,7 @@ export function startMessages(
     run,
     older: {
       available: () => controller.olderAvailable(rootsShown()),
+      ready: () => synchronization.historyReady,
       load: loadOlder,
     },
     composerChanged: composerStatus,
@@ -1039,6 +1045,7 @@ export function startMessages(
     applyMessageAvailability([mounted, directory], synchronization.busy);
     composer.update();
     groups.status(trigger);
+    if (trigger === 'foreground-released') historyUi.checkOlder();
   }
   function renderSoundSettings(): void {
     const toggle = settingsHost?.querySelector<HTMLButtonElement>(
@@ -1110,16 +1117,24 @@ export function startMessages(
     const peer = selected,
       shown = rootsShown();
     if (!peer) return false;
-    await run(async () => {
+    const trace = startHistoryLoad('history', 'older', peer.accountId);
+    const admitted = historyWait(trace, 'queue');
+    const ran = await synchronization.run(async () => {
+      admitted();
+      if (selected !== peer) {
+        trace?.point('cancelled', { loadOutcome: 'cancelled' });
+        return;
+      }
       controller.requestOlder();
-      if (peer.localOnly) await controller.openArchive(peer.accountId);
+      if (peer.localOnly) await controller.openArchive(peer.accountId, trace);
       else if (networkAvailable())
         await synchronization.history(() =>
-          controller.synchronize({ priority: 'interactive' }),
+          controller.synchronize({ priority: 'interactive' }, trace),
         );
-      else await controller.openOffline(peer.accountId);
+      else await controller.openOffline(peer.accountId, trace);
       await controller.savePins();
     });
+    if (!ran) trace?.point('failed', { loadOutcome: 'failed' });
     return selected === peer && rootsShown() > shown;
   }
   /** Opens a private-chat match at its message; other results open their conversation. */
@@ -1199,8 +1214,11 @@ export function startMessages(
   ): void {
     synchronization.request(update, work);
   }
-  function renderHistory(update: HistoryUpdate = 'history'): void {
-    historyUi.render(rows, update);
+  function renderHistory(
+    update: HistoryUpdate = 'history',
+    trace?: LoadTrace,
+  ): void {
+    historyUi.render(rows, update, trace);
   }
   function choose(_mode: 'reply', view: MessageView): void {
     composer.reply(view, rows ?? []);
@@ -1499,7 +1517,8 @@ export function startMessages(
     return !composer.recording && !composer.voicePreview && visits.open(peer);
   }
   function requestPeer(peer: ConversationPeer, focus?: number): Promise<void> {
-    historyUi.opening(peer.accountId);
+    const trace = historyUi.opening(peer.accountId);
+    const admitted = historyWait(trace, 'queue');
     if (focus === undefined && reopenSelectedPeer(peer))
       return Promise.resolve();
     if (focus === undefined && reusePeer(peer)) return Promise.resolve();
@@ -1509,8 +1528,17 @@ export function startMessages(
       .open(
         async () => {
           clear();
-          if (current === generation && !continuity.suspended)
-            await openPeer(peer, focus);
+          if (current !== generation || continuity.suspended) {
+            trace?.point('cancelled', { loadOutcome: 'cancelled' });
+            return;
+          }
+          admitted();
+          try {
+            await openPeer(peer, focus, trace);
+          } catch (error: unknown) {
+            trace?.point('failed', { loadOutcome: 'failed' });
+            throw error;
+          }
         },
         () =>
           current === generation &&
@@ -1526,6 +1554,7 @@ export function startMessages(
   async function openPeer(
     peer: ConversationPeer,
     focus?: number,
+    trace?: LoadTrace,
   ): Promise<void> {
     if (
       (composer.recording || composer.voicePreview) &&
@@ -1537,18 +1566,22 @@ export function startMessages(
     selectPeer(peer);
     if (focus !== undefined) controller.focusMessage(focus);
     if (!networkAvailable()) {
-      await controller.openOffline(peer.accountId);
+      await controller.openOffline(peer.accountId, trace);
       return;
     }
     if (peer.localOnly) {
-      await controller.openArchive(peer.accountId);
+      await controller.openArchive(peer.accountId, trace);
       return;
     }
     if (focus === undefined && visits.restore()) return;
-    await synchronizeVisible({ priority: 'interactive' }, async () => {
-      await controller.savePins();
-      await historyUi.markRead(daily);
-    });
+    await synchronizeVisible(
+      { priority: 'interactive' },
+      async () => {
+        await controller.savePins();
+        await historyUi.markRead(daily);
+      },
+      trace,
+    );
     // Opening one conversation only needs its read receipts. Account-wide
     // presence, push settings and peer states keep their periodic lifecycle.
   }
@@ -1710,12 +1743,13 @@ export function startMessages(
   async function synchronizeVisible(
     work: VaultWorkOptions = { priority: 'interactive' },
     settled?: () => Promise<void>,
+    trace?: LoadTrace,
   ): Promise<boolean> {
     if (!conversationMounted('[data-direct-conversation]')) return true;
-    if (await controller.probe(work)) {
+    if (await controller.probe(work, trace)) {
       await controller.loadPins(work);
       return synchronization.history(
-        () => controller.synchronize(work),
+        () => controller.synchronize(work, trace),
         settled,
       );
     }

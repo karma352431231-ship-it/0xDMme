@@ -6,6 +6,7 @@ import type {
 
 type Fields = Pick<
   LoadDiagnosticFields,
+  | 'loadHistoryMode'
   | 'loadRows'
   | 'loadBytes'
   | 'loadReusedBytes'
@@ -66,6 +67,7 @@ export function createLoadTrace(
       if (ended || framePending || typeof requestAnimationFrame === 'undefined')
         return;
       framePending = true;
+      const queued = performance.now();
       requestAnimationFrame(() => {
         framePending = false;
         if (!current()) {
@@ -73,7 +75,10 @@ export function createLoadTrace(
           return;
         }
         if (!loadHostVisible(host)) return;
-        point('frame', { loadPresentation: 'dom-frame-opportunity' });
+        point('frame', {
+          loadPresentation: 'dom-frame-opportunity',
+          loadStageMs: Math.round(performance.now() - queued),
+        });
         point('complete', { loadOutcome: 'complete' });
       });
     },
@@ -87,6 +92,46 @@ export function loadHostVisible(host: HTMLElement): boolean {
     document.visibilityState === 'visible' &&
     host.getClientRects().length > 0
   );
+}
+
+export function endHistoryLoad(
+  trace: LoadTrace | undefined,
+  outcome: 'failed' | 'cancelled' | 'unavailable',
+): void {
+  trace?.point(outcome === 'failed' ? 'failed' : 'cancelled', {
+    loadOutcome: outcome,
+  });
+}
+
+/** Measure admission or scheduler delay at the first call, without timing idle work twice. */
+export function historyWait(
+  trace: LoadTrace | undefined,
+  stage: 'queue' | 'vault',
+): () => void {
+  if (!trace) return () => {};
+  const started = performance.now();
+  let measured = false;
+  return () => {
+    if (measured) return;
+    measured = true;
+    trace.point(stage, {
+      loadStageMs: Math.round(performance.now() - started),
+    });
+  };
+}
+
+/** Only call after the operation's own verified rows have reached this host. */
+export function presentHistoryLoad(
+  trace: LoadTrace | undefined,
+  history: HTMLElement | null,
+  rows: number,
+  current: () => boolean,
+): void {
+  if (!trace) return;
+  trace.point('published', { loadRows: rows });
+  if (history && loadHostVisible(history))
+    trace.frame(history, () => current() && loadHostVisible(history));
+  else trace.point('cancelled', { loadOutcome: 'unavailable' });
 }
 
 export function timedLoadSync<T>(

@@ -19,6 +19,7 @@ export interface MessageView {
   hash: string;
 }
 export interface ConversationProjection {
+  load?: import('../chat-sync-diagnostics/index.ts').LoadTrace;
   peer: string | null;
   latest: boolean;
 }

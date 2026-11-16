@@ -59,10 +59,14 @@ import { DmRefresh } from './dm-refresh.ts';
 import { DmSending } from './dm-sending.ts';
 import { DmTextSending } from './dm-text-sending.ts';
 import {
-  startLoad,
+  startHistoryLoad,
+  presentHistoryLoad,
+  historyWait,
+  endHistoryLoad,
   timedLoad,
   timedLoadSync,
 } from '../chat-sync-diagnostics/index.ts';
+import type { HistoryLoadMode } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { encodeDailyText } from '../../shared/daily/index.ts';
 import type { DmPage, DmItem } from './dm-history.ts';
@@ -250,10 +254,19 @@ export function startSocialDmUi(
     }),
     reload: () => {
       const read = startHandleRead();
+      const trace = peer
+        ? startHistoryLoad(
+            'handle-history',
+            depth.waiting(peer) ? 'older' : 'live',
+            peer,
+          )
+        : undefined;
+      const acquired = historyWait(trace, 'queue');
       void run(async () => {
+        acquired();
         traceHandleRead(read, 'start');
         try {
-          await reload(read);
+          await reload(read, 'live', trace);
           traceHandleRead(read, 'complete');
         } catch (error: unknown) {
           traceHandleRead(read, 'failed');
@@ -320,6 +333,7 @@ export function startSocialDmUi(
         refreshes.resume();
       }
     });
+    depth.check();
   }
   function closeGate(): void {
     outgoingMedia.reset();
@@ -373,20 +387,18 @@ export function startSocialDmUi(
       history.getClientRects().length > 0
     );
   }
-  async function reload(read?: HandleReadToken): Promise<void> {
+  async function reload(
+    read?: HandleReadToken,
+    mode: HistoryLoadMode = 'refresh',
+    trace?: LoadTrace,
+  ): Promise<void> {
     if (peer && container) {
-      const trace = startLoad('handle-history', peer);
-      try {
-        await conversation({
-          refreshDirectory: publicDirectory.available,
-          trace,
-          read,
-        });
-        trace?.point('cancelled', { loadOutcome: 'cancelled' });
-      } catch (error: unknown) {
-        trace?.point('failed', { loadOutcome: 'failed' });
-        throw error;
-      }
+      await conversation({
+        refreshDirectory: publicDirectory.available,
+        trace,
+        mode,
+        read,
+      });
       return;
     }
     unread.request();
@@ -522,7 +534,19 @@ export function startSocialDmUi(
       button: view.older,
       conversation: () => peer,
       shown: () => history.shown,
-      load: () => run(conversation),
+      ready: () => !workQueue.busy,
+      load: async () => {
+        const trace = startHistoryLoad('handle-history', 'older', selected);
+        const acquired = historyWait(trace, 'queue');
+        let started = false;
+        await run(async () => {
+          if (peer !== selected || viewKey !== key) return;
+          started = true;
+          acquired();
+          await conversation({ trace, mode: 'older' });
+        });
+        if (!started) trace?.point('cancelled', { loadOutcome: 'cancelled' });
+      },
     });
     return view;
   }
@@ -554,19 +578,41 @@ export function startSocialDmUi(
       profile: value?.peer ?? (await identity(selected, work)),
     };
   }
-  async function conversation(
-    input: {
-      refreshDirectory?: boolean;
-      trace?: LoadTrace | undefined;
-      read?: HandleReadToken | undefined;
-    } = {},
-  ): Promise<void> {
+  async function conversation(input: DmConversationRead = {}): Promise<void> {
     const selected = peer;
     if (!selected || !container) return;
+    const mode = input.mode ?? 'refresh';
+    const trace =
+      input.trace ??
+      startHistoryLoad(
+        'handle-history',
+        depth.waiting(selected) ? 'older' : mode,
+        selected,
+      );
+    try {
+      if (!(await readConversation(selected, { ...input, trace })))
+        endHistoryLoad(trace, 'cancelled');
+    } catch (error: unknown) {
+      const failure = dmFailure(error, { sameSession: true, current: true });
+      endHistoryLoad(trace, failure === 'continue' ? 'unavailable' : 'failed');
+      throw error;
+    }
+  }
+  interface DmConversationRead {
+    refreshDirectory?: boolean;
+    trace?: LoadTrace | undefined;
+    read?: HandleReadToken | undefined;
+    mode?: HistoryLoadMode | undefined;
+  }
+  async function readConversation(
+    selected: string,
+    input: DmConversationRead,
+  ): Promise<boolean> {
     const old = generation,
       expected = verification,
       work = {
         ...dmConversationWork(),
+        historyTrace: input.trace,
         ...(input.read
           ? {
               handleRead: input.read,
@@ -581,7 +627,7 @@ export function startSocialDmUi(
           work,
         ),
       );
-    if (!currentVerification(old, expected) || !container) return;
+    if (!currentVerification(old, expected) || !container) return false;
     const current = frame(selected);
     current.gate.textContent = '';
     paintHeader(current, data);
@@ -591,7 +637,7 @@ export function startSocialDmUi(
       work,
       trace: input.trace,
     });
-    if (!page || !currentVerification(old, expected)) return;
+    if (!page || !currentVerification(old, expected)) return false;
     projections.remember(
       { ...data, page },
       {
@@ -618,6 +664,7 @@ export function startSocialDmUi(
     await revealPending(current, selected, () =>
       currentVerification(old, expected),
     );
+    return true;
   }
   function updateConversationGate(
     current: DmView,
@@ -700,10 +747,12 @@ export function startSocialDmUi(
         localMedia: !canWrite,
       }),
     );
-    input.trace?.point('complete', {
-      loadRows: page.items.length,
-      loadOutcome: 'complete',
-    });
+    presentHistoryLoad(
+      input.trace,
+      current.history,
+      page.items.length,
+      () => currentVerification(old, expected) && displayedPage === page,
+    );
     depth.check();
     composer.update(composerState());
     return page;
@@ -885,6 +934,7 @@ export function startSocialDmUi(
     await conversation();
   }
   function clearView(): void {
+    depth.unbind();
     workQueue.reset();
     followup.clear();
     refreshes.clear();
@@ -1002,7 +1052,7 @@ export function startSocialDmUi(
         if (old !== generation) return;
         ownProfile = profile;
         if (networkAvailable() && !localOnly) refreshes.connect();
-        await reload();
+        await reload(undefined, 'open');
       });
     },
     leave,

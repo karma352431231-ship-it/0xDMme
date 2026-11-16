@@ -126,7 +126,7 @@ async function fixture(t: TestContext) {
 
 await test('verified group history completes before deferred metadata, while receipt hints never write read acknowledgements', async (t) => {
   const f = await fixture(t);
-  await f.controller.open(f.groupId, false, false, f.policy);
+  await f.controller.open(f.groupId, false, false, { metadata: f.policy });
   assert.deepEqual(f.requests, []);
   assert.deepEqual(f.deferred, [f.groupId]);
   assert.equal(f.controller.historyPending, false);
@@ -141,7 +141,7 @@ await test('verified group history completes before deferred metadata, while rec
 
 await test('revocation during deferred group metadata cannot apply an old completion', async (t) => {
   const f = await fixture(t);
-  await f.controller.open(f.groupId, false, false, f.policy);
+  await f.controller.open(f.groupId, false, false, { metadata: f.policy });
   f.releaseSend();
   t.mock.method(globalThis, 'fetch', () => {
     f.controller.revokeAuthority();
@@ -178,7 +178,7 @@ for (const current of [true, false])
       loaded++;
       return Promise.resolve();
     });
-    await f.controller.open(f.groupId, false, false, f.policy);
+    await f.controller.open(f.groupId, false, false, { metadata: f.policy });
     assert.equal(confirmed, 1);
     assert.equal(loaded, current ? 0 : 1);
     assert.equal(disposed, 1);
@@ -204,7 +204,9 @@ await test('group history rejects revocation during prepared pin confirmation', 
   t.mock.method(PeerIdentity.prototype, 'load', () =>
     Promise.reject(new Error('Revocation must not trigger a fallback read')),
   );
-  await assert.rejects(f.controller.open(f.groupId, false, false, f.policy));
+  await assert.rejects(
+    f.controller.open(f.groupId, false, false, { metadata: f.policy }),
+  );
   assert.equal(disposed, 1);
   assert.deepEqual(f.controller.views, []);
   assert.deepEqual(f.requests, []);

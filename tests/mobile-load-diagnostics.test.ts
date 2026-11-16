@@ -11,6 +11,7 @@ import {
   beginStartupCapture,
   traceChatSync,
   startLoad,
+  startHistoryLoad,
   startBootTrace,
 } from '../src/client/chat-sync-diagnostics/index.ts';
 import { NativeApiTransport } from '../src/client/native-api/index.ts';
@@ -558,5 +559,44 @@ await test('group preview index continuations retain one summary and presentatio
     'group-directory',
     'group-previews',
   ]);
-  assert.equal(report.meterRevision, 12);
+  assert.equal(report.meterRevision, 13);
+});
+
+await test('history reports group, private and handle modes and ranks measured stages', (t) => {
+  const { recording } = fixture(t);
+  const phases = [
+    { kind: 'history', mode: 'live' },
+    { kind: 'group-history', mode: 'older' },
+    { kind: 'handle-history', mode: 'open' },
+  ] as const;
+  for (const { kind, mode } of phases) {
+    const trace = startHistoryLoad(kind, mode, 'synthetic-private-peer');
+    assert.ok(trace);
+    trace.point('queue', { loadStageMs: 17 });
+    trace.point('request', { loadStageMs: 15 });
+    trace.point('request', { loadStageMs: 24 });
+    trace.point('local-history', { loadStageMs: 5 });
+    trace.point('work', { loadStageMs: 70 });
+    trace.point('published', { loadRows: 16 });
+    trace.point('cancelled', { loadOutcome: 'unavailable' });
+  }
+  const report = recording.report();
+  assert.deepEqual(
+    report.loading.operations.map(({ kind, historyMode }) => ({
+      kind,
+      mode: historyMode,
+    })),
+    phases,
+  );
+  for (const load of report.loading.operations) {
+    assert.equal(load.outcome, 'unavailable');
+    assert.ok(load.slowestStages);
+    assert.deepEqual(
+      load.slowestStages.map(({ stage }) => stage),
+      ['request', 'queue', 'local-history'],
+    );
+    assert.equal(load.slowestStages[0]?.durationMs, 39);
+    assert.equal(load.slowestStages[0]?.count, 2);
+  }
+  assert.doesNotMatch(JSON.stringify(report), /synthetic-private-peer/u);
 });

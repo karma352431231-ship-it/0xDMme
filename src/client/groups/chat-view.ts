@@ -1,4 +1,5 @@
 import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
+import { oldestRoot } from '../history-window/index.ts';
 import { traceSendChecks } from '../chat-sync-diagnostics/index.ts';
 import type {
   PrivateSendContext,
@@ -379,6 +380,9 @@ export class GroupChatView {
     this.composer.mount(container);
     this.watchOlder();
   }
+  checkOlder(): void {
+    this.older?.watch.check();
+  }
   /** Scrolling to the top of the history reads one page further back. */
   private watchOlder(): void {
     this.older?.stop.abort();
@@ -395,13 +399,18 @@ export class GroupChatView {
           !controller.historyPending &&
           !controller.searchFocused &&
           controller.olderAvailable,
+        ready: () => !this.options.isBusy(),
+        conversation: () => controller.selected?.state.groupId ?? null,
+        oldest: () => oldestRoot(controller.views),
         load: async () => {
           const group = controller.selected?.state.groupId,
-            shown = controller.views.length;
+            shown = oldestRoot(controller.views);
           await this.options.run(() => this.options.reopen(true));
+          const reached = oldestRoot(controller.views);
           return (
             controller.selected?.state.groupId === group &&
-            controller.views.length > shown
+            reached !== null &&
+            (shown === null || reached < shown)
           );
         },
         signal: stop.signal,

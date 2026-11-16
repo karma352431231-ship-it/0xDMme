@@ -473,6 +473,9 @@ export class MessageSynchronization {
       await this.finishRun(current);
     }
   }
+  get historyReady(): boolean {
+    return !this.busy && !this.continuation.waiting && !this.opening.waiting;
+  }
   /** Adopt a bounded read without replaying the enclosing user operation. */
   async history(
     work: MessageWork,

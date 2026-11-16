@@ -156,6 +156,11 @@ export function devicesCurrent(directory: SocialDirectoryPage): boolean {
 export function dmMediaScope(account: string): string {
   return `dm-media:${account}`;
 }
+type DmReadOptions = VaultWorkOptions & {
+  historyTrace?:
+    import('../chat-sync-diagnostics/index.ts').LoadTrace | undefined;
+};
+
 export class SocialDms {
   composeViewOnce(
     peer: string,
@@ -801,19 +806,21 @@ export class SocialDms {
   async historyPage(
     snapshot: unknown,
     after: number,
-    options: VaultWorkOptions = {},
+    options: DmReadOptions = {},
     projection?: { peer: string; before: number | null },
   ) {
     const generation = this.generation;
     return this.withCrypto(async (context) => {
       const raw = personalPage(
-        await context.api('personal-page', {
-          snapshot,
-          after,
-          actions: true,
-          edits: true,
-          deletions: true,
-        }),
+        await timedLoad(options.historyTrace, 'request', () =>
+          context.api('personal-page', {
+            snapshot,
+            after,
+            actions: true,
+            edits: true,
+            deletions: true,
+          }),
+        ),
       );
       markDownloaded(context, raw['items'], options);
       const profiles = new Map(
@@ -843,13 +850,18 @@ export class SocialDms {
         if (!peer) throw new Error('Historical public DM profile missing.');
         traceIncomingHandle(context, packet, 'downloaded', options);
         traceIncomingHandle(context, packet, 'processing-start', options);
-        const record = await this.decode(context, {
-          packet,
-          hash: String(item['hash']),
-          sequence: socialRevision(item['sequence']),
-          peer,
-          recovery: raw['recovery'],
-        });
+        const record = await timedLoad(
+          options.historyTrace,
+          'packet-verify',
+          () =>
+            this.decode(context, {
+              packet,
+              hash: String(item['hash']),
+              sequence: socialRevision(item['sequence']),
+              peer,
+              recovery: raw['recovery'],
+            }),
+        );
         traceIncomingHandle(context, packet, 'verified', options);
         await cacheDmRecord(context.privateAuthority, record);
         traceIncomingHandle(context, packet, 'stored', options);
@@ -1130,11 +1142,7 @@ export class SocialDms {
       options,
     );
   }
-  async read(
-    peer: string,
-    before: number | null,
-    options: VaultWorkOptions = {},
-  ) {
+  async read(peer: string, before: number | null, options: DmReadOptions = {}) {
     const confirmed = await measureDmWork(this, 'dm/history-sync', () =>
       this.synchronizeHistory(options, { peer, before }),
     );
@@ -1148,7 +1156,7 @@ export class SocialDms {
     await this.synchronizeHistory();
   }
   private async synchronizeHistory(
-    options: VaultWorkOptions = {},
+    options: DmReadOptions = {},
     projection?: { peer: string; before: number | null },
   ) {
     const generation = this.generation;
@@ -1163,7 +1171,10 @@ export class SocialDms {
       snapshot = await this.history.run({
         snapshot: () => {
           const window = pendingWindow;
-          if (!window) return this.request('personal-snapshot', {}, options);
+          if (!window)
+            return timedLoad(options.historyTrace, 'request', () =>
+              this.request('personal-snapshot', {}, options),
+            );
           return this.access.withVault(
             false,
             async (a) => {
@@ -1173,7 +1184,11 @@ export class SocialDms {
                 read: [],
                 own: [],
               });
-              const current = await api('personal-snapshot', {});
+              const current = await timedLoad(
+                options.historyTrace,
+                'confirm',
+                () => api('personal-snapshot', {}),
+              );
               confirmDmHistory(window.snapshot, current);
               await writeRecentDmPage(
                 a,
@@ -1196,16 +1211,21 @@ export class SocialDms {
             expected.anchor === 0
           )
             return 'unchanged';
-          const candidate = await this.localWork(generation, async (a) => {
-            const held = await readReopen<
-              Awaited<ReturnType<SocialDms['cached']>>
-            >(a, dmReopenLocation(a, projection.peer, expected));
-            await this.removals.load(a, () => this.guard(generation));
-            return (
-              held ??
-              this.cachedPage({ a, ...projection, generation, maximum: 16 })
-            );
-          });
+          const candidate = await timedLoad(
+            options.historyTrace,
+            'local-history',
+            () =>
+              this.localWork(generation, async (a) => {
+                const held = await readReopen<
+                  Awaited<ReturnType<SocialDms['cached']>>
+                >(a, dmReopenLocation(a, projection.peer, expected));
+                await this.removals.load(a, () => this.guard(generation));
+                return (
+                  held ??
+                  this.cachedPage({ a, ...projection, generation, maximum: 16 })
+                );
+              }),
+          );
           if (
             candidate.items.some(
               (item) =>
@@ -1332,15 +1352,16 @@ export class SocialDms {
   async cached(
     peer: string,
     before: number | null,
-    options: VaultWorkOptions = {},
+    options: DmReadOptions = {},
   ) {
     const generation = this.generation;
     return this.access.withVault(
       true,
-      async (a) => {
-        await this.removals.load(a, () => this.guard(generation));
-        return this.cachedPage({ a, peer, before, generation, maximum: 16 });
-      },
+      (a) =>
+        timedLoad(options.historyTrace, 'local-history', async () => {
+          await this.removals.load(a, () => this.guard(generation));
+          return this.cachedPage({ a, peer, before, generation, maximum: 16 });
+        }),
       options,
     );
   }

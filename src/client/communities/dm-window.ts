@@ -12,7 +12,7 @@ import type { DmPage } from './dm-history.ts';
  * trigger that asks for one page further. Cleared with the session. */
 export class DmHistoryDepth {
   private readonly floors = new HistoryFloors();
-  private requested = false;
+  private requested: string | null = null;
   private anchor: { peer: string; before: number } | null = null;
   private watch: { stop: AbortController; older: OlderHistory } | null = null;
   focus(peer: string, sequence: number | null): void {
@@ -32,9 +32,10 @@ export class DmHistoryDepth {
     button: HTMLButtonElement | null;
     conversation: () => string | null;
     shown: () => number;
+    ready: () => boolean;
     load: () => Promise<void>;
   }): void {
-    this.requested = false;
+    this.requested = null;
     this.watch?.stop.abort();
     const stop = new AbortController();
     const older = watchOlderHistory({
@@ -45,16 +46,27 @@ export class DmHistoryDepth {
         const id = input.conversation();
         return (
           !!id &&
+          this.before(id) === null &&
           !this.floors.complete(id) &&
           (this.floors.floor(id) !== null || input.shown() >= historyPage)
         );
       },
+      ready: input.ready,
+      conversation: input.conversation,
+      oldest: () => {
+        const id = input.conversation();
+        return id ? this.floors.floor(id) : null;
+      },
       load: async () => {
-        const id = input.conversation(),
-          shown = input.shown();
-        this.requested = true;
+        const id = input.conversation();
+        if (!id) return false;
+        const before = this.floors.floor(id);
+        this.requested = id;
         await input.load();
-        return input.conversation() === id && input.shown() > shown;
+        const reached = this.floors.floor(id);
+        return (
+          input.conversation() === id && reached !== null && reached !== before
+        );
       },
     });
     this.watch = { stop, older };
@@ -65,24 +77,32 @@ export class DmHistoryDepth {
     latest: DmPage,
     page: (before: number) => Promise<DmPage>,
   ): Promise<DmPage> {
-    const older = this.requested;
-    this.requested = false;
+    const older = this.waiting(conversation);
     const reached = await readDmWindow({
       latest,
       floor: this.floors.floor(conversation),
       older,
       page,
     });
+    if (this.waiting(conversation)) this.requested = null;
     this.floors.update(conversation, reached);
     return reached.page;
   }
   check(): void {
     this.watch?.older.check();
   }
+  waiting(conversation: string): boolean {
+    return this.requested === conversation;
+  }
+  unbind(): void {
+    this.watch?.stop.abort();
+    this.watch = null;
+    this.requested = null;
+  }
   clear(): void {
+    this.unbind();
     this.floors.clear();
     this.anchor = null;
-    this.requested = false;
   }
 }
 

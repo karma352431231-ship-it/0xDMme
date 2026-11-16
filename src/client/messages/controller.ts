@@ -1,3 +1,4 @@
+import { historyWait, timedLoad } from '../chat-sync-diagnostics/index.ts';
 import { PrivateSendPreparation } from './send-preparation.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
@@ -915,8 +916,11 @@ export class Messages {
   ): Promise<void> {
     return this.outbox.sendPending(options, yieldAfterMessage);
   }
-  synchronize(options: VaultWorkOptions = {}): Promise<MessageWorkResult> {
-    return this.reader.synchronize(options);
+  synchronize(
+    options: VaultWorkOptions = {},
+    trace?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
+  ): Promise<MessageWorkResult> {
+    return this.reader.synchronize(options, trace);
   }
   private async readMissing(
     c: MessageWindowRead,
@@ -952,8 +956,11 @@ export class Messages {
     if (!locator) return { items: [], next: null };
     return this.access.withLocalVault(locator, (a) => historyPeers(a, after));
   }
-  openArchive(peer: string): Promise<void> {
-    return this.reader.openArchive(peer);
+  openArchive(
+    peer: string,
+    trace?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
+  ): Promise<void> {
+    return this.reader.openArchive(peer, trace);
   }
 
   private async indexItem(
@@ -1484,17 +1491,23 @@ export class Messages {
       combined.throwIfAborted();
       this.guard(generation);
     };
+    const trace = this.reader.beginReceiptLoad();
+    const admitted = historyWait(trace, 'vault');
+    let published = false;
     try {
       return await this.access.withVault(
         false,
         async (a) => {
+          admitted();
           guard();
           const api = (op: string, data: Record<string, unknown>) =>
-            messageApi(a, op, data, {
-              guard,
-              signal: combined,
-              privateSend: work.privateSend,
-            });
+            timedLoad(trace, 'request', () =>
+              messageApi(a, op, data, {
+                guard,
+                signal: combined,
+                privateSend: work.privateSend,
+              }),
+            );
           const hints = this.reader.hintVersion,
             recoveryWake = this.recoveryWake;
           const turn = new MessageReceiveTurn<MessageView>({
@@ -1571,20 +1584,25 @@ export class Messages {
               read: (snapshot, items) =>
                 measurePrivateSend(work.privateSend, 'receipt-verify', () =>
                   this.reader
-                    .readWindow({
-                      a,
-                      generation,
-                      api: turn.api,
-                      snapshot,
-                      items,
-                      turn,
-                    })
+                    .readWindow(
+                      {
+                        a,
+                        generation,
+                        api: turn.api,
+                        snapshot,
+                        items,
+                        turn,
+                      },
+                      trace,
+                    )
                     .then((views) => views.map(retainedMessageView)),
                 ),
               commit: (batch) => {
                 this.synchronizationIssues = batch.pending;
                 this.recoveryAlarm.wait(batch.pending);
-                this.reader.commitInboxBatch(batch, hints);
+                published =
+                  this.reader.commitInboxBatch(batch, hints, trace) ||
+                  published;
               },
               suspendedState: messageStates.suspended,
             });
@@ -1596,7 +1614,14 @@ export class Messages {
         },
         work,
       );
+    } catch (error: unknown) {
+      if (!combined.aborted) trace?.point('failed', { loadOutcome: 'failed' });
+      throw error;
     } finally {
+      if (!published)
+        trace?.point('cancelled', {
+          loadOutcome: combined.aborted ? 'cancelled' : 'unavailable',
+        });
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
     }
   }
@@ -1632,12 +1657,18 @@ export class Messages {
       return bytes;
     });
   }
-  probe(options: VaultWorkOptions = {}): Promise<boolean> {
-    return this.reader.probe(options);
+  probe(
+    options: VaultWorkOptions = {},
+    trace?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
+  ): Promise<boolean> {
+    return this.reader.probe(options, trace);
   }
 
-  openOffline(peer: string | null): Promise<void> {
-    return this.reader.openOffline(peer);
+  openOffline(
+    peer: string | null,
+    trace?: import('../chat-sync-diagnostics/index.ts').LoadTrace,
+  ): Promise<void> {
+    return this.reader.openOffline(peer, trace);
   }
   private async offlineProfiles(
     a: VaultAuthority,

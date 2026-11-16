@@ -3,10 +3,12 @@ import type { AuthorityWorkSummary } from './flow.ts';
 import { StartupDetails } from './startup.ts';
 import { bootMilestones } from '../../shared/chat-sync-diagnostics/boot.ts';
 import {
+  historyLoadModes,
   loadKinds,
   loadStages,
 } from '../../shared/chat-sync-diagnostics/load.ts';
 import type {
+  HistoryLoadMode,
   LoadKind,
   LoadStage,
 } from '../../shared/chat-sync-diagnostics/load.ts';
@@ -47,6 +49,8 @@ interface LoadSummary {
   transfer: Record<string, number>;
   stages: Partial<Record<LoadStage, StageTiming>>;
   initial?: boolean;
+  historyMode?: HistoryLoadMode;
+  slowestStages?: (StageTiming & { stage: string })[];
   preList?: ReturnType<GroupDirectoryPrelude['report']>;
 }
 /** Bounded operation summaries outlive detailed timeline eviction. */
@@ -82,6 +86,10 @@ export class ComparisonLoads {
     if (!stage || !kind) return;
     const summary = this.get(event, kind);
     if (!summary) return;
+    const mode = historyLoadModes.find(
+      (value) => value === event['loadHistoryMode'],
+    );
+    if (mode) summary.historyMode = mode;
     this.update(summary, event, stage);
     this.groupPreludes.get(summary.slot)?.observe(event);
   }
@@ -201,8 +209,18 @@ export class ComparisonLoads {
         const prelude = this.groupPreludes.get(summary.slot);
         return prelude
           ? { ...summary, preList: prelude.report(summary.slot, flow) }
-          : summary;
+          : historyLoadSummary(summary);
       }),
     };
   }
+}
+
+/** Outer work spans can overlap measured substeps. Rank the measured substeps. */
+function historyLoadSummary(summary: LoadSummary): LoadSummary {
+  if (!summary.historyMode) return summary;
+  const stages = Object.entries(summary.stages)
+    .filter(([name, timing]) => name !== 'work' && timing.durationMs !== null)
+    .map(([stage, timing]) => ({ stage, ...timing }));
+  stages.sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0));
+  return { ...summary, slowestStages: stages };
 }
