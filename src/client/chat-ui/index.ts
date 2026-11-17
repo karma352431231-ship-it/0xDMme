@@ -1,4 +1,6 @@
 export { renderSearchReturn } from './search-return.ts';
+export { watchCenteredHistory } from './centered-history.ts';
+export type { CenteredHistoryScroll } from './centered-history.ts';
 export { revealMessage } from './search-reveal.ts';
 export type { RevealPorts } from './search-reveal.ts';
 export {

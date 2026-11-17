@@ -1,3 +1,4 @@
+import type { HistoryDirection } from '../history-window/index.ts';
 import type { QueueWakeup } from '../text-send/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import {
@@ -776,7 +777,7 @@ export function startMessages(
             views: () => mediaCatalogue.views(),
             catalogue: mediaCatalogue,
             media: (view, thumbnail) => controller.media(view, thumbnail),
-            open: (view) => void revealSearchMatch(view.id, peer),
+            open: (view) => openHistoricalMessage(peer, view.id, view.sequence),
           }),
       },
       edit: () => directoryUi.editSelected(),
@@ -845,6 +846,10 @@ export function startMessages(
           await synchronizeVisible();
         });
       },
+    },
+    centeredScroll: {
+      available: (direction) => controller.canExtend(direction),
+      load: loadCentered,
     },
     outgoing: () => outgoing.forPeer(selected?.accountId),
     submittedMedia: () => mediaSubmissions.forPeer(selected?.accountId),
@@ -1158,6 +1163,25 @@ export function startMessages(
     if (!ran) trace?.point('failed', { loadOutcome: 'failed' });
     return selected === peer && rootsShown() > shown;
   }
+  async function loadCentered(direction: HistoryDirection): Promise<void> {
+    const peer = selected;
+    if (!peer || !synchronization.historyReady || !controller.extend(direction))
+      return;
+    try {
+      await synchronization.run(async () => {
+        if (selected !== peer) return;
+        if (peer.localOnly) await controller.openArchive(peer.accountId);
+        else if (!networkAvailable())
+          await controller.openOffline(peer.accountId);
+        else
+          await synchronization.history(() =>
+            controller.synchronize({ priority: 'interactive' }),
+          );
+      });
+    } finally {
+      if (selected === peer) controller.cancelExtension();
+    }
+  }
   /** Opens a private-chat match at its message; other results open their conversation. */
   function openSearchResult(item: SearchItem, entry: ConversationEntry): void {
     if (entry.reveal) {
@@ -1169,8 +1193,19 @@ export function startMessages(
       entry.open();
       return;
     }
-    void requestPeer(peer, item.sequence)
-      .then(() => revealSearchMatch(item.id, peer))
+    openHistoricalMessage(peer, item.id, item.sequence);
+  }
+  function openHistoricalMessage(
+    peer: ConversationPeer,
+    id: string,
+    sequence: number | undefined,
+  ): void {
+    if (sequence === undefined) {
+      void revealSearchMatch(id, peer);
+      return;
+    }
+    void requestPeer(peer, sequence)
+      .then(() => revealSearchMatch(id, peer))
       .catch((error: unknown) => {
         if (
           selected?.accountId === peer.accountId &&
@@ -1244,10 +1279,13 @@ export function startMessages(
       mediaCatalogue.clear();
       return;
     }
+    if (controller.searchFocused) return;
     const peer = selected;
     const account = session;
+    const views = dailyViews(rows);
+    const conversation = JSON.stringify([peer.accountId, !!peer.localOnly]);
     mediaCatalogue.prepare(
-      catalogueIdentity(peer.accountId, dailyViews(rows)),
+      catalogueIdentity(conversation, views),
       () =>
         privateGallerySource({
           access,
@@ -1256,7 +1294,7 @@ export function startMessages(
           peer: peer.accountId,
           localOnly: !!peer.localOnly,
         }),
-      { conversation: peer.accountId, rows: dailyViews(rows) },
+      { conversation, rows: views },
     );
   }
   function choose(_mode: 'reply', view: MessageView): void {
@@ -1603,7 +1641,7 @@ export function startMessages(
         'Send or remove the voice preview before changing recipients.',
       );
     selectPeer(peer);
-    if (focus !== undefined) controller.focusMessage(focus);
+    if (focus !== undefined) controller.focusAround(focus);
     if (!networkAvailable()) {
       await controller.openOffline(peer.accountId, trace);
       return;

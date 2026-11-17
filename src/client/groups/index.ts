@@ -1,3 +1,4 @@
+import type { HistoryDirection } from '../history-window/index.ts';
 import { timedLoadSync } from '../chat-sync-diagnostics/index.ts';
 import type { HistoryLoadMode } from '../../shared/chat-sync-diagnostics/load.ts';
 import type { QueueGate, QueueWakeup } from '../text-send/index.ts';
@@ -161,6 +162,10 @@ export function startGroups(
       }),
     run,
     reopen,
+    centeredScroll: {
+      available: (direction) => controller.canExtend(direction),
+      load: extendCentered,
+    },
     select: options.select,
     report,
     status,
@@ -463,7 +468,7 @@ export function startGroups(
   ): Promise<void> {
     const id = typeof group === 'string' ? group : group.state.groupId,
       localOnly = typeof group === 'string' ? false : !!group.localOnly;
-    if (focus) controller.focusMessage(id, focus.sequence);
+    if (focus) controller.focusAround(id, focus.sequence);
     else controller.latest();
     chat.open(id);
     try {
@@ -477,13 +482,16 @@ export function startGroups(
   function render(trace?: LoadTrace): void {
     const group = controller.selected;
     if (!session || !group || controller.historyPending) mediaCatalogue.clear();
-    else {
+    else if (!controller.searchFocused) {
       const account = session;
+      const rows = controller.views.map(groupMessageView);
+      const conversation = JSON.stringify([
+        group.state.groupId,
+        group.head,
+        !!group.localOnly,
+      ]);
       mediaCatalogue.prepare(
-        catalogueIdentity(
-          group.state.groupId,
-          controller.views.map(groupMessageView),
-        ),
+        catalogueIdentity(conversation, rows),
         () =>
           groupGallerySource({
             access,
@@ -491,11 +499,9 @@ export function startGroups(
             session: account,
             group: group.state.groupId,
             localOnly: !!group.localOnly,
+            initial: group,
           }),
-        {
-          conversation: group.state.groupId,
-          rows: controller.views.map(groupMessageView),
-        },
+        { conversation, rows },
       );
     }
     management.updateSettingsGroup(group);
@@ -525,6 +531,24 @@ export function startGroups(
     if (!id) return;
     await readHistory(id, older, !!controller.selected?.localOnly);
     render();
+  }
+  async function extendCentered(direction: HistoryDirection): Promise<void> {
+    const group = controller.selected;
+    if (
+      !group ||
+      controller.historyPending ||
+      options.isBusy() ||
+      !controller.extend(direction)
+    )
+      return;
+    try {
+      await run(() =>
+        readHistory(group.state.groupId, false, !!group.localOnly),
+      );
+    } finally {
+      if (controller.selected?.state.groupId === group.state.groupId)
+        controller.cancelExtension();
+    }
   }
   function deselect(): void {
     mediaCatalogue.clear();
@@ -582,7 +606,6 @@ export function startGroups(
     id: string,
     sequence: number,
   ): Promise<void> {
-    controller.focusMessage(group.state.groupId, sequence);
     await open(group, { sequence });
     await revealMessage(id, {
       row: (target) =>

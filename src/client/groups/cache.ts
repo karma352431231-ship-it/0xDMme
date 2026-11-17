@@ -1,3 +1,4 @@
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import { measurePrivateSend } from '../chat-sync-diagnostics/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
@@ -142,12 +143,18 @@ export class GroupCache {
   }
   async messages(
     before: number | null,
+    slice?: HistorySlice,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    const page = await localPrevious<LocalCipher>(
-        this.scope,
-        'message:',
-        before === null ? null : `message:${String(before).padStart(16, '0')}`,
-      ),
+    const sequence = slice?.cursor ?? before;
+    const cursor =
+      sequence === null
+        ? null
+        : `message:${String(sequence).padStart(16, '0')}`;
+    const page = await (
+        slice?.direction === 'newer'
+          ? localPage<LocalCipher>
+          : localPrevious<LocalCipher>
+      )(this.scope, 'message:', cursor),
       items: unknown[] = [];
     for (const row of page.items)
       items.push(await this.open(row.name, row.value));

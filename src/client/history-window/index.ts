@@ -6,9 +6,10 @@
  * still cover everything shown. Floors last for the page's lifetime (a reload
  * starts over) and are cleared with the session.
  */
-export const historyPage = 16;
-/** Roots one window may hold; older history stops loading beyond this. */
-export const historyRootLimit = 512;
+import { historyPage, historyRootLimit } from './limits.ts';
+export { historyPage, historyRootLimit } from './limits.ts';
+export { CenteredHistory } from './centered.ts';
+export type { HistoryDirection } from './centered.ts';
 /** Edits and reactions verified per root, as the latest page always allowed. */
 const relationsPerRoot = 3;
 const conversationLimit = 64;

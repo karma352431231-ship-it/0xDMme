@@ -1,5 +1,6 @@
 import type { MessageSyncSnapshot } from '../../shared/message-sync/index.ts';
 import { messagePageSize } from '../../shared/messages/index.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import { messageItems } from './history.ts';
 import type { Api, MessageItem } from './history.ts';
 import { assertMessagePage, messagePeer } from './index-sync.ts';
@@ -15,6 +16,7 @@ export async function readPeerWindow(c: {
   account: string;
   peer: string;
   before: number | null;
+  slice?: HistorySlice;
   deleted: (item: MessageItem) => Promise<void>;
 }): Promise<MessageItem[]> {
   const page = messageItems(
@@ -22,6 +24,7 @@ export async function readPeerWindow(c: {
       snapshot: c.snapshot,
       peer: c.peer,
       before: c.before,
+      ...(c.slice ? { slice: c.slice } : {}),
     }),
     messagePageSize + 2,
   );
@@ -36,8 +39,7 @@ export async function readPeerWindow(c: {
       throw new Error('Message window does not match.');
     else profiles.set(item.sender, item);
   }
-  if (roots.length > messagePageSize)
-    throw new Error('Message window does not match.');
+  checkWindowSize(roots.length, c.slice);
   for (const profile of profiles.values())
     if (profile.deleted) await c.deleted(profile);
   return [...[...profiles.values()].filter((item) => !item.deleted), ...roots];
@@ -49,6 +51,7 @@ function assertWindowItem(
     account: string;
     peer: string;
     before: number | null;
+    slice?: HistorySlice;
   },
   item: MessageItem,
 ): void {
@@ -58,10 +61,19 @@ function assertWindowItem(
   )
     throw new Error('Message outside the requested window.');
   if (item.kind === 'profile') return;
-  if (
-    item.relation ||
-    item.deleted ||
-    (c.before !== null && item.sequence >= c.before)
-  )
+  if (item.relation || item.deleted || !validSequence(c, item.sequence))
+    throw new Error('Message window does not match.');
+}
+function validSequence(
+  c: { before: number | null; slice?: HistorySlice },
+  sequence: number,
+): boolean {
+  if (c.slice?.direction === 'newer') return sequence > c.slice.cursor;
+  const before = c.slice?.cursor ?? c.before;
+  return before === null || sequence < before;
+}
+
+function checkWindowSize(roots: number, slice?: HistorySlice): void {
+  if (roots > (slice?.limit ?? messagePageSize))
     throw new Error('Message window does not match.');
 }

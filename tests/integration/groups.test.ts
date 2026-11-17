@@ -1395,6 +1395,30 @@ await test('persistent governance: atomic creation, invitations, transfer, remov
         }),
       );
       assert.ok(recent.includes(first.id) && !recent.includes(later.id));
+      const range = { direction: 'newer', cursor: cut['anchor'], limit: 12 };
+      assert.deepEqual(
+        ids(
+          await message(messages, member, 'group-message-recent', {
+            ...scope,
+            before: null,
+            anchor: cut['anchor'],
+            slice: range,
+          }),
+        ),
+        [],
+        'the newer direction is bounded by the finite group cut',
+      );
+      assert.deepEqual(
+        ids(
+          await message(messages, member, 'group-message-recent', {
+            ...scope,
+            before: null,
+            slice: range,
+          }),
+        ),
+        [later.id],
+        'the newer direction returns live roots without edit packets',
+      );
       assert.deepEqual(
         object(
           await message(messages, member, 'group-message-relations', {

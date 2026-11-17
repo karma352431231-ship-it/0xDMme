@@ -317,9 +317,14 @@ export function resumeFixture(
   const windowResponse = async (input?: RequestInit): Promise<Response> => {
     if (typeof input?.body !== 'string') throw new Error('Missing window.');
     const body = JSON.parse(input.body) as {
-      payload: { snapshot: unknown; peer: string; before: number | null };
+      payload: {
+        snapshot: unknown;
+        peer: string;
+        before: number | null;
+        slice?: HistorySlice;
+      };
     };
-    const { peer, before } = body.payload;
+    const { peer, before, slice } = body.payload;
     const through = isSyncSnapshot(body.payload.snapshot)
       ? body.payload.snapshot.anchor
       : Number.MAX_SAFE_INTEGER;
@@ -335,15 +340,7 @@ export function resumeFixture(
         (item.sender === peer || item.recipient === peer) &&
         item.sequence <= through,
     );
-    const roots = rows
-      .filter(
-        (item) =>
-          item.kind !== 'profile' &&
-          !item.relation &&
-          !item.deleted &&
-          (before === null || item.sequence < before),
-      )
-      .slice(-16);
+    const roots = fixtureWindowRoots(rows, before, slice);
     const profiles = new Map<string, (typeof rows)[number]>();
     for (const item of rows)
       if (item.kind === 'profile') profiles.set(item.sender, item);
@@ -630,4 +627,27 @@ export function resumeFixture(
 
 function legacyOperation(operation: string): string {
   return operation === 'sync-state' ? 'snapshot' : operation;
+}
+import type { HistorySlice } from '../../src/shared/messages/index.ts';
+
+function fixtureWindowRoots(
+  rows: MessageItem[],
+  before: number | null,
+  slice?: HistorySlice,
+): MessageItem[] {
+  const cursor = slice?.cursor ?? before;
+  const visible = rows.filter(
+    (item) =>
+      item.kind !== 'profile' &&
+      !item.relation &&
+      !item.deleted &&
+      (slice?.direction === 'newer'
+        ? item.sequence > slice.cursor
+        : cursor === null || item.sequence < cursor),
+  );
+  const roots =
+    slice?.direction === 'newer'
+      ? visible.slice(0, slice.limit)
+      : visible.slice(-(slice?.limit ?? 16));
+  return roots;
 }

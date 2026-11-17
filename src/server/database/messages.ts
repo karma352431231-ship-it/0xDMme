@@ -1,3 +1,4 @@
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import type { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageOpening } from './message-opening.ts';
 import { attachViewOncePayload } from './view-once.ts';
@@ -463,6 +464,7 @@ export class MessageStore {
       snapshot: MessageSyncSnapshot;
       peer: string;
       before: number | null;
+      slice?: HistorySlice;
     },
   ) {
     return this.contacts.withMessageRead(authority, async (client) => {
@@ -471,6 +473,7 @@ export class MessageStore {
         peer: input.peer,
         through: input.snapshot.anchor,
         before: input.before,
+        ...(input.slice ? { slice: input.slice } : {}),
       });
     });
   }

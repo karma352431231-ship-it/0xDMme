@@ -13,8 +13,6 @@ interface GalleryEntry<V> {
 export interface GalleryMedia<V> extends GalleryEntry<V> {
   video: boolean;
   name: string;
-  /** The file's media type, used to show a video's first frame. */
-  type: string;
   /** Whether the sender attached a small preview to show in the grid. */
   preview: boolean;
 }
@@ -104,7 +102,6 @@ function addAttachment<V extends GalleryRow>(
       month,
       video,
       name: content.name,
-      type: content.type,
       preview: !!content.thumbnail,
     });
   else
@@ -133,18 +130,14 @@ function addLinks<V extends GalleryRow>(
 }
 
 /**
- * What a grid tile reads to show its picture: the sender's thumbnail when
- * there is one, otherwise the file itself. Photos sent as originals and every
- * video carry no thumbnail; a video then shows its opening frame, which needs
- * the file's media type.
+ * A grid tile may download the sender's thumbnail. Media without one uses
+ * its cached derivative, once the original has been opened in its chat.
  */
 export function tileSource<V>(entry: GalleryMedia<V>): {
   thumbnail: boolean;
-  frameType: string | null;
 } {
   return {
     thumbnail: entry.preview,
-    frameType: !entry.preview && entry.video ? entry.type : null,
   };
 }
 

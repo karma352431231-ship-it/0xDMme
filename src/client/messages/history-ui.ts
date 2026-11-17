@@ -36,8 +36,9 @@ import {
   watchHistoryPosition,
   updateMessageStates,
   watchOlderHistory,
+  watchCenteredHistory,
 } from '../chat-ui/index.ts';
-import type { OlderHistory } from '../chat-ui/index.ts';
+import type { CenteredHistoryScroll, OlderHistory } from '../chat-ui/index.ts';
 import { WindowReceipts } from '../history-window/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
@@ -100,6 +101,7 @@ interface HistoryPresentation {
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
   searchFocus?: { active: () => boolean; latest: () => void };
+  centeredScroll?: CenteredHistoryScroll;
   receiptsVerified?: (window: {
     peer: string;
     outgoing: readonly string[];
@@ -359,6 +361,8 @@ export class MessageHistoryUi {
     if (this.older?.history === history) return this.older.watch;
     this.older?.stop.abort();
     const stop = new AbortController();
+    if (this.options.centeredScroll)
+      watchCenteredHistory(history, this.options.centeredScroll, stop.signal);
     this.older = {
       history,
       stop,
@@ -420,7 +424,9 @@ export class MessageHistoryUi {
       );
       const rows = views.map((view) => ({
         id: view.id,
-        key: keys.get(view.id)!,
+        key: this.readingContext()
+          ? keys.get(view.id)! + '|context'
+          : keys.get(view.id)!,
         sentAt: view.sentAt,
         render: (signal: AbortSignal) =>
           this.renderMessage(view, signal, runOf.get(view.id) ?? 'single'),
@@ -725,6 +731,9 @@ export class MessageHistoryUi {
       valid: () => this.options.context().selected?.accountId === peer,
     });
   }
+  private readingContext(): boolean {
+    return this.options.searchFocus?.active() ?? false;
+  }
   private renderMessageContent(input: {
     article: HTMLElement;
     text: HTMLElement;
@@ -753,6 +762,7 @@ export class MessageHistoryUi {
     } else if (view.kind === 'attachment') {
       this.options.attachments.render({
         article,
+        deferOriginal: this.readingContext(),
         imageOverlay: input.reactionPanel,
         view,
         signal,

@@ -31,6 +31,9 @@ export function fileLimitMessage(maximum: number): string {
     : 'The file must be no larger than 3 MB.';
 }
 export const thumbnailLimit = 96_000;
+export function attachmentVideoType(type: string): boolean {
+  return type === 'video/mp4' || type === 'video/quicktime';
+}
 export const partLimit = 262_144;
 export interface AttachmentRef {
   id: string;
@@ -164,9 +167,12 @@ function attachmentMedia(
       row['thumbnail'] === null
         ? null
         : privateFile(row['thumbnail'], thumbnailLimit);
-  if ((!row['image'] && thumbnail) || thumbnail?.ref.id === file.ref.id)
-    throw new Error('Invalid thumbnail.');
   const type = boundedText(row['type'], 100);
+  if (thumbnail) {
+    if (!row['image'] && !attachmentVideoType(type))
+      throw new Error('Invalid thumbnail.');
+    if (thumbnail.ref.id === file.ref.id) throw new Error('Invalid thumbnail.');
+  }
   if (row['image'] && !images.includes(type))
     throw new Error('Image format not allowed.');
   return { file, thumbnail, type };

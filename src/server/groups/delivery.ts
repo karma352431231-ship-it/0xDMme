@@ -1,3 +1,4 @@
+import { historySlice } from '../../shared/messages/index.ts';
 import {
   AccountError,
   keys,
@@ -163,6 +164,7 @@ export function groupDeliveryActions(
         ...scope(d, [
           'before',
           ...(Object.hasOwn(d, 'anchor') ? ['anchor'] : []),
+          ...(Object.hasOwn(d, 'slice') ? ['slice'] : []),
         ]),
         ...(Object.hasOwn(d, 'anchor')
           ? { anchor: integer(d['anchor'], Number.MAX_SAFE_INTEGER) }
@@ -171,6 +173,9 @@ export function groupDeliveryActions(
           d['before'] === null
             ? null
             : integer(d['before'], Number.MAX_SAFE_INTEGER),
+        ...(d['slice'] === undefined
+          ? {}
+          : { slice: historySlice(object(d['slice'])) }),
       }),
     'group-profile': (a, d) => store.profile(a, scope(d, [])),
     'group-message-usage': (a, d) => store.usage(a, scope(d, [])),

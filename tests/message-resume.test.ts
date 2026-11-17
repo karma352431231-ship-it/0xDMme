@@ -923,6 +923,83 @@ await test('offline catalogue media keeps local authorization and never requests
   assert.deepEqual(f.data.requests, []);
 });
 
+await test('opening an old private message jumps to 12 neighbors per side and extends by 16 without scanning from latest', async () => {
+  const f = resumeFixture(true);
+  for (let index = 0; index < 80; index++) await f.add('Message ' + index);
+  f.controller.focusAround(40);
+  await f.controller.synchronize();
+  const shown = () => f.data.frames.at(-1)!.map((row) => row.sequence);
+  const sequences = (first: number, last: number) =>
+    Array.from({ length: last - first + 1 }, (_, index) => first + index);
+  assert.deepEqual(shown(), sequences(28, 52));
+  assert.equal(
+    f.data.requests.filter((op) => op === 'sync-peer-window').length,
+    2,
+  );
+  assert.ok(f.controller.extend('older'));
+  await f.controller.synchronize();
+  assert.deepEqual(shown(), sequences(12, 52));
+  assert.ok(f.controller.extend('newer'));
+  await f.controller.synchronize();
+  assert.deepEqual(shown(), sequences(12, 68));
+  assert.equal(
+    f.data.requests.filter((op) => op === 'sync-peer-window').length,
+    4,
+  );
+  assert.ok(!f.data.requests.includes('page'));
+});
+
+await test('a catalogue checkpoint needs the exact current cut and gives way to changed history', async () => {
+  const f = resumeFixture(true, { persistWindows: true });
+  await f.add('https://example.com/first');
+  const reader = f.galleryReader();
+  const signal = new AbortController().signal;
+  try {
+    const page = await reader.page(null, signal);
+    assert.ok(page.cut);
+    const checkpoint = reader.checkpoint!;
+    await checkpoint.save({ cut: page.cut, views: page.views }, signal);
+    f.data.requests.length = 0;
+    const cached = await checkpoint.read(signal);
+    assert.equal(cached?.[0]?.id, page.views[0]?.id);
+    assert.deepEqual(f.data.requests, ['snapshot']);
+    await f.add('https://example.com/new');
+    assert.equal(await checkpoint.read(signal), null);
+  } finally {
+    reader.close();
+  }
+});
+
+await test('gallery requests use only signing authority online and stop on access refusal', async () => {
+  const f = resumeFixture(true);
+  const reads = f.data.authorityReads;
+  f.access.withSigner = (work) =>
+    work({
+      session: f.session,
+      directory: f.data.snapshot.directory,
+      sign: () => Promise.resolve('synthetic-signature'),
+    });
+  f.data.failure = 'snapshot';
+  await assert.rejects(
+    f.controller.galleryMedia(
+      {
+        id: crypto.randomUUID(),
+        peer: f.peer,
+        hash: 'a'.repeat(64),
+        kind: 'attachment',
+        own: false,
+        text: '',
+        state: '',
+      },
+      false,
+      new AbortController().signal,
+    ),
+    /Not authorized/u,
+  );
+  assert.equal(f.data.authorityReads, reads);
+  assert.deepEqual(f.data.requests, ['snapshot']);
+});
+
 await test('late confirmation from A cannot replace a restored B or discard valid C', async () => {
   const f = resumeFixture(true),
     b = crypto.randomUUID(),

@@ -60,7 +60,7 @@ export class Recording {
     const comparison = this.sends.report(flow);
     return {
       schema: 3,
-      meterRevision: 14,
+      meterRevision: 15,
       collectorCommit:
         typeof CHAT_DIAGNOSTIC_COMMIT === 'string'
           ? CHAT_DIAGNOSTIC_COMMIT

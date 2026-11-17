@@ -1,3 +1,12 @@
+import { attachmentContent } from '../../shared/attachments/index.ts';
+import { localMediaPreview } from '../media-preview/index.ts';
+import {
+  isSyncSnapshot,
+  syncSnapshot,
+} from '../../shared/message-sync/index.ts';
+import { conversationHistory } from '../local-history/index.ts';
+import { galleryCheckpoint } from '../media-gallery/index.ts';
+import { syncMessageApi } from './sync-transport.ts';
 import { Messages } from './controller.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import { oldestRoot, historyPage } from '../history-window/index.ts';
@@ -17,6 +26,19 @@ function continuation(rows: readonly MessageView[]): number | null {
     ? null
     : oldest;
 }
+function galleryCut(value: unknown): string | null {
+  if (!isSyncSnapshot(value)) return null;
+  const cut = syncSnapshot(value);
+  return JSON.stringify([
+    cut.account,
+    cut.device,
+    cut.directory,
+    cut.contacts,
+    cut.revision,
+    cut.invalidation,
+    cut.anchor,
+  ]);
+}
 
 /** A separate verified reader prepares catalogue pages without moving the chat
  * window or acknowledging a user's reading. */
@@ -35,6 +57,26 @@ export function privateGallerySource(input: {
   reader.select(input.peer);
   let prepared = false;
   return {
+    ...(input.localOnly
+      ? {}
+      : {
+          checkpoint: galleryCheckpoint<MessageView>({
+            access: input.access,
+            session: input.session,
+            key: `private:${input.peer}`,
+            current: async (authority, signal) =>
+              galleryCut(
+                await syncMessageApi(
+                  authority,
+                  'snapshot',
+                  {},
+                  { guard: () => signal.throwIfAborted(), signal },
+                ),
+              ),
+            eligible: async (authority) =>
+              !(await conversationHistory(authority, input.peer, null)).length,
+          }),
+        }),
     page: async (before, signal) => {
       signal.throwIfAborted();
       if (!prepared && !input.localOnly && networkAvailable()) {
@@ -55,10 +97,26 @@ export function privateGallerySource(input: {
       return {
         views: dailyViews(rows),
         next: continuation(rows),
+        cut:
+          !input.localOnly && networkAvailable()
+            ? galleryCut(reader.galleryCut())
+            : null,
       };
     },
-    media: (view, thumbnail, signal) =>
-      reader.galleryMedia(view, thumbnail, signal),
+    media: (view, thumbnail, signal, trace) =>
+      reader.galleryMedia(view, thumbnail, signal, trace),
+    previews: (view, signal) =>
+      localMediaPreview({
+        access: input.access,
+        session: input.session,
+        signal,
+        identity: {
+          scope: input.session.accountId,
+          message: view.id,
+          file: attachmentContent(JSON.parse(view.text) as unknown).file,
+          context: view.hash,
+        },
+      }),
     close: () => reader.setSession(null),
   };
 }
