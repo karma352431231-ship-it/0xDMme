@@ -284,20 +284,6 @@
   font-size: var(--fs-caption);
   color: var(--text-faint);
 }
-[data-device-settings] ul {
-  padding: 0;
-  list-style: none;
-}
-[data-device-settings] li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--fs-small);
-}
 @media (max-width: 700px) {
   .app[data-page='perfil'] main {
     padding: 14px 10px;
@@ -340,11 +326,6 @@
   padding: 0;
   border: 0;
 }
-.appearance-options legend {
-  padding: 0;
-  margin-bottom: 10px;
-  font-weight: 700;
-}
 .profile-settings .appearance-option {
   position: relative;
   display: flex;
@@ -379,12 +360,8 @@
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px var(--line-strong);
 }
-.appearance-option strong,
-.appearance-option small {
+.appearance-option strong {
   display: block;
-}
-.appearance-option small {
-  color: var(--text-muted);
 }
 .appearance-feedback:empty {
   display: none;

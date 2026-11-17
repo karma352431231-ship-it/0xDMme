@@ -47,6 +47,10 @@ export class PrivatePreferencesDraft {
     profile.preferences = this.only(profile.preferences, names);
     for (const name of names) delete this.changes[name];
   }
+  /** Drops the drafted `names`, returning them to the saved choices. */
+  discard(names: readonly PreferenceName[]): void {
+    for (const name of names) delete this.changes[name];
+  }
   clear(): void {
     this.changes = {};
   }

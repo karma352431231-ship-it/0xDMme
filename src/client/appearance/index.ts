@@ -1,5 +1,6 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
+import { settingTip } from '../settings-ui/index.ts';
 
 /**
  * Appearance: the theme choice and how names and
@@ -106,9 +107,13 @@ export function startAppearance(storage: PreferenceStorage = browserStorage): {
         themes
           .map(
             (theme) =>
-              `<label class="appearance-option" data-theme-preview="${theme.id}"><input type="radio" name="appearance-theme" value="${theme.id}"${theme.id === current ? ' checked' : ''} /><span class="appearance-swatch" aria-hidden="true"></span><span><strong>${theme.label}</strong><small>${theme.hint}</small></span></label>`,
+              `<label class="appearance-option" data-theme-preview="${theme.id}"><input type="radio" name="appearance-theme" value="${theme.id}"${theme.id === current ? ' checked' : ''} /><span class="appearance-swatch" aria-hidden="true"></span><span><strong>${theme.label}</strong></span></label>`,
           )
           .join(''),
+        settingTip(
+          t('Theme'),
+          t('When signed in, the theme follows your account across devices.'),
+        ),
       ]);
       const feedback = container.querySelector<HTMLElement>(
         '.appearance-feedback',

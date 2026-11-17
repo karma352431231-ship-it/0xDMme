@@ -71,7 +71,7 @@ import { privateGallerySource } from './gallery-source.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
-import { notificationSettings } from './settings.ts';
+import { soundSettings } from './settings.ts';
 import { ConversationSearch } from './search.ts';
 import type { SearchItem, SearchPage } from './search.ts';
 import { revealMessage } from './search-reveal.ts';
@@ -1065,31 +1065,42 @@ export function startMessages(
     visits.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
-    const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
-    if (dailyStatus) dailyStatus.textContent = message;
     renderSoundSettings();
     applyMessageAvailability([mounted, directory], synchronization.busy);
     composer.update();
     groups.status(trigger);
     if (trigger === 'foreground-released') historyUi.checkOlder();
   }
+  /** A failed save is reported on the Sounds row until the next change. */
+  let soundProblem = '';
+  async function toggleSound(): Promise<void> {
+    soundProblem = '';
+    try {
+      await sound.setEnabled(!sound.enabled);
+    } catch (error: unknown) {
+      soundProblem =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Could not change sounds.');
+      renderSoundSettings();
+      return;
+    }
+    try {
+      await savePushSoundPreference(sound.enabled);
+    } catch {
+      soundProblem = t(
+        'Sound changed in the interface, but the push preference was not saved. System notification silence cannot be guaranteed.',
+      );
+    }
+    renderSoundSettings();
+  }
   function renderSoundSettings(): void {
-    const toggle = settingsHost?.querySelector<HTMLButtonElement>(
+    const toggle = settingsHost?.querySelector<HTMLInputElement>(
       '[data-sound-toggle]',
     );
-    if (toggle) {
-      toggle.textContent = sound.enabled
-        ? t('Disable sounds')
-        : t('Enable sounds');
-      toggle.setAttribute('aria-pressed', String(sound.enabled));
-    }
+    if (toggle) toggle.checked = sound.enabled;
     const notice = settingsHost?.querySelector('[data-sound-status]');
-    if (notice)
-      notice.textContent =
-        sound.notice ||
-        (sound.enabled
-          ? t('Sounds enabled in this browser.')
-          : t('Sounds disabled in this browser.'));
+    if (notice) notice.textContent = soundProblem || sound.notice;
   }
   sound.observe(renderSoundSettings);
   sound.prepare();
@@ -2323,29 +2334,16 @@ export function startMessages(
       if (!conversationVisible()) releaseConversation('directory');
       else this.ready();
     },
-    mountSettings(container: HTMLElement): void {
-      settingsHost = container;
-      container.innerHTML = notificationSettings;
-      const on = (selector: string, work: () => Promise<void>) =>
-        container.querySelector(selector)?.addEventListener('click', () => {
-          void run(work);
+    /** Notifications and calls: push owns its group, sound is one row. */
+    mountSettings(hosts: { push: HTMLElement; sound: HTMLElement }): void {
+      settingsHost = hosts.sound;
+      hosts.sound.innerHTML = soundSettings();
+      pushSettings = mountPushSettings(hosts.push, daily);
+      hosts.sound
+        .querySelector('[data-sound-toggle]')
+        ?.addEventListener('change', () => {
+          void toggleSound();
         });
-      pushSettings = mountPushSettings(
-        container.querySelector<HTMLElement>('[data-push-settings]')!,
-        daily,
-      );
-      on('[data-push-enable]', () => daily.enablePush());
-      on('[data-push-disable]', () => daily.disablePush());
-      on('[data-sound-toggle]', async () => {
-        await sound.setEnabled(!sound.enabled);
-        try {
-          await savePushSoundPreference(sound.enabled);
-        } catch {
-          throw new Error(
-            'Sound changed in the interface, but the push preference was not saved. System notification silence cannot be guaranteed.',
-          );
-        }
-      });
       status();
     },
     mount(container: HTMLElement, directoryHost: HTMLElement): void {

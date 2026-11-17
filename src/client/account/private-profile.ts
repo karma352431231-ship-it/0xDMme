@@ -94,10 +94,15 @@ export class AccountPrivateProfile {
           : null,
       busy: () => this.state.busy,
       status: () => this.state.status,
+      changed: () => this.preferencesDraft.changed(privacyChoices),
       change: (name, value) => {
         if (!this.profile) return;
         this.preferencesDraft.set(this.profile.preferences, name, value);
         this.editing();
+      },
+      discard: () => {
+        this.preferencesDraft.discard(privacyChoices);
+        this.privacyControls.render();
       },
       confirm: (event) => this.confirmPreferences(event, privacyChoices),
     });

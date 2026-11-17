@@ -4,6 +4,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Backups } from './controller.ts';
+import { settingTip, settingsGlyph } from '../settings-ui/index.ts';
 
 export function startBackups(
   access: VaultAccess,
@@ -51,7 +52,7 @@ export function startBackups(
     );
     if (clean) {
       clean.disabled = busy || controller.cleanupCount === 0;
-      clean.textContent = armed ? t('Confirm vault reset') : t('Reset vault');
+      clean.textContent = armed ? t('Confirm reset') : t('Reset');
     }
     const cancel = mounted?.querySelector<HTMLElement>('[data-backup-cancel]');
     if (cancel) cancel.hidden = !busy;
@@ -189,7 +190,23 @@ export function startBackups(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = t('html.eedc51d31423');
+      container.innerHTML = t('html.eedc51d31423', [
+        settingTip(
+          t('Local backup'),
+          t(
+            "A full encrypted copy kept on your device. Importing a file adds its history to this device's conversations.",
+          ),
+        ),
+        settingsGlyph('download'),
+        settingsGlyph('upload'),
+        settingsGlyph('trash'),
+        settingTip(
+          t('Reset vault'),
+          t(
+            "Available after you validate a backup file. After confirmation it removes from the server vault only what that file preserves. Later messages and other people's copies remain.",
+          ),
+        ),
+      ]);
       container
         .querySelector('[data-backup-save]')
         ?.addEventListener('click', () => {

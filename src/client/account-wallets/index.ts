@@ -1,7 +1,6 @@
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   accountWallets,
-  maximumWallets,
   sameWallet,
   walletAdditionRequest,
   walletAdditionStatement,
@@ -18,6 +17,8 @@ import { fetchApi, readApiJson } from '../api-response/index.ts';
 import type { WalletConnection } from '../wallet/index.ts';
 import { detectedWalletSigner } from '../wallet-signer/index.ts';
 import type { RecoverySigner } from '../wallet-signer/index.ts';
+import { showToast } from '../toast/index.ts';
+import { shortAddress, walletCard } from './view.ts';
 
 /** What this feature needs from the signed-in account. */
 export interface AccountWalletHost {
@@ -145,11 +146,6 @@ export async function addSelectedWallet(input: {
     await post('add', session, { id: request.id, signature }),
   );
 }
-function shortAddress(address: string): string {
-  return address.length > 14
-    ? `${address.slice(0, 6)}…${address.slice(-4)}`
-    : address;
-}
 
 /** The Sign-in wallets card in settings: lists the account's wallets and lets
  * a wallet-confirmed session add or remove the backup wallet. */
@@ -160,26 +156,11 @@ export function startAccountWallets(host: AccountWalletHost) {
   let busy = false;
   let message = '';
   let generation = 0;
+  /** The add slot lists the wallets this browser detected. */
+  let picking = false;
   /** Set while the user is asked to switch wallets inside one extension. */
   let proceed: (() => void) | null = null;
 
-  function element<K extends keyof HTMLElementTagNameMap>(
-    tag: K,
-    text = '',
-  ): HTMLElementTagNameMap[K] {
-    const node = document.createElement(tag);
-    node.textContent = text;
-    return node;
-  }
-  function action(label: string, work: () => Promise<void>) {
-    const button = element('button', label);
-    button.type = 'button';
-    button.disabled = busy;
-    button.addEventListener('click', () => {
-      void run(work);
-    });
-    return button;
-  }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy || !session) return;
     if (session.walletConfirmed !== true) {
@@ -202,28 +183,6 @@ export function startAccountWallets(host: AccountWalletHost) {
       busy = false;
       render();
     }
-  }
-  function walletRow(wallet: AccountWallet): HTMLLIElement {
-    const item = element('li'),
-      label = element(
-        'span',
-        `${shortAddress(wallet.address)} · ${wallet.ecosystem.toUpperCase()}`,
-      ),
-      role = element(
-        'small',
-        wallet.primary ? t('Main wallet') : t('Backup wallet'),
-      );
-    label.title = wallet.address;
-    role.className = 'device-last-used';
-    label.append(role);
-    item.append(label);
-    if (wallet.primary) return item;
-    if (!opensHistory(wallet)) {
-      role.textContent = t('Backup wallet · does not open your history yet');
-      item.append(action(t('Finish setup'), () => add(null)));
-    }
-    item.append(action(t('Remove'), () => remove(wallet)));
-    return item;
   }
   function opensHistory(wallet: WalletIdentity): boolean {
     return host.recovery.wallets().some((known) => sameWallet(known, wallet));
@@ -378,59 +337,48 @@ export function startAccountWallets(host: AccountWalletHost) {
       'Backup wallet added. It can now sign in and open your history.',
     );
   }
-  function addControls(): HTMLElement | null {
-    if (wallets.length >= maximumWallets) return null;
-    const row = element('div'),
-      label = element('label', t('Wallet to add')),
-      select = element('select');
-    for (const connection of host.wallets()) {
-      const option = element(
-        'option',
-        `${connection.name} — ${connection.ecosystem.toUpperCase()}`,
-      );
-      option.value = connection.id;
-      select.append(option);
+  async function copy(wallet: AccountWallet): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(wallet.address);
+      showToast(t('Address copied.'));
+    } catch {
+      showToast(t('Could not copy the address.'));
     }
-    select.disabled = busy;
-    label.append(select);
-    row.className = 'account-wallet-add';
-    row.append(
-      label,
-      action(t('Add backup wallet'), () => add(select.value)),
-    );
-    return row;
   }
   function render(): void {
     if (!mounted) return;
     mounted.hidden = !session;
     if (!session) return;
-    const card = element('article'),
-      list = element('ul'),
-      status = element('p', message),
-      controls = addControls();
-    card.className = 'card';
-    list.className = 'account-wallet-list';
-    status.setAttribute('role', 'status');
-    list.append(...wallets.map(walletRow));
-    card.append(
-      element('h2', t('Sign-in wallets')),
-      element(
-        'p',
-        t(
-          'Your main wallet is the address other people use to find you. A backup wallet can also sign in to this account. If you lose every wallet, the account cannot be recovered.',
-        ),
-      ),
-      list,
-      status,
+    mounted.replaceChildren(
+      walletCard({
+        wallets,
+        opensHistory,
+        detected: host.wallets(),
+        busy,
+        message,
+        picking,
+        proceed,
+        actions: {
+          add: (connectionId) => {
+            picking = false;
+            void run(() => add(connectionId));
+          },
+          finish: () => {
+            void run(() => add(null));
+          },
+          remove: (wallet) => {
+            void run(() => remove(wallet));
+          },
+          copy: (wallet) => {
+            void copy(wallet);
+          },
+          pick: (open) => {
+            picking = open;
+            render();
+          },
+        },
+      }),
     );
-    if (proceed) {
-      const next = element('button', t('Continue'));
-      next.type = 'button';
-      next.addEventListener('click', () => proceed?.());
-      card.append(next);
-    }
-    if (controls) card.append(controls);
-    mounted.replaceChildren(card);
   }
   async function load(): Promise<void> {
     const current = ++generation;
@@ -461,6 +409,7 @@ export function startAccountWallets(host: AccountWalletHost) {
       session = value;
       wallets = [];
       message = '';
+      picking = false;
       if (mounted) void load();
     },
   };

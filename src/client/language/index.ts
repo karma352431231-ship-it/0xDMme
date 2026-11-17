@@ -9,6 +9,7 @@ import {
   translatedError,
 } from '../../shared/i18n/index.ts';
 import type { AppLanguage } from '../../shared/i18n/index.ts';
+import { settingGroup, settingRow } from '../settings-ui/index.ts';
 
 const cacheName = '0xdmme-device-preferences';
 const cachePath = '/.0xdmme/language-preference';
@@ -122,17 +123,32 @@ export function mountLanguageSettings(
   save: (language: AppLanguage) => Promise<void>,
   blocked: () => string | null,
 ): void {
-  const section = document.createElement('section');
-  section.className = 'settings-block';
-  const label = document.createElement('label');
-  label.textContent = t('App language');
+  const group = document.createElement('div');
+  // Static authored markup; the select and button are added as nodes below.
+  group.innerHTML = `${settingGroup({
+    title: t('Language'),
+    rows: settingRow({
+      icon: 'globe',
+      label: t('App language'),
+      for: 'settings-language',
+      control: '<span class="language-controls" data-language-controls></span>',
+    }),
+  })}<p class="set-status" role="status" data-language-status></p>`;
+  const controls = group.querySelector('[data-language-controls]')!,
+    status = group.querySelector('[data-language-status]')!;
   const select = languageSelect();
-  label.append(select);
+  select.id = 'settings-language';
+  select.classList.add('set-select');
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = t('Save language');
-  const status = document.createElement('p');
-  status.setAttribute('role', 'status');
+  button.className = 'set-btn set-primary';
+  button.textContent = t('Save');
+  // The save button appears only for a language other than the current one.
+  button.hidden = true;
+  select.addEventListener('change', () => {
+    button.hidden = select.value === currentLanguage();
+    status.textContent = '';
+  });
   button.addEventListener('click', () => {
     const value = select.value;
     if (!isAppLanguage(value)) return;
@@ -148,6 +164,7 @@ export function mountLanguageSettings(
         if (value === currentLanguage()) {
           status.textContent = t('Language saved.');
           button.disabled = false;
+          button.hidden = true;
         } else location.reload();
       })
       .catch((error: unknown) => {
@@ -155,6 +172,6 @@ export function mountLanguageSettings(
         button.disabled = false;
       });
   });
-  section.append(label, button, status);
-  host.append(section);
+  controls.append(select, button);
+  host.append(...group.childNodes);
 }

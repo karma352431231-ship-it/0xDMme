@@ -27,6 +27,13 @@ import {
   lastUsedLabel,
 } from '../device-activity/index.ts';
 import type { SignedInDevice } from '../device-activity/index.ts';
+import type { DeviceKind, DeviceLabels } from '../device-labels/index.ts';
+import {
+  settingTip,
+  settingsGlyph,
+  settingsGlyphElement,
+} from '../settings-ui/index.ts';
+import type { SettingsGlyph } from '../settings-ui/index.ts';
 import type {
   SigningAuthority,
   VaultAuthority,
@@ -41,6 +48,38 @@ import {
   acknowledgeLoginOpening,
   readLoginOpening,
 } from '../wallet-opening/index.ts';
+
+function readyMessage(): string {
+  return t('Your account is ready on this device.');
+}
+
+const kindGlyphs: Record<DeviceKind, SettingsGlyph> = {
+  mac: 'laptop',
+  windows: 'desktop',
+  linux: 'desktop',
+  chromeos: 'laptop',
+  iphone: 'phone',
+  ipad: 'tablet',
+  'android-phone': 'phone',
+  'android-tablet': 'tablet',
+  unknown: 'desktop',
+};
+function kindGlyph(kind: DeviceKind): SettingsGlyph {
+  return kindGlyphs[kind];
+}
+
+/** Static authored markup with the group tip and the link button glyph. */
+function settingsTemplate(): string {
+  return t('html.63049f816b60', [
+    settingTip(
+      t('Your devices'),
+      t(
+        'Device type and model are detected on each device and saved encrypted. Only your own devices can read them.',
+      ),
+    ),
+    settingsGlyph('plus'),
+  ]);
+}
 
 export function startDevices(options: {
   changed: () => Promise<void>;
@@ -60,6 +99,8 @@ export function startDevices(options: {
   let attempted: string | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let camera: QrCamera | null = null;
+  /** Names detected per device, kept in the encrypted vault. */
+  let labels: DeviceLabels | null = null;
   /** Set while the user is asked to select another wallet in their wallet. */
   let walletSelected: (() => void) | null = null;
   const channel =
@@ -75,7 +116,10 @@ export function startDevices(options: {
   }
   function render(): void {
     const status = node('[data-device-status]');
-    if (status) status.textContent = message;
+    if (status)
+      // The list itself shows a ready account; only other states need words.
+      status.textContent =
+        controller.authorized && message === readyMessage() ? '' : message;
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
       button.disabled = busy;
     });
@@ -123,13 +167,6 @@ export function startDevices(options: {
       renderQr(qr, enrollmentUrl(invitation, applicationOrigin()));
     else qr?.replaceChildren();
   }
-  function lastUsed(device: SignedInDevice | undefined): HTMLElement | null {
-    if (!device) return null;
-    const line = document.createElement('small');
-    line.className = 'device-last-used';
-    line.textContent = lastUsedLabel(device);
-    return line;
-  }
   /** Tells the user about devices that signed in since they last looked. */
   function signInNotice(names: Map<string, string>): HTMLElement | null {
     const unseen = activity.unseen();
@@ -137,7 +174,7 @@ export function startDevices(options: {
     const item = document.createElement('li'),
       text = document.createElement('span'),
       button = document.createElement('button');
-    item.className = 'device-sign-in-notice';
+    item.className = 'set-row device-sign-in-notice';
     text.textContent = t(
       'New sign-in to your account: {0}. If this was not you, revoke that device.',
       [
@@ -151,71 +188,173 @@ export function startDevices(options: {
       ],
     );
     button.type = 'button';
+    button.className = 'set-btn';
     button.textContent = t('Got it');
     button.addEventListener('click', () => activity.acknowledge());
     item.append(text, button);
     return item;
   }
-  function revokeButton(deviceId: string): HTMLButtonElement {
+  function rowButton(input: {
+    label: string;
+    icon: SettingsGlyph;
+    className: string;
+    iconOnly?: boolean;
+    click: () => void;
+  }): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = t('Revoke');
+    button.className = `set-btn ${input.className}`;
     button.disabled = busy;
-    button.addEventListener('click', () => {
-      if (controller.session?.walletConfirmed !== true) {
-        options.confirmWallet?.();
-        return;
-      }
-      if (
-        !window.confirm(
-          t('Revoke this device? It will lose access to new data.'),
-        )
-      )
-        return;
-      void run(async () => {
-        await controller.revoke(deviceId);
-        message = t('Device revoked.');
-        await changed();
-      });
-    });
+    button.append(settingsGlyphElement(input.icon));
+    if (input.iconOnly) button.setAttribute('aria-label', input.label);
+    else button.append(input.label);
+    button.addEventListener('click', input.click);
     return button;
   }
-  /** One list row: a title with the device's last use underneath. */
-  function deviceRow(
-    title: string,
-    used: SignedInDevice | undefined,
-  ): HTMLLIElement {
+  function revokeButton(deviceId: string): HTMLButtonElement {
+    return rowButton({
+      label: t('Revoke'),
+      icon: 'revoke',
+      className: 'set-quiet set-danger',
+      click: () => {
+        if (controller.session?.walletConfirmed !== true) {
+          options.confirmWallet?.();
+          return;
+        }
+        if (
+          !window.confirm(
+            t('Revoke this device? It will lose access to new data.'),
+          )
+        )
+          return;
+        void run(async () => {
+          await controller.revoke(deviceId);
+          message = t('Device revoked.');
+          await changed();
+        });
+      },
+    });
+  }
+  function renameButton(deviceId: string, title: string): HTMLButtonElement {
+    return rowButton({
+      label: t('Rename {0}', [title]),
+      icon: 'pencil',
+      className: 'set-quiet set-icon',
+      iconOnly: true,
+      click: () => {
+        const current = labels?.customName(deviceId) ?? title;
+        const name = window.prompt(t('Device name'), current);
+        if (name === null || !labels) return;
+        const naming = labels;
+        void run(() =>
+          naming.rename({ deviceId, name, known: authorizedIds() }),
+        );
+      },
+    });
+  }
+  /** One list row: the device's icon, name, app and last use. */
+  function deviceRow(input: {
+    title: string;
+    kind: DeviceKind;
+    detail: string;
+    own: boolean;
+    used: SignedInDevice | undefined;
+  }): HTMLLIElement {
     const item = document.createElement('li'),
+      tile = document.createElement('span'),
+      text = document.createElement('span'),
+      line = document.createElement('span'),
       label = document.createElement('span'),
-      line = lastUsed(used);
-    label.textContent = title;
-    if (line) label.append(line);
-    item.append(label);
+      meta = document.createElement('span');
+    item.className = 'set-row device-row';
+    tile.className = input.own ? 'device-tile device-tile-own' : 'device-tile';
+    tile.append(settingsGlyphElement(kindGlyph(input.kind)));
+    text.className = 'set-text';
+    line.className = 'device-line';
+    label.className = 'set-label';
+    label.textContent = input.title;
+    line.append(label);
+    if (input.own) {
+      const chip = document.createElement('span');
+      chip.className = 'set-chip set-ok';
+      chip.textContent = t('This device');
+      line.append(chip);
+    }
+    meta.className = 'set-meta';
+    meta.textContent = [
+      input.detail,
+      input.used ? lastUsedLabel(input.used) : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    text.append(line, meta);
+    const fill = document.createElement('span');
+    fill.className = 'set-fill';
+    item.append(tile, text, fill);
+    return item;
+  }
+  function authorizedIds(): Set<string> {
+    return new Set(
+      (controller.current?.devices ?? []).map((device) => device.id),
+    );
+  }
+  /** Starts loading the vault names once this device opened the account. */
+  function ensureLabels(): void {
+    const session = controller.session;
+    if (!labels || !session || !controller.authorized) return;
+    labels.ensure({
+      accountId: session.accountId,
+      deviceId: session.deviceId,
+      known: authorizedIds(),
+    });
+  }
+  /** The vault name of a device, or the directory's generic one. */
+  function titleOf(device: { id: string; name: string }): string {
+    return labels?.of(device.id)?.title ?? device.name;
+  }
+  function authorizedRow(
+    device: { id: string; name: string },
+    own: string | undefined,
+  ): HTMLLIElement {
+    const shown = labels?.of(device.id);
+    const title = titleOf(device);
+    const item = deviceRow({
+      title,
+      kind: shown?.kind ?? 'unknown',
+      detail: shown?.client ?? '',
+      own: device.id === own,
+      used: activity.of(device.id),
+    });
+    if (labels) item.append(renameButton(device.id, title));
+    if (device.id !== own) item.append(revokeButton(device.id));
     return item;
   }
   function renderList(): void {
     const list = node('[data-device-list]');
     if (!list) return;
-    list.replaceChildren();
+    ensureLabels();
     const authorized = controller.current?.devices ?? [];
     const own = controller.session?.deviceId;
     const notice = signInNotice(
-      new Map(authorized.map((device) => [device.id, device.name])),
+      new Map(authorized.map((device) => [device.id, titleOf(device)])),
     );
-    if (notice) list.append(notice);
-    for (const device of authorized) {
-      const item = deviceRow(
-        device.name + (device.id === own ? t(' · this device') : ''),
-        activity.of(device.id),
-      );
-      if (device.id !== own) item.append(revokeButton(device.id));
-      list.append(item);
-    }
-    // Sessions whose device was never authorized to open history.
-    for (const device of activity
-      .others(new Set(authorized.map((known) => known.id)))
-      .filter((other) => !other.current))
-      list.append(deviceRow(t('Signed in, history not opened'), device));
+    list.replaceChildren(
+      ...(notice ? [notice] : []),
+      ...authorized.map((device) => authorizedRow(device, own)),
+      // Sessions whose device was never authorized to open history.
+      ...activity
+        .others(new Set(authorized.map((known) => known.id)))
+        .filter((other) => !other.current)
+        .map((device) =>
+          deviceRow({
+            title: t('Signed in, history not opened'),
+            kind: 'unknown',
+            detail: '',
+            own: false,
+            used: device,
+          }),
+        ),
+    );
   }
   async function changed(): Promise<void> {
     notifyMessageControls();
@@ -421,7 +560,7 @@ export function startDevices(options: {
   }
   function renderOpeningStatus(): void {
     if (controller.authorized) {
-      message = t('Your account is ready on this device.');
+      message = readyMessage();
       // Best effort: the browser decides, and wallet recovery remains available.
       void keepDeviceStorage().catch(() => undefined);
     } else if (controller.keysLost)
@@ -535,6 +674,13 @@ export function startDevices(options: {
     authorized: () => controller.authorized,
     keysLost: () => controller.keysLost,
     stopCamera: () => camera?.stop(),
+    /** Device names from the vault; the list redraws when they change. */
+    useLabels(value: DeviceLabels): void {
+      labels = value;
+      value.observe(() => {
+        renderList();
+      });
+    },
     enrollmentState: () => ({
       waiting,
       authorized: controller.authorized,
@@ -578,7 +724,7 @@ export function startDevices(options: {
     mount(container: HTMLElement): void {
       camera?.stop();
       mounted = container;
-      container.innerHTML = t('html.63049f816b60');
+      container.innerHTML = settingsTemplate();
       const video = node<HTMLVideoElement>('[data-camera] video');
       if (video)
         camera = new QrCamera({

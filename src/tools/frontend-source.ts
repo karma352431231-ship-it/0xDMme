@@ -15,6 +15,8 @@ const authored = [
   'src/shared/account-activity',
   'src/shared/account-wallets',
   'src/client/account-wallets',
+  'src/client/device-labels',
+  'src/client/settings-ui',
   'src/client/wallet-signer',
   'src/client/view-once-media-buffer',
   'src/client/view-once',

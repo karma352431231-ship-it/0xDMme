@@ -21,6 +21,24 @@ export {
   parseCallLog,
   visibleMissedCalls,
 } from './controller.ts';
+import { settingRow, settingSwitch } from '../settings-ui/index.ts';
+
+/** The Incoming voice calls row; its second line is the call state. */
+function callSettingsRow(): string {
+  return settingRow({
+    icon: 'call',
+    label: t('Incoming voice calls'),
+    tip: t(
+      'Approved contacts can call while the app is open. Muted or archived chats do not ring. No call history is kept.',
+    ),
+    for: 'settings-calls',
+    metaAttributes: 'data-call-status role="status"',
+    control: settingSwitch({
+      id: 'settings-calls',
+      attributes: 'data-call-toggle',
+    }),
+  });
+}
 export type { CallLogValue, MissedCall } from './controller.ts';
 export { VoiceConnection, iceConfiguration } from './rtc.ts';
 export { CallSecurity } from './security.ts';
@@ -149,12 +167,9 @@ export function startCalls(options: {
   }
   function renderSettings(state: CallUiState): void {
     const toggle =
-      settings?.querySelector<HTMLButtonElement>('[data-call-toggle]');
+      settings?.querySelector<HTMLInputElement>('[data-call-toggle]');
     if (toggle) {
-      toggle.textContent = state.enabled
-        ? t('Disable incoming calls')
-        : t('Enable incoming calls');
-      toggle.setAttribute('aria-pressed', String(state.enabled));
+      toggle.checked = state.enabled;
       toggle.disabled = state.busy;
     }
     const status = settings?.querySelector('[data-call-status]');
@@ -205,10 +220,10 @@ export function startCalls(options: {
     },
     mountSettings: (host: HTMLElement) => {
       settings = host;
-      host.innerHTML = t('html.dc84c57fff55');
+      host.innerHTML = callSettingsRow();
       host
         .querySelector('[data-call-toggle]')
-        ?.addEventListener('click', () => {
+        ?.addEventListener('change', () => {
           if (state) void calls.configure(!state.enabled);
         });
       render();

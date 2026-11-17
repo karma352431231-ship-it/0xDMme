@@ -1,121 +1,115 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { DiscoveryMode } from '../../shared/contacts/index.ts';
+import {
+  settingGroup,
+  settingRow,
+  settingSaveBar,
+} from '../settings-ui/index.ts';
+import type { SettingsGlyph } from '../settings-ui/index.ts';
 
 const modes = ['invite', 'wallet'] as const;
-function descriptions(mode: (typeof modes)[number]): {
+function copy(mode: (typeof modes)[number]): {
+  icon: SettingsGlyph;
   title: string;
-  hint: string;
-  explanation: string;
+  tip: string;
 } {
   if (mode === 'invite')
     return {
-      title: t('Only through my invitation link'),
-      hint: t('Invite people yourself'),
-      explanation: t(
-        'Your invitation lets one recipient accept a private conversation with you. Each invitation expires after 24 hours. New invitations are independent; wallet requests still require acceptance.',
+      icon: 'link',
+      title: t('Only my invitation link'),
+      tip: t(
+        'Nobody can find you by wallet. Each invitation lets one person accept a chat with you and expires after 24 hours.',
       ),
     };
   return {
-    title: t('By exact wallet address or invitation'),
-    hint: t(
-      'People who know your wallet address can send you a chat invitation',
-    ),
-    explanation: t(
-      'People with your complete wallet address can request a chat that you must accept. Redeeming your invitation directly accepts the conversation. Your wallet is not published in a directory.',
+    icon: 'wallet',
+    title: t('Wallet address or invitation'),
+    tip: t(
+      'People who know your exact wallet address can send a chat request you must accept. Your wallet is not listed in any directory.',
     ),
   };
 }
 
-/** Native radios retain keyboard navigation. Mouse explanations require a
- * continuous one-second hover; keyboard focus uses the same delay. */
+function template(): string {
+  const rows = modes
+    .map((mode) => {
+      const { icon, title, tip } = copy(mode);
+      return settingRow({
+        icon,
+        label: title,
+        tip,
+        for: `contact-discovery-${mode}`,
+        control: `<input type="radio" class="set-radio" name="contact-discovery" id="contact-discovery-${mode}" value="${mode}">`,
+      });
+    })
+    .join('');
+  return (
+    settingGroup({
+      title: t('Who can request a private chat'),
+      tip: t(
+        'You always accept a request before chatting. There is no public wallet directory or name search. Your public @ profile and posts have separate visibility.',
+      ),
+      rows,
+    }) + settingSaveBar('data-discovery-save')
+  );
+}
+
+/** Who may request a private chat. Native radios keep keyboard navigation; the
+ * save bar appears only while the selection differs from the saved mode. */
 export class DiscoveryChoices {
+  /** The mode the server holds; a legacy mode selects neither option. */
+  private saved: DiscoveryMode = 'invite';
   private selected: DiscoveryMode = 'invite';
-  private fields = new Map<DiscoveryMode, HTMLInputElement>();
-  private closeTip: (() => void) | null = null;
+  private host: Element | null = null;
 
   get value(): DiscoveryMode {
     return this.selected;
   }
+  /** The server's mode arrived. An unapplied choice stays on screen; otherwise
+   * the shown choice follows the server (a legacy mode selects neither). */
   set value(mode: DiscoveryMode) {
-    // An existing restrictive legacy setting is preserved until the owner
-    // explicitly chooses one of the two visible options and saves it.
+    const pending = this.changed;
+    this.saved = mode;
+    if (!pending) this.selected = mode;
+    this.render();
+  }
+  /** True while the shown choice still has to be applied. */
+  get changed(): boolean {
+    return this.selected !== this.saved;
+  }
+  choose(mode: DiscoveryMode): void {
     this.selected = mode;
-    for (const [value, field] of this.fields) field.checked = value === mode;
+    this.render();
   }
   clear(): void {
-    this.closeTip?.();
-    this.closeTip = null;
+    this.host = null;
   }
   mount(container: HTMLElement): void {
-    this.clear();
-    this.fields.clear();
-    const host = container.querySelector('[data-discovery-choices]');
-    if (!host) return;
-    const group = document.createElement('fieldset'),
-      legend = document.createElement('legend');
-    group.className = 'discovery-choices';
-    legend.textContent = t('Who can request a private chat');
-    group.append(legend);
-    for (const mode of modes) group.append(this.choice(mode));
-    host.replaceChildren(group);
-    this.value = this.selected;
+    this.host = container.querySelector('[data-discovery-choices]');
+    if (!this.host) return;
+    this.host.innerHTML = template();
+    for (const field of this.fields())
+      field.addEventListener('change', () => {
+        if (field.checked) this.choose(field.value as DiscoveryMode);
+      });
+    this.host
+      .querySelector('[data-set-discard]')
+      ?.addEventListener('click', () => {
+        this.choose(this.saved);
+      });
+    this.render();
   }
-  private choice(mode: (typeof modes)[number]): HTMLElement {
-    const copy = descriptions(mode),
-      row = document.createElement('div'),
-      label = document.createElement('label'),
-      field = document.createElement('input'),
-      text = document.createElement('span'),
-      title = document.createElement('strong'),
-      hint = document.createElement('small'),
-      tip = document.createElement('div');
-    row.className = 'discovery-choice';
-    field.type = 'radio';
-    field.name = 'contact-discovery';
-    field.value = mode;
-    field.setAttribute('aria-describedby', `discovery-tip-${mode}`);
-    field.addEventListener('change', () => {
-      if (field.checked) this.value = mode;
-    });
-    this.fields.set(mode, field);
-    title.textContent = copy.title;
-    hint.textContent = copy.hint;
-    text.append(title, hint);
-    label.append(field, text);
-    tip.id = `discovery-tip-${mode}`;
-    tip.className = 'discovery-tip';
-    tip.setAttribute('role', 'tooltip');
-    tip.textContent = copy.explanation;
-    this.bindTip(row, tip);
-    row.append(label, tip);
-    return row;
+  private fields(): HTMLInputElement[] {
+    return [
+      ...(this.host?.querySelectorAll<HTMLInputElement>(
+        'input[name="contact-discovery"]',
+      ) ?? []),
+    ];
   }
-  private bindTip(row: HTMLElement, tip: HTMLElement): void {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const close = (): void => {
-      if (timer !== null) clearTimeout(timer);
-      timer = null;
-      tip.hidden = true;
-    };
-    const schedule = (): void => {
-      this.clear();
-      this.closeTip = close;
-      timer = setTimeout(() => {
-        timer = null;
-        tip.hidden = false;
-      }, 1000);
-    };
-    close();
-    row.addEventListener('pointerenter', (event) => {
-      if (event.pointerType === 'mouse') schedule();
-    });
-    row.addEventListener('pointerleave', close);
-    row.addEventListener('focusin', () => {
-      if (row.querySelector(':focus-visible')) schedule();
-    });
-    row.addEventListener('focusout', close);
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') close();
-    });
+  private render(): void {
+    for (const field of this.fields())
+      field.checked = field.value === this.selected;
+    const bar = this.host?.querySelector<HTMLElement>('[data-discovery-save]');
+    if (bar) bar.hidden = !this.changed;
   }
 }

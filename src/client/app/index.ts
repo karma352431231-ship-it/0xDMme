@@ -37,6 +37,8 @@ import {
 import { MessageReadiness } from '../message-live/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
+import { startDeviceLabels } from '../device-labels/index.ts';
+import { bindSettingTips } from '../settings-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
@@ -142,6 +144,10 @@ const devices = startDevices({
   confirmWallet: () => account.confirmWallet(),
 });
 const vault = startVault(devices);
+const deviceLabels = startDeviceLabels(vault.sync);
+devices.useLabels(deviceLabels);
+// Settings tips open on tap as well as hover; one listener for the document.
+bindSettingTips(document);
 const externalMedia = new ExternalMediaConsent({
   profile: () => publicProfiles.exists(),
 });
@@ -359,6 +365,7 @@ const account = startAccount({
     contacts.setSession(session);
     accountSettings.setSession(session);
     accountWallets.setSession(session);
+    deviceLabels.setSession(session);
     messages.setSession(session);
     calls.setSession(session);
     statuses.setSession(session);
@@ -575,19 +582,18 @@ function mountProfileSettings(content: HTMLElement): void {
       interruptionReason,
     );
   }
-  const dailyContainer = content.querySelector<HTMLElement>(
-    '[data-daily-settings]',
+  const pushSettings = content.querySelector<HTMLElement>(
+    '[data-push-settings]',
   );
-  if (dailyContainer) messages.mountSettings(dailyContainer);
+  const soundSettings = content.querySelector<HTMLElement>(
+    '[data-sound-settings]',
+  );
+  if (pushSettings && soundSettings)
+    messages.mountSettings({ push: pushSettings, sound: soundSettings });
   const callSettings = content.querySelector<HTMLElement>(
     '[data-call-settings]',
   );
   if (callSettings) calls.mountSettings(callSettings);
-  const representativeContainer = content.querySelector<HTMLElement>(
-    '[data-representatives-settings]',
-  );
-  if (representativeContainer)
-    representatives.mountSettings(representativeContainer);
   const contactSettings = content.querySelector<HTMLElement>(
     '[data-contact-settings-container]',
   );

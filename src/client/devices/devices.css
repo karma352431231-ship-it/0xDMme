@@ -94,13 +94,60 @@
   display: none;
 }
 
-.device-last-used {
-  display: block;
-  color: var(--text-muted);
-  font-size: var(--fs-caption);
+/* Devices in settings (17/11/2026): one row per device with its kind. */
+#app-shell .device-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.device-sign-in-notice {
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  padding: 8px 10px;
+#app-shell .device-list .device-row {
+  min-height: 68px;
+}
+#app-shell .device-tile {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+#app-shell .device-tile .set-glyph {
+  width: 22px;
+  height: 22px;
+}
+#app-shell .device-tile-own {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+#app-shell .device-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#app-shell .device-settings {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+#app-shell .device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#app-shell .device-enrollment {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+#app-shell .device-list .device-sign-in-notice {
+  gap: 12px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 14px;
+}
+#app-shell :is(.device-actions, .device-enrollment)[hidden] {
+  display: none;
 }

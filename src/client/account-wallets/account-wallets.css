@@ -1,19 +1,60 @@
-.account-wallet-list {
+/* Sign-in wallets group (17/11/2026): each wallet as a row with its colour
+ * mark, short address and role; an empty dashed slot adds the next wallet. */
+#app-shell .account-wallets .wallet-row {
+  min-height: 68px;
+}
+#app-shell .account-wallets .wallet-avatar {
   display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  flex: 0 0 40px;
+  place-items: center;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--brand-grad);
+  filter: hue-rotate(var(--wallet-turn, 0deg));
 }
-.account-wallet-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+#app-shell .account-wallets .wallet-avatar-empty {
+  border: 1.5px dashed var(--line-strong);
+  background: transparent;
+  color: var(--text-muted);
+  filter: none;
+  box-sizing: border-box;
 }
-.account-wallet-add {
+#app-shell .account-wallets .wallet-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#app-shell .account-wallets .wallet-address {
+  color: var(--text);
+  font: 500 14.5px/1.3 var(--font-mono);
+}
+#app-shell .account-wallets .wallet-slot {
+  margin: 4px 10px 10px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 12px;
+}
+#app-shell .account-wallets .set-row + .wallet-slot {
+  margin-top: 6px;
+}
+#app-shell .account-wallets .wallet-slot > .set-row {
+  border-radius: 11px;
+}
+#app-shell .account-wallets .wallet-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 12px 64px;
+}
+#app-shell .account-wallets .wallet-choices .set-status {
+  margin: 0;
+}
+#app-shell .account-wallets .wallet-continue {
+  margin-top: 10px;
+}
+@media (max-width: 700px) {
+  #app-shell .account-wallets .wallet-choices {
+    padding-left: 14px;
+  }
 }

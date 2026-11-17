@@ -170,6 +170,8 @@ export function startContacts(
   function render(): void {
     text('[data-contact-status]', busy ? t('Updating contacts…') : status);
     text('[data-contact-editor-status]', problem);
+    // Settings shows only failures; progress and success use the toast.
+    text('[data-contact-problem]', problem);
     renderNextChat();
     renderInvite();
     renderBook();
@@ -646,8 +648,11 @@ export function startContacts(
   }
   async function configure(): Promise<void> {
     await contacts.configure(discovery.value, contacts.state.inviteHash);
-    status = t(
-      'Visibility applied on the server. Previously approved contacts were preserved.',
+    discovery.value = contacts.state.mode;
+    confirmed(
+      t(
+        'Visibility applied on the server. Previously approved contacts were preserved.',
+      ),
     );
   }
   async function rotate(): Promise<void> {
