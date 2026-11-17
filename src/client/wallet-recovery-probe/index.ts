@@ -122,7 +122,8 @@ export function recoveryMessage(input: ProbeContext): string {
     `Test / 测试: ${value.id}`,
   ].join('\n');
 }
-function signatureBytes(input: ProbeContext, signature: string) {
+/** Verified, normalized signature bytes. The caller zeroes them after use. */
+export function signatureBytes(input: ProbeContext, signature: string) {
   const message = recoveryMessage(input);
   if (input.ecosystem === 'evm') {
     if (!/^0x[0-9a-fA-F]{130}$/u.test(signature))
