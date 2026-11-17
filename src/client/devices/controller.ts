@@ -207,6 +207,35 @@ export class DeviceController {
       });
     },
     publish: (session, event) => this.commit(session, event, null),
+    directory: async (session) => {
+      await this.loadIdentity(session);
+      await this.synchronize(session);
+      if (!this.current) throw new Error('Directory missing.');
+      return this.current;
+    },
+    rotate: async (session, change) => {
+      if (!this.ring)
+        throw new Error('Open your account on this device first.');
+      const ring = freshKeyring(session.accountId, this.ring);
+      const profile = await this.rotatedProfile(session, ring);
+      const event = await prepareEvent({
+        accountId: session.accountId,
+        previous: change.previous,
+        kind: 'reroot',
+        signer: 'recovery',
+        signing: change.signing,
+        root: change.root,
+        identities: change.previous.devices.map(identityOf),
+        ring,
+        profile,
+        backups: change.backups,
+        pairs: change.pairs,
+      });
+      return { event, profile };
+    },
+    publishRotation: (session, event, profile) =>
+      this.commit(session, event, profile),
+    recoverDevice: (session, opened) => this.recoverDevice(session, opened),
   });
   private readonly walletRecovery = new DeviceWalletRecovery({
     session: () => this.session,
@@ -1073,6 +1102,34 @@ export class DeviceController {
       signatures.fill('');
       this.walletRecovery.clearLegacy();
     }
+  }
+  /** Adds this device to the directory with an already opened recovery
+   * authority, in a new epoch, as wallet recovery does. */
+  private async recoverDevice(
+    session: AccountSession,
+    opened: { ring: Keyring; signing: CryptoKey },
+  ): Promise<void> {
+    if (!this.current || !this.identity)
+      throw new Error('Local identity missing.');
+    const revoked = await this.recoveryRevocations(session, []);
+    this.ring = opened.ring;
+    const ring = freshKeyring(session.accountId, opened.ring);
+    const profile = await this.rotatedProfile(session, ring);
+    const event = await prepareEvent({
+      accountId: session.accountId,
+      previous: this.current,
+      kind: 'recover',
+      signer: 'recovery',
+      signing: opened.signing,
+      root: this.current.root,
+      identities: [
+        ...recoveryIdentities(this.current, revoked),
+        this.identity.public,
+      ],
+      ring,
+      profile,
+    });
+    await this.commit(session, event, profile);
   }
   private async walletAuthority(
     session: AccountSession,

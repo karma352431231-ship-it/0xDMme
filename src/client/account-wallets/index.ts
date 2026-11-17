@@ -16,6 +16,8 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import type { WalletConnection } from '../wallet/index.ts';
+import { detectedWalletSigner } from '../wallet-signer/index.ts';
+import type { RecoverySigner } from '../wallet-signer/index.ts';
 
 /** What this feature needs from the signed-in account. */
 export interface AccountWalletHost {
@@ -36,6 +38,17 @@ export interface AccountWalletHost {
       opener: WalletConnection;
       wallet: WalletIdentity;
     }) => Promise<boolean>;
+    /** True while the account's three wallets open history in pairs. */
+    paired: () => boolean;
+    enterPairs: (input: {
+      sign: RecoverySigner;
+      third: WalletIdentity;
+      register: () => Promise<void>;
+    }) => Promise<void>;
+    leavePairs: (input: {
+      sign: RecoverySigner;
+      remove: WalletIdentity;
+    }) => Promise<void>;
   };
   /** Runs wallet work that may switch the selected wallet account; the switch
    * signs the page out only after the work ends. */
@@ -235,7 +248,11 @@ export function startAccountWallets(host: AccountWalletHost) {
     )
       return;
     // Recovery first: the account refuses to drop a wallet that still opens it.
-    if (opensHistory(wallet))
+    if (host.recovery.paired())
+      await host.withAnotherWallet(() =>
+        host.recovery.leavePairs({ sign: signer(), remove: wallet }),
+      );
+    else if (opensHistory(wallet))
       await host.recovery.remove({ opener: opener(), wallet });
     const remaining = accountWallets(
       await post('remove', active, {
@@ -247,13 +264,74 @@ export function startAccountWallets(host: AccountWalletHost) {
     wallets = remaining;
     message = t('Backup wallet removed.');
   }
+  /** Signs with whichever detected wallet a step needs, asking the user to
+   * select it when this browser is showing another one. */
+  function signer(): RecoverySigner {
+    return detectedWalletSigner({
+      connections: () => host.wallets(),
+      select: waitForSwitch,
+    });
+  }
+  async function selectedWallet(
+    connection: WalletConnection,
+  ): Promise<WalletIdentity> {
+    const selected = await connection.identity(true);
+    return {
+      ecosystem: selected.ecosystem,
+      address: canonicalAddress(selected.ecosystem, selected.address),
+    };
+  }
+  /** The third wallet changes the rule: from then on two wallets are needed.
+   * The user is told and asked before the wallet is registered. */
+  async function addThird(
+    active: AccountSession,
+    connection: WalletConnection,
+  ): Promise<void> {
+    // Already on the account from an earlier attempt that did not finish.
+    const registered = wallets.find(
+      (wallet) => !wallet.primary && !opensHistory(wallet),
+    );
+    if (
+      !registered &&
+      !window.confirm(
+        t(
+          'With three wallets, signing in and opening your history will always need two of them. One wallet alone will no longer be enough. Add the third wallet?',
+        ),
+      )
+    )
+      return;
+    await host.withAnotherWallet(async () => {
+      const third = registered ?? (await selectedWallet(connection));
+      await host.recovery.enterPairs({
+        sign: signer(),
+        third,
+        register: async () => {
+          if (wallets.some((known) => sameWallet(known, third))) return;
+          wallets = await addSelectedWallet({
+            session: active,
+            current: wallets,
+            connection,
+          });
+          render();
+        },
+      });
+    });
+    if (session !== active) return;
+    message = t(
+      'Third wallet added. Signing in and opening your history now need two wallets.',
+    );
+  }
   /** Both wallets live in one extension: the user switches account between
    * the two signatures, and says when that is done. */
-  function waitForSwitch(): Promise<void> {
+  function waitForSwitch(wallet?: WalletIdentity): Promise<void> {
     return new Promise((resolve) => {
-      message = t(
-        'Now select the wallet you want to add in your wallet app, then press Continue.',
-      );
+      message = wallet
+        ? t('Select wallet {0} in your wallet app, then press Continue.', [
+            shortAddress(wallet.address),
+          ])
+        : t(
+            'Now select the wallet you want to add in your wallet app, then press Continue.',
+          );
       proceed = () => {
         proceed = null;
         message = '';
@@ -276,6 +354,9 @@ export function startAccountWallets(host: AccountWalletHost) {
       throw new Error(
         'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
       );
+    // A second backup, or a third wallet still without its pairs.
+    if (wallets.length >= 2 && (connectionId !== null || wallets.length === 3))
+      return addThird(active, connection);
     await host.withAnotherWallet(() =>
       host.recovery.add({
         opener: source,
@@ -298,8 +379,7 @@ export function startAccountWallets(host: AccountWalletHost) {
     );
   }
   function addControls(): HTMLElement | null {
-    // The third wallet needs the two-wallet recovery setup, added next.
-    if (wallets.length >= Math.min(2, maximumWallets)) return null;
+    if (wallets.length >= maximumWallets) return null;
     const row = element('div'),
       label = element('label', t('Wallet to add')),
       select = element('select');

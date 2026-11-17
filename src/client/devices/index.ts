@@ -15,6 +15,13 @@ import { notifyMessageControls } from '../message-controls/index.ts';
 import { keepDeviceStorage } from '../device-storage/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
+import { confirmingWallet } from '../../shared/account/index.ts';
+import { recoveryWallets } from '../../shared/devices/index.ts';
+import { discoverWallets } from '../wallet/index.ts';
+import {
+  detectedWalletSigner,
+  presentedWallet,
+} from '../wallet-signer/index.ts';
 import {
   createDeviceActivity,
   lastUsedLabel,
@@ -53,6 +60,8 @@ export function startDevices(options: {
   let attempted: string | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let camera: QrCamera | null = null;
+  /** Set while the user is asked to select another wallet in their wallet. */
+  let walletSelected: (() => void) | null = null;
   const channel =
     typeof BroadcastChannel === 'function'
       ? new BroadcastChannel('0xdmme-device-changes')
@@ -70,10 +79,22 @@ export function startDevices(options: {
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
       button.disabled = busy;
     });
+    renderWalletStep();
     renderPanels();
     renderInvitation();
     renderList();
     window.dispatchEvent(new Event('0xdmme-device-status'));
+  }
+  function renderWalletStep(): void {
+    const status = node('[data-device-status]');
+    mounted?.querySelector('[data-wallet-continue]')?.remove();
+    if (!status || !walletSelected) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset['walletContinue'] = '';
+    button.textContent = t('Continue');
+    button.addEventListener('click', () => walletSelected?.());
+    status.after(button);
   }
   function renderPanels(): void {
     show('[data-devices-connected]', controller.authorized);
@@ -282,7 +303,58 @@ export function startDevices(options: {
       !controller.walletPending
     );
   }
+  /** Shows which wallet to select and waits for the user to say it is done. */
+  function selectWallet(wallet: {
+    ecosystem: string;
+    address: string;
+  }): Promise<void> {
+    return new Promise((resolve) => {
+      message = t(
+        'Select wallet {0} in your wallet app, then press Continue.',
+        [`${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`],
+      );
+      walletSelected = () => {
+        walletSelected = null;
+        resolve();
+      };
+      render();
+    });
+  }
+  /** An account with three wallets opens with the session's wallet and one
+   * more: whichever of the other two this browser already presents. */
+  async function authorizeWalletPair(
+    session: AccountSession,
+  ): Promise<boolean> {
+    const own = confirmingWallet(session);
+    const others = recoveryWallets(controller.current!)
+      .filter(
+        (wallet, index, all) =>
+          all.findIndex((other) => other.address === wallet.address) === index,
+      )
+      .filter(
+        (wallet) =>
+          wallet.ecosystem !== own.ecosystem || wallet.address !== own.address,
+      );
+    const discovery = discoverWallets();
+    try {
+      const second =
+        (await presentedWallet(discovery.list(), others)) ?? others[0];
+      if (!second) throw new Error('Recovery wallets missing.');
+      await controller.backupRecovery.recoverWithPair({
+        sign: detectedWalletSigner({
+          connections: () => discovery.list(),
+          select: selectWallet,
+        }),
+        second,
+      });
+      return true;
+    } finally {
+      walletSelected = null;
+      discovery.close();
+    }
+  }
   async function authorizeWallet(session: AccountSession): Promise<boolean> {
+    if (controller.current?.pairs) return authorizeWalletPair(session);
     const wallet =
       localStorage.getItem('0xdmme:login-wallet') ||
       (session.ecosystem === 'solana' ? 'Phantom' : 'MetaMask');
@@ -425,11 +497,19 @@ export function startDevices(options: {
     /** Which backup wallets open recovery, and the workflow that changes it. */
     backupRecovery: {
       wallets: () =>
-        (controller.current?.backups ?? []).map((backup) => backup.wallet),
+        controller.current ? recoveryWallets(controller.current).slice(1) : [],
       add: (input: Parameters<typeof controller.backupRecovery.add>[0]) =>
         controller.backupRecovery.add(input),
       remove: (input: Parameters<typeof controller.backupRecovery.remove>[0]) =>
         controller.backupRecovery.remove(input),
+      /** True while the account's three wallets open recovery in pairs. */
+      paired: () => controller.current?.pairs !== undefined,
+      enterPairs: (
+        input: Parameters<typeof controller.backupRecovery.enterPairs>[0],
+      ) => controller.backupRecovery.enterPairs(input),
+      leavePairs: (
+        input: Parameters<typeof controller.backupRecovery.leavePairs>[0],
+      ) => controller.backupRecovery.leavePairs(input),
     },
     setSession(session: AccountSession | null): void {
       if (session?.csrf !== controller.session?.csrf) {

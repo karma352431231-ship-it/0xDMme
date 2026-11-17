@@ -20,13 +20,17 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { recoveryMessage } from '../../src/shared/wallet-recovery/index.ts';
 import {
   createWalletRecoveryFor,
+  walletPairKey,
   walletRecoveryKey,
 } from '../../src/client/wallet-recovery/index.ts';
+import { encode } from '../../src/shared/account/index.ts';
 import {
   createIdentity,
   createRecovery,
+  openRecovery,
   recoverSecrets,
   recoverySigner,
+  replaceRecovery,
   sealBackup,
 } from '../../src/client/device-keys/index.ts';
 import {
@@ -554,6 +558,97 @@ await test('extra sign-in wallets', async (t) => {
         (await signIn(second)).session.accountId,
         owner.session.accountId,
       );
+    },
+  );
+
+  await t.test(
+    'three registered wallets move recovery to pairs; a pair recovers a new device and no wallet leaves while paired',
+    async () => {
+      const c = await openedAccount();
+      const accountId = c.owner.session.accountId;
+      const second = evm();
+      const third = evm();
+      await addWallet(c.owner.session, second);
+      const members = [c.primary, second, third]
+        .map((signer) => ({ signer, ...recoveryOf(accountId, signer) }))
+        .sort((a, b) => (a.config.address < b.config.address ? -1 : 1));
+      const pairs = [];
+      for (const [a, b] of [
+        [members[0]!, members[1]!],
+        [members[0]!, members[2]!],
+        [members[1]!, members[2]!],
+      ] as const) {
+        const salt = encode(crypto.getRandomValues(new Uint8Array(32)));
+        pairs.push({
+          wallets: [a.config, b.config] as const,
+          salt,
+          secret: await walletPairKey({
+            wallets: [a.config, b.config],
+            signatures: [
+              await a.signer.sign(recoveryMessage(a.config)),
+              await b.signer.sign(recoveryMessage(b.config)),
+            ],
+            salt,
+          }),
+        });
+      }
+      const main = members.find(
+        (member) => member.config.address === c.primary.identity.address,
+      )!;
+      const replaced = await replaceRecovery(accountId, {
+        main: main.config,
+        pairs,
+      });
+      const ring = freshKeyring(accountId, c.ring);
+      const reroot = await prepareEvent({
+        accountId,
+        previous: c.event,
+        kind: 'reroot',
+        signer: 'recovery',
+        signing: await recoverySigner(c.event, await c.main.key()),
+        root: replaced.root,
+        identities: c.event.devices,
+        ring,
+        profile: null,
+        pairs: replaced.pairs,
+      });
+      // The third wallet is not on the account yet.
+      await assert.rejects(
+        devices.commit(c.owner.session, { event: reroot, profile: null }),
+        refused(409, /Add this wallet to the account/u),
+      );
+      await addWallet(c.owner.session, third);
+      await devices.commit(c.owner.session, { event: reroot, profile: null });
+      for (const signer of [second, third])
+        await assert.rejects(
+          wallets.remove(c.owner.session, signer.identity),
+          refused(409, /Remove this wallet from recovery/u),
+        );
+
+      // Two wallets sign in on a new device and one pair opens history.
+      const deviceId = randomUUID();
+      const ticket = await firstSignature(second, deviceId);
+      const entered = await signIn(third, { deviceId, first: ticket });
+      const pair = pairs[2]!;
+      const opened = await openRecovery(reroot, {
+        secret: pair.secret,
+        pair: pair.wallets,
+      });
+      assert.deepEqual(opened.ring, ring);
+      const added = await createIdentity(deviceId, 'Second');
+      const joined = await prepareEvent({
+        accountId,
+        previous: reroot,
+        kind: 'recover',
+        signer: 'recovery',
+        signing: opened.signing,
+        root: reroot.root,
+        identities: [c.identity.public, added.public],
+        ring: freshKeyring(accountId, opened.ring),
+        profile: null,
+      });
+      assert.deepEqual(joined.pairs, reroot.pairs);
+      await devices.commit(entered.session, { event: joined, profile: null });
     },
   );
 

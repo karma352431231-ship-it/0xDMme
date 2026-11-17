@@ -6847,6 +6847,36 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Finish setup': ['Finish setup', '完成设置'],
   Continue: ['Continue', '继续'],
+  'With three wallets, signing in and opening your history will always need two of them. One wallet alone will no longer be enough. Add the third wallet?':
+    [
+      'With three wallets, signing in and opening your history will always need two of them. One wallet alone will no longer be enough. Add the third wallet?',
+      '添加第三个钱包后，登录和打开历史记录都将始终需要其中两个钱包，单个钱包将不再足够。要添加第三个钱包吗？',
+    ],
+  'Third wallet added. Signing in and opening your history now need two wallets.':
+    [
+      'Third wallet added. Signing in and opening your history now need two wallets.',
+      '第三个钱包已添加。现在登录和打开历史记录都需要两个钱包。',
+    ],
+  'Finish setting up your backup wallet first.': [
+    'Finish setting up your backup wallet first.',
+    '请先完成备用钱包的设置。',
+  ],
+  'The main wallet cannot be removed.': [
+    'The main wallet cannot be removed.',
+    '主钱包无法移除。',
+  ],
+  'These wallets do not open recovery together.': [
+    'These wallets do not open recovery together.',
+    '这两个钱包无法共同打开恢复。',
+  ],
+  'Select wallet {0} in your wallet app, then press Continue.': [
+    'Select wallet {0} in your wallet app, then press Continue.',
+    '请在钱包应用中选择钱包 {0}，然后点击“继续”。',
+  ],
+  'The wallet needed for this step is not selected in this browser.': [
+    'The wallet needed for this step is not selected in this browser.',
+    '此浏览器中未选中此步骤所需的钱包。',
+  ],
   'This account needs two wallets to sign in. Choose another wallet of this account to finish.':
     [
       'This account needs two wallets to sign in. Choose another wallet of this account to finish.',
