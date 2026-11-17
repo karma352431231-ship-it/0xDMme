@@ -24,3 +24,9 @@ class PeerWindowReviewTests(contracts.SourceTextReviewTests):
                         remote.compatibility(self.candidate, self.live)
                 finally:
                     path.write_bytes(original)
+
+
+class CenteredHistoryReviewTests(PeerWindowReviewTests):
+    before = reviewed_code.CENTERED_HISTORY_BEFORE
+    reviewed = reviewed_code.CENTERED_HISTORY_REVIEWED
+    review_modules = reviewed_code.CENTERED_HISTORY_MODULES

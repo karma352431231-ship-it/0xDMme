@@ -19,6 +19,12 @@ IDENTITY_SNAPSHOT_BEFORE = 'a02858c74d64d63aa364d4f0f82c0175857c6d1f'
 IDENTITY_SNAPSHOT_REVIEWED = '009945de8b73e126646777fa95f122f58cfb6d46'
 IDENTITY_SNAPSHOT_MODULES = frozenset({'backups.ts', 'vault.ts'})
 
+# Owner requested activation of centered chat history on 16/11/2026.
+# Pin the three bounded history reads and both complete database trees.
+CENTERED_HISTORY_BEFORE = '67975ad8d7930aba8de6ad2a84aa2eacf0bf01f6'
+CENTERED_HISTORY_REVIEWED = '31aa7869fc0dcc656eb8d17fb6eb239a824340bb'
+CENTERED_HISTORY_MODULES = frozenset({'group-messages.ts', 'message-index.ts', 'messages.ts'})
+
 # Owner requested normal main integration and activation on 24/10/2026 after
 # behavior-preserving hotspot refactors. Pin both complete database trees:
 # only the admission owner, four consumers, contacts and composition differ.
@@ -352,6 +358,7 @@ def database_code_reviewed(candidate, live):
     reviews = [
         (SEND_MATERIAL_MODULES, SEND_MATERIAL_BEFORE, SEND_MATERIAL_REVIEWED),
         (IDENTITY_SNAPSHOT_MODULES, IDENTITY_SNAPSHOT_BEFORE, IDENTITY_SNAPSHOT_REVIEWED),
+        (CENTERED_HISTORY_MODULES, CENTERED_HISTORY_BEFORE, CENTERED_HISTORY_REVIEWED),
         (PUBLIC_DM_SEND_MODULES, PUBLIC_DM_SEND_BEFORE, PUBLIC_DM_SEND_REVIEWED),
         (set(MOBILE_CHAT_DELETION_MODULES), MOBILE_CHAT_DELETION_BEFORE,
          MOBILE_CHAT_DELETION_REVIEWED),
