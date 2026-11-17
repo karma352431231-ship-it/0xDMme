@@ -5303,9 +5303,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     '正在准备包含原始文件与结果的私密 ZIP…',
   ],
   'Invalid presence.': ['Invalid presence.', '在线状态无效。'],
-  'Presence, read receipts and who can find me': [
-    'Presence, read receipts and who can find me',
-    '在线状态、已读回执与谁能找到我',
+  'Presence, read receipts, who can find me and sign-in wallets': [
+    'Presence, read receipts, who can find me and sign-in wallets',
+    '在线状态、已读回执、谁能找到我与登录钱包',
   ],
   'Attachment preservation not confirmed.': [
     'Attachment preservation not confirmed.',
@@ -5329,6 +5329,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Initial tags': ['Initial tags', '初始标签'],
   Privacy: ['Privacy', '隐私'],
+  'Privacy and Security': ['Privacy and Security', '隐私与安全'],
   'External media privacy': ['External media privacy', '外部媒体隐私'],
   'Privacy settings not applied: the profile is loading or being edited.': [
     'Privacy settings not applied: the profile is loading or being edited.',

@@ -182,10 +182,12 @@ function categoryList(
 const profileContent = t('html.148d3089e900', [
   settingsSection({
     id: 'privacy',
-    title: t('Privacy'),
-    description: t('Presence, read receipts and who can find me'),
+    title: t('Privacy and Security'),
+    description: t(
+      'Presence, read receipts, who can find me and sign-in wallets',
+    ),
     content:
-      '<div data-privacy-settings></div><div data-contact-settings-container></div>',
+      '<div data-privacy-settings></div><div data-contact-settings-container></div><div data-wallet-settings></div>',
   }),
   settingsSection({
     id: 'profile',
@@ -203,7 +205,7 @@ const profileContent = t('html.148d3089e900', [
     id: 'devices',
     title: t('Connected devices'),
     description: t('Link, recover and manage access'),
-    content: '<div data-device-settings></div><div data-wallet-settings></div>',
+    content: '<div data-device-settings></div>',
   }),
   settingsSection({
     id: 'vault',
