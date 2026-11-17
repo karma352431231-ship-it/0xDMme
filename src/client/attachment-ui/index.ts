@@ -1,10 +1,11 @@
-import { imageFilePicture } from '../media-preview/index.ts';
+import { attachmentFilePicture } from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
 import {
   attachmentBatchLimit,
+  attachmentVideoType,
   fileLimit,
 } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
@@ -21,7 +22,7 @@ import { viewOnceEnabled } from '../chat-ui/index.ts';
 
 export class AttachmentUi {
   private mediaLifetime = new AbortController();
-  private selectionWork: symbol | null = null;
+  private selectionWork: AbortController | null = null;
   get preparing(): boolean {
     return this.selectionWork !== null;
   }
@@ -102,6 +103,7 @@ export class AttachmentUi {
   }
   private discard(): void {
     this.selectionGeneration++;
+    this.selectionWork?.abort();
     this.selectionWork = null;
     this.selections.clear();
     this.pausePreview();
@@ -154,11 +156,11 @@ export class AttachmentUi {
       return;
     }
     if (this.selected?.voice) this.clearSelection();
-    const work = Symbol();
+    const work = new AbortController();
     this.selectionWork = work;
     this.changed();
     try {
-      await this.readSelections(host, files);
+      await this.readSelections(host, files, work.signal);
     } finally {
       if (this.selectionWork === work) {
         this.selectionWork = null;
@@ -169,12 +171,17 @@ export class AttachmentUi {
   private async readSelections(
     host: HTMLElement,
     files: readonly File[],
+    signal: AbortSignal,
   ): Promise<void> {
     const generation = this.selectionGeneration;
     for (const file of files)
-      if (!(await this.addOne(host, file, generation))) break;
+      if (!(await this.addOne(host, file, generation, signal))) break;
     // With a physical keyboard, Enter right after choosing files sends them.
-    if (this.selected && matchMedia('(pointer: fine)').matches)
+    if (
+      !signal.aborted &&
+      this.selected &&
+      matchMedia('(pointer: fine)').matches
+    )
       host.querySelector<HTMLTextAreaElement>('textarea')?.focus();
   }
   /** False once no further file may join this selection. */
@@ -182,6 +189,7 @@ export class AttachmentUi {
     host: HTMLElement,
     file: File,
     generation: number,
+    signal: AbortSignal,
   ): Promise<boolean> {
     if (this.selections.full) {
       showToast(t('Up to {0} files per send.', [attachmentBatchLimit]));
@@ -192,8 +200,8 @@ export class AttachmentUi {
       this.overLimit();
       return true;
     }
-    const value = await this.prepare(file);
-    if (!value) return true;
+    const value = await this.prepare(file, signal);
+    if (!value) return !signal.aborted;
     if (generation !== this.selectionGeneration || !host.isConnected) {
       wipe(value);
       return false;
@@ -212,21 +220,25 @@ export class AttachmentUi {
       ]),
     );
   }
-  private prepare(file: File): Promise<AttachmentSelection | null> {
+  private prepare(
+    file: File,
+    signal: AbortSignal,
+  ): Promise<AttachmentSelection | null> {
     const once = viewOnceEnabled(this.composer);
     return (
       once
         ? prepareViewOnceSelection(file, this.maximum)
         : prepareAttachment(file, false, this.maximum).then(
             async (selection) => {
-              if (selection.image && !selection.thumbnail)
-                selection.thumbnail = await imageFilePicture(
-                  new Blob([selection.bytes], { type: selection.type }),
-                );
+              selection.thumbnail ??= await attachmentFilePicture(
+                selection,
+                signal,
+              );
               return selection;
             },
           )
     ).catch((error: unknown) => {
+      if (signal.aborted) return null;
       showToast(
         error instanceof Error
           ? translatedError(error.message)
@@ -296,10 +308,16 @@ export class AttachmentUi {
     return this.ring;
   }
   private previewUrl(item: AttachmentSelection): string | null {
-    if (!item.image && !item.type.startsWith('video/')) return null;
+    const video = attachmentVideoType(item.type);
+    if (!item.image && !video) return null;
     let url = this.previewUrls.get(item);
     if (!url) {
-      url = URL.createObjectURL(new Blob([item.bytes], { type: item.type }));
+      const picture = video ? item.thumbnail : null;
+      url = URL.createObjectURL(
+        new Blob([picture ?? item.bytes], {
+          type: picture ? 'image/jpeg' : item.type,
+        }),
+      );
       this.previewUrls.set(item, url);
     }
     return url;

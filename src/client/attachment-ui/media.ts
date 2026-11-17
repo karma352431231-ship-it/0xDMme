@@ -1,7 +1,13 @@
-import { captureMediaPreview } from '../media-preview/index.ts';
+import {
+  captureMediaPreview,
+  previewByteLimit,
+} from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
 import { t } from '../../shared/i18n/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  attachmentContent,
+  attachmentVideoType,
+} from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import type { VoiceMetadata } from '../../shared/voice/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
@@ -268,6 +274,7 @@ function renderVideo<V extends MediaView>(
     text.className = 'chat-video-caption';
     input.article.append(text);
   }
+  const source = videoSourcePolicy(input, content);
   let fallback: HTMLAnchorElement | undefined;
   mountInlineVideo(slot, {
     signal: input.signal,
@@ -277,7 +284,7 @@ function renderVideo<V extends MediaView>(
         video,
         signal: input.signal,
         filename: content.name,
-        requestPlay: input.previews ? requestPlay : undefined,
+        requestPlay: source ? requestPlay : undefined,
       }),
     play: () => input.playback.pause(),
     downloadFallback: (url) => {
@@ -289,22 +296,10 @@ function renderVideo<V extends MediaView>(
       input.article.append(fallback);
     },
     load: (signal) => loadVideo(input, signal),
-    ...(input.previews && !input.ready?.('original')
+    ...(source
       ? {
-          deferSource: true,
-          poster: {
-            bytes: 64 * 1024,
-            load: async () => {
-              const bytes = await input.previews!.read();
-              try {
-                return bytes && input.current()
-                  ? new Blob([bytes], { type: 'image/jpeg' })
-                  : null;
-              } finally {
-                bytes?.fill(0);
-              }
-            },
-          },
+          source,
+          ...videoPoster(input, content),
           previewFrame: (video: HTMLVideoElement) =>
             persistPreview(input, video, {
               width: video.videoWidth,
@@ -313,6 +308,47 @@ function renderVideo<V extends MediaView>(
         }
       : {}),
   });
+}
+function videoSourcePolicy<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+) {
+  if (content.thumbnail || input.deferOriginal) return 'on-play';
+  if (input.previews && !input.ready?.('original')) return 'after-poster';
+  return undefined;
+}
+function videoPoster<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+) {
+  if (!content.thumbnail && !input.previews) return {};
+  return {
+    poster: {
+      bytes: Math.max(previewByteLimit, content.thumbnail?.ref.bytes ?? 0),
+      load: (signal: AbortSignal) => loadVideoPoster(input, content, signal),
+    },
+  };
+}
+async function loadVideoPoster<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+  signal: AbortSignal,
+): Promise<Blob | null> {
+  const current = () => !signal.aborted && input.current();
+  let bytes = await input.previews?.read();
+  try {
+    if (!current()) return null;
+    if (!bytes && content.thumbnail)
+      bytes = await input.enqueue(async () => {
+        requireVideoRow(current);
+        return input.load(input.view, true);
+      });
+    if (!bytes || !current()) return null;
+    const type = originalImageType(bytes);
+    return type ? new Blob([bytes], { type }) : null;
+  } finally {
+    bytes?.fill(0);
+  }
 }
 async function loadVideo<V extends MediaView>(
   input: MediaInput<V>,
@@ -366,7 +402,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     renderVoice(input, content, content.voice);
     return;
   }
-  if (content.type === 'video/mp4' || content.type === 'video/quicktime') {
+  if (attachmentVideoType(content.type)) {
     renderVideo(input, content);
     return;
   }

@@ -22,7 +22,12 @@ function file(bytes: number) {
     encryption: '{}',
   };
 }
-function attachment(name: string, type: string, image: boolean) {
+function attachment(
+  name: string,
+  type: string,
+  image: boolean,
+  preview = image,
+) {
   return JSON.stringify({
     version: 1,
     name,
@@ -30,7 +35,7 @@ function attachment(name: string, type: string, image: boolean) {
     caption: '',
     image,
     file: file(2048),
-    thumbnail: image ? file(64) : null,
+    thumbnail: preview ? file(64) : null,
   });
 }
 type Row = DailyRow & { sentAt: number };
@@ -77,7 +82,7 @@ await test('photos and videos, documents and links of loaded messages, newest fi
       view({
         id: 'video',
         kind: 'attachment',
-        text: attachment('v.mp4', 'video/mp4', false),
+        text: attachment('v.mp4', 'video/mp4', false, true),
         sentAt: now,
       }),
       view({
@@ -106,7 +111,7 @@ await test('photos and videos, documents and links of loaded messages, newest fi
   assert.deepEqual(
     items.media.map((m) => [m.view.id, m.video, m.preview, m.month.label]),
     [
-      ['video', true, false, 'This month'],
+      ['video', true, true, 'This month'],
       ['photo', false, true, 'October'],
     ],
   );
@@ -119,9 +124,8 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     [['https://example.com/a', 'example.com']],
   );
   assert.equal(galleryCount(items), 4);
-  // A legacy video still appears in the count but cannot fetch its original as a tile.
   assert.deepEqual(items.media.map(tileSource), [
-    { thumbnail: false },
+    { thumbnail: true },
     { thumbnail: true },
   ]);
 });

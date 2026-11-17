@@ -298,11 +298,13 @@ take priority and the gallery reads additional thumbnails automatically as
 the reader scrolls. Gallery reads use a sender's encrypted derivative or a
 saved local picture. A legacy item without either keeps its tile and its
 message link. Opening the original in the chat can prepare a local picture.
-The gallery never downloads an original to populate its grid. Chat image
-preparation makes a separate JPEG of at most 64 KiB for supported new image
-files while preserving the original file bytes. Existing video messages
-retain their format, which older clients reject if it contains a thumbnail.
-Documents and links are listed from verified metadata.
+The gallery never downloads an original to populate its grid. Chat preparation
+creates a separate JPEG of at most 64 KiB for supported images and a decoded
+frame for MP4 and MOV videos. Both use the same encrypted attachment thumbnail
+slot and keep the original bytes. If the device cannot decode the input,
+the send can proceed with the original. Videos with sender thumbnails open
+in chat with a still, and the play control requests the original. Documents
+and links are listed from verified metadata.
 
 Opening a gallery item or search result in a private chat or group asks for
 the selected message and up to 12 messages on each side. User scroll towards
@@ -311,7 +313,7 @@ the visible position when adding rows and trims the opposite edge at the
 existing 512-root memory bound. Denied or changed authorization prevents
 reuse of the previous cut. The reader verifies both sides with the normal
 packet, membership and deletion checks. The centered view shows available
-previews and opens photo originals by explicit user action. Return to latest
+previews and opens photo and video originals by explicit user action. Return to latest
 messages brings back the usual live window.
 
 The current gallery keeps up to 64 pictures of at most 64 KiB in memory.

@@ -663,8 +663,7 @@ await test('a warm derived image shows at once and is replaced by its original; 
   assert.ok(bytes.every((byte) => byte === 0));
   assert.equal(originals, 1, 'the detached row read no original');
 });
-await test('a chat video shows its warm poster first, then loads its source quietly without playing', async (t) => {
-  const { ui, blobs, revoked } = environment(t);
+function videoViewport(t: TestContext): (isIntersecting: boolean) => void {
   let visible: (entries: { isIntersecting: boolean }[]) => void = () => {};
   const previous = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -685,6 +684,11 @@ await test('a chat video shows its warm poster first, then loads its source quie
       Object.defineProperty(globalThis, 'IntersectionObserver', previous);
     else Reflect.deleteProperty(globalThis, 'IntersectionObserver');
   });
+  return (isIntersecting) => visible([{ isIntersecting }]);
+}
+await test('a chat video shows its warm poster first, then loads its source quietly without playing', async (t) => {
+  const { ui, blobs, revoked } = environment(t);
+  const visible = videoViewport(t);
   const article = new MediaNode('article'),
     signal = new AbortController();
   let originals = 0;
@@ -722,7 +726,7 @@ await test('a chat video shows its warm poster first, then loads its source quie
     },
     run: (work) => work(),
   });
-  visible([{ isIntersecting: true }]);
+  visible(true);
   await flush();
   const figure = article.children[0]!,
     stage = figure.children[0]!,
@@ -734,10 +738,71 @@ await test('a chat video shows its warm poster first, then loads its source quie
   assert.equal(video.paused, true);
   assert.equal(blobs.length, 2);
   // Becoming visible again reads nothing more.
-  visible([{ isIntersecting: false }]);
-  visible([{ isIntersecting: true }]);
+  visible(false);
+  visible(true);
   await flush();
   assert.equal(originals, 1);
+  signal.abort();
+  assert.equal(revoked.length, 2);
+});
+await test('a video with a sender thumbnail reads the original only when its play control is pressed', async (t) => {
+  const { ui, blobs, revoked } = environment(t);
+  const visible = videoViewport(t);
+  const article = new MediaNode('article'),
+    signal = new AbortController();
+  t.after(() => signal.abort());
+  const loads: boolean[] = [];
+  ui.render({
+    article: article as unknown as HTMLElement,
+    signal: signal.signal,
+    content: { ...content('video/mp4'), thumbnail: content().file },
+    view: { id: 'video', peer: 'peer', text: '' },
+    load: (_row, thumbnail) => {
+      loads.push(thumbnail);
+      return Promise.resolve(
+        thumbnail
+          ? png()
+          : Uint8Array.of(
+              0,
+              0,
+              0,
+              16,
+              102,
+              116,
+              121,
+              112,
+              105,
+              115,
+              111,
+              109,
+              0,
+              0,
+              0,
+              0,
+            ),
+      );
+    },
+    run: (work) => work(),
+  });
+  await flush();
+  assert.deepEqual(loads, []);
+  visible(true);
+  await flush();
+  const [stage, , retry] = article.children[0]!.children;
+  const [video, surface] = stage!.children;
+  assert.equal(blobs[0]?.type, 'image/png');
+  assert.equal(video!.src, '');
+  assert.equal(
+    retry!.hidden,
+    true,
+    'the chat surface already has a play control',
+  );
+  assert.deepEqual(loads, [true]);
+  surface!.click();
+  await flush();
+  assert.deepEqual(loads, [true, false]);
+  assert.equal(blobs[1]?.type, 'video/mp4');
+  assert.equal(video!.paused, false);
   signal.abort();
   assert.equal(revoked.length, 2);
 });
