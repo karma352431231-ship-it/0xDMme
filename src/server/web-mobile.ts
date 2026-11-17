@@ -1,3 +1,4 @@
+import { AccountWalletService } from './account-wallets/index.ts';
 import { createRuntimeContentCapacity } from './storage-capacity/index.ts';
 import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
 import {
@@ -154,6 +155,10 @@ try {
       publicProfiles,
       live: new MessageLive(database.changes),
       contacts: new ContactService(database.contacts, database.devices),
+      wallets: new AccountWalletService({
+        store: database.accountWallets,
+        origin: mobile.origin,
+      }),
       messages,
       notifications,
       devices: new DeviceService(database.devices, mobile.origin),

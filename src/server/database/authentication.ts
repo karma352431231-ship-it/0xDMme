@@ -1,4 +1,5 @@
 import { signedInDeviceLimit } from '../../shared/account-activity/index.ts';
+import { extraWalletAccount, lockWalletIdentity } from './account-wallets.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
@@ -124,20 +125,21 @@ export class AuthenticationStore {
     preferredId?: string,
   ): Promise<string> {
     // Serialize only this wallet identity, without committing unused storage.
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-      '0xdmme:account:' + identity.ecosystem + ':' + identity.address,
-    ]);
+    await lockWalletIdentity(client, identity);
     const existing = await client.query<{ id: string }>(
       'SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2 FOR UPDATE',
       [identity.address, identity.ecosystem],
     );
-    if (existing.rows[0]) {
-      if (preferredId && existing.rows[0].id !== preferredId)
+    // An extra wallet signs in to the account it was added to.
+    const known =
+      existing.rows[0]?.id ?? (await extraWalletAccount(client, identity));
+    if (known) {
+      if (preferredId && known !== preferredId)
         throw new AccountError(
           409,
           'The account changed during sign-in. Start again.',
         );
-      return existing.rows[0].id;
+      return known;
     }
     const created = await client.query<{ id: string }>(
       'INSERT INTO hash_talk.accounts(address,ecosystem,id) VALUES($1,$2,$3) RETURNING id',
@@ -155,7 +157,8 @@ export class AuthenticationStore {
     ecosystem: Ecosystem;
   }): Promise<string> {
     const result = await this.pool.query<{ id: string }>(
-      'SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2',
+      `SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2
+      UNION ALL SELECT account_id FROM hash_talk.account_wallets WHERE address=$1 AND ecosystem=$2`,
       [identity.address, identity.ecosystem],
     );
     // No account or session is created until confirmation in the original browser.

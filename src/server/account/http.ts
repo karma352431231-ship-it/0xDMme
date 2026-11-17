@@ -18,6 +18,7 @@ import type { VaultService } from '../vault/index.ts';
 import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
+import type { AccountWalletService } from '../account-wallets/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import type { CallService } from '../calls/index.ts';
 import type { PublicProfileService } from '../public-profile/index.ts';
@@ -81,6 +82,7 @@ export function createAccountHandler(options: {
   devices?: DeviceService;
   vault?: VaultService;
   contacts?: ContactService;
+  wallets?: AccountWalletService;
   messages?: MessageService;
   notifications?: NotificationService;
   live?: MessageLive;
@@ -219,6 +221,25 @@ export function createAccountHandler(options: {
     );
     return true;
   }
+  async function walletPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (!request.url?.startsWith('/api/account/wallets/') || !options.wallets)
+      return false;
+    sendAccountJson(
+      response,
+      200,
+      await options.wallets.operate(
+        request.url.slice('/api/account/wallets/'.length),
+        await options.service.session(sessionToken),
+        input,
+      ),
+    );
+    return true;
+  }
   async function sessionPost(
     request: IncomingMessage,
     response: ServerResponse,
@@ -233,13 +254,23 @@ export function createAccountHandler(options: {
 
     return false;
   }
+  /** Routes about how the account is entered: its session and its wallets. */
+  async function signInPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (await sessionPost(request, response, sessionToken)) return true;
+    return walletPost(request, response, sessionToken, input);
+  }
   async function authenticatedPost(
     request: IncomingMessage,
     response: ServerResponse,
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
-    if (await sessionPost(request, response, sessionToken)) return;
+    if (await signInPost(request, response, sessionToken, input)) return;
     if (await recovery.openingPost(request, response, sessionToken, input))
       return;
     if (await socialPost(request, response, sessionToken, input)) return;

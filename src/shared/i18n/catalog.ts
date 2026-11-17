@@ -6822,6 +6822,75 @@ export const catalog: Record<string, readonly [string, string]> = {
   ' · this device': [' · this device', ' · 此设备'],
   'Last used {0}': ['Last used {0}', '上次使用：{0}'],
   'Got it': ['Got it', '知道了'],
+  'Sign-in wallets': ['Sign-in wallets', '登录钱包'],
+  'Your main wallet is the address other people use to find you. A backup wallet can also sign in to this account. If you lose every wallet, the account cannot be recovered.':
+    [
+      'Your main wallet is the address other people use to find you. A backup wallet can also sign in to this account. If you lose every wallet, the account cannot be recovered.',
+      '主钱包是其他人用来找到你的地址。备用钱包也可以登录此账户。如果丢失所有钱包，账户将无法恢复。',
+    ],
+  'Main wallet': ['Main wallet', '主钱包'],
+  'Backup wallet': ['Backup wallet', '备用钱包'],
+  'Wallet to add': ['Wallet to add', '要添加的钱包'],
+  'Add backup wallet': ['Add backup wallet', '添加备用钱包'],
+  'Remove this backup wallet? It will no longer sign in to this account.': [
+    'Remove this backup wallet? It will no longer sign in to this account.',
+    '移除此备用钱包？它将无法再登录此账户。',
+  ],
+  'Backup wallet removed.': ['Backup wallet removed.', '备用钱包已移除。'],
+  'Backup wallet added. It can now sign in to this account.': [
+    'Backup wallet added. It can now sign in to this account.',
+    '备用钱包已添加，现在可以用它登录此账户。',
+  ],
+  'Could not load your wallets. Check your connection.': [
+    'Could not load your wallets. Check your connection.',
+    '无法加载你的钱包，请检查网络连接。',
+  ],
+  "Select the wallet you want to add in your wallet app. It must be different from this account's wallets.":
+    [
+      "Select the wallet you want to add in your wallet app. It must be different from this account's wallets.",
+      '请在钱包应用中选择要添加的钱包，它必须与此账户已有的钱包不同。',
+    ],
+  'The server sent an unexpected request. Nothing was signed.': [
+    'The server sent an unexpected request. Nothing was signed.',
+    '服务器发来了意外的请求，未进行任何签名。',
+  ],
+  'The wallet changed during signing. Nothing was added.': [
+    'The wallet changed during signing. Nothing was added.',
+    '签名过程中钱包发生了变化，未添加任何钱包。',
+  ],
+  'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.':
+    [
+      'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
+      '此浏览器中未检测到钱包。请在装有要添加钱包的浏览器中打开 0xDMme。',
+    ],
+  'This wallet is already on this account.': [
+    'This wallet is already on this account.',
+    '此钱包已在此账户中。',
+  ],
+  'This wallet already has its own account.': [
+    'This wallet already has its own account.',
+    '此钱包已有自己的账户。',
+  ],
+  'This account already has the maximum number of wallets.': [
+    'This account already has the maximum number of wallets.',
+    '此账户的钱包数量已达上限。',
+  ],
+  'Wallet request invalid or expired.': [
+    'Wallet request invalid or expired.',
+    '钱包请求无效或已过期。',
+  ],
+  'This wallet is not an extra wallet of this account.': [
+    'This wallet is not an extra wallet of this account.',
+    '此钱包不是此账户的备用钱包。',
+  ],
+  'Too many wallet requests. Please wait.': [
+    'Too many wallet requests. Please wait.',
+    '钱包请求过多，请稍候。',
+  ],
+  'Wait for the current operation.': [
+    'Wait for the current operation.',
+    '请等待当前操作完成。',
+  ],
   'Signed in, history not opened': [
     'Signed in, history not opened',
     '已登录，尚未打开历史记录',

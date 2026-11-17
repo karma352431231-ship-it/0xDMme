@@ -203,7 +203,7 @@ const profileContent = t('html.148d3089e900', [
     id: 'devices',
     title: t('Connected devices'),
     description: t('Link, recover and manage access'),
-    content: '<div data-device-settings></div>',
+    content: '<div data-device-settings></div><div data-wallet-settings></div>',
   }),
   settingsSection({
     id: 'vault',

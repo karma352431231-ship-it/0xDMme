@@ -29,6 +29,7 @@ const featureExports: Record<string, string[]> = {
   messages: ['startMessages'],
   status: ['startStatus'],
   representatives: ['startRepresentatives'],
+  'account-wallets': ['startAccountWallets'],
   contacts: ['bindContactShortcuts', 'startContacts'],
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],

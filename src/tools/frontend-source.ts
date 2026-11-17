@@ -13,6 +13,8 @@ const authored = [
   'src/client/media-retention',
   'src/shared/base64',
   'src/shared/account-activity',
+  'src/shared/account-wallets',
+  'src/client/account-wallets',
   'src/client/view-once-media-buffer',
   'src/client/view-once',
   'src/client/view-once-preparation',

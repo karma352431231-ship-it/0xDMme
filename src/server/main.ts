@@ -1,3 +1,4 @@
+import { AccountWalletService } from './account-wallets/index.ts';
 import { startOperationalHealth } from './operational-health/index.ts';
 import { createRuntimeContentCapacity } from './storage-capacity/index.ts';
 import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
@@ -191,6 +192,10 @@ try {
       live,
       notifications,
       contacts: new ContactService(database.contacts, database.devices),
+      wallets: new AccountWalletService({
+        store: database.accountWallets,
+        origin: config.origin,
+      }),
       messages,
       devices: new DeviceService(database.devices, config.origin),
       vault: new VaultService({

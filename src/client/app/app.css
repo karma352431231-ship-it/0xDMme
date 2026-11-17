@@ -38,6 +38,7 @@
 @import '../contacts/contacts.css';
 @import './settings.css';
 @import '../devices/devices.css';
+@import '../account-wallets/account-wallets.css';
 @import '../hover-card/hover-card.css';
 @import '../account-settings/account-settings.css';
 @import '../account/account-entry.css';

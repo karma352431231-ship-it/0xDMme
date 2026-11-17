@@ -396,8 +396,21 @@ export function startAccount(
     );
     render();
   }
+  /** Wallet work that may switch the selected wallet account, such as
+   * signing with a wallet being added. The switch signs this page out only
+   * after the work ends, as it does after any other account operation. */
+  async function withAnotherWallet<T>(work: () => Promise<T>): Promise<T> {
+    if (core.busy) throw new Error('Wait for the current operation.');
+    try {
+      return await withBusy(work);
+    } finally {
+      if (core.session && login.takeProviderChange()) void operation(logout);
+    }
+  }
   return {
     signStatement: (message: string) => login.signStatement(message),
+    detectedWallets: () => wallets.list(),
+    withAnotherWallet,
     backupProfile: () => profile.backup(),
     backupReminder: () => profile.backupReminder(),
     savePrivacy: (changes: Partial<ProfilePreferences>) =>

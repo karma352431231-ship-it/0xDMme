@@ -55,6 +55,8 @@ import { DatabaseChanges } from './changes.ts';
 export { DatabaseChanges };
 export type { CommittedChange } from './changes.ts';
 import { AuthenticationStore } from './authentication.ts';
+import { AccountWalletStore } from './account-wallets.ts';
+export type { AccountWalletStore } from './account-wallets.ts';
 import { PublicProfileStore } from './public-profile.ts';
 import { ProfileSocialStore } from './profile-social.ts';
 export type { ProfileSocialStore } from './profile-social.ts';
@@ -244,6 +246,7 @@ const migrations = [
   '109-group-view-once.sql',
   '110-group-message-pins.sql',
   '111-conversation-notification-cursors.sql',
+  '112-account-wallets.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -274,6 +277,7 @@ export class Database {
   private failed = false;
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
+  readonly accountWallets: AccountWalletStore;
   readonly publicProfiles: PublicProfileStore;
   readonly profileSocial: ProfileSocialStore;
   readonly publicModeration: PublicModerationStore;
@@ -357,6 +361,7 @@ export class Database {
       contentCapacity,
       this.changes,
     );
+    this.accountWallets = new AccountWalletStore(this.pool);
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity, writers.vault);
     this.admission = new DatabaseAdmission({

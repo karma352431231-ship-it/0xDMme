@@ -40,6 +40,7 @@ import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
+import { startAccountWallets } from '../account-wallets/index.ts';
 import { bindContactShortcuts, startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
@@ -324,6 +325,11 @@ const sessionBoot = new SessionBoot((session) => {
 });
 // Status rings load once per authorized session; activity has its own wakeups.
 let sessionExtrasFor = '';
+const accountWallets = startAccountWallets({
+  wallets: () => account.detectedWallets(),
+  withAnotherWallet: (work) => account.withAnotherWallet(work),
+  confirmWallet: () => account.confirmWallet(),
+});
 const account = startAccount({
   mobileOpening: true,
   deviceKeysLost: () => devices.keysLost(),
@@ -350,6 +356,7 @@ const account = startAccount({
     backups.setSession(session);
     contacts.setSession(session);
     accountSettings.setSession(session);
+    accountWallets.setSession(session);
     messages.setSession(session);
     calls.setSession(session);
     statuses.setSession(session);
@@ -587,6 +594,10 @@ function mountProfileSettings(content: HTMLElement): void {
     '[data-device-settings]',
   );
   if (deviceSettings) devices.mount(deviceSettings);
+  const walletSettings = content.querySelector<HTMLElement>(
+    '[data-wallet-settings]',
+  );
+  if (walletSettings) accountWallets.mount(walletSettings);
   const vaultSettings = content.querySelector<HTMLElement>(
     '[data-vault-settings]',
   );
