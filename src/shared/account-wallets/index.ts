@@ -17,9 +17,8 @@ export interface WalletIdentity {
 export interface AccountWallet extends WalletIdentity {
   primary: boolean;
 }
-/** The primary wallet plus one backup. A third wallet arrives together with
- * the rule that then requires two signatures. */
-export const maximumWallets = 2;
+/** The main wallet plus two more. With three, two of them must sign. */
+export const maximumWallets = 3;
 export const walletRequestSeconds = 300;
 
 /** How many of the account's wallets must sign to enter it. */
@@ -76,6 +75,32 @@ export function accountWallets(value: unknown): AccountWallet[] {
   return result;
 }
 
+/** The server's answer to the first of two sign-in signatures. */
+export interface SecondWalletRequest {
+  ticket: string;
+  expiresAt: string;
+}
+/** Null when the value is not that answer, such as a session. */
+export function secondWalletRequest(
+  value: unknown,
+): SecondWalletRequest | null {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    (value as Record<string, unknown>)['status'] !== 'second-wallet'
+  )
+    return null;
+  const data = object(value);
+  keys(data, ['status', 'ticket', 'expiresAt']);
+  const ticket = boundedText(data['ticket'], 64);
+  const expiresAt = boundedText(data['expiresAt'], 32);
+  if (
+    !/^[a-f0-9]{64}$/u.test(ticket) ||
+    !Number.isFinite(Date.parse(expiresAt))
+  )
+    throw new AccountError(400, 'Invalid sign-in request.');
+  return { ticket, expiresAt };
+}
 /** What the new wallet is asked to sign. */
 export interface WalletAddition {
   origin: string;

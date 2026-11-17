@@ -298,7 +298,8 @@ export function startAccountWallets(host: AccountWalletHost) {
     );
   }
   function addControls(): HTMLElement | null {
-    if (wallets.length >= maximumWallets) return null;
+    // The third wallet needs the two-wallet recovery setup, added next.
+    if (wallets.length >= Math.min(2, maximumWallets)) return null;
     const row = element('div'),
       label = element('label', t('Wallet to add')),
       select = element('select');

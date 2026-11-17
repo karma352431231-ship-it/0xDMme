@@ -1,5 +1,9 @@
 import { signedInDeviceLimit } from '../../shared/account-activity/index.ts';
-import { extraWalletAccount, lockWalletIdentity } from './account-wallets.ts';
+import {
+  extraWalletAccount,
+  lockWalletIdentity,
+  signInAccount,
+} from './account-wallets.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
@@ -167,6 +171,21 @@ export class AuthenticationStore {
     return result.rows[0]?.id ?? randomUUID();
   }
 
+  /** The account a wallet signs in to and how many wallets it has. */
+  signInAccount(identity: { address: string; ecosystem: Ecosystem }) {
+    return signInAccount(this.pool, identity);
+  }
+  /** Spends a verified challenge without signing in, for the first of two
+   * wallet signatures. It cannot be presented again. */
+  async consumeChallenge(challenge: LoginChallenge): Promise<void> {
+    const consumed = await this.pool.query(
+      `DELETE FROM hash_talk.login_challenges
+      WHERE id = $1 AND browser_hash = $2 AND expires_at > now() AND handoff_hash IS NULL`,
+      [challenge.id, challenge.browserHash],
+    );
+    if (consumed.rowCount !== 1)
+      throw new AccountError(401, 'Challenge invalid or expired.');
+  }
   async finishLogin(input: {
     challenge: LoginChallenge;
     tokenHash: string;

@@ -8,6 +8,7 @@ import {
   uuid,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
+import { secondWalletRequest } from '../../shared/account-wallets/index.ts';
 import { openingRequest } from '../../shared/wallet-opening/index.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import { signLoginOpening } from '../wallet-opening/index.ts';
@@ -40,6 +41,8 @@ interface LoginAccount {
 export class WalletLogin {
   private removeProviderListeners: (() => void) | undefined;
   private providerChanged = false;
+  /** Set between the two signatures of an account that needs two wallets. */
+  private second: { ticket: string; expiresAt: number } | null = null;
   private readonly account: LoginAccount;
   private readonly wallets: Wallets;
   private readonly approval: ApprovalFlow;
@@ -49,6 +52,8 @@ export class WalletLogin {
     render: () => void;
     setSession: (session: AccountSession) => void;
     openAccount: (session: AccountSession) => Promise<void>;
+    /** Asks the user to pick another wallet of the account being entered. */
+    chooseSecondWallet: (message: string) => void;
     /** Ends the session when the provider changes outside an operation. */
     logout: () => void;
   };
@@ -293,12 +298,38 @@ export class WalletLogin {
         : await openingRequest(signed['opening']);
     await this.finishIncomingOpening(instance, request, proof.currentEpoch);
   }
+  /** The pending first signature, once: a second attempt starts over. */
+  private takeFirstSignature(): { first: string } | Record<string, never> {
+    const pending = this.second;
+    this.second = null;
+    return pending && pending.expiresAt > Date.now()
+      ? { first: pending.ticket }
+      : {};
+  }
   private async acceptLoginProof(proof: LoginProof): Promise<void> {
-    const authenticated = accountSession(
-      await api('login', {
-        input: { id: proof.id, signature: proof.signature },
-      }),
-    );
+    const result = await api('login', {
+      input: {
+        id: proof.id,
+        signature: proof.signature,
+        ...this.takeFirstSignature(),
+      },
+    });
+    const second = secondWalletRequest(result);
+    if (second) {
+      if (proof.currentEpoch !== this.state.epoch || this.state.disposed)
+        return;
+      this.second = {
+        ticket: second.ticket,
+        expiresAt: Date.parse(second.expiresAt),
+      };
+      this.host.chooseSecondWallet(
+        t(
+          'This account needs two wallets to sign in. Choose another wallet of this account to finish.',
+        ),
+      );
+      return;
+    }
+    const authenticated = accountSession(result);
     if (proof.currentEpoch !== this.state.epoch || this.state.disposed) {
       await api('logout', { input: {}, csrf: authenticated.csrf });
       return;

@@ -19,6 +19,7 @@ import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
 import type { AccountWalletService } from '../account-wallets/index.ts';
+import { SecondWalletRequired } from './second-wallet.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import type { CallService } from '../calls/index.ts';
 import type { PublicProfileService } from '../public-profile/index.ts';
@@ -150,11 +151,21 @@ export function createAccountHandler(options: {
     }
     const sessionToken = cookies.read(request, 'session');
     if (request.url === '/api/account/login') {
-      const login = await options.service.login(
-        input,
-        cookies.read(request, 'challenge'),
-        sessionToken,
-      );
+      const login = await options.service
+        .login(input, cookies.read(request, 'challenge'), sessionToken)
+        .catch((error: unknown) => {
+          if (error instanceof SecondWalletRequired) return error;
+          throw error;
+        });
+      if (login instanceof SecondWalletRequired) {
+        response.setHeader('Set-Cookie', cookies.write('challenge', '', 0));
+        sendAccountJson(response, 200, {
+          status: 'second-wallet',
+          ticket: login.ticket,
+          expiresAt: login.expiresAt,
+        });
+        return;
+      }
       response.setHeader('Set-Cookie', [
         cookies.write('session', login.sessionToken, sessionSeconds),
         cookies.write('challenge', '', 0),

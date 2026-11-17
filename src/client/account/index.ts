@@ -150,6 +150,7 @@ export function startAccount(
       render,
       setSession,
       openAccount: (session) => profile.load(session, 'login'),
+      chooseSecondWallet: (message) => requestPicker(message),
       logout: () => void operation(logout),
     },
   });

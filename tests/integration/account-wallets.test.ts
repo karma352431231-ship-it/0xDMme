@@ -6,7 +6,10 @@ import { ed25519 } from '@noble/curves/ed25519';
 import pg from 'pg';
 import { Wallet } from 'ethers';
 import { Database } from '../../src/server/database/index.ts';
-import { AccountService } from '../../src/server/account/index.ts';
+import {
+  AccountService,
+  SecondWalletRequired,
+} from '../../src/server/account/index.ts';
 import { AccountWalletService } from '../../src/server/account-wallets/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
@@ -77,19 +80,35 @@ function solana(): Signer {
       ),
   };
 }
-async function signIn(signer: Signer): Promise<{
+async function signIn(
+  signer: Signer,
+  options: { deviceId?: string; first?: string } = {},
+): Promise<{
   sessionToken: string;
   session: AccountSession;
 }> {
   const challenge = await service.challenge({
     ...signer.identity,
     chainId: signer.chainId,
-    deviceId: randomUUID(),
+    deviceId: options.deviceId ?? randomUUID(),
   });
   return service.login(
-    { id: challenge.id, signature: await signer.sign(challenge.message) },
+    {
+      id: challenge.id,
+      signature: await signer.sign(challenge.message),
+      ...(options.first === undefined ? {} : { first: options.first }),
+    },
     challenge.browserToken,
   );
+}
+/** The ticket a three-wallet account hands out after its first signature. */
+async function firstSignature(signer: Signer, deviceId: string) {
+  const error: unknown = await signIn(signer, { deviceId }).then(
+    () => null,
+    (reason: unknown) => reason,
+  );
+  assert.ok(error instanceof SecondWalletRequired);
+  return error.ticket;
 }
 /** The whole user action: ask for the statement, sign it with the new wallet. */
 async function addWallet(session: AccountSession, signer: Signer) {
@@ -260,6 +279,7 @@ await test('extra sign-in wallets', async (t) => {
         addWallet(owner.session, backup),
         refused(409, /already on this account/u),
       );
+      assert.equal((await addWallet(owner.session, evm())).length, 3);
       await assert.rejects(
         addWallet(owner.session, evm()),
         refused(409, /maximum number of wallets/u),
@@ -461,6 +481,78 @@ await test('extra sign-in wallets', async (t) => {
       assert.equal(
         (await wallets.remove(c.owner.session, backup.identity)).length,
         1,
+      );
+    },
+  );
+
+  await t.test(
+    'with three wallets an account is entered only by two different wallets of it, signing for the same device',
+    async () => {
+      const primary = evm();
+      const second = evm();
+      const third = solana();
+      const owner = await signIn(primary);
+      await addWallet(owner.session, second);
+      // Two wallets: either one still signs in alone.
+      assert.equal(
+        (await signIn(second)).session.accountId,
+        owner.session.accountId,
+      );
+      await addWallet(owner.session, third);
+
+      const deviceId = randomUUID();
+      const ticket = await firstSignature(primary, deviceId);
+      const entered = await signIn(third, { deviceId, first: ticket });
+      assert.equal(entered.session.accountId, owner.session.accountId);
+      assert.equal(entered.session.deviceId, deviceId);
+      // The ticket is spent.
+      await assert.rejects(
+        signIn(second, { deviceId, first: ticket }),
+        refused(401, /first wallet signature expired/u),
+      );
+
+      // The same wallet twice is one wallet, and ends that attempt.
+      const repeated = await firstSignature(primary, deviceId);
+      await assert.rejects(
+        signIn(primary, { deviceId, first: repeated }),
+        refused(409, /different wallet/u),
+      );
+      await assert.rejects(
+        signIn(second, { deviceId, first: repeated }),
+        refused(401, /first wallet signature expired/u),
+      );
+
+      // Another device, another account's ticket and a malformed ticket.
+      const other = await firstSignature(second, deviceId);
+      await assert.rejects(
+        signIn(third, { deviceId: randomUUID(), first: other }),
+        refused(401, /first wallet signature expired/u),
+      );
+      const strangerPrimary = evm();
+      const stranger = await signIn(strangerPrimary);
+      const strangerSecond = evm();
+      await addWallet(stranger.session, strangerSecond);
+      await addWallet(stranger.session, evm());
+      const foreign = await firstSignature(strangerPrimary, deviceId);
+      await assert.rejects(
+        signIn(third, { deviceId, first: foreign }),
+        refused(401, /first wallet signature expired/u),
+      );
+      await assert.rejects(
+        signIn(third, { deviceId, first: 'not-a-ticket' }),
+        refused(400, /Invalid sign-in request/u),
+      );
+      // A ticket means nothing to an account that does not need one.
+      const single = evm();
+      await signIn(single);
+      const unused = await firstSignature(primary, deviceId);
+      assert.ok((await signIn(single, { first: unused })).session.accountId);
+
+      // Back to two wallets, one signature is enough again.
+      await wallets.remove(owner.session, third.identity);
+      assert.equal(
+        (await signIn(second)).session.accountId,
+        owner.session.accountId,
       );
     },
   );

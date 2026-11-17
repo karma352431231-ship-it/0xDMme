@@ -31,6 +31,8 @@ import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import { LoginOpening } from './opening.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import type { SignedInDevice } from '../../shared/account-activity/index.ts';
+import { signaturesRequired } from '../../shared/account-wallets/index.ts';
+import { SecondWalletGate } from './second-wallet.ts';
 
 export const challengeSeconds = 300;
 /** A session does not end by age while it is used: each restore extends it
@@ -59,6 +61,7 @@ export class AccountService {
   private readonly store: AuthenticationStore;
   private readonly origin: string;
   readonly opening: LoginOpening;
+  private readonly secondWallet = new SecondWalletGate();
   constructor(options: { store: AuthenticationStore; origin: string }) {
     this.store = options.store;
     this.origin = options.origin;
@@ -103,9 +106,38 @@ export class AccountService {
     return { id, message, expiresAt: expiresAt.toISOString(), browserToken };
   }
 
+  /** With three wallets an account is entered by two of them. The first
+   * signature spends its challenge and yields a ticket; the second, from a
+   * different wallet for the same device, presents it. */
+  private async requireSecondWallet(
+    challenge: Awaited<ReturnType<AuthenticationStore['claimAttempt']>>,
+    ticket: unknown,
+  ): Promise<void> {
+    const wallet = {
+      ecosystem: challenge.ecosystem,
+      address: challenge.address,
+    };
+    const account = await this.store.signInAccount(wallet);
+    if (!account || signaturesRequired(account.wallets) === 1) return;
+    const signature = {
+      accountId: account.accountId,
+      deviceId: challenge.deviceId,
+      wallet,
+    };
+    if (ticket === undefined) {
+      await this.store.consumeChallenge(challenge);
+      throw this.secondWallet.require(signature);
+    }
+    this.secondWallet.complete(ticket, signature);
+  }
+  /** Throws `SecondWalletRequired` when the account needs another wallet. */
   async login(input: unknown, browserToken: string, previousToken?: string) {
     const data = object(input);
-    keys(data, ['id', 'signature']);
+    keys(data, [
+      'id',
+      'signature',
+      ...(Object.hasOwn(data, 'first') ? ['first'] : []),
+    ]);
     const challenge = await this.store.claimAttempt(
       uuid(data['id']),
       tokenHash(browserToken),
@@ -116,6 +148,7 @@ export class AccountService {
         'Request requires confirmation in the original browser.',
       );
     verifyChallenge(challenge, data['signature'], this.origin);
+    await this.requireSecondWallet(challenge, data['first']);
     const sessionToken = token();
     await this.store.finishLogin({
       challenge,
@@ -267,6 +300,16 @@ export class AccountService {
     ]);
     const network = validatedEcosystem(data['ecosystem']);
     const address = canonicalAddress(network, data['address']);
+    const account = await this.store.signInAccount({
+      ecosystem: network,
+      address,
+    });
+    // The wallet-return flow carries one wallet's signature only.
+    if (account && signaturesRequired(account.wallets) === 2)
+      throw new AccountError(
+        409,
+        'This account needs two wallets to sign in. Open 0xDMme in a browser where both wallets are available.',
+      );
     const preferredAccountId = this.opening.confirmation(
       tokenHash(browserToken),
       { address, ecosystem: network },

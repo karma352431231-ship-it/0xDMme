@@ -644,6 +644,49 @@ await test('late authenticated response after a change is revoked without openin
   browser.dispose();
 });
 
+await test("an account that needs two wallets signs in only after a second signature carrying the first one's ticket", async () => {
+  const ticket = 'c'.repeat(64);
+  const answers: unknown[] = [];
+  // Each sign-in request takes the next server answer.
+  const login = {
+    then(resolve: (value: unknown) => void) {
+      resolve(answers.shift());
+    },
+  } as Promise<unknown>;
+  const browser = scope({ login });
+  answers.push(
+    {
+      status: 'second-wallet',
+      ticket,
+      expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    },
+    browser.session,
+  );
+  await tick();
+  browser.click();
+  await until(() => browser.requests.includes('/api/account/login'));
+  await tick();
+  // No session yet: the user is asked for another wallet of the account.
+  assert.equal(browser.attributes.get('data-connected'), 'false');
+  assert.match(browser.status.textContent, /needs two wallets/u);
+  assert.equal(
+    Object.hasOwn(
+      browser.inputs.get('/api/account/login') as Record<string, unknown>,
+      'first',
+    ),
+    false,
+  );
+  browser.click();
+  await until(
+    () =>
+      (browser.inputs.get('/api/account/login') as { first?: string }).first ===
+      ticket,
+  );
+  await until(() => browser.attributes.get('data-connected') === 'true');
+  assert.equal(browser.attributes.get('data-connected'), 'true');
+  browser.dispose();
+});
+
 const approvalHash = `#configuracoes?ticket=${'a'.repeat(64)}&wallet=MetaMask&ecosystem=evm`;
 
 await test('approval entry accepts a signature without an independent session and explains manual return', async () => {

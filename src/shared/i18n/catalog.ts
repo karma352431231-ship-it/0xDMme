@@ -6847,6 +6847,24 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Finish setup': ['Finish setup', '完成设置'],
   Continue: ['Continue', '继续'],
+  'This account needs two wallets to sign in. Choose another wallet of this account to finish.':
+    [
+      'This account needs two wallets to sign in. Choose another wallet of this account to finish.',
+      '此账户需要两个钱包才能登录。请选择此账户的另一个钱包以完成登录。',
+    ],
+  'This account needs two wallets to sign in. Open 0xDMme in a browser where both wallets are available.':
+    [
+      'This account needs two wallets to sign in. Open 0xDMme in a browser where both wallets are available.',
+      '此账户需要两个钱包才能登录。请在两个钱包都可用的浏览器中打开 0xDMme。',
+    ],
+  'The first wallet signature expired. Start signing in again.': [
+    'The first wallet signature expired. Start signing in again.',
+    '第一个钱包的签名已过期，请重新开始登录。',
+  ],
+  'Sign with a different wallet of this account.': [
+    'Sign with a different wallet of this account.',
+    '请使用此账户的另一个钱包签名。',
+  ],
   'Now select the wallet you want to add in your wallet app, then press Continue.':
     [
       'Now select the wallet you want to add in your wallet app, then press Continue.',

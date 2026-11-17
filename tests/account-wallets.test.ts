@@ -185,7 +185,12 @@ await test('a wallet list needs exactly one main wallet, no repeats and no more 
     [extra],
     [...current, { ...current[0] }],
     [...current, { ...extra, primary: true }],
-    [...current, extra, { ...extra, address: `0x${'3'.repeat(40)}` }],
+    [
+      ...current,
+      extra,
+      { ...extra, address: `0x${'3'.repeat(40)}` },
+      { ...extra, address: `0x${'4'.repeat(40)}` },
+    ],
     [{ ...current[0], address: 'not-an-address' }],
   ])
     assert.throws(() => accountWallets({ wallets }));

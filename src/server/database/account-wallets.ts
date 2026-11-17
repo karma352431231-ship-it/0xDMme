@@ -31,6 +31,23 @@ export async function extraWalletAccount(
   return result.rows[0]?.id ?? null;
 }
 
+/** How many wallets the account this wallet signs in to has, and which
+ * account that is. A wallet unknown to the service has none. */
+export async function signInAccount(
+  client: Pick<pg.PoolClient, 'query'>,
+  identity: WalletIdentity,
+): Promise<{ accountId: string; wallets: number } | null> {
+  const result = await client.query<{ id: string; wallets: number }>(
+    `SELECT a.id, 1 + (SELECT count(*)::integer FROM hash_talk.account_wallets w
+      WHERE w.account_id = a.id) AS wallets
+    FROM hash_talk.accounts a
+    WHERE (a.ecosystem=$1 AND a.address=$2) OR a.id =
+      (SELECT account_id FROM hash_talk.account_wallets WHERE ecosystem=$1 AND address=$2)`,
+    [identity.ecosystem, identity.address],
+  );
+  const row = result.rows[0];
+  return row ? { accountId: row.id, wallets: row.wallets } : null;
+}
 /** A wallet may open recovery only while it is an extra wallet of the account. */
 export async function assertRegisteredWallets(
   client: Pick<pg.PoolClient, 'query'>,
