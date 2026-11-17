@@ -43,6 +43,7 @@ const adapters: Record<string, string[]> = {
     'watchHistoryPosition',
     'resetHistoryPosition',
     'watchOlderHistory',
+    'watchCenteredHistory',
     'bindRecordGesture',
     'showRecording',
   ],
@@ -331,6 +332,7 @@ export function groupUiFixture() {
     async cancelCreation() {},
     latest() {},
     focusMessage() {},
+    focusAround() {},
     searchFocused: false,
     async refreshReceipts() {},
     async updatePhoto() {},
@@ -505,6 +507,7 @@ export function groupUiFixture() {
     watchHistoryPosition: () => {},
     resetHistoryPosition() {},
     watchOlderHistory: () => ({ check() {} }),
+    watchCenteredHistory() {},
     bindRecordGesture() {},
     ChatHistoryLoading: class {
       update() {

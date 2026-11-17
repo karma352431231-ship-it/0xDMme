@@ -1,3 +1,4 @@
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import { messageSearchExcerpt } from '../message-search/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { base64, encode } from '../../shared/account/index.ts';
@@ -970,23 +971,15 @@ export async function conversationHistory(
   a: VaultAuthority,
   peer: string,
   before: number | null,
+  slice?: HistorySlice,
 ): Promise<Extract<BackupRecord, { type: 'message' }>[]> {
   const page = await transaction<StoredRecord[]>((tx, done) => {
     const request = tx
       .objectStore('records')
       .index('conversation')
       .openCursor(
-        IDBKeyRange.bound(
-          [a.session.accountId, peer, 0],
-          [
-            a.session.accountId,
-            peer,
-            before === null ? Number.MAX_SAFE_INTEGER : Math.max(0, before - 1),
-            '\uffff',
-            '\uffff',
-          ],
-        ),
-        'prev',
+        conversationRange([a.session.accountId, peer], before, slice),
+        slice?.direction === 'newer' ? 'next' : 'prev',
       );
     const rows: StoredRecord[] = [];
     request.onsuccess = () => {
@@ -1011,6 +1004,22 @@ export async function conversationHistory(
     (row): row is Extract<BackupRecord, { type: 'message' }> =>
       row.type === 'message',
   );
+}
+function conversationRange(
+  scope: [string, string],
+  before: number | null,
+  slice?: HistorySlice,
+): IDBKeyRange {
+  const cursor = slice?.cursor ?? before;
+  if (slice?.direction === 'newer')
+    return IDBKeyRange.bound(
+      [...scope, slice.cursor, '\uffff', '\uffff'],
+      [...scope, Number.MAX_SAFE_INTEGER, '\uffff', '\uffff'],
+      true,
+    );
+  const last =
+    cursor === null ? Number.MAX_SAFE_INTEGER : Math.max(0, cursor - 1);
+  return IDBKeyRange.bound([...scope, 0], [...scope, last, '\uffff', '\uffff']);
 }
 /** Separate record types keep group copies out of individual peer identity indexes. */
 export async function groupHistoryPage(
@@ -1059,23 +1068,15 @@ export async function groupConversationHistory(
   a: VaultAuthority,
   groupId: string,
   before: number | null,
+  slice?: HistorySlice,
 ): Promise<Extract<BackupRecord, { type: 'group-message' }>[]> {
   const rows = await transaction<StoredRecord[]>((tx, done) => {
     const request = tx
       .objectStore('records')
       .index('conversation')
       .openCursor(
-        IDBKeyRange.bound(
-          [a.session.accountId, groupId, 0],
-          [
-            a.session.accountId,
-            groupId,
-            before === null ? Number.MAX_SAFE_INTEGER : Math.max(0, before - 1),
-            '\uffff',
-            '\uffff',
-          ],
-        ),
-        'prev',
+        conversationRange([a.session.accountId, groupId], before, slice),
+        slice?.direction === 'newer' ? 'next' : 'prev',
       );
     const result: StoredRecord[] = [];
     request.onsuccess = () => {

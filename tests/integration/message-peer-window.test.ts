@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MessagePacket } from '../../src/shared/messages/index.ts';
+import type { HistorySlice } from '../../src/shared/messages/index.ts';
 import type { MessageSyncSnapshot } from '../../src/shared/message-sync/index.ts';
 import { messageReceiptFixture } from '../fixtures/message-receipt-database.ts';
 import type { MessageReceiptFixture } from '../fixtures/message-receipt-database.ts';
@@ -47,6 +48,7 @@ function selected(
     snapshot: MessageSyncSnapshot;
     peer: string;
     before: number | null;
+    slice?: HistorySlice;
   },
 ) {
   return readPeerWindow({
@@ -58,6 +60,7 @@ function selected(
         snapshot: window.snapshot,
         peer: String(data['peer']),
         before: data['before'] as number | null,
+        ...(window.slice ? { slice: window.slice } : {}),
       });
     },
     deleted: () => Promise.resolve(),
@@ -116,6 +119,32 @@ await test('a selected conversation window matches the complete scan at the same
   assert.equal(newest.filter((item) => item.kind !== 'profile').length, 16);
   assert.ok(!newest.some((item) => item.id === removed.id));
   assert.ok(newest.every((item) => !item.relation));
+  const target = newest.find((item) => item.id === roots[18]!.id)!;
+  const start = {
+    snapshot,
+    peer,
+    before: null,
+  };
+  const behind = await selected(c, reader, {
+    ...start,
+    slice: { direction: 'older', cursor: target.sequence + 1, limit: 13 },
+  });
+  const ahead = await selected(c, reader, {
+    ...start,
+    slice: { direction: 'newer', cursor: target.sequence, limit: 12 },
+  });
+  const visible = roots
+    .filter((root) => root.id !== removed.id)
+    .map((root) => root.id);
+  const position = visible.indexOf(target.id);
+  assert.deepEqual(
+    behind.filter((item) => item.kind !== 'profile').map((item) => item.id),
+    visible.slice(position - 12, position + 1),
+  );
+  assert.deepEqual(
+    ahead.filter((item) => item.kind !== 'profile').map((item) => item.id),
+    visible.slice(position + 1, position + 13),
+  );
   const older = newest[6]!.sequence;
   for (const before of [null, older]) {
     const window = { snapshot, peer, before };

@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import { messagePageSize } from '../../shared/messages/index.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 const projection =
   "SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.deletion_account,(m.body IS NULL OR pr.id IS NOT NULL) AS deleted,m.deletion,pr.id AS removal_id,pr.hash AS removal_hash,pr.proof AS removal,pr.sequence::text AS removal_sequence,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN LATERAL (SELECT * FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid) ORDER BY (pr.id=m.id) DESC LIMIT 1) pr ON true LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2";
@@ -38,13 +39,28 @@ export async function messageIndexPage(
 export async function messagePeerWindow(
   client: pg.PoolClient,
   a: ContactAuthority,
-  range: { peer: string; through: number; before: number | null },
+  range: {
+    peer: string;
+    through: number;
+    before: number | null;
+    slice?: HistorySlice;
+  },
 ) {
-  const direction = (from: string, to: string, filter: string) =>
-    `(${projection} WHERE m.sender=${from} AND m.recipient=${to} AND m.sequence<=$4 AND ${filter} ORDER BY m.sequence DESC LIMIT $5)`;
-  const query = (filter: string, limit: number, extra: unknown[] = []) =>
+  const direction = (
+    from: string,
+    to: string,
+    filter: string,
+    order: 'ASC' | 'DESC',
+  ) =>
+    `(${projection} WHERE m.sender=${from} AND m.recipient=${to} AND m.sequence<=$4 AND ${filter} ORDER BY m.sequence ${order} LIMIT $5)`;
+  const query = (
+    filter: string,
+    limit: number,
+    extra: unknown[] = [],
+    order: 'ASC' | 'DESC' = 'DESC',
+  ) =>
     client.query<Record<string, unknown>>(
-      `${direction('$1', '$3', filter)} UNION ALL ${direction('$3', '$1', filter)}`,
+      `${direction('$1', '$3', filter, order)} UNION ALL ${direction('$3', '$1', filter, order)}`,
       [
         a.session.accountId,
         a.session.deviceId,
@@ -54,10 +70,14 @@ export async function messagePeerWindow(
         ...extra,
       ],
     );
+  const newer = range.slice?.direction === 'newer';
+  const comparison = newer ? '>' : '<';
+  const limit = range.slice?.limit ?? messagePageSize;
   const base = await query(
-    "m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND pr.id IS NULL AND m.sequence<$6",
-    messagePageSize,
-    [range.before ?? Number.MAX_SAFE_INTEGER],
+    `m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND pr.id IS NULL AND m.sequence${comparison}$6`,
+    limit,
+    [range.slice?.cursor ?? range.before ?? Number.MAX_SAFE_INTEGER],
+    newer ? 'ASC' : 'DESC',
   );
   const profile = await query("m.kind='profile'", 1);
   const rows = new Map<
@@ -66,8 +86,8 @@ export async function messagePeerWindow(
   >();
   const latest = [...base.rows]
     .map(sequenceRow)
-    .sort((x, y) => y.sequence - x.sequence)
-    .slice(0, messagePageSize);
+    .sort((x, y) => (newer ? x.sequence - y.sequence : y.sequence - x.sequence))
+    .slice(0, limit);
   for (const row of [...profile.rows.map(sequenceRow), ...latest])
     rows.set(String(row['id']), row);
   return {

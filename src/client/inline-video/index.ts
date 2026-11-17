@@ -19,7 +19,7 @@ interface InlineVideoOptions {
     bytes: number;
     load: (signal: AbortSignal) => Promise<Blob | null>;
   };
-  deferSource?: boolean;
+  source?: 'after-poster' | 'on-play';
   previewFrame?: (video: HTMLVideoElement) => Promise<void>;
   downloadFallback?: (url: string | null) => void;
   stage?: (video: HTMLVideoElement, requestPlay: () => void) => HTMLElement;
@@ -100,11 +100,12 @@ export function mountInlineVideo(
         });
   }
   async function prepareVisible(): Promise<void> {
-    if (!options.deferSource || !poster) {
+    if (!options.source) {
       await load();
       return;
     }
-    if (stopped || resultUrl || posterUrl || posterWork || current) return;
+    if (!poster || stopped || resultUrl || posterUrl || posterWork || current)
+      return;
     await preparePoster();
   }
   async function preparePoster(): Promise<void> {
@@ -113,19 +114,13 @@ export function mountInlineVideo(
     const signal = AbortSignal.any([options.signal, controller.signal]);
     try {
       const blob = await poster!.load(signal);
-      if (!usable(signal)) return;
+      if (!usable(signal) || resultUrl) return;
       if (!blob) {
-        await load();
+        if (options.source === 'after-poster') await load();
         return;
       }
-      posterUrl = URL.createObjectURL(blob);
-      video.poster = posterUrl;
-      caption.textContent = '';
-      retry.textContent = t('Play video');
-      retry.hidden = false;
-      // The poster is a small preview: the full source follows quietly and
-      // its first frame replaces it at full quality (owner, 13/11/2026).
-      void loadQuietly();
+      presentDeferredPoster(blob);
+      if (options.source === 'after-poster') void loadQuietly();
     } catch {
       if (usable(signal)) {
         caption.textContent = t('Video unavailable. Try again.');
@@ -134,6 +129,17 @@ export function mountInlineVideo(
     } finally {
       if (posterWork === controller) posterWork = null;
     }
+  }
+  function presentDeferredPoster(blob: Blob): void {
+    posterUrl = URL.createObjectURL(blob);
+    video.poster = posterUrl;
+    if (current) return;
+    caption.textContent = '';
+    if (!options.stage) showPlay();
+  }
+  function showPlay(): void {
+    retry.textContent = t('Play video');
+    retry.hidden = false;
   }
   function announceLoading(): void {
     caption.textContent = t('Loading video…');
@@ -157,7 +163,7 @@ export function mountInlineVideo(
   }
   async function fetchSource(controller: AbortController): Promise<void> {
     const signal = AbortSignal.any([options.signal, controller.signal]);
-    if (!options.deferSource) loadPoster(signal);
+    if (!options.source) loadPoster(signal);
     try {
       const source = await options.load(signal);
       if (usable(signal)) present(source);
@@ -222,7 +228,7 @@ export function mountInlineVideo(
   function startPlayback(): void {
     playRequested = false;
     void video.play().catch(() => {
-      if (!stopped) retry.hidden = false;
+      if (!stopped) showPlay();
     });
   }
   function requestPlay(): void {
@@ -232,7 +238,7 @@ export function mountInlineVideo(
   }
   retry.addEventListener('click', requestPlay);
   video.addEventListener('click', () => {
-    if (options.deferSource && !resultUrl) requestPlay();
+    if (options.source && !resultUrl) requestPlay();
   });
   const observer = new IntersectionObserver(
     (entries) => {
@@ -243,6 +249,8 @@ export function mountInlineVideo(
       else {
         current?.abort();
         current = null;
+        posterWork?.abort();
+        posterWork = null;
         video.pause();
       }
     },

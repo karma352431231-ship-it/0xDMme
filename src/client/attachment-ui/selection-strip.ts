@@ -42,10 +42,12 @@ function tile(
 }
 
 function tilePreview(item: AttachmentSelection, url: string | null): Element {
-  if (url && item.image) {
+  if (url && (item.image || item.thumbnail)) {
     const image = document.createElement('img');
     image.src = url;
-    image.alt = t('Local preview of the original image');
+    image.alt = item.image
+      ? t('Local preview of the original image')
+      : item.name;
     return image;
   }
   if (url && item.type.startsWith('video/')) {

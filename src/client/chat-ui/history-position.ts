@@ -196,7 +196,9 @@ function atBottom(history: HTMLElement): boolean {
   return history.scrollHeight - history.clientHeight - history.scrollTop <= 2;
 }
 function capture(history: HTMLElement): ReadingPosition {
-  const follow = history.childElementCount === 0 || atBottom(history);
+  const follow =
+    !states.get(history)?.returnToLatest &&
+    (history.childElementCount === 0 || atBottom(history));
   return {
     top: history.scrollTop,
     follow,

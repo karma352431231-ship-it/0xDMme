@@ -9,6 +9,7 @@ import {
   attachmentRef,
   attachmentRefs,
   chatFileLimit,
+  contentRefs,
   fileLimit,
   safeFilename,
 } from '../src/shared/attachments/index.ts';
@@ -89,6 +90,40 @@ await test('independent ciphertexts do not deduplicate readable files; private c
     assert.ok(sdk.mediaEncryptionInfo);
   } finally {
     sdk.free();
+  }
+});
+await test('a video and its small still are independently authenticated attachments', async () => {
+  const [video, still] = await Promise.all([
+    sealFile(Uint8Array.of(0, 0, 0, 16, 102, 116, 121, 112)),
+    sealFile(Uint8Array.of(255, 216, 255, 217)),
+  ]);
+  for (const type of ['video/mp4', 'video/quicktime']) {
+    const card = {
+      version: 1,
+      name: 'clip',
+      type,
+      caption: '',
+      image: false,
+      file: video.file,
+      thumbnail: still.file,
+    };
+    const content = attachmentContent(card);
+    assert.deepEqual(attachmentRefs(contentRefs(content)), [
+      video.file.ref,
+      still.file.ref,
+    ]);
+    assert.deepEqual(
+      await openFile(content.thumbnail!, still.bytes),
+      Uint8Array.of(255, 216, 255, 217),
+    );
+    assert.throws(
+      () => attachmentContent({ ...card, thumbnail: video.file }),
+      /Invalid thumbnail/u,
+    );
+    assert.throws(
+      () => attachmentContent({ ...card, type: 'video/webm' }),
+      /Invalid thumbnail/u,
+    );
   }
 });
 function png(

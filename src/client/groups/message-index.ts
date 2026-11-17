@@ -171,7 +171,9 @@ export async function currentGroupSnapshot(c: ReadContext): Promise<Snapshot> {
 }
 /** A snapshot the server returned for this group, head and directory. */
 export function groupSnapshot(
-  c: Pick<ReadContext, 'group' | 'authority'>,
+  c: Pick<ReadContext, 'group'> & {
+    authority: Pick<ReadContext['authority'], 'directory'>;
+  },
   raw: unknown,
 ): Snapshot {
   const snapshot = readSnapshot(raw);

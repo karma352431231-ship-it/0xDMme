@@ -267,13 +267,12 @@ export class MediaGallery<V extends GalleryRow> {
     tile.addEventListener('click', this.opener(entry.view));
     const port = this.port!;
     const source = tileSource(entry);
-    this.previews.watch(
-      tile,
-      (signal) =>
-        port.catalogue
-          ? port.catalogue.picture(entry)
-          : port.media(entry.view, source.thumbnail, signal),
-      port.catalogue ? null : source.frameType,
+    this.previews.watch(tile, (signal) =>
+      port.catalogue
+        ? port.catalogue.picture(entry)
+        : source.thumbnail
+          ? port.media(entry.view, true, signal)
+          : Promise.resolve(null),
     );
     return tile;
   }

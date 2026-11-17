@@ -272,6 +272,9 @@ async function storedPart(
 }
 interface DownloadInput {
   diagnostic?: LoadTrace | undefined;
+  /** A gallery read can reuse ciphertext without extending the cache of originals. */
+  transient?: boolean;
+  signal?: AbortSignal | undefined;
   budget?: number;
   account: string;
   message: string;
@@ -289,7 +292,7 @@ async function fetchPart(
   const key = name(input.message, input.file.ref.id, index),
     part = input.file.ref.parts[index];
   if (!part) throw new Error('Reference incomplete.');
-  const cached = await storedPart(input.account, key, part);
+  const cached = await downloadCachedPart(input, key, part);
   if (cached) return cached;
   if (!input.api)
     throw new Error(
@@ -307,6 +310,7 @@ async function fetchPart(
   if (bytes.length !== part.bytes || (await bytesHash(bytes)) !== part.hash)
     throw new Error('Received part tampered with.');
   input.guard();
+  if (input.transient) return bytes;
   await localPutWithin({
     scope: input.account,
     name: key,
@@ -316,11 +320,20 @@ async function fetchPart(
   });
   return bytes;
 }
+function downloadCachedPart(
+  input: DownloadInput,
+  key: string,
+  part: { bytes: number; hash: string },
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  const local = storedPart(input.account, key, part);
+  return input.transient && input.api ? local.catch(() => null) : local;
+}
 export async function downloadAttachment(
   input: DownloadInput,
 ): Promise<Uint8Array<ArrayBuffer>> {
   input.guard();
-  await retainAttachment(input.account, input.message, input.budget);
+  if (!input.transient)
+    await retainAttachment(input.account, input.message, input.budget);
   const download = () => downloadSealedAttachment(input);
   const bytes = input.diagnostic
     ? await input.diagnostic.measure('download', download)
@@ -332,6 +345,7 @@ export async function downloadAttachment(
       thumbnail: input.thumbnail,
       image: input.image,
       diagnostic: input.diagnostic,
+      signal: input.signal,
     });
   const result = input.diagnostic
     ? await input.diagnostic.measure('decrypt', decrypt)
@@ -369,6 +383,7 @@ async function openAttachment(input: {
   thumbnail: boolean;
   image: boolean;
   diagnostic?: LoadTrace | undefined;
+  signal?: AbortSignal | undefined;
 }): Promise<Uint8Array<ArrayBuffer>> {
   const result = await attachmentWork<{ bytes: Uint8Array<ArrayBuffer> }>(
     {
@@ -379,7 +394,7 @@ async function openAttachment(input: {
       image: input.image,
       diagnostic: !!input.diagnostic,
     },
-    undefined,
+    input.signal,
     input.diagnostic
       ? (value) => {
           for (const step of readCryptoTimings(value))

@@ -764,7 +764,11 @@
   #app-shell[data-page='publico'] .brand-bar {
     display: none;
   }
-  #app-shell main:has(> #page-content > .public-profile-page) {
+  /* The page lives in the route's [data-public-profile-view] host (pages.ts). */
+  #app-shell
+    main:has(
+      > #page-content > [data-public-profile-view] > .public-profile-page
+    ) {
     padding: 0 0 24px;
   }
   #app-shell .public-profile-page {

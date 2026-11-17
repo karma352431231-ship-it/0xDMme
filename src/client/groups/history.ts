@@ -18,6 +18,7 @@ import { GroupCatalog } from './catalog.ts';
 import { projectGroupMessages } from './message-projection.ts';
 import { groupView } from './reader.ts';
 import type { GroupView } from './reader.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 export async function importGroupCatalog(
   authority: VaultAuthority,
   guard: () => void,
@@ -41,9 +42,18 @@ export async function localGroupViews(
   authority: VaultAuthority,
   groupId: string,
   before: number | null,
+  slice?: HistorySlice,
 ): Promise<{ views: GroupView[]; before: number | null }> {
-  const cached = await new GroupCache(authority, groupId).messages(before),
-    historical = await groupConversationHistory(authority, groupId, before);
+  const cached = await new GroupCache(authority, groupId).messages(
+      before,
+      slice,
+    ),
+    historical = await groupConversationHistory(
+      authority,
+      groupId,
+      before,
+      slice,
+    );
   const rows = new Map<string, GroupView>();
   for (const raw of [...cached.items, ...historical]) {
     const view = localCopy(raw, {
@@ -56,10 +66,7 @@ export async function localGroupViews(
       throw new Error('Local group copies do not match.');
     rows.set(view.id, { ...view, localOnly: true });
   }
-  const views = [...rows.values()]
-    .sort((x, y) => y.sequence - x.sequence)
-    .slice(0, 16)
-    .reverse();
+  const views = closestLocalGroupRows([...rows.values()], slice);
   const edits = await localGroupEdits(authority, groupId, views);
   return {
     views: projectGroupMessages(views, edits),
@@ -68,6 +75,16 @@ export async function localGroupViews(
         ? (views[0]?.sequence ?? null)
         : null,
   };
+}
+function closestLocalGroupRows(
+  rows: GroupView[],
+  slice?: HistorySlice,
+): GroupView[] {
+  rows.sort((x, y) => x.sequence - y.sequence);
+  const limit = slice?.limit ?? 16;
+  return slice?.direction === 'newer'
+    ? rows.slice(0, limit)
+    : rows.slice(-limit);
 }
 function visibleRoot(view: GroupView): boolean {
   return view.kind !== 'profile' && !view.relation;

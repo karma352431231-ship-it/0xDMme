@@ -2,6 +2,9 @@
  * Phones: top bar, page headings and bottom bar.
  * Since 13/11/2026 the private profile and settings open from the avatar in
  * the Conversations top bar; the bottom bar's last tab is the public profile.
+ * On 16/11/2026 the avatar moved to the right end of that bar with a gear
+ * mark, and the conversation search moved beside the filters
+ * (contacts/directory-phone.css).
  */
 #app-shell :is(.private-account-entry, .header-search-open) {
   display: none;
@@ -9,15 +12,40 @@
 @media (max-width: 700px) {
   #app-shell[data-page='conversas']:not([data-account='guest'])
     .private-account-entry {
+    position: relative;
     display: grid;
     flex: none;
     place-items: center;
     text-decoration: none;
   }
   #app-shell .private-account-entry .mobile-profile-avatar {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     font-size: 13px;
+  }
+  #app-shell .private-account-gear {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--text);
+  }
+  #app-shell .private-account-gear svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+  /* The filter row carries the search; Public has no filter row. */
+  #app-shell[data-page='conversas']:not([data-contact-scope='public'])
+    #open-search {
+    display: none;
   }
   #app-shell .brand-bar .mobile-title {
     flex: 1 1 auto;

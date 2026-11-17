@@ -77,12 +77,15 @@ import { OfflineIndex } from './offline-index.ts';
 import { readPeerWindow } from './peer-window.ts';
 import { messageItems } from './history.ts';
 import {
+  CenteredHistory,
   HistoryFloors,
   historyPage,
   historyRootLimit,
   oldestRoot,
   reachFloor,
 } from '../history-window/index.ts';
+import type { HistoryDirection } from '../history-window/index.ts';
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import type { HistoryFloor } from '../history-window/index.ts';
 import type { Api, MessageItem } from './history.ts';
 import type {
@@ -197,6 +200,7 @@ export class ConversationReader {
     this.conversations.setProfile(session);
   }
   close(): void {
+    this.centered = null;
     this.selection.invalidate('session');
     this.readTarget.reset();
     this.floors.clear();
@@ -214,6 +218,7 @@ export class ConversationReader {
   }
   /** Navigation hides projection; account suspension also ends immediate reuse. */
   pause(scope: 'account' | 'conversation'): void {
+    this.centered?.forget();
     if (scope === 'account')
       this.conversations.invalidateReuse('account-pause');
     this.selection.invalidate(
@@ -224,12 +229,14 @@ export class ConversationReader {
   }
   /** Block access now, retaining candidates only for an authenticated delta. */
   removed(): void {
+    this.centered?.forget();
     this.selection.invalidate('removal');
     this.conversations.hint();
     this.probedSnapshot = null;
     this.visibility.close('pending');
   }
   hide(): void {
+    this.centered?.forget();
     this.ownRemovals.clear();
     this.selection.invalidate('authorization');
     this.readTarget.reset();
@@ -382,6 +389,7 @@ export class ConversationReader {
     return true;
   }
   select(peer: string | null): void {
+    this.centered = null;
     this.searchBefore = null;
     this.selection.invalidate();
     this.probedSnapshot = null;
@@ -398,6 +406,7 @@ export class ConversationReader {
     this.selected = peer;
   }
   focusMessage(sequence: number | null): void {
+    this.centered = null;
     this.searchBefore = sequence === null ? null : sequence + 1;
     this.confirmed = null;
     this.verified.clear();
@@ -405,6 +414,20 @@ export class ConversationReader {
     this.olderRequested = false;
     if (this.selected)
       this.floors.update(this.selected, { floor: null, complete: false });
+  }
+  private centered: CenteredHistory<MessageView> | null = null;
+  focusAround(sequence: number): void {
+    this.focusMessage(sequence);
+    this.centered = new CenteredHistory(sequence);
+  }
+  canExtend(direction: HistoryDirection): boolean {
+    return this.centered?.available(direction) ?? false;
+  }
+  extend(direction: HistoryDirection): boolean {
+    return this.centered?.request(direction) ?? false;
+  }
+  cancelExtension(): void {
+    this.centered?.cancelRequest();
   }
   get searchFocused(): boolean {
     return this.searchBefore !== null;
@@ -511,6 +534,7 @@ export class ConversationReader {
             );
           this.concealChangedFence(token, snapshot);
           const read = { a, generation, api, snapshot, selected, trace };
+          if (this.centered) return this.readCentered(read, this.centered);
           const incremental =
             this.searchBefore === null
               ? await readIncrementalWindow({
@@ -556,6 +580,7 @@ export class ConversationReader {
         trace,
       });
       guard();
+      commitContext(staged);
       if (selected) this.floors.update(selected, staged.reach);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       if ('changes' in staged) {
@@ -640,9 +665,17 @@ export class ConversationReader {
   }
   /** One verified remote page before `before` (the latest page when null),
    * joined with the archived local history of the same span. */
-  private async readRemotePage(c: PageRead, before: number | null) {
+  private async readRemotePage(
+    c: PageRead,
+    before: number | null,
+    slice?: HistorySlice,
+  ) {
     const { a, generation, api, snapshot, trace } = c;
-    const items = await this.synchronizeIndex({ ...c, before });
+    const items = await this.synchronizeIndex({
+      ...c,
+      before,
+      ...(slice ? { slice } : {}),
+    });
     const related = messageItems(
       await api('relations', {
         ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
@@ -663,9 +696,46 @@ export class ConversationReader {
     );
     const delivered = await this.refreshDelivery(c, ordered);
     const projected = await timedLoad(trace, 'local-history', () =>
-      this.includeHistory(a, delivered, generation, before),
+      this.includeHistory(a, delivered, generation, slice ?? before),
     );
     return { views: projected, liveViews: ordered, snapshot, window };
+  }
+  private async readCentered(
+    c: PageRead,
+    history: CenteredHistory<MessageView>,
+  ) {
+    if (!isSyncSnapshot(c.snapshot))
+      throw new Error('Message window does not match.');
+    const {
+      revision,
+      anchor,
+      invalidation,
+      account,
+      device,
+      directory,
+      contacts,
+    } = c.snapshot;
+    const focused = await history.stage({
+      cut: JSON.stringify([
+        revision,
+        anchor,
+        invalidation,
+        account,
+        device,
+        directory,
+        contacts,
+      ]),
+      read: (slice) =>
+        this.readRemotePage(c, null, slice).then((page) => page.views),
+    });
+    return {
+      views: focused.rows,
+      snapshot: c.snapshot,
+      window: [],
+      liveViews: [],
+      reach: { floor: null, complete: null },
+      centered: focused.commit,
+    };
   }
   /** Brings a latest window back to its floor at the same snapshot, and one
    * page further when the reader scrolled to the top. */
@@ -795,6 +865,18 @@ export class ConversationReader {
       token = older ? this.visibility.refresh() : this.visibility.begin(),
       guard = this.selection.capture(() => this.authority.guard(generation));
     const open = async (a: VaultAuthority) => {
+      if (this.centered) {
+        await this.publishLocalCentered({
+          authority: a,
+          generation,
+          token,
+          guard,
+          trace,
+          peer,
+          archive: true,
+        });
+        return;
+      }
       const reached = await timedLoad(trace, 'local-history', async () =>
         reachFloor({
           rows: await this.includeHistory(a, [], generation, this.searchBefore),
@@ -830,21 +912,26 @@ export class ConversationReader {
     a: VaultAuthority,
     remote: readonly MessageView[],
     generation: number,
-    before: number | null,
+    position: number | null | HistorySlice,
   ): Promise<MessageView[]> {
     const guard = this.selection.capture(() =>
       this.authority.guard(generation),
     );
     if (!this.selected) return [...remote];
-    const local = await conversationHistory(a, this.selected, before);
+    const slice =
+      typeof position === 'object' && position !== null ? position : undefined;
+    const before = typeof position === 'number' ? position : null;
+    const local = await conversationHistory(a, this.selected, before, slice);
     guard();
     const merged = mergeHistory(
       remote,
       local.map((r) => this.historicalView(a, r)),
     );
-    const base = merged
-      .filter((r) => !r.relation && r.kind !== 'profile')
-      .slice(-historyPage);
+    const roots = merged.filter((r) => !r.relation && r.kind !== 'profile');
+    const base =
+      slice?.direction === 'newer'
+        ? roots.slice(0, slice.limit)
+        : roots.slice(-(slice?.limit ?? historyPage));
     const ids = new Set(base.map((r) => r.id));
     const related = await relatedHistory(a, [...ids], () => guard());
     const combined = mergeHistory(
@@ -859,13 +946,19 @@ export class ConversationReader {
     );
   }
   private async synchronizeIndex(
-    c: PageRead & { before: number | null },
+    c: PageRead & { before: number | null; slice?: HistorySlice },
   ): Promise<MessageItem[]> {
     const read = {
       ...c,
       account: c.a.session.accountId,
       deleted: (item: MessageItem) => this.packets.remove(c, item),
     };
+    if (c.slice && c.selected && isSyncSnapshot(c.snapshot))
+      return readPeerWindow({
+        ...read,
+        snapshot: c.snapshot,
+        peer: c.selected,
+      });
     const index = this.indexFor(c.before);
     const indexed = await index.completed(read);
     if (indexed) return indexed;
@@ -978,6 +1071,7 @@ export class ConversationReader {
     covered: boolean,
     trace?: LoadTrace,
   ): boolean {
+    if (this.centered) return false;
     if (!covered) {
       if (this.confirmed && windowBehind(this.confirmed.snapshot, snapshot))
         this.reportStale(snapshot);
@@ -1100,6 +1194,21 @@ export class ConversationReader {
     if (!locator) throw new Error('No authorized local copy on this device.');
     try {
       await this.access.withLocalVault(locator, async (a) => {
+        if (this.centered && peer) {
+          const removed = new RemovalIndex();
+          await removed.load(a, guard);
+          await this.publishLocalCentered({
+            authority: a,
+            generation,
+            token,
+            guard,
+            trace,
+            peer,
+            archive: false,
+          });
+          this.offlineIndex.reset();
+          return;
+        }
         const reached = await timedLoad(trace, 'local-history', async () => {
           const removed = new RemovalIndex();
           await removed.load(a, () => guard());
@@ -1147,13 +1256,16 @@ export class ConversationReader {
   private async offlineViews(
     a: VaultAuthority,
     peer: string | null,
-    before: number | null,
+    position: number | null | HistorySlice,
     guard: () => void,
   ): Promise<MessageView[]> {
     const cached = await this.offlineIndex.read({
         account: a.session.accountId,
         peer,
-        before,
+        before: typeof position === 'number' ? position : null,
+        ...(position && typeof position === 'object'
+          ? { slice: position }
+          : {}),
         guard: () => guard(),
       }),
       views: MessageView[] = [];
@@ -1181,4 +1293,40 @@ export class ConversationReader {
     }
     return views;
   }
+  private async publishLocalCentered(input: {
+    authority: VaultAuthority;
+    generation: number;
+    token: number;
+    guard: () => void;
+    trace: LoadTrace | undefined;
+    peer: string;
+    archive: boolean;
+  }): Promise<void> {
+    const { authority, generation, token, guard, trace, peer, archive } = input;
+    const centered = this.centered!;
+    const staged = await timedLoad(trace, 'local-history', () =>
+      centered.stage({
+        cut: JSON.stringify([authority.directory, peer, archive]),
+        read: async (slice) =>
+          this.includeHistory(
+            authority,
+            archive
+              ? []
+              : await this.offlineViews(authority, peer, slice, guard),
+            generation,
+            slice,
+          ),
+      }),
+    );
+    guard();
+    staged.commit();
+    this.confirmed = { snapshot: JSON.stringify('local'), views: staged.rows };
+    this.visibility.stage(token, staged.rows);
+    this.visibility.complete(token, undefined, trace);
+  }
+}
+
+function commitContext(staged: object): void {
+  if ('centered' in staged && typeof staged.centered === 'function')
+    (staged.centered as () => void)();
 }

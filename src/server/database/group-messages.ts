@@ -1,3 +1,4 @@
+import type { HistorySlice } from '../../shared/messages/index.ts';
 import { attachGroupViewOnce } from './group-view-once.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import {
@@ -314,6 +315,7 @@ export class GroupMessageStore {
       head: string;
       before: number | null;
       anchor?: number;
+      slice?: HistorySlice;
     },
   ): Promise<unknown> {
     return this.groups.withGroupAuthority(
@@ -323,14 +325,17 @@ export class GroupMessageStore {
         const joined = state.members.find(
           (m) => m.accountId === authority.session.accountId,
         )?.joined;
+        const { order, edge, liveOnly, cursor, limit } =
+          groupHistoryBounds(input);
         const rows = await client.query<PacketRow>(
-          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.relation IS NULL AND ($4::bigint IS NULL OR p.sequence<$4) AND ($5::bigint IS NULL OR p.sequence<=$5) ORDER BY p.sequence DESC LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence DESC) AS window_bytes,row_number() OVER(ORDER BY sequence DESC) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
+          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.relation IS NULL ${liveOnly} AND ($4::bigint IS NULL OR p.sequence${edge}$4) AND ($5::bigint IS NULL OR p.sequence<=$5) ORDER BY p.sequence ${order} LIMIT $6),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence ${order}) AS window_bytes,row_number() OVER(ORDER BY sequence ${order}) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
           [
             input.groupId,
             joined,
             state.epoch,
-            input.before,
+            cursor,
             input.anchor ?? null,
+            limit,
           ],
         );
         return {
@@ -575,4 +580,19 @@ function messageDeletion(item: { deleted: boolean; deletion: unknown }) {
     item.deletion !== null &&
     (item.deletion as { type?: unknown }).type === 'message'
   );
+}
+
+function groupHistoryBounds(input: {
+  before: number | null;
+  slice?: HistorySlice;
+}) {
+  const { slice } = input;
+  const newer = slice?.direction === 'newer';
+  return {
+    order: newer ? 'ASC' : 'DESC',
+    edge: newer ? '>' : '<',
+    liveOnly: slice ? 'AND p.body IS NOT NULL' : '',
+    cursor: slice?.cursor ?? input.before,
+    limit: slice?.limit ?? 16,
+  };
 }

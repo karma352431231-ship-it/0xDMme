@@ -9,6 +9,7 @@ import {
   syncSnapshot,
 } from '../../shared/message-sync/index.ts';
 import { integer } from '../../shared/vault/index.ts';
+import { historySlice } from '../../shared/messages/index.ts';
 import type { ContactAuthority, MessageStore } from '../database/index.ts';
 
 /** Transport validation only; the schema owner holds read and security locks. */
@@ -36,10 +37,17 @@ export function messageSyncOperations(store: MessageStore) {
       input: Record<string, unknown>,
     ) => {
       const data = object(input);
-      keys(data, ['snapshot', 'peer', 'before']);
+      const slice = data['slice'];
+      keys(data, [
+        'snapshot',
+        'peer',
+        'before',
+        ...(slice === undefined ? [] : ['slice']),
+      ]);
       return store.syncPeerWindow(a, {
         snapshot: syncSnapshot(data['snapshot']),
         peer: uuid(data['peer']),
+        ...(slice === undefined ? {} : { slice: historySlice(object(slice)) }),
         before:
           data['before'] === null
             ? null

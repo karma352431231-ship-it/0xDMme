@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 import { runInNewContext } from 'node:vm';
+import { recordDatabase } from './record-database.ts';
 import { AuthorityWork } from '../../src/client/devices/authority-work.ts';
 import type { MessageSynchronization } from '../../src/client/messages/synchronization.ts';
 import type { ConnectedConversationVisits } from '../../src/client/messages/visits.ts';
@@ -18,7 +19,7 @@ const adapters: Record<string, string> = {
   '../message-recovery/index.ts':
     'export const ensureMessageRecovery = async () => {};',
   '../peer-identity/index.ts':
-    'export class PeerIdentity { clear() {} async load() {} async save(guard = () => {}) { guard(); } } export const readDirectories = () => {}; export const peerHistory = () => {};',
+    'export class PeerIdentity { clear() {} prepareRead() { return null; } async load() {} async save(guard = () => {}) { guard(); } } export const readDirectories = () => {}; export const peerHistory = () => {};',
   './governance.ts':
     'export class GroupGovernance { async verify() { return fixture.group; } }',
   './reader.ts':
@@ -47,9 +48,11 @@ const bundle = await build({
         builder.onResolve({ filter: /.*/ }, ({ path, importer }) => {
           if (
             adapters[path] &&
-            ['/groups/controller.ts', '/groups/message-lease.ts'].some(
-              (suffix) => importer.endsWith(suffix),
-            )
+            [
+              '/groups/controller.ts',
+              '/groups/message-lease.ts',
+              '/groups/authority.ts',
+            ].some((suffix) => importer.endsWith(suffix))
           )
             return { path, namespace: 'fixture' };
         });
@@ -110,7 +113,10 @@ export function groupPreparationFixture() {
     sign: () => Promise.resolve('synthetic'),
   };
   const queue = new AuthorityWork();
+  const durable = recordDatabase();
   const context = {
+    indexedDB: durable.factory,
+    IDBKeyRange: durable.range,
     fixture: {
       group: { state, head },
       open: () => {
@@ -177,15 +183,22 @@ export function groupPreparationFixture() {
           };
         },
         'group-message-recent': () => {
-          const rows = data.views.filter(
-            (view) =>
-              payload['before'] === null ||
-              view.sequence < Number(payload['before']),
+          const slice = payload['slice'] as HistorySlice | undefined;
+          const before = slice?.cursor ?? payload['before'];
+          const rows = data.views.filter((view) =>
+            slice?.direction === 'newer'
+              ? view.sequence > slice.cursor
+              : before === null || view.sequence < Number(before),
           );
-          return { items: rows.slice(-16), next: null };
+          const items =
+            slice?.direction === 'newer'
+              ? rows.slice(0, slice.limit)
+              : rows.slice(-(slice?.limit ?? 16));
+          return { items, next: null };
         },
         'group-message-relations': () => ({ ids: [] }),
         'group-message-confirm': () => ({}),
+        'group-daily-receipts': () => [],
         // The revision never moves here, so a warm read has no changes.
         'group-message-delta': () => ({
           snapshot: handlers['group-message-snapshot']!(),
@@ -245,3 +258,4 @@ export function groupPreparationFixture() {
     Visits: context.groups!.ConnectedConversationVisits,
   };
 }
+import type { HistorySlice } from '../../src/shared/messages/index.ts';

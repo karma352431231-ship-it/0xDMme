@@ -54,6 +54,10 @@
   background: var(--accent-soft);
   color: var(--accent-text);
 }
+/* Phones only (directory-phone.css); wider screens keep the search bar. */
+.directory-filters .directory-filter-search {
+  display: none;
+}
 .directory-status {
   color: var(--warn);
   margin: 0;

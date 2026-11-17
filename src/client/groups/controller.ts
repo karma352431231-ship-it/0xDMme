@@ -1,3 +1,4 @@
+import { readGroupGalleryMedia } from './gallery-media.ts';
 import { SendAudiences } from '../message-crypto/index.ts';
 import { GroupSendPreparation } from './send-preparation.ts';
 import {
@@ -117,11 +118,13 @@ import { GroupAuthority } from './authority.ts';
 import type { GroupContext } from './authority.ts';
 import type { GroupMetadataPolicy } from './receipt.ts';
 import {
+  CenteredHistory,
   HistoryFloors,
   WindowReceipts,
   historyPage,
   reachFloor,
 } from '../history-window/index.ts';
+import type { HistoryDirection } from '../history-window/index.ts';
 
 interface GroupPrefetch {
   after: string | null;
@@ -159,12 +162,28 @@ export class GroupController {
     if (!Number.isSafeInteger(sequence) || sequence < 1)
       throw new Error('Invalid search page.');
     this.focus = { group, sequence };
+    this.centered = null;
+  }
+  private centered: CenteredHistory<GroupView> | null = null;
+  focusAround(group: string, sequence: number): void {
+    this.focusMessage(group, sequence);
+    this.centered = new CenteredHistory(sequence);
+  }
+  canExtend(direction: HistoryDirection): boolean {
+    return this.centered?.available(direction) ?? false;
+  }
+  extend(direction: HistoryDirection): boolean {
+    return this.centered?.request(direction) ?? false;
+  }
+  cancelExtension(): void {
+    this.centered?.cancelRequest();
   }
   get searchFocused(): boolean {
     return this.focus?.group === this.selected?.state.groupId;
   }
   latest(): void {
     this.focus = null;
+    this.centered = null;
   }
   private readonly retry = new GroupRetry();
   private readonly messageWindows = new GroupMessageWindows();
@@ -264,6 +283,7 @@ export class GroupController {
     this.selected = null;
     this.views = [];
     this.focus = null;
+    this.centered = null;
   }
   close(): void {
     this.sendPreparation.invalidate();
@@ -280,6 +300,7 @@ export class GroupController {
   }
   /** Someone else's deletion: media of deleted messages must not linger. */
   removed(): void {
+    this.centered?.forget();
     this.mediaMemory.clear();
     this.selection.invalidate('removal');
     this.messageWindows.clear();
@@ -288,6 +309,7 @@ export class GroupController {
     this.historyPending = true;
   }
   hide(): void {
+    this.centered?.forget();
     this.sendPreparation.invalidate();
     this.sendAudiences.clear();
     this.directoryLoading.reset();
@@ -866,7 +888,7 @@ export class GroupController {
             timedLoad(trace, 'packet-verify', () => lease.read(raw)),
         },
         this.focus?.group === group.state.groupId
-          ? this.focus.sequence + 1
+          ? (this.centered ?? this.focus.sequence + 1)
           : null,
         older,
       );
@@ -950,10 +972,25 @@ export class GroupController {
     const group = this.entries.find((g) => g.state.groupId === groupId);
     if (!group) throw new Error('Local group copy missing.');
     await this.withAuthority(async (c) => {
+      if (this.centered && this.focus?.group === groupId) {
+        const staged = await this.centered.stage({
+          cut: JSON.stringify([c.authority.directory, groupId]),
+          read: (slice) =>
+            localGroupViews(c.authority, groupId, null, slice).then(
+              (page) => page.views,
+            ),
+        });
+        guard();
+        staged.commit();
+        this.showLocalGroup(group, staged.rows);
+        return;
+      }
       const page = (before: number | null) =>
         localGroupViews(c.authority, groupId, before).then((p) => p.views);
       const reached = await reachFloor({
-        rows: await page(null),
+        rows: await page(
+          this.focus?.group === groupId ? this.focus.sequence + 1 : null,
+        ),
         floor: this.localFloors.floor(groupId),
         older,
         page,
@@ -964,13 +1001,16 @@ export class GroupController {
       });
       guard();
       this.localFloors.update(groupId, reached);
-      this.selected = { ...group, localOnly: true };
-      this.views = reached.rows;
-      this.historyPending = false;
-      this.warning = t(
-        'Independent local copy. Sending and administration require verified current membership.',
-      );
+      this.showLocalGroup(group, reached.rows);
     }, guard);
+  }
+  private showLocalGroup(group: GroupSummary, rows: GroupView[]): void {
+    this.selected = { ...group, localOnly: true };
+    this.views = rows;
+    this.historyPending = false;
+    this.warning = t(
+      'Independent local copy. Sending and administration require verified current membership.',
+    );
   }
   historyChanged(): void {
     this.historyLoaded = false;
@@ -1871,18 +1911,40 @@ export class GroupController {
   }
   /** Catalogue media rechecks current membership and exact file availability
    * independently of the displayed history page. */
-  galleryMedia(
-    view: GroupView,
-    thumbnail: boolean,
-  ): Promise<Uint8Array<ArrayBuffer>> {
-    const selected = this.selected;
-    if (
-      !selected ||
-      this.historyPending ||
-      view.groupId !== selected.state.groupId
-    )
-      return Promise.reject(new Error('Group message changed.'));
-    return this.readMedia(selected, view, thumbnail);
+  galleryMedia(input: {
+    view: GroupView;
+    thumbnail: boolean;
+    signal: AbortSignal;
+    initial?: GroupSummary | undefined;
+    diagnostic?: LoadTrace | undefined;
+  }): Promise<Uint8Array<ArrayBuffer>> {
+    const { view, thumbnail, signal, diagnostic } = input;
+    const group = this.selected ?? input.initial;
+    const generation = this.generation;
+    const guard = () => {
+      this.guard(generation);
+      signal.throwIfAborted();
+      if (this.historyPending || group?.state.groupId !== view.groupId)
+        throw new Error('Group message changed.');
+    };
+    if (!group) return Promise.reject(new Error('Group message changed.'));
+    if (group.localOnly || !networkAvailable())
+      return this.withLocalAuthority((authority) => {
+        guard();
+        return this.localMedia(authority, view, thumbnail, generation);
+      });
+    return readGroupGalleryMedia({
+      access: this.access,
+      group,
+      view,
+      thumbnail,
+      signal,
+      guard,
+      diagnostic,
+    });
+  }
+  galleryCut(group: string) {
+    return this.messageWindows.confirmedCut(group);
   }
   /** Whether this message's media was already opened in this session. */
   mediaReady(message: string, variant: MediaVariant): boolean {

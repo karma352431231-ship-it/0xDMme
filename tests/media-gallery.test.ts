@@ -22,7 +22,12 @@ function file(bytes: number) {
     encryption: '{}',
   };
 }
-function attachment(name: string, type: string, image: boolean) {
+function attachment(
+  name: string,
+  type: string,
+  image: boolean,
+  preview = image,
+) {
   return JSON.stringify({
     version: 1,
     name,
@@ -30,7 +35,7 @@ function attachment(name: string, type: string, image: boolean) {
     caption: '',
     image,
     file: file(2048),
-    thumbnail: image ? file(64) : null,
+    thumbnail: preview ? file(64) : null,
   });
 }
 type Row = DailyRow & { sentAt: number };
@@ -77,7 +82,7 @@ await test('photos and videos, documents and links of loaded messages, newest fi
       view({
         id: 'video',
         kind: 'attachment',
-        text: attachment('v.mp4', 'video/mp4', false),
+        text: attachment('v.mp4', 'video/mp4', false, true),
         sentAt: now,
       }),
       view({
@@ -106,7 +111,7 @@ await test('photos and videos, documents and links of loaded messages, newest fi
   assert.deepEqual(
     items.media.map((m) => [m.view.id, m.video, m.preview, m.month.label]),
     [
-      ['video', true, false, 'This month'],
+      ['video', true, true, 'This month'],
       ['photo', false, true, 'October'],
     ],
   );
@@ -119,11 +124,9 @@ await test('photos and videos, documents and links of loaded messages, newest fi
     [['https://example.com/a', 'example.com']],
   );
   assert.equal(galleryCount(items), 4);
-  // Videos and photos sent as originals have no thumbnail: their tile reads
-  // the file, and a video shows its opening frame (regression, 12/11/2026).
   assert.deepEqual(items.media.map(tileSource), [
-    { thumbnail: false, frameType: 'video/mp4' },
-    { thumbnail: true, frameType: null },
+    { thumbnail: true },
+    { thumbnail: true },
   ]);
 });
 
@@ -201,10 +204,119 @@ await test('catalogue counts every tab before the gallery opens and continues me
     downloaded,
     'opening a prepared tile reuses its preview',
   );
-  assert.ok(
+  assert.equal(
     media.includes('doc'),
-    'document originals are prepared through their encrypted attachment reader',
+    false,
+    'listing docs needs no original bytes',
   );
+  assert.ok(
+    media.length <= 25,
+    'at most 24 warm thumbnails plus one visible request',
+  );
+});
+
+await test('verified visible pictures paint while the older catalogue page and optional cache write are pending', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const lastPage = deferred<{ views: DailyView<Row>[]; next: null }>();
+  const save = deferred<void>();
+  const row = view({
+    id: 'first',
+    kind: 'attachment',
+    text: attachment('p.jpg', 'image/jpeg', true),
+    sentAt: 1,
+  });
+  let reads = 0;
+  catalogue.prepare(
+    'conversation',
+    () => ({
+      page: (before) =>
+        before === null
+          ? Promise.resolve({ views: [row], next: 16 })
+          : lastPage.promise,
+      media: () => {
+        reads++;
+        return Promise.resolve(Uint8Array.of(1, 2, 3));
+      },
+      previews: () => ({
+        read: () => Promise.resolve(null),
+        save: () => save.promise,
+      }),
+      close() {},
+    }),
+    { conversation: 'peer', rows: [row] },
+  );
+  const entry = galleryItems(catalogue.views()).media[0]!;
+  const picture = await catalogue.picture(entry);
+  assert.deepEqual(picture, Uint8Array.of(1, 2, 3));
+  assert.equal(catalogue.count(), null);
+  assert.equal(reads, 1, 'visible and background requests coalesce');
+  save.resolve();
+  lastPage.resolve({ views: [], next: null });
+});
+
+await test('a verified catalogue and encrypted previews can supply a reopening without rereading history or media', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const row = view({
+    id: 'cached',
+    kind: 'attachment',
+    text: attachment('p.jpg', 'image/jpeg', true),
+    sentAt: 1,
+  });
+  catalogue.prepare('cached', () => ({
+    checkpoint: {
+      read: () => Promise.resolve([row]),
+      save: () => Promise.resolve(),
+    },
+    page: () => assert.fail('A verified cache hit should avoid the scan'),
+    media: () =>
+      assert.fail('The encrypted preview should avoid the original download'),
+    previews: () => ({
+      read: () => Promise.resolve(Uint8Array.of(3, 2, 1)),
+      save: () => Promise.resolve(),
+    }),
+    close() {},
+  }));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(catalogue.count(), 1);
+  const entry = galleryItems(catalogue.views()).media[0]!;
+  assert.deepEqual(await catalogue.picture(entry), Uint8Array.of(3, 2, 1));
+  assert.equal(catalogue.error, null);
+});
+
+await test('a legacy video tile uses a saved still if available and never requests the original', async (t) => {
+  const catalogue = new MediaCatalogue<Row>();
+  t.after(() => catalogue.clear());
+  const old = view({
+    id: 'old-video',
+    kind: 'attachment',
+    text: attachment('old.mp4', 'video/mp4', false),
+    sentAt: 1,
+  });
+  let saved: Uint8Array<ArrayBuffer> | null = null;
+  let downloads = 0;
+  catalogue.prepare(
+    'legacy-video',
+    () => ({
+      page: () => Promise.resolve({ views: [old], next: null }),
+      media: () => {
+        downloads++;
+        return Promise.resolve(Uint8Array.of(1));
+      },
+      previews: () => ({
+        read: () => Promise.resolve(saved),
+        save: () => Promise.resolve(),
+      }),
+      close() {},
+    }),
+    { conversation: 'peer', rows: [old] },
+  );
+  const tile = galleryItems(catalogue.views()).media[0]!;
+  assert.equal(await catalogue.picture(tile), null);
+  saved = Uint8Array.of(3, 1);
+  assert.deepEqual(await catalogue.picture(tile), saved);
+  assert.equal(downloads, 0);
 });
 
 await test('closing or replacing a catalogue suppresses late metadata and releases its reader', async () => {
@@ -284,16 +396,12 @@ await test('verified arrivals update the catalogue without discarding prepared c
     }),
     sequence: 0,
   };
-  let creations = 0,
-    downloads = 0;
+  let creations = 0;
   const source = () => {
     creations++;
     return {
       page: () => Promise.resolve({ views: [document, first], next: null }),
-      media: () => {
-        downloads++;
-        return Promise.resolve(Uint8Array.of(1));
-      },
+      media: () => assert.fail('Document metadata is enough for the list'),
       close() {},
     };
   };
@@ -301,21 +409,14 @@ await test('verified arrivals update the catalogue without discarding prepared c
     conversation: 'peer',
     rows: [document, first],
   });
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(catalogue.count(), 2);
-  assert.equal(downloads, 1);
   catalogue.prepare('appended', source, {
     conversation: 'peer',
     rows: [document, first, arrival],
   });
   assert.equal(catalogue.count(), 3);
   assert.equal(creations, 1);
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(
-    downloads,
-    1,
-    'an arrival does not prepare unchanged documents again',
-  );
   catalogue.prepare(
     'removed',
     () => {
@@ -328,7 +429,7 @@ await test('verified arrivals update the catalogue without discarding prepared c
     },
     { conversation: 'peer', rows: [arrival] },
   );
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(creations, 2);
   assert.equal(catalogue.count(), 1);
 });

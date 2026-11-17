@@ -27,6 +27,8 @@ export const loadKinds = [
   'view-once-image',
   'view-once-video',
   'view-once-file',
+  'gallery-catalogue',
+  'gallery-preview',
 ] as const;
 export type LoadKind = (typeof loadKinds)[number];
 export const historyLoadModes = ['open', 'older', 'live', 'refresh'] as const;
@@ -90,6 +92,8 @@ export const loadStages = [
   'work',
   'request',
   'local-history',
+  'gallery-cache',
+  'gallery-cache-save',
   'delivery',
   'packet-verify',
   'confirm',

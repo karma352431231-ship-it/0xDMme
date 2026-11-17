@@ -7,6 +7,11 @@ checks remain required; no new persistent projection or cached online permission
 is approved. Manual startup-speed acceptance remains with the owner. See
 [implementation and diagnostics](USEFUL_CONVERSATION_STARTUP.md).
 
+For the prelaunch build, the owner waived compatibility with older clients for
+encrypted video thumbnails. The private and group media gallery uses the same
+bounded thumbnail and cache contracts for photos and video stills. See
+[conversation media and history navigation](MOBILE_CHAT_INTERACTIONS.md#conversation-media-and-unread-actions).
+
 Last updated: 2026-11-09
 
 Status: full product packages and native HTTPS/session owners are implemented locally. Installed Android emulator flows and physical iPhone flows passed individually; their coverage is not identical or complete. The earlier iPhone simulator/startup blocks do not describe current physical-phone availability. The owner has taken over the remaining interactive tests, including real wallets. Native remote push, unresolved Android storage/recovery failures, unexecuted feature/security variants, final distribution licensing and store readiness remain unfinished; source integration is recorded below.
