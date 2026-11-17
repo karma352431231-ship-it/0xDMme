@@ -6820,6 +6820,21 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<article class="card"><h2>设备</h2><p data-device-status role="status"></p><button data-device-wallet type="button" hidden>确认钱包以执行敏感操作</button><button data-device-retry type="button" hidden>重试</button><div data-wallet-pending hidden><button data-wallet-open type="button">打开钱包</button><button data-wallet-cancel type="button">取消</button></div><div data-devices-connected hidden><ul data-device-list></ul><button data-device-create type="button">关联另一台设备</button><div data-enrollment-code hidden><div data-link-qr class="device-qr"></div><textarea data-device-code readonly aria-label="设备关联码"></textarea><button data-device-copy type="button">复制代码</button><p>关联期间请保持应用打开。代码五分钟内有效。</p></div></div><form data-device-join><label>设备关联码<textarea data-device-received required spellcheck="false"></textarea></label><button type="submit">关联此设备</button><button data-device-scan type="button">扫描二维码</button></form><div data-camera hidden><video muted playsinline aria-label="扫描关联码"></video><button data-stop-camera type="button">关闭摄像头</button></div></article>',
   ],
   ' · this device': [' · this device', ' · 此设备'],
+  'Last used {0}': ['Last used {0}', '上次使用：{0}'],
+  'Got it': ['Got it', '知道了'],
+  'Signed in, history not opened': [
+    'Signed in, history not opened',
+    '已登录，尚未打开历史记录',
+  ],
+  'New sign-in to your account: {0}. If this was not you, revoke that device.':
+    [
+      'New sign-in to your account: {0}. If this was not you, revoke that device.',
+      '你的账户有新的登录：{0}。如果不是你本人操作，请撤销该设备。',
+    ],
+  'a browser that has not opened your history': [
+    'a browser that has not opened your history',
+    '尚未打开你历史记录的浏览器',
+  ],
   'html.81724dfa0bc5': [
     '<nav class="picker-modes" data-modes hidden aria-label="Emoji or GIF"><button type="button" data-mode="emoji" aria-pressed="true">Emoji</button><button type="button" data-mode="gif" aria-pressed="false">GIF</button></nav><div class="gif-pane" data-gif-pane hidden></div><div class="emoji-top"><label class="emoji-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">Search emoji</span><input type="search" maxlength="128" autocomplete="off" data-query placeholder="Search emoji"></label><label class="emoji-tone"><span class="visually-hidden">Skin tone</span><select data-tone></select></label><button type="button" class="emoji-close" data-close aria-label="Close emoji panel">×</button></div><section class="emoji-recent" data-recent-section hidden><h3>Recent</h3><div class="emoji-recent-row" data-recent></div></section><h3 class="emoji-section-title" data-section-title></h3><div data-grid class="emoji-grid" role="listbox" aria-label="Emoji"></div><p data-result class="emoji-empty" role="status"></p><button type="button" class="emoji-custom" data-custom hidden>Use typed emoji</button><nav class="emoji-dock" data-dock aria-label="Emoji categories"></nav><small class="emoji-credit" data-art role="status">Loading artwork…</small>',
     '<nav class="picker-modes" data-modes hidden aria-label="表情或 GIF"><button type="button" data-mode="emoji" aria-pressed="true">表情</button><button type="button" data-mode="gif" aria-pressed="false">GIF</button></nav><div class="gif-pane" data-gif-pane hidden></div><div class="emoji-top"><label class="emoji-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">搜索表情</span><input type="search" maxlength="128" autocomplete="off" data-query placeholder="搜索表情"></label><label class="emoji-tone"><span class="visually-hidden">肤色</span><select data-tone></select></label><button type="button" class="emoji-close" data-close aria-label="关闭表情面板">×</button></div><section class="emoji-recent" data-recent-section hidden><h3>最近</h3><div class="emoji-recent-row" data-recent></div></section><h3 class="emoji-section-title" data-section-title></h3><div data-grid class="emoji-grid" role="listbox" aria-label="表情"></div><p data-result class="emoji-empty" role="status"></p><button type="button" class="emoji-custom" data-custom hidden>使用输入的表情</button><nav class="emoji-dock" data-dock aria-label="表情类别"></nav><small class="emoji-credit" data-art role="status">正在加载表情图案…</small>',

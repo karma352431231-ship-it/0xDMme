@@ -285,6 +285,75 @@ await test('persistent authentication and profile', async (t) => {
   );
 
   await t.test(
+    'signed-in devices list only the caller account, mark the caller and date each device by its last extension',
+    async () => {
+      const signer = wallet();
+      const phone = await authenticate(signer);
+      const laptop = await authenticate(signer);
+      const outsider = await authenticate(wallet());
+      const hash = tokenHash(laptop.sessionToken);
+      // The laptop last extended its session ten days ago.
+      await inspector.query(
+        "UPDATE hash_talk.login_sessions SET expires_at = now() + interval '390 days' WHERE token_hash = $1",
+        [hash],
+      );
+      const before = Date.now();
+      const devices = await service.signedInDevices(phone.sessionToken);
+      assert.deepEqual(
+        devices.map((device) => [device.deviceId, device.current]),
+        [
+          [phone.session.deviceId, true],
+          [laptop.session.deviceId, false],
+        ],
+      );
+      assert.ok(
+        devices.every(
+          (device) => device.deviceId !== outsider.session.deviceId,
+        ),
+      );
+      const day = 24 * 60 * 60 * 1000;
+      const [recent, older] = devices.map((device) =>
+        Date.parse(device.lastSeen),
+      );
+      assert.ok(recent !== undefined && older !== undefined);
+      assert.ok(recent <= Date.now() && recent >= before - 60_000);
+      assert.ok(Math.abs(before - 10 * day - older) < 60_000);
+
+      const listed = await fetch(`${origin}/api/account/sessions`, {
+        headers: { Cookie: `hash-talk-session=${laptop.sessionToken}` },
+      });
+      assert.equal(listed.status, 200);
+      const body = (await listed.json()) as {
+        devices: { deviceId: string; current: boolean }[];
+      };
+      assert.deepEqual(
+        body.devices.filter((device) => device.current),
+        [
+          {
+            ...devices.find(
+              (device) => device.deviceId === laptop.session.deviceId,
+            ),
+            current: true,
+          },
+        ],
+      );
+
+      await service.logout(phone.sessionToken);
+      await assert.rejects(
+        service.signedInDevices(phone.sessionToken),
+        unauthorized,
+      );
+      assert.equal(
+        (await service.signedInDevices(laptop.sessionToken)).length,
+        1,
+      );
+      const anonymous = await fetch(`${origin}/api/account/sessions`);
+      assert.equal(anonymous.status, 401);
+      await anonymous.text();
+    },
+  );
+
+  await t.test(
     'combined entry creates the account only after encrypted proof and original confirmation, preserving its identifier',
     async () => {
       const signer = wallet(),

@@ -93,3 +93,14 @@
 .enrollment-login [role='status']:empty {
   display: none;
 }
+
+.device-last-used {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.device-sign-in-notice {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 10px;
+}

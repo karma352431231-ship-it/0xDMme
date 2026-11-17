@@ -392,6 +392,12 @@ export function createAccountHandler(options: {
       sendAccountJson(response, 200, restored.session);
       return;
     }
+    if (request.url === '/api/account/sessions') {
+      sendAccountJson(response, 200, {
+        devices: await options.service.signedInDevices(sessionToken),
+      });
+      return;
+    }
     if (request.url === '/api/account/profile') {
       sendAccountJson(
         response,

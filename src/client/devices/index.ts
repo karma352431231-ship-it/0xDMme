@@ -15,6 +15,11 @@ import { notifyMessageControls } from '../message-controls/index.ts';
 import { keepDeviceStorage } from '../device-storage/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
+import {
+  createDeviceActivity,
+  lastUsedLabel,
+} from '../device-activity/index.ts';
+import type { SignedInDevice } from '../device-activity/index.ts';
 import type {
   SigningAuthority,
   VaultAuthority,
@@ -36,6 +41,7 @@ export function startDevices(options: {
   confirmWallet?: () => void;
 }) {
   const controller = new DeviceController();
+  const activity = createDeviceActivity(() => render());
   const leases = new WeakMap<CryptoKey, { accountId: string; epoch: number }>();
   let mounted: HTMLElement | null = null,
     busy = false,
@@ -96,43 +102,99 @@ export function startDevices(options: {
       renderQr(qr, enrollmentUrl(invitation, applicationOrigin()));
     else qr?.replaceChildren();
   }
+  function lastUsed(device: SignedInDevice | undefined): HTMLElement | null {
+    if (!device) return null;
+    const line = document.createElement('small');
+    line.className = 'device-last-used';
+    line.textContent = lastUsedLabel(device);
+    return line;
+  }
+  /** Tells the user about devices that signed in since they last looked. */
+  function signInNotice(names: Map<string, string>): HTMLElement | null {
+    const unseen = activity.unseen();
+    if (!unseen.length) return null;
+    const item = document.createElement('li'),
+      text = document.createElement('span'),
+      button = document.createElement('button');
+    item.className = 'device-sign-in-notice';
+    text.textContent = t(
+      'New sign-in to your account: {0}. If this was not you, revoke that device.',
+      [
+        unseen
+          .map(
+            (device) =>
+              names.get(device.deviceId) ??
+              t('a browser that has not opened your history'),
+          )
+          .join(', '),
+      ],
+    );
+    button.type = 'button';
+    button.textContent = t('Got it');
+    button.addEventListener('click', () => activity.acknowledge());
+    item.append(text, button);
+    return item;
+  }
+  function revokeButton(deviceId: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = t('Revoke');
+    button.disabled = busy;
+    button.addEventListener('click', () => {
+      if (controller.session?.walletConfirmed !== true) {
+        options.confirmWallet?.();
+        return;
+      }
+      if (
+        !window.confirm(
+          t('Revoke this device? It will lose access to new data.'),
+        )
+      )
+        return;
+      void run(async () => {
+        await controller.revoke(deviceId);
+        message = t('Device revoked.');
+        await changed();
+      });
+    });
+    return button;
+  }
+  /** One list row: a title with the device's last use underneath. */
+  function deviceRow(
+    title: string,
+    used: SignedInDevice | undefined,
+  ): HTMLLIElement {
+    const item = document.createElement('li'),
+      label = document.createElement('span'),
+      line = lastUsed(used);
+    label.textContent = title;
+    if (line) label.append(line);
+    item.append(label);
+    return item;
+  }
   function renderList(): void {
     const list = node('[data-device-list]');
     if (!list) return;
     list.replaceChildren();
-    for (const device of controller.current?.devices ?? []) {
-      const item = document.createElement('li'),
-        label = document.createElement('span');
-      label.textContent =
-        device.name +
-        (device.id === controller.session?.deviceId ? t(' · this device') : '');
-      item.append(label);
-      if (device.id !== controller.session?.deviceId) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = t('Revoke');
-        button.disabled = busy;
-        button.addEventListener('click', () => {
-          if (controller.session?.walletConfirmed !== true) {
-            options.confirmWallet?.();
-            return;
-          }
-          if (
-            !window.confirm(
-              t('Revoke this device? It will lose access to new data.'),
-            )
-          )
-            return;
-          void run(async () => {
-            await controller.revoke(device.id);
-            message = t('Device revoked.');
-            await changed();
-          });
-        });
-        item.append(button);
-      }
+    const authorized = controller.current?.devices ?? [];
+    const own = controller.session?.deviceId;
+    const notice = signInNotice(
+      new Map(authorized.map((device) => [device.id, device.name])),
+    );
+    if (notice) list.append(notice);
+    for (const device of authorized) {
+      const item = deviceRow(
+        device.name + (device.id === own ? t(' · this device') : ''),
+        activity.of(device.id),
+      );
+      if (device.id !== own) item.append(revokeButton(device.id));
       list.append(item);
     }
+    // Sessions whose device was never authorized to open history.
+    for (const device of activity
+      .others(new Set(authorized.map((known) => known.id)))
+      .filter((other) => !other.current))
+      list.append(deviceRow(t('Signed in, history not opened'), device));
   }
   async function changed(): Promise<void> {
     notifyMessageControls();
@@ -156,6 +218,9 @@ export function startDevices(options: {
           : t('Could not complete the operation.');
     } finally {
       busy = false;
+      activity.refresh(
+        controller.authorized ? (controller.session?.accountId ?? null) : null,
+      );
       render();
       schedule();
     }

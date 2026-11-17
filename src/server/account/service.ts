@@ -30,6 +30,7 @@ import type { AuthenticationStore } from '../database/index.ts';
 import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import { LoginOpening } from './opening.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
+import type { SignedInDevice } from '../../shared/account-activity/index.ts';
 
 export const challengeSeconds = 300;
 /** A session does not end by age while it is used: each restore extends it
@@ -288,6 +289,20 @@ export class AccountService {
 
   async session(sessionToken: string): Promise<AccountSession> {
     return this.store.session(tokenHash(sessionToken));
+  }
+  /** Devices signed in to the caller's account. Each restore extends a
+   * session to the full lifetime, so its deadline dates its last use. */
+  async signedInDevices(sessionToken: string): Promise<SignedInDevice[]> {
+    const sessions = await this.store.accountSessions(tokenHash(sessionToken));
+    const now = Date.now();
+    return sessions.map((session) => ({
+      deviceId: session.deviceId,
+      lastSeen: new Date(
+        Math.min(now, session.expiresAt.getTime() - sessionSeconds * 1000),
+      ).toISOString(),
+      walletConfirmed: session.walletConfirmed,
+      current: session.current,
+    }));
   }
   /** Reads the session for an application start and extends it when due.
    * `renewed` tells the transport to issue the cookie again. */

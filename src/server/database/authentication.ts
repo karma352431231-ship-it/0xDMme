@@ -1,3 +1,4 @@
+import { signedInDeviceLimit } from '../../shared/account-activity/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
@@ -432,6 +433,35 @@ export class AuthenticationStore {
       deviceState: 'pending',
       historyAuthorized: false,
     };
+  }
+
+  /** Live sessions of the caller's account, one row per device. */
+  async accountSessions(tokenHash: string): Promise<
+    {
+      deviceId: string;
+      expiresAt: Date;
+      walletConfirmed: boolean;
+      current: boolean;
+    }[]
+  > {
+    const result = await this.pool.query<{
+      deviceId: string;
+      expiresAt: Date;
+      walletConfirmed: boolean;
+      current: boolean;
+    }>(
+      `SELECT o.device_id AS "deviceId", max(o.expires_at) AS "expiresAt",
+      bool_or(o.wallet_confirmed) AS "walletConfirmed",
+      bool_or(o.token_hash = s.token_hash) AS current
+      FROM hash_talk.login_sessions s
+      JOIN hash_talk.login_sessions o ON o.account_id = s.account_id
+      WHERE s.token_hash = $1 AND s.expires_at > now() AND o.expires_at > now()
+      GROUP BY o.device_id ORDER BY max(o.expires_at) DESC LIMIT $2`,
+      [tokenHash, signedInDeviceLimit],
+    );
+    if (!result.rows.length)
+      throw new AccountError(401, 'Session ended or expired.');
+    return result.rows;
   }
 
   /** Extends a live session only when its deadline is earlier than
