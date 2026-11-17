@@ -109,6 +109,23 @@ class AccountWalletDeploymentTests(unittest.TestCase):
               patch.object(sql, 'psql', return_value=b't')):
             wallets.verify_migration(Path('candidate'), before)
 
+    def test_after_migration_the_table_set_includes_exactly_the_new_table(self):
+        checksums = list(range(1, 114))
+        before = {'versions': checksums[:111], 'tables': {}}
+        sql = wallets.previous.search.directory.ranking.capacity
+        with (patch.object(wallets, 'snapshot', return_value=dict(before, versions=checksums)),
+              patch.object(base, 'attachment_versions', return_value=checksums),
+              patch.object(base, 'verify_community_tables') as tables,
+              patch.object(sql, 'psql', return_value=b't')):
+            wallets.verify_migration(Path('candidate'), before)
+        self.assertEqual(tables.call_args.args[0], wallets.TABLES + ('account_wallets',))
+        with (patch.object(base, 'reviewed_database'),
+              patch.object(base, 'verify_community_tables') as tables,
+              patch.object(base, 'digest', return_value='same'),
+              patch.object(sql, 'psql', return_value=b't')):
+            wallets.review(Path('candidate'), Path('live'))
+        self.assertNotIn('account_wallets', tables.call_args.args[0])
+
     def test_transition_requires_its_own_approval_flag_before_touching_workers(self):
         with (patch.object(wallets.previous.background, 'verify_current') as workers,
               self.assertRaisesRegex(RuntimeError, 'explicit --account-wallets approval')):

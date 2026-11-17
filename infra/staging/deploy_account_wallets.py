@@ -14,6 +14,7 @@ REVIEWED = '440e7012feaf92d6f5f3d660f226a3f0bf4ed20c'
 # stays inside its size budget without loading that module.
 TABLES = previous.TABLES + ('view_once_payloads', 'group_view_once_payloads',
                            'group_view_once_deliveries')
+NEW_TABLES = ('account_wallets',)
 OMIT_COLUMNS = {'login_sessions': ('wallet_ecosystem', 'wallet_address')}
 COUNTER_CHECKS = previous.COUNTER_CHECKS.replace('tgrelid)=97', 'tgrelid)=99')
 GLOBAL_CHECK = previous.GLOBAL_CHECK.replace('sources<>97', 'sources<>99')
@@ -65,7 +66,7 @@ def verify_migration(candidate, before):
     if (before['versions'] != versions[:111] or after['versions'] != versions
             or before['tables'] != after['tables']):
         raise RuntimeError('Account wallets changed preserved rows, accounting or checksums.')
-    base.verify_community_tables(TABLES)
+    base.verify_community_tables(TABLES + NEW_TABLES)
     sql = previous.search.directory.ranking.capacity
     if any(sql.psql(check) != b't' for check in [SCHEMA_CHECK, COUNTER_CHECKS, GLOBAL_CHECK]):
         raise RuntimeError('Account wallet schema or capacity reconciliation failed.')
