@@ -110,6 +110,19 @@ export class WalletLogin {
     this.providerChanged = false;
     return changed;
   }
+  /** The detected wallet that confirmed this session, when this browser has
+   * it: the one remembered at sign-in, else any wallet of its ecosystem. */
+  sessionConnection(): WalletConnection | undefined {
+    const active = this.state.session;
+    if (!active) return undefined;
+    const network = active.wallet?.ecosystem ?? active.ecosystem;
+    const preferred = localStorage.getItem('0xdmme:login-wallet') ?? '';
+    return (
+      this.wallets.get(
+        network === 'solana' ? `${preferred}:solana` : preferred,
+      ) ?? this.wallets.list().find((wallet) => wallet.ecosystem === network)
+    );
+  }
   async signStatement(message: string): Promise<string> {
     const active = this.state.session;
     if (!active || this.state.busy)

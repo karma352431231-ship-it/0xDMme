@@ -189,14 +189,14 @@ await test('wallet-free linking, single use, automatic authorization and persist
   const result = joined.find((r) => r.status === 200)!;
   assert.match(
     result.headers.get('set-cookie') ?? '',
-    /; Max-Age=13824000(?:;|$)/u,
+    /; Max-Age=34560000(?:;|$)/u,
   );
   const token = result.headers
     .get('set-cookie')
     ?.match(/hash-talk-session=([a-f0-9]{64})/u)?.[1];
   assert.ok(token);
   const session = accountSession(await result.json());
-  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const lifetime = 400 * 24 * 60 * 60 * 1000;
   assert.ok(Date.parse(session.expiresAt) >= startedAt + lifetime);
   assert.ok(Date.parse(session.expiresAt) <= Date.now() + lifetime);
   assert.equal(session.accountId, accountId);

@@ -410,6 +410,7 @@ export function startAccount(
   return {
     signStatement: (message: string) => login.signStatement(message),
     detectedWallets: () => wallets.list(),
+    sessionWallet: () => login.sessionConnection(),
     withAnotherWallet,
     backupProfile: () => profile.backup(),
     backupReminder: () => profile.backupReminder(),

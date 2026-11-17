@@ -16,6 +16,7 @@ import {
 import { eventHash } from '../../src/shared/devices/index.ts';
 import type { MessagePacket } from '../../src/shared/messages/index.ts';
 import { vaultAllocationFixture } from './vault-allocation-database.ts';
+import { signInMigrations } from './historical-migrations.ts';
 import { globalBytes, globalSourceSnapshot } from './global-usage-database.ts';
 
 export async function messageAllocationFixture(t: TestContext) {
@@ -63,6 +64,7 @@ export type MessageAllocationFixture = Awaited<
 export async function messageUser(
   c: Pick<MessageAllocationFixture, 'db' | 'inspector'>,
 ) {
+  await signInMigrations(c.inspector);
   const accounts = new AccountService({
       store: c.db.authentication,
       origin: 'http://127.0.0.1:45117',

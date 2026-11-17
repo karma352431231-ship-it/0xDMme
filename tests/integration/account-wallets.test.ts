@@ -13,6 +13,27 @@ import { AccountError } from '../../src/shared/account/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 import { walletAdditionStatement } from '../../src/shared/account-wallets/index.ts';
 import type { WalletIdentity } from '../../src/shared/account-wallets/index.ts';
+import { DeviceService } from '../../src/server/devices/index.ts';
+import { recoveryMessage } from '../../src/shared/wallet-recovery/index.ts';
+import {
+  createWalletRecoveryFor,
+  walletRecoveryKey,
+} from '../../src/client/wallet-recovery/index.ts';
+import {
+  createIdentity,
+  createRecovery,
+  recoverSecrets,
+  recoverySigner,
+  sealBackup,
+} from '../../src/client/device-keys/index.ts';
+import {
+  freshKeyring,
+  prepareEvent,
+} from '../../src/client/device-operations/index.ts';
+import type {
+  DirectoryEvent,
+  RecoveryBackup,
+} from '../../src/shared/devices/index.ts';
 
 const config = readWebConfiguration(process.env);
 if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
@@ -25,6 +46,7 @@ const wallets = new AccountWalletService({
   store: database.accountWallets,
   origin,
 });
+const devices = new DeviceService(database.devices, origin);
 const ownAddresses: string[] = [];
 
 interface Signer {
@@ -77,6 +99,61 @@ async function addWallet(session: AccountSession, signer: Signer) {
     signature: await signer.sign(request.message),
   });
 }
+/** The recovery configuration and key of one wallet, as its owner derives them. */
+function recoveryOf(accountId: string, signer: Signer) {
+  const config = createWalletRecoveryFor(accountId, signer.identity, origin);
+  return {
+    config,
+    key: async () =>
+      walletRecoveryKey(config, [await signer.sign(recoveryMessage(config))]),
+  };
+}
+/** An account whose first device opened history with the main wallet. */
+async function openedAccount() {
+  const primary = evm();
+  const owner = await signIn(primary);
+  const main = recoveryOf(owner.session.accountId, primary);
+  const identity = await createIdentity(owner.session.deviceId, 'First');
+  const authority = await createRecovery(
+    owner.session.accountId,
+    await main.key(),
+    main.config,
+  );
+  const ring = freshKeyring(owner.session.accountId);
+  const event = await prepareEvent({
+    accountId: owner.session.accountId,
+    previous: null,
+    kind: 'initialize',
+    signer: 'recovery',
+    signing: authority.signing,
+    root: authority.root,
+    identities: [identity.public],
+    ring,
+    profile: null,
+  });
+  await devices.commit(owner.session, { event, profile: null });
+  return { primary, owner, main, identity, ring, event };
+}
+type Opened = Awaited<ReturnType<typeof openedAccount>>;
+function resealed(
+  c: Opened,
+  previous: DirectoryEvent,
+  signing: CryptoKey,
+  backups: RecoveryBackup[],
+) {
+  return prepareEvent({
+    accountId: c.owner.session.accountId,
+    previous,
+    kind: 'reseal',
+    signer: 'recovery',
+    signing,
+    root: previous.root,
+    identities: previous.devices,
+    ring: c.ring,
+    profile: null,
+    backups,
+  });
+}
 function refused(status: number, text: RegExp) {
   return (error: unknown) =>
     error instanceof AccountError &&
@@ -97,7 +174,13 @@ await test('extra sign-in wallets', async (t) => {
         [ownAddresses],
       );
       const ids = accounts.rows.map((row) => row.id);
-      for (const table of ['login_sessions', 'login_devices'])
+      for (const table of [
+        'login_sessions',
+        'login_devices',
+        'device_links',
+        'device_events',
+        'device_directories',
+      ])
         await inspector.query(
           `DELETE FROM hash_talk.${table} WHERE account_id = ANY($1::uuid[])`,
           [ids],
@@ -284,6 +367,101 @@ await test('extra sign-in wallets', async (t) => {
       );
       // The freed slot accepts another wallet.
       assert.equal((await addWallet(owner.session, evm())).length, 2);
+    },
+  );
+
+  await t.test(
+    'a backup wallet with its own capsule recovers history on a new device; the capsule needs a registered wallet and an authorized device',
+    async () => {
+      const c = await openedAccount();
+      const backup = evm();
+      const backupRecovery = recoveryOf(c.owner.session.accountId, backup);
+      const sealed = await sealBackup({
+        event: c.event,
+        opener: { secret: await c.main.key(), wallet: c.main.config },
+        backup: {
+          wallet: backupRecovery.config,
+          secret: await backupRecovery.key(),
+        },
+      });
+      const change = await resealed(c, c.event, sealed.signing, [
+        sealed.backup,
+      ]);
+      // The wallet is not on the account yet.
+      await assert.rejects(
+        devices.commit(c.owner.session, { event: change, profile: null }),
+        refused(409, /Add this wallet to the account/u),
+      );
+      await addWallet(c.owner.session, backup);
+      // A session that only signed in, on a device outside the directory.
+      const unopened = await signIn(c.primary);
+      await assert.rejects(
+        devices.commit(unopened.session, { event: change, profile: null }),
+        refused(403, /requires an authorized device/u),
+      );
+      await devices.commit(c.owner.session, { event: change, profile: null });
+
+      // While it opens recovery the wallet cannot leave the account.
+      await assert.rejects(
+        wallets.remove(c.owner.session, backup.identity),
+        refused(409, /Remove this wallet from recovery/u),
+      );
+
+      // A new device signs in with the backup wallet alone.
+      const entered = await signIn(backup);
+      assert.deepEqual(entered.session.wallet, backup.identity);
+      assert.equal(c.owner.session.wallet?.address, c.primary.identity.address);
+      assert.deepEqual(
+        await devices.openingRecovery(
+          entered.session.accountId,
+          backup.identity,
+        ),
+        backupRecovery.config,
+      );
+      assert.deepEqual(
+        await devices.openingRecovery(entered.session.accountId),
+        c.main.config,
+      );
+      const recovered = await recoverSecrets(
+        change,
+        await backupRecovery.key(),
+        backupRecovery.config,
+      );
+      assert.deepEqual(recovered.ring, c.ring);
+      const second = await createIdentity(entered.session.deviceId, 'Second');
+      const joined = await prepareEvent({
+        accountId: entered.session.accountId,
+        previous: change,
+        kind: 'recover',
+        signer: 'recovery',
+        signing: recovered.signing,
+        root: change.root,
+        identities: [c.identity.public, second.public],
+        ring: freshKeyring(entered.session.accountId, recovered.ring),
+        profile: null,
+      });
+      assert.deepEqual(joined.backups, change.backups);
+      await devices.commit(entered.session, { event: joined, profile: null });
+
+      // Dropping the capsule lets the wallet leave the account.
+      const withoutBackup = await resealed(
+        { ...c, ring: freshKeyring(c.owner.session.accountId, c.ring) },
+        joined,
+        await recoverySigner(joined, await c.main.key(), c.main.config),
+        [],
+      );
+      await devices.commit(c.owner.session, {
+        event: withoutBackup,
+        profile: null,
+      });
+      await assert.rejects(
+        devices.openingRecovery(entered.session.accountId, backup.identity),
+        refused(409, /cannot open your history yet/u),
+      );
+      assert.equal(
+        (await wallets.remove(c.owner.session, backup.identity)).length,
+        1,
+      );
     },
   );
 

@@ -226,13 +226,16 @@ export class AccountService {
   }
   async prepareOpening(
     signed: Awaited<ReturnType<AccountService['signHandoff']>>,
-    recovery: (accountId: string) => Promise<WalletRecovery | null>,
+    recovery: (
+      accountId: string,
+      wallet: { ecosystem: string; address: string },
+    ) => Promise<WalletRecovery | null>,
   ) {
     if (!this.opening.expected(signed.ticket)) return null;
     return this.opening.prepare(
       signed.ticket,
       signed.identity,
-      await recovery(signed.identity.accountId),
+      await recovery(signed.identity.accountId, signed.identity),
     );
   }
   async handoffStatus(browserToken: string) {

@@ -18,6 +18,7 @@ import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import type {
   DeviceIdentity,
   DirectoryEvent,
+  RecoveryBackup,
   RecoveryRoot,
   SealedSecret,
 } from '../../shared/devices/index.ts';
@@ -315,38 +316,70 @@ export async function createRecovery(
   };
   return { root, signing: signing.privateKey };
 }
+/** The capsule that `wallet` opens: the root's own for the main wallet, or
+ * that wallet's backup capsule. */
+function capsuleFor(
+  event: DirectoryEvent,
+  wallet?: WalletRecovery,
+): { capsule: RecoveryRoot['capsule']; context: unknown[] } {
+  const backup = wallet
+    ? event.backups?.find(
+        (entry) => canonical(entry.wallet) === canonical(wallet),
+      )
+    : undefined;
+  if (backup)
+    return {
+      capsule: backup.capsule,
+      context: backupContext(event.accountId, backup.wallet),
+    };
+  if (wallet && canonical(wallet) !== canonical(event.root.wallet))
+    throw new Error('This wallet does not open recovery.');
+  return {
+    capsule: event.root.capsule,
+    context: recoveryContext(event.accountId, event.root.wallet),
+  };
+}
+/** The recovery authority's exported private keys, proven to be the pinned
+ * public root before anything uses them. */
+async function openAuthority(
+  event: DirectoryEvent,
+  secret: string | CryptoKey,
+  wallet?: WalletRecovery,
+): Promise<{ material: Record<string, unknown>; signing: CryptoKey }> {
+  const { capsule, context } = capsuleFor(event, wallet);
+  const material = object(
+    await openAes(await recoveryKey(secret), capsule, context),
+  );
+  keys(material, ['signing', 'wrapping']);
+  const signing = await crypto.subtle.importKey(
+    'pkcs8',
+    base64(material['signing'], 256),
+    signingAlgorithm,
+    false,
+    ['sign'],
+  );
+  await verify(
+    event.root.signing,
+    await sign(signing, '0xdmme-recovery-check'),
+    '0xdmme-recovery-check',
+  );
+  return { material, signing };
+}
+/** Opens recovery with the secret of the main wallet or, when `wallet` names
+ * one, of a backup wallet. */
 export async function recoverSecrets(
   event: DirectoryEvent,
   secret: string | CryptoKey,
+  wallet?: WalletRecovery,
 ): Promise<{ ring: Keyring; signing: CryptoKey }> {
   try {
-    const material = object(
-      await openAes(
-        await recoveryKey(secret),
-        event.root.capsule,
-        recoveryContext(event.accountId, event.root.wallet),
-      ),
-    );
-    keys(material, ['signing', 'wrapping']);
-    const signing = await crypto.subtle.importKey(
-      'pkcs8',
-      base64(material['signing'], 256),
-      signingAlgorithm,
-      false,
-      ['sign'],
-    );
+    const { material, signing } = await openAuthority(event, secret, wallet);
     const wrapping = await crypto.subtle.importKey(
       'pkcs8',
       base64(material['wrapping'], 2048),
       { name: 'RSA-OAEP', hash: 'SHA-256' },
       false,
       ['decrypt'],
-    );
-    // Prove that the recovered authority is the pinned public root, before using it.
-    await verify(
-      event.root.signing,
-      await sign(signing, '0xdmme-recovery-check'),
-      '0xdmme-recovery-check',
     );
     const ring = keyring(
       await openFrom(wrapping, event.recovery, keyContext(event, 'recovery')),
@@ -356,6 +389,57 @@ export async function recoverSecrets(
   } catch {
     throw new Error('Recovery rejected: invalid key, account or integrity.');
   }
+}
+/**
+ * Seals the recovery authority for one more wallet. `opener` is the secret of
+ * a wallet that already opens recovery; the authority's signing key comes back
+ * so the caller can sign the directory change that publishes the capsule.
+ */
+export async function sealBackup(input: {
+  event: DirectoryEvent;
+  opener: { secret: CryptoKey; wallet?: WalletRecovery };
+  backup: { wallet: WalletRecovery; secret: CryptoKey };
+}): Promise<{ backup: RecoveryBackup; signing: CryptoKey }> {
+  const { event } = input;
+  let opened: Awaited<ReturnType<typeof openAuthority>>;
+  try {
+    opened = await openAuthority(
+      event,
+      input.opener.secret,
+      input.opener.wallet,
+    );
+  } catch {
+    throw new Error('Recovery rejected: invalid key, account or integrity.');
+  }
+  const wallet = walletRecovery(input.backup.wallet);
+  return {
+    backup: {
+      wallet,
+      capsule: await sealAes(
+        await recoveryKey(input.backup.secret),
+        opened.material,
+        backupContext(event.accountId, wallet),
+      ),
+    },
+    signing: opened.signing,
+  };
+}
+/** The authority's signing key, for a change that only removes a capsule. */
+export async function recoverySigner(
+  event: DirectoryEvent,
+  secret: CryptoKey,
+  wallet?: WalletRecovery,
+): Promise<CryptoKey> {
+  try {
+    return (await openAuthority(event, secret, wallet)).signing;
+  } catch {
+    throw new Error('Recovery rejected: invalid key, account or integrity.');
+  }
+}
+function backupContext(accountId: string, wallet: WalletRecovery): unknown[] {
+  if (walletRecovery(wallet).accountId !== accountId)
+    throw new Error('Settings belong to another account.');
+  return ['0xdmme-recovery-backup', 1, accountId, walletRecovery(wallet)];
 }
 function recoveryContext(
   accountId: string,

@@ -34,3 +34,18 @@ export async function historicalMigrations(
     throw error;
   }
 }
+
+/** Sign-in reads the extra-wallet table and records the confirming wallet.
+ * A fixture that stops at an older schema and then signs users in with the
+ * current code applies these two independent migrations first; the later full
+ * migration fills the versions in between. */
+export async function signInMigrations(client: pg.Client): Promise<void> {
+  const applied = await client.query<{ version: number }>(
+    'SELECT version FROM hash_talk.schema_migrations WHERE version IN (112, 113)',
+  );
+  const missing = ['112-account-wallets.sql', '113-session-wallet.sql'].filter(
+    (file) =>
+      !applied.rows.some((row) => row.version === Number(file.slice(0, 3))),
+  );
+  if (missing.length) await historicalMigrations(client, missing);
+}

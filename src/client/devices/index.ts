@@ -422,6 +422,15 @@ export function startDevices(options: {
       options?: VaultWorkOptions,
     ) => controller.withVault(offline, work, options),
     privateKey: openKeys,
+    /** Which backup wallets open recovery, and the workflow that changes it. */
+    backupRecovery: {
+      wallets: () =>
+        (controller.current?.backups ?? []).map((backup) => backup.wallet),
+      add: (input: Parameters<typeof controller.backupRecovery.add>[0]) =>
+        controller.backupRecovery.add(input),
+      remove: (input: Parameters<typeof controller.backupRecovery.remove>[0]) =>
+        controller.backupRecovery.remove(input),
+    },
     setSession(session: AccountSession | null): void {
       if (session?.csrf !== controller.session?.csrf) {
         invitation = null;

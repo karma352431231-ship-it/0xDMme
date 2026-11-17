@@ -20,12 +20,32 @@ import {
   profileProof,
   verify,
   verifyTransition,
+  recoveryWalletFor,
 } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { DeviceStore } from '../database/index.ts';
 import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
 import { enrollmentBody } from '../../shared/device-enrollment/index.ts';
 
+/** Changes to the recovery authority itself come from a device already in
+ * the directory, never from a session that has only signed in. */
+function requireAuthorizedDevice(
+  session: AccountSession,
+  previous: DirectoryEvent | null,
+  event: DirectoryEvent,
+): void {
+  if (
+    (event.kind !== 'migrate' && event.kind !== 'reseal') ||
+    previous?.devices.some((device) => device.id === session.deviceId)
+  )
+    return;
+  throw new AccountError(
+    403,
+    event.kind === 'migrate'
+      ? 'Migration requires an authorized device.'
+      : 'Changing recovery wallets requires an authorized device.',
+  );
+}
 export class DeviceService {
   async assertEnrollmentSource(
     session: AccountSession,
@@ -66,7 +86,12 @@ export class DeviceService {
     const current = await this.store.current(session.accountId);
     return current ? directoryEvent(current.event) : null;
   }
-  async openingRecovery(accountId: string) {
+  /** The recovery configuration the signing wallet opens: its own backup
+   * capsule when it has one, otherwise the main wallet's. */
+  async openingRecovery(
+    accountId: string,
+    wallet?: { ecosystem: string; address: string },
+  ) {
     const row = await this.store.current(uuid(accountId));
     if (!row) return null;
     const current = directoryEvent(row.event);
@@ -75,7 +100,13 @@ export class DeviceService {
         409,
         'This account requires recovery through the old code or an authorized device.',
       );
-    return current.root.wallet;
+    const config = recoveryWalletFor(current, wallet ?? current.root.wallet);
+    if (!config)
+      throw new AccountError(
+        409,
+        'This wallet cannot open your history yet. Sign in with your main wallet and add it again in settings.',
+      );
+    return config;
   }
   async read(session: AccountSession, input: unknown) {
     const data = object(input);
@@ -158,7 +189,7 @@ export class DeviceService {
     const previous = await this.current(session);
     const event = await verifyTransition(previous, data['event']);
     if (
-      ['initialize', 'recover', 'migrate', 'link', 'revoke'].includes(
+      ['initialize', 'recover', 'migrate', 'link', 'revoke', 'reseal'].includes(
         event.kind,
       )
     )
@@ -190,11 +221,7 @@ export class DeviceService {
     previous: DirectoryEvent | null,
     event: DirectoryEvent,
   ): void {
-    if (
-      event.kind === 'migrate' &&
-      !previous?.devices.some((device) => device.id === session.deviceId)
-    )
-      throw new AccountError(403, 'Migration requires an authorized device.');
+    requireAuthorizedDevice(session, previous, event);
     if (event.signer !== 'recovery' && event.signer !== session.deviceId)
       throw new AccountError(403, 'Signature belongs to another device.');
     if (event.kind === 'initialize' || event.kind === 'recover') {

@@ -6837,9 +6837,54 @@ export const catalog: Record<string, readonly [string, string]> = {
     '移除此备用钱包？它将无法再登录此账户。',
   ],
   'Backup wallet removed.': ['Backup wallet removed.', '备用钱包已移除。'],
-  'Backup wallet added. It can now sign in to this account.': [
-    'Backup wallet added. It can now sign in to this account.',
-    '备用钱包已添加，现在可以用它登录此账户。',
+  'Backup wallet added. It can now sign in and open your history.': [
+    'Backup wallet added. It can now sign in and open your history.',
+    '备用钱包已添加，现在可以用它登录并打开你的历史记录。',
+  ],
+  'Backup wallet · does not open your history yet': [
+    'Backup wallet · does not open your history yet',
+    '备用钱包 · 尚不能打开你的历史记录',
+  ],
+  'Finish setup': ['Finish setup', '完成设置'],
+  Continue: ['Continue', '继续'],
+  'Now select the wallet you want to add in your wallet app, then press Continue.':
+    [
+      'Now select the wallet you want to add in your wallet app, then press Continue.',
+      '现在请在钱包应用中选择要添加的钱包，然后点击“继续”。',
+    ],
+  'The wallet you signed in with was not found in this browser. Open 0xDMme where that wallet is available.':
+    [
+      'The wallet you signed in with was not found in this browser. Open 0xDMme where that wallet is available.',
+      '此浏览器中找不到你登录时使用的钱包。请在可使用该钱包的地方打开 0xDMme。',
+    ],
+  'This wallet already opens your history.': [
+    'This wallet already opens your history.',
+    '此钱包已可打开你的历史记录。',
+  ],
+  'This wallet cannot open your history yet. Sign in with your main wallet and add it again in settings.':
+    [
+      'This wallet cannot open your history yet. Sign in with your main wallet and add it again in settings.',
+      '此钱包尚不能打开你的历史记录。请用主钱包登录，并在设置中重新添加它。',
+    ],
+  'Sign in with another wallet of this account to remove this one.': [
+    'Sign in with another wallet of this account to remove this one.',
+    '请用此账户的另一个钱包登录后再移除这个钱包。',
+  ],
+  'Open your account on this device first.': [
+    'Open your account on this device first.',
+    '请先在此设备上打开你的账户。',
+  ],
+  'Add this wallet to the account before giving it recovery.': [
+    'Add this wallet to the account before giving it recovery.',
+    '请先将此钱包添加到账户，再为它启用恢复。',
+  ],
+  'Remove this wallet from recovery before removing it from the account.': [
+    'Remove this wallet from recovery before removing it from the account.',
+    '请先取消此钱包的恢复权限，再将它从账户中移除。',
+  ],
+  'Changing recovery wallets requires an authorized device.': [
+    'Changing recovery wallets requires an authorized device.',
+    '更改恢复钱包需要使用已授权的设备。',
   ],
   'Could not load your wallets. Check your connection.': [
     'Could not load your wallets. Check your connection.',

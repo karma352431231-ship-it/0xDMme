@@ -11,6 +11,7 @@ import type {
   AuthorizedDevice,
   DeviceIdentity,
   DirectoryEvent,
+  RecoveryBackup,
   RecoveryRoot,
 } from '../../shared/devices/index.ts';
 import {
@@ -42,6 +43,13 @@ interface EventInput {
   ring: Keyring;
   linkId?: string;
   profile: EncryptedProfile | null;
+  /** Only a reseal sets this; every other change keeps the previous list. */
+  backups?: RecoveryBackup[];
+}
+/** Envelopes are untouched when a change adds a device to the same epoch or
+ * only changes which wallets open recovery. */
+function keepsEnvelopes(kind: DirectoryEvent['kind']): boolean {
+  return kind === 'link' || kind === 'reseal';
 }
 async function sealDevices(input: EventInput): Promise<AuthorizedDevice[]> {
   const previous = input.previous;
@@ -54,7 +62,7 @@ async function sealDevices(input: EventInput): Promise<AuthorizedDevice[]> {
       (device) => device.id === identity.id,
     );
     const envelope =
-      input.kind === 'link' && existing
+      keepsEnvelopes(input.kind) && existing
         ? existing.envelope
         : await sealTo(
             identity.wrapping,
@@ -78,7 +86,8 @@ function revokedDevices(
   return [...(previous?.revoked ?? []), ...removed].sort();
 }
 async function recoveryEnvelope(input: EventInput) {
-  if (input.kind === 'link' && input.previous) return input.previous.recovery;
+  if (keepsEnvelopes(input.kind) && input.previous)
+    return input.previous.recovery;
   return sealTo(
     input.root.wrapping,
     input.ring,
@@ -87,6 +96,12 @@ async function recoveryEnvelope(input: EventInput) {
       'recovery',
     ),
   );
+}
+/** A reseal sets the backup wallets; every other change carries them over. */
+function recoveryBackups(input: EventInput): Pick<DirectoryEvent, 'backups'> {
+  const backups =
+    input.kind === 'reseal' ? input.backups : input.previous?.backups;
+  return backups?.length ? { backups } : {};
 }
 export async function prepareEvent(input: EventInput): Promise<DirectoryEvent> {
   const previous = input.previous;
@@ -105,6 +120,7 @@ export async function prepareEvent(input: EventInput): Promise<DirectoryEvent> {
     recovery: await recoveryEnvelope(input),
     linkId: input.linkId ?? null,
     profile: input.profile ? await digest(canonical(input.profile)) : null,
+    ...recoveryBackups(input),
     signature: blankSignature(),
   };
   return verifyTransition(previous, await signEvent(event, input.signing));

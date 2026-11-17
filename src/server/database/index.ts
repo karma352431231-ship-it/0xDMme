@@ -247,6 +247,7 @@ const migrations = [
   '110-group-message-pins.sql',
   '111-conversation-notification-cursors.sql',
   '112-account-wallets.sql',
+  '113-session-wallet.sql',
 ];
 
 export interface MaintenanceSnapshot {

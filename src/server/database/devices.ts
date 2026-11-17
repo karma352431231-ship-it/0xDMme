@@ -12,6 +12,7 @@ import type {
   DirectoryEvent,
 } from '../../shared/devices/index.ts';
 import { withTemporaryAdmission } from '../temporary-admission/index.ts';
+import { assertRegisteredWallets } from './account-wallets.ts';
 
 export interface DirectoryRow {
   head: string;
@@ -296,8 +297,7 @@ export class DeviceStore {
         );
       if (event.linkId)
         await this.consumeLink(client, session.accountId, event);
-      if (event.kind !== 'link')
-        await this.updateProfile(client, session.accountId, profile);
+      await this.applyKind(client, session.accountId, event, profile);
       await client.query(
         'INSERT INTO hash_talk.device_events (account_id,revision,event) VALUES ($1,$2,$3)',
         [session.accountId, event.revision, event],
@@ -323,6 +323,25 @@ export class DeviceStore {
       authorization: true,
       revoked: event.revoked,
     });
+  }
+  /** What a change does beyond replacing the directory head. Linking and
+   * resealing carry no profile and must not clear the saved one. */
+  private async applyKind(
+    client: pg.PoolClient,
+    accountId: string,
+    event: DirectoryEvent,
+    profile: EncryptedProfile | null,
+  ): Promise<void> {
+    if (event.kind === 'link') return;
+    if (event.kind === 'reseal') {
+      await assertRegisteredWallets(
+        client,
+        accountId,
+        (event.backups ?? []).map((backup) => backup.wallet),
+      );
+      return;
+    }
+    await this.updateProfile(client, accountId, profile);
   }
   private async consumeLink(
     client: pg.PoolClient,

@@ -140,13 +140,14 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
   // follower notice table of 104, the follow date column of 105 and the
   // visitor retention function and coverage column of 106, and the empty
   // direct/group view-once tables and group actions of 107–110, followed
-  // by the two notification cursors of 111.
+  // by the two notification cursors of 111, the extra sign-in wallets of 112
+  // and the confirming wallet of a session in 113.
   await db.migrate();
   assert.deepEqual(await snapshot(), before);
   assert.equal(
     (await client.query('SELECT version FROM hash_talk.schema_migrations'))
       .rowCount,
-    111,
+    113,
   );
   assert.equal(await ledger(), bytes + BigInt(charge.rows[0]!.bytes));
   await client.query('BEGIN');

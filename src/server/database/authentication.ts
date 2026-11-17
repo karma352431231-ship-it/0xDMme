@@ -42,6 +42,8 @@ interface SessionRow {
   expiresAt: Date;
   csrf: string;
   profileRevision: number;
+  walletEcosystem: Ecosystem | null;
+  walletAddress: string | null;
 }
 
 async function transaction<T>(
@@ -219,8 +221,17 @@ export class AuthenticationStore {
     );
     await client.query(
       `INSERT INTO hash_talk.login_sessions
-        (token_hash, csrf, account_id, device_id, expires_at) VALUES ($1,$2,$3,$4,$5)`,
-      [input.tokenHash, input.csrf, accountId, deviceId, input.expiresAt],
+        (token_hash, csrf, account_id, device_id, expires_at, wallet_ecosystem, wallet_address)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        input.tokenHash,
+        input.csrf,
+        accountId,
+        deviceId,
+        input.expiresAt,
+        input.identity.ecosystem,
+        input.identity.address,
+      ],
     );
     return ended;
   }
@@ -423,18 +434,23 @@ export class AuthenticationStore {
     const result = await this.pool.query<SessionRow>(
       `SELECT a.id AS "accountId", a.address, a.ecosystem,
       a.display_name AS name, s.device_id AS "deviceId", s.expires_at AS "expiresAt", s.csrf,
-      a.profile_revision AS "profileRevision", s.wallet_confirmed AS "walletConfirmed" FROM hash_talk.login_sessions s
+      a.profile_revision AS "profileRevision", s.wallet_confirmed AS "walletConfirmed",
+      s.wallet_ecosystem AS "walletEcosystem", s.wallet_address AS "walletAddress" FROM hash_talk.login_sessions s
       JOIN hash_talk.accounts a ON a.id = s.account_id
       WHERE s.token_hash = $1 AND s.expires_at > now()`,
       [tokenHash],
     );
     const row = result.rows[0];
     if (!row) throw new AccountError(401, 'Session ended or expired.');
+    const { walletEcosystem, walletAddress, ...account } = row;
     return {
-      ...row,
+      ...account,
       expiresAt: row.expiresAt.toISOString(),
       deviceState: 'pending',
       historyAuthorized: false,
+      ...(walletEcosystem && walletAddress
+        ? { wallet: { ecosystem: walletEcosystem, address: walletAddress } }
+        : {}),
     };
   }
 

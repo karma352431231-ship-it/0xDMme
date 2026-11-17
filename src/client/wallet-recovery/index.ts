@@ -20,13 +20,21 @@ export function createWalletRecovery(
   session: AccountSession,
   origin: string,
 ): WalletRecovery {
+  return createWalletRecoveryFor(session.accountId, session, origin);
+}
+/** A fresh recovery configuration for one of the account's wallets. */
+export function createWalletRecoveryFor(
+  accountId: string,
+  wallet: { ecosystem: string; address: string },
+  origin: string,
+): WalletRecovery {
   return walletRecovery({
     version: walletRecoveryVersion,
     language: currentLanguage(),
-    accountId: session.accountId,
+    accountId,
     origin,
-    ecosystem: session.ecosystem,
-    address: session.address,
+    ecosystem: wallet.ecosystem,
+    address: wallet.address,
     id: crypto.randomUUID(),
     salt: encode(crypto.getRandomValues(new Uint8Array(32))),
   });

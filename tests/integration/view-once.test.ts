@@ -297,9 +297,10 @@ await test('populated 106→109 migration preserves every prior source row, ledg
     await digest(JSON.stringify(packet)),
   );
   const before = await snapshots(c);
+  // Sign-in applies its own two later migrations to the historical schema.
   const catalog = (
     await c.inspector.query(
-      'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
+      'SELECT * FROM hash_talk.schema_migrations WHERE version<=106 ORDER BY version',
     )
   ).rows as unknown;
   await historicalMigrations(c.inspector, ['107-view-once-messages.sql']);
@@ -337,7 +338,7 @@ await test('populated 106→109 migration preserves every prior source row, ledg
     ).rows,
     oldVersions = (
       await c.inspector.query(
-        'SELECT * FROM hash_talk.schema_migrations ORDER BY version',
+        'SELECT * FROM hash_talk.schema_migrations WHERE version<=107 ORDER BY version',
       )
     ).rows;
   await c.db.migrate();

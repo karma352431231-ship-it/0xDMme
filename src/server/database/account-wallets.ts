@@ -31,6 +31,29 @@ export async function extraWalletAccount(
   return result.rows[0]?.id ?? null;
 }
 
+/** A wallet may open recovery only while it is an extra wallet of the account. */
+export async function assertRegisteredWallets(
+  client: Pick<pg.PoolClient, 'query'>,
+  accountId: string,
+  wallets: WalletIdentity[],
+): Promise<void> {
+  const registered = await client.query<WalletIdentity>(
+    'SELECT ecosystem, address FROM hash_talk.account_wallets WHERE account_id=$1',
+    [accountId],
+  );
+  for (const wallet of wallets)
+    if (
+      !registered.rows.some(
+        (row) =>
+          row.ecosystem === wallet.ecosystem && row.address === wallet.address,
+      )
+    )
+      throw new AccountError(
+        409,
+        'Add this wallet to the account before giving it recovery.',
+      );
+}
+
 /** Owns the extra-wallet table and the rule that an address signs in to one
  * account only, across this table and each account's primary wallet. */
 export class AccountWalletStore {
@@ -132,6 +155,18 @@ export class AccountWalletStore {
     await this.transaction(async (client) => {
       await lockWalletIdentity(client, wallet);
       await this.confirmed(client, session);
+      // The directory may name a recovery wallet only while it is registered.
+      const recovery = await client.query(
+        `SELECT 1 FROM hash_talk.device_directories d,
+        jsonb_array_elements(coalesce(d.event->'backups', '[]'::jsonb)) backup
+        WHERE d.account_id=$1 AND backup->'wallet'->>'ecosystem'=$2 AND backup->'wallet'->>'address'=$3`,
+        [session.accountId, wallet.ecosystem, wallet.address],
+      );
+      if (recovery.rowCount)
+        throw new AccountError(
+          409,
+          'Remove this wallet from recovery before removing it from the account.',
+        );
       const removed = await client.query(
         'DELETE FROM hash_talk.account_wallets WHERE account_id=$1 AND ecosystem=$2 AND address=$3',
         [session.accountId, wallet.ecosystem, wallet.address],

@@ -1,4 +1,5 @@
 export {
+  backupLimit,
   deviceIdentity,
   directoryEvent,
   directoryLimit,
@@ -8,6 +9,7 @@ export {
   identityOf,
   linkCode,
   linkSeconds,
+  recoveryWalletFor,
   sealedSecret,
 } from './format.ts';
 export type {
@@ -15,6 +17,7 @@ export type {
   DeviceIdentity,
   DirectoryEvent,
   LinkCode,
+  RecoveryBackup,
   RecoveryRoot,
   SealedSecret,
 } from './format.ts';

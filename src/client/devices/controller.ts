@@ -19,6 +19,7 @@ import type { VerifiedSigner } from './signing-lane.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   boundedText,
+  confirmingWallet,
   keys,
   object,
   profileEnvelope,
@@ -36,11 +37,13 @@ import {
   linkCode,
   linkProof,
   profileProof,
+  recoveryWalletFor,
   sign,
   verifyHistory,
   verifyTransition,
 } from '../../shared/devices/index.ts';
 import type { DirectoryEvent, LinkCode } from '../../shared/devices/index.ts';
+import { DeviceBackupRecovery } from './backup-recovery.ts';
 import {
   aesKey,
   openFrom,
@@ -176,6 +179,34 @@ async function api(
   return data;
 }
 export class DeviceController {
+  /** Adds and removes the recovery capsules of backup wallets. */
+  readonly backupRecovery = new DeviceBackupRecovery({
+    run: (operation) => this.run(operation),
+    current: async (session) => {
+      await this.synchronize(session);
+      if (!this.current || !this.ring || !this.identity)
+        throw new Error('Open your account on this device first.');
+      return this.current;
+    },
+    lease: (session) => this.lease(session),
+    prepare: (session, change) => {
+      if (!this.ring)
+        throw new Error('Open your account on this device first.');
+      return prepareEvent({
+        accountId: session.accountId,
+        previous: change.previous,
+        kind: 'reseal',
+        signer: 'recovery',
+        signing: change.signing,
+        root: change.previous.root,
+        identities: change.previous.devices.map(identityOf),
+        ring: this.ring,
+        profile: null,
+        backups: change.backups,
+      });
+    },
+    publish: (session, event) => this.commit(session, event, null),
+  });
   private readonly walletRecovery = new DeviceWalletRecovery({
     session: () => this.session,
     run: (operation) => this.run(operation),
@@ -194,13 +225,7 @@ export class DeviceController {
           'Authorization changed during signing. Cancel and check again.',
         );
     },
-    lease: (session) => {
-      const token = this.generation;
-      return (message) => {
-        this.assertSession(session);
-        if (token !== this.generation) throw new Error(message);
-      };
-    },
+    lease: (session) => this.lease(session),
     complete: (input) => this.completeWalletRecovery(input),
   });
   private readonly linking = new DeviceLinking({
@@ -351,6 +376,14 @@ export class DeviceController {
   private generation = 0;
   private serverTime = '';
   private receiptTarget: string | null = null;
+  /** A check that throws once this session or its authority generation ends. */
+  private lease(session: AccountSession): (message: string) => void {
+    const token = this.generation;
+    return (message) => {
+      this.assertSession(session);
+      if (token !== this.generation) throw new Error(message);
+    };
+  }
   private assertSession(session: AccountSession): void {
     if (
       session.accountId !== this.session?.accountId ||
@@ -868,12 +901,18 @@ export class DeviceController {
       await this.run(async (session) => {
         await this.loadIdentity(session);
         await this.synchronize(session);
-        recoveryIdentity(proof.config, session, applicationOrigin());
+        recoveryIdentity(
+          proof.config,
+          confirmingWallet(session),
+          applicationOrigin(),
+        );
         const previous = this.current;
         if (
           proof.count !== (previous ? 1 : 2) ||
           (previous &&
-            canonical(previous.root.wallet) !== canonical(proof.config))
+            canonical(
+              recoveryWalletFor(previous, confirmingWallet(session)),
+            ) !== canonical(proof.config))
         )
           throw new Error('Recovery changed during sign-in. Start again.');
         const generation = this.generation;
@@ -949,15 +988,21 @@ export class DeviceController {
     return [...new Set([...selected, ...lost])];
   }
   private walletConfig(session: AccountSession, mode: RecoveryPlan['mode']) {
-    const config =
-      mode === 'recover'
-        ? this.current?.root.wallet
-        : createWalletRecovery(session, applicationOrigin());
-    if (!config)
+    if (mode === 'recover' && this.current && !this.current.root.wallet)
       throw new Error(
         'This account still uses the old code. Recover or migrate through the legacy flow.',
       );
-    recoveryIdentity(config, session, applicationOrigin());
+    // Recovery opens the capsule of the wallet that confirmed this session.
+    const config =
+      mode === 'recover'
+        ? this.current &&
+          recoveryWalletFor(this.current, confirmingWallet(session))
+        : createWalletRecovery(session, applicationOrigin());
+    if (!config)
+      throw new Error(
+        'This wallet cannot open your history yet. Sign in with your main wallet and add it again in settings.',
+      );
+    recoveryIdentity(config, confirmingWallet(session), applicationOrigin());
     return config;
   }
   private validateWalletMode(
@@ -1017,6 +1062,7 @@ export class DeviceController {
       const restored = await recoverSecrets(
         event,
         await walletRecoveryKey(plan.config, [signatures.at(-1) ?? '']),
+        plan.config,
       );
       if (canonical(restored.ring) !== canonical(ring))
         throw new Error('Recovery verification failed.');
@@ -1038,10 +1084,10 @@ export class DeviceController {
         authority: await createRecovery(session.accountId, key, plan.config),
         ring: freshKeyring(session.accountId),
       };
-    const recovered = await recoverSecrets(
-      this.current,
-      plan.mode === 'migrate' ? legacy : key,
-    );
+    const recovered =
+      plan.mode === 'migrate'
+        ? await recoverSecrets(this.current, legacy)
+        : await recoverSecrets(this.current, key, plan.config);
     this.ring = recovered.ring;
     const root =
       plan.mode === 'recover'

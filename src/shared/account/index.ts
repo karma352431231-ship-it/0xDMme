@@ -68,6 +68,9 @@ export interface AccountSession {
   csrf: string;
   profileRevision: number;
   walletConfirmed?: boolean;
+  /** The wallet that confirmed this session, when it is not simply the
+   * account's main wallet: a backup wallet opens its own recovery capsule. */
+  wallet?: { ecosystem: Ecosystem; address: string };
 }
 
 export interface EncryptedProfile {
@@ -110,6 +113,32 @@ export function accountSession(value: unknown): AccountSession {
     csrf,
     profileRevision: data['profileRevision'],
     walletConfirmed: data['walletConfirmed'] === true,
+    ...sessionWallet(data['wallet']),
+  };
+}
+function sessionWallet(value: unknown): Pick<AccountSession, 'wallet'> {
+  if (value === undefined) return {};
+  const data = object(value);
+  keys(data, ['ecosystem', 'address']);
+  const network = ecosystem(data['ecosystem']);
+  return {
+    wallet: {
+      ecosystem: network,
+      address: canonicalAddress(network, data['address']),
+    },
+  };
+}
+/** The wallet identity that confirmed a session: its own wallet when the
+ * server names one, otherwise the account's main wallet. */
+export function confirmingWallet(session: AccountSession): {
+  accountId: string;
+  ecosystem: Ecosystem;
+  address: string;
+} {
+  return {
+    accountId: session.accountId,
+    ecosystem: session.wallet?.ecosystem ?? session.ecosystem,
+    address: session.wallet?.address ?? session.address,
   };
 }
 export function requireWalletSession(session: AccountSession): void {

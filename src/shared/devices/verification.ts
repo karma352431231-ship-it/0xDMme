@@ -117,6 +117,51 @@ function additions(
   }
   return added;
 }
+function walletKey(wallet: { ecosystem: string; address: string }): string {
+  return `${wallet.ecosystem}:${wallet.address}`;
+}
+/** Backup capsules belong to this account and to wallets other than the main
+ * one, each listed once. They exist only beside a wallet-bound root. */
+function validateBackups(event: DirectoryEvent): void {
+  const backups = event.backups;
+  if (!backups) return;
+  const main = event.root.wallet;
+  if (!main) reject('Backup wallets need wallet recovery.');
+  const wallets = [main, ...backups.map((backup) => backup.wallet)];
+  if (
+    wallets.some((wallet) => wallet.accountId !== event.accountId) ||
+    new Set(wallets.map(walletKey)).size !== wallets.length
+  )
+    reject('Invalid backup wallets.');
+}
+/** Only the recovery authority changes which wallets open it. Devices, keys
+ * and the root itself stay exactly as they were. */
+function validateReseal(previous: DirectoryEvent, event: DirectoryEvent): void {
+  if (
+    event.signer !== 'recovery' ||
+    event.epoch !== previous.epoch ||
+    event.linkId !== null ||
+    event.profile !== null ||
+    !same(previous.devices, event.devices) ||
+    !same(previous.recovery, event.recovery) ||
+    same(previous.backups ?? [], event.backups ?? [])
+  )
+    reject('Invalid backup wallet change.');
+}
+/** True for a valid reseal, which changes nothing else. Every other kind
+ * must leave the backup wallets exactly as they were. */
+function recoveryWalletsChanged(
+  previous: DirectoryEvent,
+  event: DirectoryEvent,
+): boolean {
+  if (event.kind === 'reseal') {
+    validateReseal(previous, event);
+    return true;
+  }
+  if (!same(previous.backups ?? [], event.backups ?? []))
+    reject('Backup wallets change only through the recovery authority.');
+  return false;
+}
 function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
   validateContinuity(previous, event);
   const added = additions(previous, event);
@@ -126,6 +171,7 @@ function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
     )
     .map((device) => device.id);
   if (!same(event.revoked, [...previous.revoked, ...removed].sort())) reject();
+  if (recoveryWalletsChanged(previous, event)) return;
   if (event.kind === 'migrate') {
     validateMigration({ previous, event, added, removed });
     return;
@@ -211,7 +257,8 @@ function validateInitial(event: DirectoryEvent): void {
     event.signer !== 'recovery' ||
     event.devices.length !== 1 ||
     event.revoked.length ||
-    event.linkId !== null
+    event.linkId !== null ||
+    event.backups
   )
     reject();
 }
@@ -254,6 +301,7 @@ export async function verifyTransition(
   if (new TextEncoder().encode(canonical(event)).length > eventBytes)
     reject('Directory exceeds the metadata budget.');
   membership(event);
+  validateBackups(event);
   let publicKey = event.root.signing;
   if (!previous) {
     validateInitial(event);

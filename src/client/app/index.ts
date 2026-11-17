@@ -327,6 +327,8 @@ const sessionBoot = new SessionBoot((session) => {
 let sessionExtrasFor = '';
 const accountWallets = startAccountWallets({
   wallets: () => account.detectedWallets(),
+  sessionWallet: () => account.sessionWallet(),
+  recovery: devices.backupRecovery,
   withAnotherWallet: (work) => account.withAnotherWallet(work),
   confirmWallet: () => account.confirmWallet(),
 });

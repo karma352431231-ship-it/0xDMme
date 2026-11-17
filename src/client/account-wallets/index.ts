@@ -21,6 +21,22 @@ import type { WalletConnection } from '../wallet/index.ts';
 export interface AccountWalletHost {
   /** Wallets detected in this browser. */
   wallets: () => WalletConnection[];
+  /** The detected wallet that confirmed the session, if this browser has it. */
+  sessionWallet: () => WalletConnection | undefined;
+  /** Which backup wallets open message history, and how that changes. */
+  recovery: {
+    wallets: () => WalletIdentity[];
+    add: (input: {
+      opener: WalletConnection;
+      backup: WalletConnection;
+      beforeBackup?: () => Promise<void>;
+      register: (wallet: WalletIdentity) => Promise<void>;
+    }) => Promise<void>;
+    remove: (input: {
+      opener: WalletConnection;
+      wallet: WalletIdentity;
+    }) => Promise<boolean>;
+  };
   /** Runs wallet work that may switch the selected wallet account; the switch
    * signs the page out only after the work ends. */
   withAnotherWallet: <T>(work: () => Promise<T>) => Promise<T>;
@@ -131,6 +147,8 @@ export function startAccountWallets(host: AccountWalletHost) {
   let busy = false;
   let message = '';
   let generation = 0;
+  /** Set while the user is asked to switch wallets inside one extension. */
+  let proceed: (() => void) | null = null;
 
   function element<K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -186,8 +204,24 @@ export function startAccountWallets(host: AccountWalletHost) {
     role.className = 'device-last-used';
     label.append(role);
     item.append(label);
-    if (!wallet.primary) item.append(action(t('Remove'), () => remove(wallet)));
+    if (wallet.primary) return item;
+    if (!opensHistory(wallet)) {
+      role.textContent = t('Backup wallet · does not open your history yet');
+      item.append(action(t('Finish setup'), () => add(null)));
+    }
+    item.append(action(t('Remove'), () => remove(wallet)));
     return item;
+  }
+  function opensHistory(wallet: WalletIdentity): boolean {
+    return host.recovery.wallets().some((known) => sameWallet(known, wallet));
+  }
+  function opener(): WalletConnection {
+    const connection = host.sessionWallet();
+    if (!connection)
+      throw new Error(
+        'The wallet you signed in with was not found in this browser. Open 0xDMme where that wallet is available.',
+      );
+    return connection;
   }
   async function remove(wallet: AccountWallet): Promise<void> {
     const active = session;
@@ -200,6 +234,9 @@ export function startAccountWallets(host: AccountWalletHost) {
       )
     )
       return;
+    // Recovery first: the account refuses to drop a wallet that still opens it.
+    if (opensHistory(wallet))
+      await host.recovery.remove({ opener: opener(), wallet });
     const remaining = accountWallets(
       await post('remove', active, {
         ecosystem: wallet.ecosystem,
@@ -210,21 +247,55 @@ export function startAccountWallets(host: AccountWalletHost) {
     wallets = remaining;
     message = t('Backup wallet removed.');
   }
-  async function add(connectionId: string): Promise<void> {
-    const connection = host
-      .wallets()
-      .find((candidate) => candidate.id === connectionId);
+  /** Both wallets live in one extension: the user switches account between
+   * the two signatures, and says when that is done. */
+  function waitForSwitch(): Promise<void> {
+    return new Promise((resolve) => {
+      message = t(
+        'Now select the wallet you want to add in your wallet app, then press Continue.',
+      );
+      proceed = () => {
+        proceed = null;
+        message = '';
+        render();
+        resolve();
+      };
+      render();
+    });
+  }
+  /** Adds the wallet selected in a connection, or with `null` finishes a
+   * backup wallet that is on the account but does not open history yet. */
+  async function add(connectionId: string | null): Promise<void> {
     const active = session;
+    const source = opener();
+    const connection =
+      connectionId === null
+        ? source
+        : host.wallets().find((candidate) => candidate.id === connectionId);
     if (!active || !connection)
       throw new Error(
         'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
       );
-    const added = await host.withAnotherWallet(() =>
-      addSelectedWallet({ session: active, current: wallets, connection }),
+    await host.withAnotherWallet(() =>
+      host.recovery.add({
+        opener: source,
+        backup: connection,
+        ...(connection.id === source.id ? { beforeBackup: waitForSwitch } : {}),
+        register: async (wallet) => {
+          if (wallets.some((known) => sameWallet(known, wallet))) return;
+          wallets = await addSelectedWallet({
+            session: active,
+            current: wallets,
+            connection,
+          });
+          render();
+        },
+      }),
     );
     if (session !== active) return;
-    wallets = added;
-    message = t('Backup wallet added. It can now sign in to this account.');
+    message = t(
+      'Backup wallet added. It can now sign in and open your history.',
+    );
   }
   function addControls(): HTMLElement | null {
     if (wallets.length >= maximumWallets) return null;
@@ -271,6 +342,12 @@ export function startAccountWallets(host: AccountWalletHost) {
       list,
       status,
     );
+    if (proceed) {
+      const next = element('button', t('Continue'));
+      next.type = 'button';
+      next.addEventListener('click', () => proceed?.());
+      card.append(next);
+    }
     if (controls) card.append(controls);
     mounted.replaceChildren(card);
   }

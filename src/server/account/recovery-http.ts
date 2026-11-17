@@ -164,9 +164,9 @@ export class AccountRecoveryHttp {
       );
       const opening = await this.options.service.prepareOpening(
         signed,
-        (accountId) =>
+        (accountId, wallet) =>
           this.options.devices
-            ? this.options.devices.openingRecovery(accountId)
+            ? this.options.devices.openingRecovery(accountId, wallet)
             : Promise.reject(
                 new AccountError(503, 'Account opening unavailable.'),
               ),
