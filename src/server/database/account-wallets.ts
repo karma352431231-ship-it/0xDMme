@@ -158,8 +158,11 @@ export class AccountWalletStore {
       // The directory may name a recovery wallet only while it is registered.
       const recovery = await client.query(
         `SELECT 1 FROM hash_talk.device_directories d,
-        jsonb_array_elements(coalesce(d.event->'backups', '[]'::jsonb)) backup
-        WHERE d.account_id=$1 AND backup->'wallet'->>'ecosystem'=$2 AND backup->'wallet'->>'address'=$3`,
+        jsonb_array_elements(
+          coalesce(jsonb_path_query_array(d.event, '$.backups[*].wallet'), '[]'::jsonb) ||
+          coalesce(jsonb_path_query_array(d.event, '$.pairs[*].wallets[*]'), '[]'::jsonb)
+        ) wallet
+        WHERE d.account_id=$1 AND wallet->>'ecosystem'=$2 AND wallet->>'address'=$3 LIMIT 1`,
         [session.accountId, wallet.ecosystem, wallet.address],
       );
       if (recovery.rowCount)

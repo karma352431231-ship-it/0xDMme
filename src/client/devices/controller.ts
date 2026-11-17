@@ -38,6 +38,7 @@ import {
   linkProof,
   profileProof,
   recoveryWalletFor,
+  replacesRoot,
   sign,
   verifyHistory,
   verifyTransition,
@@ -1166,7 +1167,7 @@ export class DeviceController {
     // Pin the user-confirmed root before network publication. A lost response
     // or process interruption can then reconcile the signed committed event.
     const trustedRoot = await digest(canonical(event.root));
-    if (event.kind !== 'migrate')
+    if (!replacesRoot(event))
       await saveCheckpoint(session.accountId, {
         events: this.events,
         trustedRoot,
@@ -1184,8 +1185,7 @@ export class DeviceController {
       );
     if (generation !== this.generation) throw new Error('Session changed.');
     const events = [...this.events, event];
-    const persist =
-      event.kind === 'migrate' ? advanceCheckpoint : saveCheckpoint;
+    const persist = replacesRoot(event) ? advanceCheckpoint : saveCheckpoint;
     await persist(session.accountId, { events, trustedRoot });
     this.events = events;
     this.current = event;

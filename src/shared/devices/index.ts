@@ -1,5 +1,6 @@
 export {
   backupLimit,
+  pairCount,
   deviceIdentity,
   directoryEvent,
   directoryLimit,
@@ -10,6 +11,7 @@ export {
   linkCode,
   linkSeconds,
   recoveryWalletFor,
+  recoveryWallets,
   sealedSecret,
 } from './format.ts';
 export type {
@@ -18,6 +20,7 @@ export type {
   DirectoryEvent,
   LinkCode,
   RecoveryBackup,
+  RecoveryPair,
   RecoveryRoot,
   SealedSecret,
 } from './format.ts';
@@ -27,6 +30,7 @@ export {
   eventHash,
   linkProof,
   profileProof,
+  replacesRoot,
   sign,
   signedBody,
   verify,

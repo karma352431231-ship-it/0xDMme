@@ -35,7 +35,7 @@ function requireAuthorizedDevice(
   event: DirectoryEvent,
 ): void {
   if (
-    (event.kind !== 'migrate' && event.kind !== 'reseal') ||
+    !['migrate', 'reseal', 'reroot'].includes(event.kind) ||
     previous?.devices.some((device) => device.id === session.deviceId)
   )
     return;
@@ -189,9 +189,15 @@ export class DeviceService {
     const previous = await this.current(session);
     const event = await verifyTransition(previous, data['event']);
     if (
-      ['initialize', 'recover', 'migrate', 'link', 'revoke', 'reseal'].includes(
-        event.kind,
-      )
+      [
+        'initialize',
+        'recover',
+        'migrate',
+        'link',
+        'revoke',
+        'reseal',
+        'reroot',
+      ].includes(event.kind)
     )
       requireWalletSession(session);
     if (event.accountId !== session.accountId)

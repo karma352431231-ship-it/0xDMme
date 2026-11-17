@@ -2,7 +2,7 @@ import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
 import { AccountError, base64 } from '../../shared/account/index.ts';
-import { directoryEvent } from '../../shared/devices/index.ts';
+import { directoryEvent, recoveryWallets } from '../../shared/devices/index.ts';
 import type {
   AccountSession,
   EncryptedProfile,
@@ -333,15 +333,18 @@ export class DeviceStore {
     profile: EncryptedProfile | null,
   ): Promise<void> {
     if (event.kind === 'link') return;
-    if (event.kind === 'reseal') {
+    if (event.kind === 'reseal' || event.kind === 'reroot')
       await assertRegisteredWallets(
         client,
         accountId,
-        (event.backups ?? []).map((backup) => backup.wallet),
+        recoveryWallets(event).filter(
+          (wallet) =>
+            wallet.ecosystem !== event.root.wallet?.ecosystem ||
+            wallet.address !== event.root.wallet.address,
+        ),
       );
-      return;
-    }
-    await this.updateProfile(client, accountId, profile);
+    if (event.kind !== 'reseal')
+      await this.updateProfile(client, accountId, profile);
   }
   private async consumeLink(
     client: pg.PoolClient,

@@ -19,6 +19,7 @@ import type {
   DeviceIdentity,
   DirectoryEvent,
   RecoveryBackup,
+  RecoveryPair,
   RecoveryRoot,
   SealedSecret,
 } from '../../shared/devices/index.ts';
@@ -275,11 +276,13 @@ export async function deviceSecrets(
     event,
   );
 }
-export async function createRecovery(
-  accountId: string,
-  secret: string | CryptoKey,
-  wallet?: WalletRecovery,
-): Promise<{ root: RecoveryRoot; signing: CryptoKey }> {
+/** Fresh recovery authority keys: the exported private material to seal,
+ * the public half for the root and the private signing key. */
+async function generateAuthority(): Promise<{
+  material: { signing: string; wrapping: string };
+  public: Pick<RecoveryRoot, 'signing' | 'wrapping'>;
+  signing: CryptoKey;
+}> {
   const signing = await crypto.subtle.generateKey(signingAlgorithm, true, [
     'sign',
     'verify',
@@ -288,40 +291,77 @@ export async function createRecovery(
     'encrypt',
     'decrypt',
   ]);
-  const material = {
-    signing: encode(
-      new Uint8Array(
-        await crypto.subtle.exportKey('pkcs8', signing.privateKey),
+  return {
+    material: {
+      signing: encode(
+        new Uint8Array(
+          await crypto.subtle.exportKey('pkcs8', signing.privateKey),
+        ),
       ),
-    ),
-    wrapping: encode(
-      new Uint8Array(
-        await crypto.subtle.exportKey('pkcs8', wrapping.privateKey),
+      wrapping: encode(
+        new Uint8Array(
+          await crypto.subtle.exportKey('pkcs8', wrapping.privateKey),
+        ),
       ),
-    ),
+    },
+    public: {
+      signing: encode(
+        new Uint8Array(await crypto.subtle.exportKey('raw', signing.publicKey)),
+      ),
+      wrapping: encode(
+        new Uint8Array(
+          await crypto.subtle.exportKey('spki', wrapping.publicKey),
+        ),
+      ),
+    },
+    signing: signing.privateKey,
   };
+}
+export async function createRecovery(
+  accountId: string,
+  secret: string | CryptoKey,
+  wallet?: WalletRecovery,
+): Promise<{ root: RecoveryRoot; signing: CryptoKey }> {
+  const created = await generateAuthority();
   const root: RecoveryRoot = {
-    signing: encode(
-      new Uint8Array(await crypto.subtle.exportKey('raw', signing.publicKey)),
-    ),
-    wrapping: encode(
-      new Uint8Array(await crypto.subtle.exportKey('spki', wrapping.publicKey)),
-    ),
+    ...created.public,
     ...(wallet ? { wallet: walletRecovery(wallet) } : {}),
     capsule: await sealAes(
       await recoveryKey(secret),
-      material,
+      created.material,
       recoveryContext(accountId, wallet),
     ),
   };
-  return { root, signing: signing.privateKey };
+  return { root, signing: created.signing };
 }
-/** The capsule that `wallet` opens: the root's own for the main wallet, or
- * that wallet's backup capsule. */
+/** What opens the recovery authority: the main wallet's secret by default,
+ * a named backup wallet's, or the key two wallets derive together. */
+export type RecoveryOpener =
+  | { secret: string | CryptoKey; wallet?: WalletRecovery }
+  | { secret: CryptoKey; pair: readonly [WalletRecovery, WalletRecovery] };
+type Capsule = RecoveryRoot['capsule'];
+function pairCapsule(
+  event: DirectoryEvent,
+  wallets: readonly [WalletRecovery, WalletRecovery],
+): { capsule: Capsule; context: unknown[] } {
+  const pair = event.pairs?.find(
+    (entry) => canonical(entry.wallets) === canonical(wallets),
+  );
+  if (!pair) throw new Error('These wallets do not open recovery together.');
+  return {
+    capsule: pair.capsule,
+    context: pairContext(event.accountId, pair),
+  };
+}
+/** The capsule an opener unlocks, with the context it was sealed under. */
 function capsuleFor(
   event: DirectoryEvent,
-  wallet?: WalletRecovery,
-): { capsule: RecoveryRoot['capsule']; context: unknown[] } {
+  opener: RecoveryOpener,
+): { capsule: Capsule; context: unknown[] } {
+  if ('pair' in opener) return pairCapsule(event, opener.pair);
+  // Once pairs exist, no single wallet opens recovery.
+  if (event.pairs) throw new Error('This account needs two wallets.');
+  const wallet = opener.wallet;
   const backup = wallet
     ? event.backups?.find(
         (entry) => canonical(entry.wallet) === canonical(wallet),
@@ -343,12 +383,11 @@ function capsuleFor(
  * public root before anything uses them. */
 async function openAuthority(
   event: DirectoryEvent,
-  secret: string | CryptoKey,
-  wallet?: WalletRecovery,
+  opener: RecoveryOpener,
 ): Promise<{ material: Record<string, unknown>; signing: CryptoKey }> {
-  const { capsule, context } = capsuleFor(event, wallet);
+  const { capsule, context } = capsuleFor(event, opener);
   const material = object(
-    await openAes(await recoveryKey(secret), capsule, context),
+    await openAes(await recoveryKey(opener.secret), capsule, context),
   );
   keys(material, ['signing', 'wrapping']);
   const signing = await crypto.subtle.importKey(
@@ -365,15 +404,14 @@ async function openAuthority(
   );
   return { material, signing };
 }
-/** Opens recovery with the secret of the main wallet or, when `wallet` names
- * one, of a backup wallet. */
-export async function recoverSecrets(
+/** Opens recovery and returns every epoch's keys with the authority's
+ * signing key. */
+export async function openRecovery(
   event: DirectoryEvent,
-  secret: string | CryptoKey,
-  wallet?: WalletRecovery,
+  opener: RecoveryOpener,
 ): Promise<{ ring: Keyring; signing: CryptoKey }> {
   try {
-    const { material, signing } = await openAuthority(event, secret, wallet);
+    const { material, signing } = await openAuthority(event, opener);
     const wrapping = await crypto.subtle.importKey(
       'pkcs8',
       base64(material['wrapping'], 2048),
@@ -390,24 +428,29 @@ export async function recoverSecrets(
     throw new Error('Recovery rejected: invalid key, account or integrity.');
   }
 }
+/** Opens recovery with the secret of the main wallet or, when `wallet` names
+ * one, of a backup wallet. */
+export function recoverSecrets(
+  event: DirectoryEvent,
+  secret: string | CryptoKey,
+  wallet?: WalletRecovery,
+): Promise<{ ring: Keyring; signing: CryptoKey }> {
+  return openRecovery(event, wallet ? { secret, wallet } : { secret });
+}
 /**
- * Seals the recovery authority for one more wallet. `opener` is the secret of
- * a wallet that already opens recovery; the authority's signing key comes back
- * so the caller can sign the directory change that publishes the capsule.
+ * Seals the recovery authority for one more wallet. `opener` already opens
+ * recovery; the authority's signing key comes back so the caller can sign the
+ * directory change that publishes the capsule.
  */
 export async function sealBackup(input: {
   event: DirectoryEvent;
-  opener: { secret: CryptoKey; wallet?: WalletRecovery };
+  opener: RecoveryOpener;
   backup: { wallet: WalletRecovery; secret: CryptoKey };
 }): Promise<{ backup: RecoveryBackup; signing: CryptoKey }> {
   const { event } = input;
   let opened: Awaited<ReturnType<typeof openAuthority>>;
   try {
-    opened = await openAuthority(
-      event,
-      input.opener.secret,
-      input.opener.wallet,
-    );
+    opened = await openAuthority(event, input.opener);
   } catch {
     throw new Error('Recovery rejected: invalid key, account or integrity.');
   }
@@ -431,15 +474,109 @@ export async function recoverySigner(
   wallet?: WalletRecovery,
 ): Promise<CryptoKey> {
   try {
-    return (await openAuthority(event, secret, wallet)).signing;
+    return (
+      await openAuthority(event, wallet ? { secret, wallet } : { secret })
+    ).signing;
   } catch {
     throw new Error('Recovery rejected: invalid key, account or integrity.');
   }
+}
+/** Which wallets open a new recovery authority: the main wallet alone with
+ * at most one backup, or three wallets in pairs. */
+export type RecoveryWallets =
+  | {
+      main: { wallet: WalletRecovery; secret: CryptoKey };
+      backups: { wallet: WalletRecovery; secret: CryptoKey }[];
+    }
+  | {
+      main: WalletRecovery;
+      pairs: {
+        wallets: readonly [WalletRecovery, WalletRecovery];
+        salt: string;
+        secret: CryptoKey;
+      }[];
+    };
+/**
+ * A new recovery authority sealed for the given wallets, to replace the
+ * current one. With pairs, the root's own capsule repeats the first pair's:
+ * the format requires one, and no single wallet can open it.
+ */
+export async function replaceRecovery(
+  accountId: string,
+  wallets: RecoveryWallets,
+): Promise<{
+  root: RecoveryRoot;
+  backups: RecoveryBackup[];
+  pairs: RecoveryPair[];
+  signing: CryptoKey;
+}> {
+  const created = await generateAuthority();
+  const seal = async (secret: CryptoKey, context: unknown[]) =>
+    sealAes(await recoveryKey(secret), created.material, context);
+  if ('pairs' in wallets) {
+    const pairs: RecoveryPair[] = [];
+    for (const pair of wallets.pairs) {
+      const entry = {
+        wallets: [
+          walletRecovery(pair.wallets[0]),
+          walletRecovery(pair.wallets[1]),
+        ] as [WalletRecovery, WalletRecovery],
+        salt: pair.salt,
+      };
+      pairs.push({
+        ...entry,
+        capsule: await seal(pair.secret, pairContext(accountId, entry)),
+      });
+    }
+    const first = pairs[0];
+    if (!first) throw new Error('Recovery pairs missing.');
+    return {
+      root: {
+        ...created.public,
+        wallet: walletRecovery(wallets.main),
+        capsule: first.capsule,
+      },
+      backups: [],
+      pairs,
+      signing: created.signing,
+    };
+  }
+  const main = walletRecovery(wallets.main.wallet);
+  const backups: RecoveryBackup[] = [];
+  for (const backup of wallets.backups) {
+    const wallet = walletRecovery(backup.wallet);
+    backups.push({
+      wallet,
+      capsule: await seal(backup.secret, backupContext(accountId, wallet)),
+    });
+  }
+  return {
+    root: {
+      ...created.public,
+      wallet: main,
+      capsule: await seal(
+        wallets.main.secret,
+        recoveryContext(accountId, main),
+      ),
+    },
+    backups,
+    pairs: [],
+    signing: created.signing,
+  };
 }
 function backupContext(accountId: string, wallet: WalletRecovery): unknown[] {
   if (walletRecovery(wallet).accountId !== accountId)
     throw new Error('Settings belong to another account.');
   return ['0xdmme-recovery-backup', 1, accountId, walletRecovery(wallet)];
+}
+function pairContext(
+  accountId: string,
+  pair: { wallets: readonly [WalletRecovery, WalletRecovery]; salt: string },
+): unknown[] {
+  const wallets = pair.wallets.map((wallet) => walletRecovery(wallet));
+  if (wallets.some((wallet) => wallet.accountId !== accountId))
+    throw new Error('Settings belong to another account.');
+  return ['0xdmme-recovery-pair', 1, accountId, wallets, pair.salt];
 }
 function recoveryContext(
   accountId: string,

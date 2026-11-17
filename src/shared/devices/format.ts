@@ -39,16 +39,32 @@ export interface RecoveryBackup {
   wallet: WalletRecovery;
   capsule: { iv: string; ciphertext: string };
 }
-/** Extra wallets that can open recovery: the account allows two besides the
- * main one. */
-export const backupLimit = 2;
+/** One backup wallet opens recovery on its own. A third wallet moves the
+ * account to pairs, where no single wallet opens it. */
+export const backupLimit = 1;
+/** The recovery authority's private keys sealed for two wallets together. */
+export interface RecoveryPair {
+  /** In canonical order: ecosystem, then address. */
+  wallets: [WalletRecovery, WalletRecovery];
+  salt: string;
+  capsule: { iv: string; ciphertext: string };
+}
+/** Three wallets form exactly three pairs. */
+export const pairCount = 3;
 export interface DirectoryEvent {
   version: 1;
   accountId: string;
   revision: number;
   epoch: number;
   previous: string | null;
-  kind: 'initialize' | 'link' | 'revoke' | 'recover' | 'migrate' | 'reseal';
+  kind:
+    | 'initialize'
+    | 'link'
+    | 'revoke'
+    | 'recover'
+    | 'migrate'
+    | 'reseal'
+    | 'reroot';
   signer: string;
   root: RecoveryRoot;
   devices: AuthorizedDevice[];
@@ -58,6 +74,8 @@ export interface DirectoryEvent {
   profile: string | null;
   /** Absent when the account has no backup wallet; never an empty list. */
   backups?: RecoveryBackup[];
+  /** Present only while the account requires two wallets: all three pairs. */
+  pairs?: RecoveryPair[];
   signature: string;
 }
 export function reject(message = 'Invalid device directory.'): never {
@@ -134,6 +152,20 @@ function recoveryBackups(value: unknown): RecoveryBackup[] {
     };
   });
 }
+function recoveryPairs(value: unknown): RecoveryPair[] {
+  if (!Array.isArray(value) || value.length !== pairCount) reject();
+  return (value as unknown[]).map((entry) => {
+    const data = object(entry);
+    keys(data, ['wallets', 'salt', 'capsule']);
+    const wallets = data['wallets'];
+    if (!Array.isArray(wallets) || wallets.length !== 2) reject();
+    return {
+      wallets: [walletRecovery(wallets[0]), walletRecovery(wallets[1])],
+      salt: bytes(data['salt'], 32),
+      capsule: recoveryCapsule(data['capsule']),
+    };
+  });
+}
 function recoveryRoot(value: unknown): RecoveryRoot {
   const data = object(value);
   keys(data, [
@@ -149,6 +181,19 @@ function recoveryRoot(value: unknown): RecoveryRoot {
       ? { wallet: walletRecovery(data['wallet']) }
       : {}),
     capsule: recoveryCapsule(data['capsule']),
+  };
+}
+/** The optional lists of wallets that open recovery beside the main one. */
+function recoveryLists(
+  data: Record<string, unknown>,
+): Pick<DirectoryEvent, 'backups' | 'pairs'> {
+  return {
+    ...(Object.hasOwn(data, 'backups')
+      ? { backups: recoveryBackups(data['backups']) }
+      : {}),
+    ...(Object.hasOwn(data, 'pairs')
+      ? { pairs: recoveryPairs(data['pairs']) }
+      : {}),
   };
 }
 export function directoryEvent(value: unknown): DirectoryEvent {
@@ -167,15 +212,21 @@ export function directoryEvent(value: unknown): DirectoryEvent {
     'recovery',
     'linkId',
     'profile',
-    ...(Object.hasOwn(data, 'backups') ? ['backups'] : []),
+    ...['backups', 'pairs'].filter((key) => Object.hasOwn(data, key)),
     'signature',
   ]);
   const kind = data['kind'];
   if (
     data['version'] !== 1 ||
-    !['initialize', 'link', 'revoke', 'recover', 'migrate', 'reseal'].includes(
-      String(kind),
-    )
+    ![
+      'initialize',
+      'link',
+      'revoke',
+      'recover',
+      'migrate',
+      'reseal',
+      'reroot',
+    ].includes(String(kind))
   )
     reject();
   const { devices, revoked } = members(data);
@@ -193,9 +244,7 @@ export function directoryEvent(value: unknown): DirectoryEvent {
     recovery: sealedSecret(data['recovery']),
     linkId: data['linkId'] === null ? null : uuid(data['linkId']),
     profile: data['profile'] === null ? null : fingerprint(data['profile']),
-    ...(Object.hasOwn(data, 'backups')
-      ? { backups: recoveryBackups(data['backups']) }
-      : {}),
+    ...recoveryLists(data),
     signature: bytes(data['signature'], 64),
   };
 }
@@ -218,16 +267,21 @@ function members(data: Record<string, unknown>): {
     revoked: (revoked as unknown[]).map(uuid),
   };
 }
-/** The recovery configuration that `wallet` opens in this event, if any: the
- * root's for the main wallet, or that wallet's backup. */
+/** Every wallet configuration that takes part in opening recovery. */
+export function recoveryWallets(event: DirectoryEvent): WalletRecovery[] {
+  return [
+    ...(event.root.wallet ? [event.root.wallet] : []),
+    ...(event.backups ?? []).map((backup) => backup.wallet),
+    ...(event.pairs ?? []).flatMap((pair) => pair.wallets),
+  ];
+}
+/** The recovery configuration of `wallet` in this event, if it has one: the
+ * root's for the main wallet, a backup's, or its configuration in the pairs. */
 export function recoveryWalletFor(
   event: DirectoryEvent,
   wallet: { ecosystem: string; address: string },
 ): WalletRecovery | undefined {
-  return [
-    ...(event.root.wallet ? [event.root.wallet] : []),
-    ...(event.backups ?? []).map((backup) => backup.wallet),
-  ].find(
+  return recoveryWallets(event).find(
     (config) =>
       config.ecosystem === wallet.ecosystem &&
       config.address === wallet.address,

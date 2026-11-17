@@ -1,6 +1,7 @@
 import { base64, encode } from '../account/index.ts';
 import { directoryEvent, eventBytes, identityOf, reject } from './format.ts';
 import type { DirectoryEvent, DeviceIdentity, LinkCode } from './format.ts';
+import type { WalletRecovery } from '../wallet-recovery/index.ts';
 
 export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -120,46 +121,121 @@ function additions(
 function walletKey(wallet: { ecosystem: string; address: string }): string {
   return `${wallet.ecosystem}:${wallet.address}`;
 }
+/** The one configuration each wallet uses across the pairs, by wallet. */
+function pairConfigurations(event: DirectoryEvent): Map<string, string> {
+  const configs = new Map<string, string>();
+  for (const wallet of (event.pairs ?? []).flatMap((pair) => pair.wallets)) {
+    const known = configs.get(walletKey(wallet)) ?? canonical(wallet);
+    if (known !== canonical(wallet) || wallet.accountId !== event.accountId)
+      reject('Invalid recovery wallets.');
+    configs.set(walletKey(wallet), known);
+  }
+  return configs;
+}
+/** Every pair of three distinct wallets, each in canonical order. The main
+ * wallet is one of the three and every wallet keeps one configuration. */
+function validatePairs(event: DirectoryEvent, main: WalletRecovery): void {
+  const pairs = event.pairs;
+  if (!pairs) return;
+  if (event.backups) reject('Invalid recovery wallets.');
+  const configs = pairConfigurations(event);
+  const listed = new Set(
+    pairs.map((pair) => pair.wallets.map(walletKey).join('|')),
+  );
+  const ordered = pairs.every(
+    (pair) => walletKey(pair.wallets[0]) < walletKey(pair.wallets[1]),
+  );
+  if (
+    configs.size !== 3 ||
+    listed.size !== 3 ||
+    !ordered ||
+    configs.get(walletKey(main)) !== canonical(main)
+  )
+    reject('Invalid recovery wallets.');
+}
 /** Backup capsules belong to this account and to wallets other than the main
- * one, each listed once. They exist only beside a wallet-bound root. */
-function validateBackups(event: DirectoryEvent): void {
-  const backups = event.backups;
-  if (!backups) return;
+ * one, each listed once. Backups and pairs exist only beside a wallet-bound
+ * root, and never together. */
+function validateRecoveryWallets(event: DirectoryEvent): void {
+  if (!hasRecoveryWallets(event)) return;
   const main = event.root.wallet;
-  if (!main) reject('Backup wallets need wallet recovery.');
-  const wallets = [main, ...backups.map((backup) => backup.wallet)];
+  if (!main) reject('Recovery wallets need wallet recovery.');
+  validatePairs(event, main);
+  const wallets = [main, ...(event.backups ?? []).map((b) => b.wallet)];
   if (
     wallets.some((wallet) => wallet.accountId !== event.accountId) ||
     new Set(wallets.map(walletKey)).size !== wallets.length
   )
     reject('Invalid backup wallets.');
 }
-/** Only the recovery authority changes which wallets open it. Devices, keys
- * and the root itself stay exactly as they were. */
+/** Signed by the authority, with no linking code and no profile change. */
+function signedOnlyByRecovery(event: DirectoryEvent): boolean {
+  return (
+    event.signer === 'recovery' &&
+    event.linkId === null &&
+    event.profile === null
+  );
+}
+function sameKeysAndDevices(
+  previous: DirectoryEvent,
+  event: DirectoryEvent,
+): boolean {
+  return (
+    event.epoch === previous.epoch &&
+    same(previous.devices, event.devices) &&
+    same(previous.recovery, event.recovery)
+  );
+}
+function hasPairs(...events: DirectoryEvent[]): boolean {
+  return events.some((event) => event.pairs !== undefined);
+}
+function hasRecoveryWallets(event: DirectoryEvent): boolean {
+  return event.backups !== undefined || event.pairs !== undefined;
+}
+/** Only the recovery authority changes which backup wallet opens it. Devices,
+ * keys and the root itself stay exactly as they were. */
 function validateReseal(previous: DirectoryEvent, event: DirectoryEvent): void {
   if (
-    event.signer !== 'recovery' ||
-    event.epoch !== previous.epoch ||
-    event.linkId !== null ||
-    event.profile !== null ||
-    !same(previous.devices, event.devices) ||
-    !same(previous.recovery, event.recovery) ||
+    !signedOnlyByRecovery(event) ||
+    hasPairs(previous, event) ||
+    !sameKeysAndDevices(previous, event) ||
     same(previous.backups ?? [], event.backups ?? [])
   )
     reject('Invalid backup wallet change.');
 }
-/** True for a valid reseal, which changes nothing else. Every other kind
- * must leave the backup wallets exactly as they were. */
-function recoveryWalletsChanged(
-  previous: DirectoryEvent,
-  event: DirectoryEvent,
-): boolean {
+/** The previous recovery authority hands over to new keys in a new epoch.
+ * The device list does not change; which wallets open the new authority may. */
+function validateReroot({ previous, event, added, removed }: Change): void {
+  if (
+    !previous.root.wallet ||
+    !event.root.wallet ||
+    event.signer !== 'recovery' ||
+    added.length ||
+    removed.length ||
+    event.epoch !== previous.epoch + 1 ||
+    event.linkId !== null ||
+    previous.root.signing === event.root.signing ||
+    previous.root.wrapping === event.root.wrapping
+  )
+    reject('Invalid recovery replacement.');
+}
+/** True when the event is a change of recovery wallets, which is then
+ * complete. Every other kind must leave backups and pairs as they were. */
+function recoveryWalletsChanged(change: Change): boolean {
+  const { previous, event } = change;
   if (event.kind === 'reseal') {
     validateReseal(previous, event);
     return true;
   }
-  if (!same(previous.backups ?? [], event.backups ?? []))
-    reject('Backup wallets change only through the recovery authority.');
+  if (event.kind === 'reroot') {
+    validateReroot(change);
+    return true;
+  }
+  if (
+    !same(previous.backups ?? [], event.backups ?? []) ||
+    !same(previous.pairs ?? [], event.pairs ?? [])
+  )
+    reject('Recovery wallets change only through the recovery authority.');
   return false;
 }
 function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
@@ -171,7 +247,7 @@ function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
     )
     .map((device) => device.id);
   if (!same(event.revoked, [...previous.revoked, ...removed].sort())) reject();
-  if (recoveryWalletsChanged(previous, event)) return;
+  if (recoveryWalletsChanged({ previous, event, added, removed })) return;
   if (event.kind === 'migrate') {
     validateMigration({ previous, event, added, removed });
     return;
@@ -184,12 +260,16 @@ function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
   validateRotation({ previous, event, added, removed });
   if (event.kind === 'initialize') reject();
 }
+/** The two kinds signed by the previous authority to introduce a new root. */
+export function replacesRoot(event: DirectoryEvent): boolean {
+  return event.kind === 'migrate' || event.kind === 'reroot';
+}
 function validateContinuity(
   previous: DirectoryEvent,
   event: DirectoryEvent,
 ): void {
   if (
-    (event.kind !== 'migrate' && !same(previous.root, event.root)) ||
+    (!replacesRoot(event) && !same(previous.root, event.root)) ||
     event.accountId !== previous.accountId ||
     event.revision !== previous.revision + 1
   )
@@ -258,7 +338,7 @@ function validateInitial(event: DirectoryEvent): void {
     event.devices.length !== 1 ||
     event.revoked.length ||
     event.linkId !== null ||
-    event.backups
+    hasRecoveryWallets(event)
   )
     reject();
 }
@@ -271,7 +351,7 @@ async function validatePublicKeys(
         (device) => !previous.devices.some((known) => known.id === device.id),
       )
     : [...event.devices, event.root];
-  if (previous && event.kind === 'migrate') recipients.push(event.root);
+  if (previous && replacesRoot(event)) recipients.push(event.root);
   for (const recipient of recipients) {
     const wrapping = await crypto.subtle.importKey(
       'spki',
@@ -301,7 +381,7 @@ export async function verifyTransition(
   if (new TextEncoder().encode(canonical(event)).length > eventBytes)
     reject('Directory exceeds the metadata budget.');
   membership(event);
-  validateBackups(event);
+  validateRecoveryWallets(event);
   let publicKey = event.root.signing;
   if (!previous) {
     validateInitial(event);
@@ -309,7 +389,7 @@ export async function verifyTransition(
     transition(previous, event);
     if (event.previous !== (await eventHash(previous)))
       reject('Directory conflict or outdated version.');
-    if (event.kind === 'migrate') publicKey = previous.root.signing;
+    if (replacesRoot(event)) publicKey = previous.root.signing;
     if (event.signer !== 'recovery') {
       const signer = previous.devices.find(
         (device) => device.id === event.signer,

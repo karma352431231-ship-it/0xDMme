@@ -79,6 +79,62 @@ function verifiedBytes(
     throw new Error('The signature belongs to another wallet.');
   return bytes;
 }
+const pairLabel = '0xdmme-wallet-pair-recovery-key-v1';
+/** Both statements, bound into the key and usable as authenticated context. */
+function pairStatements(wallets: readonly [WalletRecovery, WalletRecovery]) {
+  return new TextEncoder().encode(
+    JSON.stringify([pairLabel, ...wallets.map(recoveryMessage)]),
+  );
+}
+/**
+ * A key that needs the recovery signature of two wallets. `wallets` are in
+ * the directory's canonical order and `signatures` follow that order. The
+ * input is each signature behind one length byte; HKDF `info` is a label and
+ * the SHA-256 of both statements, because `info` is limited to 1,024 bytes.
+ */
+export async function walletPairKey(input: {
+  wallets: readonly [WalletRecovery, WalletRecovery];
+  signatures: readonly [string, string];
+  salt: string;
+}): Promise<CryptoKey> {
+  const wallets = [
+    walletRecovery(input.wallets[0]),
+    walletRecovery(input.wallets[1]),
+  ] as const;
+  const parts = wallets.map((wallet, index) =>
+    signatureBytes(wallet, input.signatures[index] ?? ''),
+  );
+  const material = new Uint8Array(
+    parts.reduce((total, part) => total + 1 + part.length, 0),
+  );
+  try {
+    let offset = 0;
+    for (const part of parts) {
+      material[offset] = part.length;
+      material.set(part, offset + 1);
+      offset += 1 + part.length;
+    }
+    const label = new TextEncoder().encode(`${pairLabel}\n`);
+    const digest = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', pairStatements(wallets)),
+    );
+    const info = new Uint8Array(label.length + digest.length);
+    info.set(label);
+    info.set(digest, label.length);
+    return await crypto.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt: base64(input.salt, 32), info },
+      await crypto.subtle.importKey('raw', material, 'HKDF', false, [
+        'deriveKey',
+      ]),
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+  } finally {
+    material.fill(0);
+    for (const part of parts) part.fill(0);
+  }
+}
 export async function walletRecoveryKey(
   config: WalletRecovery,
   signatures: string[],

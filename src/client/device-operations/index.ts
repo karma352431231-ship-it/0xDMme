@@ -12,6 +12,7 @@ import type {
   DeviceIdentity,
   DirectoryEvent,
   RecoveryBackup,
+  RecoveryPair,
   RecoveryRoot,
 } from '../../shared/devices/index.ts';
 import {
@@ -43,8 +44,10 @@ interface EventInput {
   ring: Keyring;
   linkId?: string;
   profile: EncryptedProfile | null;
-  /** Only a reseal sets this; every other change keeps the previous list. */
+  /** Only a reseal or a root replacement sets these; every other change
+   * keeps the previous lists. */
   backups?: RecoveryBackup[];
+  pairs?: RecoveryPair[];
 }
 /** Envelopes are untouched when a change adds a device to the same epoch or
  * only changes which wallets open recovery. */
@@ -97,11 +100,17 @@ async function recoveryEnvelope(input: EventInput) {
     ),
   );
 }
-/** A reseal sets the backup wallets; every other change carries them over. */
-function recoveryBackups(input: EventInput): Pick<DirectoryEvent, 'backups'> {
-  const backups =
-    input.kind === 'reseal' ? input.backups : input.previous?.backups;
-  return backups?.length ? { backups } : {};
+/** The recovery authority sets the wallets that open it; every other change
+ * carries them over. */
+function recoveryBackups(
+  input: EventInput,
+): Pick<DirectoryEvent, 'backups' | 'pairs'> {
+  const source =
+    input.kind === 'reseal' || input.kind === 'reroot' ? input : input.previous;
+  return {
+    ...(source?.backups?.length ? { backups: source.backups } : {}),
+    ...(source?.pairs?.length ? { pairs: source.pairs } : {}),
+  };
 }
 export async function prepareEvent(input: EventInput): Promise<DirectoryEvent> {
   const previous = input.previous;
