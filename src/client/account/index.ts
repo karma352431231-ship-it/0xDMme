@@ -23,6 +23,7 @@ import {
 import { WalletLogin } from './login.ts';
 import { AccountPrivateProfile } from './private-profile.ts';
 import type { ProfileOptions } from './private-profile.ts';
+import { createSessionDeadline } from './session-deadline.ts';
 import { accountTemplate } from './template.ts';
 import { AccountView } from './view.ts';
 import { WalletPicker } from './wallet-picker.ts';
@@ -98,7 +99,19 @@ export function startAccount(
       operation,
     },
   );
-  let expiryTimer: number | undefined;
+  const deadline = createSessionDeadline({
+    refresh: readCurrentSession,
+    extended: (expiresAt) => {
+      if (core.session) core.session = { ...core.session, expiresAt };
+    },
+    expired: () => {
+      core.epoch++;
+      profile.clear();
+      setSession(null);
+      core.status = t('Session expired. Sign in again.');
+      render();
+    },
+  });
   const walletReturn = createWalletReturn({
     expectedAccount: () => core.session,
     api,
@@ -202,27 +215,23 @@ export function startAccount(
     core.forcePicker = false;
     if (value) localStorage.setItem('hash-talk:login-device', value.deviceId);
     picker.close();
-    window.clearTimeout(expiryTimer);
-    if (value) scheduleSessionExpiry(value);
+    if (value) deadline.track(value);
+    else deadline.stop();
     options.changed(value);
   }
-  function scheduleSessionExpiry(value: AccountSession): void {
-    const remaining = Math.max(0, Date.parse(value.expiresAt) - Date.now());
-    // A 160-day session exceeds the maximum delay of a single browser timer.
-    expiryTimer = window.setTimeout(
-      () => {
-        if (Date.parse(value.expiresAt) > Date.now()) {
-          scheduleSessionExpiry(value);
-          return;
-        }
-        core.epoch++;
-        profile.clear();
-        setSession(null);
-        core.status = t('Session expired. Sign in again.');
-        render();
-      },
-      Math.min(remaining, 2_147_483_647),
-    );
+  /** The session as the server holds it now, or null when signed out there. */
+  async function readCurrentSession(): Promise<AccountSession | null> {
+    const response = await fetchApi('account/session', '/api/account/session', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (response.status === 401) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    return accountSession(await readApiJson(response, 'account/session'));
   }
   async function operation(work: () => Promise<void>): Promise<void> {
     if (core.busy || core.disposed) return;
@@ -325,7 +334,7 @@ export function startAccount(
     if (event.persisted) return;
     core.disposed = true;
     core.epoch++;
-    window.clearTimeout(expiryTimer);
+    deadline.stop();
     approval.close();
     profile.clear();
     login.stopObserving();

@@ -11,6 +11,7 @@ import {
   AccountService,
   createAccountHandler,
 } from '../../src/server/account/index.ts';
+import { tokenHash } from '../../src/server/account/service.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
@@ -93,7 +94,7 @@ function unauthorized(error: unknown): boolean {
   return error instanceof AccountError && error.status === 401;
 }
 function assertSessionLifetime(expiresAt: string, startedAt: number): void {
-  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const lifetime = 400 * 24 * 60 * 60 * 1000;
   const deadline = Date.parse(expiresAt);
   assert.ok(deadline >= startedAt + lifetime);
   assert.ok(deadline <= Date.now() + lifetime);
@@ -229,6 +230,57 @@ await test('persistent authentication and profile', async (t) => {
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='accounts' AND column_name='reserved_bytes') AS present",
       );
       assert.equal(row.rows[0]?.present, false);
+    },
+  );
+
+  await t.test(
+    'restoring a used session extends it at most once a day, reissues the cookie and never revives an ended one',
+    async () => {
+      const login = await authenticate(wallet());
+      const hash = tokenHash(login.sessionToken);
+      const setDeadline = (interval: string) =>
+        inspector.query(
+          'UPDATE hash_talk.login_sessions SET expires_at = now() + $2::interval WHERE token_hash = $1',
+          [hash, interval],
+        );
+      const fresh = await service.restore(login.sessionToken);
+      assert.equal(fresh.renewed, false);
+      assert.equal(fresh.session.expiresAt, login.session.expiresAt);
+
+      // A session issued under the earlier 160-day lifetime.
+      await setDeadline('160 days');
+      const startedAt = Date.now();
+      const extended = await service.restore(login.sessionToken);
+      assert.equal(extended.renewed, true);
+      assertSessionLifetime(extended.session.expiresAt, startedAt);
+      assert.equal((await service.restore(login.sessionToken)).renewed, false);
+
+      await setDeadline('160 days');
+      const restored = await fetch(`${origin}/api/account/session`, {
+        headers: { Cookie: `hash-talk-session=${login.sessionToken}` },
+      });
+      assert.equal(restored.status, 200);
+      await restored.text();
+      assert.match(
+        restored.headers.getSetCookie().join('\n'),
+        new RegExp(
+          `^hash-talk-session=${login.sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=34560000$`,
+          'u',
+        ),
+      );
+      const unchanged = await fetch(`${origin}/api/account/session`, {
+        headers: { Cookie: `hash-talk-session=${login.sessionToken}` },
+      });
+      await unchanged.text();
+      assert.deepEqual(unchanged.headers.getSetCookie(), []);
+
+      await setDeadline('-1 second');
+      await assert.rejects(service.restore(login.sessionToken), unauthorized);
+      const ended = await inspector.query<{ live: boolean }>(
+        'SELECT expires_at > now() AS live FROM hash_talk.login_sessions WHERE token_hash = $1',
+        [hash],
+      );
+      assert.notEqual(ended.rows[0]?.live, true);
     },
   );
 
@@ -977,7 +1029,7 @@ await test('persistent authentication and profile', async (t) => {
         .getSetCookie()
         .find((item) => item.startsWith('hash-talk-session='));
       assert.ok(sessionCookie);
-      assert.match(sessionCookie, /; Max-Age=13824000(?:;|$)/u);
+      assert.match(sessionCookie, /; Max-Age=34560000(?:;|$)/u);
     },
   );
 
@@ -1045,7 +1097,7 @@ await test('persistent authentication and profile', async (t) => {
         .getSetCookie()
         .find((item) => item.startsWith('hash-talk-session='));
       assert.ok(sessionCookie);
-      assert.match(sessionCookie, /; Max-Age=13824000(?:;|$)/u);
+      assert.match(sessionCookie, /; Max-Age=34560000(?:;|$)/u);
       const authenticatedHeaders = {
         ...headers,
         Cookie: sessionCookie.split(';')[0] ?? '',

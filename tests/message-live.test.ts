@@ -45,9 +45,9 @@ function response() {
 function turn(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
-await test('160-day session SSE survives timers and respects full expiration', (t) => {
+await test('400-day session SSE survives timers and respects full expiration', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
-  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const lifetime = 400 * 24 * 60 * 60 * 1000;
   const live = new MessageLive(new DatabaseChanges());
   t.after(() => live.close());
   const target = response();

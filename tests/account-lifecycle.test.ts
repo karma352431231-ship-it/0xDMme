@@ -461,9 +461,9 @@ function scope(options: {
   };
 }
 
-await test('160-day session stays connected across timers and expires only at the full deadline', async () => {
+await test('400-day session stays connected across timers and, when the server stops extending it, expires only at the full deadline', async () => {
   const clock = { now: Date.now() };
-  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const lifetime = 400 * 24 * 60 * 60 * 1000;
   const expiresAt = clock.now + lifetime;
   const restored = deferred<Response>();
   const browser = scope({
@@ -479,7 +479,7 @@ await test('160-day session stays connected across timers and expires only at th
   );
   await tick();
   assert.equal(browser.attributes.get('data-connected'), 'true');
-  for (let step = 0; step < 10 && clock.now < expiresAt; step++) {
+  for (let step = 0; step < 20 && clock.now < expiresAt; step++) {
     const timer = browser.nextTimer();
     assert.ok(timer.delay > 0 && timer.delay <= 2_147_483_647);
     clock.now += timer.delay;

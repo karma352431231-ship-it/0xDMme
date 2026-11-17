@@ -383,11 +383,13 @@ export function createAccountHandler(options: {
     const sessionToken = cookies.read(request, 'session');
     if (await notificationsGet(request, response, sessionToken)) return;
     if (request.url === '/api/account/session') {
-      sendAccountJson(
-        response,
-        200,
-        await options.service.session(sessionToken),
-      );
+      const restored = await options.service.restore(sessionToken);
+      if (restored.renewed)
+        response.setHeader(
+          'Set-Cookie',
+          cookies.write('session', sessionToken, sessionSeconds),
+        );
+      sendAccountJson(response, 200, restored.session);
       return;
     }
     if (request.url === '/api/account/profile') {

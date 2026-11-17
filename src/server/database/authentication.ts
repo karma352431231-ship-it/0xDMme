@@ -434,6 +434,21 @@ export class AuthenticationStore {
     };
   }
 
+  /** Extends a live session only when its deadline is earlier than
+   * `dueBefore`, so repeated restores do not write. Ended sessions stay ended. */
+  async renewSession(input: {
+    tokenHash: string;
+    expiresAt: Date;
+    dueBefore: Date;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE hash_talk.login_sessions SET expires_at = $2
+      WHERE token_hash = $1 AND expires_at > now() AND expires_at < $3`,
+      [input.tokenHash, input.expiresAt, input.dueBefore],
+    );
+    return result.rowCount === 1;
+  }
+
   private sessionEnded(
     ended: { accountId: string; csrf: string } | null,
   ): void {

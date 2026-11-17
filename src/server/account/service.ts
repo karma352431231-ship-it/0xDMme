@@ -32,7 +32,11 @@ import { LoginOpening } from './opening.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 
 export const challengeSeconds = 300;
-export const sessionSeconds = 160 * 24 * 60 * 60;
+/** A session does not end by age while it is used: each restore extends it
+ * to this lifetime, which matches the cookie lifetime browsers allow. */
+export const sessionSeconds = 400 * 24 * 60 * 60;
+/** Bounds extension writes to one per session per day. */
+export const sessionRenewalSeconds = 24 * 60 * 60;
 
 export function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -284,6 +288,21 @@ export class AccountService {
 
   async session(sessionToken: string): Promise<AccountSession> {
     return this.store.session(tokenHash(sessionToken));
+  }
+  /** Reads the session for an application start and extends it when due.
+   * `renewed` tells the transport to issue the cookie again. */
+  async restore(
+    sessionToken: string,
+  ): Promise<{ session: AccountSession; renewed: boolean }> {
+    const now = Date.now();
+    const renewed = await this.store.renewSession({
+      tokenHash: tokenHash(sessionToken),
+      expiresAt: new Date(now + sessionSeconds * 1000),
+      dueBefore: new Date(
+        now + (sessionSeconds - sessionRenewalSeconds) * 1000,
+      ),
+    });
+    return { session: await this.session(sessionToken), renewed };
   }
   async beginLinked(
     source: AccountSession,

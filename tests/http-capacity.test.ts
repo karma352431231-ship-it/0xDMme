@@ -34,7 +34,7 @@ function handler(kind: Kind, work: () => Promise<void>, t: TestContext) {
       store: database.authentication,
       origin: 'http://127.0.0.1:45100',
     });
-    t.mock.method(service, 'session', async () => {
+    t.mock.method(service, 'restore', async () => {
       await work();
       throw new AccountError(401, 'Session ended or expired.');
     });
