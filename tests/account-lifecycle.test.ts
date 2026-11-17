@@ -664,11 +664,10 @@ await test("an account that needs two wallets signs in only after a second signa
   );
   await tick();
   browser.click();
-  await until(() => browser.requests.includes('/api/account/login'));
-  await tick();
   // No session yet: the user is asked for another wallet of the account.
-  assert.equal(browser.attributes.get('data-connected'), 'false');
+  await until(() => /needs two wallets/u.test(browser.status.textContent));
   assert.match(browser.status.textContent, /needs two wallets/u);
+  assert.equal(browser.attributes.get('data-connected'), 'false');
   assert.equal(
     Object.hasOwn(
       browser.inputs.get('/api/account/login') as Record<string, unknown>,
