@@ -603,19 +603,11 @@
     color: var(--text-faint);
     font-size: 11.5px;
   }
+  /* Beside the list, page links such as Contacts join the category list. */
   #app-shell[data-page='perfil'] .profile-content-links {
-    order: 3;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0;
-    padding: 10px 16px 14px;
+    display: none;
   }
-  #app-shell[data-page='perfil']
-    :is(
-      .profile-identity .settings-actions button,
-      .profile-content-links > *
-    ) {
+  #app-shell[data-page='perfil'] .profile-identity .settings-actions button {
     display: inline-flex;
     align-items: center;
     min-height: 0;
@@ -645,7 +637,7 @@
     gap: 2px;
     padding: 8px 8px 16px;
   }
-  .profile-categories button {
+  .profile-categories :is(button, a) {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -655,8 +647,9 @@
     background: transparent;
     color: var(--text);
     text-align: left;
+    text-decoration: none;
   }
-  .profile-categories button:hover {
+  .profile-categories :is(button, a):hover {
     background: var(--surface-2);
   }
   .profile-categories button[aria-current='true'] {
@@ -681,7 +674,8 @@
     display: grid;
     min-width: 0;
   }
-  .profile-categories strong {
+  .profile-categories strong,
+  .profile-categories a > span:nth-child(2) {
     font-size: 13.5px;
     font-weight: 600;
   }
@@ -693,7 +687,11 @@
     text-overflow: ellipsis;
   }
   /* The open category fills the right side; the others wait in the list. */
-  #app-shell[data-page='perfil'] .settings-section {
+  #app-shell[data-page='perfil'] .settings-section,
+  #app-shell[data-page='perfil']
+    .account-section[data-connected='true']
+    [data-profile]
+    > .settings-section {
     grid-column: 2;
     grid-row: 1 / -1;
     align-self: start;

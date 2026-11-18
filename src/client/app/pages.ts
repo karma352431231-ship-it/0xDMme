@@ -146,6 +146,29 @@ export function startSettingsCategories(
     categories.first?.click();
 }
 
+/** Links to other pages that sit in the category list (Contacts follows
+ * Public profile); beside the list on wide screens they join it. */
+function pageLinks(group: Element): Node[] {
+  return [...group.children].map((link) => link.cloneNode(true));
+}
+
+/** The list entry that opens a category; the private profile has none,
+ * since the pencil beside the account name opens it. */
+function categoryButton(section: HTMLDetailsElement): HTMLButtonElement | null {
+  if (section.dataset['settingsSection'] === 'account') return null;
+  const summary = section.querySelector('summary');
+  const icon = summary?.querySelector('.settings-icon');
+  const copy = summary?.querySelector('span:nth-child(2)');
+  if (!icon || !copy) return null;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.append(icon.cloneNode(true), copy.cloneNode(true));
+  button.addEventListener('click', () => {
+    section.open = true;
+  });
+  return button;
+}
+
 /** Category buttons for the wide layout, built from each section's own summary. */
 function categoryList(
   host: HTMLElement,
@@ -156,19 +179,12 @@ function categoryList(
   nav.setAttribute('aria-label', t('Settings categories'));
   const buttons = new Map<HTMLDetailsElement, HTMLButtonElement>();
   for (const section of sections) {
-    if (section.dataset['settingsSection'] === 'account') continue;
-    const summary = section.querySelector('summary');
-    const icon = summary?.querySelector('.settings-icon');
-    const copy = summary?.querySelector('span:nth-child(2)');
-    if (!icon || !copy) continue;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.append(icon.cloneNode(true), copy.cloneNode(true));
-    button.addEventListener('click', () => {
-      section.open = true;
-    });
+    const button = categoryButton(section);
+    if (!button) continue;
     buttons.set(section, button);
     nav.append(button);
+    if (section.nextElementSibling?.matches('.profile-content-links'))
+      nav.append(...pageLinks(section.nextElementSibling));
   }
   host.querySelector('.profile-settings')?.before(nav);
   const sync = (): void => {
