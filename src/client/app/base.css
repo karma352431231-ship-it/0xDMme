@@ -25,6 +25,17 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+/* Controls are not text. Pressing one (or its icon) must not start a text
+ * selection, which on touch screens grows to the whole enclosing block, and a
+ * quick second tap must reach the control instead of double-tap zoom. Pinch
+ * zoom and scrolling stay available. */
+:is(button, [role='button'], [role='tab'], summary, label, select, svg) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+:is(button, [role='button'], [role='tab'], summary, label, select, a) {
+  touch-action: manipulation;
+}
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;

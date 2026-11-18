@@ -1,6 +1,14 @@
 #app-shell .community-notification-row {
   cursor: pointer;
 }
+/* The whole row opens the notice; a press must not select its text. */
+@media (pointer: coarse) {
+  #app-shell .community-notification-row {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
 #app-shell .community-notification-row[data-read='true'] a {
   color: var(--text-muted);
 }

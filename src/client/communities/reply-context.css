@@ -46,6 +46,14 @@
 .replied-post-card:hover {
   border-color: var(--line-strong);
 }
+/* The card opens the answered post; a press must not select its text. */
+@media (pointer: coarse) {
+  .replied-post-card {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
 .replied-post-card .community-post-header {
   margin-bottom: 0;
 }

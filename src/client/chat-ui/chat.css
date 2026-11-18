@@ -680,6 +680,15 @@
 .chat-panel .compose-attachment-menu[hidden] {
   display: none;
 }
+/* Installed apps: the clip leads the row, so its menu opens from the left. */
+.chat-panel .compose-row > .compose-attachment .compose-attachment-menu {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+}
+/* While typing, the camera gives its room to the text. */
+.chat-panel .compose-row:has(textarea:focus) .compose-camera {
+  display: none;
+}
 .chat-panel .compose-attachment-menu > button {
   display: flex;
   flex-direction: column;
@@ -754,14 +763,31 @@
   }
 }
 .chat-panel .compose-primary {
+  position: relative;
   flex-basis: 48px;
   width: 48px;
   height: 48px;
   background: var(--accent);
   color: var(--accent-ink);
+  transition: transform 90ms ease-out;
+}
+/* The touch target reaches past the circle to the composer's right and bottom
+ * edges, where a thumb usually lands; it stops short of the button on its left. */
+.chat-panel .compose-primary::after {
+  content: '';
+  position: absolute;
+  inset: -10px -14px -14px -2px;
 }
 .chat-panel .compose-primary:hover {
   background: var(--accent-strong);
+}
+.chat-panel .compose-primary:active:not(:disabled) {
+  transform: scale(0.92);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-panel .compose-primary {
+    transition: none;
+  }
 }
 .chat-panel .compose-notice {
   margin: 0;

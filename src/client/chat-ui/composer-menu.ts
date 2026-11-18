@@ -36,9 +36,28 @@ function start(root: Document): void {
   });
 }
 
+function fileInput(form: HTMLElement): HTMLInputElement | null {
+  const file = form.querySelector<HTMLInputElement>('[data-attachment-file]');
+  return file && !file.disabled ? file : null;
+}
+
+/** The installed apps' camera button: the same file input, asking the system
+ * for the rear camera. The photo then follows the normal attachment path. */
+function bindCamera(form: HTMLElement): void {
+  form.querySelector('[data-compose-camera]')?.addEventListener('click', () => {
+    const file = fileInput(form);
+    if (!file) return;
+    file.accept = 'image/*';
+    file.setAttribute('capture', 'environment');
+    file.click();
+  });
+}
+
 /** The menu routes to the existing emoji and file handlers. */
 export function bindComposerMenu(form: HTMLElement): void {
   if (mounted.has(form)) return;
+  mounted.add(form);
+  bindCamera(form);
   const anchor = form.querySelector<HTMLButtonElement>(
     '[data-chat-attachment]',
   );
@@ -47,7 +66,6 @@ export function bindComposerMenu(form: HTMLElement): void {
   );
   const host = anchor?.closest('.compose-attachment');
   if (!anchor || !menu || !host) return;
-  mounted.add(form);
   start(form.ownerDocument);
   anchor.addEventListener('click', () => {
     menu.hidden = !menu.hidden;
@@ -65,10 +83,9 @@ export function bindComposerMenu(form: HTMLElement): void {
     '[data-attachment-kind]',
   ))
     button.addEventListener('click', () => {
-      const file = form.querySelector<HTMLInputElement>(
-        '[data-attachment-file]',
-      );
-      if (!file || file.disabled) return;
+      const file = fileInput(form);
+      if (!file) return;
+      file.removeAttribute('capture');
       file.accept =
         button.dataset['attachmentKind'] === 'image'
           ? viewOnceEnabled(form) || !form.hasAttribute('data-public-compose')

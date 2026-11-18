@@ -9,6 +9,15 @@
 .community-post:not(.community-reply, .community-post-focus):hover {
   border-color: var(--line-strong);
 }
+/* On touch screens a feed card is one big button: a press opens the post
+ * instead of selecting the card's text. The opened post stays selectable. */
+@media (pointer: coarse) {
+  .community-post:not(.community-reply, .community-post-focus) {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
 .community-post-back {
   display: flex;
   align-items: center;

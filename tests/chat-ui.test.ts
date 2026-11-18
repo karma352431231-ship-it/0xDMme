@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  chatComposer,
   composerState,
   historyPosition,
   resetHistoryPosition,
@@ -267,4 +268,26 @@ await test('Enter sends, Shift+Enter adds a line; touch keyboards require Ctrl/C
   assert.equal(press({}), false);
   assert.equal(press({ ctrlKey: true }), true);
   assert.equal(sent, 2);
+});
+
+await test('the installed apps put the clip before the text and a camera after it', () => {
+  const where = (markup: string) => ({
+    clip: markup.indexOf('data-chat-attachment'),
+    text: markup.indexOf('compose-input'),
+    camera: markup.indexOf('data-compose-camera'),
+  });
+  const web = where(chatComposer('message'));
+  assert.equal(web.camera, -1);
+  assert.ok(web.clip > web.text);
+  const global = globalThis as { Capacitor?: unknown };
+  global.Capacitor = { isNativePlatform: () => true };
+  try {
+    for (const scope of ['message', 'group', 'public'] as const) {
+      const app = where(chatComposer(scope));
+      assert.ok(app.clip >= 0 && app.clip < app.text);
+      assert.ok(app.camera > app.text);
+    }
+  } finally {
+    delete global.Capacitor;
+  }
 });

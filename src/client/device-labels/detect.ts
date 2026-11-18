@@ -3,6 +3,7 @@
  * Nothing is fetched: the user agent, touch support, Chromium's model hint and
  * the native app bridge. Safari never reveals the iPhone or iPad model.
  */
+import { insideNativeApp } from '../native-app/index.ts';
 export const deviceKinds = [
   'mac',
   'windows',
@@ -115,13 +116,6 @@ async function modelHintOf(
     // Browsers may refuse high-entropy hints; the user agent still applies.
     return null;
   }
-}
-
-function insideNativeApp(): boolean {
-  const bridge = (
-    globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }
-  ).Capacitor;
-  return bridge?.isNativePlatform?.() === true;
 }
 
 /** This browser's description. The model hint is optional and best effort. */

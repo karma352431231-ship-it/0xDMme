@@ -15,6 +15,7 @@ import { pingChipMarkup, pingMarkup } from '../ping/index.ts';
 import { menuIconMarkup } from '../menu-icons/index.ts';
 import { bindComposerMenu } from './composer-menu.ts';
 import { bindViewOnceMode } from './view-once-mode.ts';
+import { insideNativeApp } from '../native-app/index.ts';
 export { viewOnceEnabled } from './view-once-mode.ts';
 
 const icons = {
@@ -28,6 +29,8 @@ const icons = {
   image:
     '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m4 17 5-5 4 4 4-6 4 6"/>',
   file: '<path d="M13 3H5v18h14V9zM13 3v6h6"/>',
+  camera:
+    '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
   once: '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="m10 9 2-1v8m-2 0h4"/>',
   mic: '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
   send: '<path d="m3 3 18 9-18 9 3-9zM6 12h15"/>',
@@ -69,29 +72,37 @@ export function chatCollapse(): string {
   return t('html.266effed7cb6', [chatIcon('collapse')]);
 }
 
-/** Authored markup only. Account names and decrypted text never enter this template. */
+/** Authored markup only. Account names and decrypted text never enter this template.
+ * In the installed apps the clip moves to the left of the text field and a
+ * camera button takes its place on the right (18/11/2026); browsers keep the
+ * clip on the right. */
 export function chatComposer(scope: 'message' | 'group' | 'public'): string {
   const form = {
     message: 'message-form',
     group: 'group-compose',
     public: 'public-compose',
   }[scope];
+  const native = insideNativeApp();
+  const attachment = t('html.bce6c8287808', [
+    scope,
+    chatIcon('emoji'),
+    chatIcon('clip'),
+    // Private and group chats accept 10 MB files; `@` DMs keep 3 MB (16/10/2026).
+    t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
+    chatIcon('image'),
+    chatIcon('file'),
+  ]);
   return t('html.46729037ae98', [
     form,
     scope !== 'public' ? t('html.2e7c749dbe8a', [chatIcon('close')]) : '',
     chatIcon('trash'),
     chatIcon('trash'),
     chatIcon('stop'),
+    native ? attachment : '',
     scope,
-    chatIcon('emoji'),
-    scope,
-    chatIcon('clip'),
+    native ? t('html.427be620c0f9', [chatIcon('camera')]) : attachment,
     chatIcon('mic'),
     chatIcon('send'),
-    // Private and group chats accept 10 MB files; `@` DMs keep 3 MB (16/10/2026).
-    t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
-    chatIcon('image'),
-    chatIcon('file'),
     chatIcon('once'),
     '',
   ]);
@@ -137,7 +148,7 @@ export function updateChatComposer(
   if (text) text.disabled = input.recording;
   form
     .querySelectorAll<HTMLButtonElement>(
-      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji], [data-attachment-kind], [data-view-once]',
+      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji], [data-attachment-kind], [data-compose-camera], [data-view-once]',
     )
     .forEach((button) => {
       button.disabled = state.disabled;
