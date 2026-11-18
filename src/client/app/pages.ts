@@ -224,8 +224,6 @@ const profileContent = t('html.148d3089e900', [
     title: t('About the app'),
     content: t('html.33d7dbf67efc', [settingsGlyph('refresh')]),
   }),
-  menuIconMarkup('edit'),
-  menuIconMarkup('clock'),
   menuIconMarkup('group'),
 ]);
 

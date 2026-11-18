@@ -42,6 +42,44 @@
 .app[data-page='perfil'] [data-profile-name] {
   font-size: var(--fs-heading);
 }
+/* The pencil beside the name opens the private profile editor, like the
+   pencil of one's own public profile (owner, 18/11/2026). */
+.app[data-page='perfil'] .profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app[data-page='perfil'] .profile-name-row [data-profile-name] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#app-shell[data-page='perfil'] .profile-name-row .profile-edit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.app[data-page='perfil'] .profile-name-row .profile-edit svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .app[data-page='perfil'] .account-address {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -815,7 +853,6 @@
     display: contents;
   }
   #app-shell[data-page='perfil'] .profile-content-links > * {
-    order: -1;
     display: flex;
     align-items: center;
     gap: 12px;

@@ -4,4 +4,5 @@ import { settingsGlyph } from '../settings-ui/index.ts';
 export const accountTemplate = t('html.6c0fbe0bf86d', [
   settingsGlyph('upload'),
   settingsGlyph('trash'),
+  settingsGlyph('pencil'),
 ]);
