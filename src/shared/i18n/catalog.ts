@@ -6887,6 +6887,17 @@ export const catalog: Record<string, readonly [string, string]> = {
       'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
       '此浏览器中未检测到钱包。请在装有要添加钱包的浏览器中打开 0xDMme。',
     ],
+  'No wallet can sign here. Open 0xDMme in your wallet app, sign in there and add the wallet. Both wallets must be accounts in that wallet app.':
+    [
+      'No wallet can sign here. Open 0xDMme in your wallet app, sign in there and add the wallet. Both wallets must be accounts in that wallet app.',
+      '这里没有可以签名的钱包。请在钱包应用中打开 0xDMme，在那里登录并添加钱包。两个钱包都必须是该钱包应用中的账户。',
+    ],
+  'Open in {0}': ['Open in {0}', '在 {0} 中打开'],
+  'Wallet apps can only open the HTTPS address of 0xDMme, not this local address.':
+    [
+      'Wallet apps can only open the HTTPS address of 0xDMme, not this local address.',
+      '钱包应用只能打开 0xDMme 的 HTTPS 地址，无法打开此本地地址。',
+    ],
   'This wallet is already on this account.': [
     'This wallet is already on this account.',
     '此钱包已在此账户中。',

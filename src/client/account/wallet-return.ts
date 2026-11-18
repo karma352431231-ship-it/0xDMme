@@ -12,7 +12,7 @@ import {
   ecosystem,
 } from '../../shared/wallet-identity/index.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
-import { walletBrowserUrl } from '../wallet/index.ts';
+import { mobilePlatform, walletBrowserUrl } from '../wallet/index.ts';
 import type { WalletName } from '../wallet/index.ts';
 import { approvalHistoryMarker } from './approval-diagnostics.ts';
 import { openingDiagnostics } from './opening-diagnostics.ts';
@@ -97,11 +97,7 @@ export function createWalletReturn(options: {
   ) => Promise<void>;
   forgetOpening?: (ticket?: string) => Promise<void>;
 }) {
-  const platform = /Android/iu.test(navigator.userAgent)
-    ? 'android'
-    : /iPhone|iPad|iPod/iu.test(navigator.userAgent)
-      ? 'ios'
-      : 'other';
+  const platform = mobilePlatform();
   let pending: Pending | null = null;
   let link: string | null = null;
   let generation = 0;

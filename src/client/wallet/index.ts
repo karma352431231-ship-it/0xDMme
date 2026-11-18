@@ -205,6 +205,22 @@ function legacySolana(name: string): WalletConnection | undefined {
 export { evmIdentity, signEvm } from './evm.ts';
 export { SolanaConnectionError } from './connection-error.ts';
 type MobilePlatform = 'android' | 'ios' | 'other';
+/** The phone platform, which picks each wallet app's link form. */
+export function mobilePlatform(): MobilePlatform {
+  if (/Android/iu.test(navigator.userAgent)) return 'android';
+  return /iPhone|iPad|iPod/iu.test(navigator.userAgent) ? 'ios' : 'other';
+}
+/** Wallet apps on a phone can only open this site over public HTTPS. */
+function publicOrigin(value: string): string | null {
+  const origin = new URL(value);
+  if (
+    origin.protocol !== 'https:' ||
+    origin.hostname === 'localhost' ||
+    origin.hostname === '127.0.0.1'
+  )
+    return null;
+  return origin.origin;
+}
 function approvalDestination(input: {
   origin: string;
   query: URLSearchParams;
@@ -227,13 +243,8 @@ export function walletBrowserUrl(input: {
   returnBrowser?: ReturnBrowser;
   platform?: MobilePlatform;
 }): string | null {
-  const origin = new URL(input.origin);
-  if (
-    origin.protocol !== 'https:' ||
-    origin.hostname === 'localhost' ||
-    origin.hostname === '127.0.0.1'
-  )
-    return null;
+  const origin = publicOrigin(input.origin);
+  if (!origin) return null;
   if (!/^[a-f0-9]{64}$/u.test(input.ticket))
     throw new Error('Invalid request.');
   const query = new URLSearchParams({
@@ -244,12 +255,25 @@ export function walletBrowserUrl(input: {
       ? {}
       : { returnBrowser: returnBrowser(input.returnBrowser) }),
   });
-  const target = approvalDestination({
-    ...input,
-    origin: origin.origin,
-    query,
-  });
-  return browseLink({ ...input, origin: origin.origin, target });
+  const target = approvalDestination({ ...input, origin, query });
+  return browseLink({ ...input, origin, target });
+}
+/**
+ * A page of this site opened in a wallet app's own browser, through the same
+ * official links as sign-in. There the wallet is available to the page, which
+ * the installed app's web view never has (owner, 18/11/2026).
+ */
+export function walletPageUrl(input: {
+  origin: string;
+  wallet: WalletName;
+  /** Path and fragment on this site, starting with "/". */
+  page: string;
+  platform?: MobilePlatform;
+}): string | null {
+  const origin = publicOrigin(input.origin);
+  if (!origin) return null;
+  if (!/^\/(?!\/)/u.test(input.page)) throw new Error('Invalid page.');
+  return browseLink({ ...input, origin, target: `${origin}${input.page}` });
 }
 /** App handlers receive the same HTTPS approval request on each platform. */
 function browseLink(input: {

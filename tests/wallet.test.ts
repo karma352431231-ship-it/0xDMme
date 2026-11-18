@@ -5,6 +5,7 @@ import { getWallets } from '@wallet-standard/app';
 import {
   discoverWallets,
   walletBrowserUrl,
+  walletPageUrl,
 } from '../src/client/wallet/index.ts';
 import {
   canonicalAddress,
@@ -146,6 +147,49 @@ await test('Backpack Android receives the complete own destination through the H
     assert.ok(other.startsWith('https://backpack.app/ul/v1/browse/'));
     assert.equal(new URL(other).searchParams.get('ref'), 'https://0xdmme.app');
   }
+});
+await test('a page of the own site opens in each wallet app browser and never from a local origin', () => {
+  const page = '/#settings?section=privacy';
+  const cases = [
+    ['Phantom', 'ios', 'phantom://browse/'],
+    ['Phantom', 'android', 'https://phantom.com/ul/browse/'],
+    ['MetaMask', 'ios', 'metamask://dapp/'],
+    ['MetaMask', 'android', 'https://link.metamask.io/dapp/'],
+    ['Backpack', 'ios', 'https://backpack.app/ul/v1/browse/'],
+    ['Backpack', 'android', 'https://backpack.app/ul/v1/browse/'],
+  ] as const;
+  for (const [wallet, platform, prefix] of cases) {
+    const link = walletPageUrl({
+      origin: 'https://0xdmme.app',
+      wallet,
+      page,
+      platform,
+    });
+    assert.ok(link, `${wallet} ${platform}`);
+    assert.ok(link.startsWith(prefix), `${wallet} ${platform}`);
+    const destination =
+      wallet === 'MetaMask'
+        ? 'https://' + link.slice(prefix.length)
+        : decodeURIComponent(link.slice(prefix.length).split('?ref=')[0]!);
+    assert.equal(destination, `https://0xdmme.app${page}`);
+  }
+  assert.equal(
+    walletPageUrl({
+      origin: 'http://127.0.0.1:45100',
+      wallet: 'Phantom',
+      page,
+      platform: 'ios',
+    }),
+    null,
+  );
+  assert.throws(() =>
+    walletPageUrl({
+      origin: 'https://0xdmme.app',
+      wallet: 'Phantom',
+      page: '//elsewhere.example',
+      platform: 'ios',
+    }),
+  );
 });
 await test('Solana addresses are 32-byte Base58 and EVM normalizes only its ecosystem', () => {
   const bytes = new Uint8Array(32).fill(42);

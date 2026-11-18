@@ -1,7 +1,7 @@
 import type { AccountWallet } from '../../shared/account-wallets/index.ts';
 import { maximumWallets } from '../../shared/account-wallets/index.ts';
 import { t } from '../../shared/i18n/index.ts';
-import type { WalletConnection } from '../wallet/index.ts';
+import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import {
   settingTip,
   settingsGlyph,
@@ -14,6 +14,8 @@ export interface WalletCardInput {
   wallets: AccountWallet[];
   opensHistory: (wallet: AccountWallet) => boolean;
   detected: WalletConnection[];
+  /** Wallet apps offered when no wallet is detected; empty off a phone. */
+  walletApps: readonly WalletName[];
   busy: boolean;
   message: string;
   /** The list of detected wallets is open in the add slot. */
@@ -25,6 +27,8 @@ export interface WalletCardInput {
     remove: (wallet: AccountWallet) => void;
     copy: (wallet: AccountWallet) => void;
     pick: (open: boolean) => void;
+    /** Opens this site inside that wallet app's browser. */
+    openIn: (wallet: WalletName) => void;
   };
 }
 
@@ -130,6 +134,39 @@ function walletRow(input: WalletCardInput, wallet: AccountWallet): HTMLElement {
   return row;
 }
 
+/** Without a detected wallet: on a phone, a way into each wallet app's own
+ * browser, where the wallet can sign; elsewhere, what is missing. */
+function undetected(input: WalletCardInput): HTMLElement[] {
+  if (!input.walletApps.length)
+    return [
+      element(
+        'p',
+        'set-status',
+        t(
+          'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
+        ),
+      ),
+    ];
+  return [
+    element(
+      'p',
+      'set-status',
+      t(
+        'No wallet can sign here. Open 0xDMme in your wallet app, sign in there and add the wallet. Both wallets must be accounts in that wallet app.',
+      ),
+    ),
+    ...input.walletApps.map((wallet) =>
+      button({
+        label: t('Open in {0}', [wallet]),
+        className: 'wallet-choice',
+        busy: input.busy,
+        icon: 'wallet',
+        click: () => input.actions.openIn(wallet),
+      }),
+    ),
+  ];
+}
+
 /** The empty slot: one button, then the wallets this browser detected. */
 function addSlot(input: WalletCardInput): HTMLElement | null {
   if (input.wallets.length >= maximumWallets) return null;
@@ -168,16 +205,7 @@ function addSlot(input: WalletCardInput): HTMLElement | null {
   const list = element('div', 'wallet-choices');
   list.setAttribute('role', 'group');
   list.setAttribute('aria-label', t('Choose the wallet to add'));
-  if (!input.detected.length)
-    list.append(
-      element(
-        'p',
-        'set-status',
-        t(
-          'No wallet detected in this browser. Open 0xDMme in a browser with the wallet you want to add.',
-        ),
-      ),
-    );
+  if (!input.detected.length) list.append(...undetected(input));
   for (const connection of input.detected)
     list.append(
       button({

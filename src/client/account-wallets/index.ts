@@ -14,7 +14,8 @@ import { verifyWalletStatement } from '../../shared/representatives/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { applicationOrigin } from '../application-origin/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
-import type { WalletConnection } from '../wallet/index.ts';
+import { mobilePlatform, walletPageUrl } from '../wallet/index.ts';
+import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { detectedWalletSigner } from '../wallet-signer/index.ts';
 import type { RecoverySigner } from '../wallet-signer/index.ts';
 import { showToast } from '../toast/index.ts';
@@ -58,6 +59,10 @@ export interface AccountWalletHost {
 }
 
 const walletTimeout = 120_000;
+/** Wallet apps that can open this site in their own browser on a phone. */
+const walletApps: readonly WalletName[] = ['Phantom', 'MetaMask', 'Backpack'];
+/** Privacy and Security, where the Sign-in wallets group lives. */
+const walletsPage = '/#settings?section=privacy';
 
 async function post(
   operation: string,
@@ -337,6 +342,26 @@ export function startAccountWallets(host: AccountWalletHost) {
       'Backup wallet added. It can now sign in and open your history.',
     );
   }
+  /** A phone without a wallet in this page (always so in the installed app)
+   * adds wallets from inside a wallet app's browser instead. */
+  const phone = mobilePlatform() !== 'other';
+  function openInWallet(wallet: WalletName): void {
+    const link = walletPageUrl({
+      origin: applicationOrigin(),
+      wallet,
+      page: walletsPage,
+      platform: mobilePlatform(),
+    });
+    if (!link) {
+      message = t(
+        'Wallet apps can only open the HTTPS address of 0xDMme, not this local address.',
+      );
+      render();
+      return;
+    }
+    // The operating system decides whether the wallet app opens.
+    location.assign(link);
+  }
   async function copy(wallet: AccountWallet): Promise<void> {
     try {
       await navigator.clipboard.writeText(wallet.address);
@@ -354,6 +379,7 @@ export function startAccountWallets(host: AccountWalletHost) {
         wallets,
         opensHistory,
         detected: host.wallets(),
+        walletApps: phone ? walletApps : [],
         busy,
         message,
         picking,
@@ -372,6 +398,7 @@ export function startAccountWallets(host: AccountWalletHost) {
           copy: (wallet) => {
             void copy(wallet);
           },
+          openIn: openInWallet,
           pick: (open) => {
             picking = open;
             render();
