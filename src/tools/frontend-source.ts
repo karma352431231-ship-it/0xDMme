@@ -18,6 +18,7 @@ const authored = [
   'src/client/device-labels',
   'src/client/settings-ui',
   'src/client/native-app',
+  'src/client/phone-back',
   'src/client/wallet-signer',
   'src/client/view-once-media-buffer',
   'src/client/view-once',

@@ -1,4 +1,5 @@
 import { appAddress, navigateApp } from '../app-navigation/index.ts';
+import { menuIconMarkup } from '../menu-icons/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { settingGroup, settingsGlyph } from '../settings-ui/index.ts';
 import {
@@ -198,7 +199,10 @@ const profileContent = t('html.148d3089e900', [
         title: t('Sounds and calls'),
         rows: '<div class="set-slot" data-sound-settings></div><div class="set-slot" data-call-settings></div>',
       },
-    )}</div>`,
+    )}${settingGroup({
+      title: t('Reminders'),
+      rows: '<div class="set-slot" data-reminder-settings></div>',
+    })}</div>`,
   }),
   settingsSection({
     id: 'devices',
@@ -220,6 +224,9 @@ const profileContent = t('html.148d3089e900', [
     title: t('About the app'),
     content: t('html.33d7dbf67efc', [settingsGlyph('refresh')]),
   }),
+  menuIconMarkup('edit'),
+  menuIconMarkup('clock'),
+  menuIconMarkup('group'),
 ]);
 
 export const pages = {

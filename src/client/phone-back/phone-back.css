@@ -1,0 +1,33 @@
+/*
+ * The phone top bar's way back. Wider layouts keep their own navigation.
+ */
+#app-shell .brand-bar .phone-back {
+  display: none;
+}
+@media (max-width: 700px) {
+  #app-shell .brand-bar .phone-back:not([hidden]) {
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    margin-left: -10px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text);
+  }
+  #app-shell .brand-bar .phone-back svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  #app-shell .brand-bar .phone-back:active {
+    background: var(--surface-2);
+  }
+}

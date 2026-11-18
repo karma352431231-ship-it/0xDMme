@@ -97,6 +97,13 @@ const paths = {
     'M7 12h10',
   ],
   info: [circle, 'M12 11v5.5', 'M12 7.5h.01'],
+  chat: ['M4 5.5h16v11H9l-5 4z'],
+  group: [
+    ...person,
+    'M15.5 4.3a3.75 3.75 0 0 1 0 7.2',
+    'M18.5 14.2a5 5 0 0 1 3 4.8v1',
+  ],
+  addPerson: [...person, 'M19 8v6', 'M16 11h6'],
 } as const;
 export type MenuIconName = keyof typeof paths;
 

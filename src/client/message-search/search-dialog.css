@@ -18,14 +18,32 @@
   position: sticky;
   top: -24px;
   z-index: 1;
-  background: var(--surface);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+  margin: -8px 0 0;
+  padding: 8px 0;
+  background: var(--surface);
 }
-.search-heading h2 {
-  margin: 0;
-  font-size: var(--fs-title);
+.conversation-search .search-back {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+}
+.conversation-search .search-back:active {
+  background: var(--surface-2);
+}
+.conversation-search .search-back svg {
+  width: 24px;
+  height: 24px;
 }
 .conversation-search button {
   border: 1px solid var(--line-strong);
@@ -35,45 +53,52 @@
   padding: 10px 12px;
   font: inherit;
 }
-.search-heading button {
-  font-size: var(--fs-title);
-  border: 0;
-  background: transparent;
-  padding: 0 8px;
-}
-.conversation-search label {
-  display: block;
-  margin: 22px 0 10px;
-  font-size: var(--fs-small);
+.conversation-search form {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .search-input-row {
   display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
 }
-.conversation-search form {
-  position: sticky;
-  top: 28px;
-  z-index: 1;
-  padding-bottom: 8px;
-  background: var(--surface);
+.search-input-row:focus-within {
+  border-color: var(--accent);
+}
+.search-input-row svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
 }
 .search-input-row input {
   flex: 1;
   width: 100%;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
+  height: 44px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: inherit;
   font: inherit;
   font-size: max(16px, 1em);
 }
-.search-scope,
 [data-search-notice] {
   color: var(--text-muted);
   font-size: var(--fs-caption);
   line-height: 1.6;
+}
+[data-search-notice]:empty {
+  display: none;
+}
+/* Nothing below the search field until something has been typed. */
+.conversation-search:not([data-query]) .search-results {
+  display: none;
 }
 .conversation-search h3 {
   font-size: var(--fs-body);
@@ -131,15 +156,22 @@
   overflow-wrap: anywhere;
 }
 
+/* Phones: search is its own screen, entered and left like any other. */
 @media (max-width: 700px) {
   .conversation-search {
-    padding: 18px;
+    width: 100%;
+    max-width: none;
+    height: var(--viewport-height, 100dvh);
+    max-height: none;
+    margin: 0;
+    padding: max(8px, env(safe-area-inset-top)) 16px 16px;
+    border: 0;
+    border-radius: 0;
+    background: var(--bg);
   }
-  .search-input-row {
-    flex-wrap: wrap;
-  }
-  .search-input-row input {
-    flex-basis: 100%;
+  .search-heading {
+    top: calc(-1 * max(8px, env(safe-area-inset-top)));
+    background: var(--bg);
   }
 }
 
@@ -172,7 +204,6 @@ article.search-match {
 }
 /* Search opened from a contact or group info covers that conversation only. */
 .conversation-search[data-conversation] [data-search-chats],
-.conversation-search[data-conversation] [data-search-chats] + h3,
-.conversation-search[data-conversation] .search-scope + h3 {
+.conversation-search[data-conversation] .search-results > h3 {
   display: none;
 }

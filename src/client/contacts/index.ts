@@ -328,8 +328,9 @@ export function startContacts(
         trace,
       });
       discovery.value = contacts.state.mode;
+      // A finished refresh says nothing; only an incomplete one explains itself.
       status = sync.complete
-        ? t('Contacts updated.')
+        ? ''
         : t(
             'Permissions verified. Continue loading the vault index before editing contacts.',
           );

@@ -139,10 +139,9 @@ for (const withInvite of [false, true])
     await loaded;
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(button.disabled, false);
-    assert.match(
-      status.textContent,
-      withInvite ? /Invitation unavailable/u : /Contacts updated/u,
-    );
+    // A finished refresh is silent; only problems are reported (18/11/2026).
+    if (withInvite) assert.match(status.textContent, /Invitation unavailable/u);
+    else assert.equal(status.textContent, '');
     if (withInvite) {
       assert.equal(dialog.open, true);
       assert.equal(input.value, link);

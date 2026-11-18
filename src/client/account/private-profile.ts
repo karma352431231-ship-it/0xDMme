@@ -1,3 +1,4 @@
+import { BackupReminderControl } from './backup-reminder-control.ts';
 import { measuredLoad, timedLoad } from '../chat-sync-diagnostics/index.ts';
 import type { LoadTrace } from '../chat-sync-diagnostics/index.ts';
 import { t } from '../../shared/i18n/index.ts';
@@ -71,6 +72,7 @@ export class AccountPrivateProfile {
   private readonly photoDraft = new PrivatePhotoDraft();
   private readonly preferencesDraft = new PrivatePreferencesDraft();
   private readonly privacyControls: PrivacyControls;
+  private readonly reminderControl: BackupReminderControl;
   private readonly account: ProfileAccount;
   private readonly options: ProfileOptions;
   private readonly host: {
@@ -105,6 +107,22 @@ export class AccountPrivateProfile {
         this.privacyControls.render();
       },
       confirm: (event) => this.confirmPreferences(event, privacyChoices),
+    });
+    this.reminderControl = new BackupReminderControl({
+      value: () =>
+        this.profile
+          ? this.preferencesDraft.value(this.profile.preferences).backupReminder
+          : null,
+      busy: () => this.state.busy,
+      save: (on) => {
+        if (!this.profile) return Promise.resolve();
+        this.preferencesDraft.set(
+          this.profile.preferences,
+          'backupReminder',
+          on,
+        );
+        return this.saveChoices(reminderChoices);
+      },
     });
   }
   private get state(): ReturnType<ProfileAccount['read']> {
@@ -182,8 +200,9 @@ export class AccountPrivateProfile {
     this.key = localKey;
     this.profile = opened;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
-    this.account.notice(t('Account ready.'));
-    this.account.profileNotice(t('Profile available.'));
+    // Ready is the normal state; the screen shows only problems.
+    this.account.notice('');
+    this.account.profileNotice('');
   }
   private lockedNotice(): void {
     if (this.options.deviceKeysLost?.()) {
@@ -219,26 +238,11 @@ export class AccountPrivateProfile {
     this.find('[data-name-form]')?.addEventListener('submit', (event) => {
       void this.confirmNameForm(event);
     });
-    this.find('[data-preferences]')?.addEventListener('submit', (event) => {
-      void this.confirmPreferences(event, reminderChoices);
-    });
     this.find('[data-name-form]')?.addEventListener('input', () => {
       this.dirtyName = true;
       this.draftName =
         this.find<HTMLInputElement>('input[name="display-name"]')?.value ??
         null;
-      this.editing();
-    });
-    this.find('[data-preferences]')?.addEventListener('change', (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement) || !this.profile) return;
-      const name = target.name;
-      if (Object.hasOwn(this.profile.preferences, name))
-        this.preferencesDraft.set(
-          this.profile.preferences,
-          name as PreferenceName,
-          target.checked,
-        );
       this.editing();
     });
   }
@@ -252,35 +256,30 @@ export class AccountPrivateProfile {
     const stale = this.state.status === this.saved;
     this.saved = null;
     if (!stale) return;
-    this.account.notice(t('Account ready.'));
+    this.account.notice('');
     this.host.render();
   }
   mountPrivacy(host: HTMLElement): void {
     this.privacyControls.mount(host);
   }
-  /** The name field, preference boxes and photo of the open form. */
+  mountReminder(host: HTMLElement): void {
+    this.reminderControl.mount(host);
+  }
+  /** The name field, photo and preference controls of the open account. */
   renderForm(current: AccountSession): void {
     const name = this.find<HTMLInputElement>('input[name="display-name"]');
     if (name && document.activeElement !== name)
       name.value = this.draftName ?? current.name;
-    if (this.profile)
-      for (const name of Object.keys(
-        this.profile.preferences,
-      ) as (keyof ProfilePreferences)[]) {
-        const checkbox = this.find<HTMLInputElement>(`input[name="${name}"]`);
-        if (checkbox)
-          checkbox.checked = this.preferencesDraft.value(
-            this.profile.preferences,
-          )[name];
-      }
     this.renderPhoto();
     this.privacyControls.render();
+    this.reminderControl.render();
   }
   renderPhoto(): void {
     this.avatar.render({
       hosts: [
         document.getElementById('account-avatar'),
         this.find('[data-profile-avatar]'),
+        this.find('[data-private-photo-preview]'),
         ...document.querySelectorAll<HTMLElement>('[data-private-avatar]'),
       ].filter((host): host is HTMLElement => host !== null),
       photo: this.photoDraft.value(this.profile?.photo ?? null),
@@ -440,6 +439,10 @@ export class AccountPrivateProfile {
     names: readonly PreferenceName[],
   ): Promise<void> {
     event.preventDefault();
+    await this.saveChoices(names);
+  }
+  /** Saves the drafted choices among `names`; other drafts stay drafts. */
+  private async saveChoices(names: readonly PreferenceName[]): Promise<void> {
     const original = this.state.session,
       currentKey = this.key,
       profile = this.profile;

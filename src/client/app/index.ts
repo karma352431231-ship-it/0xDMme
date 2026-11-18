@@ -6,6 +6,7 @@ import {
 } from '../connectivity/index.ts';
 import { installedApplication } from '../application-origin/index.ts';
 import { startPullRefresh } from '../pull-refresh/index.ts';
+import { startPhoneBack } from '../phone-back/index.ts';
 import {
   appAddress,
   navigateApp,
@@ -565,11 +566,19 @@ function renderPageHeader(key: PageKey): void {
         : t('EVM / Solana account · Private messages');
   document.title = t('{0} · 0xDMme', [title]);
 }
-function mountProfileSettings(content: HTMLElement): void {
+/** The private profile's choices: privacy and the backup reminder. */
+function mountAccountSettings(content: HTMLElement): void {
   const privacySettings = content.querySelector<HTMLElement>(
     '[data-privacy-settings]',
   );
   if (privacySettings) account.mountPrivacy(privacySettings);
+  const reminderSettings = content.querySelector<HTMLElement>(
+    '[data-reminder-settings]',
+  );
+  if (reminderSettings) account.mountReminder(reminderSettings);
+}
+function mountProfileSettings(content: HTMLElement): void {
+  mountAccountSettings(content);
   const appearanceSettings = content.querySelector<HTMLElement>(
     '[data-appearance-settings]',
   );
@@ -857,6 +866,8 @@ if (!account.approvalPage)
     },
   });
 if (!account.approvalPage) startPublicTraffic(element('page-content'));
+const brandBar = document.querySelector<HTMLElement>('.brand-bar');
+if (brandBar && !account.approvalPage) startPhoneBack(brandBar);
 mobileConversation?.restore();
 connection();
 

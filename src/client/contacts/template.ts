@@ -19,7 +19,13 @@ const ownInvite = t('html.597746d2b14a', [
   menuIconMarkup('info'),
 ]);
 
-export const template = t('html.c6799e4dff82', ['']);
+export const template = t('html.c6799e4dff82', [
+  '',
+  menuIconMarkup('addPerson'),
+  menuIconMarkup('group'),
+  menuIconMarkup('link'),
+  menuIconMarkup('qr'),
+]);
 
 /** Lives outside the Contacts page so it can open over any view. */
 export const editorTemplate = t('html.628f1388b464', [

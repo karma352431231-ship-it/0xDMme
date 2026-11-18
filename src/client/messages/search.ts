@@ -1,3 +1,4 @@
+import { menuIconMarkup } from '../menu-icons/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import {
   conversationButton,
@@ -49,7 +50,10 @@ export class ConversationSearch {
     this.openResult = openResult;
     this.dialog.className = 'conversation-search';
     this.dialog.setAttribute('aria-labelledby', 'conversation-search-title');
-    this.dialog.innerHTML = t('html.bc850aca5a52');
+    this.dialog.innerHTML = t('html.bc850aca5a52', [
+      menuIconMarkup('back'),
+      menuIconMarkup('search'),
+    ]);
     document.body.append(this.dialog);
     this.allLabel = this.dialog.querySelector('label')?.textContent ?? '';
     this.node('[data-search-close]').addEventListener('click', () =>
@@ -61,6 +65,7 @@ export class ConversationSearch {
     });
     this.node<HTMLInputElement>('input').addEventListener('input', () => {
       this.generation++;
+      this.showResults();
       this.clearResults();
       this.renderChats();
       clearTimeout(this.timer);
@@ -77,6 +82,14 @@ export class ConversationSearch {
   private setLabel(text: string): void {
     const label = this.dialog.querySelector('label');
     if (label) label.textContent = text;
+    // The full scope is long for a field; the default keeps a short hint.
+    this.node<HTMLInputElement>('input').placeholder =
+      text === this.allLabel ? t('Search chats and messages') : text;
+  }
+  /** Result sections appear only once something has been typed. */
+  private showResults(): void {
+    const typed = this.node<HTMLInputElement>('input').value.trim() !== '';
+    this.dialog.toggleAttribute('data-query', typed);
   }
   private node<T extends HTMLElement>(selector: string): T {
     const node = this.dialog.querySelector<T>(selector);
@@ -137,6 +150,7 @@ export class ConversationSearch {
     delete this.dialog.dataset['conversation'];
     this.setLabel(this.allLabel);
     this.node<HTMLInputElement>('input').value = '';
+    this.showResults();
     clearDirectory(this.node('[data-search-chats]'));
     this.clearResults();
   }
@@ -145,9 +159,7 @@ export class ConversationSearch {
     this.results = [];
     this.query = '';
     clearDirectory(this.node('[data-search-messages]'));
-    this.node('[data-search-notice]').textContent = this.only
-      ? t('Type to search for words in this conversation.')
-      : t('Type to find a conversation or search for words in messages.');
+    this.node('[data-search-notice]').textContent = '';
   }
   private renderChats(): void {
     const query = this.node<HTMLInputElement>('input').value;

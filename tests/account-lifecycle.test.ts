@@ -1541,21 +1541,39 @@ await test('private name and preference drafts survive account remount and block
     Promise.resolve(Response.json(null)),
   );
   await browser.account.acceptLinkedSession(browser.session);
+  // Privacy choices are drafted in their own category (17/11/2026).
+  const online = Object.assign(new EventTarget(), {
+    checked: false,
+    disabled: false,
+  });
+  const privacyNodes = new Map<string, unknown>([
+    ['form', new EventTarget()],
+    ['input[name="online"]', online],
+    [
+      'input[name="readReceipts"]',
+      Object.assign(new EventTarget(), { checked: false, disabled: false }),
+    ],
+    ['[data-privacy-save]', { hidden: true }],
+    ['[data-privacy-status]', { textContent: '' }],
+  ]);
+  browser.account.mountPrivacy({
+    innerHTML: '',
+    querySelector: (selector: string) => privacyNodes.get(selector) ?? null,
+    querySelectorAll: () => [],
+  } as unknown as HTMLElement);
   browser.nameInput.value = 'Unconfirmed private name';
   browser.nameForm.dispatchEvent(new Event('input'));
-  browser.onlineInput.checked = true;
-  const event = new Event('change');
-  Object.defineProperty(event, 'target', { value: browser.onlineInput });
-  browser.preferencesForm.dispatchEvent(event);
+  online.checked = true;
+  online.dispatchEvent(new Event('change'));
   assert.equal(browser.account.canActivate(), false);
   const before = browser.requests.length;
   await browser.account.refreshPrivate();
   assert.equal(browser.requests.length, before);
   browser.nameInput.value = '';
-  browser.onlineInput.checked = false;
+  online.checked = false;
   browser.account.mount(browser.view as unknown as HTMLElement);
   assert.equal(browser.nameInput.value, 'Unconfirmed private name');
-  assert.equal(browser.onlineInput.checked, true);
+  assert.equal(online.checked, true);
   assert.equal(browser.account.privacyPreferences()?.online, false);
   browser.dispose();
 });

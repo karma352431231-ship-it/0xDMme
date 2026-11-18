@@ -11,13 +11,13 @@ import {
   searchContacts,
 } from '../src/client/contacts/view.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
-import { CommunityNode } from './fixtures/community-dom.ts';
+import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
 await test('every contact row opens its settings without a three-dot menu and asks for the contact photo, including approved peers without a saved bookmark', (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: { createElement: (tag: string) => new CommunityNode(tag) },
+    value: communityDocument(),
   });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
@@ -61,9 +61,16 @@ await test('every contact row opens its settings without a three-dot menu and as
   });
   assert.equal(list.querySelector('.contact-menu-trigger'), null);
   const buttons = list.querySelectorAll('button');
+  // Chat keeps its label; opening the contact is a named glyph (18/11/2026).
   assert.deepEqual(
-    buttons.map((button) => button.textContent),
-    ['Chat', 'Open contact'],
+    buttons.map((button) => [
+      button.textContent,
+      button.getAttribute('aria-label'),
+    ]),
+    [
+      ['Chat', null],
+      ['', 'Open contact'],
+    ],
   );
   buttons[1]!.click();
   assert.equal(opened, 1);

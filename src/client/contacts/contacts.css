@@ -53,18 +53,29 @@
   font-size: var(--fs-title);
   letter-spacing: -0.8px;
 }
-.contacts-card .contacts-heading p {
-  margin: 5px 0 0;
-  line-height: 1.5;
-}
-.contacts-heading .primary {
+/* Add contact leads; the three actions share one row at every width. */
+.contact-create-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.contacts-card .contact-create-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.contact-create-actions svg,
+.contact-invite-link svg,
+.contact-row-actions svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.contacts-card button.contact-invite-link {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.contacts-heading .primary span {
-  font-size: var(--fs-title);
-  line-height: 1;
 }
 .contacts-toolbar {
   display: flex;
@@ -147,31 +158,6 @@
   background: var(--accent-soft);
   font-size: var(--fs-caption);
   color: var(--accent-text);
-}
-.contact-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px 6px;
-}
-.contacts-card .contact-section-heading h2 {
-  margin: 0;
-  font-size: var(--fs-body);
-}
-.contact-section-heading span {
-  color: var(--text-muted);
-  font-size: var(--fs-caption);
-}
-.contacts-card .contact-hint {
-  margin: 12px 0;
-  font-size: var(--fs-caption);
-  line-height: 1.6;
-  color: var(--text-muted);
-}
-.contacts-card > section > .contact-hint,
-.contacts-card > section > section > .contact-hint {
-  padding: 0 24px;
 }
 .contact-list {
   margin: 8px 0;
@@ -291,12 +277,6 @@
   font-size: var(--fs-caption);
   line-height: 1.6;
 }
-.contacts-card .contact-test-note {
-  margin: 0;
-  padding: 10px 24px 16px;
-  font-size: var(--fs-caption);
-  line-height: 1.6;
-}
 .contact-dialog,
 .contact-menu {
   width: min(520px, calc(var(--viewport-width, 100vw) - 32px));
@@ -361,9 +341,11 @@
 .contact-dialog .contact-feedback {
   margin: 20px -24px -24px;
 }
-/* The band exists only for a problem or a next step. */
+/* The band exists only for a problem, a retry or a next step. */
 .contact-dialog
-  .contact-feedback:not(:has(p:not(:empty), [data-contact-next-chat])) {
+  .contact-feedback:not(:has(p:not(:empty), [data-contact-next-chat])),
+.contacts-card
+  > .contact-feedback:not(:has(p:not(:empty), button:not([hidden]))) {
   display: none;
 }
 .contact-dialog video {
@@ -408,12 +390,31 @@
   .contacts-heading {
     padding: 20px 16px 16px;
   }
+  /* The top bar already names the screen. */
   .contacts-card .contacts-heading h1 {
-    font-size: var(--fs-title);
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
-  .contacts-heading .primary {
+  .contact-create-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
-    justify-content: center;
+  }
+  .contacts-card .contact-create-actions button {
+    flex-direction: column;
+    gap: 4px;
+    min-height: 64px;
+    padding: 8px 4px;
+    font-size: var(--fs-caption);
+    line-height: 1.2;
+    text-align: center;
+  }
+  .contact-create-actions svg {
+    width: 22px;
+    height: 22px;
   }
   .contacts-toolbar {
     padding: 0 16px 16px;
@@ -426,27 +427,17 @@
   .contact-tabs {
     padding: 0 10px;
   }
-  .contact-section-heading,
-  .contacts-card > section > .contact-hint,
-  .contacts-card > section > section > .contact-hint {
-    padding-inline: 16px;
-  }
   .contact-row {
-    grid-template-columns: 40px minmax(0, 1fr);
-    padding: 14px 16px;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    padding: 12px 16px;
     gap: 12px;
   }
   .contact-avatar {
     width: 40px;
     height: 40px;
   }
-  .contact-row-actions {
-    grid-column: 2;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
   .contact-row-actions button {
-    min-height: 44px;
+    min-height: 40px;
   }
   .contact-feedback {
     padding-inline: 16px;
@@ -472,4 +463,18 @@
   .contact-dialog .contact-feedback {
     margin: 12px -16px -16px;
   }
+}
+/* Opening the contact is a round glyph beside the chat button. */
+.contacts-card .contact-row-actions .contact-open {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+.contacts-card .contact-row-actions button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

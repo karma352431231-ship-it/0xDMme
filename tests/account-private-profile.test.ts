@@ -5,12 +5,11 @@ import { createCore } from '../src/client/account/core.ts';
 import { openProfile } from '../src/client/account-profile/index.ts';
 import type { PrivateProfile } from '../src/client/account-profile/index.ts';
 
-class PreferenceInput extends EventTarget {
-  name = 'backupReminder';
+class ReminderSwitch extends EventTarget {
   checked = false;
-  value = '';
+  disabled = false;
 }
-await test('private photo saves automatically and each form confirms only its own draft', async (t) => {
+await test('the private photo and the backup reminder save at once while the name draft stays', async (t) => {
   const core = createCore();
   core.session = {
     accountId: crypto.randomUUID(),
@@ -30,13 +29,15 @@ await test('private photo saves automatically and each form confirms only its ow
       false,
       ['encrypt', 'decrypt'],
     );
-  const preferences = new EventTarget(),
-    input = new PreferenceInput(),
+  const reminder = new ReminderSwitch(),
     nameForm = new EventTarget(),
     nameInput = { value: 'Nome salvo' };
+  const reminderHost = {
+    innerHTML: '',
+    querySelector: (selector: string) =>
+      selector === '[data-backup-reminder]' ? reminder : null,
+  } as unknown as HTMLElement;
   const formNodes = new Map<string, unknown>([
-    ['[data-preferences]', preferences],
-    ['input[name="backupReminder"]', input],
     ['[data-name-form]', nameForm],
     ['input[name="display-name"]', nameInput],
   ]);
@@ -54,7 +55,6 @@ await test('private photo saves automatically and each form confirms only its ow
   };
   const globals: Record<string, unknown> = {
     window: new EventTarget(),
-    HTMLInputElement: PreferenceInput,
     document: {
       getElementById: () => null,
       querySelector: () => photoInput,
@@ -126,29 +126,20 @@ await test('private photo saves automatically and each form confirms only its ow
   );
   await profile.load(current);
   profile.bind();
-  input.checked = false;
-  const unchanged = new Event('change');
-  Object.defineProperty(unchanged, 'target', { value: input });
-  preferences.dispatchEvent(unchanged);
-  assert.equal(
-    profile.clean,
-    true,
-    'unchanged preference must not block shell updates',
-  );
-  input.checked = true;
-  const change = new Event('change');
-  Object.defineProperty(change, 'target', { value: input });
-  preferences.dispatchEvent(change);
+  profile.mountReminder(reminderHost);
+  assert.equal(reminder.checked, false);
+  assert.equal(reminder.disabled, false);
   await profile.selectPhoto();
   assert.equal(writes.length, 1);
   assert.equal(writes[0]?.preferences.backupReminder, false);
   assert.equal(profile.backupReminder(), false);
   assert.ok(profile.shared()?.photo);
   assert.equal(core.session?.profileRevision, 1);
-  assert.equal(profile.clean, false);
+  assert.equal(profile.clean, true, 'a saved photo leaves no draft');
   nameInput.value = 'Nome em rascunho';
   nameForm.dispatchEvent(new Event('input'));
-  preferences.dispatchEvent(new Event('submit'));
+  reminder.checked = true;
+  reminder.dispatchEvent(new Event('change'));
   await pending;
   assert.equal(writes.length, 2);
   assert.equal(writes[1]?.preferences.backupReminder, true);
@@ -157,7 +148,7 @@ await test('private photo saves automatically and each form confirms only its ow
   assert.equal(core.session?.profileRevision, 2);
   assert.ok(
     !requested.some((url) => url.endsWith('/name')),
-    'the reminder form must not confirm the drafted name',
+    'the reminder switch must not confirm the drafted name',
   );
   assert.equal(core.session?.name, 'Nome salvo');
   assert.equal(profile.clean, false, 'the name draft remains unsaved');

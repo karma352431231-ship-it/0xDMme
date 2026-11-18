@@ -705,11 +705,16 @@
 }
 
 @media (max-width: 700px) {
-  #app-shell[data-page='perfil'] .brand-bar {
+  /* An open category has its own way back; the category list keeps the top
+   * bar so it can return to the screen that opened Settings (18/11/2026). */
+  #app-shell[data-page='perfil']:has(.settings-section[open]) .brand-bar {
     display: none;
   }
   #app-shell[data-page='perfil'] main {
-    padding: max(14px, env(safe-area-inset-top)) 0 24px;
+    padding: 0 0 24px;
+  }
+  #app-shell[data-page='perfil']:has(.settings-section[open]) main {
+    padding-top: max(14px, env(safe-area-inset-top));
   }
   #app-shell[data-page='perfil'] .page-heading,
   #app-shell[data-page='perfil'] .profile-settings > :is(h2, .settings-intro) {
@@ -813,11 +818,11 @@
     order: -1;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     width: 100%;
-    min-height: 54px;
+    min-height: 56px;
     margin: 0;
-    padding: 12px 14px;
+    padding: 10px 14px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -830,6 +835,7 @@
   }
   #app-shell[data-page='perfil'] .profile-content-links > *::after {
     content: '›';
+    margin-left: auto;
     color: var(--text-faint);
     font-size: 22px;
     font-weight: 400;

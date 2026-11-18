@@ -389,9 +389,14 @@ export function startAccount(
         ),
       );
     });
-    node(core, '[data-profile-avatar]')?.addEventListener('click', () => {
-      document.getElementById('account-avatar')?.click();
-    });
+    // The header photo and the private profile's Change photo open one picker.
+    for (const selector of [
+      '[data-profile-avatar]',
+      '[data-private-photo-change]',
+    ])
+      node(core, selector)?.addEventListener('click', () => {
+        document.getElementById('account-avatar')?.click();
+      });
     node(core, '[data-profile-copy]')?.addEventListener('click', () =>
       view.copyWallet(),
     );
@@ -431,6 +436,7 @@ export function startAccount(
       render();
     },
     mountPrivacy: (host: HTMLElement) => profile.mountPrivacy(host),
+    mountReminder: (host: HTMLElement) => profile.mountReminder(host),
     privacyPreferences: () => profile.privacyPreferences(),
     sharedProfile: () => profile.shared(),
     approvalPage: approval.page,

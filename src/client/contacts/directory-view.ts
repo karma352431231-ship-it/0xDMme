@@ -4,6 +4,7 @@ import type { SavedContact } from './directory.ts';
 import { walletKey } from './agenda.ts';
 import { contactRow, contactSearchMatches, emptyContacts } from './view.ts';
 import { shortAddress } from '../appearance/index.ts';
+import { menuIcon, withMenuIcon } from '../menu-icons/index.ts';
 
 type ListedPeer = Peer & { requester: string };
 export interface DirectoryItem {
@@ -89,11 +90,20 @@ function directoryRow(item: DirectoryItem, view: DirectoryView): HTMLLIElement {
   if (item.kind === 'approved' && item.peer && view.openChat) {
     const peer = item.peer,
       open = view.openChat;
-    const chat = view.button(t('Chat'), () => open(peer));
+    const chat = withMenuIcon(
+      view.button(t('Chat'), () => open(peer)),
+      'chat',
+    );
     chat.className = 'primary';
     actions.append(chat);
   }
-  actions.append(view.button(t('Open contact'), () => view.openContact(item)));
+  // The contact's own screen is a glyph: the row already names the contact.
+  const details = view.button('', () => view.openContact(item));
+  details.replaceChildren(menuIcon('profile'));
+  details.className = 'contact-open';
+  details.setAttribute('aria-label', t('Open contact'));
+  details.title = t('Open contact');
+  actions.append(details);
   directoryPhoto(avatar, item, view);
   row.dataset['contactState'] = item.kind;
   if (item.kind !== 'approved') {
