@@ -4,6 +4,7 @@ import WebKit
 /** Owns top/side viewport protection, bottom background extension and native theme chrome. */
 final class NativeViewportView: UIView {
     private var themeObservation: NSKeyValueObservation?
+    private var offsetObservation: NSKeyValueObservation?
     var appearanceChanged: (() -> Void)?
     private(set) var statusBarStyle: UIStatusBarStyle = .lightContent
 
@@ -14,6 +15,19 @@ final class NativeViewportView: UIView {
         // Native geometry protects top/side controls; CSS owns bottom safe-area padding.
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.isScrollEnabled = false
+        // Any edge the page leaves uncovered shows the theme color, not white.
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        // The page never scrolls as a whole: its own panes scroll. When the
+        // keyboard opens, WebKit still shifts the whole page to reveal the
+        // focused field, which flashes the app down and back (18/11/2026).
+        // Pinch zoom keeps its pan.
+        offsetObservation = webView.scrollView.observe(\.contentOffset, options: [.new]) { scrollView, _ in
+            guard scrollView.contentOffset != .zero,
+                  scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 else { return }
+            scrollView.contentOffset = .zero
+        }
         if #available(iOS 17.0, *) {
             keyboardLayoutGuide.usesBottomSafeArea = false
         }
@@ -40,7 +54,10 @@ final class NativeViewportView: UIView {
         appearanceChanged?()
     }
 
-    func close() { themeObservation?.invalidate(); themeObservation = nil }
+    func close() {
+        themeObservation?.invalidate(); themeObservation = nil
+        offsetObservation?.invalidate(); offsetObservation = nil
+    }
 
     required init?(coder: NSCoder) { fatalError("Use the packaged WebView initializer.") }
 }
