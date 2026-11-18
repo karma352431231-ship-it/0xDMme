@@ -25,7 +25,7 @@
   align-items: center;
   gap: 6px;
   margin: 0 4px 8px;
-  color: var(--text-muted);
+  color: var(--text);
   font: 700 12px/1.3 var(--font-display);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -57,13 +57,21 @@
   gap: 12px;
   min-width: 0;
   margin: 0;
-  color: var(--text);
+  color: var(--text-soft);
   font-size: 15px;
   line-height: 1.3;
   cursor: inherit;
 }
 #app-shell label.set-main {
   cursor: pointer;
+}
+/* The label takes the free width, so every info button sits in one column
+   just before the control (owner, 18/11/2026). */
+#app-shell .set-row > .set-main {
+  flex: 1 1 auto;
+}
+#app-shell .set-row:has(> .set-main) > .set-fill {
+  display: none;
 }
 #app-shell .set-tile {
   display: grid;
@@ -249,7 +257,8 @@
   flex: 0 0 20px;
   width: 20px;
   height: 20px;
-  margin: 0;
+  /* Centered in a switch-wide slot, so info buttons line up across rows. */
+  margin: 0 11px;
   padding: 0;
   border: 2px solid var(--line-strong);
   border-radius: 50%;
