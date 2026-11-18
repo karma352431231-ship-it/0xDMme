@@ -95,7 +95,8 @@ final class NativeCookies {
         guard attributes.count == 5, attributes["path"] == "/", attributes["httponly"] == "", attributes["secure"] == "",
               attributes["samesite"]?.lowercased() == "strict", let age = attributes["max-age"],
               NativePolicy.matches(age, "^(0|[1-9][0-9]{0,7})$"), let seconds = Int(age),
-              seconds <= (pair[0] == session ? 160 * 24 * 60 * 60 : 300),
+              // Sessions last 400 days and renew while used (16/11/2026); keep in step with the server.
+              seconds <= (pair[0] == session ? 400 * 24 * 60 * 60 : 300),
               (seconds == 0 ? pair[1].isEmpty : NativePolicy.matches(pair[1], "^[a-f0-9]{64}$")) else { throw NativeFailure.unavailable }
         return (pair[0], Cookie(value: pair[1], expires: seconds == 0 ? 0 : now + seconds * 1000))
     }

@@ -167,7 +167,8 @@ final class NativeCookies {
         String value = attributes.get("max-age");
         if (value == null || !value.matches("0|[1-9][0-9]{0,7}")) throw NativePolicy.failure();
         long age = Long.parseLong(value);
-        if (age > (name.equals(SESSION) ? 160L * 24 * 60 * 60 : 300)) throw NativePolicy.failure();
+        // Sessions last 400 days and renew while used (16/11/2026); keep in step with the server.
+        if (age > (name.equals(SESSION) ? 400L * 24 * 60 * 60 : 300)) throw NativePolicy.failure();
         return age;
     }
 
