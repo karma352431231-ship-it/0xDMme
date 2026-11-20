@@ -96,8 +96,12 @@ function moreChoices(options: {
     ['hidden', t('Hidden'), 'hide'],
     ['replies', t('Replies to your content'), 'reply'],
     ['invitations', t('Ownership requests'), 'transfer'],
-  ] as const)
-    iconLabel(link(choices, title, `#communities?view=${key}`), icon);
+  ] as const) {
+    const choice = link(choices, title, `#communities?view=${key}`);
+    iconLabel(choice, icon);
+    // The side menu lists Saved wherever it is on screen (community-actions.css).
+    if (key === 'saved') choice.classList.add('community-more-saved');
+  }
   return choices;
 }
 
@@ -142,34 +146,31 @@ export function communityDirectoryNavigation(
 ): void {
   const head = el('header', '', 'community-directory-head');
   head.append(el('h2', t('Communities')));
-  container.append(head, directoryTabs(view), directoryLinks(view, selected));
+  container.append(head, directoryLinks(view, selected));
   above?.();
   container.append(
     el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
   );
 }
-function directoryTabs(view: string): HTMLElement {
-  const tabs = el('nav', '', 'community-directory-tabs');
-  tabs.setAttribute('aria-label', t('Communities or handle messages'));
-  for (const [key, title] of [
-    ['feed', t('Communities')],
-    ['dms', t('Handle messages')],
-  ] as const) {
-    link(tabs, title, `#communities?view=${key}`);
-    if ((view === 'dms') === (key === 'dms'))
-      tabs.lastElementChild?.setAttribute('aria-current', 'page');
-  }
-  return tabs;
+/**
+ * X-style side menu (owner request, 20/11/2026): only destinations with no
+ * other place on this screen. Ranking stays for windows without the ranking
+ * sidebar; Activity also sits in the rail, but the owner wants it here too.
+ */
+function directoryDestinations() {
+  return [
+    ['feed', t('Feed'), 'layers', '#communities?view=feed'],
+    ['dms', t('Handle messages'), 'mail', '#communities?view=dms'],
+    ['saved', t('Saved'), 'bookmark', '#communities?view=saved'],
+    ['activity', t('Notifications'), 'bell', '#activity'],
+    ['explore', t('Ranking'), 'compass', '#communities?view=explore'],
+  ] as const;
 }
 function directoryLinks(view: string, selected: string | null): HTMLElement {
   const nav = el('nav', '', 'community-directory-nav');
   nav.setAttribute('aria-label', t('Community navigation'));
-  for (const [key, title, icon] of [
-    ['feed', t('Feed'), 'layers'],
-    ['explore', t('Ranking'), 'compass'],
-  ] as const) {
-    link(nav, title, `#communities?view=${key}`);
-    const a = nav.lastElementChild as HTMLAnchorElement;
+  for (const [key, title, icon, address] of directoryDestinations()) {
+    const a = link(nav, title, address);
     iconLabel(a, icon);
     // Hidden where the ranking sidebar is on screen (page-wide.css).
     if (key === 'explore') a.classList.add('community-ranking-link');

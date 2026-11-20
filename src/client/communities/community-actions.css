@@ -37,6 +37,14 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+/* Saved has its own entry in the Communities side menu (20/11/2026), so the
+   "⋯" leaves it out wherever that menu is on screen. Phones (no side menu)
+   and the panel beside the chats keep it here. */
+@media (min-width: 701px) {
+  #app-shell[data-page='comunidades'] .community-more-saved {
+    display: none;
+  }
+}
 
 .community-create-menu {
   position: fixed;

@@ -1870,10 +1870,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Community unavailable.': ['Community unavailable.', '社区不可用。'],
   Communities: ['Communities', '社区'],
   'Communities · Open access': ['Communities · Open access', '社区 · 公开阅读'],
-  'Communities or handle messages': [
-    'Communities or handle messages',
-    '社区或用户名私信',
-  ],
   'New communities': ['New communities', '新建社区'],
   'Communities are public and free. Any authorized public profile can participate without following.':
     [

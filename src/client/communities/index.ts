@@ -249,10 +249,14 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
+  // Handle conversations fill their own box under the side menu, so the menu
+  // stays on screen. One box is kept so rows are reused between renders.
+  const dmList = communityElement('div', '', 'community-dm-list');
   async function dmSidebar(): Promise<void> {
     if (!sidebar) return;
     const old = generation;
-    await dms.directory(sidebar, () => old === generation && view === 'dms');
+    sidebar.append(dmList);
+    await dms.directory(dmList, () => old === generation && view === 'dms');
   }
   async function directory(): Promise<void> {
     if (!sidebar) return;

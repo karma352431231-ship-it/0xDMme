@@ -1,4 +1,4 @@
-/* Directory head: title and Communities | Handle messages; creating uses the floating button. */
+/* Directory head: the Communities title; the side menu below it leads to Handle messages. */
 .community-directory-head {
   display: flex;
   align-items: center;
@@ -13,23 +13,4 @@
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-}
-.community-directory-tabs {
-  display: flex;
-  gap: 18px;
-  margin: 0 -18px 12px;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--line);
-}
-.community-directory-tabs a {
-  margin-bottom: -1px;
-  padding: 8px 0 10px;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font-size: var(--fs-small);
-  font-weight: 600;
-}
-.community-directory-tabs a[aria-current='page'] {
-  border-bottom-color: var(--accent);
-  color: var(--text);
 }
