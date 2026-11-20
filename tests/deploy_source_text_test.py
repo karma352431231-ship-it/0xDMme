@@ -77,3 +77,9 @@ class RuntimeDiagnosticsReviewTests(SourceTextReviewTests):
     before = reviewed_code.RUNTIME_DIAGNOSTICS_BEFORE
     reviewed = reviewed_code.RUNTIME_DIAGNOSTICS_REVIEWED
     review_modules = reviewed_code.RUNTIME_DIAGNOSTICS_MODULES
+
+
+class BlockRuleReviewTests(SourceTextReviewTests):
+    before = reviewed_code.BLOCK_RULE_BEFORE
+    reviewed = reviewed_code.BLOCK_RULE_REVIEWED
+    review_modules = reviewed_code.BLOCK_RULE_MODULES

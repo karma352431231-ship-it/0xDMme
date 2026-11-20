@@ -189,6 +189,17 @@ RUNTIME_DIAGNOSTICS_MODULES = frozenset({
     'public-profile.ts', 'social-dm.ts', 'status.ts', 'work-signals.ts',
 })
 
+# Owner block rule (20/11/2026): a blocked profile cannot reply, vote or follow;
+# blocked-by read and post-menu mute routing. No migration; trees pinned.
+BLOCK_RULE_BEFORE = '0f2d8d14c722015909b960f7c535fb71a0275e20'
+
+BLOCK_RULE_REVIEWED = 'f34c9df1f4e038aabdff66f2ada64e30cd72f888'
+
+BLOCK_RULE_MODULES = frozenset({
+    'communities.ts', 'community-interactions.ts', 'profile-block-guard.ts',
+    'profile-mutes.ts', 'profile-social.ts',
+})
+
 # Measured signed feed/follower read correction; pin the full database trees.
 # All 91 migrations, write paths, timeouts and runtime remain exact.
 COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
@@ -418,6 +429,7 @@ def database_code_reviewed(candidate, live):
          ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
         (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
         (set(RUNTIME_DIAGNOSTICS_MODULES), RUNTIME_DIAGNOSTICS_BEFORE, RUNTIME_DIAGNOSTICS_REVIEWED),
+        (set(BLOCK_RULE_MODULES), BLOCK_RULE_BEFORE, BLOCK_RULE_REVIEWED),
     ]
     # Several reviews may cover the same module set (successive releases of one
     # module); the transition is reviewed when any of them matches exactly.
