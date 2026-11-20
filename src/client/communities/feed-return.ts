@@ -295,7 +295,8 @@ export class FeedReturn {
       : null;
   }
   take(params: URLSearchParams): FeedBookmark | null {
-    if (params.has('id') || params.has('slug') || params.has('post'))
+    // A profile shown in Communities keeps the way back for its back arrow.
+    if (['id', 'slug', 'post', 'profile'].some((key) => params.has(key)))
       return null;
     const saved = this.saved;
     this.saved = null;

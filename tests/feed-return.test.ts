@@ -18,13 +18,14 @@ const bookmark: FeedBookmark = {
   top: 1234,
   anchor: { id: 'post-de-origem', offset: -15 },
 };
-await test('opening a post preserves page, filters and position; return is consumed once', () => {
+await test('opening a post or a profile preserves page, filters and position; return is consumed once', () => {
   const navigation = new FeedReturn();
   navigation.capture(bookmark);
   assert.equal(
     navigation.take(new URLSearchParams('id=comunidade&post=post')),
     null,
   );
+  assert.equal(navigation.take(new URLSearchParams('profile=karma')), null);
   assert.equal(navigation.target(), '#communities?view=following&return=feed');
   assert.deepEqual(
     navigation.take(new URLSearchParams('view=following')),

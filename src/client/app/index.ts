@@ -5,6 +5,7 @@ import {
   networkOfflineEvent,
 } from '../connectivity/index.ts';
 import { installedApplication } from '../application-origin/index.ts';
+import { communityProfileAddress } from './community-profile-route.ts';
 import { startPullRefresh } from '../pull-refresh/index.ts';
 import { startPhoneBack } from '../phone-back/index.ts';
 import {
@@ -174,6 +175,8 @@ const communities = startCommunities(devices, vault.sync, externalMedia, {
   publicProfile: () => publicProfiles.exists(),
   blockPublicUser: (peer) => publicProfiles.blockUser(peer),
   profileSafety: publicProfiles.safetyPort,
+  publicProfilePage: (host, profile, back) =>
+    publicProfiles.show(host, profile, back),
   unreadChanged: (count) => conversationBadge('public', count),
   // Public DMs start from SessionBoot below; the feed uses the signing lane.
   coordinatedStartup: true,
@@ -468,6 +471,17 @@ function leaveFeatures(next: PageKey): void {
   backups.leave();
   vault.leave();
 }
+/** A profile shown in Communities parks the feed as leaving the page would. */
+function keepProfileInCommunities(): void {
+  const address = communityProfileAddress({
+    address: appAddress(),
+    from: currentPage,
+    phone: matchMedia('(max-width: 700px)').matches,
+  });
+  if (!address) return;
+  history.replaceState(history.state, '', address);
+  communities.pause();
+}
 function canonicalizeRoute(): void {
   const canonical = canonicalAppHash(appAddress());
   if (canonical && canonical !== appAddress())
@@ -495,6 +509,7 @@ function route(): void {
   }
   canonicalizePublicConversation();
   canonicalizeRoute();
+  keepProfileInCommunities();
   const key = pageKey(appAddress());
   if (key === null) return;
   if (key !== 'conversas') sessionBoot.release();
@@ -556,7 +571,13 @@ function showAboutLinks(): void {
 function renderPageHeader(key: PageKey): void {
   const dm =
     key === 'comunidades' && routeParams(appAddress()).get('view') === 'dms';
-  const title = dm ? t('Handle messages') : pages[key].title;
+  const profile =
+    key === 'comunidades' && routeParams(appAddress()).has('profile');
+  const title = dm
+    ? t('Handle messages')
+    : profile
+      ? pages.publico.title
+      : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
   const mobileTitle = document.querySelector('[data-mobile-title]');
@@ -565,7 +586,7 @@ function renderPageHeader(key: PageKey): void {
     title.toLocaleUpperCase(currentLanguage());
   element('page-phase').textContent = dm
     ? t('Individual DMs · E2EE')
-    : key === 'publico'
+    : key === 'publico' || profile
       ? t('Public profile · Open access')
       : key === 'comunidades'
         ? t('Communities · Open access')

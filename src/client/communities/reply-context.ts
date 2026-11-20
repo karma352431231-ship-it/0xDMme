@@ -11,6 +11,7 @@ import {
 import { communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { postPreview } from './post-preview.ts';
+import { postTitle } from './post-text.ts';
 import { communityIcon, postHeader } from './presentation.ts';
 
 interface Place {
@@ -97,7 +98,8 @@ function quotedContent(
       reference: parent.author.avatar,
       signal,
     });
-  if (!parent.parent && parent.title) quoted.append(el('h3', parent.title));
+  if (!parent.parent && parent.title)
+    quoted.append(postTitle('h3', parent.title));
   if (parent.text)
     quoted.append(
       postPreview(parent.text, privacy ? gifUrls(parent.text) : []),

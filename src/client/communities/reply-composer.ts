@@ -12,7 +12,7 @@ import {
 } from './elements.ts';
 import { postHeader } from './presentation.ts';
 import { postPreviewText } from './post-preview.ts';
-import { postText } from './post-text.ts';
+import { postText, postTitle } from './post-text.ts';
 import { replyForm } from './post-forms.ts';
 import { submitPostReply } from './post-interactions.ts';
 import {
@@ -181,7 +181,7 @@ export class ReplyComposer {
         reference: this.parent.author.avatar,
         signal,
       });
-    if (this.parent.title) context.append(el('h3', this.parent.title));
+    if (this.parent.title) context.append(postTitle('h3', this.parent.title));
     const preview = postPreviewText(this.parent.text);
     if (preview)
       context.append(

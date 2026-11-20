@@ -2,7 +2,8 @@ import { t } from '../../shared/i18n/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
-import { communityCard as card, communityElement as el } from './elements.ts';
+import { communityElement as el } from './elements.ts';
+import { postTitleCard } from './post-text.ts';
 import { postHeader, postTagLink, postComments } from './presentation.ts';
 import { postPreview } from './post-preview.ts';
 import { sharedEntry } from './shared-context.ts';
@@ -16,7 +17,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 export function entryCard(post: CommunityPost): HTMLElement {
   const row = post.parent
     ? el('article', '', 'card community-card')
-    : card(post.title || t('Post'));
+    : postTitleCard(post.title || t('Post'));
   row.classList.add('community-post');
   row.dataset['postId'] = post.id;
   return row;

@@ -112,6 +112,7 @@ function fixture(
     management?: boolean;
     view?: string;
     photos?: boolean;
+    profile?: string;
   } = {},
 ) {
   const state: CommunityState = {
@@ -169,6 +170,8 @@ function fixture(
     notifications: { items: [] as unknown[], next: null as string | null },
     dmMounts: [] as (string | null)[],
     dmLeaves: 0,
+    profilePages: [] as [string, string | null][],
+    profileCloses: 0,
     dmDirectoryCurrent: null as (() => boolean) | null,
     navigations: [] as string[],
     photos: [] as {
@@ -349,6 +352,12 @@ function fixture(
     {} as Parameters<typeof startCommunities>[2],
     {
       publicProfile: () => Promise.resolve(true),
+      publicProfilePage: (_host, profile, back) => {
+        data.profilePages.push([profile, back]);
+        return () => {
+          data.profileCloses++;
+        };
+      },
       profiles: {
         inspect: () => Promise.resolve(null),
         set: () =>
@@ -363,15 +372,17 @@ function fixture(
     host as unknown as HTMLElement,
     sidebar as unknown as HTMLElement | null,
     new URLSearchParams(
-      options.view
-        ? { view: options.view }
-        : options.creation
-          ? { view: 'create' }
-          : {
-              id,
-              ...(options.post ? { post: postId } : {}),
-              ...(options.management ? { view: 'manage' } : {}),
-            },
+      options.profile
+        ? { profile: options.profile }
+        : options.view
+          ? { view: options.view }
+          : options.creation
+            ? { view: 'create' }
+            : {
+                id,
+                ...(options.post ? { post: postId } : {}),
+                ...(options.management ? { view: 'manage' } : {}),
+              },
     ),
   );
   return { ui, host, sidebar, data };
@@ -877,6 +888,19 @@ await test('leaving the communities page keeps a workspace-owned DM open; the pa
   assert.deepEqual(f.data.dmMounts, [id]);
   f.ui.leave();
   assert.equal(f.data.dmLeaves, 1);
+});
+
+await test('a profile opened from Communities takes the centre once, without the feed, and closes on leave', async () => {
+  const f = fixture({ profile: 'karma', directory: true });
+  await settled(f.ui);
+  assert.deepEqual(f.data.profilePages, [['karma', null]]);
+  assert.equal(f.host.dataset['communityLayout'], 'profile');
+  assert.ok(!f.data.requests.some((path) => path.includes('discovery')));
+  f.ui.ready();
+  await settled(f.ui);
+  assert.equal(f.data.profilePages.length, 1);
+  f.ui.leave();
+  assert.equal(f.data.profileCloses, 1);
 });
 
 await test('the communities sidebar never requests the handle-message directory', async () => {

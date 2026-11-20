@@ -14,11 +14,7 @@ import {
 } from '../public-media/index.ts';
 import { Communities } from './controller.ts';
 import { postVoting, preferenceControls } from './discovery-controls.ts';
-import {
-  communityCard as card,
-  communityElement as el,
-  communityLink as link,
-} from './elements.ts';
+import { communityElement as el, communityLink as link } from './elements.ts';
 import { postReply } from './post-reply.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
 import type { PostActions, PostTags } from './post-forms.ts';
@@ -26,7 +22,7 @@ import { postActions } from './post-forms.ts';
 import { postInteractionSelection } from './post-interactions.ts';
 import { postPreview } from './post-preview.ts';
 import { postSharing } from './post-sharing.ts';
-import { postText } from './post-text.ts';
+import { postText, postTitle, postTitleCard } from './post-text.ts';
 import { postViews } from './post-views.ts';
 import {
   postComments,
@@ -185,8 +181,8 @@ export function createPostCards(
   function postCard(value: CommunityPost): HTMLElement {
     const node = value.parent
       ? el('article', '', 'card community-card')
-      : card(value.title || t('Post'));
-    if (value.parent && value.title) node.append(el('h2', value.title));
+      : postTitleCard(value.title || t('Post'));
+    if (value.parent && value.title) node.append(postTitle('h2', value.title));
     node.classList.add('community-post');
     if (value.parent) node.classList.add('community-post-is-reply');
     if (value.id === selected) node.classList.add('community-post-focus');
@@ -249,7 +245,7 @@ export function createPostCards(
     if (state.content && state.post.status === 'removed')
       node.append(
         el('p', t('Content restricted to the author and managers.')),
-        el('h3', state.content.title),
+        postTitle('h3', state.content.title),
         postText(state.content.text),
       );
   }

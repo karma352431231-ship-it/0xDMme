@@ -69,6 +69,12 @@ export function startCommunities(
     blockPublicUser?: (peer: string) => Promise<void>;
     /** Signed public-profile reads for the Mute and block page. */
     profileSafety?: SafetyPort;
+    /** Draws a public profile in `host` (with its way back); returns its cleanup. */
+    publicProfilePage?: (
+      host: HTMLElement,
+      profile: string,
+      back: string | null,
+    ) => () => void;
     /** When the app coordinates session warmups, a mounted feed still loads
      * on session change (its requests use the signing lane), while public DMs,
      * which share the exclusive account turn, wait for sessionReady(). */
@@ -171,6 +177,10 @@ export function startCommunities(
     selectedTag: string | null = null;
   let output: HTMLElement | null = null;
   let discoveryMounted = false;
+  // A public profile opened from this page (`?profile=`) and its cleanup.
+  let profile: string | null = null,
+    profileHost: HTMLElement | null = null,
+    closeProfile: (() => void) | null = null;
   // Public @ conversations open only in the workspace chat column; the
   // Communities page has no conversation view of its own (20/11/2026).
   let dmOwner: 'panel' | null = null;
@@ -250,6 +260,29 @@ export function startCommunities(
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
     mounted.append(output);
+  }
+  /**
+   * A public profile takes the centre while the side menu and the ranking stay
+   * (owner request, 20/11/2026). Background refreshes keep the drawn profile.
+   */
+  function profilePage(): void {
+    if (!mounted || !profile || !options.publicProfilePage) return;
+    if (closeProfile && profileHost && mounted.contains(profileHost)) return;
+    closeProfilePage();
+    navigation();
+    mounted.dataset['communityLayout'] = 'profile';
+    profileHost = communityElement('section', '', 'community-profile-view');
+    mounted.append(profileHost);
+    closeProfile = options.publicProfilePage(
+      profileHost,
+      profile,
+      feedReturn.target(),
+    );
+  }
+  function closeProfilePage(): void {
+    closeProfile?.();
+    closeProfile = null;
+    profileHost = null;
   }
   /** Mute and block lists; Hidden posts is the discovery `hidden` view. */
   function safetyPage(): void {
@@ -420,6 +453,10 @@ export function startCommunities(
   }
   async function refresh(): Promise<void> {
     if (!mounted) return;
+    if (profile) {
+      profilePage();
+      return;
+    }
     if (view === 'mute-block') {
       safetyPage();
       return;
@@ -490,6 +527,7 @@ export function startCommunities(
       );
   }
   function leave(): void {
+    closeProfilePage();
     posts.leave();
     discovery.leave();
     discoveryMounted = false;
@@ -521,17 +559,19 @@ export function startCommunities(
       try {
         safetyTab = params.get('tab') === 'blocked' ? 'blocked' : 'muted';
         ({ selected, slug: selectedSlug } = communitySelection(params));
+        profile = selected ? null : params.get('profile');
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
         // A post opened from a list returns to that list, not to its community.
         if (!selectedPost) lastList = params.toString();
       } catch {
         selected = null;
+        profile = null;
         navigation();
         if (output) output.textContent = t('Invalid community link.');
         return;
       }
-      view = communityView(view, selected);
+      view = profile ? 'profile' : communityView(view, selected);
 
       navigation();
       ready();
