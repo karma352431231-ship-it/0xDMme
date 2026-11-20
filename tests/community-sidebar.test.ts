@@ -54,9 +54,9 @@ await test('created communities sit above Following, and the section stays when 
       signedIn: true,
       valid: () => true,
     });
-    // Skip the head, tabs and links; compare the sections below them.
+    // Skip the head and the side menu; compare the sections below them.
     assert.deepEqual(
-      host.children.slice(3).map((node) => node.textContent),
+      host.children.slice(2).map((node) => node.textContent),
       expected,
     );
   }
