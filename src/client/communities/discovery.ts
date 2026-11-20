@@ -24,6 +24,7 @@ import { mountDiscoveryRanking, rankingScopes } from './account-ranking.ts';
 import { rankingTopicFilter } from './classification.ts';
 import type { Communities } from './controller.ts';
 import {
+  discoveryFilterMenu,
   discoveryMenu,
   discoveryPeriods,
   feedOrders,
@@ -136,68 +137,8 @@ export function startCommunityDiscovery(
       }
       filterRow.append(scopes);
     }
-    const periodPanel = el('div', '', 'community-ranking-period');
-    if (view === 'explore')
-      discoveryMenu(
-        filterRow,
-        t('Sort communities'),
-        {
-          value: exploreOrder,
-          options: [
-            ['trending', t('Trending')],
-            ['size', t('Largest')],
-            ['new', t('New communities')],
-          ],
-        },
-        (value) => {
-          exploreOrder = exploreFilter({ order: value, period }).order;
-          periodPanel.hidden = exploreOrder === 'size';
-          rememberFeedChoice(view, { explore: exploreOrder, period });
-          void run(reload);
-        },
-      );
-    else
-      discoveryMenu(
-        filterRow,
-        t('Sort'),
-        { value: order, options: feedOrders },
-        (value) => {
-          order = feedFilter({
-            scope: 'all',
-            order: value,
-            period,
-            community: null,
-            tag: null,
-          }).order;
-          rememberFeedChoice(view, { order, period });
-          void run(reload);
-        },
-      );
-    filterRow.append(periodPanel);
-    periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
-    discoveryMenu(
-      periodPanel,
-      t('Period'),
-      {
-        value: period,
-        options:
-          view === 'explore'
-            ? [
-                ['day', t('24 hours')],
-                ['week', t('7 days')],
-                ['month', t('30 days')],
-              ]
-            : discoveryPeriods,
-      },
-      (value) => {
-        period =
-          view === 'explore'
-            ? exploreFilter({ order: exploreOrder, period: value }).period
-            : discoveryPeriod(value);
-        rememberFeedChoice(view, { order, explore: exploreOrder, period });
-        void run(reload);
-      },
-    );
+    if (view === 'explore') rankingMenus(filterRow);
+    else feedMenus(filterRow);
     feedSearch(toolbar);
     postShortcut(filterRow);
     rankingTopicFilter(filterRow, {
@@ -208,6 +149,78 @@ export function startCommunityDiscovery(
         void run(reload);
       },
     });
+  }
+  /** Ranking order, then its period, which the size order does not use. */
+  function rankingMenus(filterRow: HTMLElement): void {
+    const periodPanel = el('div', '', 'community-ranking-period');
+    discoveryMenu(
+      filterRow,
+      t('Sort communities'),
+      {
+        value: exploreOrder,
+        options: [
+          ['trending', t('Trending')],
+          ['size', t('Largest')],
+          ['new', t('New communities')],
+        ],
+      },
+      (value) => {
+        exploreOrder = exploreFilter({ order: value, period }).order;
+        periodPanel.hidden = exploreOrder === 'size';
+        rememberFeedChoice(view, { explore: exploreOrder, period });
+        void run(reload);
+      },
+    );
+    filterRow.append(periodPanel);
+    periodPanel.hidden = exploreOrder === 'size';
+    discoveryMenu(
+      periodPanel,
+      t('Period'),
+      {
+        value: period,
+        options: [
+          ['day', t('24 hours')],
+          ['week', t('7 days')],
+          ['month', t('30 days')],
+        ],
+      },
+      (value) => {
+        period = exploreFilter({ order: exploreOrder, period: value }).period;
+        rememberFeedChoice(view, { order, explore: exploreOrder, period });
+        void run(reload);
+      },
+    );
+  }
+  /** Feed order and period share one pill, secondary to Discover | Following. */
+  function feedMenus(filterRow: HTMLElement): void {
+    discoveryFilterMenu(filterRow, t('Filters'), [
+      {
+        label: t('Sort'),
+        value: order,
+        options: feedOrders,
+        changed: (value) => {
+          order = feedFilter({
+            scope: 'all',
+            order: value,
+            period,
+            community: null,
+            tag: null,
+          }).order;
+          rememberFeedChoice(view, { order, period });
+          void run(reload);
+        },
+      },
+      {
+        label: t('Period'),
+        value: period,
+        options: discoveryPeriods,
+        changed: (value) => {
+          period = discoveryPeriod(value);
+          rememberFeedChoice(view, { order, explore: exploreOrder, period });
+          void run(reload);
+        },
+      },
+    ]);
   }
   /** The ranking has no search; feeds show theirs with its current summary. */
   function feedSearch(toolbar: HTMLElement): void {

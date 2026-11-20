@@ -4763,6 +4763,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     '索引顺序不匹配。',
   ],
   Sort: ['Sort', '排序'],
+  Filters: ['Filters', '筛选'],
   'Sort comments': ['Sort comments', '排序评论'],
   'Sort posts': ['Sort posts', '排序帖子'],
   'No organizations or authorizations yet.': [

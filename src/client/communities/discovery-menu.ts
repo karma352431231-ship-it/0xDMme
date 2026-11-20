@@ -80,12 +80,85 @@ export function discoveryMenu(
     show();
     changed(key);
   };
-  for (const [key, title] of selection.options) {
-    const option = el('button', title);
-    option.type = 'button';
-    option.value = key;
-    option.addEventListener('click', () => choose(key));
-    options.append(option);
+  for (const [key, title] of selection.options)
+    options.append(choiceButton(key, title, choose));
+  show();
+  container.append(menu);
+  return menu;
+}
+/** One choice of a filter group: reports its value, marked by `aria-pressed`. */
+function choiceButton(
+  key: string,
+  title: string,
+  choose: (key: string) => void,
+): HTMLButtonElement {
+  const option = el('button', title);
+  option.type = 'button';
+  option.value = key;
+  option.addEventListener('click', () => choose(key));
+  return option;
+}
+
+export interface FilterGroup {
+  label: string;
+  value: string;
+  options: readonly (readonly [string, string])[];
+  changed: (value: string) => void;
+}
+/**
+ * Several filters behind one discreet pill, so they read as secondary to the
+ * Discover | Following choice (owner, 20/11/2026). The pill names every
+ * current value, "Highlights · All history"; the panel lists one group each.
+ */
+export function discoveryFilterMenu(
+  container: HTMLElement,
+  label: string,
+  groups: readonly FilterGroup[],
+): HTMLDetailsElement {
+  const menu = el('details', '', 'discovery-menu discovery-filter-menu'),
+    summary = el('summary'),
+    value = el('span', '', 'discovery-menu-value'),
+    options = el('div', '', 'discovery-menu-options');
+  summary.append(value);
+  menu.append(summary, options);
+  anchorPanel(menu, summary, options);
+  const current = groups.map((group) => group.value);
+  const sections = groups.map((group, index) => {
+    const section = el('div', '', 'discovery-menu-group');
+    section.setAttribute('role', 'group');
+    section.setAttribute('aria-label', group.label);
+    section.append(el('p', group.label, 'discovery-menu-group-label'));
+    const choose = (key: string) => {
+      menu.open = false;
+      if (key === current[index]) return;
+      current[index] = key;
+      show();
+      group.changed(key);
+    };
+    for (const [key, title] of group.options)
+      section.append(choiceButton(key, title, choose));
+    options.append(section);
+    return section;
+  });
+  function show(): void {
+    const titles = groups.map(
+      (group, index) =>
+        group.options.find(([key]) => key === current[index])?.[1] ??
+        current[index],
+    );
+    value.textContent = titles.join(' · ');
+    summary.setAttribute(
+      'aria-label',
+      t('{0}: {1}', [label, titles.join(', ')]),
+    );
+    sections.forEach((section, index) =>
+      section.querySelectorAll('button').forEach((node) => {
+        node.setAttribute(
+          'aria-pressed',
+          String(node.value === current[index]),
+        );
+      }),
+    );
   }
   show();
   container.append(menu);

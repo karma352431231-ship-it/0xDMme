@@ -126,28 +126,6 @@
     background: var(--surface-2);
     font-size: 0;
   }
-  #app-shell[data-page='comunidades'] .community-feed-scopes {
-    gap: 2px;
-    padding: 3px;
-    border-radius: 99px;
-    background: var(--surface-2);
-  }
-  #app-shell[data-page='comunidades'] .community-feed-scopes a {
-    min-height: 0;
-    padding: 7px 14px;
-    border: 0;
-    border-radius: 99px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13.5px;
-    font-weight: 600;
-  }
-  #app-shell[data-page='comunidades']
-    .community-feed-scopes
-    a[aria-current='page'] {
-    background: var(--surface-3);
-    color: var(--text);
-  }
   #app-shell[data-page='comunidades'] .discovery-menu > summary {
     min-height: 40px;
     padding: 8px 14px;
