@@ -219,14 +219,14 @@ def executor_code(config):
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
                 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                'notification_cursors', 'account_wallets']):
+                'notification_cursors', 'account_wallets', 'profile_mutes']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
                                                  'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                 'notification_cursors', 'account_wallets']):
+                                                 'notification_cursors', 'account_wallets', 'profile_mutes']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -243,7 +243,7 @@ def executor_code(config):
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
     if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                'notification_cursors', 'account_wallets']):
+                                                'notification_cursors', 'account_wallets', 'profile_mutes']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
@@ -255,8 +255,10 @@ def executor_code(config):
         names.append('deploy_group_pins')
     if config.get('notification_cursors') is True:
         names.append('deploy_notification_cursors')
-    if config.get('account_wallets') is True:
+    if config.get('account_wallets') is True or config.get('profile_mutes') is True:
         names.append('deploy_account_wallets')
+    if config.get('profile_mutes') is True:
+        names.append('deploy_profile_mutes')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -370,6 +372,8 @@ def main():
                         help='Apply the owner-approved 110→111 conversation notification cursors.')
     parser.add_argument('--account-wallets', action='store_true',
                         help='Apply the reviewed 111→113 extra sign-in wallets and session wallet.')
+    parser.add_argument('--profile-mutes', action='store_true',
+                        help='Apply the owner-approved 113→114 public profile mutes.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -380,11 +384,12 @@ def main():
         # 08/11/2026, and 109→110 group pins on 12/11/2026. The 111→113
         # account wallets review was prepared on 17/11/2026 at the owner's
         # request; running it still needs the owner's activation command.
+        # The owner approved 113→114 profile mutes on 20/11/2026.
         # Every other transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
                                'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                               'notification_cursors', 'account_wallets']):
+                               'notification_cursors', 'account_wallets', 'profile_mutes']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
     if args.group_chat and any(vars(args)[name] for name in vars(args)
                                  if name not in ['group_chat', 'check', 'activate']):
@@ -398,6 +403,9 @@ def main():
     if args.account_wallets and any(vars(args)[name] for name in vars(args)
                                     if name not in ['account_wallets', 'check', 'activate']):
         parser.error('Account wallets require their separate --check or --activate release.')
+    if args.profile_mutes and any(vars(args)[name] for name in vars(args)
+                                  if name not in ['profile_mutes', 'check', 'activate']):
+        parser.error('Profile mutes require their separate --check or --activate release.')
     if args.view_once and any(vars(args)[name] for name in vars(args)
                                 if name not in ['view_once', 'check', 'activate']):
         parser.error('View-once messages require their separate --check or --activate release.')
@@ -472,6 +480,8 @@ def main():
         config['notification_cursors'] = True
     if args.account_wallets:
         config['account_wallets'] = True
+    if args.profile_mutes:
+        config['profile_mutes'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:
