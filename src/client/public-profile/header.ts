@@ -1,7 +1,7 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import { communityIcon } from '../communities/index.ts';
-import { renderMentions } from '../public-mentions/index.ts';
+import { renderPublicText } from '../public-mentions/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -120,7 +120,7 @@ export function profileHeader(
   identity.append(avatar, name);
   if (summary.description) {
     const description = element('p', '', 'public-profile-description');
-    renderMentions(description, summary.description);
+    renderPublicText(description, summary.description);
     identity.append(description);
   }
   identity.append(profileMeta(summary), social, actions);

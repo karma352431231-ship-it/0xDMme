@@ -639,7 +639,8 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
       assert.ok(
         !(await inbox(author)).items.some((item) => item.post === replyTarget),
       );
-      await vote(author, target, 1, 0);
+      // A blocked profile cannot vote on the blocker's posts (20/11/2026).
+      await assert.rejects(vote(author, target, 1, 0), /blocked you/u);
       assert.ok(
         !(await inbox(owner)).items.some((item) => item.post === target),
       );
@@ -651,6 +652,8 @@ await test('cut 5: tree, votes and direct notifications with authorization and p
       assert.ok(
         !(await inbox(owner)).items.some((item) => item.post === target),
       );
+      // Unblocked again: the vote and its withdrawal both work.
+      await vote(author, target, 1, 0);
       await vote(author, target, 0, 1);
       const before = await inspector.query<{ n: string }>(
         'SELECT count(*) AS n FROM hash_talk.public_upvote_notifications WHERE post_id=$1',

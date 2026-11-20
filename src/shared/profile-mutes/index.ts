@@ -12,6 +12,10 @@ export interface ProfileMuteState {
   muted: boolean;
   revision: number;
 }
+/** Whether a profile blocked the reader; its page says so, with no reason. */
+export interface ProfileBlockedBy {
+  blockedBy: boolean;
+}
 /** A page of the Mute and block lists, ordered by profile id. */
 export interface SafetyProfilePage {
   items: PublicProfile[];
@@ -29,6 +33,12 @@ export function profileMuteState(value: unknown): ProfileMuteState {
   )
     throw new AccountError(400, 'Invalid mute revision.');
   return { muted: communityBoolean(data['muted']), revision };
+}
+
+export function profileBlockedBy(value: unknown): ProfileBlockedBy {
+  const data = object(value);
+  keys(data, ['blockedBy']);
+  return { blockedBy: communityBoolean(data['blockedBy']) };
 }
 
 export function safetyProfilePage(value: unknown): SafetyProfilePage {

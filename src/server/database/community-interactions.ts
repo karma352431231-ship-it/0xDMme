@@ -1,5 +1,6 @@
 import type { ContentCapacity } from './content-capacity.ts';
 import { mutedBy } from './profile-mute-filter.ts';
+import { requireNotBlockedBy } from './profile-block-guard.ts';
 import type pg from 'pg';
 import { reconcileUpvoteNotice } from './community-upvotes.ts';
 import { queueReplyNotice } from './public-notice-wake.ts';
@@ -54,6 +55,7 @@ export async function requireReplyTarget(
       409,
       'Deleted or hidden content does not accept new interactions.',
     );
+  let rootAuthor: string | null = null;
   if (row.root_id) {
     const root = await loadPost(context, row.root_id);
     if (root.deleted || root.active_removal)
@@ -61,7 +63,12 @@ export async function requireReplyTarget(
         409,
         'Deleted or hidden posts do not accept new interactions.',
       );
+    rootAuthor = root.author;
   }
+  await requireNotBlockedBy(context.client, context.actor.id, [
+    row.author,
+    rootAuthor,
+  ]);
 }
 /** Revision plus desired position makes retries safe even after subsequent votes. */
 export async function setPostVote(

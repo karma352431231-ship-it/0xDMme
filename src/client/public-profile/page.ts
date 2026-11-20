@@ -10,6 +10,7 @@ import { mountMutualFollowers } from './mutuals.ts';
 import { profileSocialControls } from './social-controls.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
 import type { PublicBlockState } from '../../shared/profile-social/index.ts';
+import { profileBlockedBy } from '../../shared/profile-mutes/index.ts';
 import {
   ApiResponseError,
   fetchApi,
@@ -46,6 +47,7 @@ function link(host: HTMLElement, text: string, href: string) {
 }
 
 type ActivityTab = 'posts' | 'replies' | 'shared';
+type ProfileRelation = PublicBlockState & { blockedBy: boolean };
 type ProfileTab = ActivityTab | 'communities';
 
 /** The numbers of a profile live on the tabs that list them. */
@@ -126,26 +128,29 @@ export function showProfilePage(
     )
       throw new Error('Public profile unavailable.');
     if (lifetime.signal.aborted) return;
-    let block: PublicBlockState = { blocked: false, revision: 0 };
-    const controller = options.controller;
-    if (controller?.hasSession()) {
-      await controller.refresh();
-      if (
-        controller.profile &&
-        controller.profile.profile.id !== summary.profile.id
-      )
-        block = publicBlockState(
-          await controller.perform('block-state', {
-            target: summary.profile.id,
-          }),
-        );
-    }
+    const block = await relation(summary.profile.id);
     if (!lifetime.signal.aborted) render(summary, base, block);
+  }
+  /** The reader's block of this profile and whether it blocked the reader. */
+  async function relation(target: string): Promise<ProfileRelation> {
+    const controller = options.controller;
+    if (!controller?.hasSession())
+      return { blocked: false, revision: 0, blockedBy: false };
+    await controller.refresh();
+    if (!controller.profile || controller.profile.profile.id === target)
+      return { blocked: false, revision: 0, blockedBy: false };
+    const own = publicBlockState(
+      await controller.perform('block-state', { target }),
+    );
+    const other = profileBlockedBy(
+      await controller.perform('blocked-by', { target }),
+    );
+    return { ...own, blockedBy: other.blockedBy };
   }
   function render(
     summary: ProfileSummary,
     base: string,
-    block: PublicBlockState,
+    block: ProfileRelation,
   ): void {
     bar.show(summary.profile.handle);
     const header = profileHeader(summary, lifetime.signal),
@@ -182,7 +187,8 @@ export function showProfilePage(
       paging,
       communities,
     );
-    if (!block.blocked)
+    const apart = block.blocked || block.blockedBy;
+    if (!apart)
       mountMutualFollowers(header.social, {
         target: summary.profile.id,
         controller: options.controller,
@@ -191,7 +197,7 @@ export function showProfilePage(
     status.textContent = '';
     // Your own profile has no "Message"; editing sits in the round pencil.
     const own = options.controller?.profile?.profile.id === summary.profile.id;
-    if (!block.blocked && !own) {
+    if (!apart && !own) {
       const message = link(
         header.actions,
         t('Message'),
@@ -216,9 +222,20 @@ export function showProfilePage(
       generation++;
       status.textContent = '';
       paging.replaceChildren();
-      const showingCommunities = value === 'communities' && !block.blocked;
+      const showingCommunities = value === 'communities' && !apart;
       communities.hidden = !showingCommunities;
       items.hidden = showingCommunities;
+      // Someone who blocked you: only that fact, never a reason.
+      if (block.blockedBy) {
+        items.replaceChildren(
+          element(
+            'p',
+            t('@{0} blocked you.', [summary.profile.handle]),
+            'public-profile-blocked',
+          ),
+        );
+        return;
+      }
       if (block.blocked) {
         items.replaceChildren(
           element(
@@ -311,7 +328,7 @@ export function showProfilePage(
   async function follow(
     header: ProfileHeader,
     summary: ProfileSummary,
-    block: PublicBlockState,
+    block: ProfileRelation,
   ): Promise<void> {
     const host = header.actions;
     const controller = options.controller;
@@ -347,6 +364,7 @@ export function showProfilePage(
       signal: lifetime.signal,
       error,
       block,
+      blockedBy: block.blockedBy,
       changed: load,
     });
   }

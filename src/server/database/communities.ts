@@ -39,6 +39,7 @@ import type {
 import { CommunityPhotoStore } from './community-photo.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { PublicProfileStore } from './public-profile.ts';
+import { profileMuteOperation } from './profile-mutes.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import {
   activeSanction,
@@ -521,6 +522,15 @@ export class CommunityStore {
       operation === 'profile-block-state'
     )
       return this.profileBlock(operation, authority, data);
+    // Mute from the post menus (owner, 20/11/2026), as Block above.
+    if (operation === 'profile-mute-set' || operation === 'profile-mute-state')
+      return this.withActor(authority, (context) =>
+        profileMuteOperation(context, {
+          operation: operation === 'profile-mute-set' ? 'mute' : 'mute-state',
+          data,
+          profiles: this.profiles,
+        }),
+      );
     if (operation.startsWith('badge-'))
       return this.withContext(authority, uuid(data['id']), (context) =>
         operateCommunityBadge(context, operation, data, this.capacity),

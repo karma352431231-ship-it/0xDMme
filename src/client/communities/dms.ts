@@ -79,6 +79,7 @@ export function startSocialDmUi(
   controlsOptions: {
     unreadChanged?: (count: number) => void;
     blockPublic?: (peer: string) => Promise<void>;
+    mutePublic?: (peer: string) => Promise<void>;
   } = {},
 ) {
   const controller = new SocialDms(access, sync);
@@ -107,6 +108,9 @@ export function startSocialDmUi(
     },
     ...(controlsOptions.blockPublic
       ? { blockPublic: controlsOptions.blockPublic }
+      : {}),
+    ...(controlsOptions.mutePublic
+      ? { mutePublic: controlsOptions.mutePublic }
       : {}),
   });
   const unread = createDmInbox(

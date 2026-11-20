@@ -49,7 +49,7 @@ import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { openPostFromCard } from './presentation.ts';
-import { mountSafetyPage } from '../profile-safety/index.ts';
+import { mountSafetyPage, setProfileMute } from '../profile-safety/index.ts';
 import type { SafetyPort } from '../profile-safety/index.ts';
 import {
   communityNavigation,
@@ -58,6 +58,12 @@ import {
   postReturnTarget,
 } from './navigation.ts';
 
+/** The handle-chat menu mutes through the signed public-profile port. */
+function muteWith(port: SafetyPort): (peer: string) => Promise<void> {
+  return async (peer) => {
+    await setProfileMute(port, peer, true);
+  };
+}
 export function startCommunities(
   access: VaultAccess,
   sync: VaultSync,
@@ -86,6 +92,9 @@ export function startCommunities(
     ...(options.unreadChanged ? { unreadChanged: options.unreadChanged } : {}),
     ...(options.blockPublicUser
       ? { blockPublic: options.blockPublicUser }
+      : {}),
+    ...(options.profileSafety
+      ? { mutePublic: muteWith(options.profileSafety) }
       : {}),
   });
   const controller = new Communities(access);

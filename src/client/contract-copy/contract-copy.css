@@ -1,0 +1,38 @@
+/*
+ * Token contract addresses in public text with a copy button beside them
+ * (20/11/2026). The id in :is() outranks the generic community button rules,
+ * including in hover cards and dialogs outside the shell.
+ */
+.contract-address {
+  display: inline;
+}
+.contract-address-text {
+  overflow-wrap: anywhere;
+}
+:is(#app-shell, .hover-card, dialog) .contract-address .contract-copy {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin: 0 0 0 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  vertical-align: -6px;
+  cursor: pointer;
+}
+:is(#app-shell, .hover-card, dialog) .contract-address .contract-copy:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.contract-copy svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}

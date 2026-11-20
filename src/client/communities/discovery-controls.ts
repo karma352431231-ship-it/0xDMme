@@ -4,6 +4,8 @@ import { participationLink } from '../profile-shortcut/index.ts';
 import { postBookmark } from './post-bookmark.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
+import { profileMuteState } from '../../shared/profile-mutes/index.ts';
+import { showToast } from '../toast/index.ts';
 import type {
   CommunityPost,
   PostState,
@@ -56,34 +58,7 @@ export function preferenceControls(
   );
   iconLabel(hide, 'hide');
   if (post.status === 'visible') reportControl(content, post, actions);
-  if (post.author) {
-    const block = button(content, t('Block user'), () =>
-      actions.run(async () => {
-        const target = post.author!.id;
-        const current = publicBlockState(
-          await actions.controller.request('profile-block-state', { target }),
-        );
-        if (!actions.valid()) return;
-        publicBlockState(
-          await actions.controller.request('profile-block-set', {
-            target,
-            blocked: true,
-            revision: current.revision,
-          }),
-        );
-        if (!actions.valid()) return;
-        window.dispatchEvent(
-          new CustomEvent('0xdmme-public-block', {
-            detail: { target, blocked: true },
-          }),
-        );
-        await actions.changed();
-      }),
-    );
-    block.dataset['postBlock'] = 'true';
-    block.classList.add('post-menu-danger');
-    iconLabel(block, 'block');
-  }
+  if (post.author) authorControls(content, post.author.id, actions);
   if (actions.options) {
     const management = el('div', '', 'post-options');
     content.append(management);
@@ -94,8 +69,8 @@ export function preferenceControls(
         const state = await actions.options?.(management);
         if (state?.own) {
           content
-            .querySelector<HTMLElement>('[data-post-block]')
-            ?.setAttribute('hidden', '');
+            .querySelectorAll<HTMLElement>('[data-post-author-action]')
+            .forEach((item) => item.setAttribute('hidden', ''));
           content
             .querySelector<HTMLElement>('.post-report')
             ?.setAttribute('hidden', '');
@@ -104,6 +79,64 @@ export function preferenceControls(
       });
     });
   }
+}
+/**
+ * Mute (a light block: their posts, replies and notices are hidden) and
+ * Block, in every post menu (owner request, 20/11/2026). Own posts hide both.
+ */
+function authorControls(
+  content: HTMLElement,
+  target: string,
+  actions: Actions,
+): void {
+  const mute = button(content, t('Mute user'), () =>
+    actions.run(async () => {
+      const current = profileMuteState(
+        await actions.controller.request('profile-mute-state', { target }),
+      );
+      if (!actions.valid()) return;
+      if (!current.muted)
+        profileMuteState(
+          await actions.controller.request('profile-mute-set', {
+            target,
+            muted: true,
+            revision: current.revision,
+          }),
+        );
+      if (!actions.valid()) return;
+      showToast(t('User muted. Their posts and replies are hidden.'), {
+        success: true,
+      });
+      await actions.changed();
+    }),
+  );
+  mute.dataset['postAuthorAction'] = 'mute';
+  iconLabel(mute, 'mute');
+  const block = button(content, t('Block user'), () =>
+    actions.run(async () => {
+      const current = publicBlockState(
+        await actions.controller.request('profile-block-state', { target }),
+      );
+      if (!actions.valid()) return;
+      publicBlockState(
+        await actions.controller.request('profile-block-set', {
+          target,
+          blocked: true,
+          revision: current.revision,
+        }),
+      );
+      if (!actions.valid()) return;
+      window.dispatchEvent(
+        new CustomEvent('0xdmme-public-block', {
+          detail: { target, blocked: true },
+        }),
+      );
+      await actions.changed();
+    }),
+  );
+  block.dataset['postAuthorAction'] = 'block';
+  block.classList.add('post-menu-danger');
+  iconLabel(block, 'block');
 }
 function reportControl(
   container: HTMLElement,

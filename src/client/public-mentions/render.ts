@@ -1,4 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
+import { appendContractText } from '../contract-copy/index.ts';
+import { externalLink, linkedParts } from '../link-text/index.ts';
 import {
   mentionHref,
   mentionSpans,
@@ -29,4 +31,18 @@ export function renderMentions(
     end = span.end;
   }
   plain(host, text.slice(end));
+}
+
+/**
+ * Public text (posts, titles, descriptions): mentions and web addresses are
+ * links, and token contract addresses get a copy button (20/11/2026).
+ */
+export function renderPublicText(host: HTMLElement, text: string): void {
+  renderMentions(host, text, linkedText);
+}
+function linkedText(host: HTMLElement, text: string): void {
+  for (const part of linkedParts(text))
+    if (part.href)
+      host.append(externalLink({ text: part.text, href: part.href }));
+    else appendContractText(host, part.text);
 }

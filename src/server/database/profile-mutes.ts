@@ -6,9 +6,11 @@ import {
 } from '../../shared/communities/index.ts';
 import { postCount } from '../../shared/community-posts/index.ts';
 import type {
+  ProfileBlockedBy,
   ProfileMuteState,
   SafetyProfilePage,
 } from '../../shared/profile-mutes/index.ts';
+import { blockedByAny } from './profile-block-guard.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 
 type Client = Pick<pg.PoolClient, 'query'>;
@@ -19,7 +21,10 @@ interface MuteContext {
 /** Rows kept per profile, muted or not; bounds storage without a quota ledger. */
 const muteRowLimit = 5000;
 
-/** Mute state, mute changes and the two lists of the Mute and block page. */
+/**
+ * Mute state, mute changes, the two lists of the Mute and block page, and
+ * whether a profile blocked the reader (shown on that profile's page).
+ */
 export async function profileMuteOperation(
   context: MuteContext,
   input: {
@@ -27,8 +32,15 @@ export async function profileMuteOperation(
     data: Record<string, unknown>;
     profiles: Pick<PublicProfileStore, 'identities'>;
   },
-): Promise<ProfileMuteState | SafetyProfilePage> {
+): Promise<ProfileMuteState | SafetyProfilePage | ProfileBlockedBy> {
   const { operation, data } = input;
+  if (operation === 'blocked-by') {
+    keys(data, ['target']);
+    const target = uuid(data['target']);
+    return {
+      blockedBy: await blockedByAny(context.client, context.actor.id, [target]),
+    };
+  }
   if (operation === 'mute-list' || operation === 'block-list') {
     keys(data, ['after']);
     const after = data['after'] === null ? null : uuid(data['after']);

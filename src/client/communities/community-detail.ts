@@ -6,7 +6,7 @@ import type {
 } from '../../shared/communities/index.ts';
 import { publicProfileGuidanceButton } from '../public-action-guidance/index.ts';
 import type { PublicActionGate } from '../public-action-guidance/index.ts';
-import { renderMentions } from '../public-mentions/index.ts';
+import { renderPublicText } from '../public-mentions/index.ts';
 import type { Communities } from './controller.ts';
 import type { CommunityScreen } from './screen.ts';
 import { communityElement, communityButton } from './elements.ts';
@@ -78,7 +78,7 @@ export class CommunityDetailView {
         '',
         'community-hero-description',
       );
-      renderMentions(description, value.description);
+      renderPublicText(description, value.description);
       hero.append(description);
     }
     hero.append(heroStats(value));

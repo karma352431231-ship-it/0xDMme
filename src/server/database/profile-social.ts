@@ -22,6 +22,7 @@ import { assertContentCapacity } from './vault-quota.ts';
 import { profileNotificationSetting } from './profile-notifications.ts';
 import { storePublicReport } from './public-reports.ts';
 import { profileMuteOperation } from './profile-mutes.ts';
+import { requireNotBlockedBy } from './profile-block-guard.ts';
 import {
   followNoticeOperation,
   reconcileFollowNotice,
@@ -37,6 +38,7 @@ const readerOperations = new Set([
 
 /** The reader's mutes and the Mute and block lists (owner, 20/11/2026). */
 const muteOperations = new Set([
+  'blocked-by',
   'mute-state',
   'mute',
   'mute-list',
@@ -221,6 +223,7 @@ export class ProfileSocialStore {
           'Your follow choice changed. Reload before retrying.',
         );
       if (old.following === following) return old;
+      if (following) await requireNotBlockedBy(context.client, actor, [target]);
       const result = await context.client.query<ProfileFollow>(
         `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision,followed_at)
         VALUES($1,$2,$3,1,CASE WHEN $3 THEN clock_timestamp() END)

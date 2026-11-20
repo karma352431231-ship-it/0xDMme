@@ -5,6 +5,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { ConversationAction } from '../conversation-menu/index.ts';
+import { showToast } from '../toast/index.ts';
 
 interface ControlPorts {
   access: VaultAccess;
@@ -14,6 +15,8 @@ interface ControlPorts {
   run: (work: () => Promise<void>) => Promise<void>;
   changed: () => Promise<void>;
   blockPublic?: (peer: string) => Promise<void>;
+  /** Mute the public profile: its posts, replies and notices are hidden. */
+  mutePublic?: (peer: string) => Promise<void>;
 }
 /** Public block authority and encrypted public-DM preferences remain separate from wallet contacts. */
 export class DmControls {
@@ -50,14 +53,7 @@ export class DmControls {
     ): ConversationAction => ({
       id,
       label,
-      icon:
-        id === 'mute'
-          ? this.muted(peer)
-            ? 'unmute'
-            : 'mute'
-          : id === 'dm-block' && relation.blocked
-            ? 'unblock'
-            : 'block',
+      icon: this.icon(id, relation),
       perform: () => {
         void this.ports.run(async () => {
           await work();
@@ -87,6 +83,9 @@ export class DmControls {
             ),
           ]
         : []),
+      ...(this.ports.mutePublic
+        ? [action('public-mute', t('Mute user'), () => this.mutePublic(peer))]
+        : []),
       action(
         'mute',
         this.muted(peer) ? t('Unmute conversation') : t('Mute conversation'),
@@ -101,6 +100,20 @@ export class DmControls {
         },
       ),
     ];
+  }
+  private icon(
+    id: string,
+    relation: SocialRelation,
+  ): NonNullable<ConversationAction['icon']> {
+    if (id === 'public-mute') return 'mute';
+    if (id === 'mute') return this.muted(relation.peer.id) ? 'unmute' : 'mute';
+    return id === 'dm-block' && relation.blocked ? 'unblock' : 'block';
+  }
+  private async mutePublic(peer: string): Promise<void> {
+    await this.ports.mutePublic?.(peer);
+    showToast(t('User muted. Their posts and replies are hidden.'), {
+      success: true,
+    });
   }
   private async blockPublic(peer: string): Promise<void> {
     const current = await this.ports.state(peer);

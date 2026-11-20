@@ -47,6 +47,8 @@ export async function profileSocialControls(
     signal: AbortSignal;
     error: (error: unknown) => void;
     block: PublicBlockState;
+    /** This profile blocked the reader: no follow or notifications. */
+    blockedBy: boolean;
     changed: () => Promise<void>;
   },
 ): Promise<void> {
@@ -132,6 +134,10 @@ export async function profileSocialControls(
       : t('Follow to enable notifications');
   }
   paint();
+  if (access.blockedBy) {
+    followButton.remove();
+    bell.remove();
+  }
   const menu = document.createElement('details'),
     summaryNode = document.createElement('summary');
   menu.className = 'post-more';

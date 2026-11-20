@@ -3,7 +3,7 @@ import {
   translatedError,
   currentLanguage,
 } from '../../shared/i18n/index.ts';
-import { renderMentions } from '../public-mentions/index.ts';
+import { renderPublicText } from '../public-mentions/index.ts';
 import { appRoute } from '../../shared/app-routes/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { uuid } from '../../shared/account/index.ts';
@@ -120,7 +120,7 @@ export function profileHoverProvider(
       card.append(banner, head, name);
       if (value.description) {
         const description = line('p', '', 'hover-card-text');
-        renderMentions(description, value.description);
+        renderPublicText(description, value.description);
         card.append(description);
       }
       card.append(

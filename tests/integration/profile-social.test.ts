@@ -13,9 +13,11 @@ import {
   profileBanner,
   profileDescription,
   mutualFollowers,
+  publicBlockState,
 } from '../../src/shared/profile-social/index.ts';
 import { followNoticePage } from '../../src/shared/follow-notices/index.ts';
 import {
+  profileBlockedBy,
   profileMuteState,
   safetyProfilePage,
 } from '../../src/shared/profile-mutes/index.ts';
@@ -149,7 +151,9 @@ await test('social profile: metrics, public communities, follows, feeds and mode
     follower = await reader.publicIdentity(
       `ps_${crypto.randomUUID().slice(0, 8)}`,
     );
-  await stranger.publicIdentity(`ps_${crypto.randomUUID().slice(0, 8)}`);
+  const strangerProfile = await stranger.publicIdentity(
+    `ps_${crypto.randomUUID().slice(0, 8)}`,
+  );
   const operate = async (
     actor: typeof owner,
     operation: string,
@@ -907,6 +911,94 @@ await test('social profile: metrics, public communities, follows, feeds and mode
             item.context && item.context.root.id !== item.context.parent.id,
         ),
       );
+    },
+  );
+  await t.test(
+    'block (20/11/2026): the blocked profile cannot reply, vote or follow and only learns it was blocked; post menus mute',
+    async () => {
+      const target = strangerProfile.id;
+      // A fresh thread: the owner's post and a reply by someone else in it.
+      const replier = await make();
+      await replier.publicIdentity(`ps_${crypto.randomUUID().slice(0, 8)}`);
+      const thread = await create(owner, otherCommunity),
+        others = await create(replier, otherCommunity, thread);
+      const state = publicBlockState(
+        await operate(owner, 'block-state', { target }),
+      );
+      await operate(owner, 'block', {
+        target,
+        blocked: true,
+        revision: state.revision,
+      });
+      const blockedBy = (actor: typeof owner, profile: string) =>
+        operate(actor, 'blocked-by', { target: profile }).then(
+          profileBlockedBy,
+        );
+      assert.deepEqual(await blockedBy(stranger, identity.id), {
+        blockedBy: true,
+      });
+      assert.deepEqual(await blockedBy(owner, target), { blockedBy: false });
+      const refused = (error: unknown) =>
+        error instanceof AccountError && error.status === 403;
+      await assert.rejects(create(stranger, otherCommunity, thread), refused);
+      await assert.rejects(create(stranger, otherCommunity, others), refused);
+      await assert.rejects(
+        stranger.operate('post-vote', {
+          id: otherCommunity,
+          post: thread,
+          position: 1,
+          voteRevision: 0,
+        }),
+        refused,
+      );
+      let follow = profileFollow(
+        await operate(stranger, 'follow-state', { target: identity.id }),
+      );
+      // Unfollowing stays possible; following again is refused.
+      if (follow.following)
+        follow = profileFollow(
+          await operate(stranger, 'follow', {
+            target: identity.id,
+            following: false,
+            revision: follow.revision,
+          }),
+        );
+      await assert.rejects(
+        operate(stranger, 'follow', {
+          target: identity.id,
+          following: true,
+          revision: follow.revision,
+        }),
+        refused,
+      );
+      await operate(owner, 'block', {
+        target,
+        blocked: false,
+        revision: state.revision + 1,
+      });
+      assert.deepEqual(await blockedBy(stranger, identity.id), {
+        blockedBy: false,
+      });
+      // Mute from a post menu goes through the community operations.
+      const mute = profileMuteState(
+        await stranger.operate('profile-mute-set', {
+          target: identity.id,
+          muted: true,
+          revision: 0,
+        }),
+      );
+      assert.deepEqual(mute, { muted: true, revision: 1 });
+      assert.deepEqual(
+        profileMuteState(
+          await stranger.operate('profile-mute-state', { target: identity.id }),
+        ),
+        mute,
+      );
+      await stranger.operate('profile-mute-set', {
+        target: identity.id,
+        muted: false,
+        revision: 1,
+      });
     },
   );
   await t.test(

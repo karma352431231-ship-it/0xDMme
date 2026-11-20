@@ -10,7 +10,7 @@ import {
   translatedError,
   currentLanguage,
 } from '../../shared/i18n/index.ts';
-import { renderMentions } from '../public-mentions/index.ts';
+import { renderPublicText } from '../public-mentions/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import type { HoverCardProvider } from '../hover-card/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -85,7 +85,7 @@ export function communityHoverProvider(input: {
       );
       if (value.description) {
         const description = el('p', '', 'hover-card-text');
-        renderMentions(description, value.description);
+        renderPublicText(description, value.description);
         card.append(description);
       }
       const figures = [

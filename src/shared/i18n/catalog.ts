@@ -2516,6 +2516,21 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Unmute user': ['Unmute user', '取消静音用户'],
   '@{0} muted': ['@{0} muted', '已静音 @{0}'],
   '@{0} unmuted': ['@{0} unmuted', '已取消静音 @{0}'],
+  'User muted. Their posts and replies are hidden.': [
+    'User muted. Their posts and replies are hidden.',
+    '已静音该用户。其帖子和回复已隐藏。',
+  ],
+  '@{0} blocked you.': ['@{0} blocked you.', '@{0} 已屏蔽你。'],
+  'This profile blocked you.': [
+    'This profile blocked you.',
+    '此资料已屏蔽你。',
+  ],
+  'Copy contract': ['Copy contract', '复制合约'],
+  'Contract copied.': ['Contract copied.', '合约已复制。'],
+  'Could not copy the contract.': [
+    'Could not copy the contract.',
+    '无法复制合约。',
+  ],
   'You cannot mute your own profile.': [
     'You cannot mute your own profile.',
     '你不能静音自己的资料。',
