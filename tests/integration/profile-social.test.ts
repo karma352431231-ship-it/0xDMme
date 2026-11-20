@@ -15,6 +15,10 @@ import {
   mutualFollowers,
 } from '../../src/shared/profile-social/index.ts';
 import { followNoticePage } from '../../src/shared/follow-notices/index.ts';
+import {
+  profileMuteState,
+  safetyProfilePage,
+} from '../../src/shared/profile-mutes/index.ts';
 import { postShareState } from '../../src/shared/post-sharing/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
 import { communityPage } from '../../src/shared/communities/index.ts';
@@ -506,6 +510,45 @@ await test('social profile: metrics, public communities, follows, feeds and mode
         }),
       );
       assert.ok(!mixed.items.some((item) => item.post.id === selfReply));
+      // Mute (20/11/2026): hides the author's posts for the reader only, is
+      // idempotent on retry, listed on the Mute and block page and undone.
+      const mute = { target: identity.id, muted: true, revision: 0 };
+      assert.deepEqual(profileMuteState(await operate(reader, 'mute', mute)), {
+        muted: true,
+        revision: 1,
+      });
+      assert.deepEqual(profileMuteState(await operate(reader, 'mute', mute)), {
+        muted: true,
+        revision: 1,
+      });
+      await assert.rejects(
+        operate(reader, 'mute', { ...mute, target: follower.id }),
+        (error: unknown) =>
+          error instanceof AccountError && error.status === 409,
+      );
+      const muted = feedPage(
+        await reader.operate('discovery-feed', { filter, after: null }),
+      );
+      assert.ok(!muted.items.some((item) => item.post.id === root));
+      assert.ok(muted.items.some((item) => item.post.id === communityPost));
+      assert.deepEqual(
+        safetyProfilePage(
+          await operate(reader, 'mute-list', { after: null }),
+        ).items.map((item) => item.id),
+        [identity.id],
+      );
+      safetyProfilePage(await operate(reader, 'block-list', { after: null }));
+      assert.deepEqual(
+        profileMuteState(
+          await operate(reader, 'mute', { ...mute, muted: false, revision: 1 }),
+        ),
+        { muted: false, revision: 2 },
+      );
+      assert.ok(
+        feedPage(
+          await reader.operate('discovery-feed', { filter, after: null }),
+        ).items.some((item) => item.post.id === root),
+      );
       await operate(reader, 'follow', {
         target: identity.id,
         following: false,

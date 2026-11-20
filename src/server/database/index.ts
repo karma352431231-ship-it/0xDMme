@@ -248,6 +248,7 @@ const migrations = [
   '111-conversation-notification-cursors.sql',
   '112-account-wallets.sql',
   '113-session-wallet.sql',
+  '114-profile-mutes.sql',
 ];
 
 export interface MaintenanceSnapshot {

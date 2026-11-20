@@ -3,6 +3,8 @@ import { communityElement as el } from './elements.ts';
 
 /** Matches the panel width in the phone filter row (communities/page-phone.css). */
 const phonePanelWidth = 168;
+/** The two-column filter pill panel on phones (discovery-menu.css). */
+const filterPanelWidth = 300;
 const screenInset = 12;
 
 /**
@@ -14,14 +16,12 @@ function anchorPanel(
   menu: HTMLDetailsElement,
   summary: HTMLElement,
   panel: HTMLElement,
+  width = phonePanelWidth,
 ): void {
   let listening: AbortController | null = null;
   summary.addEventListener('click', () => {
     const box = summary.getBoundingClientRect();
-    const left = Math.min(
-      box.left,
-      window.innerWidth - phonePanelWidth - screenInset,
-    );
+    const left = Math.min(box.left, window.innerWidth - width - screenInset);
     panel.style.setProperty('--discovery-menu-top', `${box.bottom + 6}px`);
     panel.style.setProperty(
       '--discovery-menu-left',
@@ -121,7 +121,7 @@ export function discoveryFilterMenu(
     options = el('div', '', 'discovery-menu-options');
   summary.append(value);
   menu.append(summary, options);
-  anchorPanel(menu, summary, options);
+  anchorPanel(menu, summary, options, filterPanelWidth);
   const current = groups.map((group) => group.value);
   const sections = groups.map((group, index) => {
     const section = el('div', '', 'discovery-menu-group');

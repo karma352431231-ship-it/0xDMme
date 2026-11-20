@@ -237,6 +237,11 @@ export function startPublicProfile(
     },
     follows: profileFollows(controller),
     blockUser: (target: string) => blockPublicUser(controller, target),
+    /** Signed mute/block reads and undo for the Mute and block page. */
+    safetyPort: {
+      perform: (operation: string, payload: Record<string, unknown>) =>
+        controller.perform(operation, payload),
+    },
     mountReview: review.mount,
     async mentionNotifications(read?: () => unknown) {
       const { operation, payload } = publicActivitySources.mentions;

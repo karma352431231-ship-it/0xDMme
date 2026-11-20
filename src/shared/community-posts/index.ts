@@ -1,4 +1,5 @@
 import { mentionPlainText } from '../public-mentions/index.ts';
+import { webLink } from '../web-link/index.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import {
   communityArray,
@@ -352,20 +353,9 @@ export function postState(value: unknown): PostState {
   };
 }
 /** Links never load previews or embed external media. Only explicit HTTP(S) navigation. */
+/** Post links follow the app-wide rule for clickable links. */
 export function postLink(value: string): string | null {
-  if (value.length > 2048 || /[\s\p{Cc}\p{Cf}]/u.test(value)) return null;
-  try {
-    const url = new URL(value);
-    if (
-      !['http:', 'https:'].includes(url.protocol) ||
-      url.username ||
-      url.password
-    )
-      return null;
-    return url.href;
-  } catch {
-    return null;
-  }
+  return webLink(value);
 }
 
 export interface PostVote {

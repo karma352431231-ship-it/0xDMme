@@ -1,4 +1,5 @@
 import type { ContentCapacity } from './content-capacity.ts';
+import { mutedBy } from './profile-mute-filter.ts';
 import type pg from 'pg';
 import { reconcileUpvoteNotice } from './community-upvotes.ts';
 import { queueReplyNotice } from './public-notice-wake.ts';
@@ -149,6 +150,7 @@ export async function replyNotifications(
        SELECT p.id AS reply,coalesce(p.root_id,p.id) AS post,p.community_id AS community,p.created_at,n.read
        FROM hash_talk.community_reply_notifications n JOIN hash_talk.community_posts p ON p.id=n.reply_id
        WHERE n.recipient=$1 AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$1 AND b.target=p.author AND b.blocked)
+       AND NOT ${mutedBy('$1', 'p.author')}
        AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2,$3::uuid))
        ORDER BY p.created_at DESC,p.id DESC LIMIT $4
      ), watched AS (
@@ -159,6 +161,7 @@ export async function replyNotifications(
        AND NOT p.deleted AND p.active_removal IS NULL
        AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
        AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=$1 AND b.target=p.author) OR (b.actor=p.author AND b.target=$1)))
+       AND NOT ${mutedBy('$1', 'p.author')}
        AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2,$3::uuid))
        ORDER BY p.created_at DESC,p.id DESC LIMIT $4
      ) SELECT reply,post,community,created_at,bool_and(read) AS read FROM (SELECT * FROM direct UNION ALL SELECT * FROM watched) combined

@@ -91,8 +91,13 @@
           title="Profile and settings"
           ><span class="rail-avatar" data-private-avatar aria-hidden="true"
             >#</span
-          ></a
-        >
+          ><span class="rail-profile-gear" aria-hidden="true"
+            ><svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+              /></svg></span
+        ></a>
       </nav>
       <aside class="sidebar" aria-label="Contacts and profile">
         <div class="brand-bar">
@@ -173,6 +178,41 @@
           <a href="#chats" data-route="conversas">Conversations</a>
           <a href="#communities" data-route="comunidades">Communities</a>
         </nav>
+        <!-- Communities side menu: own public profile and search (20/11/2026). -->
+        <div class="community-side-account" data-community-side-account>
+          <a
+            class="own-public-profile-shortcut community-side-profile"
+            data-own-public-profile
+            hidden
+          ></a>
+          <button
+            class="icon-button community-side-search-open"
+            type="button"
+            data-header-search-open
+            aria-expanded="false"
+            aria-label="Search posts, users and communities"
+            title="Search posts, users and communities"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+          </button>
+          <div class="community-side-search" data-header-search hidden>
+            <button
+              class="icon-button"
+              type="button"
+              data-header-search-close
+              aria-label="Close search"
+              title="Close search"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 12H5M11 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <div data-public-search></div>
+          </div>
+        </div>
         <section
           id="community-directory"
           class="community-directory"

@@ -37,11 +37,17 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-/* Saved has its own entry in the Communities side menu (20/11/2026), so the
-   "⋯" leaves it out wherever that menu is on screen. Phones (no side menu)
-   and the panel beside the chats keep it here. */
+/* Saved and Mute and block are entries of the Communities side menu
+   (20/11/2026), so wherever that menu is on screen the feed's "⋯" leaves
+   them out and disappears unless it holds Manage community. Phones (no side
+   menu) and the panel beside the chats keep both here. */
 @media (min-width: 701px) {
-  #app-shell[data-page='comunidades'] .community-more-saved {
+  #app-shell[data-page='comunidades'] .community-more-list {
+    display: none;
+  }
+  #app-shell[data-page='comunidades']
+    .community-tools
+    > details.community-more:not(:has(.community-more-manage)) {
     display: none;
   }
 }

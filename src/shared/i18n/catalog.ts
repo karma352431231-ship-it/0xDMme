@@ -2490,6 +2490,45 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   Unblock: ['Unblock', '解除屏蔽'],
   'Unblock user': ['Unblock user', '解除用户屏蔽'],
+  'Mute and block': ['Mute and block', '静音和屏蔽'],
+  Muted: ['Muted', '已静音'],
+  'Hidden posts': ['Hidden posts', '已隐藏的帖子'],
+  'Posts, replies and notices from these profiles are hidden for you. They are not told.':
+    [
+      'Posts, replies and notices from these profiles are hidden for you. They are not told.',
+      '这些资料的帖子、回复和通知仅对你隐藏，对方不会收到通知。',
+    ],
+  'These profiles cannot message you, and you do not see each other’s posts.': [
+    'These profiles cannot message you, and you do not see each other’s posts.',
+    '这些资料无法给你发消息，你们也看不到彼此的帖子。',
+  ],
+  'You have not muted anyone.': [
+    'You have not muted anyone.',
+    '你还没有静音任何人。',
+  ],
+  'You have not blocked anyone.': [
+    'You have not blocked anyone.',
+    '你还没有屏蔽任何人。',
+  ],
+  'Show more': ['Show more', '显示更多'],
+  Unmute: ['Unmute', '取消静音'],
+  'Mute user': ['Mute user', '静音用户'],
+  'Unmute user': ['Unmute user', '取消静音用户'],
+  '@{0} muted': ['@{0} muted', '已静音 @{0}'],
+  '@{0} unmuted': ['@{0} unmuted', '已取消静音 @{0}'],
+  'You cannot mute your own profile.': [
+    'You cannot mute your own profile.',
+    '你不能静音自己的资料。',
+  ],
+  'Your mute choice changed. Reload before retrying.': [
+    'Your mute choice changed. Reload before retrying.',
+    '你的静音选择已更改。请重新加载后再试。',
+  ],
+  'Mute limit reached. Unmute someone first.': [
+    'Mute limit reached. Unmute someone first.',
+    '已达到静音上限。请先取消静音某人。',
+  ],
+  'Invalid mute revision.': ['Invalid mute revision.', '静音版本无效。'],
   Discard: ['Discard', '丢弃'],
   'Discard post?': ['Discard post?', '丢弃帖子？'],
   'Discard reply?': ['Discard reply?', '丢弃回复？'],

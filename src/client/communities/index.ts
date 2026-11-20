@@ -32,8 +32,7 @@ import { CommunityNotifications } from './reply-notifications.ts';
 import { CommunityEditor } from './community-editor.ts';
 import { CommunityDetailView } from './community-detail.ts';
 import type { CommunityScreen } from './screen.ts';
-import { clearCommunityProfileInvitation } from './directory-notice.ts';
-import { communityElement } from './elements.ts';
+import { communityElement, communityLink } from './elements.ts';
 import { communityHoverProvider } from './community-hover.ts';
 import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
@@ -50,8 +49,9 @@ import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { openPostFromCard } from './presentation.ts';
+import { mountSafetyPage } from '../profile-safety/index.ts';
+import type { SafetyPort } from '../profile-safety/index.ts';
 import {
-  communityDirectoryNavigation,
   communityNavigation,
   communityView,
   communitySelection,
@@ -67,6 +67,8 @@ export function startCommunities(
     publicProfile: () => Promise<boolean>;
     unreadChanged?: (count: number) => void;
     blockPublicUser?: (peer: string) => Promise<void>;
+    /** Signed public-profile reads for the Mute and block page. */
+    profileSafety?: SafetyPort;
     /** When the app coordinates session warmups, a mounted feed still loads
      * on session change (its requests use the signing lane), while public DMs,
      * which share the exclusive account turn, wait for sessionReady(). */
@@ -162,16 +164,16 @@ export function startCommunities(
   // Query of the last list shown (feed, ranking, community…), for the post arrow.
   let lastList: string | null = null;
   let view = 'feed',
-    selectedDm: string | null = null,
-    localDm = false,
+    safetyTab: 'muted' | 'blocked' = 'muted',
     selected: string | null = null,
     selectedSlug: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null;
   let output: HTMLElement | null = null;
   let discoveryMounted = false;
-  // The DM view is shared: the communities page owns it for view=dms, the workspace for its chat column.
-  let dmOwner: 'page' | 'panel' | null = null;
+  // Public @ conversations open only in the workspace chat column; the
+  // Communities page has no conversation view of its own (20/11/2026).
+  let dmOwner: 'panel' | null = null;
   function controls(options: { background?: boolean }): void {
     if (options.background) return;
     mounted
@@ -249,25 +251,27 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  // Handle conversations fill their own box under the side menu, so the menu
-  // stays on screen. One box is kept so rows are reused between renders.
-  const dmList = communityElement('div', '', 'community-dm-list');
-  async function dmSidebar(): Promise<void> {
-    if (!sidebar) return;
-    const old = generation;
-    sidebar.append(dmList);
-    await dms.directory(dmList, () => old === generation && view === 'dms');
+  /** Mute and block lists; Hidden posts is the discovery `hidden` view. */
+  function safetyPage(): void {
+    const host = screen();
+    if (!host) return;
+    navigation();
+    if (!session || !options.profileSafety) {
+      communityLink(
+        host.host,
+        t('Sign in through Profile to access your list'),
+        '#settings',
+      );
+      return;
+    }
+    mountSafetyPage(host.host, {
+      port: options.profileSafety,
+      tab: safetyTab,
+      signal: abort.signal,
+    });
   }
   async function directory(): Promise<void> {
     if (!sidebar) return;
-    if (view === 'dms') {
-      clearCommunityProfileInvitation();
-      directoryView.release(sidebar);
-      sidebar.replaceChildren();
-      communityDirectoryNavigation(sidebar, view, selected);
-      await dmSidebar();
-      return;
-    }
     const old = generation;
     await directoryView.sidebar({
       host: sidebar,
@@ -416,10 +420,8 @@ export function startCommunities(
   }
   async function refresh(): Promise<void> {
     if (!mounted) return;
-    if (view === 'dms') {
-      navigation();
-      dms.mount(mounted, selectedDm, localDm);
-      dmOwner = 'page';
+    if (view === 'mute-block') {
+      safetyPage();
       return;
     }
     if (view === 'create') {
@@ -492,10 +494,6 @@ export function startCommunities(
     discovery.leave();
     discoveryMounted = false;
     directoryView.resetSidebar();
-    if (dmOwner === 'page') {
-      dms.leave();
-      dmOwner = null;
-    }
     generation++;
     abort.abort();
     mounted = null;
@@ -521,8 +519,7 @@ export function startCommunities(
       directoryView.resetPage();
       notifications.resetPage();
       try {
-        selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
-        localDm = params.get('history') === 'local';
+        safetyTab = params.get('tab') === 'blocked' ? 'blocked' : 'muted';
         ({ selected, slug: selectedSlug } = communitySelection(params));
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;

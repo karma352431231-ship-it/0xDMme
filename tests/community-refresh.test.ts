@@ -852,7 +852,7 @@ await test('management rechecks keep image pickers and typed presentation fields
   ui.leave();
 });
 
-await test('leaving the communities page keeps a workspace-owned DM open and closes only page-owned DMs', async () => {
+await test('leaving the communities page keeps a workspace-owned DM open; the page itself never opens one', async () => {
   const f = fixture();
   await settled(f.ui);
   f.ui.openDm(
@@ -872,19 +872,18 @@ await test('leaving the communities page keeps a workspace-owned DM open and clo
     new URLSearchParams({ view: 'dms', dm: id }),
   );
   await settled(f.ui);
-  assert.deepEqual(f.data.dmMounts, [id, id]);
+  // Handle messages live in Conversations (20/11/2026): view=dms is redirected
+  // before this page mounts, and the page has no conversation view left.
+  assert.deepEqual(f.data.dmMounts, [id]);
   f.ui.leave();
-  assert.equal(f.data.dmLeaves, 2);
+  assert.equal(f.data.dmLeaves, 1);
 });
 
-await test('DM directory requests become obsolete when the communities page leaves', async () => {
+await test('the communities sidebar never requests the handle-message directory', async () => {
   const f = fixture({ view: 'dms', directory: true });
   await settled(f.ui);
-  const current = f.data.dmDirectoryCurrent;
-  assert.ok(current);
-  assert.equal(current(), true);
+  assert.equal(f.data.dmDirectoryCurrent, null);
   f.ui.leave();
-  assert.equal(current(), false);
 });
 
 await test('notification pagination and reload retain their read acknowledgement payloads', async () => {

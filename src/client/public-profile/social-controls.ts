@@ -11,6 +11,8 @@ import type {
 } from '../../shared/profile-social/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { communityIcon } from '../communities/index.ts';
+import { setProfileMute } from '../profile-safety/index.ts';
+import { profileMuteState } from '../../shared/profile-mutes/index.ts';
 import { showToast } from '../toast/index.ts';
 
 function button(
@@ -55,6 +57,9 @@ export async function profileSocialControls(
   );
   let alerts = profileNotifications(
     await controller.perform('notification-state', { target }),
+  );
+  let mute = profileMuteState(
+    await controller.perform('mute-state', { target }),
   );
   if (signal.aborted) return;
   const followButton = button(
@@ -136,6 +141,29 @@ export async function profileSocialControls(
   summaryNode.append(communityIcon('more'));
   menu.append(summaryNode, content);
   access.menuHost.append(menu);
+  // Mute hides this profile's posts, replies and notices for the reader only.
+  const muteButton = button(
+    content,
+    '',
+    async () => {
+      mute = await setProfileMute(controller, target, !mute.muted);
+      if (signal.aborted) return;
+      paintMute();
+      showToast(
+        mute.muted
+          ? t('@{0} muted', [summary.profile.handle])
+          : t('@{0} unmuted', [summary.profile.handle]),
+      );
+    },
+    error,
+  );
+  function paintMute(): void {
+    muteButton.replaceChildren(
+      communityIcon('mute'),
+      mute.muted ? t('Unmute user') : t('Mute user'),
+    );
+  }
+  paintMute();
   const block = button(
     content,
     access.block.blocked ? t('Unblock user') : t('Block user'),

@@ -69,7 +69,7 @@ import {
 import { startPanels } from './panels.ts';
 import { startFocusModality } from '../focus-modality/index.ts';
 import {
-  canonicalizeMobilePublicConversation,
+  canonicalizePublicConversation,
   startMobileConversation,
 } from './mobile-conversation.ts';
 import { startConversationBadges } from './conversation-badges.ts';
@@ -112,6 +112,11 @@ document
   .forEach((host) => mountPublicSearch(host, new AbortController().signal));
 const topBar = document.querySelector<HTMLElement>('.sidebar > .brand-bar');
 if (topBar) startHeaderSearch(topBar);
+// The Communities side menu has its own search toggle beside the profile photo.
+const sideAccount = document.querySelector<HTMLElement>(
+  '[data-community-side-account]',
+);
+if (sideAccount) startHeaderSearch(sideAccount);
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 const navigationVisits = new NavigationVisits();
@@ -168,6 +173,7 @@ const communities = startCommunities(devices, vault.sync, externalMedia, {
   profiles: publicProfiles.follows,
   publicProfile: () => publicProfiles.exists(),
   blockPublicUser: (peer) => publicProfiles.blockUser(peer),
+  profileSafety: publicProfiles.safetyPort,
   unreadChanged: (count) => conversationBadge('public', count),
   // Public DMs start from SessionBoot below; the feed uses the signing lane.
   coordinatedStartup: true,
@@ -487,7 +493,7 @@ function route(): void {
     renderApprovalPage();
     return;
   }
-  canonicalizeMobilePublicConversation();
+  canonicalizePublicConversation();
   canonicalizeRoute();
   const key = pageKey(appAddress());
   if (key === null) return;

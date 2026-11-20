@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import {
-  canonicalizeMobilePublicConversation,
+  canonicalizePublicConversation,
   startMobileConversation,
 } from '../src/client/app/mobile-conversation.ts';
 import { navigateApp } from '../src/client/app-navigation/index.ts';
@@ -158,7 +158,7 @@ await test('phone public links normalize into Conversations before mounting and 
   f.history.replaceState({ contactScope: 'public' }, '');
   navigateApp('#communities?view=dms&dm=00000000-0000-4000-8000-000000000001');
   const count = f.entries.length;
-  canonicalizeMobilePublicConversation();
+  canonicalizePublicConversation();
   f.navigation.restore();
   assert.equal(f.location.pathname, '/chats');
   assert.ok(f.location.search.includes('dm='));
@@ -170,4 +170,21 @@ await test('phone public links normalize into Conversations before mounting and 
   assert.equal(f.location.pathname, '/chats');
   assert.equal(f.shell.dataset.contactScope, 'public');
   assert.equal(f.shell.dataset.chatOpen, 'false');
+});
+
+await test('desktop handle-message links open Conversations only on the Public tab', (t) => {
+  const f = fixture(t, false);
+  navigateApp('#communities?view=dms');
+  canonicalizePublicConversation();
+  assert.equal(f.location.pathname, '/chats');
+  assert.ok(f.location.search.includes('layout=chat'));
+  assert.ok(!f.location.search.includes('dm='));
+  navigateApp('#communities?view=dms&dm=00000000-0000-4000-8000-000000000001');
+  canonicalizePublicConversation();
+  assert.ok(f.location.search.includes('layout=chat'));
+  assert.ok(f.location.search.includes('dm='));
+  assert.equal(
+    (f.history.state as { contactScope?: string }).contactScope,
+    'public',
+  );
 });

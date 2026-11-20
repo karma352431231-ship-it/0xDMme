@@ -11,22 +11,29 @@ function state(): ConversationState {
   return typeof value === 'object' && value !== null ? value : {};
 }
 
-/** Resolve legacy public-DM links before a Communities screen can mount on a phone. */
-export function canonicalizeMobilePublicConversation(): void {
-  if (!matchMedia('(max-width: 700px)').matches) return;
+/**
+ * Public @ conversations live in Conversations, Public tab (owner, 20/11/2026):
+ * the Communities `view=dms` address is resolved before any screen mounts.
+ * Phones open the directory or the chat; wider windows open Conversations only
+ * (`layout=chat`) with the chat when a peer is named.
+ */
+export function canonicalizePublicConversation(): void {
   const route = appRoute(appAddress());
   if (route?.page !== 'communities' || route.params.get('view') !== 'dms')
     return;
+  const phone = matchMedia('(max-width: 700px)').matches;
   const peer = route.params.get('dm');
   const params = new URLSearchParams();
-  if (peer) {
-    params.set('layout', 'chat');
-    params.set('dm', peer);
-  }
+  if (peer || !phone) params.set('layout', 'chat');
+  if (peer) params.set('dm', peer);
   if (peer && route.params.get('history') === 'local')
     params.set('history', 'local');
   history.replaceState(
-    { ...state(), conversationOpen: Boolean(peer), contactScope: 'public' },
+    {
+      ...state(),
+      conversationOpen: phone && Boolean(peer),
+      contactScope: 'public',
+    },
     '',
     appHref('chats', params),
   );

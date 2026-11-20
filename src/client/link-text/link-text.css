@@ -1,0 +1,12 @@
+/*
+ * Clickable links inside posts, replies and messages (20/11/2026). Sent
+ * bubbles keep their own inherited link color (chat-ui/bubbles.css).
+ */
+#app-shell .text-link {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+#app-shell .text-link:hover {
+  text-decoration: underline;
+}

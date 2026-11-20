@@ -157,6 +157,24 @@ export function startPanels(input: {
     panelTarget = { kind: 'profile', handle };
     markFeedTab(null);
   }
+  /**
+   * Handle messages from Communities arrive with the Public tab chosen
+   * (canonicalizePublicConversation); phones restore it themselves.
+   */
+  function applyRememberedScope(): void {
+    const value: unknown = history.state;
+    const remembered =
+      typeof value === 'object' && value !== null
+        ? (value as { contactScope?: unknown }).contactScope
+        : undefined;
+    if (
+      page === 'conversas' &&
+      split.matches &&
+      remembered === 'public' &&
+      shell.dataset['contactScope'] !== 'public'
+    )
+      setScope('public');
+  }
   function setScope(scope: Scope): void {
     shell.dataset['contactScope'] = scope;
     shell
@@ -378,6 +396,7 @@ export function startPanels(input: {
       const target = readPanelRoute();
       if (target === false) return;
       page = next;
+      applyRememberedScope();
       if (previousPage !== page || !samePanelTarget(previous, panelTarget)) {
         feedMounted = false;
         leaveProfile();

@@ -21,6 +21,7 @@ import type { ContactAuthority } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { profileNotificationSetting } from './profile-notifications.ts';
 import { storePublicReport } from './public-reports.ts';
+import { profileMuteOperation } from './profile-mutes.ts';
 import {
   followNoticeOperation,
   reconcileFollowNotice,
@@ -32,6 +33,14 @@ const readerOperations = new Set([
   'mutual-followers',
   'follow-notifications',
   'follow-notifications-read',
+]);
+
+/** The reader's mutes and the Mute and block lists (owner, 20/11/2026). */
+const muteOperations = new Set([
+  'mute-state',
+  'mute',
+  'mute-list',
+  'block-list',
 ]);
 
 /** Public pages and private follow operations use stable public profile IDs. */
@@ -137,6 +146,14 @@ export class ProfileSocialStore {
         operation === 'block' ? 'profile-block-set' : 'profile-block-state',
         authority,
         data,
+      );
+    if (muteOperations.has(operation))
+      return this.options.communities.withActor(authority, (context) =>
+        profileMuteOperation(context, {
+          operation,
+          data,
+          profiles: this.options.profiles,
+        }),
       );
     if (operation === 'public-report')
       return this.options.communities.withActor(authority, (context) =>

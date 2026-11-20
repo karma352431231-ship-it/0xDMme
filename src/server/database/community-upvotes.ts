@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { mutedBy } from './profile-mute-filter.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityArray,
@@ -149,6 +150,7 @@ export class CommunityUpvotes {
        JOIN hash_talk.community_posts p ON p.id=n.post_id
        WHERE n.recipient=$1 AND ${visibleUpvoteTarget()} AND ($2::timestamptz IS NULL OR (n.created_at,n.id)<($2,$3::uuid))
        AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=$1 AND b.target=n.actor) OR (b.actor=n.actor AND b.target=$1)))
+       AND NOT ${mutedBy('$1', 'n.actor')}
        ORDER BY n.created_at DESC,n.id DESC LIMIT 25`,
       [context.actor.id, time || null, id || null],
     );

@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { mutedBy } from './profile-mute-filter.ts';
 import { keys, uuid } from '../../shared/account/index.ts';
 import { communityArray } from '../../shared/communities/index.ts';
 import { postCursor } from '../../shared/community-posts/index.ts';
@@ -62,6 +63,7 @@ export async function followNoticeOperation(
   const found = await context.client.query<NoticeRow>(
     `SELECT n.id,n.actor,n.created_at,n.read FROM hash_talk.public_follow_notifications n
      WHERE n.recipient=$1 AND NOT ${blocked('n.recipient', 'n.actor')}
+     AND NOT ${mutedBy('n.recipient', 'n.actor')}
      AND ($2::timestamptz IS NULL OR (n.created_at,n.id)<($2,$3::uuid))
      ORDER BY n.created_at DESC,n.id DESC LIMIT 25`,
     [context.actor.id, time || null, id || null],

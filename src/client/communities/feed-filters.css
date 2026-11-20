@@ -63,6 +63,12 @@
     > .community-feed-filters {
     grid-column: 1 / 3;
   }
+  /* Search and the own-profile photo moved to the side menu (20/11/2026). */
+  #app-shell[data-page='comunidades']
+    .community-feed-filters
+    :is(.public-search, .community-own-profile-shortcut) {
+    display: none;
+  }
   #app-shell[data-page='comunidades'] .community-feed-scopes {
     order: -1;
     gap: 18px;

@@ -1,4 +1,5 @@
 import type { ContentCapacity } from './content-capacity.ts';
+import { mutedBy } from './profile-mute-filter.ts';
 import { CommunityUpvotes } from './community-upvotes.ts';
 import { reconcileMentionNotifications } from './mention-admission.ts';
 import {
@@ -492,6 +493,7 @@ export class CommunityPostStore {
       AND ($5::uuid IS NOT NULL OR NOT ${blockedPost('p')})
       AND ($5::uuid IS NULL OR author=$5) AND ($8::uuid IS NOT NULL OR $5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$10 AND b.target=author AND b.blocked)
+      AND ($5::uuid IS NOT NULL OR NOT ${mutedBy('$10', 'author')})
       ORDER BY created_at DESC,id DESC LIMIT $7`,
       [
         options.community,

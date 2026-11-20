@@ -1,27 +1,59 @@
 import { t } from '../../shared/i18n/index.ts';
 import { validReaction } from '../../shared/daily/index.ts';
 import { emojiCategories, emojiPageSize } from './catalog.ts';
-import type { EmojiRow } from './catalog.ts';
+import type { EmojiCatalog, EmojiRow } from './catalog.ts';
 import { EmojiArtwork } from './artwork.ts';
 import { emojiCatalog, loadEmojiCatalog } from './catalog-source.ts';
 import { recentEmojis } from './recents.ts';
+import { externalLink, linkedParts } from '../link-text/index.ts';
+import type { LinkedPart } from '../link-text/index.ts';
 const artwork = new EmojiArtwork();
 const textRenders = new WeakMap<HTMLElement, object>();
+/**
+ * Message and caption text: links are clickable (link-text) and emoji become
+ * artwork once the catalog loads; link runs are never rewritten by artwork.
+ */
 export function emojiText(host: HTMLElement, text: string): void {
   const render = {};
   textRenders.set(host, render);
-  host.textContent = text;
+  const parts = linkedParts(text);
+  paintText(host, parts, null);
   if (!/(?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]|\u20e3)/u.test(text))
     return;
   void loadEmojiCatalog().then(
     (catalog) => {
       if (host.isConnected && textRenders.get(host) === render)
-        artwork.text(host, text, catalog);
+        paintText(host, parts, catalog);
     },
     () => {
       // Unicode remains visible when optional artwork cannot be loaded.
     },
   );
+}
+/** Text without links keeps the plain path; links are never rewritten by artwork. */
+function paintText(
+  host: HTMLElement,
+  parts: readonly LinkedPart[],
+  catalog: EmojiCatalog | null,
+): void {
+  const text = parts.map((part) => part.text).join('');
+  if (!parts.some((part) => part.href)) {
+    if (catalog) artwork.text(host, text, catalog);
+    else host.textContent = text;
+    return;
+  }
+  host.textContent = '';
+  for (const part of parts) {
+    if (part.href)
+      host.append(externalLink({ text: part.text, href: part.href }));
+    else {
+      // Each text run is its own span so artwork never touches the links.
+      const run = document.createElement('span');
+      if (catalog) artwork.text(run, part.text, catalog);
+      else run.textContent = part.text;
+      host.append(run);
+    }
+  }
 }
 function element<T extends HTMLElement>(
   host: HTMLElement,

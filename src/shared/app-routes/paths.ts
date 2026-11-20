@@ -12,6 +12,7 @@ const views = new Set([
   'invitations',
   'create',
   'dms',
+  'mute-block',
 ]);
 function take(params: URLSearchParams, key: string): string | null {
   const value = params.get(key);

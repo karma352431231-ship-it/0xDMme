@@ -1,4 +1,4 @@
-/* Directory head: the Communities title; the side menu below it leads to Handle messages. */
+/* Directory head: the Communities title above the side menu. */
 .community-directory-head {
   display: flex;
   align-items: center;
@@ -13,4 +13,45 @@
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
+}
+/*
+ * Above the side menu: the own public-profile photo, leading to that profile,
+ * and a search that opens in place (owner, 20/11/2026). Static markup in the
+ * shell, so typing survives the menu's re-renders; phones use the top bar.
+ */
+.community-side-account {
+  display: none;
+}
+.app[data-page='comunidades'] .community-side-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 14px 16px 0;
+}
+.community-side-account .community-side-search-open {
+  margin-left: auto;
+}
+.community-side-account[data-header-search='open']
+  > :not(.community-side-search) {
+  display: none;
+}
+.community-side-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.community-side-search[hidden] {
+  display: none;
+}
+.community-side-search > [data-public-search] {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  .app[data-page='comunidades'] .community-side-account {
+    display: none;
+  }
 }

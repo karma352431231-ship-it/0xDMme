@@ -69,8 +69,10 @@ function composeHereButton(community: string): HTMLElement {
 }
 
 /**
- * Lists in "⋯". My communities and the following feed are left out: the Mine
- * tab and the Following chip already lead there.
+ * Lists in "⋯": Saved and Mute and block (owner, 20/11/2026). Replies and
+ * ownership requests are reached from Activity, Hidden posts from Mute and
+ * block. Where the side menu is on screen it lists both, so the feed's "⋯"
+ * hides them and shows only Manage community (community-actions.css).
  */
 function moreChoices(options: {
   signedIn: boolean;
@@ -78,29 +80,28 @@ function moreChoices(options: {
 }): HTMLElement {
   const choices = el('nav');
   choices.setAttribute('aria-label', t('Community lists and management'));
-  if (options.manage)
-    iconLabel(
-      link(
-        choices,
-        t('Manage community'),
-        `#communities?id=${options.manage}&view=manage`,
-      ),
-      'shield',
+  if (options.manage) {
+    const manage = link(
+      choices,
+      t('Manage community'),
+      `#communities?id=${options.manage}&view=manage`,
     );
+    iconLabel(manage, 'shield');
+    manage.classList.add('community-more-manage');
+  }
   if (!options.signedIn) {
-    link(choices, t('Sign in through Profile'), '#settings');
+    link(choices, t('Sign in through Profile'), '#settings').classList.add(
+      'community-more-list',
+    );
     return choices;
   }
   for (const [key, title, icon] of [
     ['saved', t('Saved'), 'bookmark'],
-    ['hidden', t('Hidden'), 'hide'],
-    ['replies', t('Replies to your content'), 'reply'],
-    ['invitations', t('Ownership requests'), 'transfer'],
+    ['mute-block', t('Mute and block'), 'mute'],
   ] as const) {
     const choice = link(choices, title, `#communities?view=${key}`);
     iconLabel(choice, icon);
-    // The side menu lists Saved wherever it is on screen (community-actions.css).
-    if (key === 'saved') choice.classList.add('community-more-saved');
+    choice.classList.add('community-more-list');
   }
   return choices;
 }
@@ -148,21 +149,20 @@ export function communityDirectoryNavigation(
   head.append(el('h2', t('Communities')));
   container.append(head, directoryLinks(view, selected));
   above?.();
-  container.append(
-    el('h2', view === 'dms' ? t('Handle messages') : t('Following')),
-  );
+  container.append(el('h2', t('Following')));
 }
 /**
  * X-style side menu (owner request, 20/11/2026): only destinations with no
- * other place on this screen. Ranking stays for windows without the ranking
- * sidebar; Activity also sits in the rail, but the owner wants it here too.
+ * other place on this screen. Handle messages opens Conversations only on its
+ * Public tab (the `view=dms` address is redirected there); Activity lives in
+ * the rail. Ranking stays for windows without the ranking sidebar.
  */
 function directoryDestinations() {
   return [
     ['feed', t('Feed'), 'layers', '#communities?view=feed'],
     ['dms', t('Handle messages'), 'mail', '#communities?view=dms'],
     ['saved', t('Saved'), 'bookmark', '#communities?view=saved'],
-    ['activity', t('Notifications'), 'bell', '#activity'],
+    ['mute-block', t('Mute and block'), 'mute', '#communities?view=mute-block'],
     ['explore', t('Ranking'), 'compass', '#communities?view=explore'],
   ] as const;
 }
@@ -174,10 +174,17 @@ function directoryLinks(view: string, selected: string | null): HTMLElement {
     iconLabel(a, icon);
     // Hidden where the ranking sidebar is on screen (page-wide.css).
     if (key === 'explore') a.classList.add('community-ranking-link');
-    if (!selected && (view === key || (key === 'feed' && view === 'following')))
+    if (!selected && directoryCurrent(key, view))
       a.setAttribute('aria-current', 'page');
   }
   return nav;
+}
+
+/** Following is part of the feed; Hidden posts is a tab of Mute and block. */
+function directoryCurrent(key: string, view: string): boolean {
+  if (key === 'feed') return view === 'feed' || view === 'following';
+  if (key === 'mute-block') return view === 'mute-block' || view === 'hidden';
+  return view === key;
 }
 
 /** Where the arrow of an opened post leads: the list the reader came from, else its community. */
@@ -192,7 +199,7 @@ export function postReturnTarget(
 
 const communityViews = new Set([
   'followers',
-  'dms',
+  'mute-block',
   'explore',
   'feed',
   'saved',

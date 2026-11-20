@@ -1,0 +1,74 @@
+/*
+ * Mute and block page (20/11/2026): Muted | Blocked | Hidden posts tabs and
+ * compact profile rows with an undo button. The Hidden posts tab reuses the
+ * feed list, so the tabs also sit under that list's heading.
+ */
+.safety-page h1 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 20px;
+}
+.safety-tabs {
+  display: flex;
+  gap: 22px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.safety-tabs a {
+  margin-bottom: -1px;
+  padding: 8px 0 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.safety-tabs a[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+.safety-hint,
+.safety-status {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.safety-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.safety-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.safety-list li > a:not(.public-identity-avatar) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.safety-list li > .public-identity-avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.safety-list button,
+.safety-more {
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.safety-more {
+  margin-top: 12px;
+}

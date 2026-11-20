@@ -14,6 +14,7 @@ import { postSearchQuery } from '../../shared/post-search/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
+import { safetyTabs } from '../profile-safety/index.ts';
 import type { PublicActionAccess } from '../public-action-guidance/index.ts';
 import {
   missingPublicProfile,
@@ -448,18 +449,7 @@ export function startCommunityDiscovery(
           else await run(reload);
         },
       });
-      const titles: Record<string, string> = {
-        feed: t('Feed'),
-        following: t('follow.following'),
-        explore: t('Community ranking'),
-        saved: t('Your saved posts'),
-        hidden: t('Content hidden from your feeds'),
-      };
-      const heading = el('header', '', 'community-heading'),
-        text = el('div');
-      text.append(el('h1', titles[view] ?? t('Feed')));
-      heading.append(text);
-      mounted.append(heading);
+      const text = feedHeading(mounted, view);
       if (!signedIn && view !== 'feed' && view !== 'explore') {
         link(
           mounted,
@@ -535,4 +525,23 @@ export function startCommunityDiscovery(
     tabAgain: () => (feedRefresh?.tabAgain() ? Promise.resolve() : run(reload)),
     canActivate: () => !busy && !hasOpenFeedReply(mounted),
   };
+}
+
+/** The page heading of a feed list; Hidden posts adds the Mute and block tabs. */
+function feedHeading(host: HTMLElement, view: string): HTMLElement {
+  const titles: Record<string, string> = {
+    feed: t('Feed'),
+    following: t('follow.following'),
+    explore: t('Community ranking'),
+    saved: t('Your saved posts'),
+    hidden: t('Mute and block'),
+  };
+  const heading = el('header', '', 'community-heading'),
+    text = el('div');
+  text.append(el('h1', titles[view] ?? t('Feed')));
+  heading.append(text);
+  host.append(heading);
+  // Hidden posts is the third tab of Mute and block (20/11/2026).
+  if (view === 'hidden') safetyTabs(host, 'hidden');
+  return text;
 }

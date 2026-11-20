@@ -30,6 +30,29 @@
   #app-shell .rail-profile:is(:hover, [aria-current='page']) {
     background: var(--accent-soft);
   }
+  /* A gear on the photo says the app's settings open here (owner, 20/11/2026). */
+  #app-shell .rail-profile {
+    position: relative;
+  }
+  #app-shell .rail-profile-gear {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--panel);
+    color: var(--text);
+  }
+  #app-shell .rail-profile-gear svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
   #app-shell .rail-avatar {
     display: grid;
     place-items: center;

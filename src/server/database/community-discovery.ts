@@ -1,4 +1,5 @@
 import { rankingPeriod } from '../../shared/community-ranking/index.ts';
+import { mutedBy } from './profile-mute-filter.ts';
 import { createHash } from 'node:crypto';
 import type { ContentCapacity } from './content-capacity.ts';
 import { savedPostIds } from './community-preferences.ts';
@@ -160,6 +161,7 @@ export class CommunityDiscoveryStore {
       AND ($2 IN ('saved','hidden') OR NOT coalesce(pref.hidden,false))
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$1 AND b.blocked AND
         (b.target=p.author OR b.target IN (SELECT a.author FROM hash_talk.community_posts a WHERE a.id=p.parent_id OR a.id=p.root_id)))
+      AND ($2 IN ('saved','hidden') OR NOT ${mutedBy('$1', 'p.author')})
     ), ranked AS (${feedSelection(filter)}) SELECT * FROM ranked WHERE representative=1 AND ($7::bigint IS NULL OR (rank,created_at,id)<($7,$8::timestamptz,$9::uuid))
       ORDER BY rank DESC,created_at DESC,id DESC LIMIT $10`,
       [

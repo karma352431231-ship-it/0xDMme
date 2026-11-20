@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { mutedBy } from './profile-mute-filter.ts';
 import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { publicNotificationText } from '../../shared/public-notification/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
@@ -12,7 +13,8 @@ export function publicNotificationCandidates(
     (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL)) AND
     (p.parent_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts parent WHERE parent.id=p.parent_id AND NOT parent.deleted AND parent.active_removal IS NULL)) AND
     NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND
-      ((b.actor=recipient.id AND (b.target=p.author OR b.target IN(SELECT ancestor.author FROM hash_talk.community_posts ancestor WHERE ancestor.id=p.parent_id OR ancestor.id=p.root_id))) OR (b.actor=p.author AND b.target=recipient.id)))`;
+      ((b.actor=recipient.id AND (b.target=p.author OR b.target IN(SELECT ancestor.author FROM hash_talk.community_posts ancestor WHERE ancestor.id=p.parent_id OR ancestor.id=p.root_id))) OR (b.actor=p.author AND b.target=recipient.id))) AND
+    NOT ${mutedBy('recipient.id', 'p.author')}`;
   return `(SELECT p.id,p.created_at,false AS followed FROM hash_talk.public_profiles recipient JOIN hash_talk.community_reply_notifications n ON n.recipient=recipient.id
     JOIN hash_talk.community_posts p ON p.id=n.reply_id WHERE recipient.account_id=${account} AND NOT n.read AND ${visible} ORDER BY p.created_at DESC,p.id DESC LIMIT 1)
     UNION ALL (SELECT p.id,p.created_at,true AS followed FROM hash_talk.public_profiles recipient JOIN hash_talk.public_profile_follows f ON f.follower=recipient.id AND f.following AND f.notifications
