@@ -35,6 +35,10 @@ export class CommunityNode extends EventTarget {
   get parentElement(): CommunityNode | null {
     return this.parent;
   }
+  // A template's markup (Ping's art in loading screens) parses to one opaque node.
+  get content(): { firstElementChild: CommunityNode } {
+    return { firstElementChild: new CommunityNode('svg') };
+  }
   get lastElementChild(): CommunityNode | null {
     return this.children.at(-1) ?? null;
   }

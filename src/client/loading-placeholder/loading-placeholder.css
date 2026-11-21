@@ -1,0 +1,134 @@
+/*
+ * Loading screens (owner choice C, 21/11/2026): a pulsing silhouette of the
+ * coming page, and Ping typing on top of it after three seconds.
+ */
+.loading-placeholder {
+  position: relative;
+  min-height: 160px;
+  padding: 4px 0;
+}
+/* The profile page has no side padding of its own; its header adds it. */
+.loading-placeholder[data-shape='profile'] {
+  padding-inline: 16px;
+}
+.loading-shapes {
+  display: grid;
+  gap: 22px;
+  animation: loading-dim 0.3s ease 3s forwards;
+}
+.loading-block {
+  display: block;
+  border-radius: 6px;
+  background: var(--surface-3);
+  animation: loading-pulse 1.4s ease-in-out infinite;
+}
+.loading-line {
+  height: 11px;
+}
+.loading-name {
+  width: 45%;
+  height: 18px;
+}
+.loading-title {
+  width: 70%;
+  height: 15px;
+}
+.loading-short {
+  width: 30%;
+}
+.loading-half {
+  width: 55%;
+}
+.loading-wide {
+  width: 90%;
+}
+.loading-avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+.loading-post,
+.loading-row {
+  display: flex;
+  gap: 12px;
+}
+.loading-row {
+  align-items: center;
+}
+.loading-lines {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+.loading-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.loading-chip {
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+}
+.loading-profile {
+  display: grid;
+  gap: 10px;
+}
+.loading-banner {
+  height: 120px;
+  border-radius: 12px;
+}
+.loading-portrait {
+  width: 76px;
+  height: 76px;
+  margin: -48px 0 4px 14px;
+  border: 4px solid var(--bg);
+  border-radius: 50%;
+}
+.loading-pill {
+  width: 100%;
+  height: 34px;
+  margin-top: 6px;
+  border-radius: 17px;
+}
+/* Ping only joins long waits; quick reads never show it. */
+.loading-ping {
+  position: absolute;
+  top: min(50%, 180px);
+  left: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: loading-reveal 0.3s ease 3s forwards;
+}
+/* Outranks the Communities rule that sizes every icon at 18px. */
+.loading-placeholder .loading-ping svg.ping {
+  width: auto;
+  height: 64px;
+}
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes loading-dim {
+  to {
+    opacity: 0.35;
+  }
+}
+@keyframes loading-reveal {
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-block {
+    animation: none;
+  }
+}

@@ -28,6 +28,10 @@ import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { editPublicProfileHash } from '../profile-shortcut/index.ts';
 import { communityIcon } from '../communities/index.ts';
+import {
+  clearLoading,
+  loadingPlaceholder,
+} from '../loading-placeholder/index.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -81,11 +85,15 @@ export function showProfilePage(
     tab: ProfileTab = 'posts',
     generation = 0;
   const page = element('section', '', 'public-profile-page'),
-    status = element('p', t('Loading public profile…'), 'community-feedback');
+    status = element('p', '', 'community-feedback');
   status.setAttribute('role', 'status');
   // Stays above every redraw of the profile below it.
   const bar = profileBar(options.back ?? null);
-  page.append(bar.node, status);
+  page.append(
+    bar.node,
+    status,
+    loadingPlaceholder('profile', t('Loading public profile…')),
+  );
   container.replaceChildren(page);
   async function read(path: string, signal = lifetime.signal) {
     const response = await fetchApi('public-profile/read', path, {
@@ -102,11 +110,13 @@ export function showProfilePage(
     if (
       !lifetime.signal.aborted &&
       !(message instanceof DOMException && message.name === 'AbortError')
-    )
+    ) {
+      clearLoading(page);
       status.textContent =
         message instanceof Error
           ? translatedError(message.message)
           : t('Public profile unavailable.');
+    }
   }
   async function currentHandle(): Promise<string> {
     if (typeof handle === 'string' && handle.length === 36) {
@@ -270,7 +280,10 @@ export function showProfilePage(
       contentAbort = new AbortController();
       const signal = AbortSignal.any([lifetime.signal, contentAbort.signal]),
         old = ++generation;
-      status.textContent = t('Loading activity…');
+      status.textContent = '';
+      items.replaceChildren(
+        loadingPlaceholder('posts', t('Loading activity…')),
+      );
       const query = new URLSearchParams({ tab: activityTab });
       if (after) query.set('after', after);
       const response = feedPage(

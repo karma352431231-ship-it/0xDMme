@@ -12,6 +12,10 @@ import { showPublicAvatar } from '../public-media/index.ts';
 import type { Communities } from './controller.ts';
 import { communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
+import {
+  clearLoading,
+  loadingPlaceholder,
+} from '../loading-placeholder/index.ts';
 interface FollowersAccess {
   id: string;
   signedIn: boolean;
@@ -204,7 +208,9 @@ export function mountCommunityFollowerPage(
     const current = ++generation;
     loading = true;
     more.disabled = true;
-    status.textContent = t('Loading followers…');
+    status.textContent = '';
+    if (!append) list.replaceChildren();
+    list.append(loadingPlaceholder('rows', t('Loading followers…')));
     try {
       const page = await read(input, tab, append ? next : null);
       if (!usable() || current !== generation) return;
@@ -216,6 +222,7 @@ export function mountCommunityFollowerPage(
             ? translatedError(error.message)
             : t('Followers unavailable.');
     } finally {
+      clearLoading(list);
       if (current === generation) {
         loading = false;
         more.disabled = false;

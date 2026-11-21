@@ -1619,6 +1619,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     '正在加载用户名私信…',
   ],
   'Loading options…': ['Loading options…', '正在加载选项…'],
+  'Loading posts…': ['Loading posts…', '正在加载帖子…'],
   'Loading public profile…': [
     'Loading public profile…',
     '正在加载公开个人资料…',

@@ -47,6 +47,10 @@ import {
 import { appendFeedSearchSummary, feedSearchScope } from './feed-search.ts';
 import { communityIcon } from './presentation.ts';
 import { watchRankingUpdates } from './ranking-live.ts';
+import {
+  clearLoading,
+  loadingPlaceholder,
+} from '../loading-placeholder/index.ts';
 
 export function startCommunityDiscovery(
   controller: Communities,
@@ -97,6 +101,7 @@ export function startCommunityDiscovery(
     busy = Promise.resolve()
       .then(work)
       .catch((error: unknown) => {
+        clearLoading(list);
         page?.invalidate();
         // A connected account without a public profile is led to create one
         // instead of reading a server refusal in the feed status.
@@ -474,6 +479,8 @@ export function startCommunityDiscovery(
         view === 'explore' ? 'community-ranking' : 'community-feed',
       );
       paging = el('div', '', 'post-toolbar');
+      if (view !== 'explore')
+        list.append(loadingPlaceholder('posts', t('Loading posts…')));
       mounted.append(feedback, list, paging);
       const presentation = {
         list,

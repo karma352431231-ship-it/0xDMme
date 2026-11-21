@@ -39,6 +39,10 @@ import { PostSnapshot } from './post-snapshot.ts';
 import { PostThread } from './post-thread.ts';
 import { iconLabel, postTagName } from './presentation.ts';
 import { showRepliedAbove } from './reply-context.ts';
+import {
+  clearLoading,
+  loadingPlaceholder,
+} from '../loading-placeholder/index.ts';
 /** Tags offered by the filter; a page holds many, so this bounds the requests. */
 const tagMenuPages = 5;
 
@@ -102,6 +106,7 @@ export function startCommunityPostList(
     try {
       await work();
     } catch (error: unknown) {
+      clearLoading(list);
       if (old === generation && feedback)
         feedback.textContent =
           error instanceof Error
@@ -465,6 +470,7 @@ export function startCommunityPostList(
     filterBar = null;
     if (!selected) filters();
     list = el('div', '', 'community-post-list');
+    list.append(loadingPlaceholder('posts', t('Loading posts…')));
     controls = el('div', '', 'post-toolbar');
     mounted.append(list, controls);
   }

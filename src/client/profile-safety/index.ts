@@ -7,6 +7,10 @@ import {
 import type { ProfileMuteState } from '../../shared/profile-mutes/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import { publicIdentityAvatar } from '../public-identity/index.ts';
+import {
+  clearLoading,
+  loadingPlaceholder,
+} from '../loading-placeholder/index.ts';
 
 /** The signed public-profile operations this page needs; nothing else. */
 export interface SafetyPort {
@@ -113,7 +117,8 @@ async function loadPage(
     after: string | null;
   },
 ): Promise<void> {
-  status.textContent = t('Loading…');
+  status.textContent = '';
+  list.append(loadingPlaceholder('rows', t('Loading…')));
   try {
     const page = safetyProfilePage(
       await input.port.perform(
@@ -122,7 +127,7 @@ async function loadPage(
       ),
     );
     if (input.signal.aborted) return;
-    status.textContent = '';
+    clearLoading(list);
     for (const profile of page.items) list.append(row(profile, input, status));
     if (!list.childElementCount)
       status.textContent =
@@ -131,6 +136,7 @@ async function loadPage(
           : t('You have not blocked anyone.');
     if (page.next) moreButton(list, status, { ...input, after: page.next });
   } catch (error: unknown) {
+    clearLoading(list);
     if (!input.signal.aborted) status.textContent = failure(error);
   }
 }

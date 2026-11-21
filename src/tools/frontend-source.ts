@@ -123,6 +123,7 @@ const authored = [
   'src/client/profile-safety',
   'src/client/link-text',
   'src/client/contract-copy',
+  'src/client/loading-placeholder',
   'src/shared/web-link',
   'src/shared/public-profile',
   'src/shared/profile-social',
