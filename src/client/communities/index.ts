@@ -51,6 +51,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { openPostFromCard } from './presentation.ts';
 import { mountSafetyPage, setProfileMute } from '../profile-safety/index.ts';
 import type { SafetyPort } from '../profile-safety/index.ts';
+import { loadingPlaceholder } from '../loading-placeholder/index.ts';
 import {
   communityNavigation,
   communityView,
@@ -521,6 +522,12 @@ export function startCommunities(
       throw error;
     }
   }
+  /** A community being read holds its silhouette until its first redraw. */
+  function firstDraw(): void {
+    navigation();
+    if (mounted && (selected || selectedSlug))
+      mounted.append(loadingPlaceholder('posts', t('Loading posts…')));
+  }
   function ready(): void {
     dms.ready();
     loadFeed();
@@ -582,7 +589,7 @@ export function startCommunities(
       }
       view = profile ? 'profile' : communityView(view, selected);
 
-      navigation();
+      firstDraw();
       ready();
     },
     leave,
