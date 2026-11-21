@@ -235,6 +235,23 @@
 [data-community-layout='post'] > .community-tools > a.feed-back-link {
   display: none;
 }
+/* Phones (21/11/2026): the "⋯" is left alone in the tools bar, so it joins
+   the community line above the post instead of taking a row of its own. */
+@media (max-width: 700px) {
+  #app-shell [data-community-layout='post'] {
+    position: relative;
+  }
+  #app-shell [data-community-layout='post'] > .community-tools {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    z-index: 2;
+    margin: 0;
+  }
+  #app-shell [data-community-layout='post'] > .community-post-back {
+    padding-right: 42px;
+  }
+}
 
 /* People are round, communities are rounded squares. */
 .community-avatar.person {
