@@ -10831,4 +10831,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '每七天提醒保存备份',
   ],
   'Search chats and messages': ['Search chats and messages', '搜索聊天和消息'],
+  'Search contacts and groups': [
+    'Search contacts and groups',
+    '搜索联系人和群组',
+  ],
 };

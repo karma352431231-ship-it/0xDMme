@@ -124,7 +124,11 @@ await test('public and private search never cross sources, contacts, queries or 
   input.value = 'private secret';
   input.dispatchEvent(new Event('input'));
   t.mock.timers.tick(201);
+  // The private list finds contacts and groups only (22/11/2026).
+  assert.equal(dialog.hasAttribute('data-contacts-only'), true);
+  assert.equal(body.textContent.includes('Private Secret Contact'), true);
   search.open('public');
+  assert.equal(dialog.hasAttribute('data-contacts-only'), false);
   assert.equal(input.value, '');
   input.value = 'latest';
   input.dispatchEvent(new Event('input'));
@@ -144,7 +148,7 @@ await test('public and private search never cross sources, contacts, queries or 
   t.mock.timers.tick(201);
   await new Promise(setImmediate);
   assert.deepEqual(calls, {
-    private: ['private secret'],
+    private: [],
     public: ['secret', 'latest'],
   });
   assert.equal(body.textContent.includes('PRIVATE PLAINTEXT'), false);
@@ -199,6 +203,7 @@ await test('search opened from a conversation info lists every match there and n
   search.update([entry('alice', 'Alice'), entry('bob', 'Bob')]);
   search.openConversation({ id: 'alice', title: 'Alice' });
   assert.equal(dialog.dataset['conversation'], 'true');
+  assert.equal(dialog.hasAttribute('data-contacts-only'), false);
   const input = dialog.selectors.get('input')!;
   input.value = 'match';
   input.dispatchEvent(new Event('input'));

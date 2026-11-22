@@ -202,6 +202,16 @@ article.search-match {
   border-radius: 8px;
   background: var(--accent-soft);
 }
+/* The private list searches contacts and groups only (22/11/2026): one
+   section, so no headings, and the matches use the whole dialog. */
+.conversation-search[data-contacts-only]
+  :is(.search-results > h3, [data-search-notice], [data-search-messages]) {
+  display: none;
+}
+.conversation-search[data-contacts-only] .chat-contacts {
+  max-height: none;
+  margin-top: 12px;
+}
 /* Search opened from a contact or group info covers that conversation only. */
 .conversation-search[data-conversation] [data-search-chats],
 .conversation-search[data-conversation] .search-results > h3 {

@@ -69,7 +69,8 @@ export class ConversationSearch {
       this.clearResults();
       this.renderChats();
       clearTimeout(this.timer);
-      this.timer = setTimeout(() => void this.find(false), 200);
+      if (this.searchesMessages())
+        this.timer = setTimeout(() => void this.find(false), 200);
     });
     this.node('form').addEventListener('submit', (event) =>
       event.preventDefault(),
@@ -77,6 +78,23 @@ export class ConversationSearch {
     this.dialog.addEventListener('scroll', () => {
       if (this.next && this.nearEnd()) void this.find(true);
     });
+  }
+  /**
+   * The private list's search finds contacts and groups only (owner,
+   * 22/11/2026): message search needs a verified history cut that exists only
+   * while a conversation is open, so from the list it could only fail.
+   * Searching inside one conversation and handle conversations keep messages.
+   */
+  private searchesMessages(): boolean {
+    return this.scope === 'public' || this.only !== null;
+  }
+  private applyMode(): void {
+    const contactsOnly = !this.searchesMessages();
+    this.dialog.toggleAttribute('data-contacts-only', contactsOnly);
+    if (!this.only)
+      this.setLabel(
+        contactsOnly ? t('Search contacts and groups') : this.allLabel,
+      );
   }
   /** The input's label names what is searched; it is text only. */
   private setLabel(text: string): void {
@@ -109,6 +127,7 @@ export class ConversationSearch {
       scope === 'public'
         ? t('Search handle conversations')
         : t('Search private conversations');
+    this.applyMode();
     this.renderChats();
     this.dialog.showModal();
     this.node<HTMLInputElement>('input').focus();
@@ -124,6 +143,7 @@ export class ConversationSearch {
       conversation.title,
     ]);
     this.setLabel(t('Words in this conversation'));
+    this.applyMode();
     if (!this.results.length) this.clearResults();
     this.dialog.showModal();
     this.node<HTMLInputElement>('input').focus();
@@ -192,7 +212,7 @@ export class ConversationSearch {
     );
   }
   private async find(more: boolean): Promise<void> {
-    if (this.busy || !this.dialog.open) return;
+    if (this.busy || !this.dialog.open || !this.searchesMessages()) return;
     const query = this.node<HTMLInputElement>('input').value.trim();
     if (!query) return;
     if (!more || query !== this.query) this.clearResults();
