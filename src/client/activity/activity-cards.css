@@ -130,9 +130,23 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
-.activity-card-reply b {
-  margin-right: 6px;
+/* Named people open their profile (and preview it on hover); the reply text
+   beside an author keeps opening the reply (22/11/2026). */
+#app-shell .activity-card .activity-card-actor {
+  color: inherit;
   font-weight: 600;
+  text-decoration: none;
+}
+#app-shell .activity-card .activity-card-actor:hover {
+  text-decoration: underline;
+}
+.activity-card-reply > .activity-card-actor {
+  margin-right: 6px;
+}
+#app-shell .activity-card .activity-card-reply-link {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
 }
 #app-shell .activity-card .activity-card-more {
   justify-self: start;

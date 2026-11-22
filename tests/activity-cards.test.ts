@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { contentCards } from '../src/client/activity/content-cards.ts';
 import {
   actorsPhrase,
-  contentCards,
-} from '../src/client/activity/content-cards.ts';
+  actorsPhraseNodes,
+} from '../src/client/activity/actor-links.ts';
+import {
+  communityDocument,
+  type CommunityNode,
+} from './fixtures/community-dom.ts';
 import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 import { replyNotificationPage } from '../src/shared/community-posts/index.ts';
 import { upvoteNoticePage } from '../src/shared/public-upvotes/index.ts';
@@ -120,6 +125,37 @@ await test('actor phrases name up to two handles and count the rest in both lang
     );
   }
   setActiveLanguage('en');
+});
+
+await test('each named actor is its own link and the sentence reads the same', () => {
+  const previous = globalThis.document;
+  const page = communityDocument();
+  Object.assign(globalThis, { document: page });
+  try {
+    for (const language of ['en', 'zh-CN'] as const) {
+      setActiveLanguage(language);
+      for (const handles of [['a'], ['a', 'b'], ['a', 'b', 'c', 'd', 'e']]) {
+        const nodes = actorsPhraseNodes(handles, 'upvoted', (handle) => {
+          const link = page.createElement('a');
+          link.textContent = '@' + handle;
+          return link as unknown as HTMLElement;
+        }) as unknown as CommunityNode[];
+        assert.deepEqual(
+          nodes
+            .filter((node) => node.tag === 'a')
+            .map((node) => node.textContent),
+          handles.slice(0, 2).map((handle) => '@' + handle),
+        );
+        assert.equal(
+          nodes.map((node) => node.textContent).join(''),
+          actorsPhrase(handles, 'upvoted'),
+        );
+      }
+    }
+  } finally {
+    setActiveLanguage('en');
+    Object.assign(globalThis, { document: previous });
+  }
 });
 
 const media = {

@@ -11,6 +11,7 @@ import { noticeThumbnail } from './notice-thumbnail.ts';
 import { publicIdentityAvatar } from '../public-identity/index.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { publicationQuote, publicationTitle } from './publications.ts';
+import { actorsPhraseNodes, profileHref, profileLink } from './actor-links.ts';
 
 /** What Activity reads of a reply notice; older sources omit read state. */
 export type ActivityReply = Pick<
@@ -129,33 +130,6 @@ export function contentCards(input: {
   );
 }
 
-/** "@a", "@a and @b" or "@a, @b and 3 others", followed by what they did. */
-export function actorsPhrase(
-  handles: readonly string[],
-  action: 'upvoted' | 'followed',
-): string {
-  const [first = '', second = ''] = handles;
-  const others = handles.length - 2;
-  const family =
-    action === 'upvoted'
-      ? ([
-          '@{0} upvoted',
-          '@{0} and @{1} upvoted',
-          '@{0}, @{1} and {2} others upvoted',
-        ] as const)
-      : ([
-          '@{0} started following you',
-          '@{0} and @{1} started following you',
-          '@{0}, @{1} and {2} others started following you',
-        ] as const);
-  if (handles.length === 1) return t(family[0], [first]);
-  if (handles.length === 2) return t(family[1], [first, second]);
-  return t(family[2], [
-    first,
-    second,
-    others.toLocaleString(currentLanguage()),
-  ]);
-}
 export function relativeTime(iso: string): string {
   const minutes = Math.max(
     0,
@@ -241,8 +215,6 @@ function cardLabel(card: ContentCard): string {
   return publicationTitle(reply.preview?.author, reply.kind ?? 'reply');
 }
 function cardHref(card: ContentCard): string {
-  if (card.kind === 'profile')
-    return `#users?handle=${encodeURIComponent(card.follows[0]!.actor.handle)}`;
   return `#communities?id=${card.community}&post=${card.target}`;
 }
 
@@ -283,9 +255,7 @@ function replyLine(
     current: actions.current,
     acknowledged: () => settled(row, [reply], card, actions.changed),
   });
-  link.classList.add('activity-card-reply');
-  link.dataset['read'] = String(reply.read === true);
-  if (preview?.author) link.append(element('b', '@' + preview.author));
+  link.classList.add('activity-card-reply-link');
   link.append(
     element('span', publicationQuote(preview, reply.kind ?? 'reply')),
   );
@@ -294,7 +264,7 @@ function replyLine(
     ...(preview?.identity
       ? [publicIdentityAvatar(preview.identity, actions.signal)]
       : []),
-    link,
+    replyText(link, preview?.author, reply.read === true),
     ...(preview?.thumbnail
       ? [
           noticeThumbnail(preview.thumbnail, {
@@ -304,6 +274,26 @@ function replyLine(
         ]
       : []),
   );
+}
+/**
+ * The author's @ opens their profile; the rest of the line opens the reply,
+ * as the whole line did before names became links (22/11/2026).
+ */
+function replyText(
+  link: HTMLAnchorElement,
+  author: string | null | undefined,
+  read: boolean,
+): HTMLElement {
+  const text = element('span', '', 'activity-card-reply');
+  text.dataset['read'] = String(read);
+  if (author) text.append(profileLink(author));
+  text.append(link);
+  text.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a')) return;
+    event.stopPropagation();
+    link.click();
+  });
+  return text;
 }
 /** Opens every reply of the card in place, newest first, and closes them again. */
 function moreReplies(
@@ -334,17 +324,15 @@ function moreReplies(
 }
 function upvoteLine(card: ContentCard, signal: AbortSignal): HTMLElement {
   const actors = card.upvotes.map((item) => item.actor);
-  return line(
-    'up',
-    faces(actors, signal),
-    element(
-      'span',
-      actorsPhrase(
-        actors.map((actor) => actor.handle),
-        'upvoted',
-      ),
+  const phrase = element('span');
+  phrase.append(
+    ...actorsPhraseNodes(
+      actors.map((actor) => actor.handle),
+      'upvoted',
+      profileLink,
     ),
   );
+  return line('up', faces(actors, signal), phrase);
 }
 
 function cardHead(card: ContentCard): HTMLElement {
@@ -360,16 +348,23 @@ function primaryLink(
   row: HTMLElement,
   actions: ContentCardActions,
 ): HTMLAnchorElement {
-  const label =
-    card.kind === 'profile'
-      ? actorsPhrase(
-          card.follows.map((item) => item.actor.handle),
-          'followed',
-        )
-      : card.headline;
-  const link = noticeLink({
-    label,
+  const link = cardLink(card, row, actions, {
+    label: card.headline,
     href: cardHref(card),
+  });
+  link.classList.add('activity-card-title');
+  link.dataset['cardPrimary'] = '';
+  return link;
+}
+/** A link that marks the whole card read before it opens `href`. */
+function cardLink(
+  card: ContentCard,
+  row: HTMLElement,
+  actions: ContentCardActions,
+  target: { label: string; href: string },
+): HTMLAnchorElement {
+  const link = noticeLink({
+    ...target,
     read: isRead(card),
     acknowledge: () => readCard(card, actions.read),
     current: actions.current,
@@ -381,7 +376,6 @@ function primaryLink(
         actions.changed,
       ),
   });
-  link.classList.add('activity-card-title');
   return link;
 }
 /** The card's title with the content's thumbnail beside it, under the head. */
@@ -435,6 +429,24 @@ function profileContent(
   row: HTMLElement,
   actions: ContentCardActions,
 ): Node[] {
+  // Each named follower opens their own profile; the first one is the card's.
+  const phrase = element('span', '', 'activity-card-title');
+  phrase.append(
+    ...actorsPhraseNodes(
+      card.follows.map((item) => item.actor.handle),
+      'followed',
+      (handle) => {
+        const link = cardLink(card, row, actions, {
+          label: '@' + handle,
+          href: profileHref(handle),
+        });
+        link.classList.add('activity-card-actor');
+        return link;
+      },
+    ),
+  );
+  const first = phrase.querySelector<HTMLElement>('a');
+  if (first) first.dataset['cardPrimary'] = '';
   return [
     line(
       'follow',
@@ -442,7 +454,7 @@ function profileContent(
         card.follows.map((item) => item.actor),
         actions.signal,
       ),
-      primaryLink(card, row, actions),
+      phrase,
     ),
   ];
 }
@@ -462,7 +474,7 @@ export function contentCardRows(
           ? watchedContent(card, row, actions)
           : ownContent(card, row, actions);
     row.append(cardHead(card), ...content);
-    const primary = row.querySelector<HTMLElement>('.activity-card-title');
+    const primary = row.querySelector<HTMLElement>('[data-card-primary]');
     if (primary) bindNoticeRow(row, primary);
     return row;
   });
