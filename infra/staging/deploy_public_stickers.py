@@ -11,7 +11,7 @@ import deploy_remote as base
 import deploy_profile_mutes as mutes
 
 BEFORE = '6ee548e10e0c233886b272819eac358834af5790'
-REVIEWED = '68d4d532b0f939085a617b17555f647ad9d6a02b'
+REVIEWED = '2e23e2c4921eb0e7aca348ea361336b8126c0d2d'
 previous = mutes.previous
 # State after 114 (deploy_profile_mutes).
 TABLES = mutes.TABLES + mutes.NEW_TABLES
