@@ -7,6 +7,7 @@ import { emojiText } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
+import { renderStickerMessage, stickerDisplay } from '../stickers/index.ts';
 import { paintDmAvatar } from './dm-peer-photo.ts';
 import { dmSafetyNotice } from './dm-safety-notice.ts';
 import { communityElement as el } from './elements.ts';
@@ -136,14 +137,21 @@ export function dmBubble(
   if (item.kind !== 'text') return { row, stop: () => undefined };
   const text = el('p');
   const gif = gifUrls(item.text).length;
+  const sticker = renderStickerMessage(
+    text,
+    item.text,
+    stickerDisplay(input.privacy, input.signal),
+  );
   const stops = [
-    gif
-      ? showGifText(text, item.text, {
-          renderText: emojiText,
-          privacy: input.privacy,
-          signal: input.signal,
-        })
-      : (emojiText(text, item.text), () => undefined),
+    sticker
+      ? () => undefined
+      : gif
+        ? showGifText(text, item.text, {
+            renderText: emojiText,
+            privacy: input.privacy,
+            signal: input.signal,
+          })
+        : (emojiText(text, item.text), () => undefined),
   ];
   row.prepend(text);
   stops.push(

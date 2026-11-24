@@ -38,6 +38,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { showGifText, gifUrls } from '../gif-search/index.ts';
+import { renderStickerMessage, stickerDisplay } from '../stickers/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import {
   dayHeading,
@@ -695,8 +696,11 @@ export class GroupChatView {
       }
     } else {
       const text = document.createElement('p');
-      emojiText(text, content.text);
-      this.renderExternal(article, text, content.text, mediaSignal);
+      const display = stickerDisplay(this.options.externalMedia, mediaSignal);
+      if (!renderStickerMessage(text, content.text, display)) {
+        emojiText(text, content.text);
+        this.renderExternal(article, text, content.text, mediaSignal);
+      }
       article.append(text);
     }
     this.appendAnnotations(article, content);

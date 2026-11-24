@@ -89,6 +89,7 @@
 @import '../message-status/message-checks.css';
 @import '../emoji/emoji-panel.css';
 @import '../gif-search/gif-tab.css';
+@import '../stickers/stickers.css';
 @import '../voice-playback/voice-dock.css';
 @import '../representatives/representatives.css';
 @import '../account-settings/profile-identity.css';

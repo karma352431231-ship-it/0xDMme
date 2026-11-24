@@ -31,6 +31,8 @@ import { VoiceRecording } from '../voice-recording/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import { GifSearch, mountGifPane, gifMessageUrl } from '../gif-search/index.ts';
+import { stickerPane } from '../stickers/index.ts';
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { groupTextQueue } from './text-queue.ts';
@@ -409,19 +411,30 @@ export class GroupComposer {
     const anchor = this.node('[data-group-emoji]'),
       input = this.node<HTMLTextAreaElement>('[data-group-text]');
     if (!anchor || !input) return;
+    const send = (url: string) =>
+      void this.options.run(() => this.sendGif(url));
     void emojiIntoComposer(this.picker, anchor, input, {
-      pane: (host, close) =>
-        mountGifPane(host, this.gifs, (url) => {
-          close();
-          void this.options.run(() => this.sendGif(url));
+      panes: {
+        gif: (host, close) =>
+          mountGifPane(host, this.gifs, (url) => {
+            close();
+            send(url);
+          }),
+        sticker: stickerPane({
+          chosen: send,
+          gifs: this.gifs,
+          privacy: this.options.externalMedia,
         }),
+      },
     }).catch((error: unknown) => this.failure(error));
   }
+  /** A GIF or a sticker: both travel as their link; stickers are never view-once. */
   private async sendGif(url: string): Promise<void> {
-    if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
+    const sticker = stickerReference(url) !== null;
+    if (!sticker && !gifMessageUrl(url)) throw new Error('Invalid GIF.');
     const group = this.options.controller.selected;
     if (!group || group.localOnly) return;
-    if (viewOnceEnabled(this.node('[data-group-compose]'))) {
+    if (!sticker && viewOnceEnabled(this.node('[data-group-compose]'))) {
       const file = await this.gifs.viewOnceClip(url, chatFileLimit),
         selection = await prepareViewOnceSelection(file, chatFileLimit);
       if (this.options.controller.selected !== group) {

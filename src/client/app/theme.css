@@ -133,6 +133,9 @@
   --ping-blue: #3b82f6;
   --ping-violet: #8b5cf6;
   --ping-alert: #f5b544;
+  /* Ping sticker props (24/11/2026): hearts and tears. */
+  --ping-heart: #ff5c8a;
+  --ping-tear: #7dd3fc;
   /* Community topic dots (16/10/2026), the same in every theme. */
   --topic-ai: #22d3ee;
   --topic-cat: #fb923c;

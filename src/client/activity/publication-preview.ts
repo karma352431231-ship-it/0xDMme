@@ -1,3 +1,9 @@
+import {
+  stickerReferences,
+  withoutStickerLinks,
+} from '../../shared/stickers/index.ts';
+import type { StickerReference } from '../../shared/stickers/index.ts';
+import { appendStickers, stickerDisplay } from '../stickers/index.ts';
 import type { ReplyPreview } from '../../shared/community-posts/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
@@ -25,6 +31,8 @@ export class PublicationPreview {
     return preview?.status === 'visible' ? this.text(text) : text;
   }
   text(text: string): HTMLElement {
+    const stickers = stickerReferences(text);
+    if (stickers.length) return this.stickers(text, stickers);
     if (!this.privacy || !gifUrls(text).length) {
       const paragraph = document.createElement('p');
       paragraph.className = 'activity-quote';
@@ -44,6 +52,27 @@ export class PublicationPreview {
         node.append(paragraph);
       },
     });
+    return host;
+  }
+  /** A quoted sticker reply shows its stickers under any text. */
+  private stickers(
+    text: string,
+    stickers: readonly StickerReference[],
+  ): HTMLElement {
+    const host = document.createElement('div');
+    host.className = 'activity-quote activity-quote-media';
+    const body = withoutStickerLinks(text, stickers);
+    if (body) {
+      const paragraph = document.createElement('p');
+      paragraph.className = 'activity-quote';
+      paragraph.textContent = body;
+      host.append(paragraph);
+    }
+    appendStickers(
+      host,
+      stickers,
+      stickerDisplay(this.privacy, this.pending.signal),
+    );
     return host;
   }
 }

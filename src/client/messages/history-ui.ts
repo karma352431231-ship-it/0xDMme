@@ -47,6 +47,8 @@ import type { DailyView } from '../daily-text/index.ts';
 import { messageActions } from '../message-actions/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
+import { renderStickerMessage, stickerDisplay } from '../stickers/index.ts';
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { messageRowKeys } from './row-keys.ts';
@@ -772,7 +774,13 @@ export class MessageHistoryUi {
           this.options.mediaReady?.(view.id, variant) ?? false,
         run: this.options.run,
       });
-    } else if (gifUrls(view.content.text).length)
+    } else if (stickerReference(view.content.text))
+      renderStickerMessage(
+        text,
+        view.content.text,
+        stickerDisplay(this.options.externalMedia, signal),
+      );
+    else if (gifUrls(view.content.text).length)
       this.renderGif(text, view.content.text, signal);
     else if (
       !this.options.representatives?.renderCard(

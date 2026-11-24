@@ -1,3 +1,4 @@
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { menuIcon } from '../menu-icons/index.ts';
 import { activePin } from '../daily-text/index.ts';
@@ -19,6 +20,7 @@ export function pinnedMessages<T extends DailyRow>(
 
 function excerpt(view: DailyView<DailyRow>): string {
   const text = view.content.text.trim();
+  if (stickerReference(text)) return t('Sticker');
   if (text) return text.length > 120 ? `${text.slice(0, 120)}…` : text;
   return view.kind === 'attachment' ? t('Attachment') : t('Message');
 }

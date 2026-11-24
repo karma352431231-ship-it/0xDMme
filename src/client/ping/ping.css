@@ -60,6 +60,22 @@
 .ping .ping-badge-mark {
   stroke: var(--ping-face);
 }
+/* Sticker props (sticker-art.ts). */
+.ping .ping-sticker-heart {
+  fill: var(--ping-heart);
+}
+.ping .ping-sticker-tear {
+  fill: var(--ping-tear);
+}
+.ping :is(.ping-sticker-sun, .ping-sticker-flame) {
+  fill: var(--ping-alert);
+}
+.ping .ping-sticker-ray {
+  stroke: var(--ping-alert);
+}
+.ping .ping-sticker-glint {
+  stroke: var(--ping-body);
+}
 .ping text {
   font-family: var(--font-display);
 }

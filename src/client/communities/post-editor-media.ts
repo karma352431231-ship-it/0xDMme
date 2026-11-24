@@ -5,6 +5,7 @@ import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { GifSearch, mountGifPane, mountGifDraft } from '../gif-search/index.ts';
+import { mountStickerDraft, stickerPane } from '../stickers/index.ts';
 import { communityElement as el } from './elements.ts';
 import { communityIcon } from './presentation.ts';
 export type PostEditorAccess = CommunityMediaAccess & {
@@ -36,10 +37,16 @@ export function postEditorMedia(input: {
       privacy: input.access.privacy,
       signal: input.access.signal,
     });
+  mountStickerDraft({
+    host: input.container,
+    text: input.text,
+    privacy: input.access.privacy,
+    signal: input.access.signal,
+  });
   gifControl(controls, input);
   return media;
 }
-/** The GIF link goes on its own line after the text, as in the chat. */
+/** A GIF or sticker link goes on its own line after the text, as in the chat. */
 function appendGif(text: PostText, url: string): boolean {
   const next = [text.value.trimEnd(), url].filter(Boolean).join('\n');
   if (next.length > text.maxLength) return false;
@@ -87,6 +94,17 @@ function gifControl(
           'Remove some text to add the GIF.',
         );
     });
+  // A sticker is a link on its own line, like a GIF (24/11/2026).
+  const stickers = (gifs: GifSearch | null) =>
+    stickerPane({
+      gifs,
+      privacy: consent,
+      chosen: (link) => {
+        if (!input.access.valid()) return;
+        if (!appendGif(input.text, link))
+          status.textContent = t('Remove some text to add the sticker.');
+      },
+    });
   let pending = false;
   // Without KLIPY the emoji panel still opens, only without its GIF tab.
   const open = (anchor: HTMLElement, start: 'emoji' | 'gif') => {
@@ -104,12 +122,13 @@ function gifControl(
           );
           return;
         }
-        return emojiIntoComposer(
-          picker,
-          anchor,
-          text,
-          gifs ? { pane: pane(gifs), start } : {},
-        );
+        return emojiIntoComposer(picker, anchor, text, {
+          panes: {
+            ...(gifs ? { gif: pane(gifs) } : {}),
+            sticker: stickers(gifs),
+          },
+          start,
+        });
       })
       .catch(() => {
         if (!input.access.signal.aborted)

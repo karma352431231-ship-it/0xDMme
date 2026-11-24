@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { insertEmoji } from './catalog.ts';
 import { EmojiPanel } from './panel.ts';
+import type { PickerMode, PickerPanes } from './panel.ts';
 import {
   holdKeyboardSpace,
   replaceKeyboardWithDock,
@@ -9,8 +10,8 @@ import {
 interface ComposerOptions {
   anchor: HTMLElement;
   input: HTMLTextAreaElement;
-  pane?: (host: HTMLElement, close: () => void) => void;
-  start?: 'emoji' | 'gif';
+  panes?: PickerPanes;
+  start?: PickerMode;
 }
 /** Owns one phone conversation dock, caret insertion and keyboard handoff. */
 export class ComposerEmojiPanel {
@@ -85,7 +86,7 @@ export class ComposerEmojiPanel {
     new EmojiPanel(host, {
       selected: (emoji) => this.insert(emoji),
       close: () => this.returnToTyping(),
-      ...(options.pane ? { gifPane: options.pane } : {}),
+      ...(options.panes ? { panes: options.panes } : {}),
       ...(options.start ? { start: options.start } : {}),
     });
     const back = host.querySelector<HTMLButtonElement>('[data-close]');

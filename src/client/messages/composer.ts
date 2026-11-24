@@ -14,6 +14,8 @@ import { dailyViews } from '../daily-text/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { GifSearch, gifMessageUrl, mountGifPane } from '../gif-search/index.ts';
+import { stickerPane } from '../stickers/index.ts';
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
@@ -318,8 +320,10 @@ export class MessageComposer {
   ): Promise<void> {
     if (!peer || localOnly)
       throw new Error('Choose an authorized contact to send the GIF.');
-    if (!gifMessageUrl(url)) throw new Error('Invalid GIF.');
-    if (viewOnceEnabled(this.node('[data-message-form]'))) {
+    // A sticker is its link too, and never view-once (24/11/2026).
+    const sticker = stickerReference(url) !== null;
+    if (!sticker && !gifMessageUrl(url)) throw new Error('Invalid GIF.');
+    if (!sticker && viewOnceEnabled(this.node('[data-message-form]'))) {
       const signal = this.options.signal();
       const file = await this.gifs.viewOnceClip(url, chatFileLimit);
       const selection = await prepareViewOnceSelection(file, chatFileLimit);
@@ -429,12 +433,21 @@ export class MessageComposer {
     const input = this.node<HTMLTextAreaElement>('[data-message-text]'),
       anchor = this.node('[data-message-emoji]');
     if (!input || !anchor) return;
+    const send = (url: string) =>
+      void this.options.run(() => this.options.sendGif(url));
     void emojiIntoComposer(this.emoji, anchor, input, {
-      pane: (host, close) => {
-        mountGifPane(host, this.gifs, (url) => {
-          close();
-          void this.options.run(() => this.options.sendGif(url));
-        });
+      panes: {
+        gif: (host, close) => {
+          mountGifPane(host, this.gifs, (url) => {
+            close();
+            send(url);
+          });
+        },
+        sticker: stickerPane({
+          chosen: send,
+          gifs: this.gifs,
+          privacy: this.options.externalMedia,
+        }),
       },
     }).catch(() => this.options.report(t('Could not open the emoji panel.')));
   }

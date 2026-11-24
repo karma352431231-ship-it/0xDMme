@@ -1,3 +1,4 @@
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { emojiText } from '../emoji/index.ts';
 
@@ -151,6 +152,7 @@ export function messageExcerpt(view: {
   content: { text: string };
 }): string {
   const text = view.content.text.replace(/\s+/gu, ' ').trim();
+  if (stickerReference(text)) return t('Sticker');
   if (text) return text.length > 120 ? `${text.slice(0, 120)}…` : text;
   return view.kind === 'attachment' ? t('Attachment') : t('Message');
 }

@@ -1,7 +1,8 @@
 /**
  * Ping, the 0xDMme character: the logo's chat bubble with a face.
  * It only marks empty, waiting, warning and confirmation moments, one per
- * screen, and never sits inside people's messages.
+ * screen. Inside people's messages it appears only as a sticker the sender
+ * chose (sticker-art.ts, owner decision of 24/11/2026).
  * Markup is authored here; text passed in is escaped, never parsed.
  */
 export type PingMood =
@@ -18,17 +19,17 @@ export type PingSize = 'sm' | 'md' | 'lg';
 
 const body =
   'M30 28 H72 Q80 28 80 36 V60 Q80 68 72 68 H44 L30 79 V68 Q22 68 22 60 V36 Q22 28 30 28 Z';
-const line = (d: string, width = 2.6): string =>
+export const line = (d: string, width = 2.6): string =>
   `<path class="ping-line" d="${d}" stroke-width="${width}"/>`;
-const dotEye = (x: number, y = 45.5, r = 3.3): string =>
+export const dotEye = (x: number, y = 45.5, r = 3.3): string =>
   `<circle class="ping-face" cx="${x}" cy="${y}" r="${r}"/>`;
-const happyEye = (x: number): string =>
+export const happyEye = (x: number): string =>
   line(`M${x - 3.6} 47 L${x} 42.8 L${x + 3.6} 47`);
-const roundEye = (x: number, radius: number, look = 0): string =>
+export const roundEye = (x: number, radius: number, look = 0): string =>
   `${dotEye(x, 45.5, radius)}<circle class="ping-pupil" cx="${x + look}" cy="46" r="${radius * 0.45}"/>`;
 
 const smile = line('M35 52.5 Q39.5 57 44 52.5');
-const faces: Record<PingMood, string> = {
+export const faces: Record<PingMood, string> = {
   hello: dotEye(33) + dotEye(46) + smile,
   typing: '',
   happy:
@@ -55,7 +56,7 @@ const faces: Record<PingMood, string> = {
   wink:
     dotEye(33) + line('M42.4 45.5 H49.6') + line('M35 53.2 Q40.5 57 45 51.8'),
 };
-const badges: Partial<Record<PingMood, string>> = {
+export const badges: Partial<Record<PingMood, string>> = {
   hello: '1',
   wink: '1',
   happy: 'check',
@@ -64,12 +65,12 @@ const badges: Partial<Record<PingMood, string>> = {
   puzzled: '?',
 };
 
-function typingDots(paint: string): string {
+export function typingDots(paint: string): string {
   return `<g class="ping-typing" fill="${paint}"><circle cx="31" cy="49" r="3.3"/><circle cx="39.5" cy="49" r="3.3"/><circle cx="48" cy="49" r="3.3"/></g>`;
 }
 
 /** 🫡: a flat hand on the forehead, above the eyes, with the wrist outside the bubble. */
-function salutingHand(paint: string): string {
+export function salutingHand(paint: string): string {
   const finger = (y: number, width: number): string =>
     `<rect class="ping-seam" x="6" y="${y}" width="${width}" height="2.4" rx="1.2" fill="${paint}" stroke-width="0.7"/>`;
   return `<g transform="translate(19.6 34.4) rotate(-8) scale(1.12)">
@@ -79,14 +80,14 @@ function salutingHand(paint: string): string {
   </g>`;
 }
 
-function clasp(paint: string, locked: boolean): string {
+export function clasp(paint: string, locked: boolean): string {
   const pill = `<rect class="ping-body" x="55" y="40" width="32" height="18" rx="9" stroke="${paint}" stroke-width="3.6"/>`;
   if (locked)
     return `${pill}<path d="M68 47 V45.2 a3 3 0 0 1 6 0 V47" fill="none" stroke="${paint}" stroke-width="2"/><rect x="66.4" y="46.6" width="9.2" height="7" rx="1.6" fill="${paint}"/>`;
   return `${pill}<g transform="translate(64.3 48.8) scale(0.56)" stroke="${paint}" stroke-linecap="round" fill="none"><ellipse cx="6.2" cy="0" rx="6.2" ry="8.6" stroke-width="4.2"/><path d="M2.8 5.4 L9.6 -5.4" stroke-width="3"/><path d="M16 -3.4 L26 8.6 M26 -3.4 L16 8.6" stroke-width="4.4"/></g>`;
 }
 
-function badge(kind: string | undefined, paint: string): string {
+export function badge(kind: string | undefined, paint: string): string {
   if (!kind) return '';
   const alert = kind === '!';
   const content =
@@ -98,13 +99,26 @@ function badge(kind: string | undefined, paint: string): string {
 
 let serial = 0;
 
-/** Decorative SVG string for authored templates; screen readers skip it. */
-export function pingMarkup(mood: PingMood, size: PingSize = 'md'): string {
+/** A fresh logo gradient: its definition and the paint that uses it. */
+export function pingGradient(): { defs: string; paint: string } {
   serial += 1;
   const id = `ping-gradient-${serial}`;
-  const paint = `url(#${id})`;
+  return {
+    defs: `<defs><linearGradient id="${id}" x1="10" y1="10" x2="90" y2="90" gradientUnits="userSpaceOnUse"><stop class="ping-stop-1" offset="0"/><stop class="ping-stop-2" offset=".5"/><stop class="ping-stop-3" offset="1"/></linearGradient></defs>`,
+    paint: `url(#${id})`,
+  };
+}
+
+/** The bubble outline every pose shares. */
+export function pingBody(paint: string): string {
+  return `<path class="ping-body" d="${body}" stroke="${paint}" stroke-width="4.5" stroke-linejoin="round"/>`;
+}
+
+/** Decorative SVG string for authored templates; screen readers skip it. */
+export function pingMarkup(mood: PingMood, size: PingSize = 'md'): string {
+  const { defs, paint } = pingGradient();
   const view = mood === 'salute' ? '9 14 83 68' : '18 14 74 68';
-  return `<svg class="ping ping-${size}" data-ping="${mood}" viewBox="${view}" aria-hidden="true" focusable="false"><defs><linearGradient id="${id}" x1="10" y1="10" x2="90" y2="90" gradientUnits="userSpaceOnUse"><stop class="ping-stop-1" offset="0"/><stop class="ping-stop-2" offset=".5"/><stop class="ping-stop-3" offset="1"/></linearGradient></defs><path class="ping-body" d="${body}" stroke="${paint}" stroke-width="4.5" stroke-linejoin="round"/>${mood === 'typing' ? typingDots(paint) : faces[mood]}${mood === 'salute' ? salutingHand(paint) : ''}${clasp(paint, mood === 'salute')}${badge(badges[mood], paint)}</svg>`;
+  return `<svg class="ping ping-${size}" data-ping="${mood}" viewBox="${view}" aria-hidden="true" focusable="false">${defs}${pingBody(paint)}${mood === 'typing' ? typingDots(paint) : faces[mood]}${mood === 'salute' ? salutingHand(paint) : ''}${clasp(paint, mood === 'salute')}${badge(badges[mood], paint)}</svg>`;
 }
 
 export function pingElement(mood: PingMood, size: PingSize = 'md'): Element {

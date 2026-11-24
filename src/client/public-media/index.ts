@@ -8,6 +8,10 @@ import {
 } from '../../shared/public-media/index.ts';
 import type { PublicAvatarKind } from '../../shared/public-media/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
+import {
+  publicStickerPath,
+  publicStickerBytes,
+} from '../../shared/stickers/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { withPublicRead } from './reads.ts';
 import { mountInlineVideo } from '../inline-video/index.ts';
@@ -160,6 +164,26 @@ export async function publicAvatarBlob(input: {
       throw new Error('Public photo unavailable.');
     }
     return boundedBlob(response, publicAvatarLimit);
+  });
+}
+/** A public sticker's approved file, read anonymously like public photos. */
+export function publicStickerBlob(
+  id: string,
+  signal: AbortSignal,
+): Promise<Blob> {
+  const path = publicStickerPath(id);
+  return withPublicRead(signal, async () => {
+    const response = await requestApi(path, {
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
+      signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error('Sticker unavailable.');
+    }
+    return boundedBlob(response, publicStickerBytes);
   });
 }
 /** Anonymous fetch avoids attaching the viewer's login cookie to public photo requests. */

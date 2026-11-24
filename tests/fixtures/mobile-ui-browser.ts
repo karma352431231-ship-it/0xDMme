@@ -63,13 +63,15 @@ if (!anchor.isConnected) {
 const picker = new EmojiPicker();
 anchor.addEventListener('click', () => {
   void emojiIntoComposer(picker, anchor, input, {
-    pane: (host, close) => {
-      host.textContent = 'Synthetic GIF pane';
-      const done = document.createElement('button');
-      done.type = 'button';
-      done.textContent = 'Close synthetic GIF pane';
-      done.addEventListener('click', close);
-      host.append(done);
+    panes: {
+      gif: (host, close) => {
+        host.textContent = 'Synthetic GIF pane';
+        const done = document.createElement('button');
+        done.type = 'button';
+        done.textContent = 'Close synthetic GIF pane';
+        done.addEventListener('click', close);
+        host.append(done);
+      },
     },
   });
 });

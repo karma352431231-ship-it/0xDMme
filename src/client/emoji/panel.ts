@@ -90,11 +90,19 @@ const tones = [
   ['🏾', '✋🏾', t('Medium dark')],
   ['🏿', '✋🏿', t('Dark')],
 ] as const;
+/** Draws one extra tab of the panel; `close` closes the whole panel. */
+export type PaneMount = (host: HTMLElement, close: () => void) => void;
+/** Optional tabs beside Emoji: KLIPY GIFs and stickers (24/11/2026). */
+export interface PickerPanes {
+  gif?: PaneMount;
+  sticker?: PaneMount;
+}
+export type PickerMode = 'emoji' | keyof PickerPanes;
 interface PanelOptions {
   selected: (emoji: string) => void;
   close: () => void;
-  gifPane?: (host: HTMLElement, close: () => void) => void;
-  start?: 'emoji' | 'gif';
+  panes?: PickerPanes;
+  start?: PickerMode;
 }
 /** Shared emoji content; presentation and composer insertion belong to callers. */
 export class EmojiPanel {
@@ -106,9 +114,12 @@ export class EmojiPanel {
     host.innerHTML = t('html.81724dfa0bc5');
     this.bind(host);
     element(host, '[data-close]').addEventListener('click', options.close);
-    if (options.gifPane) this.modes(host, options.gifPane);
-    if (options.start === 'gif')
-      element<HTMLButtonElement>(host, '[data-mode="gif"]').click();
+    const panes = options.panes ?? {};
+    if (panes.gif || panes.sticker) this.modes(host, panes);
+    if (options.start && options.start !== 'emoji')
+      host
+        .querySelector<HTMLButtonElement>(`[data-mode="${options.start}"]`)
+        ?.click();
     void artwork
       .ready()
       .then(() => {
@@ -137,29 +148,43 @@ export class EmojiPanel {
     );
     this.credit();
   }
-  private modes(
-    dialog: HTMLElement,
-    gifPane: (host: HTMLElement, close: () => void) => void,
-  ): void {
+  private modes(dialog: HTMLElement, panes: PickerPanes): void {
     const modes = element(dialog, '[data-modes]'),
-      pane = element(dialog, '[data-gif-pane]');
+      hosts = new Map<string, HTMLElement>(),
+      gifPane = element(dialog, '[data-gif-pane]');
+    if (panes.gif) hosts.set('gif', gifPane);
+    else element(dialog, '[data-mode="gif"]').remove();
+    if (panes.sticker) {
+      const tab = document.createElement('button'),
+        pane = document.createElement('div');
+      tab.type = 'button';
+      tab.dataset['mode'] = 'sticker';
+      tab.setAttribute('aria-pressed', 'false');
+      tab.textContent = t('Stickers');
+      pane.className = 'sticker-pane';
+      pane.hidden = true;
+      modes.append(tab);
+      gifPane.after(pane);
+      hosts.set('sticker', pane);
+    }
     modes.hidden = false;
     modes.append(element(dialog, '[data-close]'));
-    let mounted = false;
+    const mounted = new Set<string>();
     modes.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((tab) => {
       tab.addEventListener('click', () => {
-        const gif = tab.dataset['mode'] === 'gif';
-        dialog.dataset['mode'] = gif ? 'gif' : 'emoji';
+        const mode = tab.dataset['mode'] ?? 'emoji';
+        dialog.dataset['mode'] = mode;
         modes
           .querySelectorAll('[data-mode]')
           .forEach((other) =>
             other.setAttribute('aria-pressed', String(other === tab)),
           );
-        pane.hidden = !gif;
-        if (gif && !mounted) {
-          mounted = true;
-          gifPane(pane, () => this.options.close());
-        }
+        for (const [key, pane] of hosts) pane.hidden = key !== mode;
+        const mount = panes[mode as keyof PickerPanes],
+          pane = hosts.get(mode);
+        if (!mount || !pane || mounted.has(mode)) return;
+        mounted.add(mode);
+        mount(pane, () => this.options.close());
       });
     });
   }

@@ -12,6 +12,7 @@ import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { GifSearch, mountGifPane } from '../gif-search/index.ts';
+import { stickerPane } from '../stickers/index.ts';
 import { prepareSocialImage } from '../social-media/index.ts';
 import { showToast } from '../toast/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -383,63 +384,83 @@ export function startDmComposer(options: {
       recording.cancel();
     });
   }
+  function sendViewOnceGif(
+    current: DmView,
+    target: { recipient: string; replying: string | null },
+    url: string,
+  ): void {
+    void options.run(async () => {
+      const file = await gifs.viewOnceClip(url, 3_000_000);
+      const selection = await prepareViewOnceSelection(file, 3_000_000);
+      try {
+        if (view === current && writable && bound === target.recipient)
+          await options.submit({
+            peer: target.recipient,
+            replying: target.replying,
+            text: '',
+            media: { selection, media: 'gif', viewOnceOnly: true },
+            pending: false,
+            viewOnce: true,
+          });
+      } finally {
+        selection.bytes.fill(0);
+      }
+    });
+  }
+  /** A GIF or a sticker is its link, sent as the usual E2EE text. */
+  function sendLink(current: DmView, url: string): void {
+    const recipient = bound,
+      replying = composition.replying?.id ?? null;
+    if (!recipient || view !== current) return;
+    if (options.queueText && canQueueText()) {
+      try {
+        options.queueText(url, replying);
+      } catch (error: unknown) {
+        showToast(
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('DM unavailable.'),
+        );
+      }
+      return;
+    }
+    void options.run(() =>
+      options.submit({
+        peer: recipient,
+        replying,
+        text: url,
+        media: null,
+        pending: false,
+        viewOnce: false,
+      }),
+    );
+  }
+  function chooseGif(current: DmView, url: string): void {
+    const recipient = bound;
+    if (!recipient || view !== current) return;
+    if (!viewOnceEnabled(current.form)) return sendLink(current, url);
+    sendViewOnceGif(
+      current,
+      { recipient, replying: composition.replying?.id ?? null },
+      url,
+    );
+  }
   function bindEmoji(current: DmView): void {
     const anchor = node('[data-public-emoji]');
     anchor?.addEventListener('click', () => {
       void emojiIntoComposer(emoji, anchor, current.text, {
-        pane: (host, close) => {
-          mountGifPane(host, gifs, (url) => {
-            close();
-            const recipient = bound,
-              replying = composition.replying?.id ?? null,
-              once = viewOnceEnabled(current.form);
-            if (!recipient || view !== current) return;
-            if (once) {
-              void options.run(async () => {
-                const file = await gifs.viewOnceClip(url, 3_000_000);
-                const selection = await prepareViewOnceSelection(
-                  file,
-                  3_000_000,
-                );
-                try {
-                  if (view === current && writable && bound === recipient)
-                    await options.submit({
-                      peer: recipient,
-                      replying,
-                      text: '',
-                      media: { selection, media: 'gif', viewOnceOnly: true },
-                      pending: false,
-                      viewOnce: true,
-                    });
-                } finally {
-                  selection.bytes.fill(0);
-                }
-              });
-              return;
-            }
-            // A GIF is its KLIPY link, sent as the usual E2EE text.
-            if (options.queueText && canQueueText()) {
-              try {
-                options.queueText(url, replying);
-              } catch (error: unknown) {
-                showToast(
-                  error instanceof Error
-                    ? translatedError(error.message)
-                    : t('DM unavailable.'),
-                );
-              }
-            } else
-              void options.run(() =>
-                options.submit({
-                  peer: recipient,
-                  replying,
-                  text: url,
-                  media: null,
-                  pending: false,
-                  viewOnce: once,
-                }),
-              );
-          });
+        panes: {
+          gif: (host, close) => {
+            mountGifPane(host, gifs, (url) => {
+              close();
+              chooseGif(current, url);
+            });
+          },
+          sticker: stickerPane({
+            chosen: (link) => sendLink(current, link),
+            gifs,
+            privacy: options.privacy,
+          }),
         },
       }).catch(() => {
         showToast(t('Could not open emoji.'));

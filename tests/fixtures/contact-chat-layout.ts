@@ -274,7 +274,7 @@ try {
   } as unknown as GifSearch;
   const opening = emojiIntoComposer(picker, anchor, view.text, {
     start: 'gif',
-    pane: (pane) => mountGifPane(pane, gifs, () => {}),
+    panes: { gif: (pane) => mountGifPane(pane, gifs, () => {}) },
   });
   await Promise.resolve();
   const query = document.querySelector<HTMLInputElement>('[data-gif-query]')!;
@@ -325,7 +325,7 @@ try {
   if (matchMedia('(max-width:700px)').matches) {
     const nextOpening = emojiIntoComposer(picker, anchor, view.text, {
       start: 'gif',
-      pane: (pane) => mountGifPane(pane, gifs, () => {}),
+      panes: { gif: (pane) => mountGifPane(pane, gifs, () => {}) },
     });
     await Promise.resolve();
     document.querySelector<HTMLInputElement>('[data-gif-query]')!.focus();

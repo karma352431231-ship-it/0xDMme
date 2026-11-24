@@ -1,3 +1,4 @@
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { InlineMessageEditor } from '../message-inline-editor/index.ts';
 import type { MessageRemovalResult } from '../message-removal-batch/index.ts';
 import type { DmOutgoingMedia } from './dm-outgoing-media.ts';
@@ -451,5 +452,6 @@ function messageViewOnce(item: DmItem) {
 function replyExcerpt(text: string): string {
   const clean = text.replace(/\s+/gu, ' ').trim();
   if (!clean) return t('Message');
+  if (stickerReference(clean)) return t('Sticker');
   return clean.length > 120 ? `${clean.slice(0, 120)}…` : clean;
 }

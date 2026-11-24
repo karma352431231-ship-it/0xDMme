@@ -1,15 +1,26 @@
 import { withoutGifLinks } from '../gif-search/index.ts';
+import { appendStickers, stickerDisplay } from '../stickers/index.ts';
+import {
+  stickerReferences,
+  withoutStickerLinks,
+} from '../../shared/stickers/index.ts';
 import { renderPublicText } from '../public-mentions/index.ts';
 import { communityElement } from './elements.ts';
 export function postUrls(text: string) {
   return text.matchAll(/https?:\/\/[^\s<>"']+/gu);
 }
+/** Text first, then its stickers (24/11/2026); GIFs are drawn by the caller. */
 export function postText(
   text: string,
   displayedGifs: readonly string[] = [],
 ): HTMLElement {
   const node = communityElement('p', '', 'community-text');
-  renderPublicText(node, withoutGifLinks(text, displayedGifs));
+  const stickers = stickerReferences(text);
+  renderPublicText(
+    node,
+    withoutStickerLinks(withoutGifLinks(text, displayedGifs), stickers),
+  );
+  appendStickers(node, stickers, stickerDisplay());
   return node;
 }
 /**

@@ -1,3 +1,4 @@
+import { stickerReference } from '../../shared/stickers/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { animatedAttachmentContent } from '../../shared/attachments/index.ts';
@@ -36,7 +37,10 @@ function previewText(input: {
 }): string {
   if (input.kind === 'text') {
     const once = decodeDailyText(input.text).viewOnce;
-    return once ? t('View-once message') : input.displayText;
+    if (once) return t('View-once message');
+    return stickerReference(input.displayText)
+      ? t('Sticker')
+      : input.displayText;
   }
   const media = animatedAttachmentContent(JSON.parse(input.text) as unknown);
   const label = media.voice

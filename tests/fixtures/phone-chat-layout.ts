@@ -62,8 +62,10 @@ const anchor = view.form.querySelector<HTMLButtonElement>(
 )!;
 anchor.addEventListener('click', () => {
   void emojiIntoComposer(picker, anchor, view.text, {
-    pane: (host) => {
-      host.textContent = 'Synthetic GIF layout';
+    panes: {
+      gif: (host) => {
+        host.textContent = 'Synthetic GIF layout';
+      },
     },
   });
 });

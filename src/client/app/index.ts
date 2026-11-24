@@ -76,6 +76,7 @@ import {
 import { startConversationBadges } from './conversation-badges.ts';
 import { publicActivityReader, startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
+import { setStickerPrivacy } from '../stickers/index.ts';
 import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 import { mountLanguageSettings, startLanguage } from '../language/index.ts';
@@ -161,6 +162,7 @@ const externalMedia = new ExternalMediaConsent({
 window.addEventListener('storage', (event) =>
   externalMedia.storageChanged(event.key),
 );
+setStickerPrivacy(externalMedia);
 const publicProfiles = startPublicProfile(
   devices,
   externalMedia,

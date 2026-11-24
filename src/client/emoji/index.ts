@@ -1,11 +1,13 @@
 import { t } from '../../shared/i18n/index.ts';
 import { EmojiCatalog, insertEmoji } from './catalog.ts';
 import { EmojiPanel } from './panel.ts';
+import type { PickerMode, PickerPanes } from './panel.ts';
 import { ComposerEmojiPanel } from './composer-panel.ts';
 import { layoutBox, layoutViewport } from '../display-scale/index.ts';
 export { EmojiCatalog, insertEmoji };
 export { emojiText } from './panel.ts';
 export type { EmojiRow } from './catalog.ts';
+export type { PaneMount, PickerMode, PickerPanes } from './panel.ts';
 
 /** Modal selection owns one result; conversation composition has its own dock lifecycle. */
 export class EmojiPicker {
@@ -15,8 +17,8 @@ export class EmojiPicker {
   private composer: ComposerEmojiPanel | null = null;
   choose(
     anchor: HTMLElement,
-    gifPane?: (host: HTMLElement, close: () => void) => void,
-    start: 'emoji' | 'gif' = 'emoji',
+    panes: PickerPanes = {},
+    start: PickerMode = 'emoji',
   ): Promise<string | null> {
     this.close();
     this.anchor = anchor;
@@ -32,7 +34,7 @@ export class EmojiPicker {
       new EmojiPanel(dialog, {
         selected: (emoji) => this.finish(emoji),
         close: () => this.finish(null),
-        ...(gifPane ? { gifPane } : {}),
+        panes,
         start,
       });
       // A non-editable initial control avoids opening the keyboard. Some
@@ -115,22 +117,19 @@ export async function emojiIntoComposer(
   picker: EmojiPicker,
   anchor: HTMLElement,
   input: HTMLTextAreaElement,
-  gif: {
-    pane?: (host: HTMLElement, close: () => void) => void;
-    start?: 'emoji' | 'gif';
-  } = {},
+  tabs: { panes?: PickerPanes; start?: PickerMode } = {},
 ): Promise<void> {
   if (
     matchMedia('(max-width: 700px)').matches &&
     input.closest('.chat-composer')
   ) {
-    await picker.compose({ anchor, input, ...gif });
+    await picker.compose({ anchor, input, ...tabs });
     return;
   }
   const start = input.selectionStart,
     end = input.selectionEnd,
     original = input.value;
-  const emoji = await picker.choose(anchor, gif.pane, gif.start);
+  const emoji = await picker.choose(anchor, tabs.panes, tabs.start);
   if (!emoji || !input.isConnected || input.value !== original) return;
   const inserted = insertEmoji(original, start, end, emoji);
   input.value = inserted.text;
