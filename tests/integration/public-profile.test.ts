@@ -980,6 +980,11 @@ await test('public stickers: upload, packs, adds and the stable released address
       new URL('../../src/client/app/icon-192.png', import.meta.url),
     ),
   );
+  const other = new Uint8Array(
+    await readFile(
+      new URL('../../src/client/app/icon-512.png', import.meta.url),
+    ),
+  );
   const maker = await member(),
     fan = await member();
   const upload = async (who: typeof maker) =>
@@ -999,6 +1004,7 @@ await test('public stickers: upload, packs, adds and the stable released address
         status(400),
       );
       const id = await upload(maker);
+      assert.equal(await upload(maker), id, 'the same picture keeps its ID');
       const served = await media.sticker(id);
       assert.equal(served.type, 'image/png');
       assert.deepEqual(served.bytes, png);
@@ -1022,7 +1028,11 @@ await test('public stickers: upload, packs, adds and the stable released address
       id: string;
     }[];
     assert.ok(first);
-    const second = await upload(maker),
+    const second = (
+        (await maker.operate('sticker-upload', {
+          file: { type: 'image/png', bytes: encode(other) },
+        })) as { id: string }
+      ).id,
       foreign = await upload(fan);
     await assert.rejects(
       maker.operate('sticker-pack-save', {

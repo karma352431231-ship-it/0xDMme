@@ -56,7 +56,8 @@ const bundle = await build({
                 : `export function showPublicAvatar(host, input) { return fixtureMedia(host, input.signal); }
                  export function showPublicPostMedia(host, media, signal) { return fixtureMedia(host, signal); }
                  export function publicAvatarBlob() { throw new Error('Unexpected byte read'); }
-                 export function publicPostMediaBlob() { throw new Error('Unexpected byte read'); }`,
+                 export function publicPostMediaBlob() { throw new Error('Unexpected byte read'); }
+                 export function publicStickerBlob() { throw new Error('Unexpected byte read'); }`,
           loader: 'js',
         }));
       },

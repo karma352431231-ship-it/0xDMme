@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
-import { publicStickerLimits } from '../../shared/stickers/index.ts';
+import { publicStickerLimits } from '../../shared/public-stickers/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { PublicStickers } from './public-stickers.ts';

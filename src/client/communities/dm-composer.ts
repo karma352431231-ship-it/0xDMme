@@ -12,7 +12,8 @@ import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { GifSearch, mountGifPane } from '../gif-search/index.ts';
-import { stickerPane } from '../stickers/index.ts';
+import { stickerPane, stickerSelection } from '../stickers/index.ts';
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import { prepareSocialImage } from '../social-media/index.ts';
 import { showToast } from '../toast/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -435,6 +436,25 @@ export function startDmComposer(options: {
       }),
     );
   }
+  /** A personal sticker is one encrypted image file, never view-once. */
+  function sendSticker(current: DmView, file: PublicStickerFile): void {
+    const recipient = bound,
+      replying = composition.replying?.id ?? null;
+    if (!recipient || view !== current) return;
+    void options.run(() =>
+      options.submit({
+        peer: recipient,
+        replying,
+        text: '',
+        media: {
+          selection: stickerSelection(file),
+          media: file.type === 'image/gif' ? 'gif' : 'photo',
+        },
+        pending: false,
+        viewOnce: false,
+      }),
+    );
+  }
   function chooseGif(current: DmView, url: string): void {
     const recipient = bound;
     if (!recipient || view !== current) return;
@@ -458,6 +478,7 @@ export function startDmComposer(options: {
           },
           sticker: stickerPane({
             chosen: (link) => sendLink(current, link),
+            file: (file) => sendSticker(current, file),
             gifs,
             privacy: options.privacy,
           }),

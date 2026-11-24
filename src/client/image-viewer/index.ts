@@ -37,6 +37,33 @@ function trackPointers(frame: HTMLElement, surface: ZoomSurface): void {
     });
 }
 
+/**
+ * One extra action under enlarged public images, set by the signed-in account
+ * (24/11/2026: "Make sticker"). The viewer closes before it runs.
+ */
+export interface ImageViewerAction {
+  label: string;
+  run: (url: string) => void;
+}
+let viewerAction: ImageViewerAction | null = null;
+export function setImageViewerAction(action: ImageViewerAction | null): void {
+  viewerAction = action;
+}
+function actionButton(url: string, stop: () => void): HTMLButtonElement | null {
+  const action = viewerAction;
+  if (!action) return null;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'public-image-action';
+  button.textContent = action.label;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    stop();
+    action.run(url);
+  });
+  return button;
+}
+
 /** Only the enlarged image over the page: fingers zoom and move it, a tap on it
  * toggles zoom, a tap anywhere else or the X closes it and returns to where the
  * user was. Reuses the caller's image URL and lifetime; viewing never fetches
@@ -95,7 +122,8 @@ export function openImageViewer(input: {
   });
   input.signal.addEventListener('abort', stop, { once: true });
   frame.append(image);
-  dialog.append(frame, close);
+  const action = actionButton(input.url, stop);
+  dialog.append(frame, close, ...(action ? [action] : []));
   document.body.append(dialog);
   try {
     input.signal.throwIfAborted();

@@ -1,3 +1,4 @@
+import { startAccountStickers } from '../account-stickers/index.ts';
 import {
   startConnectivity,
   networkAvailable,
@@ -317,6 +318,11 @@ const activity = startActivity(
     },
   },
 );
+const accountStickers = startAccountStickers({
+  sync: vault.sync,
+  perform: (operation, payload) =>
+    publicProfiles.stickerPort(operation, payload),
+});
 const accountSettings = startAccountSettings({
   languageBlocked: interruptionReason,
   access: devices,
@@ -376,6 +382,7 @@ const account = startAccount({
     backups.setSession(session);
     contacts.setSession(session);
     accountSettings.setSession(session);
+    accountStickers.setSession(session);
     accountWallets.setSession(session);
     deviceLabels.setSession(session);
     messages.setSession(session);

@@ -6,6 +6,7 @@ import { mountStickerPane } from './pane.ts';
 import type { StickerSection } from './pane.ts';
 import type { StickerDisplay } from './display.ts';
 import type { StickerReference } from '../../shared/stickers/index.ts';
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 
 /**
  * Stickers (owner decision of 24/11/2026): one link in the text of a message,
@@ -20,20 +21,45 @@ export {
 } from './display.ts';
 export type { StickerDisplay } from './display.ts';
 export { mountStickerDraft } from './draft.ts';
+export { stickerSelection } from './attachment.ts';
+export { stickerAttachment } from '../../shared/stickers/index.ts';
 export type { StickerSection, SectionView } from './pane.ts';
 
 /**
+ * Where a chosen sticker goes. `chosen` takes a sticker link (Ping, KLIPY,
+ * public). `file` sends a personal sticker as an encrypted file in private
+ * conversations; without it (communities) a personal sticker is published
+ * first and goes as its public link.
+ */
+export interface StickerTarget {
+  chosen: (link: string) => void;
+  file?: ((file: PublicStickerFile) => void) | undefined;
+}
+
+/**
  * What the signed-in account adds (stage 3 and 4): its own stickers and packs
- * as shelf sections, and a sheet for a tapped sticker. The account layer sets
- * it once per session and clears it with null at sign-out.
+ * as shelf sections, a sheet for a tapped sticker and saving a picture as a
+ * sticker. The account layer sets it once per session and clears it with
+ * null at sign-out.
  */
 export interface AccountStickers {
-  sections: (chosen: (link: string) => void) => StickerSection[];
+  sections: (target: StickerTarget) => StickerSection[];
   open: (sticker: StickerReference) => void;
+  /** Saves a picture as a personal sticker; `frame` asks for a square first. */
+  save: (picture: Blob, frame: boolean) => Promise<void>;
 }
 let account: AccountStickers | null = null;
 export function setAccountStickers(next: AccountStickers | null): void {
   account = next;
+}
+/** Whether "Make sticker" can be offered on this page now. */
+export function canMakeStickers(): boolean {
+  return account !== null;
+}
+/** Saves a picture as a personal sticker of the signed-in account. */
+export function makeSticker(picture: Blob, frame = true): Promise<void> {
+  if (!account) return Promise.reject(new Error('Sign in to save stickers.'));
+  return account.save(picture, frame);
 }
 
 /** The app's external-media consent, set once at startup for KLIPY stickers. */
@@ -58,9 +84,10 @@ export function stickerDisplay(
   };
 }
 
-/** The Stickers tab for a composer: choosing sends or inserts the link. */
+/** The Stickers tab for a composer: choosing sends or inserts the sticker. */
 export function stickerPane(input: {
   chosen: (link: string) => void;
+  file?: ((file: PublicStickerFile) => void) | undefined;
   gifs: GifSearch | null;
   privacy?: ExternalMediaConsent | undefined;
 }): PaneMount {
@@ -69,11 +96,20 @@ export function stickerPane(input: {
       close();
       input.chosen(link);
     };
+    const target: StickerTarget = {
+      chosen,
+      file: input.file
+        ? (file) => {
+            close();
+            input.file?.(file);
+          }
+        : undefined,
+    };
     mountStickerPane(host, {
       chosen,
       privacy: input.privacy,
       sections: [
-        ...(account?.sections(chosen) ?? []),
+        ...(account?.sections(target) ?? []),
         ...(input.gifs ? [klipyStickerSection(input.gifs, chosen)] : []),
       ],
     });

@@ -31,7 +31,8 @@ import { VoiceRecording } from '../voice-recording/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import { GifSearch, mountGifPane, gifMessageUrl } from '../gif-search/index.ts';
-import { stickerPane } from '../stickers/index.ts';
+import { stickerPane, stickerSelection } from '../stickers/index.ts';
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import { stickerReference } from '../../shared/stickers/index.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -422,11 +423,27 @@ export class GroupComposer {
           }),
         sticker: stickerPane({
           chosen: send,
+          file: (file) =>
+            void this.options.run(() =>
+              Promise.resolve(this.sendSticker(file)),
+            ),
           gifs: this.gifs,
           privacy: this.options.externalMedia,
         }),
       },
     }).catch((error: unknown) => this.failure(error));
+  }
+  /** A personal sticker is one encrypted image file, never view-once. */
+  private sendSticker(file: PublicStickerFile): void {
+    const group = this.options.controller.selected;
+    if (!group || group.localOnly) return;
+    this.submissions.enqueue({
+      peer: group.state.groupId,
+      text: '',
+      reply: null,
+      viewOnce: false,
+      selections: [stickerSelection(file)],
+    });
   }
   /** A GIF or a sticker: both travel as their link; stickers are never view-once. */
   private async sendGif(url: string): Promise<void> {

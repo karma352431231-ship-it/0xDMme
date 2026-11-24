@@ -111,7 +111,8 @@ export function stickerFigure(
   sticker: StickerReference,
   display: StickerDisplay,
 ): HTMLElement {
-  const open = display.open;
+  // Only public stickers have something to show when tapped (save, pack).
+  const open = sticker.source === 'public' ? display.open : undefined;
   const figure = document.createElement(open ? 'button' : 'span');
   figure.className = 'chat-sticker';
   figure.dataset['stickerSource'] = sticker.source;

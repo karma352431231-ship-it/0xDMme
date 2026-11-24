@@ -1,4 +1,7 @@
-import { stickerReference } from '../../shared/stickers/index.ts';
+import {
+  stickerReference,
+  stickerAttachment,
+} from '../../shared/stickers/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { animatedAttachmentContent } from '../../shared/attachments/index.ts';
@@ -45,9 +48,11 @@ function previewText(input: {
   const media = animatedAttachmentContent(JSON.parse(input.text) as unknown);
   const label = media.voice
     ? t('preview.audio')
-    : media.image
-      ? t('Photo')
-      : media.name;
+    : stickerAttachment(media)
+      ? t('Sticker')
+      : media.image
+        ? t('Photo')
+        : media.name;
   return input.displayText ? `${label} · ${input.displayText}` : label;
 }
 /** The list never acknowledges incoming messages as read. Checks belong only to sent previews. */

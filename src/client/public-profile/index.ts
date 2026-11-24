@@ -242,6 +242,9 @@ export function startPublicProfile(
       perform: (operation: string, payload: Record<string, unknown>) =>
         controller.perform(operation, payload),
     },
+    /** Signed public sticker and pack requests (24/11/2026). */
+    stickerPort: (operation: string, payload: Record<string, unknown>) =>
+      controller.perform(operation, payload),
     mountReview: review.mount,
     async mentionNotifications(read?: () => unknown) {
       const { operation, payload } = publicActivitySources.mentions;

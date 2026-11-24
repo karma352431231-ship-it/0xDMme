@@ -10841,6 +10841,120 @@ export const catalog: Record<string, readonly [string, string]> = {
     '搜索联系人和群组',
   ],
   Sticker: ['Sticker', '贴纸'],
+  '@{0} · added by {1}': ['@{0} · added by {1}', '@{0} · {1} 人已添加'],
+  'A pack holds up to 30 stickers.': [
+    'A pack holds up to 30 stickers.',
+    '一个贴纸包最多包含 30 个贴纸。',
+  ],
+  'Add pack': ['Add pack', '添加贴纸包'],
+  Added: ['Added', '已添加'],
+  'Choose a GIF up to 1 MB and 1024 px for a sticker.': [
+    'Choose a GIF up to 1 MB and 1024 px for a sticker.',
+    '请选择不超过 1 MB 和 1024 像素的 GIF 作为贴纸。',
+  ],
+  'Choose a GIF up to 1 MB for a sticker.': [
+    'Choose a GIF up to 1 MB for a sticker.',
+    '请选择不超过 1 MB 的 GIF 作为贴纸。',
+  ],
+  'Choose an authorized contact to send the sticker.': [
+    'Choose an authorized contact to send the sticker.',
+    '请选择已授权的联系人来发送贴纸。',
+  ],
+  'Could not prepare the sticker.': [
+    'Could not prepare the sticker.',
+    '无法准备贴纸。',
+  ],
+  'Could not save the sticker.': [
+    'Could not save the sticker.',
+    '无法保存贴纸。',
+  ],
+  'Delete pack': ['Delete pack', '删除贴纸包'],
+  'Delete the pack {0}? Its stickers stay in your library.': [
+    'Delete the pack {0}? Its stickers stay in your library.',
+    '删除贴纸包 {0}？其中的贴纸会保留在你的贴纸库中。',
+  ],
+  'Delete {0} stickers from your library?': [
+    'Delete {0} stickers from your library?',
+    '从你的贴纸库中删除 {0} 个贴纸？',
+  ],
+  'Deleted sticker': ['Deleted sticker', '已删除的贴纸'],
+  'Find packs': ['Find packs', '查找贴纸包'],
+  'From the pack {0} by @{1}': [
+    'From the pack {0} by @{1}',
+    '来自 @{1} 的贴纸包 {0}',
+  ],
+  'Invalid sticker list.': ['Invalid sticker list.', '贴纸列表无效。'],
+  'Loading packs…': ['Loading packs…', '正在加载贴纸包…'],
+  'Loading your stickers…': ['Loading your stickers…', '正在加载你的贴纸…'],
+  'Make a sticker from any picture: tap New sticker, or open a picture and choose Make sticker.':
+    [
+      'Make a sticker from any picture: tap New sticker, or open a picture and choose Make sticker.',
+      '可以用任何图片制作贴纸：点按“新贴纸”，或打开一张图片并选择“制作贴纸”。',
+    ],
+  'Make sticker': ['Make sticker', '制作贴纸'],
+  'More packs': ['More packs', '更多贴纸包'],
+  'My stickers': ['My stickers', '我的贴纸'],
+  'Name the new pack': ['Name the new pack', '为新贴纸包命名'],
+  'Name the pack in 1 to 40 characters.': [
+    'Name the pack in 1 to 40 characters.',
+    '贴纸包名称需为 1 到 40 个字符。',
+  ],
+  'New pack': ['New pack', '新贴纸包'],
+  'New sticker': ['New sticker', '新贴纸'],
+  'No public packs yet.': ['No public packs yet.', '还没有公开的贴纸包。'],
+  'Pack deleted.': ['Pack deleted.', '贴纸包已删除。'],
+  'Pack published. It appears in the panel.': [
+    'Pack published. It appears in the panel.',
+    '贴纸包已发布，会显示在面板中。',
+  ],
+  'Pack removed. It leaves the panel the next time you open it.': [
+    'Pack removed. It leaves the panel the next time you open it.',
+    '贴纸包已移除，下次打开面板时将不再显示。',
+  ],
+  'Prepare a PNG or GIF sticker.': [
+    'Prepare a PNG or GIF sticker.',
+    '请准备 PNG 或 GIF 格式的贴纸。',
+  ],
+  'Publishing…': ['Publishing…', '正在发布…'],
+  'Remove pack': ['Remove pack', '移除贴纸包'],
+  'Remove the pack {0} from your stickers?': [
+    'Remove the pack {0} from your stickers?',
+    '从你的贴纸中移除贴纸包 {0}？',
+  ],
+  'Save sticker': ['Save sticker', '保存贴纸'],
+  'Save to my stickers': ['Save to my stickers', '保存到我的贴纸'],
+  'Saved to your stickers.': ['Saved to your stickers.', '已保存到你的贴纸。'],
+  Select: ['Select', '选择'],
+  'Sending…': ['Sending…', '正在发送…'],
+  'Sign in to save stickers.': [
+    'Sign in to save stickers.',
+    '登录后即可保存贴纸。',
+  ],
+  'Sticker invalid. Prepare it again.': [
+    'Sticker invalid. Prepare it again.',
+    '贴纸无效，请重新准备。',
+  ],
+  'Sticker limit reached. Delete a sticker first.': [
+    'Sticker limit reached. Delete a sticker first.',
+    '贴纸数量已达上限，请先删除一个贴纸。',
+  ],
+  'The framed square becomes your sticker.': [
+    'The framed square becomes your sticker.',
+    '框选的正方形区域将成为你的贴纸。',
+  ],
+  'This pack has no stickers to show.': [
+    'This pack has no stickers to show.',
+    '此贴纸包中没有可显示的贴纸。',
+  ],
+  'This picture is too detailed for a sticker.': [
+    'This picture is too detailed for a sticker.',
+    '这张图片细节太多，无法制作贴纸。',
+  ],
+  'Your stickers are still syncing.': [
+    'Your stickers are still syncing.',
+    '你的贴纸仍在同步中。',
+  ],
+  '{0} by @{1}': ['{0} by @{1}', '{0}，来自 @{1}'],
   Stickers: ['Stickers', '贴纸'],
   'Sticker: {0}': ['Sticker: {0}', '贴纸：{0}'],
   Hi: ['Hi', '嗨'],

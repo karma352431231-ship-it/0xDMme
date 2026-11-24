@@ -1,3 +1,4 @@
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import type { HistoryDirection } from '../history-window/index.ts';
 import type { QueueWakeup } from '../text-send/index.ts';
 import type { PrivateSendContext } from '../chat-sync-diagnostics/index.ts';
@@ -267,6 +268,7 @@ export function startMessages(
       status();
     },
     sendGif,
+    sendSticker,
     ...(options.calls
       ? { call: (peer: string) => options.calls!.start(peer) }
       : {}),
@@ -1860,6 +1862,18 @@ export function startMessages(
       selected?.accountId ?? null,
       !!selected?.localOnly,
       url,
+    );
+    await renderPending();
+    if (networkAvailable()) {
+      await sendPending();
+      await synchronizeVisible();
+    }
+  }
+  async function sendSticker(file: PublicStickerFile): Promise<void> {
+    await composer.saveSticker(
+      selected?.accountId ?? null,
+      !!selected?.localOnly,
+      file,
     );
     await renderPending();
     if (networkAvailable()) {

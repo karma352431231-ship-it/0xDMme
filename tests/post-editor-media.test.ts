@@ -112,10 +112,11 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     'choose',
     (
       _anchor: unknown,
-      gifPane?: (host: HTMLElement, close: () => void) => void,
+      panes?: { gif?: (host: HTMLElement, close: () => void) => void },
       start?: string,
     ) =>
       new Promise<string | null>((resolve) => {
+        const gifPane = panes?.gif;
         const panel = {
           start,
           host: document.createElement('div'),

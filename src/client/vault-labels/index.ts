@@ -1,6 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { VaultChange } from '../../shared/vault/index.ts';
 import { languageRecordLabel } from '../language-record/index.ts';
+import {
+  stickerLibraryLabel,
+  stickerRemovedLabel,
+} from '../sticker-library/index.ts';
 
 const settingsLabels = new Set([
   'Configurações da conta',
@@ -17,6 +21,10 @@ export function vaultLabel(
 ): string {
   if (change.kind === 'settings' && change.label === languageRecordLabel)
     return t('App language');
+  if (change.kind === 'settings' && change.label === stickerLibraryLabel)
+    return t('Sticker');
+  if (change.kind === 'settings' && change.label === stickerRemovedLabel)
+    return t('Deleted sticker');
   return change.kind === 'settings' && settingsLabels.has(change.label)
     ? t(change.label)
     : change.label;

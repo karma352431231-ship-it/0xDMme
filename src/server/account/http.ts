@@ -29,7 +29,7 @@ import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { activitySnapshotPath } from '../../shared/activity-snapshot/index.ts';
 import { readPublicActivity } from '../activity-snapshot/index.ts';
-import { publicStickerBytes } from '../../shared/stickers/index.ts';
+import { publicStickerBytes } from '../../shared/public-stickers/index.ts';
 
 import {
   approvalDocumentUrl,

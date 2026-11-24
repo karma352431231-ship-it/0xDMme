@@ -9,8 +9,8 @@ import {
 import type { PublicAvatarKind } from '../../shared/public-media/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import {
-  publicStickerPath,
   publicStickerBytes,
+  publicStickerPath,
 } from '../../shared/stickers/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { withPublicRead } from './reads.ts';

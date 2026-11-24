@@ -3,8 +3,8 @@ import type pg from 'pg';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicImage } from '../../shared/public-avatar/index.ts';
-import { publicStickerLimits } from '../../shared/stickers/index.ts';
-import type { PublicStickerFile } from '../../shared/stickers/index.ts';
+import { publicStickerLimits } from '../../shared/public-stickers/index.ts';
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type {
@@ -76,6 +76,15 @@ export class PublicStickers {
           'SELECT id FROM hash_talk.public_profiles WHERE id=$1 FOR UPDATE',
           [profile.id],
         );
+        const contentHash = createHash('sha256')
+          .update(file.bytes)
+          .digest('hex');
+        // The same picture published again keeps its first address.
+        const same = await client.query<{ id: string }>(
+          'SELECT id FROM hash_talk.public_stickers WHERE owner=$1 AND content_hash=$2 AND bytes IS NOT NULL LIMIT 1',
+          [profile.id, contentHash],
+        );
+        if (same.rows[0]) return { id: same.rows[0].id };
         const count = await client.query<{ total: string }>(
           'SELECT count(*) AS total FROM hash_talk.public_stickers WHERE owner=$1',
           [profile.id],
@@ -92,7 +101,7 @@ export class PublicStickers {
             owner: profile.id,
             target: id,
             kind: 'sticker',
-            contentHash: createHash('sha256').update(file.bytes).digest('hex'),
+            contentHash,
           },
           async (review) => {
             await client.query(

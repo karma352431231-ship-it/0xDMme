@@ -1,9 +1,15 @@
 import {
+  canMakeStickers,
+  makeSticker,
+  stickerAttachment,
+} from '../stickers/index.ts';
+import { showToast } from '../toast/index.ts';
+import {
   captureMediaPreview,
   previewByteLimit,
 } from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
-import { t } from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import {
   attachmentContent,
   attachmentVideoType,
@@ -116,6 +122,7 @@ function showImage(
     run?: ((work: () => Promise<void>) => Promise<void>) | undefined;
     current?: (() => boolean) | undefined;
     capture?: ((image: HTMLImageElement) => void) | undefined;
+    sticker?: boolean | undefined;
   },
 ): void {
   const open = document.createElement('button');
@@ -151,7 +158,35 @@ function showImage(
   preview.replaceChildren(open);
 }
 /** Full-size view of a decrypted image; the Blob URL stays owned by the chat. */
-function openImageViewer(url: string, input: { name: string }): void {
+function stickerButton(
+  url: string,
+  sticker: boolean,
+  viewer: HTMLDialogElement,
+): HTMLButtonElement | null {
+  if (!canMakeStickers()) return null;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = sticker ? t('Save sticker') : t('Make sticker');
+  button.addEventListener('click', () => {
+    viewer.close();
+    // A received sticker is saved as it is; any other picture is framed first.
+    void fetch(url)
+      .then((response) => response.blob())
+      .then((picture) => makeSticker(picture, !sticker))
+      .catch((error: unknown) => {
+        showToast(
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Could not save the sticker.'),
+        );
+      });
+  });
+  return button;
+}
+function openImageViewer(
+  url: string,
+  input: { name: string; sticker?: boolean | undefined },
+): void {
   const viewer = document.createElement('dialog');
   viewer.className = 'media-viewer';
   viewer.setAttribute('aria-label', input.name);
@@ -170,8 +205,10 @@ function openImageViewer(url: string, input: { name: string }): void {
   close.addEventListener('click', () => {
     viewer.close();
   });
-  // The viewer shows only the image and its two controls (owner, 12/11/2026).
-  bar.append(save, close);
+  // The viewer shows only the image and its controls (owner, 12/11/2026);
+  // stickers added "Make sticker" (24/11/2026).
+  const sticker = stickerButton(url, input.sticker === true, viewer);
+  bar.append(save, ...(sticker ? [sticker] : []), close);
   viewer.append(image, bar);
   // A click on the backdrop or the image closes; the bar keeps its controls.
   viewer.addEventListener('click', (event) => {
@@ -407,6 +444,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     return;
   }
   const image = imageCandidate(content),
+    sticker = stickerAttachment(content),
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
@@ -417,6 +455,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   );
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
+  // A personal sticker stands alone, without a bubble (24/11/2026).
+  if (sticker) preview.classList.add('chat-sticker-file');
   button.type = 'button';
   button.textContent = image ? t('Load image') : t('Download original file');
   input.article.append(
@@ -444,6 +484,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     const { url, previewOnly, diagnostic } = loaded;
     showImage(preview, url, {
       name: content.name,
+      sticker,
       ...(previewOnly
         ? {
             original: openOriginal,

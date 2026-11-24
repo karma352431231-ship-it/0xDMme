@@ -14,7 +14,8 @@ import { dailyViews } from '../daily-text/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { GifSearch, gifMessageUrl, mountGifPane } from '../gif-search/index.ts';
-import { stickerPane } from '../stickers/index.ts';
+import { stickerPane, stickerSelection } from '../stickers/index.ts';
+import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import { stickerReference } from '../../shared/stickers/index.ts';
 import { prepareViewOnceSelection } from '../view-once-ui/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -47,6 +48,8 @@ interface ComposerOptions {
   textChanged: () => void;
   report: (notice: string) => void;
   sendGif: (url: string) => Promise<void>;
+  /** A personal sticker: an encrypted image file (24/11/2026). */
+  sendSticker: (file: PublicStickerFile) => Promise<void>;
   call?: (peer: string) => Promise<void>;
 }
 
@@ -313,6 +316,20 @@ export class MessageComposer {
       this.attachments.selected,
     );
   }
+  /** Stages a personal sticker as its own attachment message. */
+  async saveSticker(
+    peer: string | null,
+    localOnly: boolean,
+    file: PublicStickerFile,
+  ): Promise<void> {
+    if (!peer || localOnly)
+      throw new Error('Choose an authorized contact to send the sticker.');
+    await this.options.controller.composeAttachment(
+      peer,
+      stickerSelection(file),
+      encodeDailyText({ text: '', reply: null, forwarded: false }),
+    );
+  }
   async saveGif(
     peer: string | null,
     localOnly: boolean,
@@ -445,6 +462,8 @@ export class MessageComposer {
         },
         sticker: stickerPane({
           chosen: send,
+          file: (file) =>
+            void this.options.run(() => this.options.sendSticker(file)),
           gifs: this.gifs,
           privacy: this.options.externalMedia,
         }),

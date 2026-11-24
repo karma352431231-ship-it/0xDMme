@@ -4,7 +4,7 @@ import {
   publicStickerIds,
   publicStickerLimits,
   stickerPackName,
-} from '../../shared/stickers/index.ts';
+} from '../../shared/public-stickers/index.ts';
 import type {
   ContactAuthority,
   PublicProfileStore,

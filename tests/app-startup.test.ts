@@ -48,6 +48,8 @@ const featureExports: Record<string, string[]> = {
   'phone-viewport': ['startPhoneViewport'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
+  stickers: ['setStickerPrivacy'],
+  'account-stickers': ['startAccountStickers'],
   'notification-sound': ['applySoundPreference', 'storedSoundPreference'],
 };
 const bundle = await build({
