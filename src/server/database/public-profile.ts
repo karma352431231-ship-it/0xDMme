@@ -6,10 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, encode } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
-import type {
-  PendingPublicAvatar,
-  PublicImage,
-} from '../../shared/public-avatar/index.ts';
+import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { publicAvatarPath } from '../../shared/public-media/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
@@ -359,11 +356,20 @@ export class PublicProfileStore {
     });
   }
   /** Internal byte-owner contract; callers must authorize the subject before exposing bytes. */
+  /**
+   * The image the approved one-frame scanner checks. Its pipeline identity
+   * (scanner.ts, configured-runner.ts) is unchanged, so an animated sticker is
+   * not offered to it: scanning GIF stickers needs a reviewed pipeline revision
+   * before automatic moderation resumes (24/11/2026).
+   */
   async moderationCandidate(
     job: PublicModerationSubject,
-  ): Promise<PublicImage | null> {
-    if (job.kind === 'sticker') return this.stickers.candidate(job);
-    return this.profileCandidate(job);
+  ): Promise<PendingPublicAvatar | null> {
+    if (job.kind !== 'sticker') return this.profileCandidate(job);
+    const sticker = await this.stickers.candidate(job);
+    return sticker?.type === 'image/png'
+      ? { type: sticker.type, bytes: sticker.bytes }
+      : null;
   }
   private async profileCandidate(
     job: PublicModerationSubject,
