@@ -249,6 +249,7 @@ const migrations = [
   '112-account-wallets.sql',
   '113-session-wallet.sql',
   '114-profile-mutes.sql',
+  '115-public-stickers.sql',
 ];
 
 export interface MaintenanceSnapshot {

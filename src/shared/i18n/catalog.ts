@@ -1529,6 +1529,11 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Reversible ban': ['Reversible ban', '可撤销封禁'],
   'Community banner': ['Community banner', '社区横幅'],
   'Profile banner': ['Profile banner', '个人资料横幅'],
+  'Public sticker': ['Public sticker', '公开贴纸'],
+  'Your public sticker was withheld from public view': [
+    'Your public sticker was withheld from public view',
+    '你的公开贴纸已被暂停公开显示',
+  ],
   'Block incomplete or corrupted.': [
     'Block incomplete or corrupted.',
     '数据块不完整或损坏。',

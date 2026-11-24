@@ -1,4 +1,5 @@
 import { AccountError, encode } from '../../shared/account/index.ts';
+import { profileOwnedModeration } from '../../shared/public-moderation/index.ts';
 import type {
   CommunityStore,
   ContactAuthority,
@@ -26,7 +27,7 @@ export class ModerationMedia {
     if (!subject || subject.kind === 'post-media')
       throw new AccountError(404, 'Review media unavailable.');
     const read = () =>
-      subject.kind === 'avatar' || subject.kind === 'profile-banner'
+      profileOwnedModeration(subject.kind)
         ? this.stores.profiles.moderationCandidate(subject)
         : this.stores.communities.moderationCandidate(subject);
     const media = await read();

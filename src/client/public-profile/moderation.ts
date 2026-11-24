@@ -26,6 +26,7 @@ const kinds = {
   'community-photo': t('Community photo'),
   'community-banner': t('Community banner'),
   'post-media': t('Post or reply media'),
+  sticker: t('Public sticker'),
 };
 export function renderModeration(
   container: HTMLElement | null,

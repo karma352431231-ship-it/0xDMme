@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { AccountError, boundedText } from '../../shared/account/index.ts';
 import { fingerprint } from '../../shared/devices/index.ts';
 import { publicModerationPolicy } from '../../shared/public-moderation/index.ts';
-import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
+import type { PublicImage } from '../../shared/public-avatar/index.ts';
 import type {
   PublicModerationClaim,
   PublicModerationEvaluation,
@@ -19,7 +19,7 @@ import type { PublicFrameDetector, PreparedFrameInput } from './frames.ts';
 import type { PublicModerationRunner } from './worker.ts';
 
 export interface ModerationCandidates {
-  avatar(job: PublicModerationClaim): Promise<PendingPublicAvatar | null>;
+  avatar(job: PublicModerationClaim): Promise<PublicImage | null>;
   media(
     job: PublicModerationClaim,
   ): Promise<PublicModerationMediaCandidate | null>;
@@ -96,7 +96,10 @@ export class PublicModerationScanner implements PublicModerationRunner {
         job.contentHash
     )
       throw new AccountError(409, 'Photo replaced or expired.');
-    return [{ ...avatar, maximumFrames: 1 }];
+    // Animated stickers are checked frame by frame, like public GIFs.
+    return [
+      { ...avatar, maximumFrames: avatar.type === 'image/gif' ? 400 : 1 },
+    ];
   }
   private async mediaInputs(
     job: PublicModerationClaim,

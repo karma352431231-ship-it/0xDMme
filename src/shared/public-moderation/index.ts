@@ -17,7 +17,8 @@ export type PublicModerationKind =
   | 'profile-banner'
   | 'community-photo'
   | 'community-banner'
-  | 'post-media';
+  | 'post-media'
+  | 'sticker';
 export type PublicModerationStatus =
   | 'pending'
   | 'analyzing'
@@ -47,10 +48,15 @@ export function publicModerationKind(value: unknown): PublicModerationKind {
     value !== 'profile-banner' &&
     value !== 'community-photo' &&
     value !== 'community-banner' &&
-    value !== 'post-media'
+    value !== 'post-media' &&
+    value !== 'sticker'
   )
     throw new AccountError(400, 'Invalid analysis object.');
   return value;
+}
+/** Kinds whose bytes a public profile owns (photo, banner, stickers). */
+export function profileOwnedModeration(kind: PublicModerationKind): boolean {
+  return kind === 'avatar' || kind === 'profile-banner' || kind === 'sticker';
 }
 export function publicModerationStatus(value: unknown): PublicModerationStatus {
   const statuses: readonly string[] = [

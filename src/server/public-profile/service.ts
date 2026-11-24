@@ -1,6 +1,7 @@
 import type { ModerationMedia } from './moderation-media.ts';
 import type { MentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import { moderationOperation } from './moderation-operations.ts';
+import { stickerOperation, stickerOperations } from './sticker-operations.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
@@ -32,7 +33,8 @@ type PublicProfileResponse =
   | PublicModerationNotice
   | Awaited<ReturnType<PublicProfileStore['banners']['state']>>
   | Awaited<ReturnType<PublicProfileStore['descriptions']['state']>>
-  | Awaited<ReturnType<ProfileSocialStore['operate']>>;
+  | Awaited<ReturnType<ProfileSocialStore['operate']>>
+  | Awaited<ReturnType<typeof stickerOperation>>;
 export class PublicProfileService {
   private readonly store: PublicProfileStore;
   private readonly devices: DeviceStore;
@@ -131,7 +133,8 @@ export class PublicProfileService {
         'follow-notifications',
         'follow-notifications-read',
         'moderation-appeal',
-      ].includes(operation)
+      ].includes(operation) &&
+      !(stickerOperations as readonly string[]).includes(operation)
     )
       throw new AccountError(404, 'Public profile operation not found.');
     const proof = publicProfileProof(input);
@@ -157,6 +160,12 @@ export class PublicProfileService {
       operation === 'mention-notifications-read'
     )
       return this.store.mentionOperation(operation, authority, proof.payload);
+    if (operation.startsWith('sticker-'))
+      return stickerOperation(this.store, {
+        operation,
+        authority,
+        data: proof.payload,
+      });
     return this.execute(operation, authority, proof.payload);
   }
   private async execute(

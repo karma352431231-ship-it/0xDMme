@@ -1,3 +1,4 @@
+import { profileOwnedModeration } from '../../shared/public-moderation/index.ts';
 import type {
   Database,
   PublicModerationBinding,
@@ -9,7 +10,7 @@ export function publicModerationBinding(
   database: Database,
 ): PublicModerationBinding {
   return (client, subject) => {
-    if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
+    if (profileOwnedModeration(subject.kind))
       return database.publicProfiles.bindModeration(client, subject);
     if (
       subject.kind === 'community-photo' ||
@@ -23,7 +24,7 @@ export function publicModerationRetargeting(
   database: Database,
 ): PublicModerationRetargeting {
   return (client, subject) => {
-    if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
+    if (profileOwnedModeration(subject.kind))
       return database.publicProfiles.bindPolicy(client, subject);
     if (
       subject.kind === 'community-photo' ||

@@ -858,3 +858,222 @@ await test('public profile: concurrency, consent, session/device, restricted med
     },
   );
 });
+
+interface Pack {
+  id: string;
+  name: string;
+  adds: number;
+  stickers: string[];
+  added: boolean;
+  own: boolean;
+}
+
+await test('public stickers: upload, packs, adds and the stable released address', async (t) => {
+  const config = readWebConfiguration(process.env);
+  if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
+    throw new Error('Banco exclusivo de teste necessário.');
+  const db = new Database(config.databaseUrl),
+    inspector = new pg.Client({ connectionString: config.databaseUrl });
+  // Production publishes public images unreviewed while moderation is paused.
+  db.publicModeration.pauseAutomaticModeration();
+  const devices = new DeviceService(db.devices),
+    profiles = new PublicProfileService(db.publicProfiles, db.devices),
+    media = new PublicMediaService({
+      profiles: db.publicProfiles,
+      communities: db.communities,
+      stickers: db.publicProfiles.stickers,
+    });
+  const accounts: string[] = [],
+    owners: string[] = [];
+  let connected = false;
+  t.after(async () => {
+    try {
+      if (!connected) return;
+      await inspector.query(
+        'DELETE FROM hash_talk.public_moderation WHERE owner=ANY($1::uuid[])',
+        [owners],
+      );
+      for (const table of [
+        'device_events',
+        'device_directories',
+        'login_sessions',
+        'login_devices',
+      ])
+        await inspector.query(
+          `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+          [accounts],
+        );
+      await inspector.query(
+        'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
+        [accounts],
+      );
+    } finally {
+      await Promise.all([inspector.end(), db.close()]);
+    }
+  });
+  await db.migrate();
+  await inspector.connect();
+  connected = true;
+  const account = new AccountService({
+    store: db.authentication,
+    origin: 'http://127.0.0.1',
+  });
+  async function member() {
+    const wallet = Wallet.createRandom();
+    const challenge = await account.challenge({
+      address: wallet.address,
+      chainId: 1,
+      deviceId: crypto.randomUUID(),
+    });
+    const login = await account.login(
+      {
+        id: challenge.id,
+        signature: await wallet.signMessage(challenge.message),
+      },
+      challenge.browserToken,
+    );
+    accounts.push(login.session.accountId);
+    const identity = await createIdentity(login.session.deviceId, 'Sticker'),
+      recovery = await createRecovery(login.session.accountId, newSecret());
+    const event = await prepareEvent({
+      accountId: login.session.accountId,
+      previous: null,
+      kind: 'initialize',
+      signer: 'recovery',
+      signing: recovery.signing,
+      root: recovery.root,
+      identities: [identity.public],
+      ring: freshKeyring(login.session.accountId),
+      profile: null,
+    });
+    await devices.commit(login.session, { event, profile: null });
+    const directory = await eventHash(event);
+    async function operate(
+      operation: string,
+      payload: Record<string, unknown>,
+    ): Promise<unknown> {
+      const body = { directory, payload };
+      return profiles.operate(operation, login.session, {
+        ...body,
+        signature: await sign(
+          identity.signing,
+          publicProfileBody(
+            login.session.accountId,
+            login.session.deviceId,
+            operation,
+            body,
+          ),
+        ),
+      });
+    }
+    const handle = `s_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
+    const created = (await operate('create', { handle, consent: true })) as {
+      profile: { id: string };
+    };
+    owners.push(created.profile.id);
+    return { operate, profile: created.profile.id };
+  }
+  const status = (code: number) => (error: unknown) =>
+    error instanceof AccountError && error.status === code;
+  const png = new Uint8Array(
+    await readFile(
+      new URL('../../src/client/app/icon-192.png', import.meta.url),
+    ),
+  );
+  const maker = await member(),
+    fan = await member();
+  const upload = async (who: typeof maker) =>
+    (
+      (await who.operate('sticker-upload', {
+        file: { type: 'image/png', bytes: encode(png) },
+      })) as { id: string }
+    ).id;
+
+  await t.test(
+    'an uploaded sticker is served at its stable address',
+    async () => {
+      await assert.rejects(
+        maker.operate('sticker-upload', {
+          file: { type: 'image/gif', bytes: encode(png) },
+        }),
+        status(400),
+      );
+      const id = await upload(maker);
+      const served = await media.sticker(id);
+      assert.equal(served.type, 'image/png');
+      assert.deepEqual(served.bytes, png);
+      const mine = (await maker.operate('sticker-list', {})) as {
+        id: string;
+      }[];
+      assert.deepEqual(
+        mine.map((item) => item.id),
+        [id],
+      );
+      await assert.rejects(
+        fan.operate('sticker-remove', { id }),
+        status(404),
+        'only the owner removes a sticker',
+      );
+    },
+  );
+
+  await t.test('packs hold only own stickers and count adds once', async () => {
+    const [first] = (await maker.operate('sticker-list', {})) as {
+      id: string;
+    }[];
+    assert.ok(first);
+    const second = await upload(maker),
+      foreign = await upload(fan);
+    await assert.rejects(
+      maker.operate('sticker-pack-save', {
+        id: null,
+        name: 'Mixed',
+        stickers: [first.id, foreign],
+      }),
+      status(400),
+    );
+    const pack = (await maker.operate('sticker-pack-save', {
+      id: null,
+      name: '  Ping friends ',
+      stickers: [second, first.id],
+    })) as Pack;
+    assert.equal(pack.name, 'Ping friends');
+    assert.deepEqual(pack.stickers, [second, first.id]);
+    assert.equal(pack.own, true);
+    await fan.operate('sticker-pack-add', { id: pack.id, added: true });
+    await fan.operate('sticker-pack-add', { id: pack.id, added: true });
+    const seen = (await fan.operate('sticker-pack-read', {
+      id: pack.id,
+    })) as Pack;
+    assert.equal(seen.adds, 1);
+    assert.equal(seen.added, true);
+    const panel = (await fan.operate('sticker-pack-panel', {})) as Pack[];
+    assert.deepEqual(
+      panel.map((item) => item.id),
+      [pack.id],
+    );
+    const containing = (await fan.operate('sticker-pack-containing', {
+      id: first.id,
+    })) as Pack;
+    assert.equal(containing.id, pack.id);
+    await assert.rejects(
+      fan.operate('sticker-pack-remove', { id: pack.id }),
+      status(404),
+    );
+
+    // Removing a sticker takes it out of the pack and off its address.
+    await maker.operate('sticker-remove', { id: second });
+    await assert.rejects(media.sticker(second), status(404));
+    const after = (await fan.operate('sticker-pack-read', {
+      id: pack.id,
+    })) as Pack;
+    assert.deepEqual(after.stickers, [first.id]);
+    await fan.operate('sticker-pack-add', { id: pack.id, added: false });
+    const dropped = (await maker.operate('sticker-pack-read', {
+      id: pack.id,
+    })) as Pack;
+    assert.equal(dropped.adds, 0);
+    await maker.operate('sticker-pack-remove', { id: pack.id });
+    assert.deepEqual(await fan.operate('sticker-pack-panel', {}), []);
+  });
+});

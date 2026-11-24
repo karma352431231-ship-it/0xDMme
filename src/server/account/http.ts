@@ -29,6 +29,7 @@ import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { activitySnapshotPath } from '../../shared/activity-snapshot/index.ts';
 import { readPublicActivity } from '../activity-snapshot/index.ts';
+import { publicStickerBytes } from '../../shared/stickers/index.ts';
 
 import {
   approvalDocumentUrl,
@@ -51,6 +52,8 @@ function bodyLimit(url: string | undefined): number {
     url === '/api/account/communities/photo'
   )
     return Math.ceil(publicAvatarLimit / 3) * 4 + 4096;
+  if (url === '/api/account/public-profile/sticker-upload')
+    return Math.ceil(publicStickerBytes / 3) * 4 + 4096;
   if (url === '/api/account/communities/media-part') return 360_000;
   if (url?.startsWith('/api/account/communities/')) return 28000;
   return accountBodyLimit(url);

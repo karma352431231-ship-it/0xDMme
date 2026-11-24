@@ -6,6 +6,11 @@ export interface PendingPublicAvatar {
   type: 'image/png' | 'image/jpeg';
   bytes: Uint8Array<ArrayBuffer>;
 }
+/** Any public image kept in SQL: photos, banners and stickers (24/11/2026). */
+export interface PublicImage {
+  type: 'image/png' | 'image/jpeg' | 'image/gif';
+  bytes: Uint8Array<ArrayBuffer>;
+}
 
 /** A prepared candidate, never permission to expose an image publicly. */
 export function pendingPublicAvatar(

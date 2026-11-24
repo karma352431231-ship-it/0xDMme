@@ -6,11 +6,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, encode } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
-import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
+import type {
+  PendingPublicAvatar,
+  PublicImage,
+} from '../../shared/public-avatar/index.ts';
 import { publicAvatarPath } from '../../shared/public-media/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { ProfileBanners } from './profile-banners.ts';
+import { PublicStickers } from './public-stickers.ts';
+import { PublicStickerPacks } from './public-sticker-packs.ts';
 import { ProfileDescriptions } from './profile-descriptions.ts';
 import type {
   PublicModerationStore,
@@ -69,6 +74,8 @@ export class PublicProfileStore {
   }
   readonly banners: ProfileBanners;
   readonly descriptions: ProfileDescriptions;
+  readonly stickers: PublicStickers;
+  readonly stickerPacks: PublicStickerPacks;
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
   private readonly capacity: ContentCapacity;
@@ -93,6 +100,19 @@ export class PublicProfileStore {
     this.descriptions = new ProfileDescriptions({
       authority,
       capacity,
+      identity: (client, account) => this.identity(client, account),
+    });
+    this.stickers = new PublicStickers({
+      pool,
+      moderation,
+      authority,
+      capacity,
+      identity: (client, account) => this.identity(client, account),
+    });
+    this.stickerPacks = new PublicStickerPacks({
+      authority,
+      capacity,
+      stickers: this.stickers,
       identity: (client, account) => this.identity(client, account),
     });
   }
@@ -341,6 +361,12 @@ export class PublicProfileStore {
   /** Internal byte-owner contract; callers must authorize the subject before exposing bytes. */
   async moderationCandidate(
     job: PublicModerationSubject,
+  ): Promise<PublicImage | null> {
+    if (job.kind === 'sticker') return this.stickers.candidate(job);
+    return this.profileCandidate(job);
+  }
+  private async profileCandidate(
+    job: PublicModerationSubject,
   ): Promise<PendingPublicAvatar | null> {
     if (job.kind === 'profile-banner') return this.banners.candidate(job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
@@ -369,7 +395,7 @@ export class PublicProfileStore {
     );
     if (!subject || subject.kind !== 'avatar' || subject.target !== target)
       return null;
-    return this.moderationCandidate(subject);
+    return this.profileCandidate(subject);
   }
   releasedBanner(target: string, review: string) {
     return this.banners.released(target, review);
@@ -378,6 +404,7 @@ export class PublicProfileStore {
   async bindPolicy(client: pg.PoolClient, job: PublicModerationSubject) {
     if (job.kind === 'profile-banner')
       return this.banners.bindPolicy(client, job);
+    if (job.kind === 'sticker') return this.stickers.bindPolicy(client, job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
     const found = await client.query<ProfileRow>(
       `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=$1 FOR UPDATE`,
@@ -399,6 +426,7 @@ export class PublicProfileStore {
   }
   async bindModeration(client: pg.PoolClient, job: PublicModerationSubject) {
     if (job.kind === 'profile-banner') return this.banners.bind(client, job);
+    if (job.kind === 'sticker') return this.stickers.bind(client, job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
     const result = await client.query<ProfileRow>(
       `SELECT ${ownColumns} FROM hash_talk.public_profiles WHERE id=$1 FOR UPDATE`,
@@ -438,7 +466,9 @@ export class PublicProfileStore {
     };
   }
   async collectModeration(signal: AbortSignal): Promise<number> {
-    const banners = await this.banners.collect(signal);
+    const banners =
+      (await this.banners.collect(signal)) +
+      (await this.stickers.collect(signal));
     await this.moderation.expired('avatar');
     const reviews = await this.moderation.discarding('avatar');
     for (const review of reviews) {
@@ -453,6 +483,7 @@ export class PublicProfileStore {
     const next = await Promise.all([
       this.moderation.nextCollection('avatar'),
       this.banners.nextCollection(),
+      this.stickers.nextCollection(),
     ]);
     const times = next.filter((time): time is number => time !== null);
     return times.length ? Math.min(...times) : null;

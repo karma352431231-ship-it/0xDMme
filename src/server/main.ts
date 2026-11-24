@@ -151,6 +151,7 @@ try {
           profiles: database.publicProfiles,
           communities: database.communities,
           media: database.communityMedia,
+          stickers: database.publicProfiles.stickers,
         },
         config.objectDirectory,
       ),

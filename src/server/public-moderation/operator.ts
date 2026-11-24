@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
+import { profileOwnedModeration } from '../../shared/public-moderation/index.ts';
 import type { Database, PublicModerationSubject } from '../database/index.ts';
 import { CommunityMediaFiles } from '../community-media/index.ts';
 import { publicModerationBinding } from './binding.ts';
@@ -27,8 +28,7 @@ export class PublicModerationOperator {
     if (subject.kind === 'post-media')
       preview = await this.mediaPreview(subject);
     else
-      preview = await (subject.kind === 'avatar' ||
-      subject.kind === 'profile-banner'
+      preview = await (profileOwnedModeration(subject.kind)
         ? this.database.publicProfiles.moderationCandidate(subject)
         : this.database.communities.moderationCandidate(subject));
     if (

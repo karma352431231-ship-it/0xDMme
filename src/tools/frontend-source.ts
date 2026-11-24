@@ -114,6 +114,8 @@ const authored = [
   'src/shared/community-views',
   'src/client/communities',
   'src/client/ping',
+  'src/client/stickers',
+  'src/shared/stickers',
   'src/client/upload-progress',
   'src/client/image-crop',
   'src/shared/communities',

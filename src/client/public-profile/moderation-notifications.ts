@@ -37,6 +37,7 @@ export function moderationNotification(
     'profile-banner': t('Your banner was withheld from public view'),
     'community-photo': t('The community photo was withheld from public view'),
     'community-banner': t('The community banner was withheld from public view'),
+    sticker: t('Your public sticker was withheld from public view'),
   };
   return {
     id: `${notice.id}:${notice.status}`,

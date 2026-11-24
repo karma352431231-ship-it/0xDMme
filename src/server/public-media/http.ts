@@ -1,12 +1,26 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import { publicMediaPath } from '../../shared/public-media/index.ts';
+import { publicStickerPath } from '../../shared/stickers/index.ts';
 import type { PublicMediaService } from './service.ts';
 import { reserveOperationMemory } from '../memory-admission/index.ts';
 import { sendPublicMedia } from './body.ts';
 import type { PublicMediaBody } from './body.ts';
 
-function publicRoute(url: string): {
+type ReviewedRoute = ReturnType<typeof reviewedRoute>;
+type MediaRoute = ReviewedRoute | { kind: 'sticker'; target: string };
+/** Stickers have one stable address that rechecks the review on every read. */
+function publicRoute(url: string): MediaRoute {
+  const parts = url.split('/');
+  if (parts.length === 5 && parts[3] === 'sticker') {
+    const target = uuid(parts[4]);
+    if (url !== publicStickerPath(target))
+      throw new AccountError(404, 'Public media unavailable.');
+    return { kind: 'sticker', target };
+  }
+  return reviewedRoute(url);
+}
+function reviewedRoute(url: string): {
   kind:
     | 'avatar'
     | 'profile-banner'
@@ -56,6 +70,17 @@ function requireCanonicalRoute(input: {
     throw new AccountError(404, 'Public media unavailable.');
 }
 
+function routeContent(
+  service: PublicMediaService,
+  route: MediaRoute,
+  signal: AbortSignal,
+): Promise<PublicMediaBody> {
+  if (route.kind === 'sticker') return service.sticker(route.target);
+  if (route.kind === 'post-media')
+    return service.media(route.target, route.review, route.thumbnail, signal);
+  return service.avatar(route.kind, route.target, route.review);
+}
+
 /** Request-owned memory, deadline and file descriptor; no reader outlives cancellation. */
 export function createPublicMediaHandler(service: PublicMediaService) {
   const stopped = new AbortController();
@@ -69,19 +94,16 @@ export function createPublicMediaHandler(service: PublicMediaService) {
       response.setHeader('Allow', 'GET, HEAD');
       throw new AccountError(405, 'Invalid method.');
     }
-    const { kind, target, review, thumbnail } = publicRoute(request.url ?? '');
+    const route = publicRoute(request.url ?? '');
     // Prepared files use bounded hash/stream buffers; avatars still come from SQL.
     const release = reserveOperationMemory(
-      kind === 'post-media' ? 524_288 : 6_524_288,
+      route.kind === 'post-media' ? 524_288 : 6_524_288,
     );
     if (!release) throw new AccountError(503, 'Public media unavailable.');
     let content: PublicMediaBody | undefined;
     try {
       signal.throwIfAborted();
-      content =
-        kind === 'post-media'
-          ? await service.media(target, review, thumbnail, signal)
-          : await service.avatar(kind, target, review);
+      content = await routeContent(service, route, signal);
       if (response.destroyed) return;
       await sendPublicMedia(request, response, content, signal);
     } finally {
