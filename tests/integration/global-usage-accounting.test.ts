@@ -455,6 +455,10 @@ await test('statement global accounting preserves populated history and avoids p
             'profile_ranking_state',
             'view_once_payloads',
             'group_view_once_payloads',
+            'public_stickers',
+            'public_sticker_packs',
+            'public_sticker_pack_items',
+            'public_sticker_pack_adds',
           ].map((name) => ({ name, events: 28 })),
         ].sort((a, b) => a.name.localeCompare(b.name)),
       );

@@ -344,8 +344,13 @@ await test('populated 106→109 migration preserves every prior source row, ledg
   await c.db.migrate();
   const completed = await snapshots(c);
   assert.equal(completed.bytes, beforeGroup.bytes);
+  // Later migrations add their own empty sources (115: public stickers).
   assert.deepEqual(
-    completed.sources.filter((x) => x.name !== 'group_view_once_payloads'),
+    completed.sources.filter(
+      (x) =>
+        x.name !== 'group_view_once_payloads' &&
+        !x.name.startsWith('public_sticker'),
+    ),
     beforeGroup.sources,
   );
   assert.deepEqual(
