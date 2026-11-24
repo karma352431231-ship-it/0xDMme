@@ -89,7 +89,11 @@ export function parseGifPage(value: unknown): GifPage {
   };
 }
 
-/** A KLIPY catalog sticker (24/11/2026); it stays a KLIPY link. */
+/**
+ * A KLIPY GIF offered as a sticker (owner decision 24/11/2026: the same GIF,
+ * whole, not KLIPY's cut-out sticker catalog). It stays a KLIPY link to the
+ * GIF's animated image file; nothing is copied.
+ */
 export interface KlipySticker {
   id: string;
   title: string;
@@ -104,17 +108,20 @@ export interface KlipyStickerPage {
   next: boolean;
 }
 const stickerFiles = 'https://static.klipy.com/ii/';
+function animatedFile(
+  sizes: Record<string, unknown> | null,
+  size: string,
+): MediaFile | null {
+  const found = file(sizes, size, 'webp') ?? file(sizes, size, 'gif');
+  return found?.url.startsWith(stickerFiles) ? found : null;
+}
 function stickerResult(value: unknown): KlipySticker | null {
   const item = record(value);
-  if (!item || item['type'] !== 'sticker') return null;
+  if (!item || item['type'] !== 'gif') return null;
   const sizes = record(item['file']);
-  const preview = file(sizes, 'xs', 'webp') ?? file(sizes, 'sm', 'webp'),
-    full = file(sizes, 'md', 'webp') ?? file(sizes, 'sm', 'webp');
-  if (
-    !preview?.url.startsWith(stickerFiles) ||
-    !full?.url.startsWith(stickerFiles)
-  )
-    return null;
+  const preview = animatedFile(sizes, 'sm'),
+    full = animatedFile(sizes, 'md') ?? preview;
+  if (!preview || !full) return null;
   return {
     id: String(item['id']),
     title: typeof item['title'] === 'string' ? item['title'].slice(0, 120) : '',
@@ -189,19 +196,19 @@ export class GifSearch {
     }
   }
   async page(input: { query: string; page: number }): Promise<GifPage> {
-    return parseGifPage(await this.catalog('gifs', input));
+    return parseGifPage(await this.catalog(input));
   }
-  /** KLIPY's sticker catalog, under the same consent and key as GIFs. */
+  /** KLIPY GIFs as stickers: the GIF catalog, under the same consent and key. */
   async stickerPage(input: {
     query: string;
     page: number;
   }): Promise<KlipyStickerPage> {
-    return parseStickerPage(await this.catalog('stickers', input));
+    return parseStickerPage(await this.catalog(input));
   }
-  private async catalog(
-    kind: 'gifs' | 'stickers',
-    input: { query: string; page: number },
-  ): Promise<unknown> {
+  private async catalog(input: {
+    query: string;
+    page: number;
+  }): Promise<unknown> {
     const active = this.context();
     if (!(await this.consent()))
       throw new Error('Allow external GIFs in Profile to use KLIPY.');
@@ -218,7 +225,7 @@ export class GifSearch {
     });
     if (query) params.set('q', query);
     const response = await fetch(
-      `https://api.klipy.com/api/v1/${key}/${kind}/${query ? 'search' : 'trending'}?${params.toString()}`,
+      `https://api.klipy.com/api/v1/${key}/gifs/${query ? 'search' : 'trending'}?${params.toString()}`,
       {
         credentials: 'omit',
         referrerPolicy: 'no-referrer',

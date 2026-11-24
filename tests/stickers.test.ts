@@ -68,7 +68,7 @@ await test('post text draws at most three distinct stickers and keeps the rest o
   assert.equal(withoutStickerLinks(text, []), text);
 });
 
-await test('KLIPY sticker pages keep only stickers hosted on KLIPY', () => {
+await test('KLIPY stickers are whole KLIPY GIFs hosted on KLIPY', () => {
   const file = (name: string) => ({
     url: `https://static.klipy.com/ii/${name}`,
     width: 90,
@@ -81,21 +81,22 @@ await test('KLIPY sticker pages keep only stickers hosted on KLIPY', () => {
         {
           id: 1,
           title: 'Good night',
-          type: 'sticker',
+          type: 'gif',
           file: {
-            xs: { webp: file('a/x.webp') },
+            sm: { webp: file('a/s.webp'), mp4: file('a/s.mp4') },
             md: { webp: file('a/m.webp') },
           },
         },
-        { id: 2, type: 'gif', file: { xs: { webp: file('b/x.webp') } } },
+        // KLIPY's cut-out sticker catalog is not used (owner, 24/11/2026).
+        { id: 2, type: 'sticker', file: { sm: { webp: file('b/s.webp') } } },
+        { id: 3, type: 'gif', file: { sm: { gif: file('c/s.gif') } } },
         {
-          id: 3,
-          type: 'sticker',
+          id: 4,
+          type: 'gif',
           file: {
-            xs: {
+            sm: {
               webp: { url: 'https://cdn.example/x.webp', width: 1, height: 1 },
             },
-            md: { webp: file('c/m.webp') },
           },
         },
       ],
@@ -104,7 +105,10 @@ await test('KLIPY sticker pages keep only stickers hosted on KLIPY', () => {
   assert.equal(page.next, true);
   assert.deepEqual(
     page.items.map((item) => [item.id, item.path]),
-    [['1', 'a/m.webp']],
+    [
+      ['1', 'a/m.webp'],
+      ['3', 'c/s.gif'],
+    ],
   );
 });
 

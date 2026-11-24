@@ -5,7 +5,8 @@ import { recentStickers } from './recents.ts';
 import type { StickerSection, SectionView } from './pane.ts';
 
 /**
- * KLIPY's sticker catalog (stage 2, 24/11/2026): trending first, search after
+ * KLIPY GIFs as stickers (stage 2, owner decision 24/11/2026: the whole GIF,
+ * not a cut-out sticker): trending first, search after
  * a short pause, more while scrolling. A chosen sticker stays a KLIPY link,
  * so it depends on KLIPY like its GIFs; nothing is copied.
  */
