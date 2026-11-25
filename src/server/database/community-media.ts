@@ -6,10 +6,10 @@ import { AccountError } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import {
   communityMediaLimits,
-  communityMediaSet,
   communityMediaPartBytes,
   communityMediaResult,
 } from '../../shared/community-media/index.ts';
+import { postMediaSet } from '../../shared/post-media/index.ts';
 import type {
   CommunityMediaSource,
   CommunityMediaResult,
@@ -391,7 +391,7 @@ export class CommunityMediaStore {
     if (found.rows.length !== input.ids.length)
       throw new AccountError(400, 'Media not prepared.');
     for (const row of found.rows) requireMediaAttachment(row, c, input.post);
-    communityMediaSet(found.rows.map((r) => r.source));
+    postMediaSet(found.rows.map((r) => r.source));
     const detached = await c.client.query<{ moderation_review: string | null }>(
       "UPDATE hash_talk.community_media SET status='deleting',post_id=NULL WHERE post_id=$1 AND NOT(id=ANY($2::uuid[])) RETURNING moderation_review",
       [input.post, input.ids],

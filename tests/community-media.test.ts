@@ -5,13 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import {
-  communityMediaSet,
   communityMediaSource,
   communityMediaResult,
   communityMediaPartBytes,
 } from '../src/shared/community-media/index.ts';
 import type { CommunityMediaSource } from '../src/shared/community-media/index.ts';
 import { postContent } from '../src/shared/community-posts/index.ts';
+import { postMediaSet } from '../src/shared/post-media/index.ts';
 import {
   CommunityMediaFiles,
   validateMediaSource,
@@ -28,16 +28,16 @@ const source = (
 });
 await test('public media: sets per post/reply, bytes per file and optional caption', () => {
   // Ten photos per post or reply since 25/11/2026; GIFs and video unchanged.
-  communityMediaSet(Array.from({ length: 10 }, () => source('photo')));
-  communityMediaSet(Array.from({ length: 3 }, () => source('gif')));
-  communityMediaSet([source('video')]);
+  postMediaSet(Array.from({ length: 10 }, () => source('photo')));
+  postMediaSet(Array.from({ length: 3 }, () => source('gif')));
+  postMediaSet([source('video')]);
   for (const set of [
     Array.from({ length: 11 }, () => source('photo')),
     [source('photo'), source('gif')],
     Array.from({ length: 4 }, () => source('gif')),
     [source('video'), source('video')],
   ])
-    assert.throws(() => communityMediaSet(set));
+    assert.throws(() => postMediaSet(set));
   for (const [kind, limit] of [
     ['photo', 3_000_000],
     ['gif', 10_000_000],

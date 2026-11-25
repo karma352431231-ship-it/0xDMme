@@ -9589,6 +9589,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Use up to 20 custom badges per community.',
     '每个社区最多使用 20 个自定义徽章。',
   ],
+  'Use up to 4 photos, 3 GIFs or 1 video.': [
+    'Use up to 4 photos, 3 GIFs or 1 video.',
+    '最多使用 4 张图片、3 个 GIF 或 1 个视频。',
+  ],
   'Use up to 10 photos, 3 GIFs or 1 video.': [
     'Use up to 10 photos, 3 GIFs or 1 video.',
     '最多使用 10 张图片、3 个 GIF 或 1 个视频。',

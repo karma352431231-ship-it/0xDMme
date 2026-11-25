@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { AccountError, uuid, object, keys } from '../account/index.ts';
-import {
-  communityMediaMaximum,
-  communityMediaResult,
-  communityMediaKindsSet,
-} from '../community-media/index.ts';
+import { communityMediaResult } from '../community-media/index.ts';
+import { postMediaKindsSet, postMediaMaximum } from '../post-media/index.ts';
 import type { CommunityMediaResult } from '../community-media/index.ts';
 
 export type PublicAvatarKind =
@@ -23,7 +20,7 @@ export interface PublicPostMedia {
   result: CommunityMediaResult;
 }
 export function publicPostMedia(value: unknown): PublicPostMedia[] {
-  if (!Array.isArray(value) || value.length > communityMediaMaximum)
+  if (!Array.isArray(value) || value.length > postMediaMaximum)
     throw new AccountError(400, 'Invalid public media.');
   const result = value.map((item: unknown) => {
     const data = object(item);
@@ -36,7 +33,7 @@ export function publicPostMedia(value: unknown): PublicPostMedia[] {
   });
   if (new Set(result.map((item) => item.id)).size !== result.length)
     throw new AccountError(400, 'Duplicate public media.');
-  communityMediaKindsSet(result.map((item) => item.result.kind));
+  postMediaKindsSet(result.map((item) => item.result.kind));
   return result;
 }
 export function publicPostMediaPath(

@@ -11,9 +11,9 @@ import { bytesHash } from '../../shared/vault/index.ts';
 import {
   communityMediaLimits,
   communityMediaPartBytes,
-  communityMediaSet,
   communityMediaState,
 } from '../../shared/community-media/index.ts';
+import { postMediaSet } from '../../shared/post-media/index.ts';
 import type {
   CommunityMediaKind,
   CommunityMediaSource,
@@ -61,7 +61,7 @@ export function selectedMediaKind(file: File): CommunityMediaKind {
   return 'photo';
 }
 export function validateMediaSelection(files: File[]): void {
-  communityMediaSet(
+  postMediaSet(
     files.map((file) => ({
       id: '',
       hash: '',

@@ -9,7 +9,7 @@ import {
   communityText,
   communityMentionText,
 } from '../communities/index.ts';
-import { communityMediaIds } from '../community-media/index.ts';
+import { postMediaIds } from '../post-media/index.ts';
 import { publicHandle, publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 import { publicPostMedia } from '../public-media/index.ts';
@@ -112,9 +112,7 @@ export function postContent(value: unknown): PostContent {
     'tags',
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
   ]);
-  const media = Object.hasOwn(data, 'media')
-    ? communityMediaIds(data['media'])
-    : [];
+  const media = Object.hasOwn(data, 'media') ? postMediaIds(data['media']) : [];
   // Titles may span lines (owner, 25/10/2026): a title-only post reads like text.
   const title = communityMentionText(data['title'], 200, true);
   return {
