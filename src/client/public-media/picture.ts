@@ -1,7 +1,11 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
-import { openImageViewer, pinchOpensViewer } from '../image-viewer/index.ts';
-import type { ZoomGesture } from '../image-viewer/index.ts';
+import {
+  openImageGallery,
+  openImageViewer,
+  pinchOpensViewer,
+} from '../image-viewer/index.ts';
+import type { GalleryItem, ZoomGesture } from '../image-viewer/index.ts';
 import { retainedMedia } from '../media-retention/index.ts';
 import type { RetainedMedia } from '../media-retention/index.ts';
 
@@ -12,6 +16,10 @@ export function mountPublicPicture(
   options: {
     signal: AbortSignal;
     load: (signal: AbortSignal) => Promise<Blob>;
+    /** The post's pictures: a tap opens them as one swipeable gallery. */
+    gallery?: { items: readonly GalleryItem[]; index: number } | undefined;
+    /** Told when this picture's loaded copy appears or goes away. */
+    shown?: ((url: string | null) => void) | undefined;
   },
 ): () => void {
   slot.classList.add('community-public-picture');
@@ -61,6 +69,7 @@ export function mountPublicPicture(
     image.removeAttribute('src');
     if (url) URL.revokeObjectURL(url);
     url = null;
+    options.shown?.(null);
   }
   function canLoad(): boolean {
     return !stopped && visible && !pending && !url;
@@ -81,6 +90,7 @@ export function mountPublicPicture(
       url = URL.createObjectURL(blob);
       image.src = url;
       image.hidden = false;
+      options.shown?.(url);
       caption.textContent = '';
       retained = retainedMedia.keep({
         bytes: blob.size,
@@ -112,7 +122,19 @@ export function mountPublicPicture(
       caption.textContent = t('Could not open the enlarged image.');
     }
   }
-  button.addEventListener('click', () => enlarge());
+  button.addEventListener('click', () => {
+    const gallery = options.gallery;
+    if (!gallery || gallery.items.length < 2 || stopped) {
+      enlarge();
+      return;
+    }
+    openImageGallery({
+      items: gallery.items,
+      start: gallery.index,
+      trigger: button,
+      signal: options.signal,
+    });
+  });
   pinchOpensViewer(
     button,
     () => {

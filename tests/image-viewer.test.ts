@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { openImageViewer } from '../src/client/image-viewer/index.ts';
 import { settledZoom, zoomedFrom } from '../src/client/image-viewer/zoom.ts';
+import { bindSwipe } from '../src/client/image-viewer/swipe.ts';
 
 class FakeElement {
   readonly children: FakeElement[] = [];
@@ -183,3 +184,48 @@ for (const where of ['frame', 'dialog', 'close'] as const)
     f[where].click();
     assert.equal(f.open(), false);
   });
+
+await test('a sideways swipe on a fitted image moves one item; short, zoomed or two-finger drags do not', () => {
+  const frame = new FakeElement('div'),
+    image = new FakeElement('img');
+  const moved: string[] = [];
+  let zoomed = false;
+  const swipe = bindSwipe(
+    frame as unknown as HTMLElement,
+    image as unknown as HTMLElement,
+    {
+      previous: () => moved.push('previous'),
+      next: () => moved.push('next'),
+      zoomed: () => zoomed,
+    },
+  );
+  const send = (type: string, id: number, x: number, y = 0) => {
+    for (const listener of frame.listeners.get(type) ?? [])
+      listener({ pointerId: id, clientX: x, clientY: y });
+  };
+  const drag = (from: number, to: number, y = 0) => {
+    send('pointerdown', 1, from);
+    send('pointermove', 1, to, y);
+    send('pointerup', 1, to, y);
+  };
+  drag(300, 200);
+  assert.deepEqual(moved, ['next']);
+  // The trailing click of the swipe is not a tap on the image.
+  assert.equal(swipe.takeSwiped(), true);
+  assert.equal(swipe.takeSwiped(), false);
+  drag(100, 200);
+  assert.deepEqual(moved, ['next', 'previous']);
+  drag(100, 130);
+  drag(100, 20, 200);
+  assert.deepEqual(moved, ['next', 'previous'], 'short or mostly vertical');
+  zoomed = true;
+  drag(300, 100);
+  zoomed = false;
+  send('pointerdown', 1, 300);
+  send('pointerdown', 2, 320);
+  send('pointermove', 1, 100);
+  send('pointerup', 1, 100);
+  send('pointerup', 2, 320);
+  assert.deepEqual(moved, ['next', 'previous'], 'zoomed or pinching');
+  assert.equal(image.style['translate'], '');
+});

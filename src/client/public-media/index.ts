@@ -16,6 +16,7 @@ import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { withPublicRead } from './reads.ts';
 import { mountInlineVideo } from '../inline-video/index.ts';
 import { mountPublicPicture } from './picture.ts';
+import type { GalleryItem } from '../image-viewer/index.ts';
 
 function blobEnvelope(
   response: Response,
@@ -114,6 +115,7 @@ export function showPublicPostMedia(
     signal.removeEventListener('abort', cleanup);
   };
   signal.addEventListener('abort', cleanup, { once: true });
+  const gallery = postGallery(lifetime);
   for (const item of checked) {
     if (item.result.kind === 'video') {
       const slot = document.createElement('figure');
@@ -135,14 +137,61 @@ export function showPublicPostMedia(
     }
     const slot = document.createElement('figure');
     field.append(slot);
+    const index = gallery.items.length;
+    gallery.items.push(gallery.item(item, index));
     mediaCleanup.push(
       mountPublicPicture(slot, item, {
         signal: lifetime,
         load: (signal) => publicPostMediaBlob(item, false, signal),
+        gallery: { items: gallery.items, index },
+        shown: (url) => gallery.shown(index, url),
       }),
     );
   }
   return cleanup;
+}
+/**
+ * The pictures of one post as gallery items (owner, 25/11/2026: swipe
+ * between them). A picture already on screen is reused; any other is read
+ * when reached and kept until the post's media go away.
+ */
+function postGallery(lifetime: AbortSignal): {
+  items: GalleryItem[];
+  item: (media: PublicPostMedia, index: number) => GalleryItem;
+  shown: (index: number, url: string | null) => void;
+} {
+  const onScreen = new Map<number, string>(),
+    read = new Map<number, Promise<string>>();
+  return {
+    items: [],
+    shown: (index, url) => {
+      if (url) onScreen.set(index, url);
+      else onScreen.delete(index);
+    },
+    item: (media, index) => ({
+      alt:
+        media.result.kind === 'gif'
+          ? t('Approved public GIF')
+          : t('Approved public photo'),
+      load: () => {
+        const visible = onScreen.get(index);
+        if (visible) return Promise.resolve({ url: visible });
+        let copy = read.get(index);
+        if (!copy) {
+          copy = publicPostMediaBlob(media, false, lifetime).then((blob) => {
+            const url = URL.createObjectURL(blob);
+            lifetime.addEventListener('abort', () => URL.revokeObjectURL(url), {
+              once: true,
+            });
+            return url;
+          });
+          read.set(index, copy);
+          copy.catch(() => read.delete(index));
+        }
+        return copy.then((url) => ({ url }));
+      },
+    }),
+  };
 }
 export async function publicAvatarBlob(input: {
   kind: PublicAvatarKind;

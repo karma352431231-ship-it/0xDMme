@@ -1,9 +1,12 @@
 import { t } from '../../shared/i18n/index.ts';
 import { ZoomSurface } from './zoom.ts';
 import type { ZoomGesture, ZoomPoint } from './zoom.ts';
+import { bindSwipe } from './swipe.ts';
 
 export type { ZoomGesture } from './zoom.ts';
 export { pinchOpensViewer } from './pinch-open.ts';
+export { bindSwipe } from './swipe.ts';
+export type { SwipeSteps } from './swipe.ts';
 
 const svgNs = 'http://www.w3.org/2000/svg';
 function closeIcon(): SVGSVGElement {
@@ -35,6 +38,47 @@ function trackPointers(frame: HTMLElement, surface: ZoomSurface): void {
       down.delete(event.pointerId);
       publish();
     });
+}
+
+/**
+ * Pinch, drag and tap-to-zoom for an image inside its frame; the dialog gets
+ * the "zoomed" class while enlarged. Shared by the public viewer and the
+ * chat's image viewer (owner, 25/11/2026: chat pictures could not be zoomed).
+ */
+export interface ZoomableImage {
+  /** A click on the image: zooms in at its point, or back to fit. */
+  tap: (event: Event) => void;
+  /** True once after a pinch or drag, so its trailing click is ignored. */
+  takeMoved: () => boolean;
+  zoomed: () => boolean;
+}
+export function zoomableImage(input: {
+  dialog: HTMLElement;
+  frame: HTMLElement;
+  image: HTMLElement;
+}): ZoomableImage & { surface: ZoomSurface } {
+  const surface = new ZoomSurface({
+    frame: input.frame,
+    image: input.image,
+    zoomed: (on) => input.dialog.classList.toggle('zoomed', on),
+  });
+  trackPointers(input.frame, surface);
+  return {
+    surface,
+    tap: (event) => {
+      event.stopPropagation();
+      if (surface.takeMoved()) return;
+      // A keyboard or scripted click has no position: zoom around the center.
+      const pointer = event as MouseEvent;
+      const at =
+        pointer.detail > 0
+          ? { x: pointer.clientX, y: pointer.clientY }
+          : undefined;
+      surface.toggle(at);
+    },
+    takeMoved: () => surface.takeMoved(),
+    zoomed: () => input.dialog.classList.contains('zoomed'),
+  };
 }
 
 /**
@@ -88,7 +132,10 @@ function stepButton(
   return button;
 }
 /** Arrows, arrow keys and a position line for a gallery view. */
-function stepControls(dialog: HTMLElement, step: ViewerStep): HTMLElement[] {
+export function viewerStepControls(
+  dialog: HTMLElement,
+  step: ViewerStep,
+): HTMLElement[] {
   const position = document.createElement('span');
   position.className = 'public-image-position';
   position.textContent = step.position;
@@ -208,23 +255,19 @@ export function openImageViewer(input: {
   close.className = 'public-image-close';
   close.setAttribute('aria-label', t('Close'));
   close.append(closeIcon());
-  const surface = new ZoomSurface({
-    frame,
-    image,
-    zoomed: (on) => dialog.classList.toggle('zoomed', on),
+  const zoom = zoomableImage({ dialog, frame, image });
+  input.gesture?.(zoom.surface);
+  const swipe = bindSwipe(frame, image, {
+    previous: input.step?.previous,
+    next: input.step?.next,
+    zoomed: zoom.zoomed,
   });
-  trackPointers(frame, surface);
-  input.gesture?.(surface);
   const toggle = (event: Event): void => {
-    event.stopPropagation();
-    if (surface.takeMoved()) return;
-    // A keyboard or scripted click has no position: zoom around the center.
-    const pointer = event as MouseEvent;
-    const at =
-      pointer.detail > 0
-        ? { x: pointer.clientX, y: pointer.clientY }
-        : undefined;
-    surface.toggle(at);
+    if (swipe.takeSwiped()) {
+      event.stopPropagation();
+      return;
+    }
+    zoom.tap(event);
   };
   const stop = (): void => {
     input.signal.removeEventListener('abort', stop);
@@ -238,7 +281,8 @@ export function openImageViewer(input: {
   dialog.addEventListener('cancel', stop);
   // Any tap outside the image itself closes, including around a zoomed one.
   dialog.addEventListener('click', (event) => {
-    if (!surface.takeMoved() && event.target !== image) stop();
+    if (zoom.takeMoved() || swipe.takeSwiped()) return;
+    if (event.target !== image) stop();
   });
   input.signal.addEventListener('abort', stop, { once: true });
   frame.append(image);
@@ -248,7 +292,7 @@ export function openImageViewer(input: {
     frame,
     close,
     ...(action ? [action] : []),
-    ...(input.step ? stepControls(dialog, input.step) : []),
+    ...(input.step ? viewerStepControls(dialog, input.step) : []),
   );
   document.body.append(dialog);
   try {

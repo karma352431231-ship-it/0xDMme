@@ -1006,12 +1006,33 @@
   background: var(--media-backdrop);
   opacity: 0.92;
 }
-.media-viewer img {
+/* Fingers zoom, move and swipe the picture here (25/11/2026); the page
+   behind must not react. */
+.media-viewer-frame {
+  display: grid;
+  place-items: center;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.media-viewer-frame img {
   max-width: min(100%, 1400px);
   max-height: calc(var(--viewport-height, 100dvh) - 120px);
   object-fit: contain;
   border-radius: 10px;
-  cursor: zoom-out;
+  cursor: zoom-in;
+  transition:
+    transform 0.16s ease-out,
+    translate 0.16s ease-out;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.media-viewer.zoomed .media-viewer-frame img {
+  border-radius: 0;
+  cursor: grab;
 }
 .media-viewer-bar {
   display: flex;

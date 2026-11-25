@@ -11,9 +11,6 @@
   border-radius: 0.4rem;
   overflow-wrap: anywhere;
 }
-.post-preview-toggle {
-  margin-block: 0.3rem;
-}
 .community-presentation-editor {
   display: grid;
   gap: 0.8rem;

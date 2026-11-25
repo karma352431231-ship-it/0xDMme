@@ -74,6 +74,10 @@ class MediaNode {
   contains(): boolean {
     return false;
   }
+  /** The bubble is not inside a chat panel here, so there are no siblings. */
+  closest(): MediaNode | null {
+    return null;
+  }
   querySelector(selector: string): MediaNode | null {
     for (const child of this.children) {
       if (child.tag === selector) return child;

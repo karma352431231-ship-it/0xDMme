@@ -223,3 +223,23 @@
   font-size: var(--fs-caption);
   color: var(--text-muted);
 }
+/* "View all" / "View less" under a long post: a quiet text link, not a boxed
+   button (owner, 25/11/2026). Outranks the shared #app-shell button look. */
+:is(#app-shell, .community-scope) button.post-preview-toggle {
+  display: inline-block;
+  width: auto;
+  min-height: 0;
+  margin: 2px 0 6px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent-text);
+  font: 600 var(--fs-body) / 1.4 var(--font-body);
+  cursor: pointer;
+}
+:is(#app-shell, .community-scope) button.post-preview-toggle:hover {
+  background: transparent;
+  text-decoration: underline;
+}

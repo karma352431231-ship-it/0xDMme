@@ -1,15 +1,11 @@
-import {
-  canMakeStickers,
-  makeSticker,
-  stickerAttachment,
-} from '../stickers/index.ts';
-import { showToast } from '../toast/index.ts';
+import { stickerAttachment } from '../stickers/index.ts';
+import { openChatImage } from './chat-image-viewer.ts';
 import {
   captureMediaPreview,
   previewByteLimit,
 } from '../media-preview/index.ts';
 import type { MediaPreviews } from '../media-preview/index.ts';
-import { t, translatedError } from '../../shared/i18n/index.ts';
+import { t } from '../../shared/i18n/index.ts';
 import {
   attachmentContent,
   attachmentVideoType,
@@ -147,78 +143,16 @@ function showImage(
   open.append(image);
   open.addEventListener('click', () => {
     if (!input.original) {
-      openImageViewer(url, input);
+      openChatImage(url, { ...input, trigger: open });
       return;
     }
     void input.run?.(async () => {
       const original = await input.original!();
-      if (input.current?.()) openImageViewer(original, input);
+      if (input.current?.())
+        openChatImage(original, { ...input, trigger: open });
     });
   });
   preview.replaceChildren(open);
-}
-/** Full-size view of a decrypted image; the Blob URL stays owned by the chat. */
-function stickerButton(
-  url: string,
-  sticker: boolean,
-  viewer: HTMLDialogElement,
-): HTMLButtonElement | null {
-  if (!canMakeStickers()) return null;
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = sticker ? t('Save sticker') : t('Make sticker');
-  button.addEventListener('click', () => {
-    viewer.close();
-    // A received sticker is saved as it is; any other picture is framed first.
-    void fetch(url)
-      .then((response) => response.blob())
-      .then((picture) => makeSticker(picture, !sticker))
-      .catch((error: unknown) => {
-        showToast(
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Could not save the sticker.'),
-        );
-      });
-  });
-  return button;
-}
-function openImageViewer(
-  url: string,
-  input: { name: string; sticker?: boolean | undefined },
-): void {
-  const viewer = document.createElement('dialog');
-  viewer.className = 'media-viewer';
-  viewer.setAttribute('aria-label', input.name);
-  const image = document.createElement('img');
-  image.src = url;
-  image.alt = input.name;
-  const bar = document.createElement('div');
-  bar.className = 'media-viewer-bar';
-  const save = document.createElement('a');
-  save.href = url;
-  save.download = input.name;
-  save.textContent = t('Save on device');
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.textContent = t('Close');
-  close.addEventListener('click', () => {
-    viewer.close();
-  });
-  // The viewer shows only the image and its controls (owner, 12/11/2026);
-  // stickers added "Make sticker" (24/11/2026).
-  const sticker = stickerButton(url, input.sticker === true, viewer);
-  bar.append(save, ...(sticker ? [sticker] : []), close);
-  viewer.append(image, bar);
-  // A click on the backdrop or the image closes; the bar keeps its controls.
-  viewer.addEventListener('click', (event) => {
-    if (!bar.contains(event.target as Node)) viewer.close();
-  });
-  viewer.addEventListener('close', () => {
-    viewer.remove();
-  });
-  document.body.append(viewer);
-  viewer.showModal();
 }
 function saveLink(name: string): HTMLAnchorElement {
   const save = document.createElement('a');
