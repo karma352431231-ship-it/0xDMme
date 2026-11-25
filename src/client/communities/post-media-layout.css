@@ -44,8 +44,10 @@
 
 /*
  * Several pictures of a post (up to 10 since 25/11/2026) slide sideways in
- * one row of equal height instead of the 2×2 grid; each keeps its whole
- * picture. Replies use the tile grid of post-media-tiles.css instead.
+ * one row instead of the 2×2 grid. Every card has the same 4:5 size and the
+ * picture fills it (owner chose the uniform strip, 25/11/2026); the next
+ * card peeks in, and the viewer shows each whole picture. Replies use the
+ * tile grid of post-media-tiles.css instead.
  */
 :is(#app-shell, .community-scope)
   :is(
@@ -72,8 +74,30 @@
   > figure {
   --picture-height: var(--strip-height);
   flex: none;
-  width: min(85%, calc(var(--strip-height) * var(--picture-ratio, 1)));
+  width: min(80%, calc(var(--strip-height) * 0.8));
   scroll-snap-align: start;
+}
+:is(#app-shell, .community-scope)
+  :is(
+    .community-post:not(.community-post-is-reply, .community-reply),
+    .replied-post-card
+  )
+  > .community-public-media:has(> figure + figure)
+  > figure
+  :is(.public-picture-open, .community-media-preview) {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+}
+:is(#app-shell, .community-scope)
+  :is(
+    .community-post:not(.community-post-is-reply, .community-reply),
+    .replied-post-card
+  )
+  > .community-public-media:has(> figure + figure)
+  > figure
+  .community-media-preview {
+  height: 100%;
+  object-fit: cover;
 }
 @media (max-width: 700px) {
   :is(#app-shell, .community-scope)
