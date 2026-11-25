@@ -13,7 +13,10 @@ import {
   communityMediaPartBytes,
   communityMediaState,
 } from '../../shared/community-media/index.ts';
-import { postMediaSet } from '../../shared/post-media/index.ts';
+import {
+  postMediaLimits,
+  postMediaSet,
+} from '../../shared/post-media/index.ts';
 import type {
   CommunityMediaKind,
   CommunityMediaSource,
@@ -59,6 +62,35 @@ export function selectedMediaKind(file: File): CommunityMediaKind {
   if (file.type.startsWith('video/') || /\.(mp4|mov|webm)$/iu.test(file.name))
     return 'video';
   return 'photo';
+}
+/**
+ * Adds newly picked files to a draft without refusing the whole pick (owner,
+ * 25/11/2026: a video among photos emptied the selection). The draft keeps
+ * one kind: the kind already chosen, otherwise photos when any were picked,
+ * otherwise the first file's kind. Files of another kind and files past that
+ * kind's limit are left out, and `left` says why.
+ */
+export function fitMediaSelection(
+  chosen: readonly File[],
+  picked: readonly File[],
+): { files: File[]; left: 'mixed' | 'limit' | null } {
+  const all = [...chosen, ...picked];
+  if (!all.length) return { files: [], left: null };
+  const kinds = all.map(selectedMediaKind);
+  const kind = chosen.length
+    ? kinds[0]!
+    : kinds.includes('photo')
+      ? 'photo'
+      : kinds[0]!;
+  const same = all.filter((_, index) => kinds[index] === kind);
+  const files = same.slice(0, postMediaLimits[kind]);
+  const left =
+    same.length < all.length
+      ? 'mixed'
+      : files.length < same.length
+        ? 'limit'
+        : null;
+  return { files, left };
 }
 export function validateMediaSelection(files: File[]): void {
   postMediaSet(
@@ -296,13 +328,23 @@ export function mediaEditor(
   };
   access.signal.addEventListener('abort', () => release(), { once: true });
   input.addEventListener('change', () => {
-    const next = [...chosen, ...Array.from(input.files ?? [])];
+    const fitted = fitMediaSelection(chosen, Array.from(input.files ?? []));
     input.value = '';
     status.textContent = '';
     try {
-      validateMediaSelection(next);
-      chosen = next;
+      validateMediaSelection(fitted.files);
+      chosen = fitted.files;
       show();
+      if (fitted.left === 'mixed')
+        showToast(
+          t(
+            'Some files were left out: a post takes photos, GIFs or 1 video, without mixing.',
+          ),
+        );
+      else if (fitted.left === 'limit')
+        showToast(
+          t('Some files were left out: up to 10 photos, 3 GIFs or 1 video.'),
+        );
     } catch (error: unknown) {
       showToast(
         error instanceof Error

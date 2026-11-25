@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   uploadCommunityMedia,
+  fitMediaSelection,
   validateMediaSelection,
 } from '../src/client/community-media/index.ts';
 import { communityMediaPartBytes } from '../src/shared/community-media/index.ts';
@@ -88,4 +89,33 @@ await test('context change during preparation interrupts the next upload', async
     ),
     /Session or community changed/u,
   );
+});
+
+await test('a pick that mixes kinds keeps the photos and says what was left out', () => {
+  const photo = (name: string) =>
+      new File([new Uint8Array(4)], name, { type: 'image/png' }),
+    video = new File([new Uint8Array(4)], 'clip.mov', {
+      type: 'video/quicktime',
+    }),
+    gif = new File([new Uint8Array(4)], 'loop.gif', { type: 'image/gif' });
+  const six = Array.from({ length: 6 }, (_, i) => photo(`p${i}.png`));
+  // The owner's case: six screenshots and one screen recording.
+  const mixed = fitMediaSelection([], [...six.slice(0, 5), video, six[5]!]);
+  assert.deepEqual(mixed.files, six);
+  assert.equal(mixed.left, 'mixed');
+  assert.deepEqual(fitMediaSelection([], six), { files: six, left: null });
+  // An existing draft keeps its kind; more than ten photos stop at ten.
+  assert.deepEqual(fitMediaSelection([video], [photo('x.png')]), {
+    files: [video],
+    left: 'mixed',
+  });
+  const twelve = Array.from({ length: 12 }, (_, i) => photo(`q${i}.png`));
+  const capped = fitMediaSelection([], twelve);
+  assert.equal(capped.files.length, 10);
+  assert.equal(capped.left, 'limit');
+  // Without photos the first kind leads.
+  assert.deepEqual(fitMediaSelection([], [gif, video]), {
+    files: [gif],
+    left: 'mixed',
+  });
 });

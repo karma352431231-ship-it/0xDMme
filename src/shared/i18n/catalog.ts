@@ -9605,6 +9605,15 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Use photos, GIFs or voice in this DM.',
     '此私信请使用图片、GIF 或语音。',
   ],
+  'Some files were left out: a post takes photos, GIFs or 1 video, without mixing.':
+    [
+      'Some files were left out: a post takes photos, GIFs or 1 video, without mixing.',
+      '部分文件未加入：一条帖子只能包含图片、GIF 或 1 个视频，不能混合。',
+    ],
+  'Some files were left out: up to 10 photos, 3 GIFs or 1 video.': [
+    'Some files were left out: up to 10 photos, 3 GIFs or 1 video.',
+    '部分文件未加入：最多 10 张图片、3 个 GIF 或 1 个视频。',
+  ],
   'Use photos, GIFs or one video, without mixing.': [
     'Use photos, GIFs or one video, without mixing.',
     '请使用图片、GIF 或一个视频，不要混合使用。',
