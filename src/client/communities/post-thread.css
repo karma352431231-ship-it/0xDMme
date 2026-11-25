@@ -129,6 +129,17 @@
   align-self: start;
   /* The 32px button overlaps the row instead of making it taller. */
   margin: -4px -6px -12px 0;
+  /* The header box is gone (display: contents), so the button anchors the
+     panel; otherwise it opened under the whole reply (owner, 25/11/2026). */
+  position: relative;
+}
+#app-shell
+  .post-thread
+  .community-reply
+  > .community-post-header
+  > .post-more
+  > .post-more-content {
+  width: min(340px, calc(100vw - 32px));
 }
 #app-shell
   .post-thread

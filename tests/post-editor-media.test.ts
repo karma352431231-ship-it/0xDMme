@@ -140,7 +140,7 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     text.value = 'Legenda';
     label.append(text);
     container.append(label);
-    const getMedia = postEditorMedia({
+    const editor = postEditorMedia({
       container: container as unknown as HTMLElement,
       text: text as unknown as HTMLTextAreaElement,
       ids: [],
@@ -168,7 +168,10 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     assert.equal(reads, 1);
     const tile = opened.at(-1)!.host.querySelector('.gif-tile')!;
     tile.click();
-    assert.equal(text.value, `Legenda\n${url}`);
+    // The text field keeps the words; the link is attached apart and only
+    // returns, on its own line, in the published text.
+    assert.equal(text.value, 'Legenda');
+    assert.equal(editor.text(), `Legenda\n${url}`);
     assert.equal(opened.at(-1)!.closed, true);
     assert.equal(published, 0);
     assert.equal(
@@ -177,9 +180,6 @@ await test('selecting a GIF in post or reply changes only the draft without publ
         .querySelectorAll('.media-picker-tile').length,
       1,
     );
-    // Keep the URL on its own line when inserting an emoji at the end.
-    text.value += '\n';
-    text.dispatchEvent(new Event('input', { bubbles: true }));
     // One panel at a time: the next opens once this one has closed.
     await new Promise<void>((resolve) => setImmediate(resolve));
     // The emoji button opens the same panel on the emoji tab, GIF tab included.
@@ -195,10 +195,10 @@ await test('selecting a GIF in post or reply changes only the draft without publ
     preview.querySelector('.media-picker-remove')!.click();
     assert.ok(text.value.includes('Legenda'));
     assert.ok(text.value.includes('🙂'));
-    assert.ok(!text.value.includes(url));
+    assert.ok(!editor.text().includes(url));
     assert.equal(preview.querySelectorAll('.media-picker-tile').length, 0);
     assert.equal(published, 0);
-    assert.deepEqual(await getMedia(), []);
+    assert.deepEqual(await editor.media(), []);
     assert.equal(published, 0);
   } finally {
     abort.abort();

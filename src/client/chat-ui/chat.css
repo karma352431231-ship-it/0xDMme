@@ -681,6 +681,15 @@
 .chat-panel .compose-attachment-menu[hidden] {
   display: none;
 }
+/* Five choices are wider than the space left of the clip, so the menu hangs
+   from the whole message row instead of the clip (owner, 25/11/2026: Emoji
+   ended up hidden past the chat's left edge). */
+.chat-panel .compose-row {
+  position: relative;
+}
+.chat-panel .compose-row .compose-attachment {
+  position: static;
+}
 /* Installed apps: the clip leads the row, so its menu opens from the left. */
 .chat-panel .compose-row > .compose-attachment .compose-attachment-menu {
   inset-inline-start: 0;

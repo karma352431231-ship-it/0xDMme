@@ -130,3 +130,8 @@
   figure.inline-video {
   --shorts-height: min(392px, 55vh);
 }
+/* The community shows GIFs only as pictures (owner, 25/11/2026): before
+   consent the square keeps its "Show GIF" button, never the link. */
+.community-external-gif .external-gif > .external-gif-link {
+  display: none;
+}

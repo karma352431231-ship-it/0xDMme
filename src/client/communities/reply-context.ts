@@ -101,9 +101,7 @@ function quotedContent(
   if (!parent.parent && parent.title)
     quoted.append(postTitle('h3', parent.title));
   if (parent.text)
-    quoted.append(
-      postPreview(parent.text, privacy ? gifUrls(parent.text) : []),
-    );
+    quoted.append(postPreview(parent.text, gifUrls(parent.text)));
   if (privacy) showPostExternalMedia(quoted, parent.text, { privacy, signal });
   if (parent.media?.length) showPublicPostMedia(quoted, parent.media, signal);
   const open = anchor(t('View full post'), postHref(parent));

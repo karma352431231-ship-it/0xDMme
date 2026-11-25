@@ -2,11 +2,10 @@ import {
   stickerReferences,
   withoutStickerLinks,
 } from '../../shared/stickers/index.ts';
-import type { StickerReference } from '../../shared/stickers/index.ts';
 import { appendStickers, stickerDisplay } from '../stickers/index.ts';
 import type { ReplyPreview } from '../../shared/community-posts/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { gifUrls, showGifText } from '../gif-search/index.ts';
+import { gifUrls, showGifText, withoutGifLinks } from '../gif-search/index.ts';
 import { publicationQuote } from './publications.ts';
 
 /** Owns media in the inbox preview; clearing/navigation cancels every provider resource. */
@@ -30,49 +29,40 @@ export class PublicationPreview {
     const text = publicationQuote(preview, kind);
     return preview?.status === 'visible' ? this.text(text) : text;
   }
+  /**
+   * Words, then the GIFs and stickers as pictures: the community never shows
+   * their links (owner, 25/11/2026).
+   */
   text(text: string): HTMLElement {
-    const stickers = stickerReferences(text);
-    if (stickers.length) return this.stickers(text, stickers);
-    if (!this.privacy || !gifUrls(text).length) {
-      const paragraph = document.createElement('p');
-      paragraph.className = 'activity-quote';
-      paragraph.textContent = text;
-      return paragraph;
-    }
+    const stickers = stickerReferences(text),
+      gifs = gifUrls(text);
+    if (!stickers.length && !gifs.length) return quoteParagraph(text);
     const host = document.createElement('div');
     host.className = 'activity-quote activity-quote-media';
-    showGifText(host, text, {
-      privacy: this.privacy,
-      signal: this.pending.signal,
-      renderText: (node, body) => {
-        if (!body) return;
-        const paragraph = document.createElement('p');
-        paragraph.className = 'activity-quote';
-        paragraph.textContent = body;
-        node.append(paragraph);
-      },
-    });
+    const words = withoutStickerLinks(text, stickers);
+    const renderText = (node: HTMLElement, body: string) => {
+      if (body) node.append(quoteParagraph(body));
+    };
+    if (this.privacy)
+      showGifText(host, words, {
+        privacy: this.privacy,
+        signal: this.pending.signal,
+        renderText,
+      });
+    else renderText(host, withoutGifLinks(words, gifs));
+    if (stickers.length)
+      appendStickers(
+        host,
+        stickers,
+        stickerDisplay(this.privacy, this.pending.signal),
+      );
     return host;
   }
-  /** A quoted sticker reply shows its stickers under any text. */
-  private stickers(
-    text: string,
-    stickers: readonly StickerReference[],
-  ): HTMLElement {
-    const host = document.createElement('div');
-    host.className = 'activity-quote activity-quote-media';
-    const body = withoutStickerLinks(text, stickers);
-    if (body) {
-      const paragraph = document.createElement('p');
-      paragraph.className = 'activity-quote';
-      paragraph.textContent = body;
-      host.append(paragraph);
-    }
-    appendStickers(
-      host,
-      stickers,
-      stickerDisplay(this.privacy, this.pending.signal),
-    );
-    return host;
-  }
+}
+
+function quoteParagraph(text: string): HTMLElement {
+  const paragraph = document.createElement('p');
+  paragraph.className = 'activity-quote';
+  paragraph.textContent = text;
+  return paragraph;
 }

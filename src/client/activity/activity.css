@@ -39,3 +39,7 @@
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
 }
+/* Quoted community GIFs show as pictures only, never as links (25/11/2026). */
+.activity-quote-media .external-gif > .external-gif-link {
+  display: none;
+}

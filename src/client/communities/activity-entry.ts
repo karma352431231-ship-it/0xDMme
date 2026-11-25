@@ -63,7 +63,7 @@ export function renderActivityEntry(
       signal,
     });
   appendReplyContext(row, entry, signal, privacy);
-  row.append(postPreview(post.text, privacy ? gifUrls(post.text) : []));
+  row.append(postPreview(post.text, gifUrls(post.text)));
   if (privacy) showPostExternalMedia(row, post.text, { privacy, signal });
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);

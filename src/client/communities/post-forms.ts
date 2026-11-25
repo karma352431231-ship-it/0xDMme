@@ -187,7 +187,7 @@ export function postForm(
   title.required = true;
   if (title instanceof HTMLTextAreaElement) growWithLines(title, access.signal);
   mountMentionInput(title, access.signal);
-  const media = postEditorMedia({
+  const editor = postEditorMedia({
     container,
     text,
     ids: value.media ?? [],
@@ -205,9 +205,9 @@ export function postForm(
     }
     return {
       title: mentionValue(title),
-      text: mentionValue(text),
+      text: editor.text(),
       tags: chosen,
-      media: await media(),
+      media: await editor.media(),
     };
   };
 }
@@ -221,7 +221,7 @@ export function replyForm(
     maximum: 4000,
     multiline: true,
   });
-  const media = postEditorMedia({
+  const editor = postEditorMedia({
     container,
     text,
     ids: value.media ?? [],
@@ -229,9 +229,9 @@ export function replyForm(
   });
   return async () => ({
     title: '',
-    text: mentionValue(text),
+    text: editor.text(),
     tags: [],
-    media: await media(),
+    media: await editor.media(),
   });
 }
 
