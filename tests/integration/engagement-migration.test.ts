@@ -154,7 +154,7 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
   assert.match(
     String(
       (
-        await client.query(
+        await client.query<{ rule: string }>(
           "SELECT pg_get_constraintdef(oid) AS rule FROM pg_constraint WHERE conrelid='hash_talk.community_posts'::regclass AND conname='community_post_content'",
         )
       ).rows[0]?.rule,
