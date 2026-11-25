@@ -3,6 +3,7 @@ import type { SocialMedia } from '../../shared/social-media/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import {
   bindChatComposer,
+  bindEmojiMenu,
   bindRecordGesture,
   showRecording,
   updateChatComposer,
@@ -467,26 +468,33 @@ export function startDmComposer(options: {
   }
   function bindEmoji(current: DmView): void {
     const anchor = node('[data-public-emoji]');
-    anchor?.addEventListener('click', () => {
-      void emojiIntoComposer(emoji, anchor, current.text, {
-        panes: {
-          gif: (host, close) => {
-            mountGifPane(host, gifs, (url) => {
-              close();
-              chooseGif(current, url);
-            });
+    if (!anchor) return;
+    bindEmojiMenu(
+      current.form,
+      '[data-public-emoji]',
+      (start) => {
+        void emojiIntoComposer(emoji, anchor, current.text, {
+          panes: {
+            gif: (host, close) => {
+              mountGifPane(host, gifs, (url) => {
+                close();
+                chooseGif(current, url);
+              });
+            },
+            sticker: stickerPane({
+              chosen: (link) => sendLink(current, link),
+              file: (file) => sendSticker(current, file),
+              gifs,
+              privacy: options.privacy,
+            }),
           },
-          sticker: stickerPane({
-            chosen: (link) => sendLink(current, link),
-            file: (file) => sendSticker(current, file),
-            gifs,
-            privacy: options.privacy,
-          }),
-        },
-      }).catch(() => {
-        showToast(t('Could not open emoji.'));
-      });
-    });
+          start,
+        }).catch(() => {
+          showToast(t('Could not open emoji.'));
+        });
+      },
+      abort.signal,
+    );
   }
   return {
     /** Binds a freshly built conversation; a refresh reuses the same view. */

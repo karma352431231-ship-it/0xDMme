@@ -64,6 +64,23 @@ function actionButton(url: string, stop: () => void): HTMLButtonElement | null {
   return button;
 }
 
+function picture(input: { url: string; alt: string }): HTMLImageElement {
+  const image = document.createElement('img');
+  image.src = input.url;
+  image.alt = input.alt;
+  return image;
+}
+function loopingClip(url: string, label: string): HTMLVideoElement {
+  const video = document.createElement('video');
+  video.src = url;
+  video.muted = true;
+  video.loop = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.setAttribute('aria-label', label);
+  return video;
+}
+
 /** Only the enlarged image over the page: fingers zoom and move it, a tap on it
  * toggles zoom, a tap anywhere else or the X closes it and returns to where the
  * user was. Reuses the caller's image URL and lifetime; viewing never fetches
@@ -71,19 +88,21 @@ function actionButton(url: string, stop: () => void): HTMLButtonElement | null {
 export function openImageViewer(input: {
   url: string;
   alt: string;
-  trigger: HTMLButtonElement;
+  trigger: HTMLElement;
   signal: AbortSignal;
   gesture?: (gesture: ZoomGesture) => void;
+  /** A GIF delivered as a silent looping clip (KLIPY .mp4). */
+  clip?: boolean;
+  /** False hides the account action ("Make sticker") for this view. */
+  action?: boolean;
 }): () => void {
   const dialog = document.createElement('dialog'),
     frame = document.createElement('div'),
-    image = document.createElement('img'),
+    image = input.clip ? loopingClip(input.url, input.alt) : picture(input),
     close = document.createElement('button');
   dialog.className = 'public-image-viewer';
   dialog.setAttribute('aria-label', t('Enlarged image'));
   frame.className = 'public-image-frame';
-  image.src = input.url;
-  image.alt = input.alt;
   close.type = 'button';
   close.className = 'public-image-close';
   close.setAttribute('aria-label', t('Close'));
@@ -122,7 +141,8 @@ export function openImageViewer(input: {
   });
   input.signal.addEventListener('abort', stop, { once: true });
   frame.append(image);
-  const action = actionButton(input.url, stop);
+  const action =
+    input.clip || input.action === false ? null : actionButton(input.url, stop);
   dialog.append(frame, close, ...(action ? [action] : []));
   document.body.append(dialog);
   try {

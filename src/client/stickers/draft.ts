@@ -48,7 +48,11 @@ export function mountStickerDraft(input: {
         input.text.value = withoutStickerLinks(input.text.value, [sticker]);
         input.text.dispatchEvent(new Event('input', { bubbles: true }));
       });
-      tile.append(close);
+      const kind = document.createElement('span');
+      kind.className = 'media-picker-kind';
+      kind.textContent = t('Sticker');
+      kind.setAttribute('aria-hidden', 'true');
+      tile.append(close, kind);
       area.append(tile);
     }
     area.hidden = stickers.length === 0;

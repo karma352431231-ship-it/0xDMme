@@ -18,6 +18,7 @@ export {
   renderStickerMessage,
   stickerFigure,
   stickerName,
+  stickerViewSource,
 } from './display.ts';
 export type { StickerDisplay } from './display.ts';
 export { mountStickerDraft } from './draft.ts';

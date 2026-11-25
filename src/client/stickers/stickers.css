@@ -63,6 +63,10 @@ button.chat-sticker {
 .community-text:has(> .text-stickers:first-child) > .text-stickers {
   margin-top: 0;
 }
+.sticker-draft-tile {
+  display: grid;
+  place-items: center;
+}
 .sticker-draft-tile .chat-sticker-art {
   width: 72px;
   height: 72px;

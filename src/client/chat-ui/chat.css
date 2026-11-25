@@ -668,7 +668,8 @@
   inset-inline-end: 0;
   inset-block-end: calc(100% + 8px);
   display: grid;
-  grid-template-columns: repeat(3, minmax(44px, max-content));
+  /* Emoji, Stickers, GIF, Media and File in one row (25/11/2026). */
+  grid-template-columns: repeat(5, minmax(52px, max-content));
   gap: 4px;
   width: max-content;
   padding: 6px;

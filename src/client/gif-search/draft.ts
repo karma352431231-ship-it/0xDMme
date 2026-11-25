@@ -3,6 +3,15 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifUrls, withoutGifLinks } from './links.ts';
 import { showExternalGif } from './presentation.ts';
 
+/** The corner label telling a GIF square from a sticker or a picture. */
+function draftKind(label: string): HTMLElement {
+  const kind = document.createElement('span');
+  kind.className = 'media-picker-kind';
+  kind.textContent = label;
+  kind.setAttribute('aria-hidden', 'true');
+  return kind;
+}
+
 /** GIF links stay in the draft text; each removable preview follows the same
  * external-media consent as the published post. Typing does not reload clips. */
 export function mountGifDraft(input: {
@@ -46,7 +55,7 @@ export function mountGifDraft(input: {
         input.text.value = withoutGifLinks(input.text.value, [url]);
         input.text.dispatchEvent(new Event('input', { bubbles: true }));
       });
-      tile.append(close);
+      tile.append(close, draftKind('GIF'));
     }
     area.hidden = urls.length === 0;
   }

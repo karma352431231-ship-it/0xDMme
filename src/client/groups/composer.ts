@@ -17,10 +17,12 @@ import { chatFileLimit } from '../../shared/attachments/index.ts';
 import {
   updateChatComposer,
   bindChatComposer,
+  bindEmojiMenu,
   bindRecordGesture,
   showRecording,
   viewOnceEnabled,
 } from '../chat-ui/index.ts';
+import type { ComposerPanelStart } from '../chat-ui/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import {
   AttachmentSubmissions,
@@ -189,7 +191,12 @@ export class GroupComposer {
       },
       { signal: this.lifetime.signal },
     );
-    this.bind('[data-group-emoji]', () => this.emoji());
+    bindEmojiMenu(
+      host,
+      '[data-group-emoji]',
+      (start) => this.emoji(start),
+      this.lifetime.signal,
+    );
     this.bind('[data-compose-cancel]', () => this.clearContext());
     bindRecordGesture(this.node('[data-voice-record]'), {
       start: () => {
@@ -408,7 +415,7 @@ export class GroupComposer {
   private submissionGroups(): string[] {
     return this.submissions.peers();
   }
-  private emoji(): void {
+  private emoji(start: ComposerPanelStart): void {
     const anchor = this.node('[data-group-emoji]'),
       input = this.node<HTMLTextAreaElement>('[data-group-text]');
     if (!anchor || !input) return;
@@ -431,6 +438,7 @@ export class GroupComposer {
           privacy: this.options.externalMedia,
         }),
       },
+      start,
     }).catch((error: unknown) => this.failure(error));
   }
   /** A personal sticker is one encrypted image file, never view-once. */

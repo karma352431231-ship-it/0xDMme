@@ -56,6 +56,7 @@ const adapted: Record<string, string[]> = {
 const composerAdapters: Record<string, string[]> = {
   '../chat-ui/index.ts': [
     'bindChatComposer',
+    'bindEmojiMenu',
     'bindRecordGesture',
     'showRecording',
     'updateChatComposer',
@@ -488,6 +489,7 @@ export function dmCoordinatorFixture(t: TestContext, realComposer = false) {
       return { reset: noop, close: noop };
     },
     bindChatComposer: noop,
+    bindEmojiMenu: noop,
     bindRecordGesture: noop,
     showRecording: noop,
     updateChatComposer: noop,

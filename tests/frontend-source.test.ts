@@ -95,12 +95,14 @@ await test('source packaging preserves more than 1024 files and rejects an unbou
       count++;
     }
   };
-  await grow(1025);
+  // One dependency file past the app's own sources, which already exceed 1024.
+  await grow(Math.max(1025, initialCount + 1));
   const input = `${dependency}/${Math.floor(initialCount / 128)}/${initialCount}.js`;
   await writeFile(path, await frontendSource(temporary, new Set([input])));
   const { stdout: listed } = await execute('tar', ['-tzf', path]);
   const names = listed.trim().split('\n');
-  assert.equal(new Set(names).size, 1025);
+  assert.equal(new Set(names).size, initialCount + 1);
+  assert.ok(names.length > 1024);
   assert.ok(names.includes(input));
   const { stdout: source } = await execute('tar', ['-xOzf', path, input]);
   assert.equal(source, await readFile(join(temporary, input), 'utf8'));

@@ -53,6 +53,23 @@
   margin: 0;
   overflow: hidden;
 }
+/* The clip fills its square, so a wide GIF leaves no empty band under it. */
+.gif-draft-previews .external-gif :is(.external-media-gate, .chat-gif) {
+  height: 100%;
+}
+/* Names what a draft square holds when GIFs and stickers sit side by side. */
+.media-picker-kind {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--overlay);
+  color: var(--text);
+  font: 700 10px/1.4 var(--font-body);
+  pointer-events: none;
+}
 .media-picker-tile {
   position: relative;
   width: 96px;

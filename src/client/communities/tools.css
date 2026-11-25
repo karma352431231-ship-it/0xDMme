@@ -123,8 +123,9 @@
   font-size: var(--fs-caption);
   color: var(--accent);
 }
+/* Interface icons only: sticker artwork (Ping) keeps its own size and paint. */
 :is(.app[data-page='comunidades'], .community-scope)
-  svg:where(:not(.chat-panel *)) {
+  svg:where(:not(.chat-panel *, .chat-sticker *)) {
   width: 18px;
   height: 18px;
   flex-shrink: 0;

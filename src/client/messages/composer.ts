@@ -5,11 +5,13 @@ import { AttachmentUi } from '../attachment-ui/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import {
   bindChatComposer,
+  bindEmojiMenu,
   bindRecordGesture,
   showRecording,
   updateChatComposer,
   viewOnceEnabled,
 } from '../chat-ui/index.ts';
+import type { ComposerPanelStart } from '../chat-ui/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -434,7 +436,12 @@ export class MessageComposer {
         this.options.textChanged();
         this.update();
       });
-    this.bind('[data-message-emoji]', () => this.openEmoji());
+    bindEmojiMenu(
+      host,
+      '[data-message-emoji]',
+      (start) => this.openEmoji(start),
+      this.bindings.signal,
+    );
     this.bind('[data-compose-cancel]', () => this.clearContext());
     this.bind('[data-attachment-clear]', () => {
       if (!this.voice.active) this.voice.cancel();
@@ -446,7 +453,7 @@ export class MessageComposer {
       signal: this.bindings.signal,
     });
   }
-  private openEmoji(): void {
+  private openEmoji(start: ComposerPanelStart): void {
     const input = this.node<HTMLTextAreaElement>('[data-message-text]'),
       anchor = this.node('[data-message-emoji]');
     if (!input || !anchor) return;
@@ -468,6 +475,7 @@ export class MessageComposer {
           privacy: this.options.externalMedia,
         }),
       },
+      start,
     }).catch(() => this.options.report(t('Could not open the emoji panel.')));
   }
   /** Whether the open conversation can start a voice call now. */

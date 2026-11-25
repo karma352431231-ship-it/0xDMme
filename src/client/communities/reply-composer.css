@@ -118,6 +118,68 @@ dialog.post-composer-dialog.community-scope .reply-parent {
   padding: 0 16px 12px;
   border-bottom: 1px solid var(--line);
 }
+/* The answered post's media as Activity-sized squares (owner, 25/11/2026).
+   They sit under its line and give way to the full preview when it opens. */
+dialog.post-composer-dialog.community-scope
+  .reply-parent:has(+ .reply-parent-media) {
+  padding-bottom: 8px;
+  border-bottom: 0;
+}
+dialog.post-composer-dialog.community-scope .reply-parent-media {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent[open]
+  + .reply-parent-media {
+  display: none;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent[open]:has(+ .reply-parent-media) {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+dialog.post-composer-dialog.community-scope .reply-parent-thumb {
+  /* Same squares as Activity notices: 64 px, 60 px on phones. */
+  --thumb: 64px;
+  display: grid;
+  flex: 0 0 var(--thumb);
+  place-items: center;
+  width: var(--thumb);
+  height: var(--thumb);
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: zoom-in;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-thumb
+  > :is(img, video) {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  object-fit: cover;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-thumb.is-sticker
+  .chat-sticker-art {
+  width: 52px;
+  height: 52px;
+}
+@media (max-width: 700px) {
+  dialog.post-composer-dialog.community-scope .reply-parent-thumb {
+    --thumb: 60px;
+  }
+}
 dialog.post-composer-dialog.community-scope .reply-parent-summary {
   display: grid;
   gap: 2px;
@@ -141,10 +203,27 @@ dialog.post-composer-dialog.community-scope .reply-parent-line {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Text, then every chosen picture, GIF and sticker in one row right under
+   the tools, with no empty band below (owner, 25/11/2026). */
 dialog.post-composer-dialog.community-scope.reply-box .post-composer-content {
+  display: flex;
   flex: 1;
+  flex-wrap: wrap;
   align-content: start;
-  padding: 12px 16px 16px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px 12px;
+}
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-composer-content
+  > :not(.media-picker-previews) {
+  flex: 1 0 100%;
+  margin-bottom: 0;
+}
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-composer-content
+  > .media-picker-previews:not([hidden]) {
+  display: contents;
 }
 /* The field label stays for assistive technology; the placeholder says it. */
 dialog.post-composer-dialog.community-scope.reply-box
@@ -157,18 +236,28 @@ dialog.post-composer-dialog.community-scope.reply-box
   clip-path: inset(50%);
   white-space: nowrap;
 }
-dialog.post-composer-dialog.community-scope.reply-box
+/* :is(#app-shell, body) outranks the shared editor's #app-shell sizing. */
+:is(#app-shell, body)
+  dialog.post-composer-dialog.community-scope.reply-box
   .post-text-area
   > textarea {
-  min-height: 160px;
-  padding: 4px 0 52px;
+  min-height: 120px;
+  padding: 4px 0 40px;
   border: 0;
   border-radius: 0;
   background: transparent;
   font-size: 16px;
+  resize: none;
+}
+/* The caret marks the field; no ring around the sheet's only text box. */
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-text-area
+  > textarea:focus-visible {
+  outline: none;
 }
 dialog.post-composer-dialog.community-scope.reply-box .post-text-tools {
   right: auto;
+  bottom: 0;
   left: -6px;
 }
 dialog.post-composer-dialog.community-scope.reply-box > .community-feedback {

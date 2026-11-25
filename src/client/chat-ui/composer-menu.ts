@@ -95,3 +95,24 @@ export function bindComposerMenu(form: HTMLElement): void {
       file.click();
     });
 }
+
+export type ComposerPanelStart = 'emoji' | 'sticker' | 'gif';
+/**
+ * Emoji, Stickers and GIF in the clip menu open the same panel on their own
+ * tab (owner, 25/11/2026). `open` receives the tab the chosen item names.
+ */
+export function bindEmojiMenu(
+  host: ParentNode,
+  selector: string,
+  open: (start: ComposerPanelStart) => void,
+  signal: AbortSignal,
+): void {
+  for (const button of host.querySelectorAll<HTMLElement>(selector)) {
+    const start = button.dataset['emojiStart'];
+    button.addEventListener(
+      'click',
+      () => open(start === 'sticker' || start === 'gif' ? start : 'emoji'),
+      { signal },
+    );
+  }
+}

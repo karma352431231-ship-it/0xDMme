@@ -14,6 +14,8 @@ import { startTransientMenus } from '../transient-menu/index.ts';
 import { pingChipMarkup, pingMarkup } from '../ping/index.ts';
 import { menuIconMarkup } from '../menu-icons/index.ts';
 import { bindComposerMenu } from './composer-menu.ts';
+export { bindEmojiMenu } from './composer-menu.ts';
+export type { ComposerPanelStart } from './composer-menu.ts';
 import { bindViewOnceMode } from './view-once-mode.ts';
 import { insideNativeApp } from '../native-app/index.ts';
 export { viewOnceEnabled } from './view-once-mode.ts';
@@ -29,6 +31,9 @@ const icons = {
   image:
     '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m4 17 5-5 4 4 4-6 4 6"/>',
   file: '<path d="M13 3H5v18h14V9zM13 3v6h6"/>',
+  sticker:
+    '<path d="M21 12V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h6zM12 21v-6a3 3 0 0 1 3-3h6M8.5 9h.01M13.5 9h.01"/>',
+  gif: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10.5 10h-2a1.5 1.5 0 0 0 0 4h2v-2M13 10v4M16 14v-4h2.5M16 12h2"/>',
   camera:
     '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
   once: '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="m10 9 2-1v8m-2 0h4"/>',
@@ -91,6 +96,8 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
     chatIcon('image'),
     chatIcon('file'),
+    chatIcon('sticker'),
+    chatIcon('gif'),
   ]);
   return t('html.46729037ae98', [
     form,

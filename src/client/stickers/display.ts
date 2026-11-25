@@ -160,3 +160,54 @@ export function appendStickers(
   for (const sticker of stickers) row.append(stickerFigure(sticker, display));
   host.append(row);
 }
+
+/**
+ * What the enlarged view shows for a drawn sticker: its loaded picture, or
+ * the Ping artwork as an SVG file. Null while it is still loading or failed.
+ * The caller revokes a returned `owned` URL when it is done.
+ */
+export function stickerViewSource(
+  figure: HTMLElement,
+): { url: string; owned: boolean } | null {
+  const art = figure.querySelector('.chat-sticker-art');
+  const image = art?.querySelector('img');
+  if (image?.complete && image.naturalWidth)
+    return { url: image.src, owned: false };
+  const svg = art?.querySelector<SVGSVGElement>('svg.ping-sticker');
+  if (!svg) return null;
+  const markup = new XMLSerializer().serializeToString(standaloneSvg(svg));
+  return {
+    url: URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' })),
+    owned: true,
+  };
+}
+
+/** Paint that Ping takes from the page's CSS, copied onto a standalone file. */
+const svgPaint = [
+  'fill',
+  'stroke',
+  'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stop-color',
+  'opacity',
+];
+function standaloneSvg(svg: SVGSVGElement): SVGSVGElement {
+  const copy = svg.cloneNode(true) as SVGSVGElement;
+  const box = svg.viewBox.baseVal;
+  // A large intrinsic size, so the viewer does not show a 300×150 default.
+  copy.setAttribute('width', String(Math.round(box.width * 5)));
+  copy.setAttribute('height', String(Math.round(box.height * 5)));
+  const sources = [svg, ...svg.querySelectorAll('*')],
+    targets = [copy, ...copy.querySelectorAll('*')];
+  sources.forEach((source, index) => {
+    const style = getComputedStyle(source);
+    targets[index]!.setAttribute(
+      'style',
+      svgPaint
+        .map((name) => `${name}:${style.getPropertyValue(name)}`)
+        .join(';'),
+    );
+  });
+  return copy;
+}

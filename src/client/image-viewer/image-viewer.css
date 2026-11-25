@@ -29,7 +29,7 @@
   /* The viewer owns every finger here; the page behind must not react. */
   touch-action: none;
 }
-.public-image-frame img {
+.public-image-frame :is(img, video) {
   display: block;
   width: auto;
   height: auto;
@@ -46,7 +46,7 @@
   user-select: none;
   -webkit-user-drag: none;
 }
-.public-image-viewer.zoomed .public-image-frame img {
+.public-image-viewer.zoomed .public-image-frame :is(img, video) {
   border-radius: 0;
   cursor: grab;
 }
