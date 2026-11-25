@@ -219,14 +219,14 @@ def executor_code(config):
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
                 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers']):
+                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
                                                  'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                 'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers']):
+                                                 'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -243,7 +243,7 @@ def executor_code(config):
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
     if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers']):
+                                                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
@@ -255,12 +255,14 @@ def executor_code(config):
         names.append('deploy_group_pins')
     if config.get('notification_cursors') is True:
         names.append('deploy_notification_cursors')
-    if any(config.get(name) is True for name in ['account_wallets', 'profile_mutes', 'public_stickers']):
+    if any(config.get(name) is True for name in ['account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
         names.append('deploy_account_wallets')
-    if config.get('profile_mutes') is True or config.get('public_stickers') is True:
+    if any(config.get(name) is True for name in ['profile_mutes', 'public_stickers', 'post_photos']):
         names.append('deploy_profile_mutes')
-    if config.get('public_stickers') is True:
+    if config.get('public_stickers') is True or config.get('post_photos') is True:
         names.append('deploy_public_stickers')
+    if config.get('post_photos') is True:
+        names.append('deploy_post_photos')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -378,6 +380,8 @@ def main():
                         help='Apply the owner-approved 113→114 public profile mutes.')
     parser.add_argument('--public-stickers', action='store_true',
                         help='Apply the reviewed 114→115 public stickers and packs.')
+    parser.add_argument('--post-photos', action='store_true',
+                        help='Apply the reviewed 115→116 ten photos per post.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -391,11 +395,13 @@ def main():
         # The owner approved 113→114 profile mutes on 20/11/2026.
         # The 114→115 public stickers review was prepared on 24/11/2026;
         # running it still needs the owner's activation command.
+        # The 115→116 ten post photos review was prepared on 25/11/2026 at
+        # the owner's request; running it still needs the activation command.
         # Every other transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
                                'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                               'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers']):
+                               'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
     if args.group_chat and any(vars(args)[name] for name in vars(args)
                                  if name not in ['group_chat', 'check', 'activate']):
@@ -415,6 +421,9 @@ def main():
     if args.public_stickers and any(vars(args)[name] for name in vars(args)
                                     if name not in ['public_stickers', 'check', 'activate']):
         parser.error('Public stickers require their separate --check or --activate release.')
+    if args.post_photos and any(vars(args)[name] for name in vars(args)
+                                if name not in ['post_photos', 'check', 'activate']):
+        parser.error('Ten post photos require their separate --check or --activate release.')
     if args.view_once and any(vars(args)[name] for name in vars(args)
                                 if name not in ['view_once', 'check', 'activate']):
         parser.error('View-once messages require their separate --check or --activate release.')
@@ -493,6 +502,8 @@ def main():
         config['profile_mutes'] = True
     if args.public_stickers:
         config['public_stickers'] = True
+    if args.post_photos:
+        config['post_photos'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:
