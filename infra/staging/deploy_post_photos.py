@@ -10,7 +10,7 @@ import deploy_remote as base
 import deploy_public_stickers as stickers
 
 BEFORE = '0b38c90b1151ac85f7e3e50389f71df348aba225'
-REVIEWED = 'c06e24f609c9c0b16601884cc9cf9aa44dc6012e'
+REVIEWED = '5acb84cdc63092ddea9ab1d839e010731e333d11'
 previous = stickers.previous
 # State after 115 (deploy_public_stickers).
 TABLES = stickers.TABLES + stickers.NEW_TABLES
