@@ -182,27 +182,54 @@ dialog.post-composer-dialog.community-scope .reply-parent-line {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Text, then every chosen picture, GIF and sticker in one row right under
-   the tools, with no empty band below (owner, 25/11/2026). */
+/* The text takes all the free height, the chosen pictures, GIFs and stickers
+   sit in rows under it, and the tools stay docked at the bottom, above the
+   keyboard (owner chose "Reply A", 25/11/2026). The editor wrappers step
+   aside so their parts join one grid: row 1 grows, the rest fit. */
 dialog.post-composer-dialog.community-scope.reply-box .post-composer-content {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-content: start;
-  align-items: flex-start;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  justify-items: start;
+  grid-template-rows: minmax(120px, 1fr);
+  grid-auto-rows: auto;
   gap: 8px;
-  padding: 12px 16px 12px;
+  min-height: 0;
+  padding: 12px 16px 0;
 }
 dialog.post-composer-dialog.community-scope.reply-box
   .post-composer-content
-  > :not(.media-picker-previews) {
-  flex: 1 0 100%;
-  margin-bottom: 0;
-}
-dialog.post-composer-dialog.community-scope.reply-box
-  .post-composer-content
-  > .media-picker-previews:not([hidden]) {
+  :is(
+    .post-text-editor,
+    .post-text-area,
+    .media-picker-previews:not([hidden])
+  ) {
   display: contents;
+}
+:is(#app-shell, body)
+  dialog.post-composer-dialog.community-scope.reply-box
+  .post-text-area
+  > textarea {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  order: 0;
+}
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-composer-content
+  .media-picker-tile {
+  order: 1;
+}
+dialog.post-composer-dialog.community-scope.reply-box
+  .post-composer-content
+  .post-text-tools {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  order: 2;
+  margin: 0 -16px;
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
 }
 /* The field label stays for assistive technology; the placeholder says it. */
 dialog.post-composer-dialog.community-scope.reply-box
@@ -220,8 +247,9 @@ dialog.post-composer-dialog.community-scope.reply-box
   dialog.post-composer-dialog.community-scope.reply-box
   .post-text-area
   > textarea {
-  min-height: 120px;
-  padding: 4px 0 40px;
+  height: 100%;
+  min-height: 0;
+  padding: 4px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -233,11 +261,6 @@ dialog.post-composer-dialog.community-scope.reply-box
   .post-text-area
   > textarea:focus-visible {
   outline: none;
-}
-dialog.post-composer-dialog.community-scope.reply-box .post-text-tools {
-  right: auto;
-  bottom: 0;
-  left: -6px;
 }
 dialog.post-composer-dialog.community-scope.reply-box > .community-feedback {
   margin: 0 16px 12px;
