@@ -87,6 +87,7 @@ const authored = [
   'src/client/image-viewer',
   'src/client/image-editor-preview',
   'src/client/interaction-queue',
+  'src/shared/post-media',
   'src/shared/public-media',
   'src/client/external-video',
   'src/client/external-media',
