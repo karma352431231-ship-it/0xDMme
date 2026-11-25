@@ -250,6 +250,7 @@ const migrations = [
   '113-session-wallet.sql',
   '114-profile-mutes.sql',
   '115-public-stickers.sql',
+  '116-post-photos-ten.sql',
 ];
 
 export interface MaintenanceSnapshot {

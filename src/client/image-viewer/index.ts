@@ -64,6 +64,105 @@ function actionButton(url: string, stop: () => void): HTMLButtonElement | null {
   return button;
 }
 
+export interface ViewerStep {
+  /** "2 / 7" */
+  position: string;
+  previous?: (() => void) | undefined;
+  next?: (() => void) | undefined;
+}
+function stepButton(
+  label: string,
+  side: 'previous' | 'next',
+  run: (() => void) | undefined,
+): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `public-image-step is-${side}`;
+  button.setAttribute('aria-label', label);
+  button.textContent = side === 'previous' ? '‹' : '›';
+  button.hidden = !run;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    run?.();
+  });
+  return button;
+}
+/** Arrows, arrow keys and a position line for a gallery view. */
+function stepControls(dialog: HTMLElement, step: ViewerStep): HTMLElement[] {
+  const position = document.createElement('span');
+  position.className = 'public-image-position';
+  position.textContent = step.position;
+  dialog.addEventListener('keydown', (event) => {
+    const run =
+      event.key === 'ArrowLeft'
+        ? step.previous
+        : event.key === 'ArrowRight'
+          ? step.next
+          : undefined;
+    if (!run) return;
+    event.preventDefault();
+    run();
+  });
+  return [
+    stepButton(t('Previous'), 'previous', step.previous),
+    stepButton(t('Next'), 'next', step.next),
+    position,
+  ];
+}
+
+/** One picture, GIF or sticker of a gallery, read only when shown. */
+export interface GalleryItem {
+  alt: string;
+  load: (
+    signal: AbortSignal,
+  ) => Promise<{ url: string; clip?: boolean; action?: boolean }>;
+}
+/**
+ * Every item of a post in one viewer (owner, 25/11/2026): arrows and arrow
+ * keys move between them. Each item loads on arrival; a failed one is skipped
+ * in the direction of travel.
+ */
+export function openImageGallery(input: {
+  items: readonly GalleryItem[];
+  start: number;
+  trigger: HTMLElement;
+  signal: AbortSignal;
+}): void {
+  const count = input.items.length;
+  let stop: (() => void) | null = null,
+    turn = 0;
+  const show = (index: number, direction: 1 | -1): void => {
+    const item = input.items[index];
+    if (!item || input.signal.aborted) return;
+    const current = ++turn;
+    item.load(input.signal).then(
+      (media) => {
+        if (current !== turn || input.signal.aborted) return;
+        stop?.();
+        stop = openImageViewer({
+          ...media,
+          alt: item.alt,
+          trigger: input.trigger,
+          signal: input.signal,
+          step:
+            count > 1
+              ? {
+                  position: `${index + 1} / ${count}`,
+                  previous: index > 0 ? () => show(index - 1, -1) : undefined,
+                  next:
+                    index < count - 1 ? () => show(index + 1, 1) : undefined,
+                }
+              : undefined,
+        });
+      },
+      () => {
+        if (current === turn) show(index + direction, direction);
+      },
+    );
+  };
+  show(input.start, 1);
+}
+
 function picture(input: { url: string; alt: string }): HTMLImageElement {
   const image = document.createElement('img');
   image.src = input.url;
@@ -92,9 +191,11 @@ export function openImageViewer(input: {
   signal: AbortSignal;
   gesture?: (gesture: ZoomGesture) => void;
   /** A GIF delivered as a silent looping clip (KLIPY .mp4). */
-  clip?: boolean;
+  clip?: boolean | undefined;
   /** False hides the account action ("Make sticker") for this view. */
-  action?: boolean;
+  action?: boolean | undefined;
+  /** Previous/next of a gallery; each closes this view and opens the other. */
+  step?: ViewerStep | undefined;
 }): () => void {
   const dialog = document.createElement('dialog'),
     frame = document.createElement('div'),
@@ -143,7 +244,12 @@ export function openImageViewer(input: {
   frame.append(image);
   const action =
     input.clip || input.action === false ? null : actionButton(input.url, stop);
-  dialog.append(frame, close, ...(action ? [action] : []));
+  dialog.append(
+    frame,
+    close,
+    ...(action ? [action] : []),
+    ...(input.step ? stepControls(dialog, input.step) : []),
+  );
   document.body.append(dialog);
   try {
     input.signal.throwIfAborted();

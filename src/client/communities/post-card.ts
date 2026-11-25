@@ -24,6 +24,7 @@ import { postPreview } from './post-preview.ts';
 import { postSharing } from './post-sharing.ts';
 import { postText, postTitle, postTitleCard } from './post-text.ts';
 import { postViews } from './post-views.ts';
+import { replyMediaGrid, withoutTileLinks } from './post-media-tiles.ts';
 import {
   postComments,
   postHeader,
@@ -265,26 +266,37 @@ export function createPostCards(
       );
     if (state) restrictedContent(node, state);
     if (value.status !== 'visible') return;
-    if (value.text)
+    visibleContent(node, value);
+    postPendingMedia(node, value);
+    postTagLink(node, value);
+  }
+  /** Words, then the post's GIFs, external videos and pictures. */
+  function visibleContent(node: HTMLElement, value: CommunityPost): void {
+    // A reply with several pictures, GIFs or stickers shows them as one 2×2
+    // grid under its words (owner, 25/11/2026); the text keeps only the words.
+    const grid = value.parent
+      ? replyMediaGrid(value, { signal: abort.signal, privacy })
+      : null;
+    const text = grid ? withoutTileLinks(value.text) : value.text;
+    if (text)
       node.append(
         value.id === selected
-          ? postText(value.text, gifUrls(value.text))
-          : postPreview(value.text, gifUrls(value.text)),
+          ? postText(text, gifUrls(text))
+          : postPreview(text, gifUrls(text)),
       );
     mediaCleanup.set(
-      showPostExternalMedia(node, value.text, {
+      showPostExternalMedia(node, text, {
         privacy,
         signal: abort.signal,
       }),
       node,
     );
-    if (value.media?.length)
+    if (grid) node.append(grid);
+    else if (value.media?.length)
       mediaCleanup.set(
         showPublicPostMedia(node, value.media, abort.signal),
         node,
       );
-    postPendingMedia(node, value);
-    postTagLink(node, value);
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {
     if (!value.parent) return;

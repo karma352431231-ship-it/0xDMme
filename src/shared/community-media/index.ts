@@ -6,7 +6,7 @@ import { integer } from '../vault/index.ts';
 export type CommunityMediaKind = 'photo' | 'gif' | 'video';
 export const communityMediaPartBytes = 262_144;
 export const communityMediaLimits = {
-  photo: { count: 4, source: 3_000_000, result: 3_000_000, seconds: 0 },
+  photo: { count: 10, source: 3_000_000, result: 3_000_000, seconds: 0 },
   gif: { count: 3, source: 10_000_000, result: 10_000_000, seconds: 20 },
   video: { count: 1, source: 100_000_000, result: 100_000_000, seconds: 120 },
 } as const;
@@ -50,8 +50,10 @@ export function communityMediaSource(value: unknown): CommunityMediaSource {
   if (!bytes) throw new AccountError(400, 'Empty file.');
   return { id: uuid(data['id']), kind, bytes, hash: fingerprint(data['hash']) };
 }
+/** The most media items one post or reply holds (photos, owner 25/11/2026). */
+export const communityMediaMaximum = communityMediaLimits.photo.count;
 export function communityMediaIds(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length > 4)
+  if (!Array.isArray(value) || value.length > communityMediaMaximum)
     throw new AccountError(400, 'Invalid media quantity.');
   const ids = value.map(uuid);
   if (new Set(ids).size !== ids.length)
@@ -70,7 +72,7 @@ export function communityMediaKindsSet(kinds: CommunityMediaKind[]): void {
       'Use photos, GIFs or one video, without mixing.',
     );
   if (kinds.length > communityMediaLimits[kind].count)
-    throw new AccountError(400, 'Use up to 4 photos, 3 GIFs or 1 video.');
+    throw new AccountError(400, 'Use up to 10 photos, 3 GIFs or 1 video.');
 }
 export function communityMediaResult(value: unknown): CommunityMediaResult {
   const d = object(value);

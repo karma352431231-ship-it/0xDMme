@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { AccountError, uuid, object, keys } from '../account/index.ts';
 import {
+  communityMediaMaximum,
   communityMediaResult,
   communityMediaKindsSet,
 } from '../community-media/index.ts';
@@ -22,7 +23,7 @@ export interface PublicPostMedia {
   result: CommunityMediaResult;
 }
 export function publicPostMedia(value: unknown): PublicPostMedia[] {
-  if (!Array.isArray(value) || value.length > 4)
+  if (!Array.isArray(value) || value.length > communityMediaMaximum)
     throw new AccountError(400, 'Invalid public media.');
   const result = value.map((item: unknown) => {
     const data = object(item);

@@ -41,3 +41,47 @@
   object-fit: contain;
   background: transparent;
 }
+
+/*
+ * Several pictures of a post (up to 10 since 25/11/2026) slide sideways in
+ * one row of equal height instead of the 2×2 grid; each keeps its whole
+ * picture. Replies use the tile grid of post-media-tiles.css instead.
+ */
+:is(#app-shell, .community-scope)
+  :is(
+    .community-post:not(.community-post-is-reply, .community-reply),
+    .replied-post-card
+  )
+  > .community-public-media:has(> figure + figure) {
+  --strip-height: min(340px, 55vh);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+:is(#app-shell, .community-scope)
+  :is(
+    .community-post:not(.community-post-is-reply, .community-reply),
+    .replied-post-card
+  )
+  > .community-public-media:has(> figure + figure)
+  > figure {
+  --picture-height: var(--strip-height);
+  flex: none;
+  width: min(85%, calc(var(--strip-height) * var(--picture-ratio, 1)));
+  scroll-snap-align: start;
+}
+@media (max-width: 700px) {
+  :is(#app-shell, .community-scope)
+    :is(
+      .community-post:not(.community-post-is-reply, .community-reply),
+      .replied-post-card
+    )
+    > .community-public-media:has(> figure + figure) {
+    --strip-height: min(300px, 50vh);
+  }
+}

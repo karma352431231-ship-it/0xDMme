@@ -965,6 +965,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Open conversation': ['Open conversation', '打开对话'],
   'Open discussion': ['Open discussion', '打开讨论'],
   'Open photo': ['Open photo', '打开图片'],
+  '{0} more': ['{0} more', '还有 {0} 个'],
   'Open my public profile': ['Open my public profile', '打开我的公开个人资料'],
   'Open in app': ['Open in app', '在应用中打开'],
   'Open profile': ['Open profile', '打开个人资料'],
@@ -1352,9 +1353,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     '请在钱包中签名并返回此浏览器。流程会自动完成。',
   ],
   'Until {0}': ['Until {0}', '截至 {0}'],
-  'Up to 4 photos, 3 GIFs or 1 video': [
-    'Up to 4 photos, 3 GIFs or 1 video',
-    '最多 4 张图片、3 个 GIF 或 1 个视频',
+  'Up to 10 photos, 3 GIFs or 1 video': [
+    'Up to 10 photos, 3 GIFs or 1 video',
+    '最多 10 张图片、3 个 GIF 或 1 个视频',
   ],
   Answer: ['Answer', '接听'],
   'Enable post and reply notifications': [
@@ -9588,9 +9589,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Use up to 20 custom badges per community.',
     '每个社区最多使用 20 个自定义徽章。',
   ],
-  'Use up to 4 photos, 3 GIFs or 1 video.': [
-    'Use up to 4 photos, 3 GIFs or 1 video.',
-    '最多使用 4 张图片、3 个 GIF 或 1 个视频。',
+  'Use up to 10 photos, 3 GIFs or 1 video.': [
+    'Use up to 10 photos, 3 GIFs or 1 video.',
+    '最多使用 10 张图片、3 个 GIF 或 1 个视频。',
   ],
   'Use up to three custom badges per person in this community.': [
     'Use up to three custom badges per person in this community.',

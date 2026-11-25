@@ -143,41 +143,20 @@ dialog.post-composer-dialog.community-scope
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
-dialog.post-composer-dialog.community-scope .reply-parent-thumb {
-  /* Same squares as Activity notices: 64 px, 60 px on phones. */
-  --thumb: 64px;
-  display: grid;
-  flex: 0 0 var(--thumb);
-  place-items: center;
-  width: var(--thumb);
-  height: var(--thumb);
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--surface-2);
-  cursor: zoom-in;
+/* Same squares as Activity notices: 64 px, 60 px on phones. */
+dialog.post-composer-dialog.community-scope .reply-parent-media {
+  --tile: 64px;
 }
 dialog.post-composer-dialog.community-scope
-  .reply-parent-thumb
-  > :is(img, video) {
-  display: block;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  max-height: none;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  object-fit: cover;
-}
-dialog.post-composer-dialog.community-scope
-  .reply-parent-thumb.is-sticker
-  .chat-sticker-art {
-  width: 52px;
-  height: 52px;
+  .reply-parent-media
+  > .post-media-tile {
+  flex: 0 0 var(--tile);
+  width: var(--tile);
+  height: var(--tile);
 }
 @media (max-width: 700px) {
-  dialog.post-composer-dialog.community-scope .reply-parent-thumb {
-    --thumb: 60px;
+  dialog.post-composer-dialog.community-scope .reply-parent-media {
+    --tile: 60px;
   }
 }
 dialog.post-composer-dialog.community-scope .reply-parent-summary {

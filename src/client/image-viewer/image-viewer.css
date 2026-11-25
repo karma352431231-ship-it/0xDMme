@@ -74,3 +74,41 @@
   stroke-linecap: round;
   filter: drop-shadow(0 1px 3px var(--shadow));
 }
+/* Gallery arrows and position (owner, 25/11/2026). */
+.public-image-step {
+  position: fixed;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 64px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--media-control-ink);
+  font-size: 44px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateY(-50%);
+  text-shadow: 0 1px 3px var(--shadow);
+}
+.public-image-step[hidden] {
+  display: none;
+}
+.public-image-step.is-previous {
+  left: max(8px, env(safe-area-inset-left));
+}
+.public-image-step.is-next {
+  right: max(8px, env(safe-area-inset-right));
+}
+.public-image-position {
+  position: fixed;
+  top: max(22px, env(safe-area-inset-top));
+  left: 50%;
+  color: var(--media-control-ink);
+  font-size: 14px;
+  transform: translateX(-50%);
+  text-shadow: 0 1px 3px var(--shadow);
+}

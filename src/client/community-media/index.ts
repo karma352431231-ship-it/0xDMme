@@ -262,7 +262,7 @@ export function mediaEditor(
   pick.className = 'media-picker-button';
   pick.innerHTML = clipIcon;
   pick.setAttribute('aria-label', t('Attach photos, GIFs or video'));
-  pick.title = t('Up to 4 photos, 3 GIFs or 1 video');
+  pick.title = t('Up to 10 photos, 3 GIFs or 1 video');
   const previews = document.createElement('div');
   previews.className = 'media-picker-previews';
   previews.hidden = true;

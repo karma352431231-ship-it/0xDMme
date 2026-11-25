@@ -27,10 +27,12 @@ const source = (
   hash: 'a'.repeat(64),
 });
 await test('public media: sets per post/reply, bytes per file and optional caption', () => {
-  communityMediaSet(Array.from({ length: 4 }, () => source('photo')));
+  // Ten photos per post or reply since 25/11/2026; GIFs and video unchanged.
+  communityMediaSet(Array.from({ length: 10 }, () => source('photo')));
   communityMediaSet(Array.from({ length: 3 }, () => source('gif')));
   communityMediaSet([source('video')]);
   for (const set of [
+    Array.from({ length: 11 }, () => source('photo')),
     [source('photo'), source('gif')],
     Array.from({ length: 4 }, () => source('gif')),
     [source('video'), source('video')],
@@ -44,6 +46,19 @@ await test('public media: sets per post/reply, bytes per file and optional capti
     communityMediaSource(source(kind, limit));
     assert.throws(() => communityMediaSource(source(kind, limit + 1)));
   }
+  const ten = Array.from({ length: 10 }, () => crypto.randomUUID());
+  assert.equal(
+    postContent({ title: '', text: '', tags: [], media: ten }).media?.length,
+    10,
+  );
+  assert.throws(() =>
+    postContent({
+      title: '',
+      text: '',
+      tags: [],
+      media: [...ten, crypto.randomUUID()],
+    }),
+  );
   const media = crypto.randomUUID();
   assert.equal(
     postContent({ title: '', text: '', tags: [], media: [media] }).text,

@@ -1,9 +1,5 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { gifUrls, withoutGifLinks } from '../gif-search/index.ts';
-import {
-  stickerReferences,
-  withoutStickerLinks,
-} from '../../shared/stickers/index.ts';
+import { gifUrls } from '../gif-search/index.ts';
 import type {
   CommunityPost,
   PostState,
@@ -31,7 +27,7 @@ import {
 } from './composer-draft.ts';
 import { bindComposerBackdrop } from './composer-backdrop.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
-import { replyParentMedia } from './reply-parent-media.ts';
+import { postMediaTiles, withoutTileLinks } from './post-media-tiles.ts';
 
 export interface ReplyActions {
   controller: Pick<Communities, 'request'>;
@@ -40,13 +36,6 @@ export interface ReplyActions {
   canReply: () => Promise<boolean>;
   media: PostEditorAccess;
   replied: (state: PostState) => Promise<void>;
-}
-/** The post's words without its GIF and sticker links (they show as squares). */
-function parentWords(text: string): string {
-  return withoutStickerLinks(
-    withoutGifLinks(text, gifUrls(text)),
-    stickerReferences(text),
-  );
 }
 /** Who is answered, and the post's title or opening words. */
 function replyParentLine(parent: CommunityPost): HTMLElement[] {
@@ -58,7 +47,7 @@ function replyParentLine(parent: CommunityPost): HTMLElement[] {
     ),
     el(
       'span',
-      parent.title || postPreviewText(parentWords(parent.text)) || '',
+      parent.title || postPreviewText(withoutTileLinks(parent.text)) || '',
       'reply-parent-line',
     ),
   ];
@@ -101,14 +90,18 @@ export class ReplyComposer {
     this.feedback.setAttribute('role', 'status');
     const context = this.context();
     this.dialog.append(bar, context, this.draft, this.feedback);
-    const media = replyParentMedia(this.parent, {
+    // The answered post's pictures, GIFs and stickers as Activity-sized
+    // squares under its line (owner, 25/11/2026).
+    const tiles = postMediaTiles(this.parent, {
       signal: AbortSignal.any([this.abort.signal, this.access.media.signal]),
       privacy: this.access.media.privacy,
-      expand: () => {
-        context.open = true;
-      },
+      gifs: 'shown',
     });
-    if (media) context.after(media);
+    if (tiles.length) {
+      const strip = el('div', '', 'reply-parent-media');
+      strip.append(...tiles);
+      context.after(strip);
+    }
     const signal = AbortSignal.any([
       this.abort.signal,
       this.access.media.signal,
