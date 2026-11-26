@@ -1,7 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { ZoomSurface } from './zoom.ts';
 import type { ZoomGesture, ZoomPoint } from './zoom.ts';
-import { bindSwipe } from './swipe.ts';
+import { bindSwipe, dragsWith, releasedMouse } from './swipe.ts';
 
 export type { ZoomGesture } from './zoom.ts';
 export { pinchOpensViewer } from './pinch-open.ts';
@@ -25,11 +25,17 @@ function trackPointers(frame: HTMLElement, surface: ZoomSurface): void {
   const down = new Map<number, ZoomPoint>();
   const publish = () => surface.track([...down.values()]);
   frame.addEventListener('pointerdown', (event) => {
+    if (!dragsWith(event)) return;
     down.set(event.pointerId, { x: event.clientX, y: event.clientY });
     publish();
   });
   frame.addEventListener('pointermove', (event) => {
     if (!down.has(event.pointerId)) return;
+    if (releasedMouse(event)) {
+      down.delete(event.pointerId);
+      publish();
+      return;
+    }
     down.set(event.pointerId, { x: event.clientX, y: event.clientY });
     publish();
   });

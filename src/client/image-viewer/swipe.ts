@@ -11,6 +11,19 @@ const swipeDistance = 56;
 const swipeStart = 8;
 
 /**
+ * Only the main button drags (26/11/2026: a right click that opened the
+ * browser menu left the picture following the mouse). A pen or finger has
+ * no other button.
+ */
+export function dragsWith(event: PointerEvent): boolean {
+  return event.pointerType !== 'mouse' || event.button === 0;
+}
+/** A mouse moving with no button held has missed its release. */
+export function releasedMouse(event: PointerEvent): boolean {
+  return event.pointerType === 'mouse' && (event.buttons & 1) === 0;
+}
+
+/**
  * One finger (or the mouse) dragged sideways on a fitted image moves to the
  * previous or next item (owner, 25/11/2026: swipe between the pictures of a
  * post, reply or chat on phones). The image follows the finger; a short drag
@@ -32,6 +45,7 @@ export function bindSwipe(
       : '';
   };
   frame.addEventListener('pointerdown', (event) => {
+    if (!dragsWith(event)) return;
     fingers += 1;
     start =
       fingers === 1 && !input.zoomed()
@@ -41,6 +55,10 @@ export function bindSwipe(
   });
   frame.addEventListener('pointermove', (event) => {
     if (!start || event.pointerId !== start.id) return;
+    if (releasedMouse(event)) {
+      release(event);
+      return;
+    }
     const x = event.clientX - start.x,
       y = event.clientY - start.y;
     if (Math.abs(x) < swipeStart || Math.abs(x) < Math.abs(y)) return;
@@ -49,7 +67,7 @@ export function bindSwipe(
     image.style.transition = 'none';
     follow(open ? x : x / 4);
   });
-  const release = (event: PointerEvent): void => {
+  function release(event: PointerEvent): void {
     fingers = Math.max(0, fingers - 1);
     if (!start || event.pointerId !== start.id) return;
     start = null;
@@ -63,7 +81,7 @@ export function bindSwipe(
     if (Math.abs(travel) >= swipeStart) swiped = true;
     follow(0);
     run?.();
-  };
+  }
   frame.addEventListener('pointerup', release);
   frame.addEventListener('pointercancel', release);
   return {

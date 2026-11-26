@@ -229,3 +229,38 @@ await test('a sideways swipe on a fitted image moves one item; short, zoomed or 
   assert.deepEqual(moved, ['next', 'previous'], 'zoomed or pinching');
   assert.equal(image.style['translate'], '');
 });
+
+await test('a right click never drags the image after the browser menu opens', () => {
+  const frame = new FakeElement('div'),
+    image = new FakeElement('img');
+  const moved: string[] = [];
+  bindSwipe(frame as unknown as HTMLElement, image as unknown as HTMLElement, {
+    previous: () => moved.push('previous'),
+    next: () => moved.push('next'),
+    zoomed: () => false,
+  });
+  const send = (
+    type: string,
+    x: number,
+    buttons: { button: number; buttons: number },
+  ) => {
+    for (const listener of frame.listeners.get(type) ?? [])
+      listener({
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: x,
+        clientY: 0,
+        ...buttons,
+      });
+  };
+  // The menu swallows the release: the mouse then moves with no button held.
+  send('pointerdown', 300, { button: 2, buttons: 2 });
+  send('pointermove', 150, { button: -1, buttons: 0 });
+  assert.equal(image.style['translate'] ?? '', '');
+  // A left press whose release was missed stops following the mouse.
+  send('pointerdown', 300, { button: 0, buttons: 1 });
+  send('pointermove', 260, { button: -1, buttons: 1 });
+  send('pointermove', 100, { button: -1, buttons: 0 });
+  assert.equal(image.style['translate'], '');
+  assert.deepEqual(moved, []);
+});
