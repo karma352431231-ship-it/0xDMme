@@ -44,12 +44,12 @@
 
 /*
  * Several pictures of a post (up to 10 since 25/11/2026) slide sideways in
- * one row instead of the 2×2 grid. Every card has the same 4:5 size and the
- * picture fills it (owner chose the uniform strip, 25/11/2026); the next
- * card peeks in, and the viewer shows each whole picture. Replies use the
- * tile grid of post-media-tiles.css instead. Cards sit 4px apart and a
- * picture taller than its card keeps its top in view (owner, 26/11/2026):
- * the top of a screenshot or portrait is usually what matters.
+ * one row instead of the 2×2 grid; the next card peeks in. Replies use the
+ * tile grid of post-media-tiles.css instead. Every card has the same height
+ * and the shape of its own picture, so nothing is cut (owner, 26/11/2026,
+ * replacing the cropped 4:5 cards): a screenshot is narrow, a landscape
+ * wide. A card never passes 80% of the row; a picture too wide for that
+ * becomes shorter instead of being cropped. Cards sit 4px apart.
  */
 :is(#app-shell, .community-scope)
   :is(
@@ -76,7 +76,7 @@
   > figure {
   --picture-height: var(--strip-height);
   flex: none;
-  width: min(80%, calc(var(--strip-height) * 0.8));
+  width: min(80%, calc(var(--strip-height) * var(--picture-ratio, 0.8)));
   scroll-snap-align: start;
 }
 :is(#app-shell, .community-scope)
@@ -88,7 +88,7 @@
   > figure
   :is(.public-picture-open, .community-media-preview) {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: var(--picture-ratio, 4 / 5);
 }
 :is(#app-shell, .community-scope)
   :is(
@@ -100,7 +100,6 @@
   .community-media-preview {
   height: 100%;
   object-fit: cover;
-  object-position: center top;
 }
 @media (max-width: 700px) {
   :is(#app-shell, .community-scope)
