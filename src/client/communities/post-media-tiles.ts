@@ -9,7 +9,11 @@ import type { StickerReference } from '../../shared/stickers/index.ts';
 import { externalMediaGate } from '../external-media/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifUrls, renderGif, withoutGifLinks } from '../gif-search/index.ts';
-import { openImageGallery } from '../image-viewer/index.ts';
+import {
+  openImageGallery,
+  scrollTap,
+  watchScrollTaps,
+} from '../image-viewer/index.ts';
 import type { GalleryItem } from '../image-viewer/index.ts';
 import { publicPostMediaBlob } from '../public-media/index.ts';
 import { stickerFigure, stickerViewSource } from '../stickers/index.ts';
@@ -76,12 +80,15 @@ function square(label: string, open: () => void): HTMLElement {
   element.tabIndex = 0;
   element.setAttribute('role', 'button');
   element.setAttribute('aria-label', label);
+  watchScrollTaps();
   element.addEventListener('click', (event) => {
     // The consent button of a GIF square answers on its own.
     if (event.target instanceof Element && event.target.closest('button'))
       return;
     event.preventDefault();
     event.stopPropagation();
+    // The end of a scroll is not a tap on the square (26/11/2026).
+    if (scrollTap()) return;
     open();
   });
   element.addEventListener('keydown', (event) => {

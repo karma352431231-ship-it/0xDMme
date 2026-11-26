@@ -1,6 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import { externalMediaGate } from '../external-media/index.ts';
-import { openImageViewer } from '../image-viewer/index.ts';
+import {
+  openImageViewer,
+  scrollTap,
+  watchScrollTaps,
+} from '../image-viewer/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
 interface GifDisplay {
@@ -66,11 +70,14 @@ function enlargeOnTap(
   url: string,
   signal: AbortSignal,
 ): void {
+  watchScrollTaps();
   target.addEventListener(
     'click',
     (event) => {
       if (!target.querySelector('video, img')) return;
       event.stopPropagation();
+      // The end of a scroll is not a tap on the clip (26/11/2026).
+      if (scrollTap()) return;
       openImageViewer({
         url,
         alt: 'GIF',

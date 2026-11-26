@@ -4,6 +4,8 @@ import {
   openImageGallery,
   openImageViewer,
   pinchOpensViewer,
+  scrollTap,
+  watchScrollTaps,
 } from '../image-viewer/index.ts';
 import type { GalleryItem, ZoomGesture } from '../image-viewer/index.ts';
 import { retainedMedia } from '../media-retention/index.ts';
@@ -122,7 +124,10 @@ export function mountPublicPicture(
       caption.textContent = t('Could not open the enlarged image.');
     }
   }
+  watchScrollTaps();
   button.addEventListener('click', () => {
+    // The end of a scroll is not a tap on the picture (26/11/2026).
+    if (scrollTap()) return;
     const gallery = options.gallery;
     if (!gallery || gallery.items.length < 2 || stopped) {
       enlarge();
