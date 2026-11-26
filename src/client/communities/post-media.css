@@ -139,3 +139,17 @@
 .community-external-gif .chat-gif {
   cursor: zoom-in;
 }
+/* A post or reply with only media (no words) starts it right under the
+   author, as close as text would sit (owner, 26/11/2026): the 12px above
+   media only separates it from words. */
+:is(#app-shell, .community-scope)
+  :is(.community-post, .replied-post-card)
+  > .community-post-header
+  + :is(.community-public-media, .reply-media-grid, .community-external-gif),
+:is(#app-shell, .community-scope)
+  :is(.community-post, .replied-post-card)
+  > .community-post-header
+  + .community-text:empty
+  + :is(.community-public-media, .reply-media-grid, .community-external-gif) {
+  margin-top: 0;
+}
