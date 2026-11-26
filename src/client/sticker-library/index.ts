@@ -26,6 +26,13 @@ export type StickerLibrarySync = Pick<
   'complete' | 'currentHeads' | 'heads' | 'openMany' | 'refresh' | 'save'
 >;
 const pageSize = 16;
+/**
+ * The person waits for every library read and write (opening the panel,
+ * saving or deleting a sticker), so they go ahead of background vault
+ * maintenance, as account settings do (26/11/2026: a new sticker waited
+ * behind message synchronization before it showed).
+ */
+const interactive = { priority: 'interactive' } as const;
 
 function stickerEntry(entry: VaultEntry): boolean {
   return (
@@ -60,7 +67,7 @@ export class StickerLibrary {
     this.opened.clear();
   }
   private async ready(): Promise<void> {
-    if (!this.sync.complete) await this.sync.refresh();
+    if (!this.sync.complete) await this.sync.refresh(interactive);
     if (!this.sync.complete)
       throw new Error('Your stickers are still syncing.');
   }
@@ -93,6 +100,7 @@ export class StickerLibrary {
       const page = missing.slice(start, start + pageSize);
       const values = await this.sync.openMany(
         page.map((entry) => entry.commit.id),
+        interactive,
       );
       page.forEach((entry, index) => {
         try {
@@ -112,20 +120,23 @@ export class StickerLibrary {
     if ((await this.current()).length >= personalStickerLimit)
       throw new Error('Sticker limit reached. Delete a sticker first.');
     const entity = crypto.randomUUID();
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity,
-        kind: 'settings',
-        parents: [],
-        label: stickerLibraryLabel,
+    await this.sync.save(
+      {
+        change: {
+          version: 1,
+          entity,
+          kind: 'settings',
+          parents: [],
+          label: stickerLibraryLabel,
+        },
+        value: JSON.stringify({
+          version: 1,
+          type: file.type,
+          bytes: encode(file.bytes),
+        }),
       },
-      value: JSON.stringify({
-        version: 1,
-        type: file.type,
-        bytes: encode(file.bytes),
-      }),
-    });
+      interactive,
+    );
     return entity;
   }
   async remove(id: string): Promise<void> {
@@ -135,15 +146,18 @@ export class StickerLibrary {
       .filter(stickerEntry)
       .map((entry) => entry.commit.id);
     if (!parents.length) return;
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity: id,
-        kind: 'settings',
-        parents,
-        label: stickerRemovedLabel,
+    await this.sync.save(
+      {
+        change: {
+          version: 1,
+          entity: id,
+          kind: 'settings',
+          parents,
+          label: stickerRemovedLabel,
+        },
+        value: JSON.stringify({ version: 1, removed: true }),
       },
-      value: JSON.stringify({ version: 1, removed: true }),
-    });
+      interactive,
+    );
   }
 }

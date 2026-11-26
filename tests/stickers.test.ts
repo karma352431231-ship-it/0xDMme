@@ -113,15 +113,20 @@ await test('KLIPY stickers are whole KLIPY GIFs hosted on KLIPY', () => {
 });
 
 /** An in-memory vault with the same head rules as VaultSync. */
-function memoryVault(): StickerLibrarySync & { values: Map<string, string> } {
+function memoryVault(): StickerLibrarySync & {
+  values: Map<string, string>;
+  priorities: (string | undefined)[];
+} {
   const entries: VaultEntry[] = [];
   const values = new Map<string, string>();
+  const priorities: (string | undefined)[] = [];
   const live = () => {
     const superseded = new Set(entries.flatMap((e) => e.change.parents));
     return entries.filter((e) => !superseded.has(e.commit.id));
   };
   return {
     values,
+    priorities,
     complete: true,
     refresh: () => Promise.resolve(),
     heads: (entity: string) =>
@@ -135,11 +140,16 @@ function memoryVault(): StickerLibrarySync & { values: Map<string, string> } {
         ]);
       return heads;
     },
-    openMany: (ids: readonly string[]) => {
+    openMany: (ids: readonly string[], options?: { priority?: string }) => {
+      priorities.push(options?.priority);
       assert.ok(ids.length <= 16, 'one vault read opens at most 16 blocks');
       return Promise.resolve(ids.map((id) => values.get(id)!));
     },
-    save(input: { change: VaultChange; value: string }) {
+    save(
+      input: { change: VaultChange; value: string },
+      options?: { priority?: string },
+    ) {
+      priorities.push(options?.priority);
       const id = crypto.randomUUID();
       entries.push({
         change: input.change,
@@ -172,6 +182,9 @@ await test('personal stickers are encrypted vault records listed newest first', 
   await library.remove(first);
   assert.deepEqual(await library.ids(), [second]);
   assert.deepEqual(await library.open([first]), []);
+  // The person waits for each of these: none queues behind background sync.
+  assert.ok(vault.priorities.length >= 4);
+  assert.ok(vault.priorities.every((priority) => priority === 'interactive'));
 });
 
 await test('the personal library has a limit and a sticker file has a reserved name', async () => {
