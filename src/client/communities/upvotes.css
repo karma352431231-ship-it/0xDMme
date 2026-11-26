@@ -3,6 +3,11 @@
  * upvotes (owner, 26/11/2026), so it shows the same pointer as the arrow.
  */
 #app-shell[data-page] .post-votes .post-score {
+  /* Centered like the arrow beside it, whatever height the pill gives it. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
   width: auto;
   min-width: 0;
   /* Same side margin as the other action pills (vote-spacing.css). */
