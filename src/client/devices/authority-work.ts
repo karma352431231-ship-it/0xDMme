@@ -64,6 +64,10 @@ export class AuthorityWork {
     this.localSaveWaiting = localSaveWaiting;
   }
 
+  /** True while any operation waits for its turn. */
+  get pending(): boolean {
+    return this.waiting.length > 0;
+  }
   run<T>(
     work: (waitMs: number) => Promise<T>,
     priority?: 'interactive',

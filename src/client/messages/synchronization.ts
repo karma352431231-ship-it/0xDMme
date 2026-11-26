@@ -20,6 +20,7 @@ import type {
   ChangeFollowupScope,
 } from './change-followup.ts';
 import { MessageInbox } from './inbox.ts';
+import type { InboxTurn } from './inbox.ts';
 import type { HistoryKind } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
@@ -54,6 +55,7 @@ interface SynchronizationOperations {
   preloadGroups: (
     signal: AbortSignal,
     work: VaultWorkOptions,
+    turn: InboxTurn,
   ) => Promise<boolean>;
   unread: () => Promise<void>;
   groupProjection?: () => Promise<void>;
@@ -115,7 +117,7 @@ export class MessageSynchronization {
       generation: () => options.state().generation,
       current: (generation) => this.current(generation),
       direct: (signal, work) => options.preloadDirect(signal, work),
-      groups: (signal, work) => options.preloadGroups(signal, work),
+      groups: (signal, work, turn) => options.preloadGroups(signal, work, turn),
       pause: () => options.pause(),
       changed: () => {
         options.status('receipt-settled');

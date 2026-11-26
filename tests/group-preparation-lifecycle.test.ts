@@ -159,3 +159,53 @@ for (const invalidation of ['logout', 'revoke', 'removal'] as const) {
     assert.equal(f.data.active, 0);
   });
 }
+await test('a reload of a prepared group reads no history, and waiting vault work ends a preparation turn', async () => {
+  const f = groupPreparationFixture(),
+    signal = new AbortController().signal;
+  for (let n = 0; n < 144; n++) f.add();
+  let turns = 1;
+  while (await f.controller.synchronizeAll(signal)) turns++;
+  assert.ok(turns < 10, `First preparation took ${turns} turns`);
+  f.controller.setSession(null);
+  f.data.calls.length = 0;
+  const reloaded = f.restart();
+  while (await reloaded.synchronizeAll(signal));
+  assert.deepEqual(f.data.calls, [
+    'group-list',
+    'group-message-delta',
+    'group-message-confirm',
+  ]);
+  reloaded.setSession(null);
+
+  // A cold device: vault work queued during a step runs before the next one.
+  const cold = groupPreparationFixture();
+  for (let n = 0; n < 144; n++) cold.add();
+  const order: string[] = [],
+    waiting = { queued: false, ran: deferred<void>() };
+  cold.data.request = (operation) => {
+    order.push(operation);
+    if (operation === 'group-message-recent' && !waiting.queued) {
+      waiting.queued = true;
+      void cold.queue.run(() => {
+        order.push('waiting work');
+        waiting.ran.resolve();
+        return Promise.resolve();
+      });
+    }
+    return Promise.resolve();
+  };
+  while (!waiting.queued)
+    assert.equal(await cold.controller.synchronizeAll(signal), true);
+  await waiting.ran.promise;
+  const turn = order.slice(
+    order.indexOf('group-message-recent'),
+    order.indexOf('waiting work'),
+  );
+  assert.equal(
+    turn.filter((op) => op === 'group-message-recent').length,
+    1,
+    'The turn ended after the step that saw the waiting work',
+  );
+  assert.equal(turn.at(-1), 'group-message-confirm');
+  cold.controller.setSession(null);
+});

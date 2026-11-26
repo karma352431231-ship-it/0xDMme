@@ -2,6 +2,8 @@ import { build } from 'esbuild';
 import { runInNewContext } from 'node:vm';
 import { recordDatabase } from './record-database.ts';
 import { AuthorityWork } from '../../src/client/devices/authority-work.ts';
+import { aesKey } from '../../src/client/device-keys/index.ts';
+import { freshKeyring } from '../../src/client/device-operations/index.ts';
 import type { MessageSynchronization } from '../../src/client/messages/synchronization.ts';
 import type { ConnectedConversationVisits } from '../../src/client/messages/visits.ts';
 import type { GroupController } from '../../src/client/groups/controller.ts';
@@ -11,8 +13,8 @@ import type { GroupEvent } from '../../src/shared/groups/index.ts';
 import type { VaultAuthority } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 
-// Real lifecycle, cursor, confirmation and signed HTTP adapter. Only SDK body
-// decoding, governance signatures and encrypted storage are synthetic here.
+// Real lifecycle, cursor, confirmation, signed HTTP adapter and sealed local
+// store. Only SDK body decoding and governance signatures are synthetic here.
 const adapters: Record<string, string> = {
   '../message-session/index.ts':
     'export const openMessageMachine = fixture.open;',
@@ -103,13 +105,14 @@ export function groupPreparationFixture() {
       return Promise.resolve();
     },
   };
+  const ring = freshKeyring(session.accountId);
   const authority: VaultAuthority = {
     session,
     directory,
     offline: false,
     epoch: 1,
     events: [],
-    key: () => Promise.reject(new Error('No real keys')),
+    key: () => aesKey(ring.keys[0] ?? ''),
     sign: () => Promise.resolve('synthetic'),
   };
   const queue = new AuthorityWork();
@@ -225,16 +228,23 @@ export function groupPreparationFixture() {
       | undefined,
   };
   runInNewContext(bundle.outputFiles[0]!.text, context);
-  const controller = new context.groups!.GroupController(
-    {
-      withVault: (_offline, work, options) =>
-        queue.run(() => work(authority), options?.priority),
-      withLocalVault: (_locator, work) => queue.run(() => work(authority)),
-    },
-    {} as VaultSync,
-    () => false,
-  );
-  controller.setSession(session);
+  /** A controller of this device; a second one is a page reload that keeps
+   * only the local store. */
+  const start = () => {
+    const controller = new context.groups!.GroupController(
+      {
+        withVault: (_offline, work, options) =>
+          queue.run(() => work(authority), options?.priority),
+        withLocalVault: (_locator, work) => queue.run(() => work(authority)),
+        contended: () => queue.pending,
+      },
+      {} as VaultSync,
+      () => false,
+    );
+    controller.setSession(session);
+    return controller;
+  };
+  const controller = start();
   const add = () =>
     data.views.push({
       id: crypto.randomUUID(),
@@ -250,6 +260,8 @@ export function groupPreparationFixture() {
     });
   return {
     controller,
+    restart: start,
+    queue,
     data,
     session,
     add,

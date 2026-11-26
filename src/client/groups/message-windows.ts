@@ -12,8 +12,11 @@ import {
   GroupMessageIndex,
   IncompleteGroupIndex,
   currentGroupSnapshot,
+  explicitDeletion,
   wire,
 } from './message-index.ts';
+import { GroupCoverage, ReadObservation } from './preparation-state.ts';
+import type { Coverage } from './preparation-state.ts';
 import type { Snapshot, IndexItem } from './message-index.ts';
 import { GroupDelta } from './message-delta.ts';
 export { IncompleteGroupIndex } from './message-index.ts';
@@ -42,8 +45,25 @@ interface ReadContext extends Omit<GroupReadContext, 'machine'> {
   historyTrace?:
     import('../chat-sync-diagnostics/index.ts').LoadTrace | undefined;
   indexPages?: number;
+  /** Background reads stop between pages when other work waits. */
+  shouldYield?: () => boolean;
   guard?: () => void;
   read: (input: unknown) => Promise<{ views: GroupView[] }>;
+}
+interface State {
+  scope: string;
+  snapshot: Snapshot;
+}
+/** One confirmed read in progress: its snapshot, the reader observing what
+ * it read and where the change journal continues. */
+interface Cut {
+  scope: string;
+  snapshot: Snapshot;
+  read: ReadContext;
+  seen: ReadObservation;
+  from: number | null;
+  above: number | null;
+  previous: State | null;
 }
 function checkCenteredRows(
   rows: readonly GroupView[],
@@ -62,12 +82,11 @@ function checkCenteredRows(
 /** Session-only bounded candidates. Metadata continuity and final confirmation
  * are required before candidates become a visible group window. */
 export class GroupMessageWindows {
-  private readonly states = new Map<
-    string,
-    { scope: string; snapshot: Snapshot; prepared: boolean }
-  >();
+  private readonly states = new Map<string, State>();
   private readonly windows = new Map<string, Window>();
   private readonly index = new GroupMessageIndex();
+  /** What the device's local copy already holds; see preparation-state. */
+  private readonly coverage = new GroupCoverage();
   /** How far back each group's latest window reaches; see history-window. */
   private readonly floors = new HistoryFloors();
   /** False after the server answered that it has no delta operation. */
@@ -77,6 +96,7 @@ export class GroupMessageWindows {
     this.windows.clear();
     this.index.clear();
     this.floors.clear();
+    this.coverage.clear();
   }
   /** False once the group's latest window has nothing further back. */
   olderAvailable(group: string, views: readonly GroupView[]): boolean {
@@ -85,15 +105,13 @@ export class GroupMessageWindows {
       (this.floors.floor(group) !== null || views.length >= historyPage)
     );
   }
-  prepared(group: string): boolean {
-    return this.states.get(group)?.prepared ?? false;
+  /** True while the device's local copy still misses older history or owed
+   * packets of the group; known after a read of it. */
+  preparationDue(c: Pick<ReadContext, 'authority' | 'group'>): boolean {
+    return this.coverage.due(c.group.state.groupId, ownJoined(c));
   }
   confirmedCut(group: string): Snapshot | null {
     return this.states.get(group)?.snapshot ?? null;
-  }
-  finishPreparation(group: string): void {
-    const state = this.states.get(group);
-    if (state) state.prepared = true;
   }
   /** The latest window (before null) keeps the group's floor and, with
    * `older`, reaches one page further back; other cursors read single pages. */
@@ -122,13 +140,11 @@ export class GroupMessageWindows {
   ): Promise<Window> {
     c.guard?.();
     await this.restoreCheckpoint(c);
-    const { scope, snapshot, read } = await this.target(c);
-    const previous = this.previousState(snapshot, scope);
-    const changed = await this.index.read(
-      read,
-      snapshot,
-      previous?.snapshot ?? null,
-    );
+    const { scope, snapshot, read, previous, from, above } =
+      await this.target(c);
+    // A focused read does not read changed packets, so it leaves the
+    // coverage where it is and later reads continue the journal from there.
+    const { changed } = await this.index.read(read, snapshot, from, above);
     const focus = await history.stage({
       cut: canonical(snapshot),
       read: (slice) =>
@@ -168,7 +184,127 @@ export class GroupMessageWindows {
       throw error;
     }
   }
+  /** Background preparation of the device's local copy at one confirmed
+   * cut: packets still owed first, then older pages of the first full pass,
+   * at most `pages` reads and none after other work starts waiting. Nothing
+   * is shown, so no window is kept. False once nothing remains. */
+  async prepare(c: ReadContext, pages: number): Promise<boolean> {
+    try {
+      return await this.prepareCut(c, pages);
+    } catch (error: unknown) {
+      if (
+        !(error instanceof IncompleteGroupIndex) &&
+        !expectedInterruption(error)
+      )
+        this.discard(c.group.state.groupId);
+      throw error;
+    }
+  }
+  private async prepareCut(c: ReadContext, pages: number): Promise<boolean> {
+    c.guard?.();
+    await this.restoreCheckpoint(c);
+    c.guard?.();
+    const group = c.group.state.groupId,
+      joined = ownJoined(c),
+      coverage = this.coverage.current(group, joined);
+    if (!coverage || !this.coverage.due(group, joined)) return false;
+    const cut = await this.target(c),
+      { snapshot, read } = cut;
+    const { changed, newer } = await this.index.read(
+      read,
+      snapshot,
+      cut.from,
+      cut.above,
+    );
+    if (changed?.length)
+      await this.readChanged(read, snapshot, changed, () => {});
+    const filled = await this.fill(c, cut, coverage, pages);
+    c.guard?.();
+    await c.api('group-message-confirm', wire(snapshot));
+    c.guard?.();
+    this.commitState({
+      snapshot,
+      scope: cut.scope,
+      key: null,
+      changed,
+      previous: cut.previous,
+    });
+    this.index.confirmed(snapshot);
+    await this.confirmCoverage(c, cut, { changed, newer, ...filled });
+    return this.coverage.due(group, joined);
+  }
+  /** Owed packets first, then older pages of the first full pass, at the
+   * cut; at most `pages` reads and none after other work starts waiting. */
+  private async fill(
+    c: ReadContext,
+    cut: Cut,
+    coverage: Coverage,
+    pages: number,
+  ) {
+    const owed = [...coverage.owed],
+      requested: string[] = [];
+    let older = coverage.older;
+    for (
+      let page = 0;
+      page < pages && (owed.length || older !== null);
+      page++
+    ) {
+      if (page > 0 && c.shouldYield?.()) break;
+      c.guard?.();
+      if (owed.length) {
+        const batch = owed.splice(0, 16);
+        // An id the cut no longer returns has nothing left to read.
+        await this.objectPage(cut.read, cut.snapshot, batch);
+        requested.push(...batch);
+        continue;
+      }
+      older = (
+        await this.recent(cut.read, {
+          scope: cut.scope,
+          snapshot: cut.snapshot,
+          before: older,
+        })
+      ).before;
+    }
+    return {
+      requested,
+      older:
+        coverage.older === null
+          ? undefined
+          : { from: coverage.older, to: older },
+    };
+  }
+  /** Reports a confirmed cut that read every changed packet to the
+   * coverage; `requested` owed packets count as read unless held. */
+  private async confirmCoverage(
+    c: ReadContext,
+    cut: Cut,
+    read: {
+      changed: IndexItem[] | null;
+      newer: string[] | null;
+      start?: number | null | undefined;
+      older?: { from: number; to: number | null } | undefined;
+      requested?: string[];
+    },
+  ): Promise<void> {
+    const requested = read.requested ?? [];
+    await this.coverage.confirmed(c.authority, cut.snapshot.groupId, {
+      joined: ownJoined(c),
+      snapshot: cut.snapshot,
+      from: read.changed === null ? null : cut.from,
+      newer: read.newer,
+      ...(read.start === undefined ? {} : { start: read.start }),
+      ...(read.older ? { older: read.older } : {}),
+      settled: [
+        ...cut.seen.settled,
+        ...requested.filter((id) => !cut.seen.held.has(id)),
+      ],
+      held: [...cut.seen.held],
+    });
+    c.guard?.();
+  }
   private discard(group: string): void {
+    this.coverage.reverify(group);
     this.states.delete(group);
     this.index.clear(group);
     for (const [key, window] of this.windows)
@@ -185,13 +321,14 @@ export class GroupMessageWindows {
       this.restoreCheckpoint(c),
     );
     c.guard?.();
-    const { scope, snapshot, read } = await this.target(c),
+    const cut = await this.target(c),
+      { scope, snapshot, read, previous } = cut,
       key = canonical([snapshot.groupId, before]);
-    const previous = this.previousState(snapshot, scope),
-      changed = await this.index.read(
+    const { changed, newer } = await this.index.read(
         read,
         snapshot,
-        previous?.snapshot ?? null,
+        cut.from,
+        cut.above,
       ),
       history = this.historyRequest(snapshot.groupId, before, latest),
       floor = history.floor;
@@ -221,6 +358,12 @@ export class GroupMessageWindows {
     c.guard?.();
     this.commitWindow({ snapshot, scope, key, changed, previous, result });
     this.index.confirmed(snapshot);
+    // Every changed packet was read above, so the coverage can follow.
+    await this.confirmCoverage(c, cut, {
+      changed,
+      newer,
+      start: before === null ? result.before : undefined,
+    });
     if (history.remember) {
       this.floors.update(snapshot.groupId, reached);
       await measurePrivateSend(c.diagnostic, 'receipt-persist', () =>
@@ -267,18 +410,14 @@ export class GroupMessageWindows {
   }
   private async restoreCheckpoint(c: ReadContext): Promise<void> {
     const group = c.group.state.groupId;
+    await this.coverage.load(c.authority, group, ownJoined(c));
     if (this.states.has(group)) return;
     const value = await readReopen<Window>(
       c.authority,
       this.checkpointLocation(c),
     );
     c.guard?.();
-    const scope = canonical([
-      c.authority.session.accountId,
-      c.authority.session.deviceId,
-      c.authority.directory,
-      c.group.head,
-    ]);
+    const scope = readScope(c);
     if (
       !value ||
       value.scope !== scope ||
@@ -288,29 +427,50 @@ export class GroupMessageWindows {
       value.views.some((view) => view.groupId !== group)
     )
       return;
-    this.states.set(group, {
-      scope,
-      snapshot: value.snapshot,
-      prepared: false,
-    });
+    this.states.set(group, { scope, snapshot: value.snapshot });
     this.remember(canonical([group, null]), value);
   }
-  /** The snapshot to read and the reader serving it. */
-  private async target(c: ReadContext) {
-    // A snapshot always carries this directory and head, so the scope is known
-    // before asking for it.
-    const scope = canonical([
-        c.authority.session.accountId,
-        c.authority.session.deviceId,
-        c.authority.directory,
-        c.group.head,
-      ]),
-      delta = await this.delta(c, scope),
+  /** The snapshot to read, the reader serving it and where the change
+   * journal continues. */
+  private async target(c: ReadContext): Promise<Cut> {
+    const scope = readScope(c),
+      start = this.journalStart(c, scope),
+      delta = await this.delta(c, start.from),
       fresh = delta?.snapshot ?? (await currentGroupSnapshot(c)),
       snapshot = this.index.target(fresh);
-    const read =
-      delta && snapshot === fresh ? { ...c, api: delta.serve(c.api) } : c;
-    return { scope, snapshot, read };
+    if (start.kept && snapshot.revision < start.kept.snapshot.revision)
+      throw new Error('Outdated group state.');
+    const seen = new ReadObservation();
+    return {
+      scope,
+      snapshot,
+      seen,
+      from: start.from,
+      above: start.above,
+      read: observed(
+        delta && snapshot === fresh ? { ...c, api: delta.serve(c.api) } : c,
+        seen,
+      ),
+      previous:
+        start.kept?.snapshot.revision === start.from ? start.kept : null,
+    };
+  }
+  /** The earlier of the device's coverage and the confirmed window, so
+   * neither misses a change. The coverage outlives head and directory
+   * changes; a window is reused only at that exact revision. */
+  private journalStart(c: ReadContext, scope: string) {
+    const group = c.group.state.groupId,
+      joined = ownJoined(c),
+      known = this.states.get(group),
+      kept = known?.scope === scope ? known : null;
+    return {
+      kept,
+      above: this.coverage.current(group, joined)?.high ?? null,
+      from: earliest(
+        this.coverage.journal(group, joined) ?? undefined,
+        kept?.snapshot.revision,
+      ),
+    };
   }
   /** Older pages at the same snapshot, back to the floor and one further
    * when asked; each page is read and verified like the latest one. */
@@ -335,25 +495,17 @@ export class GroupMessageWindows {
     });
   }
   /** Warm reads of a group with no unfinished change set ask for the delta. */
-  private async delta(c: ReadContext, scope: string) {
-    const previous = this.states.get(c.group.state.groupId);
+  private async delta(c: ReadContext, from: number | null) {
     if (
       !this.deltas ||
-      previous?.scope !== scope ||
+      from === null ||
       this.index.retains(c.group.state.groupId)
     )
       return null;
-    const delta = await GroupDelta.read(c, previous.snapshot.revision);
+    const delta = await GroupDelta.read(c, from);
     if (!delta) this.deltas = false;
     c.guard?.();
     return delta;
-  }
-  private previousState(snapshot: Snapshot, scope: string) {
-    const previous = this.states.get(snapshot.groupId);
-    if (previous?.scope !== scope) return null;
-    if (snapshot.revision < previous.snapshot.revision)
-      throw new Error('Outdated group state.');
-    return previous;
   }
   private async loadWindow(
     c: ReadContext,
@@ -364,7 +516,7 @@ export class GroupMessageWindows {
       before: number | null;
       floor: HistoryFloor;
       changed: IndexItem[] | null;
-      previous: { snapshot: Snapshot } | null;
+      previous: State | null;
     },
   ): Promise<Window> {
     const candidate = this.windows.get(input.key);
@@ -375,7 +527,7 @@ export class GroupMessageWindows {
       input.changed !== null
     ) {
       const removed = new Set(
-        input.changed.filter(explicitRemoval).map((item) => item.id),
+        input.changed.filter(explicitDeletion).map((item) => item.id),
       );
       let views = candidate.views.filter((view) => !removed.has(view.id));
       await this.readChanged(c, input.snapshot, input.changed, (page) => {
@@ -406,8 +558,20 @@ export class GroupMessageWindows {
     scope: string;
     key: string;
     changed: IndexItem[] | null;
-    previous: { snapshot: Snapshot; prepared: boolean } | null;
+    previous: State | null;
     result: Window;
+  }): void {
+    this.commitState(input);
+    this.remember(input.key, input.result);
+  }
+  /** The confirmed cut becomes the group's state; other windows advance to
+   * it or are dropped. `key` names the window this read itself produced. */
+  private commitState(input: {
+    snapshot: Snapshot;
+    scope: string;
+    key: string | null;
+    changed: IndexItem[] | null;
+    previous: State | null;
   }): void {
     this.advanceWindows(
       input.snapshot,
@@ -419,11 +583,9 @@ export class GroupMessageWindows {
     this.states.set(input.snapshot.groupId, {
       scope: input.scope,
       snapshot: input.snapshot,
-      prepared: input.changed !== null && (input.previous?.prepared ?? false),
     });
     while (this.states.size > 256)
       this.states.delete(this.states.keys().next().value!);
-    this.remember(input.key, input.result);
   }
   private async readChanged(
     c: ReadContext,
@@ -434,14 +596,7 @@ export class GroupMessageWindows {
     return this.objects(
       c,
       snapshot,
-      items
-        .filter(
-          (item) =>
-            !item.deleted ||
-            !item.deletion ||
-            object(item.deletion)['type'] !== 'message',
-        )
-        .map((item) => item.id),
+      items.filter((item) => !explicitDeletion(item)).map((item) => item.id),
       consume,
     );
   }
@@ -457,29 +612,44 @@ export class GroupMessageWindows {
     while (pending.size) {
       if (Date.now() > deadline)
         throw new Error('Group preparation timed out; try again.');
-      const requested = [...pending].slice(0, 16),
-        raw = object(
-          await c.api('group-message-objects', {
-            ...wire(snapshot),
-            ids: requested,
-          }),
-        );
-      if (!Array.isArray(raw['items']) || !raw['items'].length)
-        throw new Error('Incomplete group objects.');
-      const returned = (raw['items'] as unknown[]).map((item) =>
-        uuid(object(item)['id']),
+      const page = await this.objectPage(
+        c,
+        snapshot,
+        [...pending].slice(0, 16),
       );
-      if (
-        new Set(returned).size !== returned.length ||
-        returned.some((id) => !requested.includes(id))
-      )
-        throw new Error('Objects belong to another query.');
-      const page = await c.read(raw);
+      if (!page.returned.length) throw new Error('Incomplete group objects.');
       if (consume) consume(page.views);
       else views.push(...page.views);
-      for (const id of returned) pending.delete(id);
+      for (const id of page.returned) pending.delete(id);
     }
     return views;
+  }
+  /** One objects request; the server may return fewer packets than asked. */
+  private async objectPage(
+    c: ReadContext,
+    snapshot: Snapshot,
+    requested: string[],
+  ): Promise<{ returned: string[]; views: GroupView[] }> {
+    const raw = object(
+      await c.api('group-message-objects', {
+        ...wire(snapshot),
+        ids: requested,
+      }),
+    );
+    if (!Array.isArray(raw['items']))
+      throw new Error('Incomplete group objects.');
+    const returned = (raw['items'] as unknown[]).map((item) =>
+      uuid(object(item)['id']),
+    );
+    if (
+      new Set(returned).size !== returned.length ||
+      returned.some((id) => !requested.includes(id))
+    )
+      throw new Error('Objects belong to another query.');
+    return {
+      returned,
+      views: returned.length ? (await c.read(raw)).views : [],
+    };
   }
   private async related(
     c: ReadContext,
@@ -555,7 +725,7 @@ export class GroupMessageWindows {
     snapshot: Snapshot,
     from: Snapshot | null,
     items: IndexItem[] | null,
-    current: string,
+    current: string | null,
   ): void {
     for (const [key, window] of this.windows) {
       if (key === current || window.snapshot.groupId !== snapshot.groupId)
@@ -591,12 +761,37 @@ export class GroupMessageWindows {
   }
 }
 
-function explicitRemoval(item: IndexItem): boolean {
+/** Windows and checkpoints belong to this account, device, directory and
+ * group head. */
+function readScope(c: ReadContext): string {
+  return canonical([
+    c.authority.session.accountId,
+    c.authority.session.deviceId,
+    c.authority.directory,
+    c.group.head,
+  ]);
+}
+/** The reader with every page it returns reported to `seen`. */
+function observed(c: ReadContext, seen: ReadObservation): ReadContext {
+  return {
+    ...c,
+    read: async (raw) => {
+      const page = await c.read(raw);
+      seen.record(page.views);
+      return page;
+    },
+  };
+}
+function ownJoined(c: Pick<ReadContext, 'authority' | 'group'>): number {
   return (
-    item.deleted &&
-    !!item.deletion &&
-    object(item.deletion)['type'] === 'message'
+    c.group.state.members.find(
+      (member) => member.accountId === c.authority.session.accountId,
+    )?.joined ?? 0
   );
+}
+function earliest(...revisions: (number | undefined)[]): number | null {
+  const known = revisions.filter((value) => value !== undefined);
+  return known.length ? Math.min(...known) : null;
 }
 
 /** Validate the bounded action page and strictly advancing transport cursor. */

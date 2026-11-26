@@ -62,6 +62,8 @@ import {
 import { IncompleteGroupIndex } from './message-index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { GroupMessageWindows } from './message-windows.ts';
+import { GroupPreparationPlan } from './preparation-plan.ts';
+import type { PreparationSteps } from './preparation-plan.ts';
 import { groupManager } from '../../shared/groups/index.ts';
 import { cachedGroupPhoto } from './photo.ts';
 import { groupPhoto } from '../../shared/group-messages/index.ts';
@@ -126,13 +128,14 @@ import {
 } from '../history-window/index.ts';
 import type { HistoryDirection } from '../history-window/index.ts';
 
-interface GroupPrefetch {
-  after: string | null;
-  groups: GroupEvent[];
-  before: number | null;
-  listed: boolean;
-  complete: boolean;
+/** What the inbox tells one preparation turn. */
+export interface GroupPreparationTurn {
+  /** The inbox request this turn serves; a newer one starts a new pass. */
+  version?: number;
+  /** True when other inbox work is waiting. */
+  shouldYield?: () => boolean;
 }
+type WindowContext = Parameters<GroupMessageWindows['read']>[0];
 interface GroupSendOptions {
   ownDirectory?: VaultWorkOptions['ownDirectory'];
   progress?: GroupSendProgress | undefined;
@@ -202,13 +205,7 @@ export class GroupController {
   private generation = 0;
   private readonly selection = new SelectionWork();
   private prefetchAbort: AbortController | null = null;
-  private prefetch: GroupPrefetch = {
-    after: null,
-    groups: [],
-    before: null,
-    listed: false,
-    complete: false,
-  };
+  private preparation = new GroupPreparationPlan();
   entries: GroupSummary[] = [];
   incoming: GroupConsent[] = [];
   next: string | null = null;
@@ -653,20 +650,19 @@ export class GroupController {
     this.prefetchAbort?.abort(new WorkInterruption('scheduler'));
   }
   private resetSynchronization(): void {
-    this.prefetch = {
-      after: null,
-      groups: [],
-      before: null,
-      listed: false,
-      complete: false,
-    };
+    this.preparation = new GroupPreparationPlan();
   }
-  /** Prepares every authorized group without selecting it or marking it read. */
+  /** Prepares every authorized group without selecting it or marking it read:
+   * each group's latest window, then whatever older history this device's
+   * local copy still lacks, several bounded steps per account turn while no
+   * other work waits. */
   async synchronizeAll(
     signal: AbortSignal,
     work: VaultWorkOptions = {},
+    turn: GroupPreparationTurn = {},
   ): Promise<boolean> {
-    if (this.prefetch.complete) this.resetSynchronization();
+    const plan = this.preparation;
+    plan.requested(turn.version);
     const generation = this.generation,
       abort = new AbortController();
     this.prefetchAbort = abort;
@@ -675,7 +671,8 @@ export class GroupController {
       combined.throwIfAborted();
       this.guard(generation);
     };
-    const progress = this.prefetch;
+    const shouldYield = () =>
+      !!turn.shouldYield?.() || !!this.access.contended?.();
     try {
       const more = await this.access.withVault(
         false,
@@ -689,17 +686,23 @@ export class GroupController {
               signal: combined,
               privateSend: work.privateSend,
             });
-          if (!(await this.loadPrefetchGroups(progress, api))) return false;
           const governance = new GroupGovernance(
             this.identities,
             api,
             authority,
           );
-          await this.prefetchGroupPage(
-            { authority, api, governance, guard, diagnostic: work.privateSend },
-            progress,
+          return plan.run(
+            this.preparationSteps(
+              {
+                authority,
+                api,
+                governance,
+                guard,
+                diagnostic: work.privateSend,
+              },
+              shouldYield,
+            ),
           );
-          return true;
         },
         work,
       );
@@ -718,24 +721,63 @@ export class GroupController {
       if (this.prefetchAbort === abort) this.prefetchAbort = null;
     }
   }
-  private async loadPrefetchGroups(
-    progress: GroupPrefetch,
-    api: AttachmentApi,
-  ): Promise<boolean> {
-    if (progress.groups.length) return true;
-    if (progress.listed && progress.after === null) {
-      progress.complete = true;
-      return false;
-    }
-    const { groups, next } = this.prefetchGroupList(
-      await api('group-list', { after: progress.after }),
-      progress.after,
-    );
-    progress.groups = groups;
-    progress.after = next;
-    progress.listed = true;
-    progress.complete = !groups.length && next === null;
-    return !progress.complete;
+  /** One turn's steps. A group is verified once per turn; every step reads
+   * through its own lease and commits on its own. */
+  private preparationSteps(
+    c: GroupContext & { guard: () => void },
+    shouldYield: () => boolean,
+  ): PreparationSteps {
+    const verified = new Map<string, GroupState>();
+    const read = async <T>(
+      groupId: string,
+      step: (context: WindowContext) => Promise<T>,
+    ): Promise<T> => {
+      const group =
+        verified.get(groupId) ??
+        (await measurePrivateSend(c.diagnostic, 'receipt-verify', () =>
+          c.governance.verify(groupId),
+        ));
+      verified.set(groupId, group);
+      const lease = new GroupMessageLease({
+        ...c,
+        group,
+        identities: this.identities,
+      });
+      try {
+        return await step({
+          ...c,
+          indexPages: 4,
+          shouldYield,
+          group,
+          identities: this.identities,
+          read: (raw) => lease.read(raw),
+        });
+      } finally {
+        lease.close();
+      }
+    };
+    return {
+      list: async (after) => {
+        const page = this.prefetchGroupList(
+          await c.api('group-list', { after }),
+          after,
+        );
+        return {
+          groups: page.groups.map((group) => group.groupId),
+          next: page.next,
+        };
+      },
+      latest: (groupId) =>
+        read(groupId, async (context) => {
+          const page = await this.messageWindows.read(context, null);
+          c.guard();
+          this.rememberPreview(groupId, page.views);
+          return this.messageWindows.preparationDue(context);
+        }),
+      fill: (groupId) =>
+        read(groupId, (context) => this.messageWindows.prepare(context, 4)),
+      shouldYield,
+    };
   }
   private prefetchGroupList(
     value: unknown,
@@ -749,45 +791,6 @@ export class GroupController {
     if (next !== null && (next === after || !groups.length))
       throw new Error('Group list pagination does not match.');
     return { groups, next };
-  }
-  private async prefetchGroupPage(
-    c: GroupContext & { guard: () => void },
-    progress: GroupPrefetch,
-  ): Promise<void> {
-    const group = await measurePrivateSend(c.diagnostic, 'receipt-verify', () =>
-      c.governance.verify(progress.groups[0]!.groupId),
-    );
-    const prepared =
-      progress.before === null &&
-      this.messageWindows.prepared(group.state.groupId);
-    const lease = new GroupMessageLease({
-      ...c,
-      group,
-      identities: this.identities,
-    });
-    let page;
-    try {
-      page = await this.messageWindows.read(
-        {
-          ...c,
-          indexPages: 1,
-          group,
-          identities: this.identities,
-          read: (raw) => lease.read(raw),
-        },
-        progress.before,
-      );
-    } finally {
-      lease.close();
-    }
-    c.guard();
-    if (progress.before === null)
-      this.rememberPreview(group.state.groupId, page.views);
-    progress.before = prepared ? null : page.before;
-    if (progress.before === null) {
-      this.messageWindows.finishPreparation(group.state.groupId);
-      progress.groups.shift();
-    }
   }
   async open(
     groupId: string,

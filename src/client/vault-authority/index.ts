@@ -42,6 +42,9 @@ export interface VaultAccess {
     work: (authority: VaultAuthority) => Promise<T>,
     options?: VaultWorkOptions,
   ) => Promise<T>;
+  /** True while other work of this tab waits for the account turn, so
+   * background work running in a turn can stop between bounded steps. */
+  contended?: () => boolean;
 }
 export interface VaultWorkOptions extends AuthorityDiagnosticContext {
   priority?: 'interactive';

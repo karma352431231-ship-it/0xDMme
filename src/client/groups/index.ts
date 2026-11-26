@@ -56,7 +56,7 @@ import { GroupController } from './controller.ts';
 import { GroupReceipt } from './receipt.ts';
 import type { GroupChange } from './receipt.ts';
 import type { GroupMetadataSchedule } from './receipt.ts';
-import type { GroupSummary } from './controller.ts';
+import type { GroupPreparationTurn, GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import type { GroupProfile } from './people.ts';
 import type { ConversationStars } from '../message-stars/index.ts';
@@ -698,8 +698,11 @@ export function startGroups(
       });
     },
     counters: () => receipt.counters(),
-    synchronizeAll: (signal: AbortSignal, work?: VaultWorkOptions) =>
-      controller.synchronizeAll(signal, work),
+    synchronizeAll: (
+      signal: AbortSignal,
+      work?: VaultWorkOptions,
+      turn?: GroupPreparationTurn,
+    ) => controller.synchronizeAll(signal, work, turn),
     pauseSynchronization: () => controller.pauseSynchronization(),
     resumePending,
     pendingWork: () => controller.pendingWork(),

@@ -555,7 +555,8 @@ export function startMessages(
     },
     preloadDirect: (signal, work) =>
       controller.synchronizeAll(signal, work, () => textQueue.awaitingSave),
-    preloadGroups: (signal, work) => groups.synchronizeAll(signal, work),
+    preloadGroups: (signal, work, turn) =>
+      groups.synchronizeAll(signal, work, turn),
     unread: () => activity.refresh(),
     groupProjection: () => groups.counters(),
     presence: dailyTick,

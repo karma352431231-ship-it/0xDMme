@@ -542,6 +542,10 @@ export class DeviceController {
   private signingAuthority(session: AccountSession, key: CryptoKey) {
     return authoritySignature(key, () => this.assertSession(session));
   }
+  /** True while other work of this tab waits for the account turn. */
+  get authorityContended(): boolean {
+    return this.authorityWork.pending;
+  }
   async withVault<T>(
     offline: boolean,
     work: (authority: VaultAuthority) => Promise<T>,

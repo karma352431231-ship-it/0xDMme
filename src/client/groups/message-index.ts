@@ -6,6 +6,7 @@ import { groupMessageRelation } from '../../shared/group-messages/index.ts';
 import { applyGroupRemovals } from './removals.ts';
 import type { GroupRemovalItem } from './removals.ts';
 import type { GroupReadContext } from './reader.ts';
+import { owedLimit } from './preparation-state.ts';
 export interface Snapshot {
   groupId: string;
   head: string;
@@ -18,7 +19,11 @@ export interface Snapshot {
 export interface IndexItem extends GroupRemovalItem {
   deleted: boolean;
 }
-type ReadContext = Omit<GroupReadContext, 'machine'> & { indexPages?: number };
+type ReadContext = Omit<GroupReadContext, 'machine'> & {
+  indexPages?: number;
+  /** Background reads stop between index pages when other work waits. */
+  shouldYield?: () => boolean;
+};
 interface Progress {
   snapshot: Snapshot;
   key: string;
@@ -26,6 +31,16 @@ interface Progress {
   items: IndexItem[];
   from: number | null;
   complete: boolean;
+  /** A full pass collects the ids above `above` for the device's coverage;
+   * null once there are more than it keeps. */
+  above: number | null;
+  newer: string[] | null;
+}
+/** The change set since `from`, or null after a full index pass; `newer`
+ * lists a full pass's packets above the requested sequence. */
+export interface IndexResult {
+  changed: IndexItem[] | null;
+  newer: string[] | null;
 }
 export class IncompleteGroupIndex extends WorkInterruption {
   constructor() {
@@ -52,49 +67,69 @@ export class GroupMessageIndex {
     const retained = this.progress.get(fresh.groupId)?.snapshot;
     return retained && continuesCut(retained, fresh) ? retained : fresh;
   }
+  /** `from` is the confirmed revision the change journal continues from;
+   * a journal gap or null reads the full index, collecting the ids above
+   * `above` when given. */
   async read(
     c: ReadContext,
     snapshot: Snapshot,
-    from: Snapshot | null,
-  ): Promise<IndexItem[] | null> {
-    if (from?.revision === snapshot.revision) return [];
-    const key = canonical([snapshot, c.authority.session.accountId]);
-    const progress = this.start({ snapshot, key, from }),
-      deadline = Date.now() + 45000;
-    if (progress.complete) return this.result(progress);
+    from: number | null,
+    above: number | null = null,
+  ): Promise<IndexResult> {
+    if (from === snapshot.revision) return { changed: [], newer: null };
+    const key = canonical([snapshot, c.authority.session.accountId, from]);
+    const progress = this.start({ snapshot, key, from, above });
+    if (!progress.complete && !(await this.pages(c, snapshot, progress)))
+      throw new IncompleteGroupIndex();
+    progress.complete = true;
+    return this.result(progress);
+  }
+  /** True once the index is complete within this call's page budget. */
+  private async pages(
+    c: ReadContext,
+    snapshot: Snapshot,
+    progress: Progress,
+  ): Promise<boolean> {
+    const deadline = Date.now() + 45000;
     for (
       let page = 0;
       page < (c.indexPages ?? 8) && Date.now() < deadline;
       page++
     ) {
-      if (!(await this.page(c, snapshot, progress))) continue;
-      progress.complete = true;
-      return this.result(progress);
+      if (page > 0 && c.shouldYield?.()) return false;
+      if (await this.page(c, snapshot, progress)) return true;
     }
-    throw new IncompleteGroupIndex();
+    return false;
   }
-  private result(progress: Progress): IndexItem[] | null {
+  private result(progress: Progress): IndexResult {
     return progress.from === null
-      ? null
-      : [...new Map(progress.items.map((item) => [item.id, item])).values()];
+      ? { changed: null, newer: progress.newer }
+      : {
+          changed: [
+            ...new Map(progress.items.map((item) => [item.id, item])).values(),
+          ],
+          newer: null,
+        };
   }
   private start(input: {
     snapshot: Snapshot;
     key: string;
-    from: Snapshot | null;
+    from: number | null;
+    above: number | null;
   }): Progress {
-    const { snapshot, key, from } = input,
+    const { snapshot, key, from, above } = input,
       groupId = snapshot.groupId;
     const existing = this.progress.get(groupId);
     if (existing?.key === key) return existing;
-    const revision = from?.revision ?? null;
-    const progress = {
+    const progress: Progress = {
       snapshot,
       key,
-      after: revision ?? 0,
-      from: revision,
+      after: from ?? 0,
+      from,
       items: [],
       complete: false,
+      above,
+      newer: above === null ? null : [],
     };
     this.progress.delete(groupId);
     this.progress.set(groupId, progress);
@@ -131,6 +166,7 @@ export class GroupMessageIndex {
       progress.from = null;
       progress.after = 0;
       progress.items = [];
+      progress.newer = progress.above === null ? null : [];
       return false;
     }
     assertDelta(raw, progress, snapshot);
@@ -141,6 +177,7 @@ export class GroupMessageIndex {
     );
     const next = readCursor(raw, { progress, snapshot, items });
     appendChanges(progress, items);
+    collectNewer(progress, items);
     this.trim(snapshot.groupId);
     if (next === null) return true;
     progress.after = next;
@@ -280,6 +317,23 @@ function appendChanges(progress: Progress, items: IndexItem[]): void {
   if (progress.items.length + items.length > 256)
     throw new Error('Group change set limit exceeded.');
   progress.items.push(...items);
+}
+/** Readable packets of a full pass above the coverage. */
+function collectNewer(progress: Progress, items: IndexItem[]): void {
+  if (progress.from !== null || progress.newer === null) return;
+  const above = progress.above ?? Infinity;
+  for (const item of items)
+    if (item.sequence > above && !explicitDeletion(item))
+      progress.newer.push(item.id);
+  if (progress.newer.length > owedLimit) progress.newer = null;
+}
+/** An author's deletion: its packet is gone and needs no read. */
+export function explicitDeletion(item: IndexItem): boolean {
+  return (
+    item.deleted &&
+    !!item.deletion &&
+    object(item.deletion)['type'] === 'message'
+  );
 }
 function readCursor(
   raw: Record<string, unknown>,

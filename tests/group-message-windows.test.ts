@@ -43,12 +43,19 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     finite: null as { invalidation: number } | null,
     views: [] as GroupView[],
     changed: [] as GroupView[],
-    calls: [] as { op: string; ids: unknown; revision?: unknown }[],
+    calls: [] as {
+      op: string;
+      ids: unknown;
+      revision?: unknown;
+      before?: unknown;
+    }[],
     decoded: [] as string[],
     fail: false,
     failure: null as string | null,
     /** null: no delta operation (older server); false: delta without packets. */
     delta: true as boolean | null,
+    /** The server's change journal no longer reaches the reader's revision. */
+    reset: false,
   };
   const metadata = (view: GroupView) => ({
     ...view,
@@ -58,7 +65,7 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
   const handlers: Record<string, (d: Record<string, unknown>) => unknown> = {
     'group-message-snapshot': () => ({
       groupId,
-      head,
+      head: c.group.head,
       directory: participant.authority.directory,
       revision: data.revision,
       ...(data.finite
@@ -86,17 +93,23 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
       next: null,
     }),
     'group-message-relations': () => ({ ids: [] }),
-    'group-message-changes': (d) => ({
-      reset: false,
-      from: d['from'],
-      revision: d['revision'],
-      items: data.changed.map(metadata),
-      next: null,
-    }),
+    'group-message-changes': (d) =>
+      data.reset
+        ? { reset: true }
+        : {
+            reset: false,
+            from: d['from'],
+            revision: d['revision'],
+            items: data.changed.map(metadata),
+            next: null,
+          },
+    // A changed version of a stored packet answers for it.
     'group-message-objects': (d) => ({
-      items: data.changed.filter((view) =>
-        (d['ids'] as string[]).includes(view.id),
-      ),
+      items: [
+        ...new Map(
+          [...data.views, ...data.changed].map((view) => [view.id, view]),
+        ).values(),
+      ].filter((view) => (d['ids'] as string[]).includes(view.id)),
     }),
     // The server builds these from one cut; the fixture from the same data.
     'group-message-delta': (d) => {
@@ -106,6 +119,8 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
         revision: number;
       };
       const ids = data.changed.map((view) => view.id);
+      if (data.reset)
+        return { snapshot, changes: { reset: true }, objects: null };
       return {
         snapshot,
         changes: {
@@ -132,7 +147,12 @@ async function fixture(owner?: Awaited<ReturnType<typeof groupParticipant>>) {
     machine: {} as GroupReadContext['machine'],
     identities: {} as GroupReadContext['identities'],
     api: (op: string, d: Record<string, unknown>) => {
-      data.calls.push({ op, ids: d['ids'], revision: d['revision'] });
+      data.calls.push({
+        op,
+        ids: d['ids'],
+        revision: d['revision'],
+        before: d['before'],
+      });
       if (op === data.failure)
         return Promise.reject(new Error('Check rejected'));
       return Promise.resolve(handlers[op]!(d));
@@ -341,12 +361,27 @@ async function completeRead(
   }
   throw new Error('Bounded fixture did not complete');
 }
+/** Background preparation until the local copy owes nothing. */
+async function prepareAll(
+  windows: GroupMessageWindows,
+  c: Parameters<GroupMessageWindows['read']>[0],
+) {
+  for (let turn = 0; turn < 64; turn++) {
+    try {
+      if (!(await windows.prepare(c, 4))) return;
+    } catch (error) {
+      if (!(error instanceof IncompleteGroupIndex)) throw error;
+    }
+  }
+  throw new Error('Bounded preparation did not complete');
+}
 await test('cancel during group-message-confirm preserves confirmed state and completed index, without publishing the unconfirmed window', async () => {
   const { c, data, add } = await fixture(),
     windows = new GroupMessageWindows();
   add('Confirmed');
   const original = await completeRead(windows, c);
-  windows.finishPreparation(c.group.state.groupId);
+  await prepareAll(windows, c);
+  assert.equal(windows.preparationDue(c), false);
   const added = add('Unconfirmed');
   data.changed = [added];
   data.revision++;
@@ -359,7 +394,7 @@ await test('cancel during group-message-confirm preserves confirmed state and co
   };
   await assert.rejects(windows.read(c, null), WorkInterruption);
   assert.equal(original.views.length, 1);
-  assert.equal(windows.prepared(c.group.state.groupId), true);
+  assert.equal(windows.preparationDue(c), false);
   const indexPages = data.calls.filter(
     (call) => call.op === 'group-message-changes',
   ).length;
@@ -400,7 +435,7 @@ await test('one-page group turns preserve every cursor and canceling final confi
     },
   };
   await assert.rejects(windows.read(guarded, null), WorkInterruption);
-  assert.equal(windows.prepared(c.group.state.groupId), false);
+  assert.equal(windows.preparationDue(c), true);
   const pages = data.calls.filter(
     (call) => call.op === 'group-message-index',
   ).length;
@@ -722,4 +757,124 @@ await test('latest group preview waits for a complete index, reuses the verified
   assert.equal(data.decoded.length, decoded);
   assert.ok(data.calls.some((call) => call.op === 'group-message-confirm'));
   assert.ok(!data.calls.some((call) => call.op === 'group-message-read'));
+});
+
+/** A durable local store for one test, like a page reload keeps it. */
+function durableStore(t: { after: (cleanup: () => void) => void }) {
+  const store = recordDatabase();
+  for (const [name, value] of Object.entries({
+    indexedDB: store.factory,
+    IDBKeyRange: store.range,
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+}
+const operations = <T extends { op: string }>(calls: T[], op: string) =>
+  calls.filter((call) => call.op === op);
+
+await test('a restart resumes an interrupted first pass and a prepared group reads no older history', async (t) => {
+  durableStore(t);
+  const f = await fixture();
+  f.data.finite = { invalidation: 0 };
+  for (let n = 0; n < 72; n++) f.add('Synthetic');
+  const first = new GroupMessageWindows();
+  await completeRead(first, f.c);
+  assert.equal(first.preparationDue(f.c), true);
+  assert.equal(await first.prepare(f.c, 1), true);
+  const reached = operations(f.data.calls, 'group-message-recent').at(-1)!;
+  f.data.calls.length = 0;
+  // A reload: only the device's local store survives.
+  const resumed = new GroupMessageWindows();
+  await resumed.read(f.c, null);
+  assert.deepEqual(operations(f.data.calls, 'group-message-index'), []);
+  await prepareAll(resumed, f.c);
+  const older = operations(f.data.calls, 'group-message-recent')
+    .map((call) => call.before)
+    .filter((before) => before !== null);
+  assert.ok(
+    Number(older[0]) < Number(reached.before),
+    'The pass continues below the page read before the reload',
+  );
+  f.data.calls.length = 0;
+  const warm = new GroupMessageWindows();
+  await warm.read(f.c, null);
+  assert.equal(warm.preparationDue(f.c), false);
+  assert.equal(await warm.prepare(f.c, 4), false);
+  assert.deepEqual(
+    f.data.calls.map((call) => call.op),
+    ['group-message-delta', 'group-message-confirm'],
+    'The reopen checkpoint and the journal: no history page and no index pass',
+  );
+});
+
+await test('after a change journal gap only the packets that arrived meanwhile are read', async (t) => {
+  durableStore(t);
+  const f = await fixture();
+  f.data.finite = { invalidation: 0 };
+  for (let n = 0; n < 40; n++) f.add('Synthetic');
+  const before = new GroupMessageWindows();
+  await completeRead(before, f.c);
+  await prepareAll(before, f.c);
+  const arrived = Array.from({ length: 30 }, () => f.add('Arrived').id);
+  f.data.revision += 300;
+  f.data.reset = true;
+  f.data.calls.length = 0;
+  const after = new GroupMessageWindows();
+  await completeRead(after, f.c);
+  assert.ok(operations(f.data.calls, 'group-message-index').length > 0);
+  assert.equal(after.preparationDue(f.c), true);
+  f.data.reset = false;
+  f.data.calls.length = 0;
+  await prepareAll(after, f.c);
+  const requested = operations(f.data.calls, 'group-message-objects').flatMap(
+    (call) => call.ids as string[],
+  );
+  assert.equal(requested.length, 30 - 16, 'The latest window already read 16');
+  assert.ok(requested.every((id) => arrived.includes(id)));
+  assert.deepEqual(operations(f.data.calls, 'group-message-recent'), []);
+  assert.equal(after.preparationDue(f.c), false);
+});
+
+await test('another member joining keeps the coverage; the own reentry prepares again', async (t) => {
+  durableStore(t);
+  const f = await fixture();
+  f.data.finite = { invalidation: 0 };
+  for (let n = 0; n < 20; n++) f.add('Synthetic');
+  const windows = new GroupMessageWindows();
+  await completeRead(windows, f.c);
+  await prepareAll(windows, f.c);
+  const own = f.c.group.state.members[0]!;
+  f.c.group = {
+    head: 'd'.repeat(64),
+    state: {
+      ...f.c.group.state,
+      epoch: 2,
+      members: [
+        own,
+        { accountId: crypto.randomUUID(), role: 'member', joined: 2 },
+      ],
+    },
+  };
+  const arrival = f.add('After the new member');
+  f.data.revision++;
+  f.data.changed = [arrival];
+  f.data.calls.length = 0;
+  const reloaded = new GroupMessageWindows();
+  const result = await reloaded.read(f.c, null);
+  assert.equal(result.views.at(-1)?.text, 'After the new member');
+  assert.deepEqual(operations(f.data.calls, 'group-message-index'), []);
+  assert.equal(reloaded.preparationDue(f.c), false);
+  const reentered = {
+    ...f.c,
+    group: {
+      ...f.c.group,
+      state: { ...f.c.group.state, members: [{ ...own, joined: 2 }] },
+    },
+  };
+  assert.equal(reloaded.preparationDue(reentered), true);
 });

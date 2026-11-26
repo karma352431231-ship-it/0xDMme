@@ -17,6 +17,13 @@ import { HistoryPreparation } from './preparation.ts';
 import type { HistoryKind, PreparationTurn } from './preparation.ts';
 import type { VaultWorkOptions } from '../vault-authority/index.ts';
 
+/** What one bounded preparation turn learns from the inbox. */
+export interface InboxTurn {
+  /** The request this turn serves; it changes with every new request. */
+  version: number;
+  /** True when the other inbox area has live demand waiting. */
+  shouldYield: () => boolean;
+}
 interface InboxPorts {
   ready: () => boolean;
   /** Live receipt eligibility; send quiet time and decoration do not apply. */
@@ -25,7 +32,11 @@ interface InboxPorts {
   current: (generation: number) => boolean;
   /** Live demand asks for interactive authority priority. */
   direct: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
-  groups: (signal: AbortSignal, work: VaultWorkOptions) => Promise<boolean>;
+  groups: (
+    signal: AbortSignal,
+    work: VaultWorkOptions,
+    turn: InboxTurn,
+  ) => Promise<boolean>;
   pause: () => void;
   changed: () => void;
   startingLive?: () => void;
@@ -75,6 +86,13 @@ export class MessageInbox {
   get urgent(): boolean {
     const now = Date.now();
     return [...this.demanded].some((kind) => this.retryAt[kind] <= now);
+  }
+  /** Live demand of the other area, which a multi-step turn yields to. */
+  private urgentOther(kind: HistoryKind): boolean {
+    const now = Date.now();
+    return [...this.demanded].some(
+      (other) => other !== kind && this.retryAt[other] <= now,
+    );
   }
   reset(): void {
     this.draftInterruptions = 0;
@@ -283,7 +301,10 @@ export class MessageInbox {
         };
         return measurePrivateSend(context, 'receipt-attempt', () =>
           turn.kind === 'groups'
-            ? this.ports.groups(signal, work)
+            ? this.ports.groups(signal, work, {
+                version: turn.version,
+                shouldYield: () => this.urgentOther(turn.kind),
+              })
             : this.ports.direct(signal, work),
         );
       },

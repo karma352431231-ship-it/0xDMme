@@ -632,6 +632,7 @@ export function startDevices(options: {
       work: (a: VaultAuthority) => Promise<T>,
       options?: VaultWorkOptions,
     ) => controller.withVault(offline, work, options),
+    contended: () => controller.authorityContended,
     privateKey: openKeys,
     /** Which backup wallets open recovery, and the workflow that changes it. */
     backupRecovery: {
