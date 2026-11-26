@@ -50,6 +50,21 @@ index (`src/client/groups/message-index.ts`) restarts from sequence 0 with
 reaches 256 changes quickly, so a member who was away for a day pays both
 walks.
 
+### Private and public conversations already keep a marker
+
+The problem is specific to groups. The other two conversation kinds already
+persist their progress and read only what is new:
+
+- Private conversations: `src/client/messages/sync-progress.ts` saves a sealed,
+  account-wide journal cursor after every page (`saveSyncProgress`). In the
+  same capture the `direct` turn took 259 ms, found nothing new and finished.
+- Public `@` DMs: `src/client/social-dm/history-sync.ts` keeps a saved
+  `DmHistoryCursor` and resumes from it.
+
+Group preparation is the only path without one. Option A gives groups the same
+model: a full first pass once per device (like a first history sync on a newly
+linked device), then only what changed.
+
 ## 2. What group preparation is actually for
 
 | Purpose                                                    | Where                                                                       | Needs every message?                                          | Needs only changes since the last run? |
@@ -90,10 +105,14 @@ remember that the work was already done.
 - Every read stays verified: membership and governance (`group-history`), packet
   hash against the index, SDK/signature verification, and
   `group-message-confirm` before anything is shown.
-- Persisted progress is valid only inside its authorization scope (account,
-  device, own directory, group head), as already required for confirmed
-  progress (decision of 21/10/2026). Any mismatch, corruption or eviction is a
-  safe miss that falls back to today's full verification.
+- Confirmed windows and the reopen checkpoint stay bound to their full
+  authorization scope (account, device, own directory, group head), as already
+  required for confirmed progress (decision of 21/10/2026). The new preparation
+  marker (Option A) describes the device's local copy, not a verified window,
+  so it has the local copy's lifetime and is bound to the account, the group
+  and this account's own participation period (section 4.1). Any mismatch,
+  corruption or eviction is a safe miss that falls back to today's full
+  verification.
 - No decrypted content leaves the device. New persisted state contains only
   sequences, revisions and message ids, sealed in the existing local encrypted
   store.
@@ -109,9 +128,13 @@ remember that the work was already done.
 ### Option A — remember preparation on the client (no server change)
 
 1. **Persisted coverage per group.** A new owner module
-   `src/client/groups/preparation-state.ts` keeps, per group, a sealed record
-   `prepared:group` in the reopen store, with the same scope and head binding as
-   `reopen:group`:
+   `src/client/groups/preparation-state.ts` keeps, per group, one sealed
+   record next to the local copy, in the same device-local store and scope
+   (`GroupCache`, `<account>:group:<group>`). It is bound to this account's
+   own `joined` epoch, not to the group head (section 4.1):
+   - `joined`: the participation period the coverage belongs to;
+   - `revision`: the last confirmed message revision, used only as the change
+     journal's starting point;
    - `high`: highest sequence up to which every readable packet was read,
      cached and acknowledged at a confirmed cut;
    - `low`: lowest sequence reached by the backfill, or `complete` when the
@@ -153,6 +176,27 @@ unaffected. The new record is an accelerator, but it makes a claim: "receipts
 up to `high` were sent". If that claim were wrong, the failure would be a missed
 receipt (the sender sees a single check), not a privacy or data-loss issue. The
 media hole after a journal gap is covered only within the 64-id `held` budget.
+
+#### 4.1 When the marker is kept and when it is lost
+
+A first draft bound the marker to the group head, like `reopen:group`. Every
+membership change (anyone joining or leaving, a role change) would then have
+discarded it, and a large, active group would have fallen back to the full walk
+again and again. The marker is therefore bound to what it actually describes:
+the local copy, and this account's own participation period.
+
+| Situation                                                            | Marker    | Why                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Another member joins, leaves or is removed; a role changes           | kept      | Own `joined` epoch is unchanged. The new head is verified by governance as usual; the latest window is re-read and verified under it (one page); the removal index continues the change journal from the stored `revision`, which the server checks against the new head. |
+| Own device added or removed, own directory changes                   | kept      | The local copy is not bound to the directory either. Every read keeps verifying the current directory.                                                                                                                                                                    |
+| Browser or OS clears site data, storage eviction, private tab closed | lost      | The local copy is lost with it, so the full pass is genuinely needed again for search and offline reading.                                                                                                                                                                |
+| New device or reinstalled app                                        | absent    | Each device builds its own local copy once. Receipts are account-wide, so there is nothing left to acknowledge.                                                                                                                                                           |
+| Own reentry after leaving or removal                                 | reset     | A new `joined` epoch starts a new period without access to the gap. The old local copy stays, as the approved rule says.                                                                                                                                                  |
+| Group deleted, account or session changed                            | discarded | Same lifecycle as the local copy.                                                                                                                                                                                                                                         |
+
+The marker contains no content, only sequences, one revision and at most 64
+message ids. It never replaces a verification: governance, packet hashes,
+signatures and `group-message-confirm` still run on every read.
 
 ### Option B — A plus a server "pending for me" read (new API op, no migration)
 
@@ -232,16 +276,17 @@ These are recommendations; nothing is approved.
 
 Phase 1, in focused commits:
 
-1. `preparation-state.ts`: sealed coverage record, scope/head binding,
-   validation, safe miss. Unit tests cover the scope mismatch, corruption, head
-   change and `held` budget.
+1. `preparation-state.ts`: sealed coverage record next to the local copy,
+   bound to the account, group and own `joined` epoch; validation and safe
+   miss. Unit tests cover the period mismatch, corruption and `held` budget.
 2. `GroupMessageWindows` uses it: restore keeps coverage, the delta advances
    `high`, and a journal reset reads only forward from `high`. Extend
    `tests/group-message-windows.test.ts` and `tests/fixtures/group-preparation.ts`
    with: a warm start of a prepared group makes one history read; a restart in
    the middle resumes from `low`; a journal gap reads only new pages; held media
-   receives its receipt when it becomes available; a head or directory change
-   gives a full pass.
+   receives its receipt when it becomes available; another member joining or
+   leaving keeps the coverage and continues the change journal from the stored
+   revision; own reentry starts a new period.
 3. Prefetch batching with yield between pages and groups. Extend
    `tests/group-preparation-lifecycle.test.ts`: interactive demand releases the
    turn after the current page.
