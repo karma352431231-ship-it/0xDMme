@@ -8,10 +8,8 @@ import type {
 import { CommunityMediaFiles } from '../community-media/index.ts';
 import { verifiedMediaFile } from './file.ts';
 import type { VerifiedMediaFile } from './file.ts';
-import type {
-  PendingPublicAvatar,
-  PublicImage,
-} from '../../shared/public-avatar/index.ts';
+import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
+import type { StickerImage } from '../../shared/public-stickers/index.ts';
 
 /** Select the released output and its exact integrity/size contract together. */
 function releasedFile(
@@ -41,7 +39,7 @@ export class PublicMediaService {
     communities: Pick<CommunityStore, 'releasedPhoto'> &
       Partial<Pick<CommunityStore, 'releasedBanner'>>;
     media?: Pick<CommunityMediaStore, 'releasedMedia'>;
-    stickers?: { released: (id: string) => Promise<PublicImage | null> };
+    stickers?: { released: (id: string) => Promise<StickerImage | null> };
   };
   private readonly files: CommunityMediaFiles | null;
   constructor(
@@ -51,7 +49,7 @@ export class PublicMediaService {
       communities: Pick<CommunityStore, 'releasedPhoto'> &
         Partial<Pick<CommunityStore, 'releasedBanner'>>;
       media?: Pick<CommunityMediaStore, 'releasedMedia'>;
-      stickers?: { released: (id: string) => Promise<PublicImage | null> };
+      stickers?: { released: (id: string) => Promise<StickerImage | null> };
     },
     directory?: string,
   ) {
@@ -79,7 +77,7 @@ export class PublicMediaService {
     return content;
   }
   /** A public sticker's released bytes, read twice like avatars. */
-  async sticker(id: string): Promise<PublicImage> {
+  async sticker(id: string): Promise<StickerImage> {
     const stickers = this.stores.stickers;
     if (!stickers) throw new AccountError(503, 'Public media unavailable.');
     const content = await stickers.released(id);

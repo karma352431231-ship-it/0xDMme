@@ -6,7 +6,8 @@ export function stickerSelection(file: PublicStickerFile) {
   return {
     name: stickerFileNames[file.type],
     type: file.type,
-    image: true,
+    // A video sticker is a video attachment, never an image one.
+    image: file.type !== 'video/mp4',
     bytes: new Uint8Array(file.bytes),
     thumbnail: null,
   };

@@ -96,6 +96,9 @@ export function klipyStickerUrl(id: string): string {
 export const stickerFileNames = {
   'image/png': 'sticker.png',
   'image/gif': 'sticker.gif',
+  // A video sticker (26/11/2026) travels as a video attachment; older apps
+  // show it as a short video.
+  'video/mp4': 'sticker.mp4',
 } as const;
 
 /** Whether an attachment is a personal sticker drawn without a bubble. */
@@ -104,6 +107,8 @@ export function stickerAttachment(content: {
   type: string;
   image: boolean;
 }): boolean {
+  if (content.type === 'video/mp4')
+    return !content.image && content.name === stickerFileNames['video/mp4'];
   return (
     content.image &&
     (content.type === 'image/png' || content.type === 'image/gif') &&

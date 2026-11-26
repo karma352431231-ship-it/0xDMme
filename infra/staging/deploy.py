@@ -219,14 +219,14 @@ def executor_code(config):
                ['profile_directory', 'contact_invitations', 'post_search', 'message_sync', 'community_games',
                 'group_fences', 'share_counts', 'engagement', 'account_engagement', 'follow_notices',
                 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
+                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
         names.remove('deploy_profile_directory')
     if config.get('contact_invitations') is True:
         names.append('deploy_contact_invitations')
     if any(config.get(mode) is True for mode in ['post_search', 'message_sync', 'community_games', 'group_fences',
                                                  'share_counts', 'engagement', 'account_engagement',
                                                  'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                 'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
+                                                 'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
         names.append('deploy_post_search')
     if config.get('message_sync') is True:
         names.append('deploy_message_sync')
@@ -243,7 +243,7 @@ def executor_code(config):
     if config.get('follow_notices') is True:
         names.append('deploy_follow_notices')
     if any(config.get(name) is True for name in ['follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                                                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
+                                                'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
         names.append('deploy_follow_dates')
     if config.get('visitor_retention') is True:
         names.append('deploy_visitor_retention')
@@ -255,14 +255,16 @@ def executor_code(config):
         names.append('deploy_group_pins')
     if config.get('notification_cursors') is True:
         names.append('deploy_notification_cursors')
-    if any(config.get(name) is True for name in ['account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
+    if any(config.get(name) is True for name in ['account_wallets', 'profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
         names.append('deploy_account_wallets')
-    if any(config.get(name) is True for name in ['profile_mutes', 'public_stickers', 'post_photos']):
+    if any(config.get(name) is True for name in ['profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
         names.append('deploy_profile_mutes')
-    if config.get('public_stickers') is True or config.get('post_photos') is True:
+    if any(config.get(name) is True for name in ['public_stickers', 'post_photos', 'video_stickers']):
         names.append('deploy_public_stickers')
-    if config.get('post_photos') is True:
+    if any(config.get(name) is True for name in ['post_photos', 'video_stickers']):
         names.append('deploy_post_photos')
+    if config.get('video_stickers') is True:
+        names.append('deploy_video_stickers')
     for name in names:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
@@ -382,6 +384,8 @@ def main():
                         help='Apply the reviewed 114→115 public stickers and packs.')
     parser.add_argument('--post-photos', action='store_true',
                         help='Apply the reviewed 115→116 ten photos per post.')
+    parser.add_argument('--video-stickers', action='store_true',
+                        help='Apply the reviewed 116→117 video stickers.')
     args = parser.parse_args()
     profile = os.environ.get('OXDMME_DEPLOY_TARGET_PROFILE')
     if profile is not None:
@@ -397,11 +401,13 @@ def main():
         # running it still needs the owner's activation command.
         # The 115→116 ten post photos review was prepared on 25/11/2026 at
         # the owner's request; running it still needs the activation command.
+        # The owner approved the 116→117 video stickers migration on
+        # 26/11/2026; running it still needs the activation command.
         # Every other transition still needs its own review there.
         if any(value for name, value in vars(args).items()
                if name not in ['prepare', 'check', 'activate', 'bootstrap_check', 'account_engagement',
                                'follow_notices', 'follow_dates', 'visitor_retention', 'view_once', 'group_chat', 'group_pins',
-                               'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos']):
+                               'notification_cursors', 'account_wallets', 'profile_mutes', 'public_stickers', 'post_photos', 'video_stickers']):
             parser.error('Explicit targets require separately prepared operational transition reviews.')
     if args.group_chat and any(vars(args)[name] for name in vars(args)
                                  if name not in ['group_chat', 'check', 'activate']):
@@ -424,6 +430,9 @@ def main():
     if args.post_photos and any(vars(args)[name] for name in vars(args)
                                 if name not in ['post_photos', 'check', 'activate']):
         parser.error('Ten post photos require their separate --check or --activate release.')
+    if args.video_stickers and any(vars(args)[name] for name in vars(args)
+                                   if name not in ['video_stickers', 'check', 'activate']):
+        parser.error('Video stickers require their separate --check or --activate release.')
     if args.view_once and any(vars(args)[name] for name in vars(args)
                                 if name not in ['view_once', 'check', 'activate']):
         parser.error('View-once messages require their separate --check or --activate release.')
@@ -504,6 +513,8 @@ def main():
         config['public_stickers'] = True
     if args.post_photos:
         config['post_photos'] = True
+    if args.video_stickers:
+        config['video_stickers'] = True
     if args.share_counts:
         config['share_counts'] = True
     if args.group_fences:

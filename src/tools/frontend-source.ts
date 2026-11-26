@@ -96,6 +96,7 @@ const authored = [
   'src/client/community-media',
   'src/shared/community-media',
   'src/shared/gif-inspection',
+  'src/shared/mp4-inspection',
   'src/shared/social-media',
   'src/client/social-media',
   'src/client/social-backups',

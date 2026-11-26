@@ -16,6 +16,7 @@ import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 export {
   appendStickers,
   renderStickerMessage,
+  stickerArt,
   stickerFigure,
   stickerName,
   stickerViewSource,

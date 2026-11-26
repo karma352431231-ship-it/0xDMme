@@ -1,10 +1,13 @@
 import { t } from '../../shared/i18n/index.ts';
 import { externalMediaGate } from '../external-media/index.ts';
+import { openImageViewer } from '../image-viewer/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
 interface GifDisplay {
   privacy: ExternalMediaConsent;
   signal: AbortSignal;
+  /** Chats: a tap opens the clip enlarged, with "Make sticker" (26/11/2026). */
+  enlarge?: boolean | undefined;
 }
 /** Text first, clips underneath; unknown URLs are preserved in the text. */
 export function showGifText(
@@ -47,12 +50,37 @@ export function showExternalGif(
     signal: options.signal,
     label: t('Show GIF'),
     automatic: true,
-    render: (target) => renderGif(target, url),
+    render: (target) => {
+      renderGif(target, url);
+      if (options.enlarge) enlargeOnTap(target, url, options.signal);
+    },
   });
   return () => {
     stop();
     field.remove();
   };
+}
+/** A tap on a shown clip opens it enlarged; the account adds its action. */
+function enlargeOnTap(
+  target: HTMLElement,
+  url: string,
+  signal: AbortSignal,
+): void {
+  target.addEventListener(
+    'click',
+    (event) => {
+      if (!target.querySelector('video, img')) return;
+      event.stopPropagation();
+      openImageViewer({
+        url,
+        alt: 'GIF',
+        clip: url.endsWith('.mp4'),
+        trigger: target,
+        signal,
+      });
+    },
+    { signal },
+  );
 }
 /** No provider caption or URL over an allowed clip. Failure restores the fallback. */
 export function renderGif(host: HTMLElement, url: string): void {

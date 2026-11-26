@@ -35,12 +35,35 @@ function fallbackLink(host: HTMLElement, sticker: StickerReference): void {
   host.replaceChildren(link);
 }
 
-function stickerImage(host: HTMLElement, source: string): void {
+/**
+ * The drawn file of a sticker: a picture, or a silent looping clip for a
+ * video sticker (26/11/2026), which plays inline like a GIF.
+ */
+export function stickerArt(
+  source: string,
+  video = false,
+): HTMLImageElement | HTMLVideoElement {
+  if (video) {
+    const clip = document.createElement('video');
+    clip.src = source;
+    clip.muted = true;
+    clip.loop = true;
+    clip.autoplay = true;
+    clip.playsInline = true;
+    clip.disablePictureInPicture = true;
+    clip.setAttribute('aria-hidden', 'true');
+    return clip;
+  }
   const image = document.createElement('img');
   image.alt = '';
   image.decoding = 'async';
   image.referrerPolicy = 'no-referrer';
   image.draggable = false;
+  return image;
+}
+
+function stickerImage(host: HTMLElement, source: string, video = false): void {
+  const image = stickerArt(source, video);
   image.addEventListener(
     'error',
     () => {
@@ -51,7 +74,7 @@ function stickerImage(host: HTMLElement, source: string): void {
     },
     { once: true },
   );
-  image.src = source;
+  if (!video) image.src = source;
   host.replaceChildren(image);
 }
 
@@ -79,9 +102,9 @@ function drawPublic(
 ): void {
   host.dataset['loading'] = 'true';
   publicStickerImage(sticker.id, signal).then(
-    (url) => {
+    (art) => {
       delete host.dataset['loading'];
-      if (!signal.aborted) stickerImage(host, url);
+      if (!signal.aborted) stickerImage(host, art.url, art.video);
     },
     () => {
       delete host.dataset['loading'];
@@ -168,11 +191,13 @@ export function appendStickers(
  */
 export function stickerViewSource(
   figure: HTMLElement,
-): { url: string; owned: boolean } | null {
+): { url: string; owned: boolean; clip?: boolean } | null {
   const art = figure.querySelector('.chat-sticker-art');
   const image = art?.querySelector('img');
   if (image?.complete && image.naturalWidth)
     return { url: image.src, owned: false };
+  const clip = art?.querySelector('video');
+  if (clip?.src) return { url: clip.src, owned: false, clip: true };
   const svg = art?.querySelector<SVGSVGElement>('svg.ping-sticker');
   if (!svg) return null;
   const markup = new XMLSerializer().serializeToString(standaloneSvg(svg));

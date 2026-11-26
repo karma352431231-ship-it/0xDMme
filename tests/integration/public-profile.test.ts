@@ -6,6 +6,7 @@ import {
 } from '../../src/server/public-media/index.ts';
 import { publicAvatarPath } from '../../src/shared/public-media/index.ts';
 import assert from 'node:assert/strict';
+import { clip } from '../fixtures/mp4-clip.ts';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
@@ -1008,13 +1009,26 @@ await test('public stickers: upload, packs, adds and the stable released address
       const served = await media.sticker(id);
       assert.equal(served.type, 'image/png');
       assert.deepEqual(served.bytes, png);
+      // A chat GIF kept as an MP4 clip (26/11/2026): stored without its
+      // metadata box; a clip that still carries one is prepared the same way.
+      const video = (
+        (await maker.operate('sticker-upload', {
+          file: { type: 'video/mp4', bytes: encode(clip()) },
+        })) as { id: string }
+      ).id;
+      const clipServed = await media.sticker(video);
+      assert.equal(clipServed.type, 'video/mp4');
+      assert.ok(!new TextDecoder().decode(clipServed.bytes).includes('Lavf'));
+      await assert.rejects(
+        maker.operate('sticker-upload', {
+          file: { type: 'video/mp4', bytes: encode(png) },
+        }),
+        status(400),
+      );
       const mine = (await maker.operate('sticker-list', {})) as {
         id: string;
       }[];
-      assert.deepEqual(
-        mine.map((item) => item.id),
-        [id],
-      );
+      assert.deepEqual(mine.map((item) => item.id).sort(), [id, video].sort());
       await assert.rejects(
         fan.operate('sticker-remove', { id }),
         status(404),

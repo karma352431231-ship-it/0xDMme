@@ -4,12 +4,13 @@ import { pipeline } from 'node:stream/promises';
 import { createHash } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
 import type { PublicImage } from '../../shared/public-avatar/index.ts';
+import type { StickerImage } from '../../shared/public-stickers/index.ts';
 import { mediaRange } from './range.ts';
 import type { MediaRange } from './range.ts';
 import type { VerifiedMediaFile } from './file.ts';
 
 export type PublicMediaBody =
-  PublicImage | { type: string; file: VerifiedMediaFile };
+  PublicImage | StickerImage | { type: string; file: VerifiedMediaFile };
 
 /** Every range has already passed the same current-visibility/integrity checks as GET. */
 function selectRange(

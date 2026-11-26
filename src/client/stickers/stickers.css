@@ -318,3 +318,72 @@ button.chat-sticker {
   font-weight: 700;
   transform: translateX(-50%);
 }
+/* Where a new sticker goes (26/11/2026): Favorites or one of your packs. */
+.sticker-save-sheet {
+  justify-items: stretch;
+}
+.sticker-save-sheet > .chat-sticker-art {
+  justify-self: center;
+  width: 120px;
+  height: 120px;
+}
+.sticker-save-sheet .chat-sticker-art :is(img, video) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sticker-save-sheet h2 {
+  margin: 0;
+  font-size: 16px;
+  text-align: center;
+}
+.sticker-save-choices,
+.sticker-save-packs {
+  display: grid;
+}
+.sticker-save-label {
+  margin: 8px 0 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.sticker-save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.sticker-save-row input {
+  order: 2;
+  margin: 0 0 0 auto;
+  accent-color: var(--accent);
+}
+.sticker-save-row:has(input:disabled) {
+  color: var(--text-muted);
+  cursor: default;
+}
+.sticker-save-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.sticker-save-name {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+.sticker-save-name[hidden] {
+  display: none;
+}
+.sticker-sheet .sticker-save-button {
+  background: var(--accent);
+  color: var(--accent-ink);
+}

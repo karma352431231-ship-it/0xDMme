@@ -803,6 +803,7 @@ export class MessageHistoryUi {
       renderText: emojiText,
       privacy: this.options.externalMedia,
       signal,
+      enlarge: true,
     });
   }
   private readableWindow(): {

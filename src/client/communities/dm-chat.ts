@@ -150,6 +150,7 @@ export function dmBubble(
             renderText: emojiText,
             privacy: input.privacy,
             signal: input.signal,
+            enlarge: true,
           })
         : (emojiText(text, item.text), () => undefined),
   ];

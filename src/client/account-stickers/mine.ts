@@ -1,5 +1,6 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { PersonalSticker } from '../sticker-library/index.ts';
+import { stickerArt } from '../stickers/index.ts';
 import type { SectionView, StickerSection } from '../stickers/index.ts';
 import { glyph } from './glyphs.ts';
 
@@ -118,11 +119,9 @@ class MineView {
         'aria-pressed',
         String(this.selected.has(sticker.id)),
       );
-    const image = document.createElement('img');
-    image.alt = '';
-    image.draggable = false;
-    image.src = this.port.image(sticker);
-    button.append(image);
+    button.append(
+      stickerArt(this.port.image(sticker), sticker.file.type === 'video/mp4'),
+    );
     button.addEventListener('click', () => this.chosen(sticker, button));
     return button;
   }

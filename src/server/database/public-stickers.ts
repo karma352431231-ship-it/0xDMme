@@ -4,7 +4,11 @@ import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicImage } from '../../shared/public-avatar/index.ts';
 import { publicStickerLimits } from '../../shared/public-stickers/index.ts';
-import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
+import type {
+  PublicStickerFile,
+  StickerFileType,
+  StickerImage,
+} from '../../shared/public-stickers/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type {
@@ -22,7 +26,7 @@ interface StickerRow {
   id: string;
   owner: string;
   bytes: Buffer | null;
-  type: 'image/png' | 'image/gif' | null;
+  type: StickerFileType | null;
   width: number;
   height: number;
   review: string | null;
@@ -198,7 +202,7 @@ export class PublicStickers {
     );
   }
   /** The released file at a sticker's stable address, or null. */
-  async released(id: string): Promise<PublicImage | null> {
+  async released(id: string): Promise<StickerImage | null> {
     const row = await this.row(this.options.pool, id);
     if (!row?.review || !row.bytes || !row.type) return null;
     const job = (
@@ -221,9 +225,10 @@ export class PublicStickers {
       ? row
       : null;
   }
+  /** Picture stickers only: the frame scanners never read a video clip. */
   async candidate(job: PublicModerationSubject): Promise<PublicImage | null> {
     const row = await this.matching(this.options.pool, job);
-    return row?.bytes && row.type
+    return row?.bytes && row.type && row.type !== 'video/mp4'
       ? { type: row.type, bytes: new Uint8Array(row.bytes) }
       : null;
   }

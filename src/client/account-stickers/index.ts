@@ -24,6 +24,8 @@ import type { PackPort } from './packs.ts';
 import { PublicStickerApi } from './public-api.ts';
 import type { SignedPerform, StickerPack } from './public-api.ts';
 import { openStickerSheet } from './sheet.ts';
+import { openStickerSaveSheet } from './save-sheet.ts';
+import type { SaveSheetPort } from './save-sheet.ts';
 
 /**
  * The signed-in account's stickers (24/11/2026): the encrypted personal
@@ -64,7 +66,7 @@ class AccountStickerOwner {
     sections: (target) => this.sections(target),
     open: (sticker) => this.open(sticker),
     save: async (picture, frame) => {
-      await this.keep(picture, frame);
+      await this.offer(picture, frame);
     },
   };
   constructor(sync: StickerLibrarySync, perform: SignedPerform) {
@@ -131,11 +133,44 @@ class AccountStickerOwner {
     showToast(t('Saved to your stickers.'), { success: true });
     return true;
   }
-  /** "Make sticker" under an enlarged public picture. */
+  /**
+   * "Make sticker" and "Save sticker": prepares the picture or clip, then
+   * asks where it goes (Favorites or a pack). False when cancelled.
+   */
+  private async offer(picture: Blob, frame: boolean): Promise<boolean> {
+    const file = await prepareSticker(picture, frame);
+    if (!file) return false;
+    const saved = await openStickerSaveSheet(file, this.savePort());
+    if (saved) showToast(t('Sticker saved.'), { success: true });
+    return saved;
+  }
+  private savePort(): SaveSheetPort {
+    return {
+      favorites: async (file) => {
+        await this.library.add(file);
+      },
+      ownPacks: async () => (await this.api.panel()).filter((pack) => pack.own),
+      toPack: async (file, pack) => {
+        const id = await this.api.upload(file);
+        await this.api.save({
+          id: pack.id,
+          name: pack.name,
+          stickers: [...pack.stickers, id],
+        });
+        this.packs = null;
+      },
+      newPack: async (file, name) => {
+        const id = await this.api.upload(file);
+        await this.api.save({ id: null, name, stickers: [id] });
+        this.packs = null;
+      },
+    };
+  }
+  /** "Make sticker" under an enlarged public picture or chat GIF. */
   private fromViewer(url: string): void {
     void fetch(url)
       .then((response) => response.blob())
-      .then((picture) => this.keep(picture, true))
+      .then((picture) => this.offer(picture, true))
       .catch((error: unknown) => {
         showToast(
           error instanceof Error

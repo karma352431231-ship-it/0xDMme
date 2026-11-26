@@ -286,8 +286,8 @@ export function openImageViewer(input: {
   });
   input.signal.addEventListener('abort', stop, { once: true });
   frame.append(image);
-  const action =
-    input.clip || input.action === false ? null : actionButton(input.url, stop);
+  // Clips too: a chat GIF becomes a video sticker (26/11/2026).
+  const action = input.action === false ? null : actionButton(input.url, stop);
   dialog.append(
     frame,
     close,

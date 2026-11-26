@@ -2,6 +2,7 @@ import { base64, encode, keys, object } from '../../shared/account/index.ts';
 import {
   publicStickerBytes,
   stickerFileFromBytes,
+  stickerFileType,
 } from '../../shared/public-stickers/index.ts';
 import type { PublicStickerFile } from '../../shared/public-stickers/index.ts';
 import type { VaultEntry, VaultSync } from '../vault-sync/index.ts';
@@ -42,7 +43,7 @@ function decode(raw: string): PublicStickerFile {
   const data = object(JSON.parse(raw) as unknown);
   keys(data, ['version', 'type', 'bytes']);
   const type = data['type'];
-  if (data['version'] !== 1 || (type !== 'image/png' && type !== 'image/gif'))
+  if (data['version'] !== 1 || !stickerFileType(type))
     throw new Error('Invalid sticker.');
   return stickerFileFromBytes(base64(data['bytes'], publicStickerBytes), type);
 }

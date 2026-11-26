@@ -27,6 +27,28 @@ function gifBytes(bytes: Uint8Array): boolean {
   );
 }
 
+/** An ISO BMFF file starts with its `ftyp` box. */
+function mp4Bytes(bytes: Uint8Array): boolean {
+  return (
+    bytes.length > 12 && String.fromCharCode(...bytes.subarray(4, 8)) === 'ftyp'
+  );
+}
+
+/**
+ * A chat GIF (a short KLIPY clip) keeps its MP4 format (owner, 26/11/2026):
+ * metadata boxes are cleared and the clip must fit 1 MB, 1024 px and ten
+ * seconds, with no sound.
+ */
+function videoSticker(bytes: Uint8Array<ArrayBuffer>): PublicStickerFile {
+  if (bytes.length > publicStickerBytes)
+    throw new Error('Choose a GIF up to 1 MB for a sticker.');
+  try {
+    return stickerFileFromBytes(bytes, 'video/mp4');
+  } catch {
+    throw new Error('This GIF cannot become a sticker.');
+  }
+}
+
 async function pngFrom(
   picture: Blob,
   size: number,
@@ -89,6 +111,7 @@ export async function prepareSticker(
   frame = true,
 ): Promise<PublicStickerFile | null> {
   const bytes = new Uint8Array(await picture.arrayBuffer());
+  if (mp4Bytes(bytes)) return videoSticker(bytes);
   if (!gifBytes(bytes)) return stillSticker(picture, frame);
   if (bytes.length > publicStickerBytes)
     throw new Error('Choose a GIF up to 1 MB for a sticker.');

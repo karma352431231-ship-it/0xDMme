@@ -774,7 +774,11 @@ export class GroupChatView {
     const gif = gifUrls(value).length;
     if (gif) {
       text.replaceChildren();
-      showGifText(text, value, { ...settings, renderText: emojiText });
+      showGifText(text, value, {
+        ...settings,
+        renderText: emojiText,
+        enlarge: true,
+      });
     }
     showExternalVideos(article, value, settings);
   }

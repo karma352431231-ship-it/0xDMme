@@ -3006,6 +3006,12 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   'Write your reply…': ['Write your reply…', '写下回复…'],
   'Write something…': ['Write something…', '写点什么…'],
+  'Your packs (public)': ['Your packs (public)', '你的贴纸包（公开）'],
+  'Sticker saved.': ['Sticker saved.', '贴纸已保存。'],
+  'This GIF cannot become a sticker.': [
+    'This GIF cannot become a sticker.',
+    '此 GIF 无法制作成贴纸。',
+  ],
   'Tags · {0}': ['Tags · {0}', '标签 · {0}'],
   'Write a message or choose an attachment.': [
     'Write a message or choose an attachment.',

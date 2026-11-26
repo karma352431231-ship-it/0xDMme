@@ -1,4 +1,4 @@
-import { stickerAttachment } from '../stickers/index.ts';
+import { stickerArt, stickerAttachment } from '../stickers/index.ts';
 import { openChatImage } from './chat-image-viewer.ts';
 import {
   captureMediaPreview,
@@ -280,6 +280,26 @@ function renderVideo<V extends MediaView>(
       : {}),
   });
 }
+/**
+ * A video sticker (26/11/2026): a silent looping clip without a bubble,
+ * read like a video message. The Blob URL stays owned by the chat.
+ */
+function renderVideoSticker<V extends MediaView>(input: MediaInput<V>): void {
+  const preview = document.createElement('div');
+  preview.className = 'chat-attachment-preview chat-sticker-file';
+  input.article.append(preview);
+  loadVideo(input, input.signal).then(
+    (loaded) => {
+      if (!input.current()) return;
+      const url = URL.createObjectURL(loaded.blob);
+      input.retain(url);
+      preview.replaceChildren(stickerArt(url, true));
+    },
+    () => {
+      if (input.current()) preview.textContent = t('Sticker unavailable.');
+    },
+  );
+}
 function videoSourcePolicy<V extends MediaView>(
   input: MediaInput<V>,
   content: AttachmentContent,
@@ -374,7 +394,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     return;
   }
   if (attachmentVideoType(content.type)) {
-    renderVideo(input, content);
+    if (stickerAttachment(content)) renderVideoSticker(input);
+    else renderVideo(input, content);
     return;
   }
   const image = imageCandidate(content),

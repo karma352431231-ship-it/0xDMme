@@ -142,14 +142,24 @@ await test('099 to 102 collection preserves existing tags, source rows and histo
   // direct/group view-once tables and group actions of 107–110, followed
   // by the two notification cursors of 111, the extra sign-in wallets of 112,
   // the confirming wallet of a session in 113, the empty profile mutes
-  // table of 114, the empty public sticker tables of 115 and the looser
-  // 10-photo post check of 116.
+  // table of 114, the empty public sticker tables of 115, the looser
+  // 10-photo post check of 116 and the MP4 sticker type of 117.
   await db.migrate();
   assert.deepEqual(await snapshot(), before);
   assert.equal(
     (await client.query('SELECT version FROM hash_talk.schema_migrations'))
       .rowCount,
-    116,
+    117,
+  );
+  assert.match(
+    String(
+      (
+        await client.query<{ rule: string }>(
+          "SELECT pg_get_constraintdef(oid) AS rule FROM pg_constraint WHERE conrelid='hash_talk.public_stickers'::regclass AND conname='public_stickers_type_check'",
+        )
+      ).rows[0]?.rule,
+    ),
+    /video\/mp4/u,
   );
   assert.match(
     String(

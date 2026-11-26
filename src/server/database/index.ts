@@ -251,6 +251,7 @@ const migrations = [
   '114-profile-mutes.sql',
   '115-public-stickers.sql',
   '116-post-photos-ten.sql',
+  '117-video-stickers.sql',
 ];
 
 export interface MaintenanceSnapshot {

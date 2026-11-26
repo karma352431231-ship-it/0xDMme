@@ -232,7 +232,12 @@ export function publicStickerBlob(
       await response.body?.cancel().catch(() => undefined);
       throw new Error('Sticker unavailable.');
     }
-    return boundedBlob(response, publicStickerBytes);
+    // GIF stickers were refused here as an unknown format (fixed 26/11/2026).
+    return boundedBlob(response, publicStickerBytes, [
+      'image/png',
+      'image/gif',
+      'video/mp4',
+    ]);
   });
 }
 /** Anonymous fetch avoids attaching the viewer's login cookie to public photo requests. */

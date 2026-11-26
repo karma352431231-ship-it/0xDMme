@@ -5,12 +5,17 @@ import { publicStickerBlob } from '../public-media/index.ts';
  * object URLs for this page. The oldest is released past the budget.
  */
 const budget = 48;
-const images = new Map<string, Promise<string>>();
+/** A loaded public sticker file; `video` for an MP4 clip (26/11/2026). */
+export interface StickerArtSource {
+  url: string;
+  video: boolean;
+}
+const images = new Map<string, Promise<StickerArtSource>>();
 
 export function publicStickerImage(
   id: string,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<StickerArtSource> {
   const known = images.get(id);
   if (known) {
     images.delete(id);
@@ -18,19 +23,22 @@ export function publicStickerImage(
     return known;
   }
   // The shared read outlives one message, so one view leaving does not cancel it.
-  const read = publicStickerBlob(id, AbortSignal.timeout(15_000)).then((blob) =>
-    URL.createObjectURL(blob),
+  const read = publicStickerBlob(id, AbortSignal.timeout(15_000)).then(
+    (blob) => ({
+      url: URL.createObjectURL(blob),
+      video: blob.type === 'video/mp4',
+    }),
   );
   read.catch(() => images.delete(id));
   images.set(id, read);
   while (images.size > budget) {
     const [oldest, url] = images.entries().next().value as [
       string,
-      Promise<string>,
+      Promise<StickerArtSource>,
     ];
     images.delete(oldest);
     void url.then(
-      (value) => URL.revokeObjectURL(value),
+      (value) => URL.revokeObjectURL(value.url),
       () => undefined,
     );
   }

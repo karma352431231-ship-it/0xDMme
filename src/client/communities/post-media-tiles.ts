@@ -181,6 +181,12 @@ function stickerTile(
         if (owned) return Promise.resolve({ url: owned, action: false });
         const source = stickerViewSource(figure);
         if (!source) return Promise.reject(new Error('Sticker unavailable.'));
+        if (source.clip)
+          return Promise.resolve({
+            url: source.url,
+            clip: true,
+            action: false,
+          });
         if (source.owned) {
           owned = source.url;
           options.signal.addEventListener(

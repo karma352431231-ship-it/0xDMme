@@ -1,6 +1,7 @@
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
 import { prepareGif } from '../gif-inspection/index.ts';
 import { imageShape, metadataFree } from '../image-inspection/index.ts';
+import { mp4StickerShape, prepareMp4Sticker } from '../mp4-inspection/index.ts';
 import { publicStickerBytes } from '../stickers/index.ts';
 
 export { publicStickerBytes };
@@ -19,8 +20,26 @@ export const publicStickerLimits = {
   addedPacks: 50,
   packName: 40,
 } as const;
+/**
+ * PNG, GIF, or since 26/11/2026 a short silent MP4 clip: a GIF from the chat
+ * keeps its original video format instead of a heavier animated GIF.
+ */
+export type StickerFileType = 'image/png' | 'image/gif' | 'video/mp4';
+export const stickerFileTypes: readonly StickerFileType[] = [
+  'image/png',
+  'image/gif',
+  'video/mp4',
+];
+export function stickerFileType(value: unknown): value is StickerFileType {
+  return stickerFileTypes.includes(value as StickerFileType);
+}
+/** A released sticker file as served at its stable address. */
+export interface StickerImage {
+  type: StickerFileType;
+  bytes: Uint8Array<ArrayBuffer>;
+}
 export interface PublicStickerFile {
-  type: 'image/png' | 'image/gif';
+  type: StickerFileType;
   bytes: Uint8Array<ArrayBuffer>;
   width: number;
   height: number;
@@ -34,8 +53,13 @@ function gifSize(bytes: Uint8Array): { width: number; height: number } {
 }
 function stickerShape(
   bytes: Uint8Array<ArrayBuffer>,
-  type: 'image/png' | 'image/gif',
+  type: StickerFileType,
 ): PublicStickerFile {
+  if (type === 'video/mp4') {
+    const prepared = prepareMp4Sticker(bytes);
+    const { width, height } = mp4StickerShape(prepared);
+    return { type, bytes: prepared, width, height };
+  }
   if (type === 'image/gif') {
     const prepared = prepareGif(bytes);
     return { type, bytes: prepared, ...gifSize(prepared) };
@@ -46,10 +70,11 @@ function stickerShape(
   return { type, bytes, width: shape.width, height: shape.height };
 }
 
-/** Checks prepared sticker bytes: PNG without metadata or a GIF, ≤1024 px. */
+/** Checks prepared sticker bytes: PNG without metadata, a GIF, or a short
+ * silent MP4 without metadata boxes; at most 1024 px. */
 export function stickerFileFromBytes(
   bytes: Uint8Array<ArrayBuffer>,
-  type: 'image/png' | 'image/gif',
+  type: StickerFileType,
 ): PublicStickerFile {
   let file: PublicStickerFile;
   try {
@@ -64,12 +89,12 @@ export function stickerFileFromBytes(
   return file;
 }
 
-/** A prepared PNG or GIF sticker; never permission to show it publicly. */
+/** A prepared sticker file; never permission to show it publicly. */
 export function publicStickerFile(value: unknown): PublicStickerFile {
   const data = object(value);
   keys(data, ['type', 'bytes']);
   const type = data['type'];
-  if (type !== 'image/png' && type !== 'image/gif')
+  if (!stickerFileType(type))
     throw new AccountError(400, 'Prepare a PNG or GIF sticker.');
   return stickerFileFromBytes(base64(data['bytes'], publicStickerBytes), type);
 }
