@@ -120,6 +120,8 @@ export class ReplyComposer {
     const text = this.draft.querySelector('textarea');
     if (text) text.placeholder = t('Write your reply…');
     this.dialog.addEventListener('cancel', (event) => {
+      // A cancelled file picker fires its own bubbling cancel (26/11/2026).
+      if (event.target !== this.dialog) return;
       event.preventDefault();
       this.requestClose();
     });

@@ -100,6 +100,8 @@ export class PostComposer {
     dialog.setAttribute('aria-label', t('Create post'));
     dialog.append(header, this.feedback, this.draft);
     dialog.addEventListener('cancel', (event) => {
+      // A cancelled file picker fires its own bubbling cancel (26/11/2026).
+      if (event.target !== dialog) return;
       event.preventDefault();
       this.requestClose();
     });

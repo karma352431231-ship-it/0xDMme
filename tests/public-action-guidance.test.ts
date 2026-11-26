@@ -446,6 +446,16 @@ await test('an existing public profile opens the normal post composer once and k
   assert.equal(f.body.querySelector('.public-action-dialog'), null);
   assert.equal(checks, 1);
   assert.equal(lists, 1);
+  // Cancelling the file picker fires a bubbling cancel from its input; only
+  // the dialog's own cancel (Escape) asks to close (26/11/2026).
+  const dialog = f.body.querySelector('.post-composer-dialog')!;
+  const picker = f.document.createElement('input');
+  dialog.append(picker);
+  const cancelled = new Event('cancel', { bubbles: true, cancelable: true });
+  Object.defineProperty(cancelled, 'target', { value: picker });
+  dialog.dispatchEvent(cancelled);
+  assert.equal(cancelled.defaultPrevented, false);
+  assert.ok(f.body.querySelector('.post-composer-dialog'));
   composer.close();
   assert.equal(f.body.querySelector('dialog'), null);
 });
