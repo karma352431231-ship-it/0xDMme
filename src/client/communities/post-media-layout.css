@@ -47,7 +47,9 @@
  * one row instead of the 2×2 grid. Every card has the same 4:5 size and the
  * picture fills it (owner chose the uniform strip, 25/11/2026); the next
  * card peeks in, and the viewer shows each whole picture. Replies use the
- * tile grid of post-media-tiles.css instead.
+ * tile grid of post-media-tiles.css instead. Cards sit 4px apart and a
+ * picture taller than its card keeps its top in view (owner, 26/11/2026):
+ * the top of a screenshot or portrait is usually what matters.
  */
 :is(#app-shell, .community-scope)
   :is(
@@ -59,7 +61,7 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-start;
-  gap: 8px;
+  gap: 4px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
@@ -98,6 +100,7 @@
   .community-media-preview {
   height: 100%;
   object-fit: cover;
+  object-position: center top;
 }
 @media (max-width: 700px) {
   :is(#app-shell, .community-scope)
