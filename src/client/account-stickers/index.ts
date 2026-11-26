@@ -170,7 +170,10 @@ class AccountStickerOwner {
       },
       ownPacks: async () => (await this.api.panel()).filter((pack) => pack.own),
       toPack: async (file, pack) => {
+        // The same picture keeps its first address, so it may be there already.
         const id = await this.api.upload(file);
+        if (pack.stickers.includes(id))
+          throw new Error('This sticker is already in this pack.');
         this.packSaved(
           await this.api.save({
             id: pack.id,
@@ -229,8 +232,11 @@ class AccountStickerOwner {
     const name = window.prompt(t('Name the new pack'), '');
     if (name === null) return;
     const ids: string[] = [];
-    for (const sticker of stickers)
-      ids.push(await this.api.publish(sticker.id, sticker.file));
+    for (const sticker of stickers) {
+      const id = await this.api.publish(sticker.id, sticker.file);
+      // Two copies of one picture publish to the same address.
+      if (!ids.includes(id)) ids.push(id);
+    }
     this.packSaved(await this.api.save({ id: null, name, stickers: ids }));
     showToast(t('Pack published. It appears in the panel.'), {
       success: true,

@@ -10901,6 +10901,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     '来自 @{1} 的贴纸包 {0}',
   ],
   'Invalid sticker list.': ['Invalid sticker list.', '贴纸列表无效。'],
+  'This sticker is already in this pack.': [
+    'This sticker is already in this pack.',
+    '这个贴纸已在此贴纸包中。',
+  ],
   'Loading packs…': ['Loading packs…', '正在加载贴纸包…'],
   'Loading your stickers…': ['Loading your stickers…', '正在加载你的贴纸…'],
   'Make a sticker from any picture: tap New sticker, or open a picture and choose Make sticker.':
