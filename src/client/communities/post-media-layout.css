@@ -48,8 +48,9 @@
  * tile grid of post-media-tiles.css instead. Every card has the same height
  * and the shape of its own picture, so nothing is cut (owner, 26/11/2026,
  * replacing the cropped 4:5 cards): a screenshot is narrow, a landscape
- * wide. A card never passes 80% of the row; a picture too wide for that
- * becomes shorter instead of being cropped. Cards sit 4px apart.
+ * wide. A card never passes 80% of the row (90% on phones); a picture
+ * too wide for that becomes shorter instead of being cropped. Cards sit
+ * 4px apart.
  */
 :is(#app-shell, .community-scope)
   :is(
@@ -58,6 +59,7 @@
   )
   > .community-public-media:has(> figure + figure) {
   --strip-height: min(340px, 55vh);
+  --strip-card-limit: 80%;
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-start;
@@ -76,7 +78,10 @@
   > figure {
   --picture-height: var(--strip-height);
   flex: none;
-  width: min(80%, calc(var(--strip-height) * var(--picture-ratio, 0.8)));
+  width: min(
+    var(--strip-card-limit),
+    calc(var(--strip-height) * var(--picture-ratio, 0.8))
+  );
   scroll-snap-align: start;
 }
 :is(#app-shell, .community-scope)
@@ -101,6 +106,8 @@
   height: 100%;
   object-fit: cover;
 }
+/* Phones show each picture larger: about one and a half cards per screen,
+   up to two thirds of the screen tall (owner, 26/11/2026). */
 @media (max-width: 700px) {
   :is(#app-shell, .community-scope)
     :is(
@@ -108,6 +115,7 @@
       .replied-post-card
     )
     > .community-public-media:has(> figure + figure) {
-    --strip-height: min(300px, 50vh);
+    --strip-height: min(560px, 66vh);
+    --strip-card-limit: 90%;
   }
 }
