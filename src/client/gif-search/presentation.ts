@@ -6,7 +6,7 @@ import { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
 interface GifDisplay {
   privacy: ExternalMediaConsent;
   signal: AbortSignal;
-  /** Chats: a tap opens the clip enlarged, with "Make sticker" (26/11/2026). */
+  /** Chats and posts: a tap opens the clip enlarged, with "Make sticker" (26/11/2026). */
   enlarge?: boolean | undefined;
 }
 /** Text first, clips underneath; unknown URLs are preserved in the text. */

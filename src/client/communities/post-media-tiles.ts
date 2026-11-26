@@ -150,11 +150,8 @@ function gifTile(url: string, options: TileOptions, open: () => void): Tile {
         // A clip opens only after the reader allowed it in the square.
         if (!element.querySelector('video, img'))
           return Promise.reject(new Error('GIF not allowed.'));
-        return Promise.resolve({
-          url,
-          clip: url.endsWith('.mp4'),
-          action: false,
-        });
+        // A clip can become a video sticker (26/11/2026).
+        return Promise.resolve({ url, clip: url.endsWith('.mp4') });
       },
     },
   };

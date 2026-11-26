@@ -13,7 +13,8 @@ export function showPostExternalMedia(
     const slot = document.createElement('div');
     slot.className = 'community-external-gif';
     host.append(slot);
-    const stop = showExternalGif(slot, url, options);
+    // A tap enlarges it, with "Make sticker" (owner, 26/11/2026).
+    const stop = showExternalGif(slot, url, { ...options, enlarge: true });
     stops.push(() => {
       stop();
       slot.remove();

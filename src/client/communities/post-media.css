@@ -135,3 +135,7 @@
 .community-external-gif .external-gif > .external-gif-link {
   display: none;
 }
+/* A shown post or reply GIF opens enlarged on a tap (26/11/2026). */
+.community-external-gif .chat-gif {
+  cursor: zoom-in;
+}
