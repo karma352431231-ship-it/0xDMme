@@ -309,13 +309,14 @@ await test('confirmed feed votes preserve the displayed page, scroll, card and d
       vote: { position: current.position, revision: 1 },
     });
   };
-  // Upvote is the only vote control; downvotes were removed (01/11/2026).
+  // Upvote is the only vote control; downvotes were removed (01/11/2026),
+  // and the score is plain text, no longer a voter list (26/11/2026).
   const target = votes.querySelectorAll('button')[0]!;
   assert.deepEqual(
     votes
       .querySelectorAll('button')
       .map((node) => node.dataset['vote'] ?? 'score'),
-    ['1', 'score'],
+    ['1'],
   );
   for (const [position, score] of [
     [1, 6],

@@ -31,7 +31,7 @@ import {
   postPendingMedia,
   postTagLink,
 } from './presentation.ts';
-import { publicUpvoteScore } from './upvoters.ts';
+import { postScore } from './post-score.ts';
 
 export interface PostCardContext {
   community: string;
@@ -196,7 +196,7 @@ export function createPostCards(
     state: PostState | null,
   ): void {
     if (own && !own.canPost && value.status === 'visible') {
-      const score = publicUpvoteScore(value);
+      const score = postScore(value);
       score.title = t('Voting unavailable in this community.');
       node.append(score);
       return;

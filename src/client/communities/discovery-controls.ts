@@ -1,4 +1,4 @@
-import { publicUpvoteScore } from './upvoters.ts';
+import { postScore } from './post-score.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { participationLink } from '../profile-shortcut/index.ts';
 import { postBookmark } from './post-bookmark.ts';
@@ -190,5 +190,10 @@ export function postVoting(
   node.setAttribute('aria-pressed', String(actions?.position === 1));
   node.append(communityIcon('up'));
   if (!actions) controls.append(node);
-  controls.append(publicUpvoteScore(post));
+  controls.append(postScore(post));
+  // The whole pill upvotes, the score and the padding around it included.
+  controls.addEventListener('click', (event) => {
+    if (!(event.target instanceof Node) || !node.contains(event.target))
+      node.click();
+  });
 }

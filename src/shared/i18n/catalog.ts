@@ -244,11 +244,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     ],
   'follow.community': ['Community', '社区'],
   'follow.user': ['User', '用户'],
-  'upvote.heading': ['Upvotes', '赞同'],
-  'upvote.show': ['View who upvoted', '查看赞同者'],
-  'upvote.more': ['Next page', '下一页'],
-  'upvote.loading': ['Loading upvotes…', '正在加载赞同…'],
-  'upvote.empty': ['No upvotes yet.', '暂无赞同。'],
   'Invalid upvote notice.': ['Invalid upvote notice.', '赞同通知无效。'],
   'Upvote read unavailable.': [
     'Could not mark upvotes as read.',
