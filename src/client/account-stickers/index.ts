@@ -103,18 +103,37 @@ class AccountStickerOwner {
   /** Packs load in the background; the next panel opening shows them. */
   private loadPacks(): void {
     if (this.packs || this.loadingPacks) return;
+    this.fetchPacks();
+  }
+  /**
+   * Reads the packs again but keeps showing the current list meanwhile
+   * (26/11/2026: clearing it hid every pack until the reload finished).
+   */
+  private fetchPacks(): void {
     const generation = this.generation;
     this.loadingPacks = true;
     this.api.panel().then(
       (packs) => this.packsLoaded(generation, packs),
       // Without a public profile there are no packs; the panel stays usable.
-      () => this.packsLoaded(generation, []),
+      () => this.packsLoaded(generation, this.packs ?? []),
     );
   }
   private packsLoaded(generation: number, packs: StickerPack[]): void {
     if (generation !== this.generation) return;
     this.packs = packs;
     this.loadingPacks = false;
+  }
+  /** A pack the server just saved shows at once, then the list is re-read. */
+  private packSaved(saved: StickerPack): void {
+    if (this.packs) {
+      const others = this.packs.filter((pack) => pack.id !== saved.id);
+      const at = this.packs.findIndex((pack) => pack.id === saved.id);
+      this.packs =
+        at < 0
+          ? [...others, saved]
+          : [...others.slice(0, at), saved, ...others.slice(at)];
+    }
+    this.fetchPacks();
   }
   private image(sticker: PersonalSticker): string {
     const known = this.images.get(sticker.id);
@@ -152,17 +171,17 @@ class AccountStickerOwner {
       ownPacks: async () => (await this.api.panel()).filter((pack) => pack.own),
       toPack: async (file, pack) => {
         const id = await this.api.upload(file);
-        await this.api.save({
-          id: pack.id,
-          name: pack.name,
-          stickers: [...pack.stickers, id],
-        });
-        this.packs = null;
+        this.packSaved(
+          await this.api.save({
+            id: pack.id,
+            name: pack.name,
+            stickers: [...pack.stickers, id],
+          }),
+        );
       },
       newPack: async (file, name) => {
         const id = await this.api.upload(file);
-        await this.api.save({ id: null, name, stickers: [id] });
-        this.packs = null;
+        this.packSaved(await this.api.save({ id: null, name, stickers: [id] }));
       },
     };
   }
@@ -212,8 +231,7 @@ class AccountStickerOwner {
     const ids: string[] = [];
     for (const sticker of stickers)
       ids.push(await this.api.publish(sticker.id, sticker.file));
-    await this.api.save({ id: null, name, stickers: ids });
-    this.packs = null;
+    this.packSaved(await this.api.save({ id: null, name, stickers: ids }));
     showToast(t('Pack published. It appears in the panel.'), {
       success: true,
     });
@@ -223,11 +241,12 @@ class AccountStickerOwner {
       browse: (after) => this.api.browse(after),
       add: async (pack, added) => {
         await this.api.add(pack.id, added);
-        this.packs = null;
+        this.fetchPacks();
       },
       removeOwn: async (pack) => {
         await this.api.removePack(pack.id);
-        this.packs = null;
+        this.packs = (this.packs ?? []).filter((own) => own.id !== pack.id);
+        this.fetchPacks();
       },
     };
   }
@@ -239,7 +258,7 @@ class AccountStickerOwner {
           chosen.id,
           AbortSignal.timeout(15_000),
         );
-        await this.keep(blob, false);
+        return this.offer(blob, false);
       },
       pack: (chosen) => this.api.containing(chosen.id),
       add: (pack, added) => this.packPort().add(pack, added),

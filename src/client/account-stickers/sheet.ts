@@ -5,7 +5,8 @@ import type { StickerPack } from './public-api.ts';
 
 /** What the sheet of a tapped public sticker can do. */
 export interface SheetPort {
-  save: (sticker: StickerReference) => Promise<void>;
+  /** Asks where to save it (Favorites or a pack); false when cancelled. */
+  save: (sticker: StickerReference) => Promise<boolean>;
   pack: (sticker: StickerReference) => Promise<StickerPack | null>;
   add: (pack: StickerPack, added: boolean) => Promise<void>;
 }
@@ -50,8 +51,9 @@ export function openStickerSheet(
     save.disabled = true;
     status.textContent = t('Saving…');
     port.save(sticker).then(
-      () => {
-        status.textContent = t('Saved to your stickers.');
+      (saved) => {
+        status.textContent = saved ? t('Sticker saved.') : '';
+        save.disabled = saved;
       },
       (error: unknown) => {
         save.disabled = false;
@@ -72,6 +74,21 @@ export function openStickerSheet(
   void showPack(sticker, port, { host: pack, signal: lifetime.signal });
 }
 
+/** "From the pack <name> by @handle", with the pack name standing out. */
+function packLine(found: StickerPack): HTMLSpanElement {
+  const text = document.createElement('span'),
+    name = document.createElement('strong'),
+    marker = '\u0000';
+  name.className = 'sticker-sheet-pack-name';
+  name.textContent = found.name;
+  const [before = '', after = ''] = t('From the pack {0} by @{1}', [
+    marker,
+    found.owner.handle,
+  ]).split(marker);
+  text.append(before, name, after);
+  return text;
+}
+
 async function showPack(
   sticker: StickerReference,
   port: SheetPort,
@@ -79,11 +96,7 @@ async function showPack(
 ): Promise<void> {
   const found = await port.pack(sticker).catch(() => null);
   if (!found || target.signal.aborted) return;
-  const text = document.createElement('span');
-  text.textContent = t('From the pack {0} by @{1}', [
-    found.name,
-    found.owner.handle,
-  ]);
+  const text = packLine(found);
   target.host.append(text);
   if (found.own) return;
   let added = found.added;
