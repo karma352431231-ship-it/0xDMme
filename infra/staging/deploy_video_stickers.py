@@ -10,7 +10,7 @@ import deploy_remote as base
 import deploy_post_photos as photos
 
 BEFORE = 'a01b998a6c8b61181f5451b0c4c64d184e29213c'
-REVIEWED = 'a01b998a6c8b61181f5451b0c4c64d184e29213c'
+REVIEWED = '6ddb03543fdf4bc2f4a21183516fae969040c38f'
 previous = photos.previous
 # State after 116 (deploy_post_photos).
 TABLES = photos.TABLES
