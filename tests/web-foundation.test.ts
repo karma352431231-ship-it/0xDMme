@@ -594,7 +594,7 @@ await test('server rejects origin violations, mutations, traversal and private d
   assert.match(shellPolicy, /media-src blob: https:\/\/static\.klipy\.com;/u);
   assert.match(
     shellPolicy,
-    /connect-src 'self' https:\/\/api\.klipy\.com https:\/\/static\.klipy\.com\/ii\/;/u,
+    /connect-src 'self' blob: https:\/\/api\.klipy\.com https:\/\/static\.klipy\.com\/ii\/;/u,
   );
   assert.match(shellPolicy, /frame-src https:\/\/www\.youtube-nocookie\.com;/u);
   assert.doesNotMatch(

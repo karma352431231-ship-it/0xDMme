@@ -44,7 +44,7 @@ await test('complete native product package is local, bounded and matches its bu
   }
   assert.ok(total <= 96 * 1024 * 1024);
   const html = await readFile(new URL('index.html', directory), 'utf8');
-  assert.match(html, /connect-src 'self' https:\/\/api\.klipy\.com/u);
+  assert.match(html, /connect-src 'self' blob: https:\/\/api\.klipy\.com/u);
   assert.match(html, /form-action 'none'/u);
   assert.doesNotMatch(html, /(?:src|href)=["'](?:https?:|\/\/)/u);
   assert.doesNotMatch(html, /Installed-app feasibility|probe\.js/u);
