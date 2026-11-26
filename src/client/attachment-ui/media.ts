@@ -1,5 +1,6 @@
 import { stickerArt, stickerAttachment } from '../stickers/index.ts';
 import { openChatImage } from './chat-image-viewer.ts';
+import { scrollTap, watchScrollTaps } from '../image-viewer/index.ts';
 import {
   captureMediaPreview,
   previewByteLimit,
@@ -141,7 +142,10 @@ function showImage(
     );
   });
   open.append(image);
+  watchScrollTaps();
   open.addEventListener('click', () => {
+    // The end of a scroll is not a tap on the picture (26/11/2026).
+    if (scrollTap()) return;
     if (!input.original) {
       openChatImage(url, { ...input, trigger: open });
       return;

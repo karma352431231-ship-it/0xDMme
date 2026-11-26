@@ -5,6 +5,7 @@ import { bindSwipe, dragsWith, releasedMouse } from './swipe.ts';
 
 export type { ZoomGesture } from './zoom.ts';
 export { pinchOpensViewer } from './pinch-open.ts';
+export { scrollTap, watchScrollTaps } from './scroll-tap.ts';
 export { bindSwipe } from './swipe.ts';
 export type { SwipeSteps } from './swipe.ts';
 
