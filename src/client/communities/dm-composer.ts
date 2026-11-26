@@ -467,7 +467,9 @@ export function startDmComposer(options: {
     );
   }
   function bindEmoji(current: DmView): void {
-    const anchor = node('[data-public-emoji]');
+    // The panel hangs from the clip: the menu item that opened it hides.
+    const anchor =
+      node('[data-chat-attachment]') ?? node('[data-public-emoji]');
     if (!anchor) return;
     bindEmojiMenu(
       current.form,

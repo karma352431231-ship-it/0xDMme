@@ -416,7 +416,9 @@ export class GroupComposer {
     return this.submissions.peers();
   }
   private emoji(start: ComposerPanelStart): void {
-    const anchor = this.node('[data-group-emoji]'),
+    // The panel hangs from the clip: the menu item that opened it hides.
+    const anchor =
+        this.node('[data-chat-attachment]') ?? this.node('[data-group-emoji]'),
       input = this.node<HTMLTextAreaElement>('[data-group-text]');
     if (!anchor || !input) return;
     const send = (url: string) =>

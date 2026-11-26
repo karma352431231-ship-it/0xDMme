@@ -455,7 +455,10 @@ export class MessageComposer {
   }
   private openEmoji(start: ComposerPanelStart): void {
     const input = this.node<HTMLTextAreaElement>('[data-message-text]'),
-      anchor = this.node('[data-message-emoji]');
+      // The panel hangs from the clip: the menu item that opened it hides.
+      anchor =
+        this.node('[data-chat-attachment]') ??
+        this.node('[data-message-emoji]');
     if (!input || !anchor) return;
     const send = (url: string) =>
       void this.options.run(() => this.options.sendGif(url));
