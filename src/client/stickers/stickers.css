@@ -1,4 +1,6 @@
-/* Stickers (24/11/2026): the drawn sticker, its message without a bubble, and the Stickers tab. */
+/* Stickers (24/11/2026): the drawn sticker, its message without a bubble, and the Stickers tab.
+   A GIF sticker is a looping video (26/11/2026), so every size rule covers
+   video as well as img. */
 .chat-sticker {
   display: inline-block;
   padding: 0;
@@ -15,7 +17,7 @@ button.chat-sticker {
   width: 140px;
   height: 140px;
 }
-.chat-sticker-art :is(svg, img) {
+.chat-sticker-art :is(svg, img, video) {
   display: block;
   width: 100%;
   height: 100%;
@@ -137,7 +139,7 @@ button.chat-sticker {
   height: 26px;
   stroke: none;
 }
-.sticker-shelf img {
+.sticker-shelf :is(img, video) {
   width: 26px;
   height: 26px;
   object-fit: contain;
@@ -146,7 +148,7 @@ button.chat-sticker {
   width: 26px;
   height: 26px;
 }
-.sticker-shelf .chat-sticker-art > :not(img) {
+.sticker-shelf .chat-sticker-art > :not(img, video) {
   display: none;
 }
 .sticker-shelf-text {
@@ -181,7 +183,7 @@ button.chat-sticker {
   background: var(--surface-2);
 }
 .sticker-tile .chat-sticker-art,
-.sticker-tile > img {
+.sticker-tile > :is(img, video) {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -209,7 +211,7 @@ button.chat-sticker {
   border: 0;
   background: none;
 }
-.chat-sticker-file img {
+.chat-sticker-file :is(img, video) {
   display: block;
   width: 140px;
   height: 140px;
