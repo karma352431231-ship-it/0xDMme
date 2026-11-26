@@ -39,3 +39,37 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+/* The chips fold under one line that names the chosen tags (25/11/2026);
+   the line says the same as the legend, which stays for screen readers. */
+.post-tag-fold {
+  margin: 0;
+}
+.post-tag-fold-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  list-style: none;
+  cursor: pointer;
+}
+.post-tag-fold-summary::-webkit-details-marker {
+  display: none;
+}
+.post-tag-fold-summary::after {
+  content: '▾';
+  transition: transform 0.15s ease-out;
+}
+.post-tag-fold[open] > .post-tag-fold-summary::after {
+  transform: rotate(180deg);
+}
+.post-tag-fold .post-tag-chips legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

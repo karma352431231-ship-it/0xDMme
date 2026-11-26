@@ -27,6 +27,7 @@
 @import '../public-action-guidance/public-action-guidance.css';
 @import '../communities/post-sharing.css';
 @import '../communities/post-composer.css';
+@import '../communities/post-composer-phone.css';
 @import '../communities/reply-composer.css';
 @import '../public-profile/profile.css';
 @import '../chat-ui/chat.css';

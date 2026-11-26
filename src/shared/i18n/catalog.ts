@@ -3005,6 +3005,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '授权范围：例如客户支持',
   ],
   'Write your reply…': ['Write your reply…', '写下回复…'],
+  'Write something…': ['Write something…', '写点什么…'],
+  'Tags · {0}': ['Tags · {0}', '标签 · {0}'],
   'Write a message or choose an attachment.': [
     'Write a message or choose an attachment.',
     '请撰写消息或选择附件。',

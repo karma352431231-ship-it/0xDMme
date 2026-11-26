@@ -97,26 +97,42 @@ export function postTagSelect(
 /**
  * Every community tag as a chip; the author toggles up to `postTagLimit`.
  * Tags already on the post stay selectable even if a manager retired them.
+ * The chips fold under one line naming the chosen tags (owner, 25/11/2026:
+ * tags should retract so the text has room); a missing tag opens them.
  */
 function postTagChips(
   container: HTMLElement,
   value: readonly string[],
   source: PostTags,
-): { chosen: () => string[]; offered: () => boolean; group: HTMLElement } {
-  const group = el('fieldset', '', 'post-tag-chips'),
+): {
+  chosen: () => string[];
+  offered: () => boolean;
+  group: HTMLElement;
+  reveal: () => void;
+} {
+  const fold = el('details', '', 'post-tag-fold'),
+    summary = el('summary', '', 'post-tag-fold-summary'),
+    group = el('fieldset', '', 'post-tag-chips'),
     chips = el('div', '', 'post-tag-chip-list'),
     more = el('div', '', 'post-toolbar');
   group.append(
     el('legend', t('Tags (choose 1 to {0})', [postTagLimit])),
     chips,
+    more,
   );
-  container.append(group, more);
+  fold.append(summary, group);
+  container.append(fold);
   let chosen = [...value],
     page = source.page;
   const paint = (): void => {
     const known = new Map(
       page.items.map((tag) => [tag.id, postTagName(tag.label)]),
     );
+    summary.textContent = chosen.length
+      ? t('Tags · {0}', [
+          chosen.map((id) => known.get(id) ?? t('Previous tag')).join(', '),
+        ])
+      : t('Tags (choose 1 to {0})', [postTagLimit]);
     const ids = [
       ...page.items.map((tag) => tag.id),
       ...chosen.filter((id) => !known.has(id)),
@@ -150,6 +166,9 @@ function postTagChips(
     chosen: () => [...chosen],
     offered: () => page.items.length > 0,
     group,
+    reveal: () => {
+      fold.open = true;
+    },
   };
 }
 /** The title starts as one row and grows with its lines, like the text field's content. */
@@ -185,6 +204,9 @@ export function postForm(
     }),
     chips = postTagChips(container, value.tags, tags);
   title.required = true;
+  // Phones hide the field labels (full-screen composer); the hint stays.
+  title.placeholder = t('Title');
+  text.placeholder = t('Write something…');
   if (title instanceof HTMLTextAreaElement) growWithLines(title, access.signal);
   mountMentionInput(title, access.signal);
   const editor = postEditorMedia({
@@ -200,6 +222,7 @@ export function postForm(
     }
     const chosen = chips.chosen();
     if (!chosen.length && chips.offered()) {
+      chips.reveal();
       markMissing(chips.group, t('Choose at least one tag.'));
       throw new Error('Choose at least one tag.');
     }

@@ -1,0 +1,148 @@
+/*
+ * Create post on phones (owner chose "Post A", 26/11/2026): the whole screen,
+ * like the reply sheet. One bar with Close, the title and Post; the
+ * community, then a large title and the text with no boxes around them; the
+ * text takes the free height and the tags fold under one line. Desktop keeps
+ * the centered card of post-composer.css.
+ */
+@media (max-width: 700px) {
+  dialog.post-composer-dialog.community-scope:not(.reply-box) {
+    width: 100%;
+    max-width: none;
+    height: var(--phone-viewport-height, 100dvh);
+    max-height: none;
+    margin: var(--phone-viewport-top, 0px) 0 0;
+    padding: env(safe-area-inset-top) 0 0;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-heading {
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 136px 10px 16px;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-heading
+    > button {
+    order: -1;
+    padding: 6px 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: 15px;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-heading-copy {
+    text-align: center;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-heading-copy
+    h2 {
+    font-size: 16px;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-heading-copy
+    p {
+    display: none;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    > .community-feedback {
+    margin: 0 16px;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  /* The labels give way to placeholders; the fields keep them for readers. */
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    > label {
+    font-size: 0;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    :is(textarea, input:not([type='file'])) {
+    padding: 4px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    resize: none;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    :is(textarea, input):focus-visible {
+    outline: none;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    textarea.post-title-input {
+    font: 700 20px/1.3 var(--font-display);
+  }
+  /* The text takes the free height; its tools sit on a line under it. */
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    .post-text-editor {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 180px;
+    margin: 0;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    .post-text-area {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    .post-text-area
+    > textarea {
+    flex: 1 1 auto;
+    min-height: 120px;
+    padding-bottom: 4px;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    .post-text-tools {
+    position: static;
+    margin: 0 -16px;
+    padding: 4px 10px;
+    border-top: 1px solid var(--line);
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-content
+    .post-tag-fold {
+    border-bottom: 1px solid var(--line);
+  }
+  /* Post sits at the end of the top bar. */
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-footer {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 10px);
+    right: 16px;
+    padding: 0;
+    border: 0;
+  }
+  dialog.post-composer-dialog.community-scope:not(.reply-box)
+    .post-composer-publish {
+    min-height: 0;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+  }
+}
