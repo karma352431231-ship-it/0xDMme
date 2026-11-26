@@ -1,8 +1,8 @@
 # Group preparation at scale — design proposal
 
-Status: **proposal, awaiting owner approval.** Nothing here is implemented.
-Delivery, receipt and authorization behavior may change only after the owner
-chooses an option. Base: `origin/main` `e072ae32`.
+Status: **phase 1 (Option A) approved by the owner on 26/11/2026 and
+implemented** (section 8). Phases 2 and 3 remain proposals. Base: `origin/main`
+`e072ae32`.
 
 ## 1. Problem
 
@@ -151,18 +151,20 @@ remember that the work was already done.
    moves forward, and the group is done in **one turn**. An unchanged group
    costs one turn with no history read.
 3. **Journal gap.** The removal index still needs its full metadata pass (only
-   the server knows which old messages were deleted during the gap). The
-   history read covers only the new part, forward from `high` with the existing
-   `newer` history slice, instead of the whole history. `held` ids are
-   re-checked with `group-message-objects`.
+   the server knows which old messages were deleted during the gap). That pass
+   already lists every packet, so it collects the ids above `high` (roots and
+   their edits, reactions and pins alike); they and the `held` ids become
+   owed and are read with `group-message-objects`, instead of the whole
+   history. More than 4,096 new packets in one gap fall back to a full pass.
 4. **Resumable backfill.** A device's first pass over an old group continues
-   from `low` after a restart instead of starting again from the newest page.
-5. **Several pages and groups per turn.** While
-   `shouldYieldMaintenance` is false, one vault turn processes several pages
-   (for example up to 4) and moves on to the next group, sharing the fixed
-   overhead (`devices/read`, `group-daily-states`). Index pages use the same
-   budget instead of `indexPages: 1`. It checks between pages and releases the
-   lock as soon as interactive work is waiting.
+   from its saved older-page cursor after a restart instead of starting again
+   from the newest page.
+5. **Several pages and groups per turn.** Every group's latest window comes
+   first, then the backfill. One vault turn runs up to 8 steps (index pages 4
+   per step, backfill 4 pages per step) for at most 2 s, sharing the fixed
+   overhead (`devices/read`, `group-daily-states`), and stops between steps or
+   pages as soon as other work of the tab waits for the account turn or the
+   other inbox area has live demand.
 
 Effect: warm start with the owner's 2 groups falls from about 20 turns and
 22.5 s to about 2 turns (estimated about 1.5 s). A first pass over a
@@ -272,9 +274,9 @@ owner's agreement on the quota cost.
 
 These are recommendations; nothing is approved.
 
-## 7. Implementation plan (after approval)
+## 7. Implementation plan (as approved)
 
-Phase 1, in focused commits:
+Phase 1:
 
 1. `preparation-state.ts`: sealed coverage record next to the local copy,
    bound to the account, group and own `joined` epoch; validation and safe
@@ -298,3 +300,31 @@ Phase 2 adds the server operation with integration tests for authorization
 (non-member, ex-member, outside the membership period), cut bounds and
 pagination, then switches receipts to it with a fallback for servers without
 the operation.
+
+## 8. Phase 1 as implemented
+
+- `src/client/groups/preparation-state.ts` owns the marker: one sealed
+  `preparation` record per group in the local copy's store, loaded once per
+  session, advanced after each confirmed read that read every changed packet,
+  and rewritten only when it changes. A refused local write keeps the
+  session's copy and is retried at the next change.
+- `src/client/groups/message-windows.ts` continues the change journal from
+  the earlier of the marker's revision and the confirmed window, reports what
+  each read settled or held, and adds `prepare()`, one confirmed cut of owed
+  packets and older pages that keeps no window. A focused (centered) read
+  does not read changed packets, so it does not advance the marker.
+- After a failed confirmation or a 403/409 denial the journal start is
+  suspended for the session until a full index pass succeeds, as before. The
+  marker's record of earlier reads stays valid.
+- `src/client/groups/preparation-plan.ts` owns the order and the turn budget;
+  `GroupController.synchronizeAll` only supplies the steps. The inbox passes
+  its request version (a new request starts another latest pass) and the
+  other area's live demand; `VaultAccess.contended` reports work waiting in
+  this tab's account queue.
+- Measured in the fixture: reloading a prepared group of 144 messages makes
+  three requests (`group-list`, `group-message-delta`,
+  `group-message-confirm`), where every start used to read all 10 pages.
+- Not yet measured on the owner's devices with `npm run diagnostic:chat`.
+- Still open: every request revisits each group's latest window, because the
+  group list does not say which groups changed (a server change, not part of
+  phase 1).
