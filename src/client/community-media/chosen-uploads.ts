@@ -15,6 +15,10 @@ export interface ChosenUploadEvents {
   failed: (file: File, error: unknown) => void;
 }
 
+/** Files sent at once: the server converts up to 3 at a time on the test
+ * VPS (12 vCPU, 31 GB), so a 4th would only wait there (owner, 27/11/2026). */
+const parallelUploads = 3;
+
 interface Upload {
   readonly file: File;
   readonly stop: AbortController;
@@ -29,14 +33,15 @@ interface Upload {
 /**
  * The uploads of one post or reply draft (owner, 27/11/2026: pictures should
  * be almost instant). Each chosen file starts uploading as soon as it is
- * picked, one at a time in choice order, so Publish waits only for what is
- * left. A file removed from the draft, or a draft closed without publishing
+ * picked, up to three at a time in choice order, so Publish waits only for
+ * what is left. A file removed from the draft, or a draft closed without publishing
  * it, is cancelled on the server; the server keeps the media already linked
  * to a post, and anything a cancel misses expires after 24 hours.
  */
 export class ChosenUploads {
   private readonly uploads = new Map<File, Upload>();
-  private queue: Promise<unknown> = Promise.resolve();
+  private active = 0;
+  private readonly waiting: Array<() => void> = [];
   private pending: Promise<CommunityMediaState[]> | null = null;
   private readonly access: CommunityMediaAccess;
   private readonly events: ChosenUploadEvents;
@@ -87,8 +92,9 @@ export class ChosenUploads {
 
   private attempt(upload: Upload): void {
     upload.failed = false;
-    const run = this.queue.then(() => this.send(upload));
-    this.queue = run.catch(() => undefined);
+    const run = this.turn().then(() =>
+      this.send(upload).finally(() => this.next()),
+    );
     upload.run = run;
     run.then(
       () => this.events.progress(upload.file, 1),
@@ -101,19 +107,37 @@ export class ChosenUploads {
     );
   }
 
+  /** Waits for one of the parallel places, first come first served. */
+  private turn(): Promise<void> {
+    if (this.active < parallelUploads) {
+      this.active++;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => this.waiting.push(resolve));
+  }
+
+  /** Hands a finished place to the next waiting upload. */
+  private next(): void {
+    const waiting = this.waiting.shift();
+    if (waiting) waiting();
+    else this.active--;
+  }
+
   private async send(upload: Upload): Promise<string> {
     upload.stop.signal.throwIfAborted();
     const access = this.scoped(upload),
       prepared = await preparedSource(upload.file);
-    upload.source ??= await this.source(prepared);
+    upload.source ??= await this.claim(upload, prepared);
     return await sendMedia(access, upload.source, prepared.blob, (fraction) =>
       this.events.progress(upload.file, fraction),
     );
   }
 
   /** An earlier unfinished upload of the same bytes is resumed instead of
-   * sending another copy. */
-  private async source(
+   * sending another copy. The source is claimed before any other upload
+   * looks, so two copies of one picture never share it. */
+  private async claim(
+    upload: Upload,
     prepared: PreparedSource,
   ): Promise<CommunityMediaSource> {
     this.pending ??= request(this.access, 'media-pending', {}).then((value) => {
@@ -125,24 +149,22 @@ export class ChosenUploads {
     pending.catch(() => {
       if (this.pending === pending) this.pending = null;
     });
-    const used = new Set(
-      [...this.uploads.values()].map((upload) => upload.source?.id),
-    );
-    const old = (await pending).find(
+    const candidates = await pending,
+      used = new Set([...this.uploads.values()].map((item) => item.source?.id));
+    const old = candidates.find(
       (state) =>
         state.source.hash === prepared.hash &&
         state.source.bytes === prepared.blob.size &&
         state.source.kind === prepared.kind &&
         !used.has(state.source.id),
     );
-    return (
-      old?.source ?? {
-        id: crypto.randomUUID(),
-        kind: prepared.kind,
-        hash: prepared.hash,
-        bytes: prepared.blob.size,
-      }
-    );
+    upload.source = old?.source ?? {
+      id: crypto.randomUUID(),
+      kind: prepared.kind,
+      hash: prepared.hash,
+      bytes: prepared.blob.size,
+    };
+    return upload.source;
   }
 
   private scoped(upload: Upload): CommunityMediaAccess {

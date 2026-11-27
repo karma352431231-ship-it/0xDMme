@@ -112,11 +112,15 @@ export async function upload(
       await request(access, 'media-finish', { media: source.id }),
     );
   const deadline = Date.now() + 390_000;
+  // A picture is usually ready within a second: check soon, then every
+  // second (owner, 27/11/2026).
+  let wait = 250;
   while (state.status === 'processing') {
     onProgress(null);
     if (Date.now() > deadline)
       throw new Error('Preparation still in progress. Try again to resume.');
-    await pause(1000, access.signal);
+    await pause(wait, access.signal);
+    wait = Math.min(wait * 2, 1000);
     state = communityMediaState(
       await request(access, 'media-status', { media: source.id }),
     );

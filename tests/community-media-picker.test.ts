@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mediaEditor } from '../src/client/community-media/index.ts';
+import {
+  ChosenUploads,
+  mediaEditor,
+} from '../src/client/community-media/index.ts';
 import { bytesHash } from '../src/shared/vault/index.ts';
 import type { CommunityMediaState } from '../src/shared/community-media/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
@@ -84,11 +87,16 @@ await test('preparation error leaves progress state and allows resuming the same
   }
 });
 
-/** A server that finishes every upload at once and records each operation. */
+/** A server that finishes every upload at once, unless `held` keeps each
+ * finish until released, and records each operation. */
 function mediaServer() {
   const states = new Map<string, CommunityMediaState>(),
     operations: string[] = [],
-    cancelled: string[] = [];
+    cancelled: string[] = [],
+    held: { on: boolean; release: Array<() => void> } = {
+      on: false,
+      release: [],
+    };
   const ready = (state: CommunityMediaState): CommunityMediaState => ({
     ...state,
     status: 'ready',
@@ -122,11 +130,26 @@ function mediaServer() {
     const id = String(payload['media']),
       state = states.get(id)!;
     if (operation === 'media-part') state.received++;
-    if (operation === 'media-finish') states.set(id, ready(state));
+    if (operation === 'media-finish') {
+      if (held.on)
+        return new Promise((resolve) =>
+          held.release.push(() => {
+            states.set(id, ready(state));
+            resolve(states.get(id));
+          }),
+        );
+      states.set(id, ready(state));
+    }
     if (operation === 'media-cancel') cancelled.push(id);
     return Promise.resolve(states.get(id));
   };
-  return { request, operations, cancelled, ids: () => [...states.keys()] };
+  return {
+    request,
+    operations,
+    cancelled,
+    held,
+    ids: () => [...states.keys()],
+  };
 }
 
 async function withEditor(
@@ -220,4 +243,40 @@ await test('a removed picture and an unpublished draft are cancelled, a publishe
       'The file handed to a publish is never cancelled',
     );
   });
+});
+
+await test('three chosen files upload at once and the next starts when one is done', async () => {
+  const server = mediaServer(),
+    abort = new AbortController();
+  server.held.on = true;
+  const uploads = new ChosenUploads(
+    {
+      community: crypto.randomUUID(),
+      valid: () => true,
+      signal: abort.signal,
+      request: server.request,
+    },
+    { progress() {}, failed() {} },
+  );
+  const reserves = () =>
+    server.operations.filter((op) => op === 'media-reserve').length;
+  const files = ['a', 'b', 'c', 'd'].map((name) => gif(`${name}.gif`));
+  try {
+    uploads.update(files);
+    await settle(() => server.held.release.length === 3);
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    assert.equal(reserves(), 3, 'The fourth waits for a free place');
+    server.held.release.shift()!();
+    await settle(() => reserves() === 4);
+    assert.equal(reserves(), 4);
+    server.held.on = false;
+    for (const release of server.held.release.splice(0)) release();
+    assert.deepEqual(
+      await uploads.ids(files),
+      server.ids(),
+      'Ids keep the choice order',
+    );
+  } finally {
+    abort.abort();
+  }
 });
