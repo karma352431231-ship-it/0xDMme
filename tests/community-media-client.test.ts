@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  uploadCommunityMedia,
+  ChosenUploads,
   fitMediaSelection,
   validateMediaSelection,
 } from '../src/client/community-media/index.ts';
 import { communityMediaPartBytes } from '../src/shared/community-media/index.ts';
 import type { CommunityMediaState } from '../src/shared/community-media/index.ts';
 import { bytesHash } from '../src/shared/vault/index.ts';
+
+const uploadAll = (
+  access: ConstructorParameters<typeof ChosenUploads>[0],
+  files: File[],
+) => new ChosenUploads(access, { progress() {}, failed() {} }).ids(files);
 await test('public client enforces quantity and mixing before upload and resumes received parts', async () => {
   const bytes = new Uint8Array(communityMediaPartBytes + 10).fill(5),
     file = new File([bytes], 'sintetico.gif', { type: 'image/gif' });
@@ -55,9 +60,7 @@ await test('public client enforces quantity and mixing before upload and resumes
         return Promise.resolve(current);
       },
     };
-  assert.deepEqual(await uploadCommunityMedia(access, [file], () => {}), [
-    source.id,
-  ]);
+  assert.deepEqual(await uploadAll(access, [file]), [source.id]);
   assert.deepEqual(parts, [1]);
   assert.throws(() =>
     validateMediaSelection([
@@ -82,11 +85,9 @@ await test('context change during preparation interrupts the next upload', async
     },
   };
   await assert.rejects(
-    uploadCommunityMedia(
-      access,
-      [new File([new Uint8Array(10)], 'synthetic.gif', { type: 'image/gif' })],
-      () => {},
-    ),
+    uploadAll(access, [
+      new File([new Uint8Array(10)], 'synthetic.gif', { type: 'image/gif' }),
+    ]),
     /Session or community changed/u,
   );
 });

@@ -1,236 +1,28 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
+import { base64, keys, object } from '../../shared/account/index.ts';
 import {
-  AccountError,
-  base64,
-  encode,
-  keys,
-  object,
-} from '../../shared/account/index.ts';
-import { bytesHash } from '../../shared/vault/index.ts';
-import {
-  communityMediaLimits,
   communityMediaPartBytes,
   communityMediaState,
 } from '../../shared/community-media/index.ts';
-import {
-  postMediaLimits,
-  postMediaSet,
-} from '../../shared/post-media/index.ts';
-import type {
-  CommunityMediaKind,
-  CommunityMediaSource,
-  CommunityMediaState,
-} from '../../shared/community-media/index.ts';
-import { prepareAttachment } from '../attachments/index.ts';
+import type { CommunityMediaState } from '../../shared/community-media/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
 import { uploadRing } from '../upload-progress/index.ts';
 import type { UploadRing } from '../upload-progress/index.ts';
+import { ChosenUploads } from './chosen-uploads.ts';
+import { fitMediaSelection, validateMediaSelection } from './selection.ts';
+import { request } from './upload.ts';
+import type { CommunityMediaAccess } from './upload.ts';
 
-/** Progress of one chosen file: a sent fraction, or null while the server prepares it. */
-export interface MediaProgress {
-  index: number;
-  fraction: number | null;
-}
+export {
+  fitMediaSelection,
+  selectedMediaKind,
+  validateMediaSelection,
+} from './selection.ts';
+export { ChosenUploads } from './chosen-uploads.ts';
+export type { CommunityMediaAccess } from './upload.ts';
 
-export interface CommunityMediaAccess {
-  community: string;
-  request: (
-    operation: string,
-    payload: Record<string, unknown>,
-  ) => Promise<unknown>;
-  valid: () => boolean;
-  signal: AbortSignal;
-}
-async function pause(ms: number, signal: AbortSignal): Promise<void> {
-  signal.throwIfAborted();
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', abort);
-      resolve();
-    }, ms);
-    function abort() {
-      clearTimeout(timer);
-      reject(new Error('Send interrupted.'));
-    }
-    signal.addEventListener('abort', abort, { once: true });
-  });
-}
-export function selectedMediaKind(file: File): CommunityMediaKind {
-  if (file.type === 'image/gif' || /\.gif$/iu.test(file.name)) return 'gif';
-  if (file.type.startsWith('video/') || /\.(mp4|mov|webm)$/iu.test(file.name))
-    return 'video';
-  return 'photo';
-}
-/**
- * Adds newly picked files to a draft without refusing the whole pick (owner,
- * 25/11/2026: a video among photos emptied the selection). The draft keeps
- * one kind: the kind already chosen, otherwise photos when any were picked,
- * otherwise the first file's kind. Files of another kind and files past that
- * kind's limit are left out, and `left` says why.
- */
-export function fitMediaSelection(
-  chosen: readonly File[],
-  picked: readonly File[],
-): { files: File[]; left: 'mixed' | 'limit' | null } {
-  const all = [...chosen, ...picked];
-  if (!all.length) return { files: [], left: null };
-  const kinds = all.map(selectedMediaKind);
-  const kind = chosen.length
-    ? kinds[0]!
-    : kinds.includes('photo')
-      ? 'photo'
-      : kinds[0]!;
-  const same = all.filter((_, index) => kinds[index] === kind);
-  const files = same.slice(0, postMediaLimits[kind]);
-  const left =
-    same.length < all.length
-      ? 'mixed'
-      : files.length < same.length
-        ? 'limit'
-        : null;
-  return { files, left };
-}
-export function validateMediaSelection(files: File[]): void {
-  postMediaSet(
-    files.map((file) => ({
-      id: '',
-      hash: '',
-      bytes: file.size,
-      kind: selectedMediaKind(file),
-    })),
-  );
-  for (const file of files) {
-    const kind = selectedMediaKind(file),
-      limit = kind === 'photo' ? 20_000_000 : communityMediaLimits[kind].source;
-    if (!file.size || file.size > limit)
-      throw new Error(`File exceeds ${limit / 1_000_000} MB.`);
-  }
-}
-async function request(
-  access: CommunityMediaAccess,
-  operation: string,
-  data: Record<string, unknown>,
-): Promise<unknown> {
-  const deadline = Date.now() + 180_000;
-  while (true) {
-    if (!access.valid()) throw new Error('Session or community changed.');
-    access.signal.throwIfAborted();
-    try {
-      return await access.request(operation, { id: access.community, ...data });
-    } catch (error: unknown) {
-      if (
-        !(error instanceof AccountError) ||
-        error.status !== 429 ||
-        Date.now() > deadline
-      )
-        throw error;
-      await pause(5_000, access.signal);
-    }
-  }
-}
-async function preparedSource(
-  file: File,
-): Promise<{ blob: Blob; kind: CommunityMediaKind; hash: string }> {
-  const kind = selectedMediaKind(file);
-  const blob =
-    kind === 'photo'
-      ? new Blob([(await prepareAttachment(file, true)).bytes])
-      : file;
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const hash = await bytesHash(bytes);
-  bytes.fill(0);
-  return { blob, kind, hash };
-}
-async function upload(
-  access: CommunityMediaAccess,
-  source: CommunityMediaSource,
-  blob: Blob,
-  onProgress: (fraction: number | null) => void,
-): Promise<string> {
-  let state = communityMediaState(
-    await request(access, 'media-reserve', { source }),
-  );
-  const parts = Math.ceil(source.bytes / communityMediaPartBytes);
-  for (
-    let index = state.received;
-    index < parts && state.status === 'uploading';
-    index++
-  ) {
-    onProgress(index / parts);
-    const bytes = new Uint8Array(
-      await blob
-        .slice(
-          index * communityMediaPartBytes,
-          (index + 1) * communityMediaPartBytes,
-        )
-        .arrayBuffer(),
-    );
-    state = communityMediaState(
-      await request(access, 'media-part', {
-        media: source.id,
-        index,
-        bytes: encode(bytes),
-      }),
-    );
-  }
-  if (state.status === 'uploading')
-    state = communityMediaState(
-      await request(access, 'media-finish', { media: source.id }),
-    );
-  const deadline = Date.now() + 390_000;
-  while (state.status === 'processing') {
-    onProgress(null);
-    if (Date.now() > deadline)
-      throw new Error('Preparation still in progress. Try again to resume.');
-    await pause(1000, access.signal);
-    state = communityMediaState(
-      await request(access, 'media-status', { media: source.id }),
-    );
-  }
-  if (state.status !== 'ready')
-    throw new Error(
-      state.error ?? 'Media is not ready yet. Resume the upload.',
-    );
-  return source.id;
-}
-/** Bounded discovery of the author's unfinished uploads enables retry/reselection without a new copy. */
-export async function uploadCommunityMedia(
-  access: CommunityMediaAccess,
-  files: File[],
-  onProgress: (progress: MediaProgress) => void,
-): Promise<string[]> {
-  validateMediaSelection(files);
-  const result: string[] = [],
-    pending = await request(access, 'media-pending', {});
-  if (!Array.isArray(pending) || pending.length > 32)
-    throw new Error('Invalid uploads state.');
-  const candidates = pending.map(communityMediaState);
-  for (const file of files) {
-    const prepared = await preparedSource(file);
-    const old = candidates.find(
-      (s) =>
-        s.source.hash === prepared.hash &&
-        s.source.bytes === prepared.blob.size &&
-        s.source.kind === prepared.kind &&
-        !result.includes(s.source.id),
-    );
-    const source = old?.source ?? {
-      id: crypto.randomUUID(),
-      kind: prepared.kind,
-      hash: prepared.hash,
-      bytes: prepared.blob.size,
-    };
-    const index = result.length;
-    result.push(
-      await upload(access, source, prepared.blob, (fraction) =>
-        onProgress({ index, fraction }),
-      ),
-    );
-  }
-  return result;
-}
 const clipIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg>';
 /** One thumbnail per chosen file, each with its own remove button. */
@@ -316,15 +108,49 @@ export function mediaEditor(
     input.click();
   });
   let chosen: File[] = [],
-    prepared: string[] | null = null,
     release = (): void => undefined;
+  const progress = new Map<File, number | null>(),
+    rings = new Map<File, UploadRing>();
+  const shown = (): boolean => access.valid() && field.isConnected;
+  const paint = (): void => {
+    for (const [index, file] of chosen.entries()) {
+      const value = progress.get(file),
+        tile = previews.children[index] as HTMLElement | undefined;
+      if (value === undefined || !tile) continue;
+      let ring = rings.get(file);
+      if (!ring || !tile.contains(ring.element)) {
+        ring = uploadRing();
+        rings.set(file, ring);
+        tile.append(ring.element);
+      }
+      ring.set(value);
+    }
+  };
+  const uploads = new ChosenUploads(access, {
+    progress: (file, value) => {
+      progress.set(file, value);
+      if (shown()) paint();
+    },
+    failed: (file, error) => {
+      progress.delete(file);
+      rings.get(file)?.element.remove();
+      rings.delete(file);
+      if (shown()) status.textContent = uploadError(error);
+    },
+  });
   const show = (): void => {
     release();
-    prepared = null;
+    uploads.update(chosen);
+    for (const file of [...progress.keys(), ...rings.keys()])
+      if (!chosen.includes(file)) {
+        progress.delete(file);
+        rings.delete(file);
+      }
     release = renderPreviews(previews, chosen, (index) => {
       chosen = chosen.filter((_, position) => position !== index);
       show();
     });
+    paint();
   };
   access.signal.addEventListener('abort', () => release(), { once: true });
   input.addEventListener('change', () => {
@@ -356,41 +182,20 @@ export function mediaEditor(
   return async () => {
     if (remove.checked) return [];
     if (!chosen.length) return ids;
-    const rings = new Map<number, UploadRing>();
     try {
-      prepared ??= await uploadCommunityMedia(access, chosen, (progress) => {
-        if (access.valid() && field.isConnected)
-          showTileProgress(previews, rings, progress);
-      });
+      const result = await uploads.ids(chosen);
       status.textContent = '';
-      return prepared;
+      return result;
     } catch (error: unknown) {
-      for (const ring of rings.values()) ring.element.remove();
-      if (access.valid() && field.isConnected)
-        status.textContent =
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Media upload unavailable. Try again.');
+      if (shown()) status.textContent = uploadError(error);
       throw error;
     }
   };
 }
-/** A ring over the thumbnail being sent; finished files keep a full ring. */
-function showTileProgress(
-  previews: HTMLElement,
-  rings: Map<number, UploadRing>,
-  progress: MediaProgress,
-): void {
-  const tile = previews.children[progress.index] as HTMLElement | undefined;
-  if (!tile) return;
-  let ring = rings.get(progress.index);
-  if (!ring) {
-    ring = uploadRing();
-    rings.set(progress.index, ring);
-    tile.append(ring.element);
-  }
-  ring.set(progress.fraction);
-  for (const [index, done] of rings) if (index < progress.index) done.set(1);
+function uploadError(error: unknown): string {
+  return error instanceof Error
+    ? translatedError(error.message)
+    : t('Media upload unavailable. Try again.');
 }
 export function restrictedMedia(
   container: HTMLElement,

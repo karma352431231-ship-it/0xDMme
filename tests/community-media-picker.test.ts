@@ -83,3 +83,139 @@ await test('preparation error leaves progress state and allows resuming the same
     else Reflect.deleteProperty(globalThis, 'document');
   }
 });
+
+/** A server that finishes every upload at once and records each operation. */
+function mediaServer() {
+  const states = new Map<string, CommunityMediaState>(),
+    operations: string[] = [],
+    cancelled: string[] = [];
+  const ready = (state: CommunityMediaState): CommunityMediaState => ({
+    ...state,
+    status: 'ready',
+    result: {
+      kind: 'gif',
+      type: 'image/gif',
+      bytes: 100,
+      width: 32,
+      height: 32,
+      seconds: 1,
+      fps: 20,
+      thumbnailBytes: 50,
+      normalized: true,
+    },
+  });
+  const request = (operation: string, payload: Record<string, unknown>) => {
+    operations.push(operation);
+    if (operation === 'media-pending') return Promise.resolve([]);
+    if (operation === 'media-reserve') {
+      const source = payload['source'] as CommunityMediaState['source'];
+      const state: CommunityMediaState = {
+        source,
+        received: 0,
+        status: 'uploading',
+        result: null,
+        error: null,
+      };
+      states.set(source.id, state);
+      return Promise.resolve(state);
+    }
+    const id = String(payload['media']),
+      state = states.get(id)!;
+    if (operation === 'media-part') state.received++;
+    if (operation === 'media-finish') states.set(id, ready(state));
+    if (operation === 'media-cancel') cancelled.push(id);
+    return Promise.resolve(states.get(id));
+  };
+  return { request, operations, cancelled, ids: () => [...states.keys()] };
+}
+
+async function withEditor(
+  work: (editor: {
+    send: () => Promise<string[]>;
+    choose: (files: File[]) => void;
+    host: CommunityNode;
+    close: () => void;
+    server: ReturnType<typeof mediaServer>;
+  }) => Promise<void>,
+): Promise<void> {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: communityDocument(),
+  });
+  const abort = new AbortController(),
+    server = mediaServer(),
+    host = new CommunityNode();
+  try {
+    const send = mediaEditor(host as unknown as HTMLElement, [], {
+      community: crypto.randomUUID(),
+      valid: () => !abort.signal.aborted,
+      signal: abort.signal,
+      request: server.request,
+    });
+    const picker = host.querySelector('.media-picker')!;
+    Object.assign(picker, { isConnected: true });
+    const input = picker.querySelector('input')!;
+    await work({
+      send,
+      host,
+      server,
+      close: () => abort.abort(),
+      choose: (files) => {
+        Object.assign(input, { files });
+        input.dispatchEvent(new Event('change'));
+      },
+    });
+  } finally {
+    abort.abort();
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else Reflect.deleteProperty(globalThis, 'document');
+  }
+}
+const gif = (name: string) =>
+  new File([crypto.getRandomValues(new Uint8Array(10))], name, {
+    type: 'image/gif',
+  });
+const settle = async (done: () => boolean) => {
+  for (let turn = 0; turn < 200 && !done(); turn++)
+    await new Promise<void>((resolve) => setImmediate(resolve));
+};
+
+await test('chosen pictures upload before Publish, which then only waits for what is left', async () => {
+  await withEditor(async ({ send, choose, server }) => {
+    choose([gif('a.gif'), gif('b.gif')]);
+    await settle(
+      () => server.operations.filter((op) => op === 'media-finish').length > 1,
+    );
+    assert.equal(
+      server.operations.filter((op) => op === 'media-finish').length,
+      2,
+      'Both files were sent while the post was still being written',
+    );
+    const before = server.operations.length;
+    assert.deepEqual(await send(), server.ids());
+    assert.equal(server.operations.length, before, 'Publish sent nothing new');
+  });
+});
+
+await test('a removed picture and an unpublished draft are cancelled, a published upload is kept', async () => {
+  await withEditor(async ({ send, choose, host, close, server }) => {
+    choose([gif('a.gif'), gif('b.gif')]);
+    await settle(() => server.ids().length === 2);
+    const [first, second] = server.ids();
+    host.querySelectorAll('.media-picker-remove')[0]!.click();
+    await settle(() => server.cancelled.length > 0);
+    assert.deepEqual(server.cancelled, [first]);
+    assert.deepEqual(await send(), [second]);
+    choose([gif('c.gif')]);
+    await settle(() => server.ids().length === 3);
+    const third = server.ids()[2];
+    close();
+    await settle(() => server.cancelled.length > 1);
+    assert.deepEqual(
+      server.cancelled,
+      [first, third],
+      'The file handed to a publish is never cancelled',
+    );
+  });
+});
