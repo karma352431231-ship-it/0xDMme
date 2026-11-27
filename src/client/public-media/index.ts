@@ -145,6 +145,7 @@ export function showPublicPostMedia(
         load: (signal) => publicPostMediaBlob(item, false, signal),
         gallery: { items: gallery.items, index },
         shown: (url) => gallery.shown(index, url),
+        near: field,
       }),
     );
   }

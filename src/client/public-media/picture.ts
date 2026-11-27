@@ -22,6 +22,11 @@ export function mountPublicPicture(
     gallery?: { items: readonly GalleryItem[]; index: number } | undefined;
     /** Told when this picture's loaded copy appears or goes away. */
     shown?: ((url: string | null) => void) | undefined;
+    /** The element whose nearness to the screen loads this picture; the
+     * picture itself by default. A post's sideways strip clips the pictures
+     * scrolled aside, so they load with the strip instead of waiting for a
+     * swipe (27/11/2026). */
+    near?: Element | undefined;
   },
 ): () => void {
   slot.classList.add('community-public-picture');
@@ -179,7 +184,7 @@ export function mountPublicPicture(
     stop();
     return stop;
   }
-  if (observer) observer.observe(slot);
+  if (observer) observer.observe(options.near ?? slot);
   else {
     visible = true;
     void load();

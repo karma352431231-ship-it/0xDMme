@@ -4,6 +4,12 @@
 .community-mobile-tabs {
   display: none;
 }
+/* A post opens from a tap anywhere on it, so Android painted its blue tap
+   highlight over the whole post (27/11/2026). Controls keep their own
+   pressed and focus styles. */
+:is(.app[data-page='comunidades'], .community-scope) {
+  -webkit-tap-highlight-color: transparent;
+}
 .app[data-page='comunidades'] {
   color: var(--text);
   background: var(--bg);

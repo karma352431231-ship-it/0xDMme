@@ -393,3 +393,89 @@ await test('visited feed photo returns without hiding its source or downloading 
     }
   }
 });
+
+await test('pictures scrolled aside in a post strip load with the strip, not on a swipe', async (t) => {
+  const { showPublicPostMedia } =
+    await import('../src/client/public-media/index.ts');
+  const { CommunityNode, communityDocument } =
+    await import('./fixtures/community-dom.ts');
+  const document = communityDocument();
+  const create = document.createElement;
+  document.createElement = (tag) =>
+    Object.assign(create(tag), { style: { setProperty() {} } });
+  type Report = (entries: Array<{ isIntersecting: boolean }>) => void;
+  const observed: Array<{ report: Report; target: { className: string } }> = [];
+  const saved = ['document', 'IntersectionObserver'].map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: document,
+  });
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    value: class {
+      private readonly report: Report;
+      constructor(report: Report) {
+        this.report = report;
+      }
+      observe(target: { className: string }) {
+        observed.push({ report: this.report, target });
+      }
+      disconnect() {}
+    },
+  });
+  const paths: string[] = [];
+  t.mock.method(URL, 'createObjectURL', () => 'blob:photo');
+  t.mock.method(URL, 'revokeObjectURL', () => undefined);
+  t.mock.method(globalThis, 'fetch', (url: string) => {
+    paths.push(url);
+    return Promise.resolve(
+      new Response(new Uint8Array(3), {
+        headers: { 'Content-Type': 'image/png', 'Content-Length': '3' },
+      }),
+    );
+  });
+  const photo = () => ({
+    id: crypto.randomUUID(),
+    review: crypto.randomUUID(),
+    result: {
+      kind: 'photo' as const,
+      type: 'image/png' as const,
+      bytes: 3,
+      width: 800,
+      height: 1000,
+      seconds: 0,
+      fps: 0,
+      thumbnailBytes: 2,
+      normalized: true,
+    },
+  });
+  const stop = new AbortController();
+  try {
+    const host = new CommunityNode();
+    showPublicPostMedia(
+      host as unknown as HTMLElement,
+      [photo(), photo(), photo()],
+      stop.signal,
+    );
+    // The browser: the strip is on screen, the pictures beyond its edge are
+    // clipped by its sideways scroll and never intersect.
+    for (const { report, target } of observed)
+      report([
+        { isIntersecting: target.className === 'community-public-media' },
+      ]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(paths.length, 3);
+    assert.equal(
+      host.querySelectorAll('img').filter((image) => !image.hidden).length,
+      3,
+    );
+  } finally {
+    stop.abort();
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
