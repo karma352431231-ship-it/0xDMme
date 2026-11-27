@@ -176,9 +176,11 @@ const gif = (name: string) =>
   new File([crypto.getRandomValues(new Uint8Array(10))], name, {
     type: 'image/gif',
   });
+/** Uploads hash on the thread pool, so a busy runner needs real time. */
 const settle = async (done: () => boolean) => {
-  for (let turn = 0; turn < 200 && !done(); turn++)
-    await new Promise<void>((resolve) => setImmediate(resolve));
+  const deadline = Date.now() + 10_000;
+  while (!done() && Date.now() < deadline)
+    await new Promise<void>((resolve) => setTimeout(resolve, 2));
 };
 
 await test('chosen pictures upload before Publish, which then only waits for what is left', async () => {
