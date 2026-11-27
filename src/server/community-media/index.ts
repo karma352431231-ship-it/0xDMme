@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto';
 import {
   AccountError,
-  base64,
   encode,
   keys,
   uuid,
@@ -18,6 +16,7 @@ import type {
 } from '../database/index.ts';
 import { CommunityMediaFiles } from './files.ts';
 import { CommunityMediaNormalizer } from './normalize.ts';
+import { CommunityMediaTransfer, isMediaTransfer } from './transfer.ts';
 import { readMediaRuntime } from './process.ts';
 import { reserveOperationMemory } from '../memory-admission/index.ts';
 export { CommunityMediaFiles } from './files.ts';
@@ -46,6 +45,7 @@ export class CommunityMediaService {
   private readonly store: CommunityMediaStore;
   private readonly files: CommunityMediaFiles;
   private readonly normalizer: CommunityMediaNormalizer;
+  private readonly transfer: CommunityMediaTransfer;
   private readonly jobs = new Map<string, Promise<void>>();
   private readonly stop = new AbortController();
   private cleaning: Promise<void> | null = null;
@@ -60,6 +60,11 @@ export class CommunityMediaService {
       sharedProcessing: Boolean(runtime?.socket),
     });
     this.normalizer = new CommunityMediaNormalizer(runtime, this.files);
+    this.transfer = new CommunityMediaTransfer({
+      store: this.store,
+      files: this.files,
+      signal: this.stop.signal,
+    });
   }
   async initialize(): Promise<void> {
     await this.files.initialize();
@@ -133,7 +138,8 @@ export class CommunityMediaService {
         communityMediaSource(d['source']),
       );
     }
-    if (operation === 'media-part') return this.part(a, community, d);
+    if (isMediaTransfer(operation))
+      return this.transfer.run({ operation, authority: a, community, data: d });
     if (operation === 'media-get') return this.read(a, community, d);
     if (operation === 'media-pending') {
       keys(d, ['id']);
@@ -150,35 +156,6 @@ export class CommunityMediaService {
       return { cancelled: true };
     }
     throw new AccountError(404, 'Media operation unavailable.');
-  }
-  private async part(
-    a: ContactAuthority,
-    community: string,
-    d: Record<string, unknown>,
-  ): Promise<unknown> {
-    keys(d, ['id', 'media', 'index', 'bytes']);
-    const id = uuid(d['media']),
-      index = integer(d['index'], 381),
-      bytes = base64(d['bytes'], communityMediaPartBytes);
-    const hash = createHash('sha256').update(bytes).digest('hex'),
-      lease = await this.store.begin(a, { community, id, index, hash });
-    if (!lease.writer) return lease.state;
-    try {
-      if (
-        bytes.length !==
-        Math.min(
-          communityMediaPartBytes,
-          lease.state.source.bytes - index * communityMediaPartBytes,
-        )
-      )
-        throw new AccountError(400, 'Part size does not match.');
-      await this.files.part(id, index, bytes);
-      await this.store.part(a, { community, id, writer: lease.writer, hash });
-    } catch (error: unknown) {
-      await this.store.release(id, lease.writer);
-      throw error;
-    }
-    return this.store.status(a, community, id);
   }
   private async finish(
     a: ContactAuthority,

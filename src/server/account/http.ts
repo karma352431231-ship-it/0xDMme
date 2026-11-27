@@ -30,6 +30,11 @@ import { createApprovalEntry } from './approval-http.ts';
 import { activitySnapshotPath } from '../../shared/activity-snapshot/index.ts';
 import { readPublicActivity } from '../activity-snapshot/index.ts';
 import { publicStickerBytes } from '../../shared/public-stickers/index.ts';
+import {
+  communityMediaBatchBodyBytes,
+  communityMediaBatchPath,
+} from '../../shared/community-media/transfer.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 
 import {
   approvalDocumentUrl,
@@ -55,6 +60,7 @@ function bodyLimit(url: string | undefined): number {
   if (url === '/api/account/public-profile/sticker-upload')
     return Math.ceil(publicStickerBytes / 3) * 4 + 4096;
   if (url === '/api/account/communities/media-part') return 360_000;
+  if (url === communityMediaBatchPath) return communityMediaBatchBodyBytes;
   if (url?.startsWith('/api/account/communities/')) return 28000;
   return accountBodyLimit(url);
 }
@@ -72,6 +78,15 @@ function accountBodyLimit(url: string | undefined): number {
 
 function body(request: IncomingMessage): Promise<unknown> {
   return readAccountBody(request, bodyLimit(request.url));
+}
+
+function admitBatchBody(request: IncomingMessage): (() => void) | undefined {
+  if (request.method !== 'POST' || request.url !== communityMediaBatchPath)
+    return;
+  // Account for input buffers, parsed JSON and copies made for verification.
+  const release = reserveOperationMemory(communityMediaBatchBodyBytes * 6);
+  if (!release) throw new AccountError(429, 'Transfers busy. Resume later.');
+  return release;
 }
 
 export function createAccountHandler(options: {
@@ -381,8 +396,10 @@ export function createAccountHandler(options: {
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
+    let release: (() => void) | undefined;
     try {
       admit(request);
+      release = admitBatchBody(request);
       if (request.method === 'POST') {
         await post(request, response);
         return;
@@ -399,6 +416,8 @@ export function createAccountHandler(options: {
       sendAccountJson(response, 503, {
         error: 'Account unavailable. Try again.',
       });
+    } finally {
+      release?.();
     }
   }
   /** Public, unauthenticated client settings. */

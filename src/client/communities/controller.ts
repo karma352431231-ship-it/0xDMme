@@ -14,6 +14,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import { signedCommunityRequest } from './signed-request.ts';
 import type { CommunitySigner } from './signed-request.ts';
 import { MediaPartAuthority } from './media-part-authority.ts';
+import { communityMediaBatchOperation } from '../../shared/community-media/transfer.ts';
 
 export async function communityRead(
   path: string,
@@ -92,7 +93,11 @@ export class Communities {
           generation === this.generation,
       });
     // Community requests only sign; they run outside the exclusive account turn.
-    if (operation !== 'media-part') return withSigner(this.access, send);
+    if (
+      operation !== 'media-part' &&
+      operation !== communityMediaBatchOperation
+    )
+      return withSigner(this.access, send);
     try {
       return await send(await this.parts.get());
     } catch (error: unknown) {

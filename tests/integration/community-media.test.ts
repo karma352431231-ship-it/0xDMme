@@ -21,6 +21,7 @@ import {
   communityMediaState,
 } from '../../src/shared/community-media/index.ts';
 import type { CommunityMediaSource } from '../../src/shared/community-media/index.ts';
+import { communityMediaBatchParts } from '../../src/shared/community-media/transfer.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import type { CommunityPost } from '../../src/shared/community-posts/index.ts';
 import { Database } from '../../src/server/database/index.ts';
@@ -396,7 +397,7 @@ await test('community media: real chain, authorization, atomic binding, capacity
     },
   );
   await t.test(
-    'HTTP transfers 100 MB in 382 parts and serves another user at the same address without a 60-request cap',
+    'HTTP transfers 100 MB with ordered video batches and serves another user at the same address',
     async () => {
       // Synthetic bytes exercise durable transport, without decoding a fake video.
       const data = Buffer.alloc(communityMediaLimits.video.source, 9),
@@ -404,20 +405,80 @@ await test('community media: real chain, authorization, atomic binding, capacity
         second = descriptor('photo', bytes),
         parts = Math.ceil(data.length / communityMediaPartBytes);
       await httpOperation(author, 'media-reserve', { id, source: candidate });
-      for (let index = 0; index < parts; index++) {
-        const result = await httpOperation(author, 'media-part', {
-          id,
-          media: candidate.id,
-          index,
-          bytes: encode(
-            data.subarray(
-              index * communityMediaPartBytes,
-              (index + 1) * communityMediaPartBytes,
-            ),
+      const position = { id, media: candidate.id };
+      const part = (index: number) =>
+        encode(
+          data.subarray(
+            index * communityMediaPartBytes,
+            (index + 1) * communityMediaPartBytes,
           ),
-        });
-        assert.equal(communityMediaState(result).received, index + 1);
+        );
+      assert.deepEqual(
+        await httpOperation(author, 'media-parts-policy', position),
+        { parts: communityMediaBatchParts },
+      );
+      await httpOperation(author, 'media-part', {
+        ...position,
+        index: 0,
+        bytes: part(0),
+      });
+      await assert.rejects(
+        outsider.operate('media-parts', {
+          ...position,
+          index: 1,
+          parts: [part(1), part(2)],
+        }),
+        bad(404),
+      );
+      await assert.rejects(
+        author.operate('media-parts', {
+          ...position,
+          index: 2,
+          parts: [part(2), part(3)],
+        }),
+        bad(409),
+      );
+      await assert.rejects(
+        author.operate('media-parts', {
+          ...position,
+          index: 1,
+          parts: [part(1), encode(Uint8Array.of(1))],
+        }),
+        bad(400),
+      );
+      assert.equal((await state(candidate.id)).received, 2);
+      await assert.rejects(
+        author.operate('media-parts', {
+          ...position,
+          index: 1,
+          parts: [encode(new Uint8Array(communityMediaPartBytes)), part(2)],
+        }),
+        bad(409),
+      );
+      for (let index = 1; index < parts; index += communityMediaBatchParts) {
+        const end = Math.min(parts, index + communityMediaBatchParts);
+        const payload = { ...position, index };
+        const result =
+          end - index === 1
+            ? await httpOperation(author, 'media-part', {
+                ...payload,
+                bytes: part(index),
+              })
+            : await httpOperation(author, 'media-parts', {
+                ...payload,
+                parts: Array.from({ length: end - index }, (_, offset) =>
+                  part(index + offset),
+                ),
+              });
+        assert.equal(communityMediaState(result).received, end);
       }
+      const actual = await readFile(
+        join(root, 'community-media', candidate.id, 'part-1'),
+      );
+      assert.deepEqual(
+        actual,
+        data.subarray(communityMediaPartBytes, 2 * communityMediaPartBytes),
+      );
       await httpOperation(outsider, 'media-reserve', { id, source: second });
       const received = await httpOperation(outsider, 'media-part', {
         id,

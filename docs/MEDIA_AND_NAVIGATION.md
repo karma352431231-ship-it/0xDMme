@@ -89,6 +89,21 @@ All attempts terminate their worker; the serial queue and its admission budget
 remain unchanged. This improves handling of transient worker failures without
 claiming that every device-specific failure has been reproduced.
 
+## Community video transfer
+
+Community post and reply videos send up to four consecutive parts in a signed
+request. The browser measures a single full part first and chooses a batch
+size within the existing request deadline. Slow connections and releases
+without batch support use single-part requests. If a batch response is lost
+or the transport rejects its size, the browser reads the confirmed prefix
+from the reservation and continues with individual requests.
+
+Each 256 KiB part retains its own durable write, authorization check and hash.
+A failed request can leave a confirmed prefix, and a replay must match every
+already accepted part. Request bodies have a 1,440,000-byte limit and reserve
+memory before parsing. The common reservation, file assembly and video
+preparation contracts apply to both request sizes.
+
 ## Validation and review boundaries
 
 Regression tests cover the retained feed page/cursor/scroll, session cleanup,
